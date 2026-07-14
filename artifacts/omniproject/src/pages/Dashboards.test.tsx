@@ -269,4 +269,44 @@ describe("Dashboards", () => {
     await user.upload(screen.getByLabelText(/import dashboard file/i), file);
     expect(await screen.findByRole("alert")).toHaveTextContent(/valid json/i);
   });
+
+  it("formats a non-standard refresh interval in the Live badge (refreshLabel fallback)", () => {
+    renderWithProviders(<Dashboards />, { client: seed({ dashboards: [{ id: "d1", name: "Ops", widgets: [], refreshMs: 45_000 }] }) });
+    // 45000ms isn't one of the preset options → the label falls back to a computed "45s".
+    expect(screen.getByTestId("dashboard-live")).toHaveTextContent("45s");
+  });
+
+  it("labels an unknown widget by its raw type in edit mode", () => {
+    const dash: Dashboard = { id: "d1", name: "Legacy", widgets: [{ id: "w1", type: "goneWidget" }] };
+    renderWithProviders(<Dashboards />, { client: seed({ dashboards: [dash] }) });
+    fireEvent.click(screen.getByRole("button", { name: /^edit$/i }));
+    // widgetDef(type)?.label ?? type — the unknown type has no def, so the raw type is shown.
+    expect(screen.getByText("goneWidget")).toBeInTheDocument();
+  });
+
+  it("ignores the placeholder options in the add-widget and preset selects", () => {
+    const dash: Dashboard = { id: "d1", name: "Exec", widgets: [{ id: "w1", type: "projectCount" }] };
+    renderWithProviders(<Dashboards />, { client: seed({ dashboards: [dash] }) });
+    // Selecting the empty preset placeholder is a no-op (guarded onChange).
+    fireEvent.change(screen.getByLabelText("Apply a preset"), { target: { value: "" } });
+    expect(screen.getByTestId("dashboard-grid")).toBeInTheDocument();
+    // In edit mode, re-selecting the "+ Add widget…" placeholder adds nothing.
+    fireEvent.click(screen.getByRole("button", { name: /^edit$/i }));
+    fireEvent.change(screen.getByLabelText(/add widget/i), { target: { value: "" } });
+    expect(screen.getAllByLabelText(/remove widget/i)).toHaveLength(1);
+  });
+
+  it("no-ops a reorder at the list boundary", () => {
+    const dash: Dashboard = { id: "d1", name: "Exec", widgets: [
+      { id: "w1", type: "projectCount", span: 1 },
+      { id: "w2", type: "statusBreakdown", span: 1 },
+    ] };
+    renderWithProviders(<Dashboards />, { client: seed({ dashboards: [dash] }) });
+    fireEvent.click(screen.getByRole("button", { name: /^edit$/i }));
+    // Moving the first widget up (j = -1) and the last widget down (j >= length) both return early.
+    fireEvent.click(screen.getAllByLabelText("Move up")[0]!);
+    fireEvent.click(screen.getAllByLabelText("Move down")[1]!);
+    // Both widgets survive, order untouched.
+    expect(screen.getAllByLabelText(/remove widget/i)).toHaveLength(2);
+  });
 });

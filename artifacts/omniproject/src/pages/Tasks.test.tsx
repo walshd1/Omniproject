@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { screen, fireEvent, waitFor } from "@testing-library/react";
+import { screen, fireEvent, waitFor, within } from "@testing-library/react";
 import { renderWithProviders } from "../test/utils";
 import { Tasks } from "./Tasks";
 import type { Task } from "../lib/tasks";
@@ -62,5 +62,56 @@ describe("Tasks", () => {
       const post = fetchMock.mock.calls.find((c) => c[0] === "/api/tasks" && c[1]?.method === "POST");
       expect(JSON.parse(String(post![1].body)).priority).toBe("high");
     });
+  });
+
+  it("submits the quick-add on Enter in the title field", async () => {
+    renderWithProviders(<Tasks />);
+    await screen.findByText("Call the auditor");
+    const input = screen.getByPlaceholderText("Add a next action…");
+    fireEvent.change(input, { target: { value: "Ring the bank" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+    await waitFor(() => {
+      const post = fetchMock.mock.calls.find((c) => c[0] === "/api/tasks" && c[1]?.method === "POST");
+      expect(JSON.parse(String(post![1].body)).title).toBe("Ring the bank");
+    });
+  });
+
+  it("carries an @context and submits on Enter from the context field", async () => {
+    renderWithProviders(<Tasks />);
+    await screen.findByText("Call the auditor");
+    fireEvent.change(screen.getByPlaceholderText("Add a next action…"), { target: { value: "Water the plants" } });
+    const ctx = screen.getByPlaceholderText("@context");
+    fireEvent.change(ctx, { target: { value: "@home" } });
+    fireEvent.keyDown(ctx, { key: "Enter" });
+    await waitFor(() => {
+      const post = fetchMock.mock.calls.find((c) => c[0] === "/api/tasks" && c[1]?.method === "POST");
+      const body = JSON.parse(String(post![1].body));
+      expect(body.title).toBe("Water the plants");
+      expect(body.context).toBe("@home");
+    });
+  });
+
+  it("ignores an empty/whitespace quick-add — Enter with no real title posts nothing", async () => {
+    renderWithProviders(<Tasks />);
+    await screen.findByText("Call the auditor");
+    const input = screen.getByPlaceholderText("Add a next action…");
+    fireEvent.keyDown(input, { key: "Enter" }); // empty
+    fireEvent.change(input, { target: { value: "   " } });
+    fireEvent.keyDown(input, { key: "Enter" }); // whitespace-only
+    // A non-Enter key is a no-op too (guards the keydown branch).
+    fireEvent.keyDown(input, { key: "a" });
+    expect(fetchMock.mock.calls.find((c) => c[0] === "/api/tasks" && c[1]?.method === "POST")).toBeUndefined();
+  });
+
+  it("opens the task detail dialog from a row and closes it again", async () => {
+    renderWithProviders(<Tasks />);
+    await screen.findByText("Call the auditor");
+    // The list renders each task title as a button that opens the detail dialog (onOpen → setDetail).
+    fireEvent.click(screen.getByRole("button", { name: "Call the auditor" }));
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByText("Call the auditor")).toBeInTheDocument();
+    // Closing the dialog runs onOpenChange(false) → setDetail(null).
+    fireEvent.click(within(dialog).getByRole("button", { name: /close/i }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
   });
 });

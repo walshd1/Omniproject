@@ -8,6 +8,7 @@ import {
   type Capabilities,
 } from "@workspace/api-client-react";
 import { renderWithProviders } from "../test/utils";
+import { methodologyCompositionQueryKey } from "../lib/methodology-composition-api";
 import { Reports } from "./Reports";
 
 function project(over: Partial<Project> = {}): Project {
@@ -74,5 +75,31 @@ describe("Reports", () => {
     renderWithProviders(<Reports />, { client: seed([], caps()) });
     expect(screen.getByRole("heading", { level: 1, name: /enterprise reporting/i })).toBeInTheDocument();
     expect(screen.queryByLabelText(/report project/i)).not.toBeInTheDocument();
+  });
+
+  it("renders the section heading (not the dependency note) for a supported domain", () => {
+    renderWithProviders(<Reports />, { client: seed([project()], caps({ portfolio: true, benefits: true })) });
+    // Section-wrapped Gated reports now render their heading instead of the "not available" note.
+    expect(screen.getByRole("heading", { name: /Federated Portfolio \(cross-instance\)/i })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: /Benefits Realisation \(pipeline & trajectory\)/i })).toBeInTheDocument();
+    // A non-section Gated (Portfolio Health) renders its child report bare — its own heading appears.
+    expect(screen.getByText("Portfolio Health")).toBeInTheDocument();
+  });
+
+  it("renders the per-project history section and its composed burndown/burnup charts", () => {
+    renderWithProviders(<Reports />, { client: seed([project()], caps({ history: true })) });
+    // projectId resolves from the seeded project → the history-gated section renders and the
+    // IfComposed children mount (uncurated composition ⇒ visible).
+    expect(screen.getByRole("heading", { name: /Sprint Burndown/i })).toBeInTheDocument();
+  });
+
+  it("hides a section the methodology composition curates out", () => {
+    const qc = seed([project()], caps({ portfolio: true }));
+    // Only portfolio-rag is composed in — every other reportId-gated section is curated out.
+    qc.setQueryData(methodologyCompositionQueryKey, ["report:portfolio-rag"]);
+    renderWithProviders(<Reports />, { client: qc });
+    expect(screen.queryByRole("heading", { name: /Federated Portfolio/i })).toBeNull();
+    // portfolio-rag (Portfolio Health) stays visible.
+    expect(screen.getByText("Portfolio Health")).toBeInTheDocument();
   });
 });

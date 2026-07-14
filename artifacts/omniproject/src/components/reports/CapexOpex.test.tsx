@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { screen } from "@testing-library/react";
+import { screen, fireEvent, waitFor, within } from "@testing-library/react";
 import { QueryClient } from "@tanstack/react-query";
 import { getGetProjectIssuesQueryKey, type Issue } from "@workspace/api-client-react";
 import { renderWithProviders } from "../../test/utils";
@@ -35,5 +35,30 @@ describe("CapexOpex", () => {
       client: seed([issue({ id: "a", title: "Plain", budget: 1000 })]),
     });
     expect(screen.getByTestId("capex-empty")).toBeInTheDocument();
+  });
+
+  it("renders headline totals and dashes an item with no opex/annual charge", () => {
+    renderWithProviders(<CapexOpex projectId="p1" />, {
+      client: seed([
+        // Capex-only, no depreciation period → opex and annual-charge cells collapse to "—".
+        issue({ id: "c", title: "Licences", capexAmount: 20000, costCategory: "Software" }),
+      ]),
+    });
+    expect(screen.getByText("Capital (CapEx)")).toBeInTheDocument();
+    expect(screen.getByText("Operating (OpEx)")).toBeInTheDocument();
+    expect(screen.getByText("Annual capital charge")).toBeInTheDocument();
+    const row = screen.getByTestId("capex-row-c");
+    // capex present, opex + annual charge dashed.
+    expect(row).toHaveTextContent("Software");
+    expect(within(row).getAllByText("—").length).toBeGreaterThanOrEqual(2);
+  });
+
+  it("surfaces an error with a retry control when the issues query fails", async () => {
+    // Nothing seeded → the money hook's issues fetch fails in jsdom, driving the error surface.
+    renderWithProviders(<CapexOpex projectId="p1" />);
+    await waitFor(() => expect(screen.getByRole("alert")).toBeInTheDocument());
+    const retry = screen.getByRole("button", { name: /retry/i });
+    fireEvent.click(retry); // exercises DataState onRetry → refetch()
+    expect(retry).toBeInTheDocument();
   });
 });

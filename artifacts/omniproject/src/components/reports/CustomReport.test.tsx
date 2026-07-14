@@ -93,6 +93,36 @@ describe("CustomReport", () => {
     expect(screen.getByText("Budget by status")).toBeInTheDocument();
   });
 
+  it("shows the 'no matching data' message for a trend report whose dateField matches nothing", () => {
+    // dateField is set (so it's not the "needs a date field" message) but no row carries it.
+    render(<CustomReport def={trendDef({ dateField: "closedAt" })} rows={rows} />);
+    expect(screen.getByTestId("custom-report-empty-r")).toHaveTextContent(/No matching data/);
+  });
+
+  it("honours chart legend:false + stacked:true on a bar viz", () => {
+    render(<CustomReport def={def({ viz: "bar", chart: { legend: false, stacked: true } })} rows={rows} />);
+    // The report renders; the legend/stacked branches are taken on the ChartView props.
+    expect(screen.getByTestId("custom-report-r")).toBeInTheDocument();
+    expect(screen.getByTestId("custom-report-row-r-done")).toBeInTheDocument();
+  });
+
+  it("honours chart legend:false + stacked:true on an area trend viz", () => {
+    const trendRows: Row[] = [
+      { budget: 100, closedAt: "2026-01-10" },
+      { budget: 200, closedAt: "2026-02-05" },
+    ];
+    render(<CustomReport def={trendDef({ viz: "area", dateField: "closedAt", chart: { legend: false, stacked: true } })} rows={trendRows} />);
+    expect(screen.getByTestId("custom-report-r")).toBeInTheDocument();
+    expect(screen.getByText("Jan 2026")).toBeInTheDocument();
+  });
+
+  it("labels the group column 'All' when the report has no groupBy", () => {
+    // trendDef carries no groupBy — with viz "bar" it takes the grouped path with a single all-rows group.
+    render(<CustomReport def={trendDef({ viz: "bar" })} rows={rows} />);
+    // With no groupBy, the single all-rows group renders under an "All" header.
+    expect(screen.getByRole("columnheader", { name: "All" })).toBeInTheDocument();
+  });
+
   it("offers chart export for a chart viz, but not for a plain table", () => {
     const { rerender } = render(<CustomReport def={def({ viz: "bar" })} rows={rows} />);
     expect(screen.getByTestId("export-svg")).toBeInTheDocument();

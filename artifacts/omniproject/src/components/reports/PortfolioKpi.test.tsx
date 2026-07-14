@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { QueryClient } from "@tanstack/react-query";
-import { screen, waitFor } from "@testing-library/react";
+import { screen, waitFor, fireEvent } from "@testing-library/react";
 import {
   getGetPortfolioHealthQueryKey,
   type PortfolioHealthSummary,
@@ -115,6 +115,45 @@ describe("PortfolioKpi", () => {
 
     // Alpha is under budget (-5%) — nothing to drill into.
     expect(screen.queryByTestId("kpi-budget-drill-alpha")).toBeNull();
+  });
+
+  it("navigates to the pre-filtered grid when a drill figure is activated (click + keyboard)", () => {
+    const qc = makeClient();
+    qc.setQueryData(getGetPortfolioHealthQueryKey(), ROWS);
+    renderWithProviders(<PortfolioKpi />, { client: qc });
+
+    // Clicking the BLOCKERS drill runs open() → stopPropagation + navigate(drill.href).
+    fireEvent.click(screen.getByTestId("kpi-blockers-drill-bravo"));
+    expect(window.location.pathname).toBe("/projects/bravo");
+    expect(decodeURIComponent(window.location.search)).toContain('"field":"blocked"');
+
+    // Enter on the BUDGET drill takes the keyboard path through the same handler.
+    fireEvent.keyDown(screen.getByTestId("kpi-budget-drill-bravo"), { key: "Enter" });
+    expect(decodeURIComponent(window.location.search)).toContain('"field":"actualCost"');
+
+    // A non-Enter key is a no-op (guards the onKeyDown branch) — search stays on actualCost.
+    fireEvent.keyDown(screen.getByTestId("kpi-budget-drill-bravo"), { key: "a" });
+    expect(decodeURIComponent(window.location.search)).toContain('"field":"actualCost"');
+  });
+
+  it("falls back to the AMBER palette for an unrecognised RAG status", () => {
+    const qc = makeClient();
+    qc.setQueryData(getGetPortfolioHealthQueryKey(), [
+      { projectId: "zeta", projectName: "Project Zeta", ragStatus: "UNKNOWN", scheduleVarianceDays: 0, budgetVariancePercentage: 0, activeBlockersCount: 0 },
+    ] as unknown as PortfolioHealthSummary[]);
+    renderWithProviders(<PortfolioKpi />, { client: qc });
+    // The raw status is still shown; the card renders (RAG[...] ?? RAG.AMBER kept it from throwing).
+    expect(screen.getByText("UNKNOWN")).toBeInTheDocument();
+    expect(screen.getByTestId("kpi-zeta")).toBeInTheDocument();
+  });
+
+  it("retries the portfolio query from the error surface", async () => {
+    const qc = makeClient();
+    renderWithProviders(<PortfolioKpi />, { client: qc });
+    await waitFor(() => expect(screen.getByRole("alert")).toBeInTheDocument());
+    const retry = screen.getByRole("button", { name: /retry/i });
+    fireEvent.click(retry); // exercises the DataState onRetry → refetch()
+    expect(retry).toBeInTheDocument();
   });
 
   it("shows the empty-state message when there is no portfolio data", () => {

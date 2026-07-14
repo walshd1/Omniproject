@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { screen } from "@testing-library/react";
+import { screen, fireEvent, waitFor, within } from "@testing-library/react";
 import { QueryClient } from "@tanstack/react-query";
 import { getListProjectsQueryKey, getGetProjectIssuesQueryKey, getGetFxRatesQueryKey, type Project, type Issue, type FxRates } from "@workspace/api-client-react";
 import { renderWithProviders } from "../../test/utils";
@@ -111,5 +111,30 @@ describe("DemandIntake", () => {
   it("shows the empty state when no work item carries a live status", () => {
     renderWithProviders(<DemandIntake />, { client: seed([project({ id: "a" })], { a: [issue({ id: "1", status: "cancelled" })] }) });
     expect(screen.getByTestId("demand-intake-empty")).toBeInTheDocument();
+  });
+
+  it("dashes the optional queue cells when a demand item reports none of them", () => {
+    renderWithProviders(<DemandIntake />, {
+      client: seed([project({ id: "a" })], {
+        // Live status only — no requester/assignee, MoSCoW, RICE, WSJF or strategic contribution.
+        a: [issue({ id: "1", status: "todo", title: "Bare demand" })],
+      }),
+    });
+    const row = screen.getByTestId("demand-intake-row-1");
+    expect(row).toHaveTextContent("Bare demand");
+    // requester, MoSCoW, RICE, WSJF and Strat. all collapse to "—".
+    const { getAllByText } = within(row);
+    expect(getAllByText("—").length).toBeGreaterThanOrEqual(4);
+    // No MoSCoW chip is rendered for an item without one.
+    expect(within(row).queryByText(/must|should|could/i)).toBeNull();
+  });
+
+  it("surfaces an error with a retry control when the portfolio query fails", async () => {
+    // Nothing seeded → the project list fetch fails in jsdom, driving the error surface.
+    renderWithProviders(<DemandIntake />);
+    await waitFor(() => expect(screen.getByRole("alert")).toBeInTheDocument());
+    const retry = screen.getByRole("button", { name: /retry/i });
+    fireEvent.click(retry); // exercises DataState onRetry → refetch()
+    expect(retry).toBeInTheDocument();
   });
 });
