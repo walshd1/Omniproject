@@ -148,3 +148,52 @@ export function bypassChain(state: ChainState, d: Decision): ChainState {
 export function activeStage(def: ChainDef, state: ChainState): Stage | null {
   return state.status === "pending" ? def.stages[state.currentStage] ?? null : null;
 }
+
+// ── Validation (chain definitions are stored in org/project JSON) ────────────
+function str(v: unknown): string { return typeof v === "string" ? v.trim() : ""; }
+
+function validateApprover(raw: unknown): ApproverRef {
+  const o = (raw ?? {}) as Record<string, unknown>;
+  if (o["kind"] === "role" && str(o["role"])) return { kind: "role", role: str(o["role"]) };
+  if (o["kind"] === "user" && str(o["sub"])) return { kind: "user", sub: str(o["sub"]) };
+  throw new ApprovalChainError("each approver must be {kind:'role',role} or {kind:'user',sub}");
+}
+
+/** Validate + normalise a set of chain definitions (the settings shape). Throws {@link ApprovalChainError}
+ *  on any malformed def — mapped to a 400 by the settings layer. Enforces unique chain ids, unique stage
+ *  ids within a chain, at least one stage, and at least one approver per stage. */
+export function validateApprovalChains(value: unknown): ChainDef[] {
+  if (!Array.isArray(value)) throw new ApprovalChainError("approvalChains must be an array");
+  const out: ChainDef[] = [];
+  const ids = new Set<string>();
+  for (const raw of value) {
+    const r = (raw ?? {}) as Record<string, unknown>;
+    const id = str(r["id"]);
+    if (!id) throw new ApprovalChainError("each chain needs an id");
+    if (ids.has(id)) throw new ApprovalChainError(`duplicate chain id "${id}"`);
+    ids.add(id);
+
+    const scopeRaw = (r["scope"] ?? {}) as Record<string, unknown>;
+    let scope: ChainDef["scope"];
+    if (scopeRaw["kind"] === "org") scope = { kind: "org" };
+    else if (scopeRaw["kind"] === "project" && str(scopeRaw["projectId"])) scope = { kind: "project", projectId: str(scopeRaw["projectId"]) };
+    else throw new ApprovalChainError(`chain "${id}" scope must be {kind:'org'} or {kind:'project',projectId}`);
+
+    if (!Array.isArray(r["stages"]) || r["stages"].length === 0) throw new ApprovalChainError(`chain "${id}" needs at least one stage`);
+    const stageIds = new Set<string>();
+    const stages: Stage[] = r["stages"].map((sr) => {
+      const s = (sr ?? {}) as Record<string, unknown>;
+      const sid = str(s["id"]);
+      if (!sid) throw new ApprovalChainError(`chain "${id}" has a stage with no id`);
+      if (stageIds.has(sid)) throw new ApprovalChainError(`chain "${id}" has a duplicate stage id "${sid}"`);
+      stageIds.add(sid);
+      if (!Array.isArray(s["approvers"]) || s["approvers"].length === 0) throw new ApprovalChainError(`stage "${sid}" needs at least one approver`);
+      const approvers = s["approvers"].map(validateApprover);
+      return { id: sid, approvers, ...(s["humanOnly"] === true ? { humanOnly: true } : {}) };
+    });
+
+    const rejectionPolicy: RejectionPolicy = r["rejectionPolicy"] === "send-back" ? "send-back" : "abort";
+    out.push({ id, scope, stages, rejectionPolicy, ...(r["requireDistinctApprovers"] === true ? { requireDistinctApprovers: true } : {}) });
+  }
+  return out;
+}

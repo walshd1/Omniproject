@@ -19,6 +19,7 @@ import { isValidCadence, type SnapshotCadence } from "../history/cadence";
 import { logger } from "./logger";
 import { isTruthy } from "./env-config";
 import { validateFieldRouting, FieldRoutingError, type FieldRoute } from "./field-routing";
+import { validateApprovalChains, ApprovalChainError, type ChainDef } from "./approval-chain";
 import { validateCustomFields, validateCustomFieldSources, CustomFieldError, type CustomField } from "./custom-fields";
 import { sanitizeBranding } from "./branding";
 import { sanitizeUserPrefs } from "./user-prefs";
@@ -276,6 +277,8 @@ export interface BrokerConfig {
   /** The field-routing matrix: which source (vendor·broker·sourceField) feeds which UI element.
    *  One-to-one at both ends (anti-collision) — see lib/field-routing. */
   fieldRouting: FieldRoute[];
+  /** Approval-chain definitions (org/project-scoped), authored by PMO/PM. See docs/design/WORKFLOW-APPROVAL-CHAINS.md. */
+  approvalChains: ChainDef[];
   /** Admin-defined fields extending the reference superset. Each must be mapped in `fieldRouting`
    *  (route it to the Postgres backend if there's no external source) — see lib/custom-fields. */
   customFields: CustomField[];
@@ -1017,6 +1020,7 @@ const FIELD_DESCRIPTORS: { [K in keyof SettingsState]: FieldDescriptor<K> } = {
     validate: normalisedBy((v) => validateFieldRouting(v), FieldRoutingError),
   },
   customFields: { seed: () => [], validate: normalisedBy((v) => validateCustomFields(v), CustomFieldError) },
+  approvalChains: { seed: () => [], validate: normalisedBy((v) => validateApprovalChains(v), ApprovalChainError) },
   fieldValidation: {
     // Validate the rule DEFINITIONS (shape + patterns compile); values are enforced on the write path.
     seed: () => [],

@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   startChain, applyDecision, isEligible, redirectStage, bypassChain, activeStage,
-  ApprovalChainError, type ChainDef, type Decision, type Actor,
+  validateApprovalChains, ApprovalChainError, type ChainDef, type Decision, type Actor,
 } from "./approval-chain";
 
 const def = (over: Partial<ChainDef> = {}): ChainDef => ({
@@ -142,6 +142,23 @@ test("PMO bypass forces approved and records the bypassing decision", () => {
   const b = bypassChain(s, dec("s1", "pmo-boss", "approve"));
   assert.equal(b.status, "approved");
   assert.equal(b.decisions.at(-1)!.by, "pmo-boss"); // never silent
+});
+
+test("validateApprovalChains accepts a good def and normalises; rejects malformed ones", () => {
+  const ok = validateApprovalChains([{
+    id: "c1", scope: { kind: "project", projectId: "p1" }, rejectionPolicy: "send-back", requireDistinctApprovers: true,
+    stages: [{ id: "s1", approvers: [{ kind: "role", role: "manager" }] }, { id: "s2", approvers: [{ kind: "user", sub: "pmo-1" }], humanOnly: true }],
+  }]);
+  assert.equal(ok.length, 1);
+  assert.equal(ok[0]!.requireDistinctApprovers, true);
+  assert.equal(ok[0]!.stages[1]!.humanOnly, true);
+  // bad shapes
+  assert.throws(() => validateApprovalChains("nope" as unknown), ApprovalChainError);
+  assert.throws(() => validateApprovalChains([{ id: "", scope: { kind: "org" }, stages: [] }]), /needs an id/);
+  assert.throws(() => validateApprovalChains([{ id: "a", scope: { kind: "org" }, stages: [] }]), /at least one stage/);
+  assert.throws(() => validateApprovalChains([{ id: "a", scope: { kind: "org" }, stages: [{ id: "s", approvers: [] }] }]), /at least one approver/);
+  assert.throws(() => validateApprovalChains([{ id: "a", scope: {}, stages: [{ id: "s", approvers: [{ kind: "role", role: "x" }] }] }]), /scope must be/);
+  assert.throws(() => validateApprovalChains([{ id: "d", scope: { kind: "org" }, stages: [{ id: "s", approvers: [{ kind: "role", role: "x" }] }] }, { id: "d", scope: { kind: "org" }, stages: [{ id: "s", approvers: [{ kind: "role", role: "x" }] }] }]), /duplicate chain id/);
 });
 
 test("no decisions after the chain settles", () => {
