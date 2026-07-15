@@ -16,6 +16,13 @@ The **genuinely new** capability that falls out of this — and is useful everyw
 **any sensitive action** in the system. Approval chains are the core deliverable; the workflow engine is
 largely a *caller* of existing surfaces.
 
+**Human-first, AI optional.** A workflow — and any approval chain in it — may be **fully human / manual**
+(manual steps, human approvals, no AI at all), **fully autonomous** (AI, only where a human has signed off per
+§4), or **any mix of manual and AI**. AI is never required; it is an *optional participant*. Everything in §4
+(the AI responsibility acceptance, the sensitive-data no-go, AI grants) applies **only where AI is actually
+used** — a purely-human workflow needs none of it and simply runs on manual steps + human approvals. The
+default, zero-config shape of this feature is entirely human.
+
 ## 2. What already exists (reuse, do not rebuild)
 
 | Need | Existing code |
@@ -40,7 +47,9 @@ proposals carry **params only, never code** — the executor is a pre-registered
 - **Definition scope**: a chain is defined by a **PMO** (org-level) and/or a **PM** (internal to a project).
   Stored in org/project JSON.
 - **Stages**: sequential (each must approve before the next is asked). A stage names its approver(s) by
-  **RBAC role OR named individual(s)**. (Quorum-per-stage is a later extension.)
+  **RBAC role OR named individual(s)** — **human by default**. An **AI approver is an optional stage type**,
+  permitted only under the §4 rules (signed responsibility acceptance, etc.); a chain with no AI stage is a
+  purely-human approval flow and touches none of §4. (Quorum-per-stage is a later extension.)
 - **Delivery**: each pending approval lands in the approver's **inbox** (MyWork + a notification).
 - **Rejection**: behaviour is **configurable per chain** (abort+notify, or send back one stage).
 - **PMO escape hatch**: a PMO may **redirect** (reassign a stage) or **bypass** (override) a chain. Both are
@@ -64,7 +73,8 @@ be forced, not even by the server.*
   forge an approval**. Verification is against the stored public key (Node `crypto`; no external SDK needed).
 - The signed assertion is recorded in the shared proposal queue + the audit chain (non-repudiation).
 
-**AI → the same shape, with great care (the asymmetry).**
+**AI → the same shape, with great care (the asymmetry).** *(This whole subsection applies ONLY where a
+workflow/chain actually uses AI. A human-only or manual workflow uses none of it.)*
 - An AI actor has no authenticator; its key is **software/server-held**, so the server *could* produce an AI
   signature. An AI approval is therefore **cryptographically weaker** and must never be counted as a human one.
 - Guardrails:
