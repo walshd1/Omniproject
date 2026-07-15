@@ -61,14 +61,14 @@ describe("screen catalogue", () => {
   });
 
   it("ships the methodology board screens, each routed and tagged with its methodology", () => {
-    const expected: Record<string, string> = { kanban: "kanban", scrum: "scrum", "gantt-board": "waterfall", prince2: "prince2", raid: "governance" };
+    const expected: Record<string, string> = { kanban: "kanban", scrum: "scrum", "gantt-board": "waterfall", prince2: "prince2", raid: "governance", sprints: "scrum", "user-stories": "scrum", burndown: "scrum" };
     for (const [id, methodology] of Object.entries(expected)) {
       const def = getScreenDef(id);
       expect(def, `screen ${id}`).toBeTruthy();
       expect(def!.route, `route for ${id}`).toBeTruthy();
       expect(def!.methodologies, `tags for ${id}`).toContain(methodology);
-      // each hosts its board as a view panel
-      expect(def!.panels[0]!.kind).toBe("view");
+      // each hosts a real renderer — a methodology view or a bespoke component (e.g. burndown)
+      expect(["view", "component"]).toContain(def!.panels[0]!.kind);
     }
   });
 

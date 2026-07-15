@@ -13,6 +13,9 @@ import projectDetail from "../screens/project-detail.json";
 import explore from "../screens/explore.json";
 import kanban from "../screens/kanban.json";
 import scrum from "../screens/scrum.json";
+import sprints from "../screens/sprints.json";
+import userStories from "../screens/user-stories.json";
+import burndown from "../screens/burndown.json";
 import gantt from "../screens/gantt.json";
 import prince2 from "../screens/prince2.json";
 import raid from "../screens/raid.json";
@@ -75,6 +78,9 @@ const ENTRIES: ScreenCatalogueEntry[] = [
   explore as ScreenCatalogueEntry,
   kanban as ScreenCatalogueEntry,
   scrum as ScreenCatalogueEntry,
+  sprints as ScreenCatalogueEntry,
+  userStories as ScreenCatalogueEntry,
+  burndown as ScreenCatalogueEntry,
   gantt as ScreenCatalogueEntry,
   prince2 as ScreenCatalogueEntry,
   raid as ScreenCatalogueEntry,

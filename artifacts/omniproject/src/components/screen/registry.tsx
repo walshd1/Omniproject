@@ -9,6 +9,7 @@ import { GraphPanel } from "./panels/GraphPanel";
 import { MapPanel } from "./panels/MapPanel";
 import { ChartPanel } from "./panels/ChartPanel";
 import { ComponentPanel } from "./panels/ComponentPanel";
+import { WidgetPanel } from "./panels/WidgetPanel";
 
 /**
  * Panel-renderer registry — maps a panel `kind` to the ONE component that renders
@@ -33,6 +34,8 @@ export const PANEL_RENDERERS: Partial<Record<PanelKind, PanelComponent>> = {
   // Hosts a full registered SPA page/component as a panel (the escape hatch for bespoke, interactive
   // pages that would regress if rebuilt from the generic primitives). See screen-components.
   component: ComponentPanel,
+  // Hosts any dashboard widget (self-contained, reads its own data) by type. See components/dashboard.
+  widget: WidgetPanel,
 };
 
 /** Whether a renderer exists for a panel kind (else it degrades to a placeholder). */
