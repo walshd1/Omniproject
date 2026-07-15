@@ -51,6 +51,26 @@ DISTINCT eligible signers (neither the initiator). This needs one engine additio
 `requireDistinctApprovers` flag so the *same* person can't satisfy two stages (true N-distinct-human control).
 Revoke stays single-actor (fail-safe) but audited.
 
+**OPTIONAL BUT RECOMMENDED — the invariant scales down to a single admin.** The whole apparatus is **off by
+default** (empty `approvalChains` / `approvalBindings`); a deployment with no chains works exactly as today.
+It's *recommended*, never *required* — because the target includes **SMEs and solo self-hosters** who have
+neither the people nor the infra for multi-party control. The invariant's real content is **"no security
+reduction happens WITHOUT an explicit signed act by a responsible human"** — the *number* of signers scales
+with the humans available:
+
+- **Multi-person org** → the security reduction needs **≥2 distinct** passkey sign-offs (dual-control).
+- **Single admin (SME / self-host)** → dual-control is impossible, so it degrades to **that one admin
+  CONFIRMS + passkey-signs** — one hand because there is only one, but the same non-repudiable accountability.
+  Required-signer count is effectively `min(policy, distinct eligible approvers)`, so a legitimate solo op is
+  never *blocked*, only *signed*.
+- **Choosing the reduced posture is itself a signed acknowledgment.** Running with an empty chain set, or in
+  single-admin mode, is a deliberate act the admin confirms + signs ("I accept I have no separation of duties;
+  each sensitive action is my sole signed responsibility"). So even *opting out* of dual-control is accountable
+  — never silent. The UI *recommends* adding a second admin / chains, but never forces it.
+
+Net: a one-person shop gets accountability (a name against every reduction) without needing a second person;
+a larger org gets true separation of duties. Same invariant, different N.
+
 ## 1. What we're building
 
 An **admin/PMO/PM-gated workflow creator**: a signed-in user (bounded by their RBAC scope) composes
@@ -221,7 +241,9 @@ The invariant — *no lone insider, admin included, may unilaterally REDUCE the 
   misclassification can only ever OVER-gate (safe friction), never under-gate (a hole).
 - **Mechanism = reuse.** A gated change becomes a `dual-control`/approval proposal carrying the patch as
   params (no code in the queue); on the second signature the executor applies the exact patch. Tightening
-  applies immediately (single admin, audited). No role is exempt — an admin loosening still needs a second.
+  applies immediately (single admin, audited). No role is exempt — an admin loosening still needs a second
+  **where a second exists**; in a **single-admin** deployment it degrades to that admin's confirmed passkey
+  signature (§0), so the reduction is always *signed*, never *silent* — just by one hand when there's only one.
 - **Env/deploy-level** security (BROKER_PSK, KMS, TLS) is outside the app's mutation path — an ops/deploy
   control, noted as out of scope for the in-app gate.
 
