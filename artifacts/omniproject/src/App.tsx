@@ -24,6 +24,7 @@ import { VoiceInput } from "./components/VoiceInput";
 
 // Layout (eager — it wraps every authenticated route)
 import { AppLayout } from "./components/layout/AppLayout";
+import { routedScreens } from "./lib/screen-catalogue";
 
 // Pages are code-split: each becomes its own chunk fetched on first visit, so the
 // initial load no longer pays for Reports' charts, the Gantt, etc. (named exports
@@ -129,6 +130,14 @@ function Router() {
       <Route path="/setup">
         <Redirect to="/configurator" />
       </Route>
+      {/* Catalogue-owned artifact screens (JSON defs with a `route`, e.g. a methodology's Kanban board).
+          The route is always mounted so a deep-link resolves; nav visibility is what the methodology
+          composition gates (soft declutter, like the rest of the nav). */}
+      {routedScreens().map((s) => (
+        <Route key={s.id} path={s.route!}>
+          <AppLayout><ScreenPage id={s.id} /></AppLayout>
+        </Route>
+      ))}
       <Route component={NotFound} />
     </Switch>
   );

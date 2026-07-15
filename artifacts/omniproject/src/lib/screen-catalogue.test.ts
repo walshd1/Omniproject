@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { getScreenDef, screenDefs, canonicalLayoutFor } from "./screen-catalogue";
+import { getScreenDef, screenDefs, canonicalLayoutFor, routedScreens, screenCompositionItems, visibleRoutedScreens } from "./screen-catalogue";
 
 /**
  * The JSON screen catalogue is the trusted boundary between untyped JSON and the ScreenDef model the
@@ -49,6 +49,24 @@ describe("screen catalogue", () => {
     expect(res).toBeTruthy();
     const urls = res.panels.map((p) => p.source?.url ?? "");
     expect(urls.every((u) => u.startsWith("/api/resource-allocations/rows"))).toBe(true);
+  });
+
+  it("routed catalogue screens are exposed as methodology composition items", () => {
+    const routed = routedScreens().map((s) => s.id);
+    expect(routed).toContain("kanban"); // declares a route
+    expect(routed).not.toContain("home"); // migrated core page — no catalogue route, keeps its own
+    const items = screenCompositionItems();
+    const kanban = items.find((i) => i.id === "screen:kanban");
+    expect(kanban).toMatchObject({ kind: "screen", methodologies: ["kanban"] });
+  });
+
+  it("a methodology-tagged screen shows/hides with the composition; neutral screens always show", () => {
+    // Uncurated (null) → everything visible.
+    expect(visibleRoutedScreens(null).map((s) => s.id)).toContain("kanban");
+    // Curated to just Kanban → the kanban-tagged screen is in.
+    expect(visibleRoutedScreens(["screen:kanban"]).map((s) => s.id)).toContain("kanban");
+    // Curated to something else → the kanban-tagged screen is hidden.
+    expect(visibleRoutedScreens(["screen:something-else"]).map((s) => s.id)).not.toContain("kanban");
   });
 
   it("canonicalLayoutFor returns a methodology's canonical arrangement, or null", () => {

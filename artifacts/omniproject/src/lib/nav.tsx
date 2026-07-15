@@ -18,11 +18,13 @@
  * from but genuinely shouldn't be browsing (e.g. the Configurator, which reads live
  * broker/backend state a plain contributor has no reason to poke at even read-only).
  */
-import { Layers, Briefcase, BarChart3, FlaskConical, Settings as SettingsIcon, PlugZap, Boxes, Users, Inbox, LayoutDashboard, FileText, ListChecks, Wallet, type LucideIcon } from "lucide-react";
+import { Layers, Briefcase, BarChart3, FlaskConical, Settings as SettingsIcon, PlugZap, Boxes, Users, Inbox, LayoutDashboard, FileText, ListChecks, Wallet, Columns3, type LucideIcon } from "lucide-react";
 import { useGetCapabilities } from "@workspace/api-client-react";
 import { canSurfaceEntity } from "./capabilities-fields";
 import { useFeatures, featureEnabled } from "./features";
 import { useAuth, isPmoOrAdmin, type Role } from "./auth";
+import { useMethodologyComposition } from "./methodology-composition-api";
+import { visibleRoutedScreens } from "./screen-catalogue";
 
 /** Which shelf a nav item lives on. "admin" items are collapsed behind the Advanced gate. */
 export type NavGroup = "primary" | "admin";
@@ -123,12 +125,35 @@ export function useVisibleNavItems(): NavItem[] {
   const { data: caps } = useGetCapabilities();
   const { data: features } = useFeatures();
   const { data: auth } = useAuth();
-  return NAV_ITEMS.filter(
+  const { data: composition } = useMethodologyComposition();
+  const staticItems = NAV_ITEMS.filter(
     (item) =>
       (!item.requiresEntity || canSurfaceEntity(caps, item.requiresEntity)) &&
       (!item.requiresFeature || featureEnabled(features, item.requiresFeature)) &&
       (!item.visibleToRoles || item.visibleToRoles(auth?.role)),
   );
+  return [...staticItems, ...catalogueScreenNavItems(composition ?? null)];
+}
+
+/**
+ * Nav items for the catalogue-owned artifact screens (JSON screen defs with a `route`) that are visible
+ * under the active methodology composition — so selecting Kanban surfaces its Kanban-tagged screens and
+ * hides the rest. Neutral (untagged) catalogue screens always appear. Pure given the composition.
+ */
+export function catalogueScreenNavItems(composition: Parameters<typeof visibleRoutedScreens>[0]): NavItem[] {
+  return visibleRoutedScreens(composition).map((s) => {
+    const label = s.nav?.label ?? s.label;
+    return {
+      href: s.route!,
+      // Catalogue screen labels come from their JSON, not the i18n dict; using the label as the key means
+      // translate() returns it verbatim (no ugly "nav.screen.x" fallback) while staying override-able.
+      i18nKey: label,
+      label,
+      icon: Columns3,
+      match: (l: string) => l.startsWith(s.route!),
+      group: s.nav?.group ?? "primary",
+    };
+  });
 }
 
 /**

@@ -1,4 +1,5 @@
 import type { ScreenDef, ScreenLayout } from "./screen";
+import { isItemVisible, type Composition, type CompositionItem } from "./methodology-composition";
 import budgetPlans from "../screens/budget-plans.json";
 import resourceAllocations from "../screens/resource-allocations.json";
 import home from "../screens/home.json";
@@ -10,6 +11,7 @@ import programmeDetail from "../screens/programme-detail.json";
 import projects from "../screens/projects.json";
 import projectDetail from "../screens/project-detail.json";
 import explore from "../screens/explore.json";
+import kanban from "../screens/kanban.json";
 
 /**
  * Screen-definition catalogue — the panel-bearing ScreenDefs the generic builder renders, authored as
@@ -36,6 +38,12 @@ export interface ScreenCatalogueEntry extends ScreenDef {
    * sensible default arrangement a methodology ships, authored entirely in the screen's JSON.
    */
   methodologyLayouts?: Record<string, ScreenLayout>;
+  /** Route this screen mounts at. Present only on catalogue-OWNED screens (the artifact screens a
+   *  methodology ships, e.g. a Kanban board) — the migrated core pages keep their hand-written routes.
+   *  A screen with a `route` is auto-surfaced in nav + routing, gated by the methodology composition. */
+  route?: string;
+  /** Nav presentation for a routed catalogue screen. */
+  nav?: { label?: string; group?: "primary" | "admin" };
 }
 
 // Vite parses imported JSON to an object; the shape is validated by screen-catalogue.test.ts, so the cast
@@ -52,6 +60,7 @@ const ENTRIES: ScreenCatalogueEntry[] = [
   projects as ScreenCatalogueEntry,
   projectDetail as ScreenCatalogueEntry,
   explore as ScreenCatalogueEntry,
+  kanban as ScreenCatalogueEntry,
 ];
 
 const byId = new Map(ENTRIES.map((s) => [s.id, s]));
@@ -74,4 +83,38 @@ export function screenDefs(): ScreenCatalogueEntry[] {
 export function canonicalLayoutFor(entry: ScreenCatalogueEntry, methodology?: string): ScreenLayout | null {
   if (!methodology) return null;
   return entry.methodologyLayouts?.[methodology] ?? null;
+}
+
+/**
+ * Catalogue-OWNED routed screens — the artifact screens a methodology ships (they declare a `route`), as
+ * opposed to the migrated core pages (which keep their hand-written routes and aren't methodology-gated).
+ * These are the screens that appear/disappear with the methodology composition.
+ */
+export function routedScreens(): ScreenCatalogueEntry[] {
+  return ENTRIES.filter((s) => typeof s.route === "string" && s.route.length > 0);
+}
+
+/**
+ * The routed catalogue screens as methodology-composition items (kind "screen"), so the composer lists
+ * them and a methodology preset (e.g. Kanban) enables its tagged screens. Ids are `screen:<id>`, matching
+ * the backend screen items — catalogue screen ids are net-new (kanban, …) so they don't collide.
+ */
+export function screenCompositionItems(): CompositionItem[] {
+  return routedScreens().map((s) => ({ id: `screen:${s.id}`, kind: "screen", label: s.label, methodologies: s.methodologies ?? [] }));
+}
+
+/**
+ * Is a routed catalogue screen visible under the active composition? A neutral (untagged / "*") screen is
+ * always visible; a methodology-tagged one shows only when the composition enables it — so selecting Kanban
+ * surfaces the Kanban-tagged screens and hides the others. `null` composition = uncurated = all visible.
+ */
+export function screenVisibleUnder(composition: Composition, entry: ScreenCatalogueEntry): boolean {
+  const tags = entry.methodologies ?? [];
+  if (tags.length === 0 || tags.includes("*")) return true;
+  return isItemVisible(composition, "screen", entry.id);
+}
+
+/** The routed catalogue screens visible under a composition (for nav + routing). */
+export function visibleRoutedScreens(composition: Composition): ScreenCatalogueEntry[] {
+  return routedScreens().filter((s) => screenVisibleUnder(composition, s));
 }

@@ -9,6 +9,7 @@ import {
   roleSeesAdminByDefault,
   partitionNavByGroup,
   navShelvesForRole,
+  catalogueScreenNavItems,
 } from "./nav";
 import { featuresQueryKey, type FeatureStatus } from "./features";
 import type { Role } from "./auth";
@@ -177,6 +178,25 @@ describe("nav grouping — progressive disclosure", () => {
     const { primary, admin } = partitionNavByGroup(NAV_ITEMS);
     expect(primary.map((i) => i.href)).toEqual(PRIMARY_HREFS);
     expect(admin.map((i) => i.href)).toEqual(ADMIN_HREFS);
+  });
+});
+
+describe("catalogueScreenNavItems — methodology-gated catalogue screens", () => {
+  it("includes a catalogue screen under an uncurated composition", () => {
+    const hrefs = catalogueScreenNavItems(null).map((i) => i.href);
+    expect(hrefs).toContain("/kanban");
+  });
+
+  it("includes a methodology-tagged catalogue screen when its methodology is selected", () => {
+    const items = catalogueScreenNavItems(["screen:kanban"]);
+    const kanban = items.find((i) => i.href === "/kanban");
+    expect(kanban).toBeTruthy();
+    expect(kanban!.label).toBe("Kanban");
+  });
+
+  it("hides a methodology-tagged catalogue screen when a different methodology is selected", () => {
+    const hrefs = catalogueScreenNavItems(["screen:something-else"]).map((i) => i.href);
+    expect(hrefs).not.toContain("/kanban");
   });
 });
 
