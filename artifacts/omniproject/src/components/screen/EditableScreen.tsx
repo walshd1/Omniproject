@@ -18,13 +18,18 @@ export function EditableScreen({
   screen,
   caps,
   methodology,
+  bare,
 }: {
   screen: ScreenDef;
   caps?: Record<string, boolean>;
   methodology?: string;
+  /** Full-bleed mode (a hosted full-page component) — passed through to the renderer. */
+  bare?: boolean;
 }) {
   const { data: auth } = useAuth();
-  const canEdit = isPmoOrAdmin(auth?.role);
+  // Only offer layout editing when there's actually something to arrange (2+ panels). A single-panel
+  // screen (e.g. a full-page component host) gains nothing from reorder/span/hide, so it stays clean.
+  const canEdit = isPmoOrAdmin(auth?.role) && screen.panels.length >= 2;
   const { data: layouts } = useScreenLayouts();
   const save = useSaveScreenLayouts();
   const { toast } = useToast();
@@ -71,7 +76,7 @@ export function EditableScreen({
   };
 
   return (
-    <div data-testid={`editable-screen-${screen.id}`}>
+    <div data-testid={`editable-screen-${screen.id}`} className={bare ? "h-full" : undefined}>
       {canEdit && (
         <div className="mb-4 flex items-center gap-2">
           {!editing ? (
@@ -140,6 +145,7 @@ export function EditableScreen({
         screen={screen}
         {...(caps ? { caps } : {})}
         {...(methodology ? { methodology } : {})}
+        {...(bare ? { bare: true } : {})}
         layout={layout}
         editable={editing}
         onLayoutChange={(next) => setDraft(next)}

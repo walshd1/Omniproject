@@ -1,6 +1,14 @@
 import type { ScreenDef } from "./screen";
 import budgetPlans from "../screens/budget-plans.json";
 import resourceAllocations from "../screens/resource-allocations.json";
+import home from "../screens/home.json";
+import myWork from "../screens/my-work.json";
+import tasks from "../screens/tasks.json";
+import reports from "../screens/reports.json";
+import programmes from "../screens/programmes.json";
+import programmeDetail from "../screens/programme-detail.json";
+import projects from "../screens/projects.json";
+import projectDetail from "../screens/project-detail.json";
 
 /**
  * Screen-definition catalogue — the panel-bearing ScreenDefs the generic builder renders, authored as
@@ -15,6 +23,9 @@ import resourceAllocations from "../screens/resource-allocations.json";
 export interface ScreenCatalogueEntry extends ScreenDef {
   /** Optional one-line subheading shown under the screen title. */
   hint?: string;
+  /** Full-bleed: a single hosted full-page component that owns its own layout — rendered without the
+   *  ScreenPage header chrome and the tiled grid, so a migrated page looks exactly as it did. */
+  bare?: boolean;
 }
 
 // Vite parses imported JSON to an object; the shape is validated by screen-catalogue.test.ts, so the cast
@@ -22,6 +33,14 @@ export interface ScreenCatalogueEntry extends ScreenDef {
 const ENTRIES: ScreenCatalogueEntry[] = [
   budgetPlans as ScreenCatalogueEntry,
   resourceAllocations as ScreenCatalogueEntry,
+  home as ScreenCatalogueEntry,
+  myWork as ScreenCatalogueEntry,
+  tasks as ScreenCatalogueEntry,
+  reports as ScreenCatalogueEntry,
+  programmes as ScreenCatalogueEntry,
+  programmeDetail as ScreenCatalogueEntry,
+  projects as ScreenCatalogueEntry,
+  projectDetail as ScreenCatalogueEntry,
 ];
 
 const byId = new Map(ENTRIES.map((s) => [s.id, s]));

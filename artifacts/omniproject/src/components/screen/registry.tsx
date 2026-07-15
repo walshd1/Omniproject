@@ -8,6 +8,7 @@ import { ViewPanel } from "./panels/ViewPanel";
 import { GraphPanel } from "./panels/GraphPanel";
 import { MapPanel } from "./panels/MapPanel";
 import { ChartPanel } from "./panels/ChartPanel";
+import { ComponentPanel } from "./panels/ComponentPanel";
 
 /**
  * Panel-renderer registry — maps a panel `kind` to the ONE component that renders
@@ -29,6 +30,9 @@ export const PANEL_RENDERERS: Partial<Record<PanelKind, PanelComponent>> = {
   // New visual primitives — accessible data view today, rich rendering behind them.
   graph: GraphPanel,
   map: MapPanel,
+  // Hosts a full registered SPA page/component as a panel (the escape hatch for bespoke, interactive
+  // pages that would regress if rebuilt from the generic primitives). See screen-components.
+  component: ComponentPanel,
 };
 
 /** Whether a renderer exists for a panel kind (else it degrades to a placeholder). */

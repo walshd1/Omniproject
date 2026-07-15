@@ -1,4 +1,5 @@
 import { getScreenDef } from "../lib/screen-catalogue";
+import type { ScreenDef } from "../lib/screen";
 import { EditableScreen } from "../components/screen/EditableScreen";
 
 /**
@@ -6,14 +7,17 @@ import { EditableScreen } from "../components/screen/EditableScreen";
  * that screen's JSON definition from the catalogue and renders it through the EditableScreen canvas: the
  * renderer imports the panel primitives, configures each from the JSON (columns, span, data `source`,
  * methodology tags), and each primitive then loads its own data. Adding or changing a screen is therefore a
- * JSON edit plus a route pointing here at its id — no bespoke page code. Budgets, and (as the sweep lands)
- * reports/resources/… all resolve to exactly this.
+ * JSON edit plus a route pointing here at its id — no bespoke page code.
+ *
+ * `bare` screens (a single hosted full-page component) render full-bleed, without ScreenPage's own header,
+ * so a migrated page looks exactly as it did. `params` (route params) are threaded onto every panel's
+ * config, so a `component`-hosted detail page receives its projectId / programmeId.
  *
  * Capability gating (hiding a panel whose backend domain isn't fed) is threaded per-panel via each panel's
  * `needs` tag; the current screens declare none, so caps aren't wired here yet — that adapter lands with the
  * first screen that needs it.
  */
-export function ScreenPage({ id, methodology }: { id: string; methodology?: string }) {
+export function ScreenPage({ id, methodology, params }: { id: string; methodology?: string; params?: Record<string, string> }) {
   const def = getScreenDef(id);
 
   if (!def) {
@@ -24,17 +28,28 @@ export function ScreenPage({ id, methodology }: { id: string; methodology?: stri
     );
   }
 
+  // Thread route params (projectId / programmeId / …) onto every panel's config so a hosted component
+  // receives them. The JSON stays param-free; the router supplies the live value.
+  const screen: ScreenDef = params
+    ? { ...def, panels: def.panels.map((p) => ({ ...p, config: { ...(p.config ?? {}), ...params } })) }
+    : def;
+
+  if (def.bare) {
+    return (
+      <div className="h-full" data-testid={`screen-${id}`}>
+        <EditableScreen screen={screen} bare {...(methodology ? { methodology } : {})} />
+      </div>
+    );
+  }
+
   return (
-    <div className="h-full flex flex-col">
+    <div className="h-full flex flex-col" data-testid={`screen-${id}`}>
       <div className="px-8 py-4 border-b border-border bg-card shrink-0 flex flex-wrap items-center gap-3">
         <h1 className="text-xl font-black uppercase tracking-tighter">{def.label}</h1>
         {def.hint && <span className="text-xs text-muted-foreground">{def.hint}</span>}
       </div>
       <div className="flex-1 p-8 overflow-auto">
-        <EditableScreen
-          screen={def}
-          {...(methodology ? { methodology } : {})}
-        />
+        <EditableScreen screen={screen} {...(methodology ? { methodology } : {})} />
       </div>
     </div>
   );

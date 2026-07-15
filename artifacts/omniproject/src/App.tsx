@@ -28,19 +28,15 @@ import { AppLayout } from "./components/layout/AppLayout";
 // Pages are code-split: each becomes its own chunk fetched on first visit, so the
 // initial load no longer pays for Reports' charts, the Gantt, etc. (named exports
 // → map to a default for React.lazy).
-const Home = lazy(() => import("./pages/Home").then((m) => ({ default: m.Home })));
-const MyWork = lazy(() => import("./pages/MyWork").then((m) => ({ default: m.MyWork })));
-const Tasks = lazy(() => import("./pages/Tasks").then((m) => ({ default: m.Tasks })));
+// The everyday pages are now hosted through the generic ScreenPage builder (via JSON screen defs +
+// the `component` primitive registry in components/screen/screen-components), so they are no longer
+// imported directly here — only the screens not yet migrated (Dashboards, ContentPages, Settings,
+// Configurator, Resources capacity, Explore, Login) keep a direct route.
 const Dashboards = lazy(() => import("./pages/Dashboards").then((m) => ({ default: m.Dashboards })));
 const ContentPages = lazy(() => import("./pages/ContentPages").then((m) => ({ default: m.ContentPages })));
-const Programmes = lazy(() => import("./pages/Programmes").then((m) => ({ default: m.Programmes })));
-const ProgrammeDetail = lazy(() => import("./pages/ProgrammeDetail").then((m) => ({ default: m.ProgrammeDetail })));
-const Projects = lazy(() => import("./pages/Projects").then((m) => ({ default: m.Projects })));
-const ProjectDetail = lazy(() => import("./pages/ProjectDetail").then((m) => ({ default: m.ProjectDetail })));
 const ScreenPage = lazy(() => import("./pages/ScreenPage").then((m) => ({ default: m.ScreenPage })));
 const Settings = lazy(() => import("./pages/Settings").then((m) => ({ default: m.Settings })));
 const Configurator = lazy(() => import("./pages/Configurator").then((m) => ({ default: m.Configurator })));
-const Reports = lazy(() => import("./pages/Reports").then((m) => ({ default: m.Reports })));
 const Resources = lazy(() => import("./pages/Resources").then((m) => ({ default: m.Resources })));
 const Explore = lazy(() => import("./pages/Explore").then((m) => ({ default: m.Explore })));
 const Login = lazy(() => import("./pages/Login").then((m) => ({ default: m.Login })));
@@ -82,13 +78,13 @@ function Router() {
     <Switch>
       <Route path="/login" component={Login} />
       <Route path="/">
-        <AppLayout><Home /></AppLayout>
+        <AppLayout><ScreenPage id="home" /></AppLayout>
       </Route>
       <Route path="/my-work">
-        <AppLayout><MyWork /></AppLayout>
+        <AppLayout><ScreenPage id="my-work" /></AppLayout>
       </Route>
       <Route path="/tasks">
-        <AppLayout><Tasks /></AppLayout>
+        <AppLayout><ScreenPage id="tasks" /></AppLayout>
       </Route>
       <Route path="/dashboards">
         <AppLayout><Dashboards /></AppLayout>
@@ -97,16 +93,16 @@ function Router() {
         <AppLayout><ContentPages /></AppLayout>
       </Route>
       <Route path="/programmes">
-        <AppLayout><Programmes /></AppLayout>
+        <AppLayout><ScreenPage id="programmes" /></AppLayout>
       </Route>
       <Route path="/programmes/:programmeId">
-        {(params) => <AppLayout><ProgrammeDetail programmeId={params.programmeId} /></AppLayout>}
+        {(params) => <AppLayout><ScreenPage id="programme-detail" params={{ programmeId: params.programmeId }} /></AppLayout>}
       </Route>
       <Route path="/projects">
-        <AppLayout><Projects /></AppLayout>
+        <AppLayout><ScreenPage id="projects" /></AppLayout>
       </Route>
       <Route path="/projects/:projectId">
-        {(params) => <AppLayout><ProjectDetail projectId={params.projectId} /></AppLayout>}
+        {(params) => <AppLayout><ScreenPage id="project-detail" params={{ projectId: params.projectId }} /></AppLayout>}
       </Route>
       <Route path="/budgets">
         <AppLayout><ScreenPage id="budget-plans" /></AppLayout>
@@ -115,7 +111,7 @@ function Router() {
         <AppLayout><ScreenPage id="resource-allocations" /></AppLayout>
       </Route>
       <Route path="/reports">
-        <AppLayout><Reports /></AppLayout>
+        <AppLayout><ScreenPage id="reports" /></AppLayout>
       </Route>
       <Route path="/resources">
         <AppLayout><Resources /></AppLayout>

@@ -1,0 +1,1 @@
+{ "id": "project-detail", "label": "Project", "bare": true, "panels": [ { "id": "project-detail", "kind": "component", "config": { "component": "project-detail" } } ] }
