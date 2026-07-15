@@ -1634,7 +1634,7 @@ export function registerCapabilityStatesSanitizer(fn: CapabilityStatesSanitizer)
 /** Validate a settings patch and return a NORMALIZED copy (reportingCurrency upper-cased,
  *  fxRateAsOfDate/reportingCurrency empty-string coerced to null, …) — pure, never mutates the
  *  caller's `patch` object. Throws SettingsValidationError on bad input. */
-function validatePatch(rawPatch: Record<string, unknown>): Record<string, unknown> {
+export function validatePatch(rawPatch: Record<string, unknown>): Record<string, unknown> {
   // Strip prototype-pollution-dangerous OWN keys (__proto__/constructor/prototype) at every depth BEFORE
   // any field is read or persisted. Over HTTP the express.json reviver already does this, but a config-
   // snapshot restore / internal updateSettings() call parses with bare JSON.parse — so a field whose

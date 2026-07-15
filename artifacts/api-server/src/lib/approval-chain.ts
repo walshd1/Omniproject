@@ -36,6 +36,10 @@ export interface ChainDef {
    *  N DISTINCT humans (true dual-/multi-control). Used for the privileged actions (bypass, relaxation,
    *  AI-authority grant, redirect) so no lone insider can satisfy the whole chain. Default false. */
   requireDistinctApprovers?: boolean;
+  /** When true, the PROPOSER may also approve — the SINGLE-ADMIN degrade (§0): a solo admin confirms +
+   *  signs their own security reduction because no second person exists. NEVER set on a multi-party chain
+   *  (it would defeat separation of duties). Default false. */
+  allowSelfApproval?: boolean;
 }
 
 /** A single verified decision (its signature + the actor's authority were checked by the caller). */
@@ -104,7 +108,7 @@ export function applyDecision(def: ChainDef, state: ChainState, d: Decision, act
   if (!stage) throw new ApprovalChainError("chain has no current stage");
   if (d.stageId !== stage.id) throw new ApprovalChainError(`decision targets stage "${d.stageId}" but the active stage is "${stage.id}"`);
   if (actor.sub !== d.by) throw new ApprovalChainError("decision actor mismatch");
-  if (actor.sub === state.proposedBy) throw new ApprovalChainError("the proposer cannot approve their own proposal");
+  if (!def.allowSelfApproval && actor.sub === state.proposedBy) throw new ApprovalChainError("the proposer cannot approve their own proposal");
   if (!isEligible(stage, actor)) throw new ApprovalChainError(`${actor.sub} is not an approver for stage "${stage.id}"`);
   if (state.decisions.some((x) => x.stageId === stage.id && x.by === actor.sub)) throw new ApprovalChainError("actor has already decided this stage");
   if (def.requireDistinctApprovers && state.decisions.some((x) => x.by === actor.sub)) throw new ApprovalChainError("this approver already acted on an earlier stage — distinct approvers are required");
