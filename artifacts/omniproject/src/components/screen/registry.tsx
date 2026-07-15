@@ -7,6 +7,7 @@ import { ListPanel } from "./panels/ListPanel";
 import { ViewPanel } from "./panels/ViewPanel";
 import { GraphPanel } from "./panels/GraphPanel";
 import { MapPanel } from "./panels/MapPanel";
+import { ChartPanel } from "./panels/ChartPanel";
 
 /**
  * Panel-renderer registry — maps a panel `kind` to the ONE component that renders
@@ -23,6 +24,8 @@ export const PANEL_RENDERERS: Partial<Record<PanelKind, PanelComponent>> = {
   list: ListPanel,
   // The bridge to the existing methodology views (board/Gantt/scrum/…) as panels.
   view: ViewPanel,
+  // Charts (bar/line/area/pie) drawn from object-rows through the shared ChartView renderer.
+  chart: ChartPanel,
   // New visual primitives — accessible data view today, rich rendering behind them.
   graph: GraphPanel,
   map: MapPanel,

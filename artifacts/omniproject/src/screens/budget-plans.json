@@ -4,6 +4,14 @@
   "hint": "Planned budget by period and project. Edit the plans in Settings → Budget plans.",
   "panels": [
     {
+      "id": "budget-by-year-chart",
+      "kind": "chart",
+      "title": "Budget by year",
+      "span": 12,
+      "config": { "chartType": "bar", "xKey": "year", "series": [{ "key": "amount", "label": "Planned budget" }] },
+      "source": { "url": "/api/budget-plans/rows?groupBy=year&metric=sum:amount" }
+    },
+    {
       "id": "budget-by-year",
       "kind": "table",
       "title": "Budget by year",
