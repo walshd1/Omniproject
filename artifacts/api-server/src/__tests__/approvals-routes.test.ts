@@ -80,6 +80,16 @@ test("admin/PMO can revoke a named user's passkeys and everyone's; unauth is ref
   assert.equal((await h.req("/approvals/passkey/revoke", { method: "POST", body: { sub: "x" } })).status, 401);
 });
 
+test("writing a SECURITY collection (approvalChains) is held for a signed sign-off (202), not applied", async () => {
+  const cookie = adminCookie();
+  const chain = { id: "c-http", scope: { kind: "org" }, rejectionPolicy: "abort", stages: [{ id: "s1", approvers: [{ kind: "role", role: "admin" }] }] };
+  const r = await h.req("/approval-chains", { method: "PUT", cookie, body: { approvalChains: [chain] } });
+  assert.equal(r.status, 202); // security-reducing (fail-closed) → held
+  const body = await json(r);
+  assert.ok(body.pending?.proposalId);
+  assert.deepEqual(body.pending.relaxes, ["approvalChains"]);
+});
+
 test("a tampered signature is refused (403), executor does not run", async () => {
   const cookie = adminCookie();
   await h.req("/approvals/passkey", { method: "POST", cookie, body: { credentialId: "cred-http", publicKeySpki: spki } });

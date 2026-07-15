@@ -1,6 +1,8 @@
 import { Router, type RequestHandler } from "express";
-import { getSettings, updateSettings, SettingsValidationError, type SettingsState } from "./settings";
+import { getSettings, SettingsValidationError, type SettingsState } from "./settings";
 import { captureVersion } from "./config-store";
+import { applySettingsGuarded } from "./settings-guard";
+import { actorForAudit } from "./audit";
 
 /**
  * Factory for the recurring "settings collection" route shape: a GET that reads one
@@ -49,12 +51,19 @@ export function settingsCollectionRouter(opts: SettingsCollectionOptions): Route
     res.json({ [responseKey]: getSettings()[settingsKey] ?? fallback });
   });
 
-  const write: RequestHandler = (req, res) => {
+  const write: RequestHandler = async (req, res) => {
     const value = (req.body as Record<string, unknown> | undefined)?.[responseKey];
     try {
-      const settings = updateSettings({ [settingsKey]: value });
+      // Governing invariant (§0): a write that REDUCES the security posture (e.g. weakening approvalChains)
+      // is held for a signed sign-off; a choice/strengthening write applies immediately. Most collections
+      // are choices, so this is a no-op for them.
+      const guarded = await applySettingsGuarded({ [settingsKey]: value } as Partial<SettingsState>, actorForAudit(req)?.sub ?? "admin");
+      if (!guarded.applied) {
+        res.status(202).json({ pending: guarded.pending, message: "This change reduces the security posture and needs a signed sign-off before it applies. See /api/approvals/inbox." });
+        return;
+      }
       captureVersion(versionLabel);
-      res.json({ [responseKey]: settings[settingsKey] });
+      res.json({ [responseKey]: getSettings()[settingsKey] });
     } catch (err) {
       if (err instanceof SettingsValidationError) {
         res.status(400).json({ error: err.message });
