@@ -34,3 +34,39 @@ test("historyRetention has a real scale: shortening relaxes, lengthening strengt
   assert.deepEqual(relaxingKeys(current, { historyRetention: { retentionDays: 730 } }), []); // lengthen → strengthen, immediate
   assert.deepEqual(relaxingKeys(current, { historyRetention: { retentionDays: 365 } }), []); // no change
 });
+
+test("egress keys are DIRECTIONAL: opening/redirecting relaxes, removing/deactivating is immediate", () => {
+  // webhooks: adding an active target relaxes; removing one strengthens; a same-url secret rotation is neutral.
+  const wh = (url: string, secret = "s", active = true) => ({ id: url, url, secret, events: ["*"], active });
+  assert.deepEqual(relaxingKeys({ webhooks: [] }, { webhooks: [wh("https://a")] }), ["webhooks"]);
+  assert.deepEqual(relaxingKeys({ webhooks: [wh("https://a")] }, { webhooks: [] }), []);            // remove → immediate
+  assert.deepEqual(relaxingKeys({ webhooks: [wh("https://a")] }, { webhooks: [wh("https://a", "s2")] }), []); // rotate secret → neutral
+  assert.deepEqual(relaxingKeys({ webhooks: [wh("https://a")] }, { webhooks: [wh("https://a"), wh("https://b")] }), ["webhooks"]); // add another → relax
+  assert.deepEqual(relaxingKeys({ webhooks: [wh("https://a", "s", true)] }, { webhooks: [wh("https://a", "s", false)] }), []); // deactivate → immediate
+
+  // federatedPeers: a new active baseUrl relaxes; removal is immediate.
+  const peer = (baseUrl: string, active = true) => ({ id: baseUrl, label: "L", baseUrl, token: "t", region: "eu", active });
+  assert.deepEqual(relaxingKeys({ federatedPeers: [] }, { federatedPeers: [peer("https://eu")] }), ["federatedPeers"]);
+  assert.deepEqual(relaxingKeys({ federatedPeers: [peer("https://eu")] }, { federatedPeers: [] }), []);
+
+  // loggingSync / errorTelemetry: turning egress ON relaxes; OFF is immediate.
+  assert.deepEqual(relaxingKeys({ loggingSync: { enabled: false } }, { loggingSync: { enabled: true, url: "https://logs" } }), ["loggingSync"]);
+  assert.deepEqual(relaxingKeys({ loggingSync: { enabled: true, url: "https://logs" } }, { loggingSync: { enabled: false, url: null } }), []);
+  assert.deepEqual(relaxingKeys({ loggingSync: { enabled: true, url: "https://a" } }, { loggingSync: { enabled: true, url: "https://b" } }), ["loggingSync"]); // redirect → relax
+  assert.deepEqual(relaxingKeys({ errorTelemetry: false }, { errorTelemetry: true }), ["errorTelemetry"]);
+  assert.deepEqual(relaxingKeys({ errorTelemetry: true }, { errorTelemetry: false }), []);
+});
+
+test("capabilityStates is DIRECTIONAL on the exposure ladder (off < user-defined < public) + egress endpoint", () => {
+  const cs = (state: string, endpoint = "", surfaces?: Record<string, string>) => ({ vault: { state, endpoint, ...(surfaces ? { surfaces } : {}) } });
+  // Raising exposure relaxes; lowering it is immediate.
+  assert.deepEqual(relaxingKeys({ capabilityStates: cs("off") }, { capabilityStates: cs("public") }), ["capabilityStates"]);
+  assert.deepEqual(relaxingKeys({ capabilityStates: cs("off") }, { capabilityStates: cs("user-defined") }), ["capabilityStates"]);
+  assert.deepEqual(relaxingKeys({ capabilityStates: cs("public") }, { capabilityStates: cs("off") }), []);           // lower → immediate
+  assert.deepEqual(relaxingKeys({ capabilityStates: cs("user-defined") }, { capabilityStates: cs("user-defined") }), []); // no change
+  // A new/changed egress endpoint relaxes even at the same state; a surface getting more exposed relaxes.
+  assert.deepEqual(relaxingKeys({ capabilityStates: cs("user-defined") }, { capabilityStates: cs("user-defined", "https://sink") }), ["capabilityStates"]);
+  assert.deepEqual(relaxingKeys({ capabilityStates: cs("off", "", { web: "off" }) }, { capabilityStates: cs("off", "", { web: "public" }) }), ["capabilityStates"]);
+  // Removing a capability entry (or an endpoint) is not a relaxation.
+  assert.deepEqual(relaxingKeys({ capabilityStates: cs("public") }, { capabilityStates: {} }), []);
+});

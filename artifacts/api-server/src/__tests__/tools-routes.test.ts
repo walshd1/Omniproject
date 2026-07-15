@@ -1,6 +1,7 @@
 import { test, before, after, afterEach } from "node:test";
 import assert from "node:assert/strict";
 import { startHarness, adminCookie, stepUpAdminCookie, memberCookie, type Harness } from "./_harness";
+import { signOffRelaxation } from "./_signoff";
 
 /**
  * Capability governance plane over the REAL app. GET /governance is open to any authed
@@ -78,10 +79,29 @@ test("POST /governance/:id/test 404s an unknown capability and probes a known on
   assert.equal(fallback.status, 200);
 });
 
-test("PUT /governance/:id 404s an unknown capability and sets a known one", async () => {
+test("PUT /governance/:id 404s an unknown capability and LOWERING exposure applies immediately", async () => {
   const missing = await h.req("/governance/not-a-capability", { method: "PUT", cookie: stepUpAdminCookie(), body: { state: "off" } });
   assert.equal(missing.status, 404);
+  // Setting a capability OFF is the lowest exposure → strengthens → applies immediately (not held).
   const ok = await h.req(`/governance/${capId}`, { method: "PUT", cookie: stepUpAdminCookie(), body: { state: "off" } });
   assert.equal(ok.status, 200);
   assert.ok("setting" in (await ok.json() as object));
+});
+
+test("PUT /governance/:id HOLDS an exposure-raising change (new egress endpoint) for a signed sign-off", async () => {
+  try {
+    // Pointing a capability at a NEW egress endpoint is a security reduction → held (202), then applied by
+    // the executor once the solo admin confirm+signs.
+    const held = await h.req(`/governance/${capId}`, { method: "PUT", cookie: stepUpAdminCookie(), body: { state: "off", endpoint: "https://sink.example.com/ingest" } });
+    assert.equal(held.status, 202);
+    const body = await held.json() as { pending: { proposalId: string; relaxes: string[] } };
+    assert.deepEqual(body.pending.relaxes, ["capabilityStates"]);
+
+    await signOffRelaxation(body.pending.proposalId, "u-harness");
+    const { getSettings } = await import("../lib/settings");
+    assert.equal(getSettings().capabilityStates[capId]?.endpoint, "https://sink.example.com/ingest");
+  } finally {
+    const { updateSettings } = await import("../lib/settings");
+    updateSettings({ capabilityStates: {} });
+  }
 });

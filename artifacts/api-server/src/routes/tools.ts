@@ -11,10 +11,11 @@ import { recordRequestAudit } from "../lib/audit";
 import { captureVersion } from "../lib/config-store";
 import { getSession } from "./auth";
 import {
-  listResolvedCapabilities, listSurfaces, setCapabilityState, noteCapabilityConfigured,
+  listResolvedCapabilities, listSurfaces, capabilityStatePatch, noteCapabilityConfigured,
   recentCapabilityLogShared, checkEndpointReachable, getCapability, UnknownCapabilityError,
 } from "../lib/capability-governance";
 import { getSettings } from "../lib/settings";
+import { applySettingsGuarded } from "../lib/settings-guard";
 import { v, parseOr400 } from "../lib/validate";
 
 /**
@@ -132,14 +133,22 @@ router.post("/governance/:id/test", requireRole("admin"), async (req, res) => {
 
 // Changing any capability's deployment state is an admin decision, and versioned so
 // it can be rolled back like any other config change.
-router.put("/governance/:id", requireRole("admin"), requireStepUp, (req, res) => {
+router.put("/governance/:id", requireRole("admin"), requireStepUp, async (req, res) => {
   const id = String(req.params["id"]);
   const session = getSession(req);
   try {
-    const setting = setCapabilityState(id, req.body ?? {});
-    noteCapabilityConfigured(id, setting, session ? { sub: session.sub, email: session.email, role: session.roles?.[0] } : null);
+    // Governing invariant (§0): RAISING a capability's exposure (or pointing it at a new egress endpoint)
+    // is a security reduction → held for a signed sign-off; lowering it applies immediately. Route the
+    // one-capability patch through the guard rather than persisting directly.
+    const { clean, next } = capabilityStatePatch(id, req.body ?? {});
+    const guarded = await applySettingsGuarded({ capabilityStates: next }, session?.sub ?? "admin");
+    if (!guarded.applied) {
+      res.status(202).json({ pending: guarded.pending, setting: clean, message: "Raising this capability's exposure needs a signed sign-off before it applies. See /api/approvals/inbox." });
+      return;
+    }
+    noteCapabilityConfigured(id, clean, session ? { sub: session.sub, email: session.email, role: session.roles?.[0] } : null);
     captureVersion(`capability ${id} set`);
-    res.json({ setting });
+    res.json({ setting: clean });
   } catch (err) {
     if (err instanceof UnknownCapabilityError) { res.status(404).json({ error: err.message }); return; }
     throw err;

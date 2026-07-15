@@ -64,9 +64,26 @@ export const SECURITY_SETTINGS: Record<string, RelaxPredicate> = {
   // The controls themselves — weakening any is the classic insider move; fail-closed on any edit.
   approvalChains: changed,
   approvalBindings: changed,
-  capabilityStates: changed,
   featureGovernance: changed,
   governanceRules: changed,
+  // Capability exposure has a clear ladder (off < user-defined < public). RAISING a capability's exposure —
+  // or pointing it at a NEW/changed egress endpoint, or raising any per-surface exposure — is the
+  // relaxation; turning it off/down (or dropping the endpoint) strengthens and applies immediately.
+  capabilityStates: (o, n) => {
+    const rank = (s: unknown): number => (s === "public" ? 2 : s === "user-defined" ? 1 : 0);
+    const map = (v: Val): Record<string, { state?: unknown; endpoint?: unknown; surfaces?: Record<string, unknown> }> =>
+      (v && typeof v === "object" ? (v as Record<string, { state?: unknown; endpoint?: unknown; surfaces?: Record<string, unknown> }>) : {});
+    const oldMap = map(o);
+    for (const [id, ns] of Object.entries(map(n))) {
+      const os = oldMap[id];
+      if (rank(ns?.state) > rank(os?.state)) return true;                           // more exposed
+      if (ns?.endpoint && ns.endpoint !== os?.endpoint) return true;                 // new/changed egress endpoint
+      for (const [k, v] of Object.entries(ns?.surfaces ?? {})) {
+        if (rank(v) > rank((os?.surfaces ?? {})[k])) return true;                    // a surface got more exposed
+      }
+    }
+    return false;
+  },
   // Audit retention has a CLEAR scale: a shorter window loses audit trail (relax); longer strengthens (free).
   historyRetention: (o, n) => {
     const days = (v: Val): number => {
