@@ -81,8 +81,11 @@ be forced, not even by the server.*
        - (a) **any change** to the workflow or the AI's actions (the content hash no longer matches), OR
        - (b) the **responsible signer's removal / deprovisioning** from the system — accountability must always
          point to a **current** person, so a departed owner's standing acceptance lapses immediately.
-     On a void the workflow **HALTS — nothing runs** — until a present human re-reviews and re-signs; there is
-     no advisory-autonomous fallback. Crucially, a void only revokes **forward** authority: approvals the signer already made remain
+     On a void the workflow **HALTS — nothing runs**. To resume, the workflow's **scope owner — a PMO
+     (org-scoped workflow) or a PM (project-scoped)** — must **select a new human approver**, who then reviews
+     the workflow in detail and passkey-signs a fresh responsibility acceptance; only then does it run again.
+     (Selecting the new approver is itself a human-only PMO/PM act, never agentic.) There is no
+     advisory-autonomous fallback. Crucially, a void only revokes **forward** authority: approvals the signer already made remain
      **immutable audit records** — history is never rewritten, their past signatures stand as the record of
      what happened; only future autonomous action lapses. Every autonomous AI approval therefore traces to a
      named, still-present human who owns that exact workflow version. No self-approval — an AI (or its
@@ -131,9 +134,10 @@ be forced, not even by the server.*
 - Settled (§4.2): an AI may be the sole/autonomous approver only under a **version-bound, passkey-signed human
   responsibility acceptance** — accountability is established at authorization time, not per run. Open: whether
   a sensitivity threshold forbids AI stages *entirely* for some actions, and who owns that (org PMO vs. per-project PM).
-- **Settled** — on a void (workflow edit OR signer removal, §4.2) **nothing runs**: the workflow halts until a
-  present human re-reviews + re-signs; no advisory-autonomous fallback. Open is only the UX for prompting the
-  (new) responsible human to re-sign.
+- **Settled** — on a void (workflow edit OR signer removal, §4.2) **nothing runs**: the workflow's scope owner
+  (**PMO** org-scoped / **PM** project-scoped) must **select a new human approver**, who reviews + passkey-signs
+  a fresh acceptance before it runs again — a human-only act, never agentic. No advisory-autonomous fallback.
+  Open is only the notification/UX for prompting the scope owner + the nominated approver.
 - **Settled — AI is default-DENY**: every AI action, **reads included**, needs an explicit human grant; nothing
   is permitted by default. The 'governed' posture (default-permitted + allowlist + RBAC scope + audit) remains
   available as an **opt-in option** per deployment, not the default.
