@@ -53,3 +53,25 @@ test("PUT /reports rejects a definition with no renderer → 400", async () => {
   assert.equal(bad.status, 400);
   assert.match((await json(bad)).error, /renderer/);
 });
+
+test("GET /reports is HARD-GATED by the methodology composition (curated → only composed reports)", async () => {
+  const { updateSettings } = await import("../lib/settings");
+  try {
+    // Curate the deployment strictly to two reports.
+    updateSettings({ methodologyComposition: ["report:evm", "report:burndown"] });
+    const body = await json(await h.req("/reports", { cookie: adminCookie() }));
+    const ids = body.reports.map((r: { id: string }) => r.id).sort();
+    assert.deepEqual(ids, ["burndown", "evm"], "only the composed reports are served");
+    // A curated-out report is NOT retrievable via the API — server-authoritative, not just an SPA filter.
+    assert.equal(body.reports.find((r: { id: string }) => r.id === "portfolio-rag"), undefined);
+  } finally {
+    updateSettings({ methodologyComposition: null }); // back to relaxed (everything)
+  }
+});
+
+test("GET /reports with a null (uncurated) composition serves everything", async () => {
+  const { updateSettings } = await import("../lib/settings");
+  updateSettings({ methodologyComposition: null });
+  const body = await json(await h.req("/reports", { cookie: adminCookie() }));
+  assert.ok(body.reports.length >= 20, "uncurated ⇒ all reports");
+});
