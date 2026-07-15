@@ -5,6 +5,7 @@ import { logger } from "./logger";
 import { SealedFile, resolveConfigFile } from "./sealed-file";
 import { sharedStateMode, sharedRingPush, sharedRingRead } from "./shared-state";
 import { safeParseJson } from "./safe-json";
+import { envInt } from "./env-config";
 
 /**
  * Configuration environments + versioned rollback.
@@ -36,7 +37,8 @@ interface StoreState {
   versions: ConfigVersion[];
 }
 
-const MAX_VERSIONS = 100;
+// Config version-history retention depth (older versions trimmed beyond it). Tunable per deployment.
+const MAX_VERSIONS = envInt("CONFIG_STORE_MAX_VERSIONS", 100, { min: 1 });
 const SHARED_VERSIONS_PREFIX = "config:ver:";
 const DEFAULT_ENV = "production";
 // Encrypted at rest (AES-256-GCM) so a copy of the raw file is opaque off-box.
@@ -284,6 +286,27 @@ export function promote(from: string, to: string): StoreView {
   if (s.activeEnv === to) updateSettings(applySnapshot(s.environments[to]).patch);
   persist();
   return storeView();
+}
+
+/**
+ * Boot hook: when durable config persistence is configured (CONFIG_STORE_FILE / OMNI_CONFIG_DIR) AND a
+ * store file already exists, apply its ACTIVE environment's snapshot to the live settings — so an
+ * admin's runtime configuration (captured via the settings API / captureVersion) survives a restart,
+ * not just the rollback *history*. Without this, `bootstrap()` re-seeds settings from env + config-dir
+ * only, silently discarding any change made through the runtime API (the "stateless / replicas agree"
+ * gap). No-op when persistence is off or nothing has been persisted yet, so a pure env/config-dir
+ * deployment is completely unaffected. Must run AFTER initKms() (the store file is sealed at rest).
+ */
+export function restoreActiveEnvironment(): { restored: boolean; env?: string; warnings?: string[] } {
+  if (!store.enabled) return { restored: false };
+  if (store.read() === null) return { restored: false }; // persistence on but nothing persisted yet
+  const s = ensure(); // loads + validates the persisted file into `state`
+  const snapshot = s.environments[s.activeEnv];
+  if (!snapshot) return { restored: false };
+  const { patch, warnings } = applySnapshot(snapshot);
+  updateSettings(patch);
+  logger.info({ env: s.activeEnv, warnings: warnings.length || undefined }, "config store: restored active environment into live settings");
+  return { restored: true, env: s.activeEnv, ...(warnings.length ? { warnings } : {}) };
 }
 
 /** Test-only: reset the in-memory store. */

@@ -43,26 +43,36 @@ export function samlCacheProvider(kv = sharedKv, ttlMs = SAML_REQUEST_TTL_MS) {
 }
 
 /**
- * Replay-protection options for the node-saml provider — enabled ONLY when shared state is
- * Redis-backed. `validateInResponseTo` fails CLOSED (a missing/unknown request id ⇒ the login is
- * refused), so requiring it without a fleet-wide cache would break SP-initiated login on a
- * multi-replica, no-Redis deployment (the redirect and the ACS callback can land on different
- * replicas). In-memory mode therefore falls back to the always-on signature + `NotOnOrAfter` +
- * audience checks (a short, bounded replay window) and never breaks login — preserving the
- * stateless single-replica default. When Redis is present, the shared cache makes replay/
- * request-id state correct across replicas and the strict check is turned on.
+ * Replay-protection options for the node-saml provider. `validateInResponseTo` binds an ACS response to
+ * a request id we issued, so a captured `SAMLResponse` can't be replayed within its `NotOnOrAfter` window.
+ * The request-id cache must be correct for the flow, so the mode scales to the deployment:
  *
- * OPT-IN: a SINGLE-replica operator with no Redis can set `SAML_STRICT_REPLAY=1` to turn on
- * `validateInResponseTo` + assertion-id dedup using the in-memory `sharedKv` (redirect and ACS hit
- * the same process, so it's correct). Off by default — do NOT set it on a multi-replica-no-Redis
- * deployment, where a redirect and its ACS callback can land on different replicas and SP-initiated
- * login would then fail closed. Redis mode enables the strict check automatically (fleet-correct).
+ *  - SINGLE-replica (no `REDIS_URL`) — ON by default, mode **"ifPresent"**: the redirect and the ACS
+ *    callback hit the SAME process, so the in-memory request-id cache is correct. "ifPresent" validates
+ *    an InResponseTo when the response carries one (SP-initiated login gets replay protection) but does
+ *    NOT fail an IdP-initiated response that legitimately has none — so it never breaks login.
+ *  - REDIS-backed (fleet-correct), or `SAML_STRICT_REPLAY=1` — mode **"always"**: the shared cache makes
+ *    request-id state correct across replicas, so the strictest check (every response must echo a known
+ *    request id) is safe.
+ *  - MULTI-replica WITHOUT achieved Redis (`REDIS_URL` set but shared state not up) — OFF: a redirect and
+ *    its ACS callback can land on different replicas, so a per-replica cache would fail-close a legitimate
+ *    SP-initiated login. The fleet-readiness gate already refuses traffic to such a replica; here we fall
+ *    back to the always-on signature + `NotOnOrAfter` + audience checks (a short, bounded replay window).
+ *
+ * Force with `SAML_STRICT_REPLAY`: `1`/`true` → "always"; `0`/`false` → fully off.
  */
 export function replayProtection(): Record<string, unknown> {
-  const strict = sharedStateMode() === "redis" || isTruthy(process.env["SAML_STRICT_REPLAY"]);
-  if (!strict) return {};
+  const forced = process.env["SAML_STRICT_REPLAY"]?.trim().toLowerCase();
+  if (forced === "0" || forced === "false" || forced === "no") return {}; // explicit force-off
+  const forceOn = forced === "1" || forced === "true" || forced === "yes";
+  const redisAchieved = sharedStateMode() === "redis";
+  const redisDeclared = !!process.env["REDIS_URL"]?.trim();
+  // The one unsafe window: a declared fleet whose Redis isn't actually up ⇒ per-replica cache ⇒ disable.
+  if (!forceOn && redisDeclared && !redisAchieved) return {};
   return {
-    validateInResponseTo: "always",
+    // Strictest when fleet-correct or explicitly forced; else "ifPresent" so single-replica SP-initiated
+    // login is protected without breaking IdP-initiated responses that carry no InResponseTo.
+    validateInResponseTo: redisAchieved || forceOn ? "always" : "ifPresent",
     requestIdExpirationPeriodMs: SAML_REQUEST_TTL_MS,
     cacheProvider: samlCacheProvider(), // Redis-backed when REDIS_URL is set, else per-replica in-memory
   };

@@ -35,16 +35,40 @@ router.put("/federated-peers", requireRole("admin"), requireStepUp, async (req, 
     return;
   }
   // A masked "********" (or blank) token in the submitted body means "unchanged" — the admin UI never
-  // re-sends a token it can't read back, so preserve the prior one by id rather than overwriting it
-  // with the mask literal. A brand-new peer (unknown id) simply needs its own token.
+  // re-sends a token it can't read back, so preserve the prior one by id. CRUCIAL: preserve it ONLY when
+  // the peer's endpoint is UNCHANGED. If the baseUrl changed for an existing peer, carrying the masked
+  // token forward would transmit the real bearer credential to the NEW host on the next fan-out — a
+  // credential-redirect exfil that defeats the token masking. In that case require the token to be
+  // re-entered. Fields are whitelisted (no mass-assignment of arbitrary keys into the stored peer).
   const existing = new Map(getSettings().federatedPeers.map((p) => [p.id, p] as const));
-  const merged = raw.map((p) => {
+  const str = (v: unknown): string => (typeof v === "string" ? v.trim() : "");
+  let redirectError: string | null = null;
+  const merged: PeerInstance[] = raw.map((p) => {
     const o = (p && typeof p === "object" ? p : {}) as Record<string, unknown>;
-    const prior = typeof o["id"] === "string" ? existing.get(o["id"]) : undefined;
-    const submitted = typeof o["token"] === "string" ? o["token"].trim() : "";
-    const token = submitted && submitted !== "********" ? submitted : (prior?.token ?? "");
-    return { ...o, token };
+    const id = str(o["id"]);
+    const prior = id ? existing.get(id) : undefined;
+    const submittedBase = str(o["baseUrl"]);
+    const baseUrl = submittedBase || prior?.baseUrl || "";
+    const submittedTok = str(o["token"]);
+    const masked = !submittedTok || submittedTok === "********";
+    const endpointChanged = !!prior && !!submittedBase && submittedBase !== prior.baseUrl;
+    if (masked && endpointChanged) {
+      redirectError = `peer "${id}": re-enter the token when changing its URL (a masked token cannot be carried to a new endpoint)`;
+    }
+    const token = !masked ? submittedTok : (prior && !endpointChanged ? prior.token : "");
+    return {
+      id,
+      label: str(o["label"]),
+      baseUrl,
+      token,
+      region: o["region"] === null ? null : (str(o["region"]) || null),
+      active: o["active"] === true,
+    };
   });
+  if (redirectError) {
+    res.status(400).json({ error: redirectError });
+    return;
+  }
   try {
     // Governing invariant (§0): registering a NEW active peer opens a new cross-instance egress target, so
     // it is held for a signed sign-off (the token is sealed in the queue, never plaintext at rest). Removing

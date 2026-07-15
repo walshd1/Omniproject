@@ -135,12 +135,29 @@ export interface UsagePolicy { limit?: UsageLimit; cost?: UsageCost }
 
 export type WarningLevel = "ok" | "notice" | "warn" | "critical" | "over";
 
-/** Map a fraction-of-limit to a warning band: 50% notice, 75% warn, 90% critical, ≥100% over. */
+const DEFAULT_WARN_BANDS = { notice: 0.5, warn: 0.75, critical: 0.9 } as const;
+
+/** The warning-band fractions, admin-tunable via USAGE_WARN_BANDS="notice,warn,critical" (e.g.
+ *  "0.6,0.8,0.95"). Must be three strictly-increasing fractions in (0,1); anything malformed falls
+ *  back to the 0.5 / 0.75 / 0.9 defaults. */
+function warnBands(): { notice: number; warn: number; critical: number } {
+  const raw = process.env["USAGE_WARN_BANDS"]?.trim();
+  if (!raw) return DEFAULT_WARN_BANDS;
+  const p = raw.split(",").map((s) => Number(s.trim()));
+  if (p.length !== 3 || p.some((n) => !Number.isFinite(n) || n <= 0 || n >= 1)) return DEFAULT_WARN_BANDS;
+  const [notice, warn, critical] = p as [number, number, number];
+  if (!(notice < warn && warn < critical)) return DEFAULT_WARN_BANDS;
+  return { notice, warn, critical };
+}
+
+/** Map a fraction-of-limit to a warning band (default 50% notice, 75% warn, 90% critical, ≥100% over;
+ *  the notice/warn/critical thresholds are tunable via USAGE_WARN_BANDS). */
 export function warningLevel(fraction: number): WarningLevel {
+  const b = warnBands();
   if (fraction >= 1) return "over";
-  if (fraction >= 0.9) return "critical";
-  if (fraction >= 0.75) return "warn";
-  if (fraction >= 0.5) return "notice";
+  if (fraction >= b.critical) return "critical";
+  if (fraction >= b.warn) return "warn";
+  if (fraction >= b.notice) return "notice";
   return "ok";
 }
 

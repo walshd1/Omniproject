@@ -12,6 +12,7 @@ import {
   type AiGovContext,
 } from "./ai-governance";
 import { safeFetch } from "./egress";
+import { envInt } from "./env-config";
 import { recordUsage as recordVendorUsage } from "./usage-metering";
 
 /**
@@ -64,7 +65,8 @@ async function postJson(url: string, headers: Record<string, string>, body: unkn
     method: "POST",
     headers: { "Content-Type": "application/json", ...headers },
     body: JSON.stringify(body),
-    signal: AbortSignal.timeout(60_000),
+    // Admin-tunable — a self-hosted CPU model (e.g. Ollama) can exceed 60s on long completions.
+    signal: AbortSignal.timeout(envInt("AI_TIMEOUT_MS", 60_000, { min: 1_000 })),
   });
   if (!res.ok) {
     const detail = await res.text().catch(() => "");

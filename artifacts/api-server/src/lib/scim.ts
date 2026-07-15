@@ -153,14 +153,26 @@ export function stopScimFleetSync(): void {
   if (fleetTimer) { clearInterval(fleetTimer); fleetTimer = null; }
 }
 
-/** Is SCIM provisioning enabled? (Only when a bearer token is configured.) */
-export function scimEnabled(): boolean {
-  return !!process.env["SCIM_TOKEN"]?.trim();
+/** Minimum SCIM token length. SCIM controls deprovisioning + group→role-claim membership, so a weak,
+ *  brute-forceable token is a direct privilege-escalation / mass-deprovision target — mirror the same
+ *  floor break-glass enforces (lib/break-glass MIN_TOKEN_LEN). A shorter token DISABLES SCIM (fail-closed)
+ *  rather than authorising it, and the boot self-check surfaces the misconfig (lib/security-check). */
+export const MIN_SCIM_TOKEN_LEN = 24;
+
+/** The configured SCIM bearer token, or null when unset or too weak (⇒ SCIM disabled). */
+export function scimToken(): string | null {
+  const t = process.env["SCIM_TOKEN"]?.trim();
+  return t && t.length >= MIN_SCIM_TOKEN_LEN ? t : null;
 }
 
-/** Constant-time check of a presented SCIM bearer token. */
+/** Is SCIM provisioning enabled? (Only when a STRONG bearer token is configured.) */
+export function scimEnabled(): boolean {
+  return scimToken() !== null;
+}
+
+/** Constant-time check of a presented SCIM bearer token (rejects when the configured token is too weak). */
 export function scimTokenValid(presented: string | undefined): boolean {
-  const expected = process.env["SCIM_TOKEN"]?.trim();
+  const expected = scimToken();
   if (!expected || !presented) return false;
   return constantTimeEqual(presented, expected);
 }

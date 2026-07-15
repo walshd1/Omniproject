@@ -33,6 +33,21 @@ test("write then read round-trips through the seal", () => {
   assert.deepEqual(JSON.parse(sf.read()!), { hello: "world" });
 });
 
+test("write is atomic: leaves no temp file behind and the target is the fully-sealed content", () => {
+  const p = tmpPath();
+  const dir = path.dirname(p);
+  const sf = new SealedFile(() => p, "test");
+  const before = new Set(fs.readdirSync(dir));
+  sf.write(JSON.stringify({ hello: "world" }));
+  // No orphaned "<file>.<pid>.<ts>.tmp" sibling remains (the rename consumed it).
+  const leaked = fs.readdirSync(dir).filter((n) => !before.has(n) && n !== path.basename(p) && n.startsWith(path.basename(p)));
+  assert.deepEqual(leaked, [], `unexpected temp files left behind: ${leaked.join(", ")}`);
+  assert.deepEqual(JSON.parse(sf.read()!), { hello: "world" });
+  // A second write over an existing file also round-trips (rename-over-existing works).
+  sf.write(JSON.stringify({ hello: "again" }));
+  assert.deepEqual(JSON.parse(sf.read()!), { hello: "again" });
+});
+
 test("read returns null when persistence is off or the file is absent", () => {
   assert.equal(new SealedFile(() => null, "off").read(), null);
   assert.equal(new SealedFile(() => tmpPath(), "missing").read(), null); // path resolves but no file yet

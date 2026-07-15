@@ -28,7 +28,7 @@ function shape(g: Grants): { base: string; authorities: string[] } {
   return { base: g.base, authorities: [...g.authorities].sort() };
 }
 
-beforeEach(() => { process.env["SCIM_TOKEN"] = "scim-secret"; __resetScim(); });
+beforeEach(() => { process.env["SCIM_TOKEN"] = "scim-secret-strong-012345"; __resetScim(); });
 afterEach(() => { delete process.env["SCIM_TOKEN"]; __resetScim(); });
 
 for (const group of ["omni-admins", "programme-managers", "delivery-leads", "unmapped-group"]) {

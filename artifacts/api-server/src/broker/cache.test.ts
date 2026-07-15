@@ -128,3 +128,20 @@ test("invalidateReadCache() clears the active cache (for command/raw paths)", as
     assert.equal(calls.listProjects, 2);
   });
 });
+
+test("actorKey buckets by identity AND scope, so differently-scoped callers never share a cache entry", async () => {
+  const { actorKey } = await import("./cache");
+  // Same sub, different scope ⇒ different keys (no cross-scope leak/poisoning).
+  const all = actorKey({ sub: "u1", scope: { level: "all" } } as ActorContext);
+  const progA = actorKey({ sub: "u1", scope: { level: "programme", programmes: ["a"] } } as ActorContext);
+  const progAB = actorKey({ sub: "u1", scope: { level: "programme", programmes: ["b", "a"] } } as ActorContext);
+  assert.notEqual(all, progA);
+  assert.notEqual(progA, progAB);
+  // Programme order doesn't matter (sorted fingerprint) — same scope ⇒ same key.
+  assert.equal(progAB, actorKey({ sub: "u1", scope: { level: "programme", programmes: ["a", "b"] } } as ActorContext));
+  // Two different tokens confined to the same programme share a bucket (correct — identical view).
+  assert.equal(
+    actorKey({ sub: "apitoken:a", scope: { level: "programme", programmes: ["a"] } } as ActorContext),
+    actorKey({ sub: "apitoken:a", scope: { level: "programme", programmes: ["a"] } } as ActorContext),
+  );
+});

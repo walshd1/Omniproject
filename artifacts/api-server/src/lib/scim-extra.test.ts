@@ -10,7 +10,7 @@ import {
  * SCIM directory — additional branch coverage for the user/group PATCH/PUT operations, the
  * filter parser, and the request-time directory decision (match by userName/email/externalId).
  */
-beforeEach(() => { process.env["SCIM_TOKEN"] = "scim-secret"; __resetScim(); });
+beforeEach(() => { process.env["SCIM_TOKEN"] = "scim-secret-strong-012345"; __resetScim(); });
 afterEach(() => { delete process.env["SCIM_TOKEN"]; __resetScim(); });
 
 test("replaceUser returns null for an unknown id and keeps unspecified fields", () => {

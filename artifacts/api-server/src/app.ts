@@ -39,6 +39,7 @@ import { configuredCorsOrigins } from "./lib/origin-allowlist";
 import { registerBrokerRetentionFromEnv } from "./history/broker-source";
 import { brokerKind } from "./broker";
 import { getSettings, updateSettings } from "./lib/settings";
+import { restoreActiveEnvironment } from "./lib/config-store";
 import { SAMPLE_PROGRAMME_REGISTRY } from "./broker/demo-data";
 
 const app: Express = express();
@@ -93,6 +94,11 @@ export async function bootstrap(): Promise<void> {
   await initKms();
   loadSecurityState();
   await hydrateVault();
+  // Restore the persisted config store's ACTIVE environment into live settings (when
+  // CONFIG_STORE_FILE / OMNI_CONFIG_DIR persistence is on) so an admin's runtime config survives a
+  // restart instead of silently reverting to the env/config-dir seed. No-op with no persisted store.
+  // Runs after initKms() (the store is sealed at rest) and before anything that reads settings below.
+  restoreActiveEnvironment();
   // Point durable history at the retention-broker when RETENTION_BROKER_URL is set (no-op otherwise);
   // the gateway stays SDK-free — the broker process holds the cloud SDK. See history/broker-source.
   registerBrokerRetentionFromEnv();

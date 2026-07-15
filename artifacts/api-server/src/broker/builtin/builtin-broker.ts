@@ -23,6 +23,9 @@ import {
 } from "../types";
 import { isDone, isClosed } from "../vocabulary";
 import { INDICATIVE_FX_RATES } from "../../lib/fx-fallback";
+import { inScope } from "../../lib/scope";
+import { programmeIdsOf } from "../../lib/programmes";
+import { getSettings } from "../../lib/settings";
 import type { BuiltinStore } from "./store";
 
 /**
@@ -46,8 +49,22 @@ export class BuiltinBroker implements Broker {
   }
 
   // ── Projects ────────────────────────────────────────────────────────────────
-  async listProjects(_ctx?: ActorContext): Promise<Project[]> {
-    return this.store.listProjects();
+  /** Reference scope enforcement for the visible-project set: `listProjects` (and the portfolio
+   *  roll-up that derives from it) is the scope-filtered set per the broker contract
+   *  (lib/project-scope), so a programme-scoped principal — a human manager OR a scoped API token —
+   *  only ever sees its own programmes' projects. Mirrors DemoBroker.listProjects; without it the
+   *  built-in (real, durable) store returned the WHOLE portfolio to any caller. */
+  private scopeProjects(ctx: ActorContext | undefined, projects: Project[]): Project[] {
+    const scope = ctx?.scope ?? { level: "all" as const };
+    if (scope.level === "all") return projects;
+    const registry = getSettings().programmeRegistry;
+    return projects.filter((p) =>
+      inScope(scope, { programmeId: ((p as Row)["programmeId"] as string | null | undefined) ?? null, programmeIds: programmeIdsOf(p as Row, registry) }),
+    );
+  }
+
+  async listProjects(ctx?: ActorContext): Promise<Project[]> {
+    return this.scopeProjects(ctx, await this.store.listProjects());
   }
   async createProject(_ctx: ActorContext, input: ProjectWrite): Promise<Project> {
     return this.store.createProject(input);
@@ -105,8 +122,8 @@ export class BuiltinBroker implements Broker {
     const done = issues.filter((i) => isDone(String(i.status))).length;
     return { projectId, total, byStatus, byPriority, completionRate: total > 0 ? Math.round((done / total) * 100) : 0, overdue };
   }
-  async portfolioHealth(_ctx: ActorContext): Promise<PortfolioRow[]> {
-    const projects = await this.store.listProjects();
+  async portfolioHealth(ctx: ActorContext): Promise<PortfolioRow[]> {
+    const projects = this.scopeProjects(ctx, await this.store.listProjects());
     return projects.map((p) => {
       const issueCount = Number((p as Row)["issueCount"] ?? 0);
       const completed = Number((p as Row)["completedCount"] ?? 0);

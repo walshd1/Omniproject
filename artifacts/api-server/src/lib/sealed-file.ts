@@ -70,7 +70,27 @@ export class SealedFile {
         logger.error({ file: f }, `${this.label}: refusing to overwrite — existing sealed file can't be decrypted (wrong/rotated key?); fix the key or move the file to proceed`);
         return;
       }
-      fs.writeFileSync(f, sealConfig(content));
+      // Atomic write: seal → write+fsync a sibling temp file → rename over the target. rename(2) is
+      // atomic on the same filesystem, so a crash / OOM-kill / disk-full / eviction mid-write leaves
+      // EITHER the old sealed file or the fully-written new one — never a truncated blob (which would
+      // be undecryptable and then, per the overwrite-refusal guard above, un-overwritable, silently
+      // destroying the vault / security-state / config / audit-chain store on the next boot). Mirrors
+      // the atomic write already used by lib/dev-persist.ts.
+      const sealed = sealConfig(content);
+      const tmp = `${f}.${process.pid}.${Date.now()}.tmp`;
+      try {
+        const fd = fs.openSync(tmp, "w");
+        try {
+          fs.writeSync(fd, sealed);
+          fs.fsyncSync(fd); // flush to disk before the rename so the durable file is never partial
+        } finally {
+          fs.closeSync(fd);
+        }
+        fs.renameSync(tmp, f);
+      } catch (err) {
+        try { fs.rmSync(tmp, { force: true }); } catch { /* best-effort temp cleanup */ }
+        throw err;
+      }
     } catch (err) {
       logger.warn({ err }, `${this.label}: failed to persist`);
     }

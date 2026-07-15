@@ -59,10 +59,24 @@ export function invalidateReadCache(): void {
 
 interface Entry { at: number; value: unknown; ttl: number }
 
-/** A per-actor key prefix so one user's read is never shared with another (reads run "as" the user). */
+/** A stable, non-secret fingerprint of a principal's DATA scope. Two callers with the same identity but
+ *  DIFFERENT scope (e.g. an all-scope admin vs a programme-scoped token, or two tokens bound to different
+ *  programmes) must not share a cache bucket — a scope-filtered `listProjects` for one must never be
+ *  served to the other. Deterministic (sorted) so the key is stable across requests. */
+function scopeFingerprint(scope: ActorContext["scope"]): string {
+  if (!scope) return "s:none";
+  if (scope.level === "all") return "s:all";
+  if (scope.level === "programme") return `s:prog:${[...(scope.programmes ?? [])].sort().join(",")}`;
+  return `s:user:${scope.sub ?? ""}`;
+}
+
+/** A per-actor key prefix so one principal's read is never shared with another (reads run "as" the
+ *  principal). Includes the scope fingerprint so identity + scope together bucket the cache — otherwise
+ *  a fix that forwards scope into the ctx would let two differently-scoped callers poison each other. */
 export const actorKey = (a: unknown): string => {
   const ctx = a as ActorContext | undefined;
-  return ctx?.sub ?? ctx?.email ?? "anon";
+  const id = ctx?.sub ?? ctx?.email ?? "anon";
+  return `${id}|${scopeFingerprint(ctx?.scope)}`;
 };
 
 /** The per-actor read key BOTH the cache and single-flight coalesce on: identity + method + args.

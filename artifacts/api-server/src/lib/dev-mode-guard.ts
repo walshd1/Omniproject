@@ -15,6 +15,8 @@
  * rare legitimate case (e.g. local testing against real OIDC); it never silences it.
  */
 
+import { isDemoAuthFrom } from "./auth-config";
+
 type Env = Record<string, string | undefined>;
 
 const set = (v: string | undefined) => !!v?.trim();
@@ -30,10 +32,17 @@ export function isProductionLike(env: Env): boolean {
   return env["NODE_ENV"] === "production" || productionSignals(env).length > 0;
 }
 
-/** Production signals that must not coexist with dev mode. */
+/** Production signals that must not coexist with dev mode (or a default SESSION_SECRET). */
 export function productionSignals(env: Env): string[] {
   const signals: string[] = [];
+  // ANY configured real auth method means a real identity is in play, so a default/weak session secret
+  // or dev mode must be refused. This reuses the single source of truth (`isDemoAuthFrom`) — the same
+  // function the runtime demo-auth gate uses — so the secret guard, the dev-mode interlock, and the
+  // runtime gate can never disagree about "is this a real deployment?". Previously only the LEGACY
+  // single-provider `OIDC_ISSUER_URL` counted, so a named-OIDC / OAuth2 / SAML / magic-link deployment
+  // (the modern path) slipped through and could boot on the public DEV_SESSION_SECRET (auth bypass).
   if (set(env["OIDC_ISSUER_URL"])) signals.push("OIDC_ISSUER_URL is set (real SSO is configured)");
+  else if (!isDemoAuthFrom(env)) signals.push("a real authentication method is configured (named OIDC / OAuth2 / SAML / magic-link)");
   if (set(env["LICENSE_KEY"]) || set(env["LICENSE_TOKEN"])) signals.push("a licence is configured (LICENSE_KEY/LICENSE_TOKEN)");
   const pub = env["PUBLIC_URL"]?.trim();
   if (pub) {
