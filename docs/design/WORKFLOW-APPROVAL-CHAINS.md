@@ -4,6 +4,32 @@ Status: **design, not built.** This is the written target for a large, security-
 across conversation. It records the model, what is genuinely new vs. reused, the crypto guarantees, and the
 build order — so implementation doesn't drift or duplicate existing code.
 
+## 0. Primary threat model — the malicious insider
+
+The design optimizes against a **legitimate insider abusing their access** (up to and including a privileged
+PMO/admin, or someone with server/DB/infra access), not just an outside attacker. Where it already stands:
+
+- **Infra / DB / server insider cannot forge an approval.** The gateway stores only PUBLIC keys; every
+  approval is a live hardware signature whose private key never leaves the approver's authenticator. A
+  malicious DBA, a leaked backup, or a rogue gateway operator has nothing to sign with.
+- **A single malicious approver cannot self-authorize.** Separation of duties (the proposer can never
+  approve) + multi-stage chains mean a high-impact action needs *other, distinct* people — one bad actor
+  can't push it through alone.
+- **Session hijack ≠ approval forgery.** A stolen session can *request* an approval but can't *sign* it
+  (no authenticator), so it can't impersonate an approver.
+- **Everything is non-repudiable + detectable.** Every approval, bypass, relaxation and revocation is
+  passkey-signed (attributable to a named person) and written to the immutable, hash-chained audit log.
+
+**Residual insider risk = the single-actor PRIVILEGED powers.** Today a lone PMO/admin can, by themselves:
+bypass a chain, redirect a stage to a colluder, define a deliberately weak chain, relax the sensitive-data
+no-go, or grant AI-approval authority. These are signed + audited (so never *invisible*), but not *prevented*.
+
+**Hardening principle (to build):** no single insider — whatever their role — can unilaterally perform a
+high-impact **granting/exposing** action. Those require **multiple distinct human passkey sign-offs**
+(dual-control / their own approval chain), so subverting the system takes *collusion of N*, every hand of
+which is attributable. Fail-**safe** *denying* actions (revoke) may stay single-actor since they only remove
+capability, but remain audited. Combined with least privilege (keep the privileged set minimal + scoped).
+
 ## 1. What we're building
 
 An **admin/PMO/PM-gated workflow creator**: a signed-in user (bounded by their RBAC scope) composes
