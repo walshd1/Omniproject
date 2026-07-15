@@ -201,6 +201,34 @@ workflow/chain actually uses AI. A human-only or manual workflow uses none of it
 6. **Bind chains to actions** (generalize `DUAL_CONTROL_ACTIONS` → per-action/per-workflow-step). *New glue.*
 7. **Workflow engine** (branch/loop interpreter over existing node surfaces) + JSON storage. *New interpreter.*
 
+## 6a. System-wide enforcement of the governing invariant (§0)
+
+The invariant — *no lone insider, admin included, may unilaterally REDUCE the security posture* — must hold
+**everywhere**, not just for the four approval actions. Design, fail-CLOSED:
+
+- **One chokepoint.** Every settings mutation funnels through `updateSettings`; every AI/backend action
+  funnels through the existing gates (`dual-control` action ids, `isActionApproved`, `autonomous-grant`).
+  Enforcement hooks these, not scattered call sites.
+- **A `SECURITY_SETTINGS` registry** names the settings keys that bear on the security posture (egress/IP
+  allowlists, DLP/sensitive-data config, RBAC/role grants, autonomous grants, audit/retention, approval
+  chains themselves, PSK/keys, MFA/step-up, session policy, feature-governance gates, …). The registry IS
+  the classification, and a **drift guard** (test) forces any newly-added security-relevant setting to be
+  registered — so a new knob can't slip in unclassified.
+- **Default-GATED, tightening-EXEMPT.** A change to a registry key is routed to **dual-control** (a second
+  distinct admin/PMO must passkey-sign before it applies) **unless** a per-key predicate can *prove* the
+  change strictly TIGHTENS (e.g. revoke, enable-a-guard, add-to-a-denylist, narrow-a-scope). Fail-closed:
+  no predicate, ambiguous, or structurally-complex change ⇒ treated as a reduction ⇒ gated. A
+  misclassification can only ever OVER-gate (safe friction), never under-gate (a hole).
+- **Mechanism = reuse.** A gated change becomes a `dual-control`/approval proposal carrying the patch as
+  params (no code in the queue); on the second signature the executor applies the exact patch. Tightening
+  applies immediately (single admin, audited). No role is exempt — an admin loosening still needs a second.
+- **Env/deploy-level** security (BROKER_PSK, KMS, TLS) is outside the app's mutation path — an ops/deploy
+  control, noted as out of scope for the in-app gate.
+
+Build order: (i) the pure classifier + registry + drift guard (no critical-path change); (ii) wire the
+`updateSettings` interception to route a loosening patch through dual-control. Step (i) is safe to build
+now; step (ii) touches the settings hot path and lands behind tests + the confirmed registry.
+
 ## 7. Open decisions
 
 - Settled (§4.2): an AI may be the sole/autonomous approver only under a **version-bound, passkey-signed human
