@@ -1,0 +1,28 @@
+{
+  "id": "budget-plans",
+  "label": "Budget plans",
+  "hint": "Planned budget by period and project. Edit the plans in Settings → Budget plans.",
+  "panels": [
+    {
+      "id": "budget-by-year",
+      "kind": "table",
+      "title": "Budget by year",
+      "span": 6,
+      "source": { "url": "/api/budget-plans/rows?groupBy=year&metric=sum:amount" }
+    },
+    {
+      "id": "budget-by-project",
+      "kind": "table",
+      "title": "Budget by project",
+      "span": 6,
+      "source": { "url": "/api/budget-plans/rows?groupBy=projectId&metric=sum:amount" }
+    },
+    {
+      "id": "budget-all-periods",
+      "kind": "table",
+      "title": "All planned periods",
+      "span": 12,
+      "source": { "url": "/api/budget-plans/rows" }
+    }
+  ]
+}

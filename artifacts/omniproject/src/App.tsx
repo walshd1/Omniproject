@@ -37,6 +37,7 @@ const Programmes = lazy(() => import("./pages/Programmes").then((m) => ({ defaul
 const ProgrammeDetail = lazy(() => import("./pages/ProgrammeDetail").then((m) => ({ default: m.ProgrammeDetail })));
 const Projects = lazy(() => import("./pages/Projects").then((m) => ({ default: m.Projects })));
 const ProjectDetail = lazy(() => import("./pages/ProjectDetail").then((m) => ({ default: m.ProjectDetail })));
+const ScreenPage = lazy(() => import("./pages/ScreenPage").then((m) => ({ default: m.ScreenPage })));
 const Settings = lazy(() => import("./pages/Settings").then((m) => ({ default: m.Settings })));
 const Configurator = lazy(() => import("./pages/Configurator").then((m) => ({ default: m.Configurator })));
 const Reports = lazy(() => import("./pages/Reports").then((m) => ({ default: m.Reports })));
@@ -106,6 +107,9 @@ function Router() {
       </Route>
       <Route path="/projects/:projectId">
         {(params) => <AppLayout><ProjectDetail projectId={params.projectId} /></AppLayout>}
+      </Route>
+      <Route path="/budgets">
+        <AppLayout><ScreenPage id="budget-plans" /></AppLayout>
       </Route>
       <Route path="/reports">
         <AppLayout><Reports /></AppLayout>

@@ -3,19 +3,32 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { Panel } from "../../../lib/screen";
 
 /**
- * Table panel — a simple grid. config: { columns: string[], rows: (string|number)[][],
- * maxRows?: number }.
- *
- * WINDOWED: only the first `maxRows` (default 50) rows are rendered; the rest are
- * behind a "show all" expander, so a large dataset doesn't paint thousands of DOM
- * nodes up front (the cheapest, most reliable rendering win for big tables).
+ * Table panel - a simple grid. Two accepted row shapes:
+ *   - POSITIONAL: config { columns: string[], rows: (string|number)[][] } - cells line up with columns.
+ *   - OBJECT-ROWS: config { rows: Record[], columns?: string[] } - the shape every rows/rollup endpoint
+ *     emits ({ rows: [ {..} ] }). columns (field keys) is optional; when omitted the columns are derived
+ *     from the union of the rows' keys, so a source-bound panel renders with zero config. This lets a panel
+ *     bind straight to a rows endpoint (raw, or a groupBy/metric roll-up).
+ * maxRows? windows large datasets (default 50); the rest sit behind a "show all" expander.
  */
 const DEFAULT_MAX_ROWS = 50;
 
+/** Normalise either row shape to positional `columns` + `rows` (array-of-arrays) for one render path. */
+function normaliseTable(c: Record<string, unknown>): { columns: string[]; rows: unknown[][] } {
+  const rawRows = Array.isArray(c["rows"]) ? (c["rows"] as unknown[]) : [];
+  const configColumns = Array.isArray(c["columns"]) ? (c["columns"] as unknown[]).map(String) : null;
+  const objectMode = rawRows.length > 0 && !Array.isArray(rawRows[0]) && typeof rawRows[0] === "object" && rawRows[0] !== null;
+  if (!objectMode) {
+    return { columns: configColumns ?? [], rows: rawRows.filter(Array.isArray) as unknown[][] };
+  }
+  const records = rawRows as Array<Record<string, unknown>>;
+  const columns = configColumns ?? [...new Set(records.flatMap((r) => Object.keys(r)))];
+  return { columns, rows: records.map((r) => columns.map((col) => r[col] ?? "")) };
+}
+
 export function TablePanel({ panel }: { panel: Panel }) {
   const c = panel.config ?? {};
-  const columns = Array.isArray(c["columns"]) ? (c["columns"] as unknown[]).map(String) : [];
-  const rows = Array.isArray(c["rows"]) ? (c["rows"] as unknown[][]) : [];
+  const { columns, rows } = normaliseTable(c);
   const maxRows = typeof c["maxRows"] === "number" && (c["maxRows"] as number) > 0 ? (c["maxRows"] as number) : DEFAULT_MAX_ROWS;
 
   const [expanded, setExpanded] = useState(false);
