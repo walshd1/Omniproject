@@ -2,6 +2,7 @@ import type { Request, Response } from "express";
 import { getSession } from "../routes/auth";
 import { sessionBindFromSession } from "../lib/session-key";
 import { roleForReq, scopeForReq } from "../lib/rbac";
+import { matchApiToken } from "../lib/api-token";
 import { ReferenceBroker, BROKER_ENV_CONFIGURED, pingBroker } from "./reference-broker";
 import { builtinBrokerEnabled, makeBuiltinBroker } from "./builtin";
 import { DemoBroker } from "./demo";
@@ -213,7 +214,19 @@ export function contextFromReq(req: Request): ActorContext {
   const authHeader = explicit
     ? Array.isArray(explicit) ? explicit[0] : explicit
     : session?.accessToken ? `Bearer ${session.accessToken}` : undefined;
-  if (!session) return { authHeader };
+  if (!session) {
+    // No session ⇒ a read-only API-token principal (or an unauthenticated caller). Even without a
+    // session we MUST carry the token's DATA SCOPE into the broker context: a scoped token
+    // (`<token>@<programme>`) resolves to programme scope via scopeForReq, and if we drop it here the
+    // broker sees no scope and returns the WHOLE portfolio — defeating the containment the scoped token
+    // exists to provide. Attach a stable, NON-SECRET `sub` (derived from the allowed programmes, never
+    // the token itself) so the read/single-flight caches bucket per scope rather than collapsing every
+    // token caller into one shared "anon" entry.
+    const apiScope = matchApiToken(req);
+    if (!apiScope) return { authHeader };
+    const sub = apiScope.programmes?.length ? `apitoken:${[...apiScope.programmes].sort().join("|")}` : "apitoken";
+    return { sub, role: roleForReq(req), scope: scopeForReq(req), authHeader };
+  }
   // Bind the per-session broker signing key to this user + session (null for older
   // cookies that predate the scheme — those fall back to the static broker key).
   const sessionBind = sessionBindFromSession(session) ?? undefined;
