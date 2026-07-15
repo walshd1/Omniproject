@@ -70,8 +70,12 @@ be forced, not even by the server.*
   1. **Key-class segregation** — AI signs with a distinct, **grant-bound autonomous key** (reusing
      `autonomous-grant`); an AI-signed approval is marked as such in the queue + audit. A stage that requires a
      **human passkey can never be satisfied by an AI signature**.
-  2. **Separation of duties** — an AI (or its principal) cannot approve a proposal it initiated; an AI cannot
-     be the **sole or final** approver above a sensitivity threshold — a **human stage stays mandatory** there.
+  2. **Intermediary only — never sole; a human sign-off is ALWAYS required** — an AI may occupy an
+     *intermediary* stage but can **never be the only approver in a chain**. Every chain that includes an AI
+     stage **must** contain at least one explicit **human** passkey sign-off — no sensitivity threshold, no
+     exception. An AI signature alone can never complete a chain; a chain with no human approver can never
+     include an AI stage; and an AI (or its principal) can never approve a proposal it initiated (no
+     self-approval). The authoritative completion of any chain is always a human act.
   3. **Grant-bound, per-workflow, human-issued, NEVER agentic** — an AI's ability to approve a stage is
      conferred **only by an explicit human grant, scoped to a single workflow** (never a blanket/global
      grant, never inferred). The grant-issuing action is itself a **hard human-only** action: it can never be
@@ -108,7 +112,12 @@ be forced, not even by the server.*
 
 ## 7. Open decisions
 
-- Sensitivity threshold above which a human stage is mandatory (and who sets it — org PMO vs. per-project PM).
+- A human passkey sign-off is ALWAYS mandatory in any chain containing an AI stage (settled, §4.2). Open:
+  whether a sensitivity threshold governs anything *further* — e.g. actions that forbid AI stages entirely —
+  and who sets it (org PMO vs. per-project PM).
+- Reads posture for AI: keep today's default-permitted-but-governed (allowlist + RBAC scope + audit), or add a
+  **default-deny-reads for autonomous actors** option so *every* AI action — reads included — needs an explicit
+  human grant (matches the writes/approvals posture).
 - Exact JSON schema for a chain and a workflow (versioned, drift-guarded).
 - Quorum-per-stage (deferred) and parallel stages (deferred).
 - Passkey recovery / approver offboarding (a leaver's public key must be revocable without breaking history).
