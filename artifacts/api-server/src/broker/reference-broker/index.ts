@@ -21,6 +21,8 @@ import {
   type TaskItemWrite,
   type TaskComment,
   type TaskCommentWrite,
+  type TaskAttachment,
+  type TaskAttachmentWrite,
   type Summary,
   type HistoryPoint,
   type HistoryState,
@@ -628,6 +630,19 @@ export class ReferenceBroker implements Broker {
   async addTaskComment(ctx: ActorContext, taskId: string, input: TaskCommentWrite): Promise<TaskComment> {
     const r = await callBroker<TaskComment>("add_task_comment", { issueId: taskId, ...input }, { ctx, source: backendSource(), withActor: true });
     if (!r.data) throw new BrokerError("bad_request", "add_task_comment returned no comment");
+    return r.data;
+  }
+
+  // Attachments (Jira-class) — OPTIONAL, same contract as comments: file REFERENCES only (zero-at-rest).
+  // A backend that tracks attachment refs (e.g. OmniStore) serves these; one that doesn't answers 501.
+  async listTaskAttachments(ctx: ActorContext, taskId: string): Promise<TaskAttachment[]> {
+    const r = await callBroker<TaskAttachment[]>("list_task_attachments", { issueId: taskId }, { ctx, source: backendSource(), withActor: false });
+    return r.data ?? [];
+  }
+
+  async addTaskAttachment(ctx: ActorContext, taskId: string, input: TaskAttachmentWrite): Promise<TaskAttachment> {
+    const r = await callBroker<TaskAttachment>("add_task_attachment", { issueId: taskId, ...input }, { ctx, source: backendSource(), withActor: true });
+    if (!r.data) throw new BrokerError("bad_request", "add_task_attachment returned no attachment");
     return r.data;
   }
 

@@ -25,9 +25,10 @@ interface State {
   raid: Map<string, Row[]>;
   taskItems: Map<string, Row[]>; // taskId → items
   comments: Map<string, Row[]>; // issueId → comment thread (newest last)
-  seq: { project: number; issue: number; raid: number; item: number; comment: number };
+  attachments: Map<string, Row[]>; // issueId → attachment REFERENCES (never bytes)
+  seq: { project: number; issue: number; raid: number; item: number; comment: number; attachment: number };
 }
-const empty = (): State => ({ projects: new Map(), issues: new Map(), raid: new Map(), taskItems: new Map(), comments: new Map(), seq: { project: 0, issue: 0, raid: 0, item: 0, comment: 0 } });
+const empty = (): State => ({ projects: new Map(), issues: new Map(), raid: new Map(), taskItems: new Map(), comments: new Map(), attachments: new Map(), seq: { project: 0, issue: 0, raid: 0, item: 0, comment: 0, attachment: 0 } });
 
 const idNum = (id: unknown): number => { const m = /(\d+)$/.exec(String(id)); return m ? Number(m[1]) : 0; };
 
@@ -94,6 +95,12 @@ export function applyEvent(state: State, link: OmniLink): void {
       const r = { ...row("row") };
       (state.comments.get(String(r["issueId"])) ?? state.comments.set(String(r["issueId"]), []).get(String(r["issueId"]))!)!.push(r);
       state.seq.comment = Math.max(state.seq.comment, idNum(r["id"]));
+      return;
+    }
+    case "attachment.add": {
+      const r = { ...row("row") };
+      (state.attachments.get(String(r["issueId"])) ?? state.attachments.set(String(r["issueId"]), []).get(String(r["issueId"]))!)!.push(r);
+      state.seq.attachment = Math.max(state.seq.attachment, idNum(r["id"]));
       return;
     }
   }
@@ -205,6 +212,26 @@ export function omniStoreBackend(log: OmniEventLog, onCommit?: (sealed: string) 
       // the forwarded actor so a comment is attributable even when the caller doesn't supply one.
       const row: Row = { ...input, id, issueId, author: input["author"] ?? ctx.sub ?? null, createdAt: now() };
       commit("comment.add", { row });
+      return { ...row };
+    },
+
+    // ── Attachments (Jira-class, REFERENCES only — zero-at-rest) ──────────────
+    // OmniStore stores a POINTER to where the file lives (filename/url/contentType/size), never the
+    // bytes. `filename` is required; any raw content is dropped so the encrypted log can't become a blob
+    // store — the zero-at-rest guarantee holds even for a first-party backend.
+    async listTaskAttachments(_ctx, issueId) { return (state.attachments.get(issueId) ?? []).map((r) => ({ ...r })); },
+    async addTaskAttachment(ctx, issueId, input) {
+      const filename = String(input["filename"] ?? "").trim();
+      if (!filename) throw new BrokerHttpError(400, { message: "addTaskAttachment requires a filename" });
+      const id = `att-${state.seq.attachment + 1}`;
+      // Reference fields ONLY — never persist bytes/data even if a caller sends them.
+      const { data: _data, bytes: _bytes, content: _content, ...ref } = input;
+      const row: Row = {
+        ...ref, id, issueId, filename,
+        url: input["url"] ?? null, contentType: input["contentType"] ?? null, size: input["size"] ?? null,
+        addedBy: input["addedBy"] ?? ctx.sub ?? null, addedAt: now(),
+      };
+      commit("attachment.add", { row });
       return { ...row };
     },
   };

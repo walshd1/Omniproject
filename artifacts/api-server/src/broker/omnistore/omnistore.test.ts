@@ -63,6 +63,24 @@ test("Jira-class — comments are a first-class stored entity carried over the w
   });
 });
 
+test("Jira-class — attachment REFERENCES round-trip over the wire, and bytes are never stored (zero-at-rest)", async () => {
+  await withServer(undefined, async (broker) => {
+    const p = await broker.createProject(ctx, { name: "Files" });
+    const issue = await broker.writeIssue(ctx, "create", { projectId: p.id, title: "Has files", status: "todo" });
+    assert.equal(typeof broker.addTaskAttachment, "function");
+    // A caller tries to smuggle raw bytes alongside the reference — they must be dropped, not persisted.
+    const att = await broker.addTaskAttachment(ctx, issue.id, { filename: "spec.pdf", url: "s3://bucket/spec.pdf", contentType: "application/pdf", size: 1024, data: "SGVsbG8=" } as any);
+    assert.equal(att.filename, "spec.pdf");
+    assert.equal(att.url, "s3://bucket/spec.pdf");
+    assert.equal((att as any).data, undefined, "raw bytes must never be stored (zero-at-rest)");
+    assert.equal(att.addedBy, ctx.sub); // attributed to the forwarded actor
+    const list = await broker.listTaskAttachments(ctx, issue.id);
+    assert.deepEqual(list.map((a: any) => a.filename), ["spec.pdf"]);
+    assert.equal((list[0] as any).data, undefined);
+    assert.deepEqual(await broker.listTaskAttachments(ctx, "iss-nope"), []); // per-work-item
+  });
+});
+
 test("stores the SUPERSET — extension fields no vendor API exposes round-trip", async () => {
   await withServer(undefined, async (broker) => {
     // Fields a third-party API wouldn't hold: OmniProject's correlation GUID + a custom field.

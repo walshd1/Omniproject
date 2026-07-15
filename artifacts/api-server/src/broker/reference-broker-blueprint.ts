@@ -142,6 +142,14 @@ export type BrokerBackend = typeof backend & {
   /** OPTIONAL — append a comment to a work item. `input.body` is the text; the backend stamps
    *  id/author/createdAt. Only a comment-storing backend implements it (else `add_task_comment` is 501). */
   addTaskComment?(ctx: ActorCtx, issueId: string, input: Row): Promise<Row>;
+  /** OPTIONAL — a work item's attachment REFERENCES (filename/url/contentType/size), never the bytes
+   *  (OmniProject is zero-at-rest). Only a backend that tracks attachment refs implements it (else the
+   *  `list_task_attachments` action is 501). */
+  listTaskAttachments?(ctx: ActorCtx, issueId: string): Promise<Row[]>;
+  /** OPTIONAL — record an attachment REFERENCE on a work item (a pointer to where the file actually
+   *  lives; the backend stamps id/addedBy/addedAt). Only an attachment-tracking backend implements it
+   *  (else `add_task_attachment` is 501). */
+  addTaskAttachment?(ctx: ActorCtx, issueId: string, input: Row): Promise<Row>;
 };
 
 /** The pre-extracted call context handed to every binding action's handler. */
@@ -196,6 +204,15 @@ const BINDING_ACTIONS: Record<string, (b: BindingCtx) => unknown> = {
   add_task_comment: ({ be, ctx, iid, payload }) => {
     if (!be.addTaskComment) throw new NotImplemented("addTaskComment");
     return be.addTaskComment(ctx, iid, payload);
+  },
+  // OPTIONAL Jira-class attachment REFERENCES — presence-gated, same contract as comments.
+  list_task_attachments: ({ be, ctx, iid }) => {
+    if (!be.listTaskAttachments) throw new NotImplemented("listTaskAttachments");
+    return be.listTaskAttachments(ctx, iid);
+  },
+  add_task_attachment: ({ be, ctx, iid, payload }) => {
+    if (!be.addTaskAttachment) throw new NotImplemented("addTaskAttachment");
+    return be.addTaskAttachment(ctx, iid, payload);
   },
 };
 
