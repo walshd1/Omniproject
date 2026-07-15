@@ -262,15 +262,26 @@ now; step (ii) touches the settings hot path and lands behind tests + the confir
 **Coverage status (as built).** `applySettingsGuarded` is the guard; a relaxing change → held for a signed
 sign-off, else applied. Wired at: **`PATCH /settings`** and **every `settingsCollectionRouter` write** (so
 `/approval-chains` and any future security collection are covered; choice collections are unaffected).
+
+**Secret-safe proposal — BUILT.** A held patch is now **SEALED at rest** before it enters the shared-state
+queue (`settings-guard` → `config-crypto.sealConfig`; the executor opens it only at apply time, in-process,
+never in an inbox/list view). So a relaxation carrying a **secret** (a webhook signing secret, a peer token)
+no longer sits as plaintext in the queue — the documented PREREQUISITE for guarding the secret-carrying
+routes is satisfied and proven (settings-guard.test: the plaintext secret is absent from the queued
+proposal, yet applies intact after sign-off).
+
 **Still direct (invariant bypassable via them — the gap to close):**
 - `PUT /features/governance-rules` (`governanceRules`) — a clean patch, but its round-trip *validation* tests
   assume immediate apply; guarding needs those adapted to a sign-off flow. Small, deferred.
 - `PUT /governance/:id` (`capabilityStates`) — mutates via the bespoke `setCapabilityState`, not a plain
   patch; needs a patch-shaped wrap. Step-up-gated today.
-- `POST/DELETE /webhooks`, `PUT /federated-peers` — carry **SECRETS** (signing secret, peer token). They
-  **cannot** route through the current guard: the proposal queue persists `params`, so the secret would sit
-  at rest in the queue. A **secret-safe proposal** (hold a reference / apply the secret from secure holding,
-  never in the queue) is a PREREQUISITE. Step-up-gated today.
+- `POST/DELETE /webhooks`, `PUT /federated-peers` — the secret-in-queue blocker is now REMOVED (sealed
+  proposal above), so these are technically guardable. Flipping them is a **UX/contract change** on a premium
+  feature: create/upsert becomes *held-for-sign-off* (202) instead of immediate (200), and their happy-path
+  CRUD tests (which assert immediate apply) need adapting to the sign-off flow. Pending that call; the
+  classification for these would also move from `changed` to **directional** (adding/redirecting an active
+  egress target = relax → held; pure removal/deactivation = strengthen → immediate) so a delete isn't
+  over-gated. Step-up-gated today.
 All four are admin/PMO + step-up gated (strong single-actor), so not unprotected — just not yet sign-off.
 
 ## 7. Open decisions

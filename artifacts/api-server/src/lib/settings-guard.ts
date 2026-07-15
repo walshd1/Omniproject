@@ -2,6 +2,8 @@ import { getSettings, updateSettings, validatePatch, type SettingsState } from "
 import { relaxingKeys } from "./security-settings";
 import { createProposal, registerApprovalExecutor } from "./approval-service";
 import { chainForAction } from "./approval-gate";
+import { sealConfig, openConfig } from "./config-crypto";
+import { canonicalJson } from "./canonical-json";
 import type { ChainDef } from "./approval-chain";
 
 /**
@@ -29,9 +31,18 @@ const SOLO_RELAX_CHAIN: ChainDef = {
   stages: [{ id: "confirm", approvers: [{ kind: "role", role: "admin" }], humanOnly: true }],
 };
 
-// The executor that applies an approved relaxation — params carry the exact patch, no code in the queue.
+/** The property under which the SEALED patch travels in the proposal params (see below). */
+const SEALED_PATCH = "__sealedPatch";
+
+// The executor that applies an approved relaxation. The patch is SEALED at rest (config-crypto), so a
+// security-reducing change carrying a SECRET (a webhook signing secret, a federation-peer PSK) never sits
+// as plaintext in the shared-state queue while it waits for sign-off. The executor opens it here — only at
+// apply time, in-process, under the internal key — and never in any inbox/list view. No code in the queue.
 registerApprovalExecutor(SETTINGS_RELAX_ACTION, (params) => {
-  updateSettings(params as Partial<SettingsState>);
+  const token = (params as Record<string, unknown> | null)?.[SEALED_PATCH];
+  const plaintext = typeof token === "string" ? openConfig(token) : null;
+  if (plaintext === null) throw new Error("sealed settings patch could not be opened (key rotated or tampered)");
+  updateSettings(JSON.parse(plaintext) as Partial<SettingsState>);
 });
 
 export interface GuardedSettingsResult {
@@ -56,6 +67,10 @@ export async function applySettingsGuarded(patch: Partial<SettingsState>, propos
     return { applied: true };
   }
   const def = chainForAction(SETTINGS_RELAX_ACTION) ?? SOLO_RELAX_CHAIN;
-  const proposalId = await createProposal({ def, action: SETTINGS_RELAX_ACTION, params: normalized, proposedBy });
+  // Seal the patch BEFORE it enters the queue — a relaxation may carry a secret, and the queue is shared
+  // (fleet-wide under Redis). The `relaxes` summary (key names only, no values) is safe to return in the
+  // clear so an approver knows WHAT is being weakened; the values stay sealed until the executor applies.
+  const params = { [SEALED_PATCH]: sealConfig(canonicalJson(normalized)) };
+  const proposalId = await createProposal({ def, action: SETTINGS_RELAX_ACTION, params, proposedBy });
   return { applied: false, pending: { proposalId, relaxes } };
 }
