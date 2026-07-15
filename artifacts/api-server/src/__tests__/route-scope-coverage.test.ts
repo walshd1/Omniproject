@@ -109,6 +109,21 @@ const CLASSIFICATION: Record<string, ScopeClass> = {
 
   // ── Own-resource / approver: in-handler RBAC + state machine ──
   "POST /timesheets/:id/action": "self-or-approver",
+  // Approval proposals: the :id is a global proposal id (a uuid), not per-tenant data. Challenge/decision
+  // are open to any authenticated session but the approval ENGINE gates every act — only an ELIGIBLE
+  // approver for the current stage can advance it, the proposer can't self-approve (unless allowed), and a
+  // passkey signature over the proposal's content hash is verified — so a guessed id yields nothing.
+  "POST /approvals/:id/challenge": "self-or-approver",
+  "POST /approvals/:id/decision": "self-or-approver",
+  // Redirect/bypass are PMO acts (requireRole pmo) over the same global proposal id; bypass is itself
+  // passkey-signed. Admin-global, not tenant data.
+  "POST /approvals/:id/redirect": "admin-nontenant",
+  "POST /approvals/:id/bypass": "admin-nontenant",
+  "POST /approvals/:id/bypass/challenge": "admin-nontenant",
+  // A workflow run: the :id is a global workflow-definition id, not tenant data. The run is scope-gated
+  // (org⇒pmo, project⇒manager) and, when bound, approval-held; the effect surface is a fail-closed read+
+  // notify allowlist carrying the caller's own broker scope — so it can't be a cross-tenant lateral vector.
+  "POST /workflows/:id/run": "admin-nontenant",
 };
 
 /** Recursively collect "METHOD /path" for every route in an Express router tree. */

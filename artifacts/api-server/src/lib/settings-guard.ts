@@ -4,6 +4,7 @@ import { createProposal, registerApprovalExecutor } from "./approval-service";
 import { chainForAction } from "./approval-gate";
 import { sealConfig, openConfig } from "./config-crypto";
 import { canonicalJson } from "./canonical-json";
+import { safeParseJson } from "./safe-json";
 import type { ChainDef } from "./approval-chain";
 
 /**
@@ -42,7 +43,9 @@ registerApprovalExecutor(SETTINGS_RELAX_ACTION, (params) => {
   const token = (params as Record<string, unknown> | null)?.[SEALED_PATCH];
   const plaintext = typeof token === "string" ? openConfig(token) : null;
   if (plaintext === null) throw new Error("sealed settings patch could not be opened (key rotated or tampered)");
-  updateSettings(JSON.parse(plaintext) as Partial<SettingsState>);
+  // Prototype-safe parse even though we sealed this ourselves — a settings patch key like "__proto__"
+  // must never reach Object.prototype through the apply path.
+  updateSettings(safeParseJson<Partial<SettingsState>>(plaintext));
 });
 
 export interface GuardedSettingsResult {

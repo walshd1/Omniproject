@@ -67,6 +67,7 @@ export async function credentialsFor(sub: string): Promise<PasskeyCredential[]> 
     !!c && typeof c === "object" && typeof (c as PasskeyCredential).credentialId === "string" && typeof (c as PasskeyCredential).publicKeySpki === "string");
 }
 
+/** One registered credential for `sub` by its id, or null when the user has no such passkey. */
 export async function getCredential(sub: string, credentialId: string): Promise<PasskeyCredential | null> {
   return (await credentialsFor(sub)).find((c) => c.credentialId === credentialId) ?? null;
 }

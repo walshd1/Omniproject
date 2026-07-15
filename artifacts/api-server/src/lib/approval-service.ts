@@ -50,6 +50,7 @@ const contentHashOf = (action: string, params: unknown): string =>
 async function saveProposal(id: string, p: StoredProposal): Promise<void> {
   await sharedKv.set(propKey(id), JSON.stringify(p), { ttlMs: PROP_TTL_MS });
 }
+/** Load a stored proposal by id, or null when absent / structurally invalid (parse-safe). */
 export async function loadProposal(id: string): Promise<StoredProposal | null> {
   const raw = await sharedKv.get(propKey(id));
   if (!raw) return null;

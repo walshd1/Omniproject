@@ -1,3 +1,5 @@
+// OmniStore backend — the durable, encrypted, tamper-evident system-of-record adapter below the broker
+// seam (full contract + rationale in the block comment under the imports).
 import { isDone } from "../vocabulary";
 import { BrokerHttpError, type BrokerBackend } from "../reference-broker-blueprint";
 import { OmniEventLog, resolveStoreKey, deriveKeys, type OmniLink } from "../builtin/omnistore-log";

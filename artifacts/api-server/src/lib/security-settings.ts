@@ -36,14 +36,22 @@ export const SECURITY_SETTINGS: Record<string, RelaxPredicate> = {
   // Egress / cross-instance data sharing.
   webhooks: changed,
   federatedPeers: changed,
-  errorTelemetry: changed,
+  // Egress TOGGLES have a clear direction: turning egress ON (or redirecting where it goes) is the
+  // relaxation; turning it OFF strengthens and applies immediately (the invariant lets you increase
+  // posture freely). So these are directional, not fail-closed `changed` — a disable is never gated.
+  errorTelemetry: (o, n) => n === true && o !== true, // enabling external error telemetry only
+  loggingSync: (o, n) => {
+    const on = (v: Val): boolean => !!(v && typeof v === "object" && (v as { enabled?: unknown }).enabled === true);
+    const dest = (v: Val): unknown => (v && typeof v === "object" ? (v as { url?: unknown }).url : undefined);
+    // Relax = ending up enabled with a NEW destination: newly turned on, or redirected while on.
+    return on(n) && (!on(o) || dest(o) !== dest(n));
+  },
   // The controls themselves — weakening any is the classic insider move; fail-closed on any edit.
   approvalChains: changed,
   approvalBindings: changed,
   capabilityStates: changed,
   featureGovernance: changed,
   governanceRules: changed,
-  loggingSync: changed,
   // Audit retention has a CLEAR scale: a shorter window loses audit trail (relax); longer strengthens (free).
   historyRetention: (o, n) => {
     const days = (v: Val): number => {
