@@ -34,14 +34,19 @@ export function ScreenPage({ id, methodology, params }: { id: string; methodolog
     ? { ...def, panels: def.panels.map((p) => ({ ...p, config: { ...(p.config ?? {}), ...params } })) }
     : def;
 
+  // A methodology-tagged screen (e.g. the Kanban board) renders with ITS OWN methodology by default — so
+  // its content is filtered and its canonical layout applies without a caller having to pass one. An
+  // explicit `methodology` prop still wins. Neutral ("*") tags don't select a methodology.
+  const activeMethodology = methodology ?? def.methodologies?.find((m) => m !== "*");
+
   // The methodology's canonical arrangement (if it ships one) becomes the layout fallback beneath any
   // customer-saved layout; content is filtered by the same methodology inside the renderer.
-  const fallbackLayout = canonicalLayoutFor(def, methodology);
+  const fallbackLayout = canonicalLayoutFor(def, activeMethodology);
 
   if (def.bare) {
     return (
       <div className="h-full" data-testid={`screen-${id}`}>
-        <EditableScreen screen={screen} bare fallbackLayout={fallbackLayout} {...(methodology ? { methodology } : {})} />
+        <EditableScreen screen={screen} bare fallbackLayout={fallbackLayout} {...(activeMethodology ? { methodology: activeMethodology } : {})} />
       </div>
     );
   }
@@ -53,7 +58,7 @@ export function ScreenPage({ id, methodology, params }: { id: string; methodolog
         {def.hint && <span className="text-xs text-muted-foreground">{def.hint}</span>}
       </div>
       <div className="flex-1 p-8 overflow-auto">
-        <EditableScreen screen={screen} fallbackLayout={fallbackLayout} {...(methodology ? { methodology } : {})} />
+        <EditableScreen screen={screen} fallbackLayout={fallbackLayout} {...(activeMethodology ? { methodology: activeMethodology } : {})} />
       </div>
     </div>
   );

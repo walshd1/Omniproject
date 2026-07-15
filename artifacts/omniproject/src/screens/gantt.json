@@ -1,0 +1,1 @@
+{ "id": "gantt-board", "label": "Gantt Timeline", "methodologies": ["waterfall"], "route": "/gantt", "nav": { "label": "Gantt" }, "bare": true, "panels": [ { "id": "gantt-timeline", "kind": "view", "config": { "view": "gantt" } } ] }

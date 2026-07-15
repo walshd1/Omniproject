@@ -12,6 +12,10 @@ import projects from "../screens/projects.json";
 import projectDetail from "../screens/project-detail.json";
 import explore from "../screens/explore.json";
 import kanban from "../screens/kanban.json";
+import scrum from "../screens/scrum.json";
+import gantt from "../screens/gantt.json";
+import prince2 from "../screens/prince2.json";
+import raid from "../screens/raid.json";
 
 /**
  * Screen-definition catalogue — the panel-bearing ScreenDefs the generic builder renders, authored as
@@ -61,6 +65,10 @@ const ENTRIES: ScreenCatalogueEntry[] = [
   projectDetail as ScreenCatalogueEntry,
   explore as ScreenCatalogueEntry,
   kanban as ScreenCatalogueEntry,
+  scrum as ScreenCatalogueEntry,
+  gantt as ScreenCatalogueEntry,
+  prince2 as ScreenCatalogueEntry,
+  raid as ScreenCatalogueEntry,
 ];
 
 const byId = new Map(ENTRIES.map((s) => [s.id, s]));
