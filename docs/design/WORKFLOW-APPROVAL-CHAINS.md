@@ -24,11 +24,20 @@ PMO/admin, or someone with server/DB/infra access), not just an outside attacker
 bypass a chain, redirect a stage to a colluder, define a deliberately weak chain, relax the sensitive-data
 no-go, or grant AI-approval authority. These are signed + audited (so never *invisible*), but not *prevented*.
 
-**Hardening principle (to build):** no single insider — whatever their role — can unilaterally perform a
-high-impact **granting/exposing** action. Those require **multiple distinct human passkey sign-offs**
-(dual-control / their own approval chain), so subverting the system takes *collusion of N*, every hand of
-which is attributable. Fail-**safe** *denying* actions (revoke) may stay single-actor since they only remove
-capability, but remain audited. Combined with least privilege (keep the privileged set minimal + scoped).
+**THE GOVERNING INVARIANT — ratchet security, never loosen it alone.** No lone insider — whatever their role
+— may unilaterally do *anything that REDUCES the security posture*. They may *increase* it freely (single
+actor, audited); any action that *reduces* it requires **≥2 distinct human passkey sign-offs** (dual-control /
+its own approval chain). This asymmetry is the RULE that classifies every action:
+
+- **Tightening** (add a sensitive-data rule, add an approval stage, make a chain stricter, revoke a key,
+  narrow a scope, enable a guard) → single actor, admin-gated, audited.
+- **Loosening** (relax the sensitive-data no-go, remove/weaken a stage or chain, grant AI authority, bypass,
+  redirect, widen a scope, disable a guard, broaden egress/RBAC) → **dual-control**, so subversion takes
+  *collusion of ≥2*, every hand attributable + hash-chain-audited.
+
+Fail-**safe** *denying* actions (revoke) are "tightening", so single-actor is fine. Least privilege throughout.
+The four items below are the first instances; the invariant is meant to extend to every security-relevant
+setting (a follow-on classification pass gates each security-REDUCING setting behind dual-control).
 
 **Settled — these FOUR require two distinct human passkey sign-offs (dual-control):**
 1. **Chain bypass** — a second PMO/admin co-signs the force-approve.
