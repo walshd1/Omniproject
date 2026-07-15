@@ -101,6 +101,20 @@ function Router() {
       <Route path="/projects">
         <AppLayout><ScreenPage id="projects" /></AppLayout>
       </Route>
+      {/* Project-scoped sub-screens (JSON defs matching the backend screen ids), threaded with :projectId.
+          Listed before the :projectId detail route; wouter's single-segment param won't match these anyway. */}
+      <Route path="/projects/:projectId/gantt">
+        {(params) => <AppLayout><ScreenPage id="gantt" params={{ projectId: params.projectId }} /></AppLayout>}
+      </Route>
+      <Route path="/projects/:projectId/risks">
+        {(params) => <AppLayout><ScreenPage id="risk-register" params={{ projectId: params.projectId }} /></AppLayout>}
+      </Route>
+      <Route path="/projects/:projectId/raci">
+        {(params) => <AppLayout><ScreenPage id="raci-matrix" params={{ projectId: params.projectId }} /></AppLayout>}
+      </Route>
+      <Route path="/projects/:projectId/stakeholders">
+        {(params) => <AppLayout><ScreenPage id="stakeholders" params={{ projectId: params.projectId }} /></AppLayout>}
+      </Route>
       <Route path="/projects/:projectId">
         {(params) => <AppLayout><ScreenPage id="project-detail" params={{ projectId: params.projectId }} /></AppLayout>}
       </Route>

@@ -72,6 +72,17 @@ describe("screen catalogue", () => {
     }
   });
 
+  it("project sub-screens are catalogued for rendering but not re-registered as composition items", () => {
+    for (const id of ["gantt", "risk-register", "raci-matrix", "stakeholders"]) {
+      const def = getScreenDef(id);
+      expect(def, `sub-screen ${id}`).toBeTruthy();
+      expect(def!.route, `${id} must not declare a catalogue route (backend owns its composition item)`).toBeUndefined();
+    }
+    // …so they don't appear in routedScreens / composition items (no collision with the backend screens).
+    const routedIds = routedScreens().map((s) => s.id);
+    for (const id of ["gantt", "risk-register", "raci-matrix", "stakeholders"]) expect(routedIds).not.toContain(id);
+  });
+
   it("a methodology-tagged screen shows/hides with the composition; neutral screens always show", () => {
     // Uncurated (null) → everything visible.
     expect(visibleRoutedScreens(null).map((s) => s.id)).toContain("kanban");
