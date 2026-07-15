@@ -39,6 +39,9 @@ export interface ScreenCatalogueEntry extends ScreenDef {
   /** Full-bleed: a single hosted full-page component that owns its own layout — rendered without the
    *  ScreenPage header chrome and the tiled grid, so a migrated page looks exactly as it did. */
   bare?: boolean;
+  /** A CORE screen: essential to the app (Home, Projects, …). It can be CUSTOMISED (overridden) but never
+   *  turned off — the OFF switch is refused for it in the admin panel and ignored by the builder. */
+  core?: boolean;
   /**
    * A methodology's CANONICAL arrangement of this screen (panel order / spans / hidden), keyed by
    * methodology id. This is the layout half of "a methodology defines canonical screen content and
@@ -82,6 +85,13 @@ const ENTRIES: ScreenCatalogueEntry[] = [
 ];
 
 const byId = new Map(ENTRIES.map((s) => [s.id, s]));
+const CORE_IDS = new Set(ENTRIES.filter((s) => s.core).map((s) => s.id));
+
+/** Whether a screen is CORE (essential — customisable but never turn-off-able). Read from the BUILT-IN
+ *  catalogue, so an org override of a core screen can't quietly drop its core protection. */
+export function screenIsCore(id: string): boolean {
+  return CORE_IDS.has(id);
+}
 
 /** One screen definition by id, or undefined when no such screen is catalogued. */
 export function getScreenDef(id: string): ScreenCatalogueEntry | undefined {

@@ -29,3 +29,6 @@ export const SCREEN_COMPONENTS: Record<string, ComponentType<ScreenComponentProp
 export function hasScreenComponent(id: string): boolean {
   return id in SCREEN_COMPONENTS;
 }
+
+/** The registered component ids (for the screen editor's `component`-panel picker). */
+export const SCREEN_COMPONENT_IDS: string[] = Object.keys(SCREEN_COMPONENTS);

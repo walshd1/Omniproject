@@ -26,6 +26,7 @@ import { useAuth, isPmoOrAdmin, type Role } from "./auth";
 import { useMethodologyComposition } from "./methodology-composition-api";
 import { visibleRoutedScreens, screenVisibleUnder, type ScreenCatalogueEntry } from "./screen-catalogue";
 import { useRoutedScreens } from "./org-screens";
+import { useDisabledScreens, isScreenDisabled } from "./screen-state";
 
 /** Which shelf a nav item lives on. "admin" items are collapsed behind the Advanced gate. */
 export type NavGroup = "primary" | "admin";
@@ -127,7 +128,9 @@ export function useVisibleNavItems(): NavItem[] {
   const { data: features } = useFeatures();
   const { data: auth } = useAuth();
   const { data: composition } = useMethodologyComposition();
-  // The EFFECTIVE routed screens (built-in + the org's stored/overridden ones), gated by the composition.
+  const { data: disabled } = useDisabledScreens();
+  // The EFFECTIVE routed screens (built-in + the org's stored/overridden ones), gated by the composition
+  // and the admin OFF switch.
   const routed = useRoutedScreens();
   const staticItems = NAV_ITEMS.filter(
     (item) =>
@@ -136,7 +139,9 @@ export function useVisibleNavItems(): NavItem[] {
       (!item.visibleToRoles || item.visibleToRoles(auth?.role)),
   );
   const composed = composition ?? null;
-  const screenItems = routed.filter((s) => screenVisibleUnder(composed, s)).map(screenToNavItem);
+  const screenItems = routed
+    .filter((s) => !isScreenDisabled(disabled, s.id) && screenVisibleUnder(composed, s))
+    .map(screenToNavItem);
   return [...staticItems, ...screenItems];
 }
 

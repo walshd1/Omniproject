@@ -1,1 +1,15 @@
-{ "id": "tasks", "label": "Tasks", "bare": true, "panels": [ { "id": "tasks", "kind": "component", "config": { "component": "tasks" } } ] }
+{
+  "id": "tasks",
+  "label": "Tasks",
+  "bare": true,
+  "panels": [
+    {
+      "id": "tasks",
+      "kind": "component",
+      "config": {
+        "component": "tasks"
+      }
+    }
+  ],
+  "core": true
+}

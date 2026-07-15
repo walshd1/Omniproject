@@ -1,1 +1,15 @@
-{ "id": "programmes", "label": "Programmes", "bare": true, "panels": [ { "id": "programmes", "kind": "component", "config": { "component": "programmes" } } ] }
+{
+  "id": "programmes",
+  "label": "Programmes",
+  "bare": true,
+  "panels": [
+    {
+      "id": "programmes",
+      "kind": "component",
+      "config": {
+        "component": "programmes"
+      }
+    }
+  ],
+  "core": true
+}

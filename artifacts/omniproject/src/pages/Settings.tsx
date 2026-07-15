@@ -52,6 +52,7 @@ import { CostRulesAdmin } from "../components/settings/CostRulesAdmin";
 import { CustomReportsAdmin } from "../components/settings/CustomReportsAdmin";
 import { BudgetPlansAdmin } from "../components/settings/BudgetPlansAdmin";
 import { ResourceAllocationsAdmin } from "../components/settings/ResourceAllocationsAdmin";
+import { ScreensAdmin } from "../components/settings/ScreensAdmin";
 import { CustomBackendAdmin } from "../components/settings/CustomBackendAdmin";
 import { ContentPagesAdmin } from "../components/settings/ContentPagesAdmin";
 import { FederatedPeersAdmin } from "../components/settings/FederatedPeersAdmin";
@@ -135,6 +136,7 @@ const ADMIN_PANELS: AdminPanel[] = [
   { key: "costRules", Component: CostRulesAdmin },
   { key: "budgetPlans", Component: BudgetPlansAdmin },
   { key: "resourceAllocations", Component: ResourceAllocationsAdmin },
+  { key: "screens", Component: ScreensAdmin },
   { key: "customReports", Component: CustomReportsAdmin },
   { key: "customBackend", Component: CustomBackendAdmin },
   { key: "contentPages", Component: ContentPagesAdmin },

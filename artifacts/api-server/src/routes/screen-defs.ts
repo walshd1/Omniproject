@@ -1,5 +1,5 @@
 import { settingsCollectionRouter } from "../lib/settings-collection-router";
-import { requireRole } from "../lib/rbac";
+import { requireAnyRole } from "../lib/rbac";
 
 /**
  * Org-authored SCREEN DEFINITIONS store. A PMO builds a screen from scratch (or modifies one of the shipped
@@ -13,5 +13,5 @@ export default settingsCollectionRouter({
   path: "/screen-defs",
   settingsKey: "screenDefs",
   versionLabel: "screen defs updated",
-  writeGuards: [requireRole("pmo")],
+  writeGuards: [requireAnyRole("admin", "pmo")],
 });

@@ -492,6 +492,10 @@ export interface PresentationConfig {
    *  also the delivery vehicle for a new-methodology JSON bundle. The SPA merges these over its built-in
    *  screen catalogue and renders them through the one generic builder. See routes/screen-defs. */
   screenDefs: OrgScreenDef[];
+  /** Screen ids an admin/PMO has turned OFF for this deployment — hidden from nav and refused by the
+   *  builder (an off screen shows a "turned off" state, never a crash). Overriding vs disabling are the
+   *  two admin controls on the Screens admin panel. See routes/disabled-screens. */
+  disabledScreens: string[];
   /**
    * Methodology composition — the PMO/admin's curated set of visible artifact / output / ruleset ids,
    * assembled from one-click methodology presets and refined per item (so "some Scrum + some PRINCE2" is
@@ -1141,6 +1145,7 @@ const FIELD_DESCRIPTORS: { [K in keyof SettingsState]: FieldDescriptor<K> } = {
   resourceAllocations: { seed: () => [], validate: normalisedBy((v) => validateResourceAllocations(v), ResourceAllocationError) },
   budgetPlans: { seed: () => [], validate: normalisedBy((v) => validateBudgetPlans(v), BudgetPlanError) },
   screenDefs: { seed: () => [], validate: normalisedBy((v) => validateScreenDefs(v), ScreenDefError) },
+  disabledScreens: { seed: () => [], validate: stringArrayField("disabledScreens") },
   methodologyComposition: {
     seed: () => null,
     validate: (value) => {

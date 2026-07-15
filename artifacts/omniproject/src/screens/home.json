@@ -1,1 +1,15 @@
-{ "id": "home", "label": "Home", "bare": true, "panels": [ { "id": "home", "kind": "component", "config": { "component": "home" } } ] }
+{
+  "id": "home",
+  "label": "Home",
+  "bare": true,
+  "panels": [
+    {
+      "id": "home",
+      "kind": "component",
+      "config": {
+        "component": "home"
+      }
+    }
+  ],
+  "core": true
+}

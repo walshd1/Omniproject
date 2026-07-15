@@ -1,5 +1,6 @@
-import { canonicalLayoutFor } from "../lib/screen-catalogue";
+import { canonicalLayoutFor, screenIsCore } from "../lib/screen-catalogue";
 import { useScreenDef } from "../lib/org-screens";
+import { useDisabledScreens, isScreenDisabled } from "../lib/screen-state";
 import type { ScreenDef } from "../lib/screen";
 import { EditableScreen } from "../components/screen/EditableScreen";
 
@@ -20,6 +21,17 @@ import { EditableScreen } from "../components/screen/EditableScreen";
  */
 export function ScreenPage({ id, methodology, params }: { id: string; methodology?: string; params?: Record<string, string> }) {
   const def = useScreenDef(id);
+  const { data: disabled } = useDisabledScreens();
+
+  // A core screen can never be turned off, even if its id somehow appears in the disabled list.
+  if (!screenIsCore(id) && isScreenDisabled(disabled, id)) {
+    return (
+      <div className="p-8 text-sm text-muted-foreground" data-testid={`screen-off-${id}`}>
+        This screen has been turned off for your organisation. An admin or PMO can re-enable it under
+        Settings → Screens.
+      </div>
+    );
+  }
 
   if (!def) {
     return (

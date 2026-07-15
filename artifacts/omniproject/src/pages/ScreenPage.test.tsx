@@ -36,10 +36,17 @@ vi.mock("../lib/org-screens", async (importActual) => {
   };
 });
 
+let disabledIds: string[] = [];
+vi.mock("../lib/screen-state", async (importActual) => {
+  const actual = await importActual<typeof import("../lib/screen-state")>();
+  return { ...actual, useDisabledScreens: () => ({ data: disabledIds }) };
+});
+
 const { ScreenPage } = await import("./ScreenPage");
 
 beforeEach(() => {
   orgDefs = [];
+  disabledIds = [];
   vi.stubGlobal("fetch", vi.fn(async () => ({ ok: true, json: async () => ({ rows: [] }) })) as unknown as typeof fetch);
 });
 
@@ -79,6 +86,13 @@ describe("ScreenPage (generic builder)", () => {
   it("threads a route param into a hosted detail component", () => {
     renderWithProviders(<ScreenPage id="project-detail" params={{ projectId: "proj-42" }} />);
     expect(screen.getByTestId("hosted-detail").textContent).toContain("proj-42");
+  });
+
+  it("shows a 'turned off' state for a disabled screen (and doesn't render it)", () => {
+    disabledIds = ["budget-plans"];
+    renderWithProviders(<ScreenPage id="budget-plans" />);
+    expect(screen.getByTestId("screen-off-budget-plans")).toBeTruthy();
+    expect(screen.queryByTestId("editable-screen-budget-plans")).toBeNull();
   });
 
   it("renders an org OVERRIDE of a built-in screen instead of the default", () => {

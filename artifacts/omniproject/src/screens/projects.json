@@ -1,1 +1,15 @@
-{ "id": "projects", "label": "Projects", "bare": true, "panels": [ { "id": "projects", "kind": "component", "config": { "component": "projects" } } ] }
+{
+  "id": "projects",
+  "label": "Projects",
+  "bare": true,
+  "panels": [
+    {
+      "id": "projects",
+      "kind": "component",
+      "config": {
+        "component": "projects"
+      }
+    }
+  ],
+  "core": true
+}
