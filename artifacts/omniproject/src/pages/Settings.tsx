@@ -50,6 +50,7 @@ import { RateGridAdmin } from "../components/settings/RateGridAdmin";
 import { IdentityMapAdmin } from "../components/settings/IdentityMapAdmin";
 import { CostRulesAdmin } from "../components/settings/CostRulesAdmin";
 import { CustomReportsAdmin } from "../components/settings/CustomReportsAdmin";
+import { BudgetPlansAdmin } from "../components/settings/BudgetPlansAdmin";
 import { CustomBackendAdmin } from "../components/settings/CustomBackendAdmin";
 import { ContentPagesAdmin } from "../components/settings/ContentPagesAdmin";
 import { FederatedPeersAdmin } from "../components/settings/FederatedPeersAdmin";
@@ -131,6 +132,7 @@ const ADMIN_PANELS: AdminPanel[] = [
   { key: "rateGrid", Component: RateGridAdmin },
   { key: "identityMap", Component: IdentityMapAdmin },
   { key: "costRules", Component: CostRulesAdmin },
+  { key: "budgetPlans", Component: BudgetPlansAdmin },
   { key: "customReports", Component: CustomReportsAdmin },
   { key: "customBackend", Component: CustomBackendAdmin },
   { key: "contentPages", Component: ContentPagesAdmin },
