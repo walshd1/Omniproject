@@ -114,8 +114,9 @@ workflow/chain actually uses AI. A human-only or manual workflow uses none of it
      **or the signer left the system**), or expired — the workflow **cannot run autonomously: nothing runs**
      until a present human re-reviews + re-signs. There is no advisory-autonomous fallback.
   5. **Escape hatch stays human** — PMO redirect/bypass is always a human passkey action, never AI.
-  6. **Sensitive data is an AI no-go by default** — data classified sensitive (PII, secrets, and any field or
-     dataset an admin marks sensitive) is **withheld from AI entirely by default** — not merely redacted-if-
+  6. **Sensitive data is an AI no-go by default** — data classified sensitive — **PII, secrets, financial**
+     (the registry financials field group), and any field or dataset an admin additionally marks sensitive —
+     is **withheld from AI entirely by default** — not merely redacted-if-
      enabled. Relaxing it (letting AI see specific sensitive data) is a deliberate act an **Admin or PMO** must
      **passkey-sign** to authorize, taking responsibility — the same signed-acceptance discipline (scoped to
      the specific data/workflow, bound to the signer's presence, voided on signer removal or scope change, and
@@ -159,8 +160,9 @@ workflow/chain actually uses AI. A human-only or manual workflow uses none of it
 - **Settled — AI is default-DENY**: every AI action, **reads included**, needs an explicit human grant; nothing
   is permitted by default. The 'governed' posture (default-permitted + allowlist + RBAC scope + audit) remains
   available as an **opt-in option** per deployment, not the default.
-- What counts as **sensitive** (§4.6): reuse the DLP PII/secret detection + admin-marked sensitive
-  fields/datasets; a canonical classification (and how a field/dataset is marked sensitive) is the dependency.
+- Sensitive classes (§4.6) — **settled**: reuse the DLP **PII / secret / sensitive** detection and **add
+  financial** (the registry financials field group). Open only: how a field/dataset gets *additionally*
+  admin-marked sensitive beyond these built-in classes.
 - Exact JSON schema for a chain and a workflow (versioned, drift-guarded).
 - Quorum-per-stage (deferred) and parallel stages (deferred).
 - **Settled — offboarding is IdP-driven**: removal/deprovisioning happens in the IdP (OIDC); the gateway is
