@@ -24,7 +24,8 @@ import { canSurfaceEntity } from "./capabilities-fields";
 import { useFeatures, featureEnabled } from "./features";
 import { useAuth, isPmoOrAdmin, type Role } from "./auth";
 import { useMethodologyComposition } from "./methodology-composition-api";
-import { visibleRoutedScreens } from "./screen-catalogue";
+import { visibleRoutedScreens, screenVisibleUnder, type ScreenCatalogueEntry } from "./screen-catalogue";
+import { useRoutedScreens } from "./org-screens";
 
 /** Which shelf a nav item lives on. "admin" items are collapsed behind the Advanced gate. */
 export type NavGroup = "primary" | "admin";
@@ -126,34 +127,40 @@ export function useVisibleNavItems(): NavItem[] {
   const { data: features } = useFeatures();
   const { data: auth } = useAuth();
   const { data: composition } = useMethodologyComposition();
+  // The EFFECTIVE routed screens (built-in + the org's stored/overridden ones), gated by the composition.
+  const routed = useRoutedScreens();
   const staticItems = NAV_ITEMS.filter(
     (item) =>
       (!item.requiresEntity || canSurfaceEntity(caps, item.requiresEntity)) &&
       (!item.requiresFeature || featureEnabled(features, item.requiresFeature)) &&
       (!item.visibleToRoles || item.visibleToRoles(auth?.role)),
   );
-  return [...staticItems, ...catalogueScreenNavItems(composition ?? null)];
+  const composed = composition ?? null;
+  const screenItems = routed.filter((s) => screenVisibleUnder(composed, s)).map(screenToNavItem);
+  return [...staticItems, ...screenItems];
+}
+
+/** Map a routed catalogue screen to a nav item. Catalogue labels come from their JSON (not the i18n dict),
+ *  so the label doubles as the i18n key — translate() returns it verbatim (no ugly fallback), still
+ *  override-able by adding a matching key. Icon is a generic board glyph. */
+function screenToNavItem(s: ScreenCatalogueEntry): NavItem {
+  const label = s.nav?.label ?? s.label;
+  return {
+    href: s.route!,
+    i18nKey: label,
+    label,
+    icon: Columns3,
+    match: (l: string) => l.startsWith(s.route!),
+    group: s.nav?.group ?? "primary",
+  };
 }
 
 /**
- * Nav items for the catalogue-owned artifact screens (JSON screen defs with a `route`) that are visible
- * under the active methodology composition — so selecting Kanban surfaces its Kanban-tagged screens and
- * hides the rest. Neutral (untagged) catalogue screens always appear. Pure given the composition.
+ * Nav items for the BUILT-IN routed screens visible under a composition (pure; used in tests and as the
+ * org-independent baseline). The live nav (useVisibleNavItems) additionally merges the org's stored screens.
  */
 export function catalogueScreenNavItems(composition: Parameters<typeof visibleRoutedScreens>[0]): NavItem[] {
-  return visibleRoutedScreens(composition).map((s) => {
-    const label = s.nav?.label ?? s.label;
-    return {
-      href: s.route!,
-      // Catalogue screen labels come from their JSON, not the i18n dict; using the label as the key means
-      // translate() returns it verbatim (no ugly "nav.screen.x" fallback) while staying override-able.
-      i18nKey: label,
-      label,
-      icon: Columns3,
-      match: (l: string) => l.startsWith(s.route!),
-      group: s.nav?.group ?? "primary",
-    };
-  });
+  return visibleRoutedScreens(composition).map(screenToNavItem);
 }
 
 /**

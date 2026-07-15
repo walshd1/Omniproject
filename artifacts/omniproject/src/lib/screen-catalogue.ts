@@ -88,9 +88,29 @@ export function getScreenDef(id: string): ScreenCatalogueEntry | undefined {
   return byId.get(id);
 }
 
-/** Every catalogued screen definition (a defensive copy of the list). */
+/** Every BUILT-IN catalogued screen definition (a defensive copy). The effective catalogue a user sees is
+ *  this merged with their org's stored defs — see mergeScreens / the useResolvedScreens hook. */
 export function screenDefs(): ScreenCatalogueEntry[] {
   return [...ENTRIES];
+}
+
+/**
+ * The EFFECTIVE screen catalogue: the built-ins with the org's stored screen defs merged over them. An org
+ * def with the same id OVERRIDES the built-in (a PMO's from-scratch or modified screen wins); an org def
+ * with a new id is appended (a net-new screen, e.g. from a methodology bundle). Pure — the caller supplies
+ * the org defs (from the encrypted /api/screen-defs store); order is built-ins first, then org-only additions.
+ */
+export function mergeScreens(orgDefs: readonly ScreenCatalogueEntry[]): ScreenCatalogueEntry[] {
+  const overrides = new Map(orgDefs.map((s) => [s.id, s]));
+  const merged = ENTRIES.map((b) => overrides.get(b.id) ?? b);
+  const builtinIds = new Set(ENTRIES.map((b) => b.id));
+  for (const s of orgDefs) if (!builtinIds.has(s.id)) merged.push(s);
+  return merged;
+}
+
+/** Resolve one screen def by id from the merged catalogue (org override wins). */
+export function resolveScreenDef(id: string, orgDefs: readonly ScreenCatalogueEntry[]): ScreenCatalogueEntry | undefined {
+  return orgDefs.find((s) => s.id === id) ?? getScreenDef(id);
 }
 
 /**

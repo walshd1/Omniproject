@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { getScreenDef, screenDefs, canonicalLayoutFor, routedScreens, screenCompositionItems, visibleRoutedScreens } from "./screen-catalogue";
+import { getScreenDef, screenDefs, canonicalLayoutFor, routedScreens, screenCompositionItems, visibleRoutedScreens, mergeScreens, resolveScreenDef, type ScreenCatalogueEntry } from "./screen-catalogue";
 
 /**
  * The JSON screen catalogue is the trusted boundary between untyped JSON and the ScreenDef model the
@@ -90,6 +90,25 @@ describe("screen catalogue", () => {
     expect(visibleRoutedScreens(["screen:kanban"]).map((s) => s.id)).toContain("kanban");
     // Curated to something else → the kanban-tagged screen is hidden.
     expect(visibleRoutedScreens(["screen:something-else"]).map((s) => s.id)).not.toContain("kanban");
+  });
+
+  it("mergeScreens: an org def overrides a built-in of the same id, and a new id is appended", () => {
+    const override: ScreenCatalogueEntry = { id: "budget-plans", label: "Our Budgets", panels: [{ id: "t", kind: "table" }] };
+    const brandNew: ScreenCatalogueEntry = { id: "org-only", label: "Org Only", route: "/org-only", panels: [{ id: "x", kind: "text" }] };
+    const merged = mergeScreens([override, brandNew]);
+    // same count of built-ins (override replaces in place) + 1 appended
+    expect(merged.filter((s) => s.id === "budget-plans")).toHaveLength(1);
+    expect(merged.find((s) => s.id === "budget-plans")!.label).toBe("Our Budgets"); // overridden
+    expect(merged.find((s) => s.id === "org-only")).toBeTruthy(); // appended
+    // built-in untouched when no org def targets it
+    expect(merged.find((s) => s.id === "resource-allocations")!.label).toBe(getScreenDef("resource-allocations")!.label);
+  });
+
+  it("resolveScreenDef: org override wins; falls back to the built-in", () => {
+    const override: ScreenCatalogueEntry = { id: "kanban", label: "Team Board", panels: [{ id: "b", kind: "view", config: { view: "kanban" } }] };
+    expect(resolveScreenDef("kanban", [override])!.label).toBe("Team Board");
+    expect(resolveScreenDef("kanban", [])!.label).toBe(getScreenDef("kanban")!.label); // built-in fallback
+    expect(resolveScreenDef("no-such", [])).toBeUndefined();
   });
 
   it("canonicalLayoutFor returns a methodology's canonical arrangement, or null", () => {

@@ -24,9 +24,22 @@ vi.mock("../components/screen/screen-components", () => ({
   hasScreenComponent: (id: string) => id === "tasks" || id === "project-detail",
 }));
 
+// Org store: default empty (built-ins only); individual tests override via the mocked hook.
+let orgDefs: unknown[] = [];
+vi.mock("../lib/org-screens", async (importActual) => {
+  const actual = await importActual<typeof import("../lib/org-screens")>();
+  const { resolveScreenDef } = await import("../lib/screen-catalogue");
+  return {
+    ...actual,
+    useOrgScreenDefs: () => ({ data: orgDefs }),
+    useScreenDef: (id: string) => resolveScreenDef(id, orgDefs as never),
+  };
+});
+
 const { ScreenPage } = await import("./ScreenPage");
 
 beforeEach(() => {
+  orgDefs = [];
   vi.stubGlobal("fetch", vi.fn(async () => ({ ok: true, json: async () => ({ rows: [] }) })) as unknown as typeof fetch);
 });
 
@@ -66,5 +79,13 @@ describe("ScreenPage (generic builder)", () => {
   it("threads a route param into a hosted detail component", () => {
     renderWithProviders(<ScreenPage id="project-detail" params={{ projectId: "proj-42" }} />);
     expect(screen.getByTestId("hosted-detail").textContent).toContain("proj-42");
+  });
+
+  it("renders an org OVERRIDE of a built-in screen instead of the default", () => {
+    // A PMO's stored def for id "budget-plans" replaces the shipped one.
+    orgDefs = [{ id: "budget-plans", label: "Our Budgets", panels: [{ id: "note", kind: "text", config: { text: "custom" } }] }];
+    renderWithProviders(<ScreenPage id="budget-plans" />);
+    expect(screen.getByRole("heading", { name: /our budgets/i })).toBeTruthy(); // org label, not "Budget plans"
+    expect(screen.getByText("custom")).toBeTruthy(); // org panel content
   });
 });

@@ -968,6 +968,7 @@ const SAMPLE_SETTINGS = {
   reports: [],
   resourceAllocations: [],
   budgetPlans: [],
+  screenDefs: [],
 };
 
 test("redactSettingsForRead: masks webhook signing secrets (never leaked over GET)", async () => {

@@ -25,6 +25,7 @@ import { validateWorkflows, WorkflowError, type WorkflowDef } from "./workflow";
 import { validateWorkflowAcceptances, ResponsibilityAcceptanceError, type WorkflowAcceptance } from "./responsibility-acceptance";
 import { validateResourceAllocations, ResourceAllocationError, type ResourceAllocation } from "./resource-allocation";
 import { validateBudgetPlans, BudgetPlanError, type BudgetPlan } from "./budget-plan";
+import { validateScreenDefs, ScreenDefError, type OrgScreenDef } from "./screen-def";
 import { reportCatalogue, type ReportDefinition } from "@workspace/backend-catalogue";
 import { validateCustomFields, validateCustomFieldSources, CustomFieldError, type CustomField } from "./custom-fields";
 import { sanitizeBranding } from "./branding";
@@ -486,6 +487,11 @@ export interface PresentationConfig {
   /** Multi-year / period budget PLANS — an editable time-phased budget per project (the planning side of
    *  financials, above actuals + forecast). Stored as JSON. See routes/budget-plans. */
   budgetPlans: BudgetPlan[];
+  /** Org-authored SCREEN DEFINITIONS — a PMO's built-from-scratch or modified screens, stored in the
+   *  (encrypted) deployment config to OVERRIDE a shipped default (matched by id) or add net-new screens;
+   *  also the delivery vehicle for a new-methodology JSON bundle. The SPA merges these over its built-in
+   *  screen catalogue and renders them through the one generic builder. See routes/screen-defs. */
+  screenDefs: OrgScreenDef[];
   /**
    * Methodology composition — the PMO/admin's curated set of visible artifact / output / ruleset ids,
    * assembled from one-click methodology presets and refined per item (so "some Scrum + some PRINCE2" is
@@ -1134,6 +1140,7 @@ const FIELD_DESCRIPTORS: { [K in keyof SettingsState]: FieldDescriptor<K> } = {
   reports: { seed: () => reportCatalogue() as unknown as ReportDefinition[], validate: shapeChecked(validateReports) },
   resourceAllocations: { seed: () => [], validate: normalisedBy((v) => validateResourceAllocations(v), ResourceAllocationError) },
   budgetPlans: { seed: () => [], validate: normalisedBy((v) => validateBudgetPlans(v), BudgetPlanError) },
+  screenDefs: { seed: () => [], validate: normalisedBy((v) => validateScreenDefs(v), ScreenDefError) },
   methodologyComposition: {
     seed: () => null,
     validate: (value) => {

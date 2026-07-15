@@ -1,4 +1,5 @@
-import { getScreenDef, canonicalLayoutFor } from "../lib/screen-catalogue";
+import { canonicalLayoutFor } from "../lib/screen-catalogue";
+import { useScreenDef } from "../lib/org-screens";
 import type { ScreenDef } from "../lib/screen";
 import { EditableScreen } from "../components/screen/EditableScreen";
 
@@ -18,7 +19,7 @@ import { EditableScreen } from "../components/screen/EditableScreen";
  * first screen that needs it.
  */
 export function ScreenPage({ id, methodology, params }: { id: string; methodology?: string; params?: Record<string, string> }) {
-  const def = getScreenDef(id);
+  const def = useScreenDef(id);
 
   if (!def) {
     return (
