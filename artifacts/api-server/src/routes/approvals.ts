@@ -1,7 +1,7 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import { getSession } from "./auth";
 import { hasRole, requireRole, ROLES } from "../lib/rbac";
-import { registerCredential, credentialsFor, AssertionError } from "../lib/passkey";
+import { registerCredential, credentialsFor, revokeCredentials, revokeAllCredentials, AssertionError } from "../lib/passkey";
 import {
   inboxFor, challengeForStage, submitDecision, redirectProposal, bypassProposal,
   challengeForBypass, ApprovalServiceError, type SignedDecision,
@@ -77,6 +77,24 @@ router.get("/approvals/passkey", async (req: Request, res: Response) => {
   const s = getSession(req);
   if (!s?.sub) { res.status(401).json({ error: "authentication required" }); return; }
   res.json({ credentials: (await credentialsFor(s.sub)).map((c) => ({ credentialId: c.credentialId, createdAt: c.createdAt })) });
+});
+
+// ── Revocation (admin/PMO governance) ───────────────────────────────────────
+// POST /approvals/passkey/revoke — revoke a NAMED user's passkeys (compromise, role change, suspension).
+// Revocation is fail-SAFE (removes the ability to approve), so admin/PMO gating suffices — no chain needed.
+router.post("/approvals/passkey/revoke", requireRole("pmo"), async (req: Request, res: Response) => {
+  const sub = str((req.body as Record<string, unknown>)?.["sub"], 256);
+  if (!sub) { res.status(400).json({ error: "sub is required" }); return; }
+  await revokeCredentials(sub);
+  recordAudit({ ts: new Date().toISOString(), category: "request", action: "approval.passkey.revoke", actor: actorForAudit(req), write: true, result: "success", meta: { target: sub } });
+  res.json({ ok: true, sub });
+});
+
+// POST /approvals/passkey/revoke-all — revoke EVERYONE's passkeys (emergency reset). Heavily audited.
+router.post("/approvals/passkey/revoke-all", requireRole("pmo"), async (req: Request, res: Response) => {
+  const revoked = await revokeAllCredentials();
+  recordAudit({ ts: new Date().toISOString(), category: "request", action: "approval.passkey.revoke_all", actor: actorForAudit(req), write: true, result: "success", meta: { revoked } });
+  res.json({ ok: true, revoked });
 });
 
 // ── Approver surface ─────────────────────────────────────────────────────────

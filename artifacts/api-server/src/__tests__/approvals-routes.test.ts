@@ -65,6 +65,21 @@ test("register passkey → propose → inbox → signed approve → executor run
   assert.equal(ran, true);
 });
 
+test("admin/PMO can revoke a named user's passkeys and everyone's; unauth is refused", async () => {
+  const cookie = adminCookie(); // harness admin holds pmo+ via hierarchy
+  // enrol a victim's key, then revoke by name
+  await h.req("/approvals/passkey", { method: "POST", cookie, body: { credentialId: "cred-http", publicKeySpki: spki } });
+  const revoke = await h.req("/approvals/passkey/revoke", { method: "POST", cookie, body: { sub: "u-harness" } });
+  assert.equal(revoke.status, 200);
+  assert.deepEqual((await json(await h.req("/approvals/passkey", { method: "GET", cookie }))).credentials, []);
+  // revoke-all
+  const all = await h.req("/approvals/passkey/revoke-all", { method: "POST", cookie, body: {} });
+  assert.equal(all.status, 200);
+  assert.ok((await json(all)).revoked >= 0);
+  // unauthenticated is refused
+  assert.equal((await h.req("/approvals/passkey/revoke", { method: "POST", body: { sub: "x" } })).status, 401);
+});
+
 test("a tampered signature is refused (403), executor does not run", async () => {
   const cookie = adminCookie();
   await h.req("/approvals/passkey", { method: "POST", cookie, body: { credentialId: "cred-http", publicKeySpki: spki } });

@@ -71,10 +71,20 @@ export async function getCredential(sub: string, credentialId: string): Promise<
   return (await credentialsFor(sub)).find((c) => c.credentialId === credentialId) ?? null;
 }
 
-/** Revoke ALL of a user's passkeys — the offboarding hook: once revoked, their signatures no longer verify,
- *  so any responsibility acceptance keyed to them lapses (design §4.2). Past audit records are untouched. */
+/** Revoke ALL of a user's passkeys — the offboarding hook AND the admin/PMO "revoke a named individual"
+ *  action: once revoked, their signatures no longer verify, so any responsibility acceptance keyed to them
+ *  lapses (design §4.2). Past audit records are untouched. */
 export async function revokeCredentials(sub: string): Promise<void> {
   await sharedKv.del(credKey(sub));
+}
+
+/** Revoke EVERYONE's passkeys — an admin/PMO emergency reset (e.g. suspected mass compromise). All approval
+ *  signing halts until users re-enrol; any responsibility acceptance keyed to a revoked user lapses. Past
+ *  audit records are untouched. Returns how many users were affected. */
+export async function revokeAllCredentials(): Promise<number> {
+  const entries = await sharedKv.list(CRED_PREFIX);
+  for (const { key } of entries) await sharedKv.del(key);
+  return entries.length;
 }
 
 // ── Per-approval challenge (one-time, TTL-bounded) ───────────────────────────

@@ -82,6 +82,16 @@ test("credential store: register, list, get, revoke (offboarding)", async () => 
   assert.deepEqual(await credentialsFor(sub), []);
 });
 
+test("revokeAllCredentials wipes every user's passkeys (admin/PMO emergency reset)", async () => {
+  const { revokeAllCredentials } = await import("./passkey");
+  await registerCredential("mass-a", { credentialId: "a1", publicKeySpki });
+  await registerCredential("mass-b", { credentialId: "b1", publicKeySpki });
+  const n = await revokeAllCredentials();
+  assert.ok(n >= 2);
+  assert.deepEqual(await credentialsFor("mass-a"), []);
+  assert.deepEqual(await credentialsFor("mass-b"), []);
+});
+
 test("challenge is one-time: consume succeeds once, then fails; a wrong value never matches", async () => {
   const scope = "prop-1:s1";
   const challenge = await issueChallenge(scope, "content-hash-abc");
