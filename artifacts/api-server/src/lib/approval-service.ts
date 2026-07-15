@@ -87,14 +87,14 @@ export async function inboxFor(actor: Actor): Promise<Array<{ id: string; action
   return out;
 }
 
-/** Issue a one-time passkey challenge for `actor` to sign the CURRENT stage of a proposal. */
-export async function challengeForStage(proposalId: string): Promise<{ challenge: string; rpId: string; stageId: string } | null> {
+/** Issue a one-time passkey challenge for `sub` to sign the CURRENT stage of a proposal. Scoped per user
+ *  so concurrent approvers each get their own challenge (no race on a single slot). */
+export async function challengeForStage(proposalId: string, sub: string): Promise<{ challenge: string; rpId: string; stageId: string } | null> {
   const p = await loadProposal(proposalId);
   if (!p) return null;
   const stage = activeStage(p.def, p.state);
   if (!stage) return null;
-  const scope = `${proposalId}:${stage.id}`;
-  const challenge = await issueChallenge(scope, p.contentHash);
+  const challenge = await issueChallenge(`${proposalId}:${stage.id}:${sub}`, p.contentHash);
   return { challenge, rpId: rpId(), stageId: stage.id };
 }
 
@@ -122,7 +122,7 @@ export async function submitDecision(proposalId: string, actor: Actor, signed: S
   const stage = activeStage(p.def, p.state);
   if (!stage) throw new ApprovalServiceError(`proposal is already ${p.state.status}`);
 
-  const scope = `${proposalId}:${stage.id}`;
+  const scope = `${proposalId}:${stage.id}:${actor.sub}`;
   const clientData = safeParseJson<Record<string, unknown>>(Buffer.from(signed.clientDataJSON, "base64url").toString("utf8"));
   const presentedChallenge = String(clientData["challenge"] ?? "");
   if (!(await consumeChallenge(scope, presentedChallenge))) throw new ApprovalServiceError("challenge invalid, expired, or already used");
@@ -168,7 +168,7 @@ export async function bypassProposal(proposalId: string, pmo: Actor, signed: Sig
   const p = await loadProposal(proposalId);
   if (!p) throw new ApprovalServiceError("unknown proposal");
   if (p.state.status !== "pending") throw new ApprovalServiceError(`proposal is already ${p.state.status}`);
-  const scope = `${proposalId}:bypass`;
+  const scope = `${proposalId}:bypass:${pmo.sub}`;
   const clientData = safeParseJson<Record<string, unknown>>(Buffer.from(signed.clientDataJSON, "base64url").toString("utf8"));
   const presented = String(clientData["challenge"] ?? "");
   if (!(await consumeChallenge(scope, presented))) throw new ApprovalServiceError("challenge invalid, expired, or already used");
@@ -182,9 +182,9 @@ export async function bypassProposal(proposalId: string, pmo: Actor, signed: Sig
 }
 
 /** Issue a challenge for a PMO bypass of a proposal (signed like any approval, over a `:bypass` scope). */
-export async function challengeForBypass(proposalId: string): Promise<{ challenge: string; rpId: string } | null> {
+export async function challengeForBypass(proposalId: string, sub: string): Promise<{ challenge: string; rpId: string } | null> {
   const p = await loadProposal(proposalId);
   if (!p || p.state.status !== "pending") return null;
-  const challenge = await issueChallenge(`${proposalId}:bypass`, p.contentHash);
+  const challenge = await issueChallenge(`${proposalId}:bypass:${sub}`, p.contentHash);
   return { challenge, rpId: rpId() };
 }

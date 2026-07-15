@@ -44,13 +44,13 @@ test("full signed chain drives to approved and runs the executor exactly once", 
   registerApprovalExecutor("ship-it", (params) => { ran = params; });
   const id = await createProposal({ def: twoStage(), action: "ship-it", params: { x: 1 }, proposedBy: "maker" });
 
-  const c1 = (await challengeForStage(id))!;
+  const c1 = (await challengeForStage(id, "alice"))!;
   assert.equal(c1.stageId, "s1");
   let r = await submitDecision(id, actor("alice", ["pm"]), sign("alice", c1.challenge, "approve"));
   assert.equal(r.status, "pending");
   assert.equal(ran, null); // not yet
 
-  const c2 = (await challengeForStage(id))!;
+  const c2 = (await challengeForStage(id, "pmo-1"))!;
   assert.equal(c2.stageId, "s2");
   r = await submitDecision(id, actor("pmo-1", ["pmo"]), sign("pmo-1", c2.challenge, "approve"));
   assert.equal(r.status, "approved");
@@ -63,7 +63,7 @@ test("a reject aborts the chain and the executor never runs", async () => {
   let ran = false;
   registerApprovalExecutor("noop", () => { ran = true; });
   const id = await createProposal({ def: twoStage(), action: "noop", params: {}, proposedBy: "maker" });
-  const c = (await challengeForStage(id))!;
+  const c = (await challengeForStage(id, "alice"))!;
   const r = await submitDecision(id, actor("alice", ["pm"]), sign("alice", c.challenge, "reject"));
   assert.equal(r.status, "rejected");
   assert.equal(ran, false);
@@ -72,7 +72,7 @@ test("a reject aborts the chain and the executor never runs", async () => {
 test("the proposer cannot approve even with a valid signature (separation of duties)", async () => {
   await enroll("maker");
   const id = await createProposal({ def: twoStage(), action: "x", params: {}, proposedBy: "maker" });
-  const c = (await challengeForStage(id))!;
+  const c = (await challengeForStage(id, "maker"))!;
   // maker signs a perfectly valid assertion, but is the proposer → engine refuses AFTER crypto passes.
   await assert.rejects(() => submitDecision(id, actor("maker", ["pm"]), sign("maker", c.challenge, "approve")), ApprovalChainError);
 });
@@ -80,9 +80,9 @@ test("the proposer cannot approve even with a valid signature (separation of dut
 test("a stale/replayed challenge is refused (one-time)", async () => {
   await enroll("alice");
   const id = await createProposal({ def: twoStage(), action: "x2", params: {}, proposedBy: "maker" });
-  const c = (await challengeForStage(id))!;
+  const c = (await challengeForStage(id, "alice"))!;
   await submitDecision(id, actor("alice", ["pm"]), sign("alice", c.challenge, "approve")); // consumes it, advances to s2
-  // Re-using the s1 challenge (or any consumed one) fails: the s1 challenge is gone and s2 expects its own.
+  // Re-using the s1 challenge fails: it's consumed, and s2 expects its own fresh challenge.
   await assert.rejects(() => submitDecision(id, actor("alice", ["pm"]), sign("alice", c.challenge, "approve")), ApprovalServiceError);
 });
 
@@ -93,7 +93,7 @@ test("inbox shows a proposal to an eligible approver, hides it from the proposer
   assert.equal(await has(actor("alice", ["pm"])), true);   // eligible for s1
   assert.equal(await has(actor("maker", ["pm"])), false);  // proposer, never
   assert.equal(await has(actor("pmo-1", ["pmo"])), false); // s2, not active yet
-  const c = (await challengeForStage(id))!;
+  const c = (await challengeForStage(id, "alice"))!;
   await submitDecision(id, actor("alice", ["pm"]), sign("alice", c.challenge, "approve"));
   assert.equal(await has(actor("alice", ["pm"])), false);  // already decided s1
   assert.equal(await has(actor("pmo-1", ["pmo"])), true);  // now active at s2
