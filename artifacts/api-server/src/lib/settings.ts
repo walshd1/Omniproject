@@ -23,6 +23,8 @@ import { validateApprovalChains, ApprovalChainError, type ChainDef } from "./app
 import { validateApprovalBindings, ApprovalBindingError, type ApprovalBinding } from "./approval-binding";
 import { validateWorkflows, WorkflowError, type WorkflowDef } from "./workflow";
 import { validateWorkflowAcceptances, ResponsibilityAcceptanceError, type WorkflowAcceptance } from "./responsibility-acceptance";
+import { validateResourceAllocations, ResourceAllocationError, type ResourceAllocation } from "./resource-allocation";
+import { validateBudgetPlans, BudgetPlanError, type BudgetPlan } from "./budget-plan";
 import { reportCatalogue, type ReportDefinition } from "@workspace/backend-catalogue";
 import { validateCustomFields, validateCustomFieldSources, CustomFieldError, type CustomField } from "./custom-fields";
 import { sanitizeBranding } from "./branding";
@@ -477,6 +479,12 @@ export interface PresentationConfig {
    * rides the snapshot/export, never project data. See routes/reports + report-renderers on the SPA.
    */
   reports: ReportDefinition[];
+  /** Resource bookings — a named person committed to a project for hours over a period (the write side of
+   *  resource management). Stored as JSON in the deployment config. See routes/resource-allocations. */
+  resourceAllocations: ResourceAllocation[];
+  /** Multi-year / period budget PLANS — an editable time-phased budget per project (the planning side of
+   *  financials, above actuals + forecast). Stored as JSON. See routes/budget-plans. */
+  budgetPlans: BudgetPlan[];
   /**
    * Methodology composition — the PMO/admin's curated set of visible artifact / output / ruleset ids,
    * assembled from one-click methodology presets and refined per item (so "some Scrum + some PRINCE2" is
@@ -1123,6 +1131,8 @@ const FIELD_DESCRIPTORS: { [K in keyof SettingsState]: FieldDescriptor<K> } = {
   reportOverrides: { seed: () => [], validate: shapeChecked(validateReportOverrides) },
   // The per-deployment report store — seeded from the built-in catalogue, then deployment-owned JSON.
   reports: { seed: () => reportCatalogue() as unknown as ReportDefinition[], validate: shapeChecked(validateReports) },
+  resourceAllocations: { seed: () => [], validate: normalisedBy((v) => validateResourceAllocations(v), ResourceAllocationError) },
+  budgetPlans: { seed: () => [], validate: normalisedBy((v) => validateBudgetPlans(v), BudgetPlanError) },
   methodologyComposition: {
     seed: () => null,
     validate: (value) => {

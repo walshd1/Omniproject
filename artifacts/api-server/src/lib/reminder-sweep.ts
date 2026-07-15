@@ -1,5 +1,5 @@
 import type { Task } from "../broker/types";
-import { normaliseTaskStatus } from "../broker/vocabulary";
+import { isTaskClosed } from "../broker/vocabulary";
 
 /**
  * Active reminder delivery. A task's `reminderAt` was only ever exposed as an iCal VALARM (the user's
@@ -21,8 +21,7 @@ export function dueReminders(tasks: readonly Task[], nowMs: number, isFired: (ke
     if (!t.reminderAt) return false;
     const at = Date.parse(t.reminderAt);
     if (Number.isNaN(at) || at > nowMs) return false;
-    const cls = normaliseTaskStatus(t.status);
-    if (cls === "done" || cls === "dropped") return false;
+    if (isTaskClosed(t.status)) return false; // no reminders for finished/dropped work
     return !isFired(reminderFireKey(t));
   });
 }

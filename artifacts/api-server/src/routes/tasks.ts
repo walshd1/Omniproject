@@ -1,3 +1,7 @@
+/**
+ * Task routes — GTD actionable next-actions (distinct from issues): list/create/update, comments,
+ * attachments, plus recurring-task expansion on completion and the in-app reminder sweep.
+ */
 import { Router, type Request, type Response } from "express";
 import { withBrokerErrors } from "../broker";
 import { getTasks, getTask, createTask, updateTask, brokerHasTasks, getTaskComments, addTaskComment, getTaskAttachments, addTaskAttachment, brokerHasTaskAttachments } from "../lib/data";
@@ -6,7 +10,7 @@ import { assertTaskScope, filterTasksInScope } from "../lib/project-scope";
 import { auditScopeDenied } from "../lib/audit";
 import { getSession } from "./auth";
 import { parseOr400, v } from "../lib/validate";
-import { CANONICAL_TASK_STATUS, CANONICAL_PRIORITY, CANONICAL_ENERGY, normaliseTaskStatus } from "../broker/vocabulary";
+import { CANONICAL_TASK_STATUS, CANONICAL_PRIORITY, CANONICAL_ENERGY, isTaskDone } from "../broker/vocabulary";
 import { summariseTasks } from "../lib/task-summary";
 import { nextOccurrence } from "../lib/recurrence";
 import { runReminderSweep } from "../lib/reminder-sweep";
@@ -24,7 +28,7 @@ const REMINDER_TTL_MS = 30 * 24 * 60 * 60 * 1000; // a fired reminder is remembe
  * its start date, else its completion time). Returns the new task, or null when it doesn't recur.
  */
 async function maybeSpawnRecurrence(req: Request, completed: Task, patch: Record<string, unknown>): Promise<Task | null> {
-  if (normaliseTaskStatus(patch["status"] as string | undefined) !== "done") return null; // only on completion
+  if (!isTaskDone(patch["status"] as string | undefined)) return null; // only on completion (not on drop)
   const rule = completed.recurrence;
   const ref = completed.dueDate ?? completed.startDate ?? completed.completedAt ?? new Date().toISOString();
   const nextDue = nextOccurrence(rule, ref);
