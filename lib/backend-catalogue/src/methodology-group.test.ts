@@ -47,7 +47,7 @@ test("works over the real REPORTS catalogue (every report lands in ≥1 bucket)"
 test("artifactsForMethodology bundles reports+views+screens for a methodology (preload set)", () => {
   const agile = artifactsForMethodology("scrum");
   assert.deepEqual(agile.reports.map((r) => r.id), reportsForMethodology("scrum").map((r) => r.id)); // reuses the plane filter
-  assert.ok(Array.isArray(agile.views) && Array.isArray(agile.screens));
+  assert.ok(Array.isArray(agile.views) && Array.isArray(agile.screens) && Array.isArray(agile.outputs)); // outputs now carry methodology too
   // Scrum lights up its agile reports (burndown/velocity are scrum-tagged in the catalogue).
   assert.ok(agile.reports.some((r) => r.id === "burndown" || r.id === "velocity"), "scrum preloads its agile reports");
 });

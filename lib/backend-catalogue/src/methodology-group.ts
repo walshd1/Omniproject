@@ -3,6 +3,7 @@ import { matchesMethodology } from "./methodology-match";
 import { reportsForMethodology, type ReportDefinition } from "./report-catalogue";
 import { viewsForMethodology, type ViewDefinition } from "./view-catalogue";
 import { screensForMethodology, type ScreenDefinition } from "./screen-catalogue";
+import { outputsForMethodology, type OutputDefinition } from "./output-catalogue";
 
 /**
  * GROUP any methodology-tagged definitions by methodology — generic over EVERY catalogue plane (reports,
@@ -48,6 +49,7 @@ export interface MethodologyArtifacts {
   reports: ReportDefinition[];
   views: ViewDefinition[];
   screens: ScreenDefinition[];
+  outputs: OutputDefinition[];
 }
 
 export function artifactsForMethodology(methodology: string): MethodologyArtifacts {
@@ -55,5 +57,6 @@ export function artifactsForMethodology(methodology: string): MethodologyArtifac
     reports: reportsForMethodology(methodology),
     views: viewsForMethodology(methodology),
     screens: screensForMethodology(methodology),
+    outputs: outputsForMethodology(methodology),
   };
 }
