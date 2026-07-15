@@ -270,19 +270,21 @@ no longer sits as plaintext in the queue — the documented PREREQUISITE for gua
 routes is satisfied and proven (settings-guard.test: the plaintext secret is absent from the queued
 proposal, yet applies intact after sign-off).
 
-**Still direct (invariant bypassable via them — the gap to close):**
+**Egress routes — now GUARDED (sign-off).** `POST /webhooks` and `PUT /federated-peers` route their write
+through `applySettingsGuarded`: registering a NEW active egress target (a webhook to a new/redirected url, a
+peer at a new baseUrl) is a security reduction → **held for a signed sign-off (202)**, with the credential
+**sealed** in the queue and surfaced once to the proposer; it goes live only when the chain approves. The
+classification for `webhooks`/`federatedPeers` (and the `errorTelemetry`/`loggingSync` toggles) is now
+**directional** — adding/redirecting egress = relax → held; **removing/deactivating** strengthens → applies
+immediately (a `DELETE /webhooks/:id`, or disabling a sync, is never over-gated). The bulk `PATCH /settings`
+still hard-**refuses** these keys (their dedicated step-up'd routes are the only sanctioned path).
+
+**Still direct (the remaining gap to close):**
 - `PUT /features/governance-rules` (`governanceRules`) — a clean patch, but its round-trip *validation* tests
   assume immediate apply; guarding needs those adapted to a sign-off flow. Small, deferred.
 - `PUT /governance/:id` (`capabilityStates`) — mutates via the bespoke `setCapabilityState`, not a plain
   patch; needs a patch-shaped wrap. Step-up-gated today.
-- `POST/DELETE /webhooks`, `PUT /federated-peers` — the secret-in-queue blocker is now REMOVED (sealed
-  proposal above), so these are technically guardable. Flipping them is a **UX/contract change** on a premium
-  feature: create/upsert becomes *held-for-sign-off* (202) instead of immediate (200), and their happy-path
-  CRUD tests (which assert immediate apply) need adapting to the sign-off flow. Pending that call; the
-  classification for these would also move from `changed` to **directional** (adding/redirecting an active
-  egress target = relax → held; pure removal/deactivation = strengthen → immediate) so a delete isn't
-  over-gated. Step-up-gated today.
-All four are admin/PMO + step-up gated (strong single-actor), so not unprotected — just not yet sign-off.
+Both are admin/PMO + step-up gated (strong single-actor), so not unprotected — just not yet sign-off.
 
 ## 7. Open decisions
 

@@ -55,6 +55,29 @@ const get = (path: string, init?: RequestInit) =>
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const readJson = async (res: Response): Promise<any> => res.json();
 
+// Registering a NEW peer opens a cross-instance egress target → held for a signed sign-off (§0). This
+// helper satisfies the solo admin confirm+sign stage so the registration applies in-test.
+const SO_KEYS = crypto.generateKeyPairSync("ec", { namedCurve: "P-256" });
+const sha256 = (b: Buffer): Buffer => crypto.createHash("sha256").update(b).digest();
+let passkeyReady = false;
+async function signOffRelaxation(proposalId: string, sub = "user-1"): Promise<void> {
+  const { registerCredential } = await import("../lib/passkey");
+  const { challengeForStage, submitDecision } = await import("../lib/approval-service");
+  if (!passkeyReady) {
+    await registerCredential(sub, { credentialId: "solo", publicKeySpki: SO_KEYS.publicKey.export({ type: "spki", format: "der" }).toString("base64") });
+    passkeyReady = true;
+  }
+  const ch = (await challengeForStage(proposalId, sub))!;
+  const clientData = Buffer.from(JSON.stringify({ type: "webauthn.get", challenge: ch.challenge, origin: "https://localhost", crossOrigin: false }));
+  const authData = Buffer.concat([sha256(Buffer.from("localhost")), Buffer.from([0x05]), Buffer.alloc(4)]);
+  const signature = crypto.sign("sha256", Buffer.concat([authData, sha256(clientData)]), SO_KEYS.privateKey);
+  const res = await submitDecision(proposalId, { sub, roles: ["admin"], via: "human" }, {
+    decision: "approve", credentialId: "solo",
+    clientDataJSON: clientData.toString("base64url"), authenticatorData: authData.toString("base64url"), signature: signature.toString("base64url"),
+  });
+  assert.equal(res.executed, true);
+}
+
 function startPeer(handler: (req: http.IncomingMessage, res: http.ServerResponse) => void): Promise<{ server: http.Server; base: string }> {
   return new Promise((resolve) => {
     const s = http.createServer(handler);
@@ -129,27 +152,30 @@ test("GET /api/federated-portfolio: merges a healthy peer, an unauthorized peer,
 });
 
 test("GET/PUT /api/federated-peers: admin-gated CRUD, tokens redacted on read and preserved across a masked re-submit", async () => {
+  // Registering a NEW peer opens a cross-instance egress target → held for a signed sign-off (202). The
+  // token is sealed in the queue (never plaintext at rest); it applies once the solo admin signs off.
   const putRes = await get("/api/federated-peers", {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ peers: [{ id: "eu", label: "EU", baseUrl: "https://eu.omni.example", token: "real-secret", region: "eu", active: true }] }),
   });
-  assert.equal(putRes.status, 200);
-  const created = await readJson(putRes);
-  assert.equal(created.peers[0].tokenSet, true);
-  assert.equal("token" in created.peers[0], false); // never echoes the plaintext token back
+  assert.equal(putRes.status, 202);
+  await signOffRelaxation((await readJson(putRes)).pending.proposalId);
 
   const getRes = await get("/api/federated-peers");
   const listed = await readJson(getRes);
   assert.equal(listed.peers[0].tokenSet, true);
+  assert.equal("token" in listed.peers[0], false); // never echoes the plaintext token back
 
   // Re-submit with the masked placeholder (what the admin UI would round-trip) — the real token
-  // underneath must survive, not be overwritten with the literal mask.
-  await get("/api/federated-peers", {
+  // underneath must survive, not be overwritten with the literal mask. Same active baseUrl, so this is a
+  // metadata edit, NOT a new egress target → it applies immediately (200), no sign-off.
+  const reput = await get("/api/federated-peers", {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ peers: [{ id: "eu", label: "EU (renamed)", baseUrl: "https://eu.omni.example", token: "********", region: "eu", active: true }] }),
   });
+  assert.equal(reput.status, 200);
   const { getSettings } = await import("../lib/settings");
   assert.equal(getSettings().federatedPeers[0]!.token, "real-secret");
   assert.equal(getSettings().federatedPeers[0]!.label, "EU (renamed)");

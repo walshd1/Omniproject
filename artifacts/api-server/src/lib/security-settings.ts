@@ -33,12 +33,27 @@ export const SECURITY_SETTINGS: Record<string, RelaxPredicate> = {
   backendSource: changed,
   oidcIssuerUrl: changed,
   selfHost: changed,
-  // Egress / cross-instance data sharing.
-  webhooks: changed,
-  federatedPeers: changed,
-  // Egress TOGGLES have a clear direction: turning egress ON (or redirecting where it goes) is the
-  // relaxation; turning it OFF strengthens and applies immediately (the invariant lets you increase
-  // posture freely). So these are directional, not fail-closed `changed` — a disable is never gated.
+  // Egress / cross-instance data sharing. DIRECTIONAL: opening a NEW active egress target (a webhook to a
+  // new/redirected url, a peer at a new baseUrl) is the relaxation; removing/deactivating one strengthens
+  // and applies immediately (the invariant lets you increase posture freely). A same-target credential
+  // rotation or a metadata edit (label/description) is neutral — not gated.
+  webhooks: (o, n) => {
+    const activeUrls = (v: Val): Set<string> => new Set(
+      (Array.isArray(v) ? v : []).filter((w) => w && (w as { active?: unknown }).active !== false).map((w) => String((w as { url?: unknown }).url)),
+    );
+    const before = activeUrls(o);
+    return [...activeUrls(n)].some((u) => !before.has(u)); // any newly-active egress url ⇒ relax
+  },
+  federatedPeers: (o, n) => {
+    const activeBases = (v: Val): Set<string> => new Set(
+      (Array.isArray(v) ? v : []).filter((p) => p && (p as { active?: unknown }).active !== false).map((p) => String((p as { baseUrl?: unknown }).baseUrl)),
+    );
+    const before = activeBases(o);
+    return [...activeBases(n)].some((b) => !before.has(b)); // any newly-active peer target ⇒ relax
+  },
+  // Egress TOGGLES have a clear direction too: turning egress ON (or redirecting where it goes) is the
+  // relaxation; turning it OFF strengthens and applies immediately. So these are directional, not
+  // fail-closed `changed` — a disable is never gated.
   errorTelemetry: (o, n) => n === true && o !== true, // enabling external error telemetry only
   loggingSync: (o, n) => {
     const on = (v: Val): boolean => !!(v && typeof v === "object" && (v as { enabled?: unknown }).enabled === true);

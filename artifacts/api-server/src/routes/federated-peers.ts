@@ -1,8 +1,10 @@
 import { Router } from "express";
-import { getSettings, updateSettings, SettingsValidationError, type PeerInstance } from "../lib/settings";
+import { getSettings, SettingsValidationError, type PeerInstance } from "../lib/settings";
 import { captureVersion } from "../lib/config-store";
 import { requireRole } from "../lib/rbac";
 import { requireStepUp } from "../lib/step-up";
+import { applySettingsGuarded } from "../lib/settings-guard";
+import { actorForAudit } from "../lib/audit";
 
 /**
  * Federated-peer registry (backlog #135) — the other OmniProject instances (typically one per
@@ -26,7 +28,7 @@ router.get("/federated-peers", requireRole("admin"), (_req, res) => {
   res.json({ peers: (getSettings().federatedPeers ?? []).map(redact) });
 });
 
-router.put("/federated-peers", requireRole("admin"), requireStepUp, (req, res) => {
+router.put("/federated-peers", requireRole("admin"), requireStepUp, async (req, res) => {
   const raw = (req.body as { peers?: unknown })?.peers;
   if (!Array.isArray(raw)) {
     res.status(400).json({ error: "peers must be an array" });
@@ -44,9 +46,16 @@ router.put("/federated-peers", requireRole("admin"), requireStepUp, (req, res) =
     return { ...o, token };
   });
   try {
-    const settings = updateSettings({ federatedPeers: merged });
+    // Governing invariant (§0): registering a NEW active peer opens a new cross-instance egress target, so
+    // it is held for a signed sign-off (the token is sealed in the queue, never plaintext at rest). Removing
+    // a peer or a token-preserving edit strengthens/neutral → applies immediately.
+    const guarded = await applySettingsGuarded({ federatedPeers: merged }, actorForAudit(req)?.sub ?? "admin");
+    if (!guarded.applied) {
+      res.status(202).json({ pending: guarded.pending, message: "Registering a new federated peer opens a new egress target and needs a signed sign-off before it goes live. See /api/approvals/inbox." });
+      return;
+    }
     captureVersion("federated peers updated");
-    res.json({ peers: settings.federatedPeers.map(redact) });
+    res.json({ peers: getSettings().federatedPeers.map(redact) });
   } catch (err) {
     if (err instanceof SettingsValidationError) {
       res.status(400).json({ error: err.message });

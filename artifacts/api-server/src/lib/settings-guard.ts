@@ -60,10 +60,10 @@ export interface GuardedSettingsResult {
  * (bound dual-control chain, or the solo confirm+sign) and return `{applied:false, pending}` — the patch
  * applies via the executor only once the chain approves. Otherwise apply now and return `{applied:true}`.
  */
-export async function applySettingsGuarded(patch: Partial<SettingsState>, proposedBy: string): Promise<GuardedSettingsResult> {
+export async function applySettingsGuarded(patch: Record<string, unknown>, proposedBy: string): Promise<GuardedSettingsResult> {
   // Validate + normalise FIRST (throws SettingsValidationError on a bad value), so a held proposal can
   // never carry an invalid patch that only fails at executor time after everyone has signed.
-  const normalized = validatePatch(patch as Record<string, unknown>);
+  const normalized = validatePatch(patch);
   const relaxes = relaxingKeys(getSettings() as unknown as Record<string, unknown>, normalized);
   if (relaxes.length === 0) {
     updateSettings(normalized);
