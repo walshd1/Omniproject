@@ -19,12 +19,16 @@ export function EditableScreen({
   caps,
   methodology,
   bare,
+  fallbackLayout,
 }: {
   screen: ScreenDef;
   caps?: Record<string, boolean>;
   methodology?: string;
   /** Full-bleed mode (a hosted full-page component) — passed through to the renderer. */
   bare?: boolean;
+  /** A default arrangement applied when the customer hasn't saved their own — e.g. a methodology's
+   *  canonical layout. The customer's saved layout always wins over this. */
+  fallbackLayout?: ScreenLayout | null;
 }) {
   const { data: auth } = useAuth();
   // Only offer layout editing when there's actually something to arrange (2+ panels). A single-panel
@@ -34,7 +38,8 @@ export function EditableScreen({
   const save = useSaveScreenLayouts();
   const { toast } = useToast();
 
-  const saved = layouts?.[screen.id] ?? null;
+  // The customer's own saved arrangement wins; beneath it, a methodology's canonical layout (fallback).
+  const saved = layouts?.[screen.id] ?? fallbackLayout ?? null;
   const [editing, setEditing] = useState(false);
   // The working copy while editing (committed to the server on Save).
   const [draft, setDraft] = useState<ScreenLayout | null>(null);

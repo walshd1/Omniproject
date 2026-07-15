@@ -10,6 +10,7 @@ import type { ScreenDef } from "../../lib/screen";
  */
 
 let role = "viewer";
+let savedLayouts: Record<string, unknown> = { other: { order: ["x"] } };
 const saveMutate = vi.fn();
 
 vi.mock("../../lib/auth", async (importActual) => {
@@ -18,7 +19,7 @@ vi.mock("../../lib/auth", async (importActual) => {
 });
 
 vi.mock("../../lib/screen-layouts", () => ({
-  useScreenLayouts: () => ({ data: { other: { order: ["x"] } } }),
+  useScreenLayouts: () => ({ data: savedLayouts }),
   useSaveScreenLayouts: () => ({ mutate: saveMutate, isPending: false }),
 }));
 
@@ -35,8 +36,11 @@ const s: ScreenDef = {
 
 beforeEach(() => {
   role = "viewer";
+  savedLayouts = { other: { order: ["x"] } };
   saveMutate.mockReset();
 });
+
+const wraps = () => screen.getAllByTestId(/^panel-wrap-/).map((el) => el.getAttribute("data-testid"));
 
 describe("EditableScreen", () => {
   it("hides the editor affordance from non-PMO/admin users", () => {
@@ -69,6 +73,18 @@ describe("EditableScreen", () => {
     expect(payload.other).toEqual({ order: ["x"] });
     expect(payload.rep.spans.a).toBe(7);
     expect(payload.rep.hidden).toContain("b");
+  });
+
+  it("applies a methodology fallback layout when the customer has none saved", () => {
+    savedLayouts = {}; // no customer layout for this screen
+    renderWithProviders(<EditableScreen screen={s} fallbackLayout={{ order: ["b", "a"] }} />);
+    expect(wraps()).toEqual(["panel-wrap-b", "panel-wrap-a"]); // fallback order applied
+  });
+
+  it("prefers the customer's saved layout over the methodology fallback", () => {
+    savedLayouts = { rep: { order: ["a", "b"] } }; // customer saved a→b
+    renderWithProviders(<EditableScreen screen={s} fallbackLayout={{ order: ["b", "a"] }} />);
+    expect(wraps()).toEqual(["panel-wrap-a", "panel-wrap-b"]); // saved wins over fallback
   });
 
   it("Cancel discards the draft without saving", () => {

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { getScreenDef, screenDefs } from "./screen-catalogue";
+import { getScreenDef, screenDefs, canonicalLayoutFor } from "./screen-catalogue";
 
 /**
  * The JSON screen catalogue is the trusted boundary between untyped JSON and the ScreenDef model the
@@ -49,5 +49,17 @@ describe("screen catalogue", () => {
     expect(res).toBeTruthy();
     const urls = res.panels.map((p) => p.source?.url ?? "");
     expect(urls.every((u) => u.startsWith("/api/resource-allocations/rows"))).toBe(true);
+  });
+
+  it("canonicalLayoutFor returns a methodology's canonical arrangement, or null", () => {
+    const budget = getScreenDef("budget-plans")!;
+    expect(canonicalLayoutFor(budget, undefined)).toBeNull(); // no active methodology
+    expect(canonicalLayoutFor(budget, "no-such")).toBeNull(); // screen ships none for it
+    const lean = canonicalLayoutFor(budget, "lean");
+    expect(lean).toBeTruthy();
+    expect(lean!.hidden).toContain("budget-all-periods");
+    // every referenced panel id in the canonical layout must exist on the screen
+    const ids = new Set(budget.panels.map((p) => p.id));
+    for (const id of [...(lean!.order ?? []), ...(lean!.hidden ?? [])]) expect(ids.has(id)).toBe(true);
   });
 });

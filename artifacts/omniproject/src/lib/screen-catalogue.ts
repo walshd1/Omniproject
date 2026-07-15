@@ -1,4 +1,4 @@
-import type { ScreenDef } from "./screen";
+import type { ScreenDef, ScreenLayout } from "./screen";
 import budgetPlans from "../screens/budget-plans.json";
 import resourceAllocations from "../screens/resource-allocations.json";
 import home from "../screens/home.json";
@@ -27,6 +27,15 @@ export interface ScreenCatalogueEntry extends ScreenDef {
   /** Full-bleed: a single hosted full-page component that owns its own layout — rendered without the
    *  ScreenPage header chrome and the tiled grid, so a migrated page looks exactly as it did. */
   bare?: boolean;
+  /**
+   * A methodology's CANONICAL arrangement of this screen (panel order / spans / hidden), keyed by
+   * methodology id. This is the layout half of "a methodology defines canonical screen content and
+   * layouts": the panels' `methodologies` tags already decide the canonical CONTENT (via
+   * panelsForMethodology); this decides how those panels are laid out for that methodology. It sits
+   * BENEATH the customer's own saved layout — a PMO's drag-customisation always wins — so it's the
+   * sensible default arrangement a methodology ships, authored entirely in the screen's JSON.
+   */
+  methodologyLayouts?: Record<string, ScreenLayout>;
 }
 
 // Vite parses imported JSON to an object; the shape is validated by screen-catalogue.test.ts, so the cast
@@ -55,4 +64,14 @@ export function getScreenDef(id: string): ScreenCatalogueEntry | undefined {
 /** Every catalogued screen definition (a defensive copy of the list). */
 export function screenDefs(): ScreenCatalogueEntry[] {
   return [...ENTRIES];
+}
+
+/**
+ * The methodology's canonical layout for a screen, or null. Pure — returns the arrangement authored in the
+ * screen's JSON for `methodology`, used as the fallback BENEATH a customer's own saved layout. Null when
+ * no methodology is active or the screen ships no canonical layout for it.
+ */
+export function canonicalLayoutFor(entry: ScreenCatalogueEntry, methodology?: string): ScreenLayout | null {
+  if (!methodology) return null;
+  return entry.methodologyLayouts?.[methodology] ?? null;
 }

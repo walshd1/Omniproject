@@ -1,4 +1,4 @@
-import { getScreenDef } from "../lib/screen-catalogue";
+import { getScreenDef, canonicalLayoutFor } from "../lib/screen-catalogue";
 import type { ScreenDef } from "../lib/screen";
 import { EditableScreen } from "../components/screen/EditableScreen";
 
@@ -34,10 +34,14 @@ export function ScreenPage({ id, methodology, params }: { id: string; methodolog
     ? { ...def, panels: def.panels.map((p) => ({ ...p, config: { ...(p.config ?? {}), ...params } })) }
     : def;
 
+  // The methodology's canonical arrangement (if it ships one) becomes the layout fallback beneath any
+  // customer-saved layout; content is filtered by the same methodology inside the renderer.
+  const fallbackLayout = canonicalLayoutFor(def, methodology);
+
   if (def.bare) {
     return (
       <div className="h-full" data-testid={`screen-${id}`}>
-        <EditableScreen screen={screen} bare {...(methodology ? { methodology } : {})} />
+        <EditableScreen screen={screen} bare fallbackLayout={fallbackLayout} {...(methodology ? { methodology } : {})} />
       </div>
     );
   }
@@ -49,7 +53,7 @@ export function ScreenPage({ id, methodology, params }: { id: string; methodolog
         {def.hint && <span className="text-xs text-muted-foreground">{def.hint}</span>}
       </div>
       <div className="flex-1 p-8 overflow-auto">
-        <EditableScreen screen={screen} {...(methodology ? { methodology } : {})} />
+        <EditableScreen screen={screen} fallbackLayout={fallbackLayout} {...(methodology ? { methodology } : {})} />
       </div>
     </div>
   );
