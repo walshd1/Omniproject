@@ -21,11 +21,30 @@ test("tools/list hides write tools by default; shows them when writes are enable
   assert.ok(roTools.some((t) => t.name === "omniproject_list_projects"));
   assert.ok(!roTools.some((t) => t.name === "omniproject_create_issue"), "write tools hidden when disabled");
 
-  const rw = await handleMcp({ id: 2, method: "tools/list" }, echoExec, "0", WRITE_OK);
+  // Writes enabled AND every feature enabled ⇒ the full surface is advertised.
+  const rw = await handleMcp({ id: 2, method: "tools/list" }, echoExec, "0", { ...WRITE_OK, featureEnabled: () => true });
   const rwTools = (rw as { result: { tools: { name: string; description: string }[] } }).result.tools;
   assert.equal(rwTools.length, MCP_TOOLS.length);
   const create = rwTools.find((t) => t.name === "omniproject_create_issue")!;
   assert.match(create.description, /HERE BE DRAGONS|WRITE/); // the loud warning is in the description
+});
+
+test("a feature-gated tool is hidden + refused when its feature is off, visible + callable when on", async () => {
+  // Default policy has no featureEnabled ⇒ jqlSearch is OFF: search_issues is neither listed…
+  const offList = await handleMcp({ id: 1, method: "tools/list" }, echoExec, "0");
+  const offNames = (offList as { result: { tools: { name: string }[] } }).result.tools.map((t) => t.name);
+  assert.ok(!offNames.includes("omniproject_search_issues"), "feature-gated tool hidden when off");
+  // …nor callable (refused as if it didn't exist, WITHOUT reaching exec).
+  const offCall = await handleMcp({ id: 2, method: "tools/call", params: { name: "omniproject_search_issues", arguments: { jql: "status = open" } } }, throwExec, "0");
+  assert.ok(offCall && "error" in offCall && (offCall.error as { code: number }).code === -32601);
+
+  // Feature ON ⇒ listed and callable (exec runs).
+  const on: McpPolicy = { writesEnabled: false, canWrite: false, featureEnabled: (f) => f === "jqlSearch" };
+  const onList = await handleMcp({ id: 3, method: "tools/list" }, echoExec, "0", on);
+  const onNames = (onList as { result: { tools: { name: string }[] } }).result.tools.map((t) => t.name);
+  assert.ok(onNames.includes("omniproject_search_issues"), "feature-gated tool visible when on");
+  const onCall = await handleMcp({ id: 4, method: "tools/call", params: { name: "omniproject_search_issues", arguments: { jql: "status = open" } } }, echoExec, "0", on);
+  assert.ok(onCall && "result" in onCall);
 });
 
 test("write tools are gated: disabled → -32004, enabled-but-no-privilege → -32004, allowed → runs", async () => {

@@ -125,6 +125,16 @@ export const FEATURE_MODULES: readonly FeatureModule[] = [
     description: "Fast cross-entity quick-find over projects, issues and programmes.",
   },
   {
+    // JQL search TOOL (MCP): a rich Jira-style query over the caller's scope-bounded work items,
+    // evaluated in the read model (lib/jql). Default-OFF: a powerful cross-project query surface an
+    // admin opts into. No backend route to mount — it gates the MCP `search_issues` tool via its `feature`.
+    id: "jqlSearch",
+    label: "JQL search",
+    description: "Rich Jira-style query language (JQL) for searching work items, exposed as an AI/MCP tool.",
+    defaultOff: true,
+    reason: "cost", // rich cross-project queries can scan the whole scoped portfolio
+  },
+  {
     // Live collaboration: per-surface presence + advisory, soft-TTL field "locks" over SSE. Has a
     // backend route (the SSE stream + heartbeat) so it loads lazily; the SPA gates it via useFeatures.
     id: "presence",
