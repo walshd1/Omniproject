@@ -53,6 +53,40 @@ test("fsProbes does NOT count a name that only appears in an import or a comment
   }
 });
 
+test("fsProbes counts a component wired via an object-shorthand REGISTRY across MULTIPLE sources", () => {
+  const dir = tmp("cov-reg-");
+  const pageDir = tmp("cov-reg-page-");
+  const pageFile = path.join(pageDir, "Page.tsx");
+  const registryFile = path.join(dir, "renderers.ts");
+  try {
+    for (const c of ["Alpha", "Beta", "Gamma"]) {
+      fs.writeFileSync(path.join(dir, `${c}.tsx`), `export const ${c} = () => null;`);
+    }
+    // The page renders NONE of them directly (post-"remove hardcoded JSX" refactor)…
+    fs.writeFileSync(pageFile, "export const Page = () => null;");
+    // …they're wired via a Record<string, Component> registry using object SHORTHAND (bare `Comp,`).
+    fs.writeFileSync(
+      registryFile,
+      "import { Alpha } from './Alpha';\nimport { Beta } from './Beta';\nimport { Gamma } from './Gamma';\n" +
+        "export const RENDERERS = {\n  Alpha,\n  Beta,\n  Gamma,\n};",
+    );
+
+    // Probe BOTH the page and the registry: shorthand registration counts as wired.
+    const probes = fsProbes(dir, [pageFile, registryFile]);
+    assert.equal(probes.wiredInPage("Alpha"), true);
+    assert.equal(probes.wiredInPage("Beta"), true);
+    assert.equal(probes.wiredInPage("Gamma"), true);
+    // A component that exists but is NOT registered anywhere is still (correctly) not wired.
+    fs.writeFileSync(path.join(dir, "Orphan.tsx"), "export const Orphan = () => null;");
+    assert.equal(probes.wiredInPage("Orphan"), false);
+    // A bare mention that ISN'T an object entry (only imported) still doesn't count (imports stripped).
+    assert.equal(probes.wiredInPage("Nope"), false);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+    fs.rmSync(pageDir, { recursive: true, force: true });
+  }
+});
+
 test("fsProbes degrades gracefully when the dir and page file don't exist", () => {
   const probes = fsProbes(path.join(os.tmpdir(), "no-such-dir-abc"), path.join(os.tmpdir(), "no-such-page.tsx"));
   assert.equal(probes.componentExists("Anything"), false);
