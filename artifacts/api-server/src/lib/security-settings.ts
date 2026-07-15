@@ -74,6 +74,9 @@ export const CHOICE_SETTINGS: readonly string[] = [
   "userPrefs",
   // PlatformConfig
   "skillsPlanning",
+  // Workflows — the DEFINITION is authored config; its security is enforced at RUN time (approval binding +
+  // the content-hash-bound responsibility acceptance that voids on edit, §4.2), not at the edit gate.
+  "workflows",
 ];
 
 /** Every classified key — the drift guard asserts this equals the full `SettingsState` key set. */

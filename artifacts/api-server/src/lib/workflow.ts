@@ -135,6 +135,18 @@ function validateSteps(raw: unknown, ids: Set<string>, depth: number): WorkflowS
   });
 }
 
+/** Validate + normalise a LIST of workflow definitions (the settings shape) — unique workflow ids. */
+export function validateWorkflows(value: unknown): WorkflowDef[] {
+  if (!Array.isArray(value)) throw new WorkflowError("workflows must be an array");
+  const ids = new Set<string>();
+  return value.map((w) => {
+    const def = validateWorkflow(w);
+    if (ids.has(def.id)) throw new WorkflowError(`duplicate workflow id "${def.id}"`);
+    ids.add(def.id);
+    return def;
+  });
+}
+
 /** Validate + normalise a workflow definition (throws {@link WorkflowError}). Enforces globally-unique step
  *  ids, known step kinds, required fields per kind, and the depth cap. */
 export function validateWorkflow(value: unknown): WorkflowDef {
