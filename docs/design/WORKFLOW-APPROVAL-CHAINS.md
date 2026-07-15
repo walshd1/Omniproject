@@ -259,6 +259,20 @@ Build order: (i) the pure classifier + registry + drift guard (no critical-path 
 `updateSettings` interception to route a loosening patch through dual-control. Step (i) is safe to build
 now; step (ii) touches the settings hot path and lands behind tests + the confirmed registry.
 
+**Coverage status (as built).** `applySettingsGuarded` is the guard; a relaxing change → held for a signed
+sign-off, else applied. Wired at: **`PATCH /settings`** and **every `settingsCollectionRouter` write** (so
+`/approval-chains` and any future security collection are covered; choice collections are unaffected).
+**Still direct (invariant bypassable via them — the gap to close):**
+- `PUT /features/governance-rules` (`governanceRules`) — a clean patch, but its round-trip *validation* tests
+  assume immediate apply; guarding needs those adapted to a sign-off flow. Small, deferred.
+- `PUT /governance/:id` (`capabilityStates`) — mutates via the bespoke `setCapabilityState`, not a plain
+  patch; needs a patch-shaped wrap. Step-up-gated today.
+- `POST/DELETE /webhooks`, `PUT /federated-peers` — carry **SECRETS** (signing secret, peer token). They
+  **cannot** route through the current guard: the proposal queue persists `params`, so the secret would sit
+  at rest in the queue. A **secret-safe proposal** (hold a reference / apply the secret from secure holding,
+  never in the queue) is a PREREQUISITE. Step-up-gated today.
+All four are admin/PMO + step-up gated (strong single-actor), so not unprotected — just not yet sign-off.
+
 ## 7. Open decisions
 
 - Settled (§4.2): an AI may be the sole/autonomous approver only under a **version-bound, passkey-signed human
