@@ -53,6 +53,8 @@ import { CustomReportsAdmin } from "../components/settings/CustomReportsAdmin";
 import { BudgetPlansAdmin } from "../components/settings/BudgetPlansAdmin";
 import { ResourceAllocationsAdmin } from "../components/settings/ResourceAllocationsAdmin";
 import { ScreensAdmin } from "../components/settings/ScreensAdmin";
+import { RaciAdmin } from "../components/settings/RaciAdmin";
+import { StakeholdersAdmin } from "../components/settings/StakeholdersAdmin";
 import { CustomBackendAdmin } from "../components/settings/CustomBackendAdmin";
 import { ContentPagesAdmin } from "../components/settings/ContentPagesAdmin";
 import { FederatedPeersAdmin } from "../components/settings/FederatedPeersAdmin";
@@ -136,6 +138,8 @@ const ADMIN_PANELS: AdminPanel[] = [
   { key: "costRules", Component: CostRulesAdmin },
   { key: "budgetPlans", Component: BudgetPlansAdmin },
   { key: "resourceAllocations", Component: ResourceAllocationsAdmin },
+  { key: "raci", Component: RaciAdmin },
+  { key: "stakeholders", Component: StakeholdersAdmin },
   { key: "screens", Component: ScreensAdmin },
   { key: "customReports", Component: CustomReportsAdmin },
   { key: "customBackend", Component: CustomBackendAdmin },
