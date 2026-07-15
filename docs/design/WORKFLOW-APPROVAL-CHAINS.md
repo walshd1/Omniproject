@@ -229,16 +229,24 @@ The invariant — *no lone insider, admin included, may unilaterally REDUCE the 
 - **One chokepoint.** Every settings mutation funnels through `updateSettings`; every AI/backend action
   funnels through the existing gates (`dual-control` action ids, `isActionApproved`, `autonomous-grant`).
   Enforcement hooks these, not scattered call sites.
-- **A `SECURITY_SETTINGS` registry** names the settings keys that bear on the security posture (egress/IP
-  allowlists, DLP/sensitive-data config, RBAC/role grants, autonomous grants, audit/retention, approval
-  chains themselves, PSK/keys, MFA/step-up, session policy, feature-governance gates, …). The registry IS
-  the classification, and a **drift guard** (test) forces any newly-added security-relevant setting to be
-  registered — so a new knob can't slip in unclassified.
-- **Default-GATED, tightening-EXEMPT.** A change to a registry key is routed to **dual-control** (a second
-  distinct admin/PMO must passkey-sign before it applies) **unless** a per-key predicate can *prove* the
-  change strictly TIGHTENS (e.g. revoke, enable-a-guard, add-to-a-denylist, narrow-a-scope). Fail-closed:
-  no predicate, ambiguous, or structurally-complex change ⇒ treated as a reduction ⇒ gated. A
-  misclassification can only ever OVER-gate (safe friction), never under-gate (a hole).
+- **Three buckets — most settings are "just a choice" and untouched.** Every setting is classified as:
+  1. **No security dimension** (a *choice*: labels, currency, report layouts, view prefs, …) → **not gated**,
+     unaffected. This is the majority; the invariant simply doesn't apply.
+  2. **Clear strengthen/relax scale** (egress/IP allowlists, DLP/sensitive-data config, RBAC/role grants,
+     autonomous grants, audit/retention, approval chains themselves, PSK/keys, MFA/step-up, session policy,
+     feature-governance gates, …) → the invariant applies: **relax needs a signed sign-off, strengthen is
+     free**.
+  3. **Security-relevant but ambiguous/complex direction** → **fail-closed**: treated as a relax ⇒ signed.
+  A drift-guarded `SECURITY_SETTINGS` registry holds buckets 2–3 (with each key's relax-direction predicate);
+  a new knob can't slip in unclassified.
+- **Relax ⇒ signed; strengthen ⇒ immediate.** A relaxing change is routed to a **signed sign-off** — ≥2
+  distinct admins where they exist, degrading to the single admin's **confirm + sign** (§0). A strengthening
+  change (or a bucket-1 choice) applies immediately, audited. A per-key predicate proves the strengthen
+  direction (revoke, enable-a-guard, add-to-a-denylist, narrow-a-scope); absent/ambiguous ⇒ treated as relax.
+- **De-risked by the single-admin degrade (§0).** Because a gate never *blocks* — it only asks for a signature
+  (one hand solo, two in an org) — a misclassification can only ever OVER-gate (cost: a signature), never
+  under-gate (a hole) and never wedge a deployment. That's what makes applying this *broadly* safe: be
+  conservative, fail-closed, and the worst case is a harmless extra signature on a "just a choice" setting.
 - **Mechanism = reuse.** A gated change becomes a `dual-control`/approval proposal carrying the patch as
   params (no code in the queue); on the second signature the executor applies the exact patch. Tightening
   applies immediately (single admin, audited). No role is exempt — an admin loosening still needs a second
