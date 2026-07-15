@@ -5,6 +5,7 @@
  * the brokered write. Validation is the zod contract; this is the thin shell.
  */
 import { Router } from "express";
+import { envInt } from "../lib/env-config";
 import {
   CreateIssueBody,
   CreateIssueParams,
@@ -58,8 +59,9 @@ import type { Request, Response } from "express";
 const router = Router();
 
 /** Concurrency bound for the /resources roster fan-out over every project (Theme A in
- *  docs/PERF-PATTERNS-REVIEW.md — was an unbounded `Promise.all` over all 200 projects). */
-const RESOURCE_ROSTER_FANOUT_LIMIT = 10;
+ *  docs/PERF-PATTERNS-REVIEW.md — was an unbounded `Promise.all` over all 200 projects).
+ *  Tunable via RESOURCE_ROSTER_FANOUT_LIMIT for deployments that want more/less parallelism. */
+const RESOURCE_ROSTER_FANOUT_LIMIT = envInt("RESOURCE_ROSTER_FANOUT_LIMIT", 10, { min: 1 });
 
 /**
  * Apply the EXTRA business ruleset AFTER the hard gate (requireRole already ran).

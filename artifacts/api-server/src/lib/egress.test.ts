@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { assertEgressAllowed, safeFetch, guardedLookup, __setEgressTransportForTest, EgressError, type LookupFn } from "./egress";
 import { DataResidencyError } from "./data-residency";
 
-afterEach(() => { delete process.env["EGRESS_ALLOWLIST"]; delete process.env["DATA_RESIDENCY_POLICY"]; __setEgressTransportForTest(null); });
+afterEach(() => { delete process.env["EGRESS_ALLOWLIST"]; delete process.env["DATA_RESIDENCY_POLICY"]; delete process.env["EGRESS_BLOCK_PRIVATE"]; __setEgressTransportForTest(null); });
 
 /** A deterministic fake `dns.lookup` — every test that touches a plain (non-IP-literal)
  *  hostname must supply one, so nothing here depends on real network/DNS availability. */
@@ -75,6 +75,29 @@ test("allows ordinary internal + external hosts by default (deployments need thi
   assert.ok(await assertEgressAllowed("http://localhost:5678/webhook")); // real loopback resolution — always safe
   assert.ok(await assertEgressAllowed("http://10.0.0.5:5678/")); // literal IP — no DNS lookup at all
   assert.ok(await assertEgressAllowed("https://api.example.com/fx", SAFE));
+});
+
+test("hardened mode: EGRESS_BLOCK_PRIVATE refuses RFC1918/loopback (literal + resolved), allowlist escapes it", async () => {
+  process.env["EGRESS_BLOCK_PRIVATE"] = "1";
+  // Literal private/loopback IPs are refused.
+  await assert.rejects(assertEgressAllowed("http://10.0.0.5:6379/"), EgressError);
+  await assert.rejects(assertEgressAllowed("http://127.0.0.1:6379/"), EgressError);
+  await assert.rejects(assertEgressAllowed("http://192.168.1.10/admin"), EgressError);
+  await assert.rejects(assertEgressAllowed("http://[::1]/"), EgressError);
+  // A hostname that RESOLVES to a private IP is refused too (n8n → 10.0.0.5 in SAFE).
+  await assert.rejects(assertEgressAllowed("http://n8n:5678/webhook", SAFE), EgressError);
+  // A public host is still fine.
+  assert.ok(await assertEgressAllowed("https://api.example.com/fx", SAFE));
+  // The always-on metadata floor is unchanged.
+  await assert.rejects(assertEgressAllowed("http://169.254.169.254/"), EgressError);
+  // Explicitly allowlisting the internal host is the escape hatch.
+  process.env["EGRESS_ALLOWLIST"] = "n8n";
+  assert.ok(await assertEgressAllowed("http://n8n:5678/webhook", SAFE));
+});
+
+test("private ranges are allowed by DEFAULT (no EGRESS_BLOCK_PRIVATE) — internal brokers keep working", async () => {
+  assert.ok(await assertEgressAllowed("http://10.0.0.5:5678/")); // unchanged default posture
+  assert.ok(await assertEgressAllowed("http://n8n:5678/webhook", SAFE));
 });
 
 test("strict mode: EGRESS_ALLOWLIST pins outbound hosts", async () => {

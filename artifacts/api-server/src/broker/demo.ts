@@ -481,8 +481,14 @@ export class DemoBroker implements Broker {
     return sampleNotifications();
   }
 
-  async portfolioHealth(): Promise<PortfolioRow[]> {
-    return SAMPLE_PORTFOLIO;
+  async portfolioHealth(ctx?: ActorContext): Promise<PortfolioRow[]> {
+    // Mirror listProjects' scope enforcement: the portfolio roll-up exposes per-project id/name/RAG, so a
+    // programme-scoped caller must only see its own programmes' rows. Reuse the scope-filtered visible set
+    // as the source of truth (a portfolio row is in scope iff its project is a visible project).
+    const scope = ctx?.scope ?? { level: "all" as const };
+    if (scope.level === "all") return SAMPLE_PORTFOLIO;
+    const visibleIds = new Set((await this.listProjects(ctx)).map((p) => p.id));
+    return SAMPLE_PORTFOLIO.filter((r) => visibleIds.has(String(r.projectId)));
   }
 
   async resourceCapacity(): Promise<Row[]> {

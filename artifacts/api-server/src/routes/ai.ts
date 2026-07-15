@@ -4,6 +4,7 @@
  * provider plumbing (Ollama/OpenRouter/OpenAI/Anthropic) lives in lib/ai.
  */
 import { Router, type Request, type Response } from "express";
+import { envInt } from "../lib/env-config";
 import { aiStatus, aiChat, AiError, type ChatMessage } from "../lib/ai";
 import { getSettings } from "../lib/settings";
 import { getSession } from "./auth";
@@ -28,16 +29,20 @@ const router = Router();
 
 // Zero-trust schemas for the hand-rolled AI bodies: every field is typed AND bounded, so a
 // hostile/oversized payload is rejected with a 400 rather than narrowed by an `as` cast. The
-// max-length caps double as a cheap DoS guard on otherwise-unbounded free text.
+// max-length caps double as a cheap DoS guard on otherwise-unbounded free text. The caps are
+// admin-tunable (an enterprise may need larger prompts / more messages) but keep their defaults.
+const AI_CHAT_CONTENT_MAX = envInt("AI_CHAT_CONTENT_MAX", 32_000, { min: 1 });
+const AI_CHAT_MESSAGES_MAX = envInt("AI_CHAT_MESSAGES_MAX", 100, { min: 1 });
+const AI_PROMPT_MAX = envInt("AI_PROMPT_MAX", 8_000, { min: 1 });
 const CHAT_BODY = v.object({
   messages: v.array(
-    v.object({ role: v.enum(["system", "user", "assistant"] as const), content: v.string({ max: 32_000 }) }),
-    { min: 1, max: 100 },
+    v.object({ role: v.enum(["system", "user", "assistant"] as const), content: v.string({ max: AI_CHAT_CONTENT_MAX }) }),
+    { min: 1, max: AI_CHAT_MESSAGES_MAX },
   ),
 });
-const NL_ACTION_BODY = v.object({ text: v.string({ trim: true, min: 1, max: 8_000 }) });
+const NL_ACTION_BODY = v.object({ text: v.string({ trim: true, min: 1, max: AI_PROMPT_MAX }) });
 const COPILOT_BODY = v.object({
-  question: v.string({ trim: true, min: 1, max: 8_000 }),
+  question: v.string({ trim: true, min: 1, max: AI_PROMPT_MAX }),
   mode: v.optional(v.enum(["rag", "freeform"] as const)),
   methodology: v.optional(v.string({ trim: true, max: 120 })),
 });

@@ -10,6 +10,7 @@
  * adversarial workflow can't spin or blow the stack. Definitions are validated (validateWorkflow) before
  * they run, and are stored as JSON (params only, never code) in project/org config.
  */
+import { envInt } from "./env-config";
 
 export class WorkflowError extends Error {
   constructor(message: string) { super(message); this.name = "WorkflowError"; }
@@ -57,8 +58,10 @@ export interface WorkflowRunContext {
  *  the (RBAC-scoped) broker/notify/report/approval surfaces below the seam. */
 export type WorkflowEffect = (action: string, params: Record<string, unknown>, ctx: WorkflowRunContext) => Promise<unknown>;
 
-const MAX_STEPS = 1000; // runaway guard (autonomous-guard posture)
-const MAX_DEPTH = 24;   // stack-blowup guard for adversarial nesting
+// Runaway/stack guards. Admin-tunable for large enterprise orchestrations (the interpreter stays pure —
+// these are read once at load, exactly like every other envInt-backed bound). Defaults unchanged.
+const MAX_STEPS = envInt("WORKFLOW_MAX_STEPS", 1000, { min: 1 }); // step budget (autonomous-guard posture)
+const MAX_DEPTH = envInt("WORKFLOW_MAX_DEPTH", 24, { min: 1 });   // nesting-depth cap (adversarial nesting)
 
 const isEmpty = (v: unknown): boolean => v === undefined || v === null || v === "" || (Array.isArray(v) && v.length === 0);
 

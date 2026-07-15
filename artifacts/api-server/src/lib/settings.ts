@@ -17,7 +17,7 @@ import type { GovernanceRule } from "./governance-rules";
 import { validatePredicate } from "./predicate";
 import { isValidCadence, type SnapshotCadence } from "../history/cadence";
 import { logger } from "./logger";
-import { isTruthy } from "./env-config";
+import { isTruthy, envInt } from "./env-config";
 import { validateFieldRouting, FieldRoutingError, type FieldRoute } from "./field-routing";
 import { validateApprovalChains, ApprovalChainError, type ChainDef } from "./approval-chain";
 import { validateApprovalBindings, ApprovalBindingError, type ApprovalBinding } from "./approval-binding";
@@ -176,7 +176,8 @@ export interface DigestDeliveryConfig {
   emailRecipients: string[];
 }
 
-const MAX_DIGEST_RECIPIENTS = 100;
+// Cap on digest email recipients (compliance/blast-radius bound). Tunable via DIGEST_MAX_RECIPIENTS.
+const MAX_DIGEST_RECIPIENTS = envInt("DIGEST_MAX_RECIPIENTS", 100, { min: 1 });
 /** Seed recipients from `DIGEST_EMAIL_RECIPIENTS` (comma-separated) so an operator can wire it via env. */
 function digestDeliveryFromEnv(): DigestDeliveryConfig {
   const raw = process.env["DIGEST_EMAIL_RECIPIENTS"]?.trim();

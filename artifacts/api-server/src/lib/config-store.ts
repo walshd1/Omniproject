@@ -5,6 +5,7 @@ import { logger } from "./logger";
 import { SealedFile, resolveConfigFile } from "./sealed-file";
 import { sharedStateMode, sharedRingPush, sharedRingRead } from "./shared-state";
 import { safeParseJson } from "./safe-json";
+import { envInt } from "./env-config";
 
 /**
  * Configuration environments + versioned rollback.
@@ -36,7 +37,8 @@ interface StoreState {
   versions: ConfigVersion[];
 }
 
-const MAX_VERSIONS = 100;
+// Config version-history retention depth (older versions trimmed beyond it). Tunable per deployment.
+const MAX_VERSIONS = envInt("CONFIG_STORE_MAX_VERSIONS", 100, { min: 1 });
 const SHARED_VERSIONS_PREFIX = "config:ver:";
 const DEFAULT_ENV = "production";
 // Encrypted at rest (AES-256-GCM) so a copy of the raw file is opaque off-box.

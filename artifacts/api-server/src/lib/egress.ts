@@ -33,8 +33,8 @@
 import dns from "node:dns/promises";
 import net from "node:net";
 import { Agent, fetch as undiciFetch, type RequestInit as UndiciRequestInit } from "undici";
-import { isBlockedHostLiteral, isBlockedIp } from "./ip-ranges";
-import { parseCsvEnv } from "./env";
+import { isBlockedHostLiteral, isBlockedIp, isPrivateOrLoopbackHostLiteral, isPrivateOrLoopbackIp } from "./ip-ranges";
+import { parseCsvEnv, envFlag } from "./env";
 
 // `data-residency` is loaded LAZILY (dynamic import in resolveAndValidate) rather than statically.
 // egress is a very low-level guard that secret-at-rest modules (kms, vault-*) now route through, and
@@ -108,9 +108,23 @@ async function resolveAndValidate(rawUrl: string, lookup: LookupFn): Promise<{ u
     }
   }
   const allowlist = parseCsvEnv("EGRESS_ALLOWLIST");
+  const allowSet = new Set(allowlist.map((s) => s.toLowerCase()));
+  // OPT-IN hardened egress: also refuse RFC1918 / loopback / ULA / CGNAT targets (internal-network SSRF),
+  // checked against BOTH the literal host and every resolved address (so a DNS name pointing at a private
+  // IP can't slip through). An explicit EGRESS_ALLOWLIST entry is the escape hatch for a legitimate
+  // internal host (e.g. the self-hosted broker). Off by default so existing internal-host deployments are
+  // unaffected; the link-local/metadata floor above is enforced regardless of this flag.
+  if (envFlag("EGRESS_BLOCK_PRIVATE") && !allowSet.has(host)) {
+    if (isPrivateOrLoopbackHostLiteral(host)) {
+      throw new EgressError(`egress to ${host} is blocked (private/loopback range; EGRESS_BLOCK_PRIVATE — allowlist it in EGRESS_ALLOWLIST if intended)`);
+    }
+    const priv = addresses?.find((a) => isPrivateOrLoopbackIp(a.address, a.family));
+    if (priv) {
+      throw new EgressError(`egress to ${host} resolves to ${priv.address}, which is blocked (private/loopback; EGRESS_BLOCK_PRIVATE)`);
+    }
+  }
   if (allowlist.length) {
-    const set = new Set(allowlist.map((s) => s.toLowerCase()));
-    if (!set.has(host)) {
+    if (!allowSet.has(host)) {
       throw new EgressError(`egress to ${host} is not in EGRESS_ALLOWLIST`);
     }
   }

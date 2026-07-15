@@ -1,4 +1,5 @@
 import { createHmac } from "node:crypto";
+import { constantTimeEqual } from "./crypto-keys";
 import { derivedKey, currentVersion } from "./key-registry";
 import { canonical } from "./provenance";
 import { signMessage, publicKeyId, verifySignature } from "./signing";
@@ -191,7 +192,12 @@ export function verifyAuditChain(events: SealedAuditEvent[], expectedFirstPrev: 
     if (!seal) return { ok: false, count: events.length, brokenAt: i, reason: "missing seal" };
     if (expectedSeq !== null && seal.seq !== expectedSeq) return { ok: false, count: events.length, brokenAt: i, reason: "non-monotonic seq" };
     if (seal.prevHash !== prev) return { ok: false, count: events.length, brokenAt: i, reason: "prevHash mismatch (event removed/reordered)" };
-    if (linkHash(seal.seq, seal.prevHash, ev, seal.kv) !== seal.hash) return { ok: false, count: events.length, brokenAt: i, reason: "hash mismatch (event altered)" };
+    // Constant-time MAC comparison: `seal.hash` is caller-supplied and `linkHash` is the secret keyed
+    // HMAC recomputed for it, so a short-circuiting `!==` would leak, byte-by-byte, how much of a guessed
+    // hash is correct — a timing oracle that could let a holder of the (attacker-altered) SIEM copy forge
+    // a valid chain link WITHOUT the audit key, defeating this module's tamper-evidence guarantee. Matches
+    // the constant-time check the provenance chain already uses.
+    if (!constantTimeEqual(linkHash(seal.seq, seal.prevHash, ev, seal.kv), seal.hash)) return { ok: false, count: events.length, brokenAt: i, reason: "hash mismatch (event altered)" };
     prev = seal.hash;
     expectedSeq = seal.seq + 1;
   }

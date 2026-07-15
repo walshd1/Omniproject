@@ -1,4 +1,5 @@
 import type { Request } from "express";
+import { envInt } from "./env-config";
 import { getSettings, type PeerInstance } from "./settings";
 import { allowedRegions } from "./data-residency";
 import { computeLocalPortfolioSummary, type PortfolioSummary } from "./portfolio-summary";
@@ -23,7 +24,8 @@ import { poolMap } from "./concurrency-pool";
  * scheme that already exists for BI-style consumers. No new cross-instance auth scheme.
  */
 
-const PEER_TIMEOUT_MS = 8_000;
+// Per-peer request timeout — tunable for slow WAN links between regional instances (FEDERATION_PEER_TIMEOUT_MS).
+const PEER_TIMEOUT_MS = envInt("FEDERATION_PEER_TIMEOUT_MS", 8_000, { min: 500 });
 /** Cap a peer's response body — a portfolio summary is small; anything larger is hostile/broken. */
 const MAX_PEER_BODY_BYTES = 512 * 1024;
 
