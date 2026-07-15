@@ -70,12 +70,16 @@ be forced, not even by the server.*
   1. **Key-class segregation** — AI signs with a distinct, **grant-bound autonomous key** (reusing
      `autonomous-grant`); an AI-signed approval is marked as such in the queue + audit. A stage that requires a
      **human passkey can never be satisfied by an AI signature**.
-  2. **Intermediary only — never sole; a human sign-off is ALWAYS required** — an AI may occupy an
-     *intermediary* stage but can **never be the only approver in a chain**. Every chain that includes an AI
-     stage **must** contain at least one explicit **human** passkey sign-off — no sensitivity threshold, no
-     exception. An AI signature alone can never complete a chain; a chain with no human approver can never
-     include an AI stage; and an AI (or its principal) can never approve a proposal it initiated (no
-     self-approval). The authoritative completion of any chain is always a human act.
+  2. **AI may be the sole approver — but ONLY under a standing, signed human responsibility acceptance** —
+     an AI *can* be the only approver of a stage (or run the whole chain autonomously) at run time, but only
+     for a workflow a **named human has reviewed in detail** — its logic, its outputs, and the AI's actions —
+     and **passkey-signed to accept personal responsibility for its correctness and safety**. Accountability
+     is thus established **up front, at authorization time**, so the AI can then act autonomously at run time
+     without a human in each chain. That signed acceptance **is** the per-workflow human grant (#3), and it is
+     **bound to the workflow's exact version (content hash)**: any change to the workflow or the AI's actions
+     **voids it** and requires a fresh human review + re-sign. Every autonomous AI approval therefore always
+     traces to the named human who took responsibility for that exact workflow version. No self-approval — an
+     AI (or its principal) can never approve a proposal it initiated.
   3. **Grant-bound, per-workflow, human-issued, NEVER agentic** — an AI's ability to approve a stage is
      conferred **only by an explicit human grant, scoped to a single workflow** (never a blanket/global
      grant, never inferred). The grant-issuing action is itself a **hard human-only** action: it can never be
@@ -83,7 +87,10 @@ be forced, not even by the server.*
      actor** — default-deny, not even under some other grant. So **no agentic path can create, widen, or
      bootstrap AI-approval authority**: only a human, explicitly, per workflow. Each grant is scope + expiry
      bound and fail-closed audited (existing autonomous model).
-  4. **Advisory by default** — an AI stage is advisory unless a human makes it binding within its per-workflow grant.
+  4. **Advisory until signed off** — an AI stage is advisory (or the chain simply can't run autonomously)
+     until the workflow carries a **valid** human responsibility acceptance (#2/#3). Only then may an AI stage
+     be *binding* or *sole*. If that acceptance is absent, voided (workflow changed), or expired, the AI reverts
+     to advisory and a human must approve.
   5. **Escape hatch stays human** — PMO redirect/bypass is always a human passkey action, never AI.
 
 ## 5. Workflow engine — a caller, mostly
@@ -102,19 +109,23 @@ be forced, not even by the server.*
 2. **Per-approval challenge + verify** (Node `crypto`), recorded in the audit chain. *New.*
 3. **Chain engine**: generalize `dual-control` to N stages (role/named, configurable rejection, PMO
    redirect/bypass), signatures required per stage. *New, reuses queue/executor.*
-4. **AI-as-approver** guardrails (key-class segregation, separation of duties, advisory default). Includes a
-   **per-workflow, human-only "grant AI-approval" action** on the hard human-only list — never chain-gateable
-   by an AI, never executable by an autonomous actor, so AI can't bootstrap its own authority. *New, reuses
-   autonomous-grant.*
+4. **AI-as-approver** guardrails: key-class segregation; no self-approval; and the **human responsibility
+   acceptance** — a per-workflow, **hard human-only** action where a named human reviews the workflow + the
+   AI's actions and passkey-signs to take responsibility, **bound to the workflow content hash** (any edit
+   voids it). It's never chain-gateable by an AI and never executable by an autonomous actor, so AI can't
+   bootstrap its own authority; only once it exists may an AI stage be binding/sole. *New, reuses autonomous-grant.*
 5. **Inbox** surface (MyWork + notify-bus). *Mostly reused.*
 6. **Bind chains to actions** (generalize `DUAL_CONTROL_ACTIONS` → per-action/per-workflow-step). *New glue.*
 7. **Workflow engine** (branch/loop interpreter over existing node surfaces) + JSON storage. *New interpreter.*
 
 ## 7. Open decisions
 
-- A human passkey sign-off is ALWAYS mandatory in any chain containing an AI stage (settled, §4.2). Open:
-  whether a sensitivity threshold governs anything *further* — e.g. actions that forbid AI stages entirely —
-  and who sets it (org PMO vs. per-project PM).
+- Settled (§4.2): an AI may be the sole/autonomous approver only under a **version-bound, passkey-signed human
+  responsibility acceptance** — accountability is established at authorization time, not per run. Open: whether
+  a sensitivity threshold forbids AI stages *entirely* for some actions, and who owns that (org PMO vs. per-project PM).
+- Re-acceptance UX on workflow change: the acceptance is bound to the workflow content hash, so any edit voids
+  it — how the responsible human is prompted to re-review + re-sign (and what runs in the meantime: nothing, or
+  advisory-only).
 - Reads posture for AI: keep today's default-permitted-but-governed (allowlist + RBAC scope + audit), or add a
   **default-deny-reads for autonomous actors** option so *every* AI action — reads included — needs an explicit
   human grant (matches the writes/approvals posture).
