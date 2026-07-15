@@ -60,6 +60,7 @@ export const NAV_ITEMS: NavItem[] = [
   { href: "/budgets", i18nKey: "nav.budgets", label: "Budgets", icon: Wallet, match: (l) => l.startsWith("/budgets"), group: "primary" },
   { href: "/reports", i18nKey: "nav.reports", label: "Reports", icon: BarChart3, chord: "G+R", match: (l) => l.startsWith("/reports"), group: "primary" },
   { href: "/resources", i18nKey: "nav.resources", label: "Resources", icon: Users, match: (l) => l.startsWith("/resources"), requiresEntity: "member", group: "primary" },
+  { href: "/resource-planning", i18nKey: "nav.resourcePlanning", label: "Resource planning", icon: Users, match: (l) => l.startsWith("/resource-planning"), group: "primary" },
   { href: "/explore", i18nKey: "nav.explore", label: "Explore", icon: FlaskConical, chord: "G+E", match: (l) => l.startsWith("/explore"), group: "admin" },
   { href: "/settings", i18nKey: "nav.settings", label: "Settings", icon: SettingsIcon, chord: "G+S", match: (l) => l.startsWith("/settings"), group: "admin" },
   { href: "/configurator", i18nKey: "nav.configurator", label: "Configurator", icon: PlugZap, chord: "G+C", match: (l) => l.startsWith("/configurator") || l.startsWith("/setup"), group: "admin", visibleToRoles: isPmoOrAdmin },

@@ -43,4 +43,11 @@ describe("screen catalogue", () => {
     const urls = budget.panels.map((p) => p.source?.url ?? "");
     expect(urls.every((u) => u.startsWith("/api/budget-plans/rows"))).toBe(true);
   });
+
+  it("resource-allocations binds its panels to the rows endpoint", () => {
+    const res = getScreenDef("resource-allocations")!;
+    expect(res).toBeTruthy();
+    const urls = res.panels.map((p) => p.source?.url ?? "");
+    expect(urls.every((u) => u.startsWith("/api/resource-allocations/rows"))).toBe(true);
+  });
 });

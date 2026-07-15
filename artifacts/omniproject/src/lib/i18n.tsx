@@ -34,6 +34,7 @@ const EN: Dict = {
   "nav.budgets": "Budgets",
   "nav.reports": "Reports",
   "nav.resources": "Resources",
+  "nav.resourcePlanning": "Resource planning",
   "nav.explore": "Explore",
   "nav.settings": "Settings",
   "nav.configurator": "Configurator",

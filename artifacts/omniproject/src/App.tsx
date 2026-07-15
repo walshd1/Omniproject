@@ -111,6 +111,9 @@ function Router() {
       <Route path="/budgets">
         <AppLayout><ScreenPage id="budget-plans" /></AppLayout>
       </Route>
+      <Route path="/resource-planning">
+        <AppLayout><ScreenPage id="resource-allocations" /></AppLayout>
+      </Route>
       <Route path="/reports">
         <AppLayout><Reports /></AppLayout>
       </Route>

@@ -1,5 +1,6 @@
 import type { ScreenDef } from "./screen";
 import budgetPlans from "../screens/budget-plans.json";
+import resourceAllocations from "../screens/resource-allocations.json";
 
 /**
  * Screen-definition catalogue — the panel-bearing ScreenDefs the generic builder renders, authored as
@@ -18,7 +19,10 @@ export interface ScreenCatalogueEntry extends ScreenDef {
 
 // Vite parses imported JSON to an object; the shape is validated by screen-catalogue.test.ts, so the cast
 // is the single trusted boundary between "untyped JSON" and the ScreenDef model the renderer relies on.
-const ENTRIES: ScreenCatalogueEntry[] = [budgetPlans as ScreenCatalogueEntry];
+const ENTRIES: ScreenCatalogueEntry[] = [
+  budgetPlans as ScreenCatalogueEntry,
+  resourceAllocations as ScreenCatalogueEntry,
+];
 
 const byId = new Map(ENTRIES.map((s) => [s.id, s]));
 

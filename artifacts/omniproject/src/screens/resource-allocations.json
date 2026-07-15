@@ -1,0 +1,36 @@
+{
+  "id": "resource-allocations",
+  "label": "Resource planning",
+  "hint": "Planned resource bookings by person, project and period. Edit the bookings in Settings → Resource allocations.",
+  "panels": [
+    {
+      "id": "hours-by-resource-chart",
+      "kind": "chart",
+      "title": "Booked hours by resource",
+      "span": 12,
+      "config": { "chartType": "bar", "xKey": "resource", "series": [{ "key": "hours", "label": "Booked hours" }] },
+      "source": { "url": "/api/resource-allocations/rows?groupBy=resource&metric=sum:hours" }
+    },
+    {
+      "id": "hours-by-resource",
+      "kind": "table",
+      "title": "Hours by resource",
+      "span": 6,
+      "source": { "url": "/api/resource-allocations/rows?groupBy=resource&metric=sum:hours" }
+    },
+    {
+      "id": "hours-by-project",
+      "kind": "table",
+      "title": "Hours by project",
+      "span": 6,
+      "source": { "url": "/api/resource-allocations/rows?groupBy=projectId&metric=sum:hours" }
+    },
+    {
+      "id": "all-bookings",
+      "kind": "table",
+      "title": "All bookings",
+      "span": 12,
+      "source": { "url": "/api/resource-allocations/rows" }
+    }
+  ]
+}
