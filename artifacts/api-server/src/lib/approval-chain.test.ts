@@ -100,6 +100,32 @@ test("a humanOnly stage cannot be completed by an AI decision", () => {
   assert.throws(() => applyDecision(d, s, dec("s1", "bot", "approve", "ai"), { sub: "bot", roles: ["pm"], via: "ai" }), /requires a human/);
 });
 
+test("requireDistinctApprovers stops one insider satisfying two stages (dual-control)", () => {
+  // A 2-stage privileged action; alice is eligible for BOTH stages (e.g. holds pmo).
+  const d = def({ requireDistinctApprovers: true, stages: [
+    { id: "s1", approvers: [{ kind: "role", role: "pmo" }] },
+    { id: "s2", approvers: [{ kind: "role", role: "pmo" }] },
+  ] });
+  let s = startChain(d, "p1", "maker");
+  s = applyDecision(d, s, dec("s1", "alice", "approve"), human("alice", ["pmo"]));
+  // alice cannot also satisfy stage 2 — a SECOND distinct human is required.
+  assert.throws(() => applyDecision(d, s, dec("s2", "alice", "approve"), human("alice", ["pmo"])), /distinct approvers/);
+  // a different pmo completes it.
+  s = applyDecision(d, s, dec("s2", "bob", "approve"), human("bob", ["pmo"]));
+  assert.equal(s.status, "approved");
+});
+
+test("without requireDistinctApprovers, the same eligible person MAY satisfy consecutive stages", () => {
+  const d = def({ stages: [
+    { id: "s1", approvers: [{ kind: "role", role: "pmo" }] },
+    { id: "s2", approvers: [{ kind: "role", role: "pmo" }] },
+  ] });
+  let s = startChain(d, "p1", "maker");
+  s = applyDecision(d, s, dec("s1", "alice", "approve"), human("alice", ["pmo"]));
+  s = applyDecision(d, s, dec("s2", "alice", "approve"), human("alice", ["pmo"]));
+  assert.equal(s.status, "approved"); // default behaviour unchanged
+});
+
 test("PMO redirect reassigns the current stage's approvers", () => {
   const d = def();
   const s = startChain(d, "p1", "maker");

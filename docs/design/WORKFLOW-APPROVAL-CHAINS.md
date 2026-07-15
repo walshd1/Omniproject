@@ -30,6 +30,18 @@ high-impact **granting/exposing** action. Those require **multiple distinct huma
 which is attributable. Fail-**safe** *denying* actions (revoke) may stay single-actor since they only remove
 capability, but remain audited. Combined with least privilege (keep the privileged set minimal + scoped).
 
+**Settled — these FOUR require two distinct human passkey sign-offs (dual-control):**
+1. **Chain bypass** — a second PMO/admin co-signs the force-approve.
+2. **Sensitive-data relaxation** (§4.6) — two admin/PMO sign-offs to open the AI data no-go.
+3. **Grant AI-approval authority** (§4.3) — a second human co-signs the responsibility acceptance.
+4. **Stage redirect** — a second sign-off (and a redirect can never target the redirector; never shrinks the
+   approver count).
+
+Mechanism: **reuse the approval-chain engine itself** — each of these is just a small proposal requiring two
+DISTINCT eligible signers (neither the initiator). This needs one engine addition: a
+`requireDistinctApprovers` flag so the *same* person can't satisfy two stages (true N-distinct-human control).
+Revoke stays single-actor (fail-safe) but audited.
+
 ## 1. What we're building
 
 An **admin/PMO/PM-gated workflow creator**: a signed-in user (bounded by their RBAC scope) composes

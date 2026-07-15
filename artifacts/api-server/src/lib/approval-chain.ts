@@ -32,6 +32,10 @@ export interface ChainDef {
   /** Ordered — stage 0 is asked first; the chain completes when the last stage approves. */
   stages: Stage[];
   rejectionPolicy: RejectionPolicy;
+  /** When true, a person who has acted on ANY earlier stage cannot act on a later one — so N stages mean
+   *  N DISTINCT humans (true dual-/multi-control). Used for the privileged actions (bypass, relaxation,
+   *  AI-authority grant, redirect) so no lone insider can satisfy the whole chain. Default false. */
+  requireDistinctApprovers?: boolean;
 }
 
 /** A single verified decision (its signature + the actor's authority were checked by the caller). */
@@ -103,6 +107,7 @@ export function applyDecision(def: ChainDef, state: ChainState, d: Decision, act
   if (actor.sub === state.proposedBy) throw new ApprovalChainError("the proposer cannot approve their own proposal");
   if (!isEligible(stage, actor)) throw new ApprovalChainError(`${actor.sub} is not an approver for stage "${stage.id}"`);
   if (state.decisions.some((x) => x.stageId === stage.id && x.by === actor.sub)) throw new ApprovalChainError("actor has already decided this stage");
+  if (def.requireDistinctApprovers && state.decisions.some((x) => x.by === actor.sub)) throw new ApprovalChainError("this approver already acted on an earlier stage — distinct approvers are required");
   if (d.decision === "approve" && stage.humanOnly && actor.via !== "human") throw new ApprovalChainError(`stage "${stage.id}" requires a human approval`);
 
   const decisions = [...state.decisions, d];
