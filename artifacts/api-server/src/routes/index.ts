@@ -51,6 +51,7 @@ import webhooksRouter from "./webhooks";
 import federatedPeersRouter from "./federated-peers";
 import federatedPortfolioRouter from "./federated-portfolio";
 import mcpRouter from "./mcp";
+import { outputCompositionGate } from "../lib/composition-gate";
 import rulesetRouter from "./ruleset";
 import importRouter from "./import";
 import roleMapRouter from "./role-map";
@@ -65,6 +66,9 @@ import usageRouter from "./usage";
 import approvalsRouter from "./approvals";
 import approvalChainsRouter from "./approval-chains";
 import workflowsRouter from "./workflows";
+import reportsRouter from "./reports";
+import resourceAllocationsRouter from "./resource-allocations";
+import budgetPlansRouter from "./budget-plans";
 import scimRouter from "./scim";
 import breakGlassRouter from "./break-glass";
 import { isDeprovisioned } from "../lib/rbac";
@@ -120,6 +124,11 @@ router.use(apiLimiter);
 
 // Audit every action (level-gated) with actor, status and latency.
 router.use(auditMiddleware);
+
+// Hard-gate OUTPUT surfaces (OData, exports, iCal, MCP, metrics, BI feeds, notification stream/ingest) by
+// the methodology composition: a curated-out output's endpoint 403s server-side, not just hidden in the SPA.
+// One central path→output map so a router mounted at "/" can't leak a gate onto every request.
+router.use(outputCompositionGate);
 
 // MCP (Model Context Protocol) server — POST /api/mcp, JSON-RPC. Read-only tools
 // over the broker seam; self-auths (session OR read-only API token) since MCP is
@@ -207,6 +216,9 @@ router.use(requireAuth, usageRouter);
 router.use(requireAuth, approvalsRouter);
 router.use(requireAuth, approvalChainsRouter);
 router.use(requireAuth, workflowsRouter);
+router.use(requireAuth, reportsRouter);
+router.use(requireAuth, resourceAllocationsRouter);
+router.use(requireAuth, budgetPlansRouter);
 
 /**
  * Mount the optional feature modules. Each enabled module is reached through a dynamic

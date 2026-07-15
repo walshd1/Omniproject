@@ -24,6 +24,19 @@ import { ProjectHealth } from "./ProjectHealth";
 import { DemandIntake } from "./DemandIntake";
 import { Utilisation } from "./Utilisation";
 import { ValueStreamFlow } from "./ValueStreamFlow";
+import { ExecBoardPack } from "./ExecBoardPack";
+import { PortfolioRoadmap } from "./PortfolioRoadmap";
+import { CriticalPath } from "./CriticalPath";
+import { ScheduleSandbox } from "./ScheduleSandbox";
+import { ScenarioSandbox } from "./ScenarioSandbox";
+import { DependencyLinks } from "./DependencyLinks";
+import { PortfolioTrends } from "./PortfolioTrends";
+import { ProjectTrend } from "./ProjectTrend";
+import { BenefitsRealisation } from "./BenefitsRealisation";
+import { BenefitsRealisationRollup } from "./BenefitsRealisationRollup";
+import { CapexOpex } from "./CapexOpex";
+import { ForecastWindows } from "./ForecastWindows";
+import { MonteCarloRisk } from "./MonteCarloRisk";
 
 /**
  * The report RENDERER REGISTRY — the one place a report definition's `renderer.component` is resolved to
@@ -68,6 +81,20 @@ export const REPORT_RENDERERS: Record<string, ReportRendererComponent> = {
   DemandIntake,
   Utilisation,
   ValueStreamFlow,
+  ExecBoardPack,
+  PortfolioRoadmap,
+  CriticalPath,
+  ScheduleSandbox,
+  ScenarioSandbox,
+  DependencyLinks,
+  PortfolioTrends,
+  ProjectTrend,
+  BenefitsRealisation,
+  // Rollup takes only an optional `now` (test seam) and no projectId; adapt it to the shared prop shape.
+  BenefitsRealisationRollup: BenefitsRealisationRollup as ReportRendererComponent,
+  CapexOpex,
+  ForecastWindows,
+  MonteCarloRisk,
 };
 
 /** Is this component name a registered renderer? */

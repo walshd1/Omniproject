@@ -66,6 +66,15 @@ export const SECURITY_SETTINGS: Record<string, RelaxPredicate> = {
   approvalBindings: changed,
   featureGovernance: changed,
   governanceRules: changed,
+  // AI responsibility acceptances grant an AI approval authority — directional: a NEW/changed acceptance
+  // (a new workflow authorized, or a re-sign at a different hash) expands autonomous reach → relax;
+  // revoking one strengthens → immediate. Set only via the passkey-signed acceptance route (the bulk PATCH
+  // refuses it), so this classification is belt-and-suspenders for the drift guard + any future path.
+  workflowAcceptances: (o, n) => {
+    const key = (a: { workflowId?: unknown; workflowHash?: unknown }): string => `${String(a.workflowId)}@${String(a.workflowHash)}`;
+    const before = new Set((Array.isArray(o) ? o : []).map((a) => key(a as { workflowId?: unknown; workflowHash?: unknown })));
+    return (Array.isArray(n) ? n : []).some((a) => !before.has(key(a as { workflowId?: unknown; workflowHash?: unknown })));
+  },
   // Capability exposure has a clear ladder (off < user-defined < public). RAISING a capability's exposure —
   // or pointing it at a NEW/changed egress endpoint, or raising any per-surface exposure — is the
   // relaxation; turning it off/down (or dropping the endpoint) strengthens and applies immediately.
@@ -109,7 +118,7 @@ export const CHOICE_SETTINGS: readonly string[] = [
   "disabledFeatures", "enabledFeatures", "programmeFeatures", "projectFeatures",
   // PresentationConfig (all presentation)
   "branding", "labelOverrides", "priorityLabels", "screenLayouts", "hiddenFields",
-  "savedViews", "dashboards", "customReports", "reportOverrides", "methodologyComposition", "contentPages",
+  "savedViews", "dashboards", "customReports", "reportOverrides", "reports", "resourceAllocations", "budgetPlans", "methodologyComposition", "contentPages",
   // UserConfig
   "userPrefs",
   // PlatformConfig

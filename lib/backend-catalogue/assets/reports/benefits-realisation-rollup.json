@@ -1,0 +1,11 @@
+{
+  "id": "benefits-realisation-rollup",
+  "label": "Portfolio Benefits Realisation",
+  "docsUrl": "",
+  "kind": "portfolio",
+  "renderer": { "engine": "builtin", "component": "BenefitsRealisationRollup" },
+  "capabilities": { "requiresCapability": null, "timeSeries": false, "exports": ["csv", "pdf", "png"] },
+  "tools": ["benefitPlanned","benefitActual","realisation"],
+  "notes": "Portfolio realisation lens over planned-vs-realised benefits. Stateless.",
+  "order": 102
+}

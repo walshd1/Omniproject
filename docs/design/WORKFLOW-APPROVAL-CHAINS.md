@@ -212,11 +212,13 @@ workflow/chain actually uses AI. A human-only or manual workflow uses none of it
 2. **Per-approval challenge + verify** (Node `crypto`), recorded in the audit chain. *New.*
 3. **Chain engine**: generalize `dual-control` to N stages (role/named, configurable rejection, PMO
    redirect/bypass), signatures required per stage. *New, reuses queue/executor.*
-4. **AI-as-approver** guardrails: key-class segregation; no self-approval; and the **human responsibility
-   acceptance** — a per-workflow, **hard human-only** action where a named human reviews the workflow + the
-   AI's actions and passkey-signs to take responsibility, **bound to the workflow content hash** (any edit
-   voids it). It's never chain-gateable by an AI and never executable by an autonomous actor, so AI can't
-   bootstrap its own authority; only once it exists may an AI stage be binding/sole. *New, reuses autonomous-grant.*
+4. **AI-as-approver** guardrails — **BUILT**: no self-approval; and the **human responsibility acceptance**
+   (`responsibility-acceptance{,-service}.ts`) — a per-workflow, **hard human-only** passkey-signed grant,
+   **bound to the workflow content hash** (any edit voids it) **and** to the signer's presence (offboarding
+   voids it — computed live via the SCIM `directoryDecision`, no separate job). It's never chain-gateable by
+   an AI: `submitDecision` default-DENIES an AI `approve` unless an *active* acceptance exists for that
+   workflow, and a `humanOnly` stage refuses an AI even with one. The grant is set only via a scope-owner
+   (PMO org / PM project) passkey-signed route; the bulk `PATCH /settings` refuses the key. *Reuses passkey + SCIM.*
 5. **Inbox** surface (MyWork + notify-bus). *Mostly reused.*
 6. **Bind chains to actions** (generalize `DUAL_CONTROL_ACTIONS` → per-action/per-workflow-step). *New glue.*
 7. **Workflow engine** (branch/loop interpreter over existing node surfaces) + JSON storage. *New interpreter.*

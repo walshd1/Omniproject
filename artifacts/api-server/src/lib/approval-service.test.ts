@@ -11,8 +11,11 @@ const {
   ApprovalServiceError,
 } = await import("./approval-service");
 const { ApprovalChainError } = await import("./approval-chain");
+const { updateSettings } = await import("./settings");
+const { challengeForAcceptance, acceptResponsibility } = await import("./responsibility-acceptance-service");
 import type { ChainDef, Actor } from "./approval-chain";
 import type { SignedDecision } from "./approval-service";
+import type { WorkflowDef } from "./workflow";
 
 const sha256 = (b: Buffer): Buffer => crypto.createHash("sha256").update(b).digest();
 const RP_ID = "omni.test";
@@ -97,4 +100,47 @@ test("inbox shows a proposal to an eligible approver, hides it from the proposer
   await submitDecision(id, actor("alice", ["pm"]), sign("alice", c.challenge, "approve"));
   assert.equal(await has(actor("alice", ["pm"])), false);  // already decided s1
   assert.equal(await has(actor("pmo-1", ["pmo"])), true);  // now active at s2
+});
+
+// ── AI-as-approver gate (design §4.2) ────────────────────────────────────────
+const WF_AI: WorkflowDef = { id: "wf-ai", scope: { kind: "org" }, steps: [{ id: "s", kind: "action", action: "broker.listProjects" }] };
+const aiChain = (): ChainDef => ({ id: "aic", scope: { kind: "org" }, rejectionPolicy: "abort", stages: [{ id: "s1", approvers: [{ kind: "user", sub: "ai-bot" }] }] });
+
+test("an AI approver is DEFAULT-DENIED without a responsibility acceptance, and ALLOWED once one is signed", async () => {
+  updateSettings({ workflows: [WF_AI], workflowAcceptances: [] });
+  await enroll("ai-bot"); await enroll("owner-ai");
+  let ran = false;
+  registerApprovalExecutor("workflow.run:wf-ai", () => { ran = true; });
+
+  // Without an acceptance: the AI's signed approval is refused (crypto is fine; the AI simply has no authority).
+  const id = await createProposal({ def: aiChain(), action: "workflow.run:wf-ai", params: { id: "wf-ai" }, proposedBy: "maker" });
+  const c1 = (await challengeForStage(id, "ai-bot"))!;
+  await assert.rejects(
+    () => submitDecision(id, { sub: "ai-bot", roles: [], via: "ai" }, sign("ai-bot", c1.challenge, "approve")),
+    (err: Error) => err instanceof ApprovalServiceError && /AI approval refused/.test(err.message),
+  );
+  assert.equal(ran, false);
+
+  // A human scope owner reviews + passkey-signs the responsibility acceptance for this exact version…
+  const ch = (await challengeForAcceptance("wf-ai", "owner-ai"))!;
+  await acceptResponsibility("wf-ai", { sub: "owner-ai", email: "owner@x.io" }, sign("owner-ai", ch.challenge, "approve"));
+
+  // …now the AI's approval is authorized and the chain runs.
+  const c2 = (await challengeForStage(id, "ai-bot"))!;
+  const r = await submitDecision(id, { sub: "ai-bot", roles: [], via: "ai" }, sign("ai-bot", c2.challenge, "approve"));
+  assert.equal(r.status, "approved");
+  assert.equal(ran, true);
+  updateSettings({ workflows: [], workflowAcceptances: [] });
+});
+
+test("a humanOnly stage still refuses an AI even WITH an acceptance (belt and braces)", async () => {
+  updateSettings({ workflows: [WF_AI], workflowAcceptances: [] });
+  await enroll("ai-bot"); await enroll("owner-ai");
+  const ch = (await challengeForAcceptance("wf-ai", "owner-ai"))!;
+  await acceptResponsibility("wf-ai", { sub: "owner-ai" }, sign("owner-ai", ch.challenge, "approve"));
+  const humanOnlyChain: ChainDef = { id: "hoc", scope: { kind: "org" }, rejectionPolicy: "abort", stages: [{ id: "s1", approvers: [{ kind: "user", sub: "ai-bot" }], humanOnly: true }] };
+  const id = await createProposal({ def: humanOnlyChain, action: "workflow.run:wf-ai", params: { id: "wf-ai" }, proposedBy: "maker" });
+  const c = (await challengeForStage(id, "ai-bot"))!;
+  await assert.rejects(() => submitDecision(id, { sub: "ai-bot", roles: [], via: "ai" }, sign("ai-bot", c.challenge, "approve")), ApprovalChainError);
+  updateSettings({ workflows: [], workflowAcceptances: [] });
 });

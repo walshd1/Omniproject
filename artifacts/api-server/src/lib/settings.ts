@@ -22,6 +22,10 @@ import { validateFieldRouting, FieldRoutingError, type FieldRoute } from "./fiel
 import { validateApprovalChains, ApprovalChainError, type ChainDef } from "./approval-chain";
 import { validateApprovalBindings, ApprovalBindingError, type ApprovalBinding } from "./approval-binding";
 import { validateWorkflows, WorkflowError, type WorkflowDef } from "./workflow";
+import { validateWorkflowAcceptances, ResponsibilityAcceptanceError, type WorkflowAcceptance } from "./responsibility-acceptance";
+import { validateResourceAllocations, ResourceAllocationError, type ResourceAllocation } from "./resource-allocation";
+import { validateBudgetPlans, BudgetPlanError, type BudgetPlan } from "./budget-plan";
+import { reportCatalogue, type ReportDefinition } from "@workspace/backend-catalogue";
 import { validateCustomFields, validateCustomFieldSources, CustomFieldError, type CustomField } from "./custom-fields";
 import { sanitizeBranding } from "./branding";
 import { sanitizeUserPrefs } from "./user-prefs";
@@ -286,6 +290,9 @@ export interface BrokerConfig {
   approvalBindings: ApprovalBinding[];
   /** Admin/PMO/PM-authored workflows (org/project-scoped), stored as JSON. See docs/design/WORKFLOW-APPROVAL-CHAINS.md. */
   workflows: WorkflowDef[];
+  /** Standing, passkey-signed human responsibility acceptances that authorize an AI to approve a specific
+   *  workflow VERSION (content-hash-bound; voided by any edit or the signer's offboarding). §4.2. */
+  workflowAcceptances: WorkflowAcceptance[];
   /** Admin-defined fields extending the reference superset. Each must be mapped in `fieldRouting`
    *  (route it to the Postgres backend if there's no external source) — see lib/custom-fields. */
   customFields: CustomField[];
@@ -465,6 +472,20 @@ export interface PresentationConfig {
    * and never holds project data. Rides the snapshot/export. See routes/report-overrides.
    */
   reportOverrides: ReportOverride[];
+  /**
+   * The deployment's effective set of report DEFINITIONS (the per-deployment JSON store). Seeded from the
+   * built-in catalogue at first boot, then owned by the deployment: a report is a JSON definition
+   * (`ReportDefinition`) bound to a registered renderer, so a deployment can add / edit / remove reports as
+   * data — nothing about a report lives in code except its reusable renderer component. Presentation config;
+   * rides the snapshot/export, never project data. See routes/reports + report-renderers on the SPA.
+   */
+  reports: ReportDefinition[];
+  /** Resource bookings — a named person committed to a project for hours over a period (the write side of
+   *  resource management). Stored as JSON in the deployment config. See routes/resource-allocations. */
+  resourceAllocations: ResourceAllocation[];
+  /** Multi-year / period budget PLANS — an editable time-phased budget per project (the planning side of
+   *  financials, above actuals + forecast). Stored as JSON. See routes/budget-plans. */
+  budgetPlans: BudgetPlan[];
   /**
    * Methodology composition — the PMO/admin's curated set of visible artifact / output / ruleset ids,
    * assembled from one-click methodology presets and refined per item (so "some Scrum + some PRINCE2" is
@@ -1030,6 +1051,7 @@ const FIELD_DESCRIPTORS: { [K in keyof SettingsState]: FieldDescriptor<K> } = {
   approvalChains: { seed: () => [], validate: normalisedBy((v) => validateApprovalChains(v), ApprovalChainError) },
   approvalBindings: { seed: () => [], validate: normalisedBy((v) => validateApprovalBindings(v), ApprovalBindingError) },
   workflows: { seed: () => [], validate: normalisedBy((v) => validateWorkflows(v), WorkflowError) },
+  workflowAcceptances: { seed: () => [], validate: normalisedBy((v) => validateWorkflowAcceptances(v), ResponsibilityAcceptanceError) },
   fieldValidation: {
     // Validate the rule DEFINITIONS (shape + patterns compile); values are enforced on the write path.
     seed: () => [],
@@ -1108,6 +1130,10 @@ const FIELD_DESCRIPTORS: { [K in keyof SettingsState]: FieldDescriptor<K> } = {
   savedViews: { seed: () => [], validate: shapeChecked(validateSavedViews) },
   customReports: { seed: () => [], validate: shapeChecked(validateCustomReports) },
   reportOverrides: { seed: () => [], validate: shapeChecked(validateReportOverrides) },
+  // The per-deployment report store — seeded from the built-in catalogue, then deployment-owned JSON.
+  reports: { seed: () => reportCatalogue() as unknown as ReportDefinition[], validate: shapeChecked(validateReports) },
+  resourceAllocations: { seed: () => [], validate: normalisedBy((v) => validateResourceAllocations(v), ResourceAllocationError) },
+  budgetPlans: { seed: () => [], validate: normalisedBy((v) => validateBudgetPlans(v), BudgetPlanError) },
   methodologyComposition: {
     seed: () => null,
     validate: (value) => {
@@ -1386,6 +1412,30 @@ function validateReportOverrides(value: unknown): void {
     if (o["label"] != null && typeof o["label"] !== "string") throw new SettingsValidationError(`report override "${String(o["id"])}" label must be a string`);
     if (o["order"] != null && typeof o["order"] !== "number") throw new SettingsValidationError(`report override "${String(o["id"])}" order must be a number`);
     if (o["hidden"] != null && typeof o["hidden"] !== "boolean") throw new SettingsValidationError(`report override "${String(o["id"])}" hidden must be a boolean`);
+  }
+}
+
+/** Shape-validate the per-deployment report definitions. Each needs a string id + label, a known `kind`, a
+ *  numeric `order`, and a `renderer` with an engine — enough to bind a definition to a registered renderer.
+ *  Forward-compatible (extra fields kept, renderer-component existence NOT enforced here — same stance as
+ *  reportOverrides/contentPages, so a renderer renamed in a later release doesn't brick a saved definition). */
+const REPORT_KINDS = new Set(["schedule", "progress", "financial", "resource", "quality", "portfolio"]);
+function validateReports(value: unknown): void {
+  if (!Array.isArray(value)) throw new SettingsValidationError("reports must be an array");
+  const ids = new Set<string>();
+  for (const r of value) {
+    const o = r as Record<string, unknown>;
+    if (!o || typeof o !== "object" || typeof o["id"] !== "string" || !o["id"]) throw new SettingsValidationError("each report needs a string id");
+    const id = o["id"] as string;
+    if (ids.has(id)) throw new SettingsValidationError(`duplicate report id "${id}"`);
+    ids.add(id);
+    if (typeof o["label"] !== "string" || !o["label"]) throw new SettingsValidationError(`report "${id}" needs a label`);
+    if (typeof o["kind"] !== "string" || !REPORT_KINDS.has(o["kind"])) throw new SettingsValidationError(`report "${id}" has an unknown kind`);
+    if (typeof o["order"] !== "number") throw new SettingsValidationError(`report "${id}" order must be a number`);
+    const rend = o["renderer"];
+    if (!rend || typeof rend !== "object" || typeof (rend as Record<string, unknown>)["engine"] !== "string") {
+      throw new SettingsValidationError(`report "${id}" needs a renderer with an engine`);
+    }
   }
 }
 

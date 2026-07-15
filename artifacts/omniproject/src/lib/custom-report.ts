@@ -1,4 +1,5 @@
 import { round2 } from "./num";
+import { aggregate } from "@workspace/backend-catalogue";
 import type { ConditionSet, Predicate } from "./rate-card";
 import type { StyleSpec } from "./artifact-style";
 
@@ -96,15 +97,6 @@ export function matchRow(filter: ConditionSet | undefined, row: Row): boolean {
 }
 
 /** Aggregate a set of field values for one metric. `count` ignores the values (it counts rows). */
-function aggregate(agg: CustomReportAgg, values: number[], rowCount: number): number {
-  if (agg === "count") return rowCount;
-  if (values.length === 0) return 0;
-  if (agg === "sum") return values.reduce((s, n) => s + n, 0);
-  if (agg === "avg") return values.reduce((s, n) => s + n, 0) / values.length;
-  if (agg === "min") return Math.min(...values);
-  return Math.max(...values); // max
-}
-
 export interface CustomReportGroup {
   key: string;
   label: string;

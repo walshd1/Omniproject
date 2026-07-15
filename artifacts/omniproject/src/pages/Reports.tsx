@@ -1,41 +1,9 @@
 import { useEffect, type ReactNode } from "react";
 import { useListProjects, useGetCapabilities, type Capabilities } from "@workspace/api-client-react";
 import { useActiveProjectSelector } from "../hooks/use-active-project-selector";
-import { ExecBoardPack } from "../components/reports/ExecBoardPack";
-import { PortfolioKpi } from "../components/reports/PortfolioKpi";
-import { FederatedPortfolio } from "../components/reports/FederatedPortfolio";
-import { PortfolioRoadmap } from "../components/reports/PortfolioRoadmap";
-import { CrossProgrammeDependencies } from "../components/reports/CrossProgrammeDependencies";
-import { ResourceHeatmap } from "../components/reports/ResourceHeatmap";
-import { FinancialEvmChart } from "../components/reports/FinancialEvmChart";
-import { ForecastWindows } from "../components/reports/ForecastWindows";
-import { MonteCarloRisk } from "../components/reports/MonteCarloRisk";
-import { CriticalPath } from "../components/reports/CriticalPath";
-import { BenefitsRealisation } from "../components/reports/BenefitsRealisation";
-import { CapexOpex } from "../components/reports/CapexOpex";
-import { FinancialSummary } from "../components/reports/FinancialSummary";
-import { StaffTimeCost } from "../components/reports/StaffTimeCost";
-import { IncomeInvoicing } from "../components/reports/IncomeInvoicing";
-import { CapacityRollup } from "../components/reports/CapacityRollup";
-import { ResourceLevelling } from "../components/reports/ResourceLevelling";
-import { PortfolioFinancials } from "../components/reports/PortfolioFinancials";
-import { PortfolioIncome } from "../components/reports/PortfolioIncome";
-import { PortfolioBenefits } from "../components/reports/PortfolioBenefits";
-import { PortfolioPrioritisation } from "../components/reports/PortfolioPrioritisation";
-import { StrategyAlignment } from "../components/reports/StrategyAlignment";
-import { ProjectHealth } from "../components/reports/ProjectHealth";
-import { DemandIntake } from "../components/reports/DemandIntake";
-import { Utilisation } from "../components/reports/Utilisation";
-import { ValueStreamFlow } from "../components/reports/ValueStreamFlow";
-import { BenefitsRealisationRollup } from "../components/reports/BenefitsRealisationRollup";
 import { CustomReportsProject, CustomReportsPortfolio, CustomReportsTasks } from "../components/reports/CustomReportsPanel";
 import { SnapshotVerifyPanel } from "../components/reports/SnapshotControls";
-import { ProjectTrend } from "../components/reports/ProjectTrend";
-import { Burndown } from "../components/reports/Burndown";
-import { Burnup } from "../components/reports/Burnup";
-import { CumulativeFlow } from "../components/reports/CumulativeFlow";
-import { Velocity } from "../components/reports/Velocity";
-import { RaidRegister } from "../components/reports/RaidRegister";
+import { CatalogueReport } from "../components/reports/CatalogueReport";
 import { useAuth, roleAtLeast } from "../lib/auth";
 import { useMethodologyComposition } from "../lib/methodology-composition-api";
 import { isItemVisible } from "../lib/methodology-composition";
@@ -176,71 +144,71 @@ export function Reports() {
         </div>
 
         <Gated caps={caps} domain="portfolio" title="Executive Board Pack" requires="a portfolio rollup (get_portfolio_health)" section>
-          <ExecBoardPack />
+          <CatalogueReport id="exec-board-pack" />
         </Gated>
 
         <Gated caps={caps} domain="portfolio" title="Portfolio Health" reportId="portfolio-rag" requires="a portfolio rollup (get_portfolio_health)">
-          <PortfolioKpi />
+          <CatalogueReport id="portfolio-rag" />
         </Gated>
 
         <Gated caps={caps} domain="portfolio" title="Federated Portfolio" reportId="federated-portfolio" requires="a portfolio rollup (get_portfolio_health)" section heading="Federated Portfolio (cross-instance)">
-          <FederatedPortfolio />
+          <CatalogueReport id="federated-portfolio" />
         </Gated>
 
         <Gated caps={caps} domain="portfolio" title="Portfolio Prioritisation" reportId="portfolio-prioritisation" requires="a portfolio rollup (get_portfolio_health)" section heading="Portfolio Prioritisation & Funding Funnel">
-          <PortfolioPrioritisation />
+          <CatalogueReport id="portfolio-prioritisation" />
         </Gated>
 
         <Gated caps={caps} domain="portfolio" title="Strategy Alignment" reportId="strategy-alignment" requires="a portfolio rollup (get_portfolio_health)" section heading="Strategy Alignment (strategy-to-execution / OKRs)">
-          <StrategyAlignment />
+          <CatalogueReport id="strategy-alignment" />
         </Gated>
 
         <Gated caps={caps} domain="portfolio" title="Project Health" reportId="project-health" requires="a portfolio rollup (get_portfolio_health)" section heading="Project Health (predictive risk scoring)">
-          <ProjectHealth />
+          <CatalogueReport id="project-health" />
         </Gated>
 
         <Gated caps={caps} domain="portfolio" title="Demand Intake" reportId="demand-intake" requires="a portfolio rollup (get_portfolio_health)" section heading="Demand Intake (intake funnel & prioritisation)">
-          <DemandIntake />
+          <CatalogueReport id="demand-intake" />
         </Gated>
 
         <Gated caps={caps} domain="portfolio" title="Value Stream Flow" reportId="value-stream" requires="a portfolio rollup (get_portfolio_health)" section heading="Value Stream Flow (WIP, aging, throughput & cycle time)">
-          <ValueStreamFlow />
+          <CatalogueReport id="value-stream" />
         </Gated>
 
         <Gated caps={caps} domain="resources" title="Utilisation" reportId="utilisation" requires="a resource-management source" section heading="Utilisation (timesheets & capacity)">
-          <Utilisation />
+          <CatalogueReport id="utilisation" />
         </Gated>
 
         <Gated caps={caps} domain="scheduling" title="Portfolio Roadmap" reportId="gantt" requires="start / due dates on work items" section>
-          <PortfolioRoadmap />
+          <CatalogueReport id="portfolio-roadmap" />
         </Gated>
 
         <Gated caps={caps} domain="scheduling" title="Cross-programme Dependencies" reportId="cross-programme-dependencies" requires="depends-on links + start / due dates on work items" section heading="Cross-programme Dependency & Critical-Path Map">
-          <CrossProgrammeDependencies />
+          <CatalogueReport id="cross-programme-dependencies" />
         </Gated>
 
         <Gated caps={caps} domain="resources" title="Capacity Roll-up" reportId="capacity-rollup" requires="a resource-management source" section heading="Capacity Roll-up (programme & portfolio)">
-          <CapacityRollup />
+          <CatalogueReport id="capacity-rollup" />
         </Gated>
 
         <Gated caps={caps} domain="resources" title="Cross-programme Resource Levelling" reportId="resource-levelling" requires="a resource-management source" section>
-          <ResourceLevelling />
+          <CatalogueReport id="resource-levelling" />
         </Gated>
 
         <Gated caps={caps} domain="financials" title="Portfolio Financials" reportId="portfolio-financials" requires="a cost / ERP source" section heading="Portfolio Financials (consolidated)">
-          <PortfolioFinancials />
+          <CatalogueReport id="portfolio-financials" />
         </Gated>
 
         <Gated caps={caps} domain="financials" title="Portfolio Income" reportId="portfolio-income" requires="revenue / invoiced amounts on work items" section heading="Portfolio Income (consolidated)">
-          <PortfolioIncome />
+          <CatalogueReport id="portfolio-income" />
         </Gated>
 
         <Gated caps={caps} domain="benefits" title="Portfolio Benefits" reportId="portfolio-benefits" requires="benefit value/status fields on work items" section heading="Portfolio Benefits (consolidated)">
-          <PortfolioBenefits />
+          <CatalogueReport id="portfolio-benefits" />
         </Gated>
 
         <Gated caps={caps} domain="benefits" title="Benefits Realisation" requires="benefit value/status/due-date fields on work items" section heading="Benefits Realisation (pipeline & trajectory)">
-          <BenefitsRealisationRollup />
+          <CatalogueReport id="benefits-realisation-rollup" />
         </Gated>
 
         {/* Customer-built portfolio reports (the report generator). Render nothing unless any are defined. */}
@@ -252,63 +220,63 @@ export function Reports() {
         <div className="grid grid-cols-1 xl:grid-cols-2 gap-10">
           {projectId && (
             <Gated caps={caps} domain="resources" title="Resource Allocation" reportId="resource-histogram" requires="a resource-management source">
-              <ResourceHeatmap projectId={projectId} />
+              <CatalogueReport id="resource-histogram" projectId={projectId} />
             </Gated>
           )}
           {projectId && (
             <Gated caps={caps} domain="financials" title="Earned Value (EVM)" reportId="evm" requires="a cost / ERP source">
-              <FinancialEvmChart projectId={projectId} />
+              <CatalogueReport id="evm" projectId={projectId} />
             </Gated>
           )}
         </div>
 
         {projectId && (
           <Gated caps={caps} domain="financials" title="Forecasting Windows" requires="a cost / ERP source + work-item dates" section heading="Forecasting Windows (time-phased S-curve)">
-            <ForecastWindows projectId={projectId} />
+            <CatalogueReport id="forecast-windows" projectId={projectId} />
           </Gated>
         )}
 
         {projectId && (
           <Gated caps={caps} domain="scheduling" title="Schedule Risk (Monte Carlo)" requires="effort estimates on work items" section>
-            <MonteCarloRisk projectId={projectId} />
+            <CatalogueReport id="monte-carlo-risk" projectId={projectId} />
           </Gated>
         )}
 
         {projectId && (
           <Gated caps={caps} domain="scheduling" title="Critical Path (CPM)" requires="durations + blocks/depends-on dependencies" section>
-            <CriticalPath projectId={projectId} />
+            <CatalogueReport id="critical-path" projectId={projectId} />
           </Gated>
         )}
 
         {projectId && (
           <Gated caps={caps} domain="benefits" title="Benefits Realisation" requires="benefit value/status fields on work items" section>
-            <BenefitsRealisation projectId={projectId} />
+            <CatalogueReport id="benefits-realisation" projectId={projectId} />
           </Gated>
         )}
 
         {projectId && (
           <Gated caps={caps} domain="financials" title="Income & Invoicing" reportId="income-invoicing" requires="revenue / invoiced amounts on work items" section heading="Income &amp; Invoicing">
-            <IncomeInvoicing projectId={projectId} />
+            <CatalogueReport id="income-invoicing" projectId={projectId} />
           </Gated>
         )}
 
         {projectId && (
           <Gated caps={caps} domain="financials" title="CapEx / OpEx" requires="capex/opex classification on work items" section>
-            <CapexOpex projectId={projectId} />
+            <CatalogueReport id="capex-opex" projectId={projectId} />
           </Gated>
         )}
 
         {projectId && (
           <Gated caps={caps} domain="history" title="Progress Trend" requires="backend history (journals / changelog via get_project_history)">
-            <ProjectTrend projectId={projectId} />
+            <CatalogueReport id="project-trend" projectId={projectId} />
           </Gated>
         )}
 
         {projectId && (
           <Gated caps={caps} domain="history" title="Sprint Burndown" reportId={["burndown", "burnup"]} requires="backend history (get_project_history)">
             <div className="grid grid-cols-1 xl:grid-cols-2 gap-10">
-              <IfComposed reportId="burndown"><Burndown projectId={projectId} /></IfComposed>
-              <IfComposed reportId="burnup"><Burnup projectId={projectId} /></IfComposed>
+              <IfComposed reportId="burndown"><CatalogueReport id="burndown" projectId={projectId} /></IfComposed>
+              <IfComposed reportId="burnup"><CatalogueReport id="burnup" projectId={projectId} /></IfComposed>
             </div>
           </Gated>
         )}
@@ -316,27 +284,27 @@ export function Reports() {
         {projectId && (
           <Gated caps={caps} domain="history" title="Flow & Velocity" reportId={["cumulative-flow", "velocity"]} requires="backend history (get_project_history)">
             <div className="grid grid-cols-1 xl:grid-cols-2 gap-10">
-              <IfComposed reportId="cumulative-flow"><CumulativeFlow projectId={projectId} /></IfComposed>
-              <IfComposed reportId="velocity"><Velocity projectId={projectId} /></IfComposed>
+              <IfComposed reportId="cumulative-flow"><CatalogueReport id="cumulative-flow" projectId={projectId} /></IfComposed>
+              <IfComposed reportId="velocity"><CatalogueReport id="velocity" projectId={projectId} /></IfComposed>
             </div>
           </Gated>
         )}
 
         {projectId && (
           <Gated caps={caps} domain="financials" title="Financial Summary" reportId="financial-summary" requires="a cost / ERP source" section>
-            <FinancialSummary projectId={projectId} />
+            <CatalogueReport id="financial-summary" projectId={projectId} />
           </Gated>
         )}
 
         {projectId && roleAtLeast(auth?.role, "pmo") && (
           <Gated caps={caps} domain="financials" title="Staff Time & Cost" reportId="staff-cost" requires="a cost / ERP source + a PMO rate card" section heading="Staff Time &amp; Cost">
-            <StaffTimeCost projectId={projectId} />
+            <CatalogueReport id="staff-cost" projectId={projectId} />
           </Gated>
         )}
 
         {projectId && (
           <Gated caps={caps} domain="raid" title="RAID Register" reportId="raid-register" requires="a RAID log (get_project_raid)" section>
-            <RaidRegister projectId={projectId} />
+            <CatalogueReport id="raid-register" projectId={projectId} />
           </Gated>
         )}
 

@@ -1,0 +1,12 @@
+{
+  "id": "critical-path",
+  "label": "Critical Path (CPM)",
+  "docsUrl": "",
+  "kind": "schedule",
+  "renderer": { "engine": "builtin", "component": "CriticalPath" },
+  "capabilities": { "requiresCapability": "scheduling", "timeSeries": false, "exports": ["csv", "pdf", "png"] },
+  "tools": ["dependsOn","criticalPath","slack"],
+  "notes": "CPM critical path, derived live from dependencies and dates. Stateless.",
+  "order": 12,
+  "methodologies": ["waterfall", "prince2"]
+}

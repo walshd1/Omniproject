@@ -7,6 +7,12 @@ import {
   challengeForBypass, ApprovalServiceError, type SignedDecision,
 } from "../lib/approval-service";
 import { ApprovalChainError, type Actor, type ApproverRef } from "../lib/approval-chain";
+import {
+  challengeForAcceptance, acceptResponsibility, listAcceptances, revokeAcceptance,
+} from "../lib/responsibility-acceptance-service";
+import { ResponsibilityAcceptanceError } from "../lib/responsibility-acceptance";
+import { getSettings } from "../lib/settings";
+import { type Role } from "../lib/rbac";
 import { recordAudit, actorForAudit } from "../lib/audit";
 import { logger } from "../lib/logger";
 
@@ -48,7 +54,7 @@ function parseSigned(body: unknown, withDecision: boolean): SignedDecision | nul
 
 /** Map a thrown error to a client status: auth/verify failures are 4xx, everything else 500. */
 function fail(res: Response, err: unknown, req: Request, action: string): void {
-  if (err instanceof AssertionError || err instanceof ApprovalServiceError || err instanceof ApprovalChainError) {
+  if (err instanceof AssertionError || err instanceof ApprovalServiceError || err instanceof ApprovalChainError || err instanceof ResponsibilityAcceptanceError) {
     recordAudit({ ts: new Date().toISOString(), category: "request", action, actor: actorForAudit(req), write: true, result: "error", status: 403 });
     res.status(403).json({ error: err.message });
     return;
@@ -166,6 +172,64 @@ router.post("/approvals/:id/bypass", requireRole("pmo"), async (req: Request, re
     recordAudit({ ts: new Date().toISOString(), category: "request", action: "approval.bypass", actor: actorForAudit(req), write: true, result: "success", meta: { proposalId: req.params["id"] } });
     res.json({ status: "approved", ...r });
   } catch (err) { fail(res, err, req, "approval.bypass"); }
+});
+
+// ── AI responsibility acceptances (design §4.2) ──────────────────────────────
+// The standing, passkey-signed human grant that lets an AI approve/run a SPECIFIC workflow version. A hard
+// human-only act, gated to the workflow's SCOPE OWNER: PMO for an org workflow, a PM (manager) for a project
+// one — selecting who takes responsibility is itself never agentic. The grant is content-hash-bound (any
+// edit voids it) and voids on the signer's offboarding; recovery is the same scope owner re-signing.
+
+/** Resolve the workflow + the role its scope requires, or respond (404/403) and return null. */
+function workflowScopeGate(req: Request, res: Response, workflowId: string): boolean {
+  const def = getSettings().workflows.find((w) => w.id === workflowId);
+  if (!def) { res.status(404).json({ error: `unknown workflow "${workflowId}"` }); return false; }
+  const need: Role = def.scope.kind === "org" ? "pmo" : "manager";
+  if (!hasRole(req, need)) {
+    res.status(403).json({ error: `accepting responsibility for a ${def.scope.kind} workflow is a ${need}+ (scope-owner) act` });
+    return false;
+  }
+  return true;
+}
+
+// GET /approvals/workflow-acceptances — every stored acceptance with its LIVE active/void status (pmo+).
+router.get("/approvals/workflow-acceptances", requireRole("manager"), async (_req: Request, res: Response) => {
+  res.json({ acceptances: listAcceptances() });
+});
+
+// POST /approvals/workflow-acceptances/:workflowId/challenge — challenge to sign, bound to the CURRENT version.
+router.post("/approvals/workflow-acceptances/:workflowId/challenge", async (req: Request, res: Response) => {
+  const actor = actorFor(req);
+  if (!actor) { res.status(401).json({ error: "authentication required" }); return; }
+  const workflowId = String(req.params["workflowId"]);
+  if (!workflowScopeGate(req, res, workflowId)) return;
+  const c = await challengeForAcceptance(workflowId, actor.sub);
+  if (!c) { res.status(404).json({ error: `unknown workflow "${workflowId}"` }); return; }
+  res.json(c);
+});
+
+// POST /approvals/workflow-acceptances/:workflowId — record the passkey-signed acceptance (scope owner only).
+router.post("/approvals/workflow-acceptances/:workflowId", async (req: Request, res: Response) => {
+  const s = getSession(req);
+  if (!s?.sub) { res.status(401).json({ error: "authentication required" }); return; }
+  const workflowId = String(req.params["workflowId"]);
+  if (!workflowScopeGate(req, res, workflowId)) return;
+  const signed = parseSigned(req.body, false);
+  if (!signed) { res.status(400).json({ error: "a signed acceptance (credentialId, clientDataJSON, authenticatorData, signature) is required" }); return; }
+  try {
+    const acceptance = await acceptResponsibility(workflowId, { sub: s.sub, email: s.email }, signed);
+    recordAudit({ ts: acceptance.acceptedAt, category: "request", action: "approval.acceptance.sign", actor: actorForAudit(req), write: true, result: "success", meta: { workflowId, workflowHash: acceptance.workflowHash } });
+    res.status(201).json({ accepted: true, workflowId, workflowHash: acceptance.workflowHash, acceptedAt: acceptance.acceptedAt });
+  } catch (err) { fail(res, err, req, "approval.acceptance.sign"); }
+});
+
+// DELETE /approvals/workflow-acceptances/:workflowId — revoke the grant (strengthens → immediate; scope owner).
+router.delete("/approvals/workflow-acceptances/:workflowId", async (req: Request, res: Response) => {
+  const workflowId = String(req.params["workflowId"]);
+  if (!workflowScopeGate(req, res, workflowId)) return;
+  revokeAcceptance(workflowId);
+  recordAudit({ ts: new Date().toISOString(), category: "request", action: "approval.acceptance.revoke", actor: actorForAudit(req), write: true, result: "success", meta: { workflowId } });
+  res.json({ ok: true, workflowId });
 });
 
 export default router;

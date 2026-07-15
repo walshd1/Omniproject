@@ -23,7 +23,7 @@ import { startHarness, cookie, type Harness } from "./_harness";
 
 // A path segment that binds a caller-supplied resource id. `:id` is included because several admin/global
 // resources use it; the classification records why each such id is (or isn't) a tenant boundary.
-const RESOURCE_PARAM = /:(projectId|taskId|programmeId|guid|issueId|roomId|commentId|id)\b/;
+const RESOURCE_PARAM = /:(projectId|taskId|programmeId|guid|issueId|roomId|commentId|workflowId|id)\b/;
 
 type ScopeClass =
   | "project-scope"      // :projectId/:roomId guarded by guardProjectScope / guardRoomScope before the scope-blind broker
@@ -124,6 +124,11 @@ const CLASSIFICATION: Record<string, ScopeClass> = {
   // (org⇒pmo, project⇒manager) and, when bound, approval-held; the effect surface is a fail-closed read+
   // notify allowlist carrying the caller's own broker scope — so it can't be a cross-tenant lateral vector.
   "POST /workflows/:id/run": "admin-nontenant",
+  // AI responsibility acceptances: the :workflowId is a global workflow id, not tenant data. Each route is
+  // scope-owner gated (org⇒pmo, project⇒manager) and the sign is passkey-verified — a hard human-only act.
+  "POST /approvals/workflow-acceptances/:workflowId": "admin-nontenant",
+  "POST /approvals/workflow-acceptances/:workflowId/challenge": "admin-nontenant",
+  "DELETE /approvals/workflow-acceptances/:workflowId": "admin-nontenant",
 };
 
 /** Recursively collect "METHOD /path" for every route in an Express router tree. */

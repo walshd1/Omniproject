@@ -175,6 +175,13 @@ export function isTaskClosed(native: string | null | undefined): boolean {
   return cls === "done" || cls === "dropped";
 }
 
+/** Is a task COMPLETED (done), as distinct from dropped? — e.g. the trigger to spawn a recurring task's next
+ *  occurrence (dropping one should NOT recur). Keeps the "done" meaning inside vocabulary. */
+export function isTaskDone(native: string | null | undefined): boolean {
+  const canon = normaliseTaskStatus(native);
+  return !!canon && TASK_STATUS_CLASS[canon] === "done";
+}
+
 // ── Priority ─────────────────────────────────────────────────────────────────
 
 /** Canonical work-item priorities, lowest → highest. */

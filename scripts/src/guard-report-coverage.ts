@@ -45,9 +45,16 @@ function implFromRenderer(id: string): Impl {
 
 const reportIds = idsFromAssets(REPORTS_DIR);
 const REPORT_IMPL: Record<string, Impl> = Object.fromEntries(reportIds.map((id) => [id, implFromRenderer(id)]));
+// A report is "wired" if it's reachable from the Reports page. Since the "remove hardcoded report JSX"
+// refactor, that wiring lives in the RENDERER REGISTRY (report-renderers.ts, resolved at runtime by
+// CatalogueReport) rather than as bespoke JSX in Reports.tsx — so probe BOTH: a report registered in the
+// registry OR rendered directly on the page counts.
 const probes = fsProbes(
   path.join(ROOT, "artifacts/omniproject/src/components/reports"),
-  path.join(ROOT, "artifacts/omniproject/src/pages/Reports.tsx"),
+  [
+    path.join(ROOT, "artifacts/omniproject/src/components/reports/report-renderers.ts"),
+    path.join(ROOT, "artifacts/omniproject/src/pages/Reports.tsx"),
+  ],
 );
 
 const result = checkCoverage("reports", reportIds, REPORT_IMPL, probes);
@@ -55,6 +62,6 @@ const result = checkCoverage("reports", reportIds, REPORT_IMPL, probes);
 reportGuard("report-coverage", {
   violations: result.errors,
   failHeadline: "report-coverage guard: a declared report is not built/wired/tested.",
-  help: "  Implement the report on the report primitives, wire it into Reports.tsx, add a test, and set its `renderer` in the report JSON.",
+  help: "  Implement the report on the report primitives, register it in report-renderers.ts (or render it in Reports.tsx), add a test, and set its `renderer` in the report JSON.",
   okSummary: `all ${reportIds.length} declared reports are built, wired and tested (bindings from each report's JSON renderer).`,
 });

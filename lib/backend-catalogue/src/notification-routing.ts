@@ -12,6 +12,7 @@
  * the same compatibility idea: a channel is only a target if it's available.
  */
 import { ROUTES_DATA } from "./notification-routes.generated";
+import { matchesMethodology } from "./methodology-match";
 
 export interface NotificationRouteMatch {
   /** Notification kinds this route fires on; "*" = any kind. */
@@ -59,6 +60,12 @@ export function getNotificationRoute(id: string): NotificationRoute | undefined 
 /** All routing rules (a defensive copy). */
 export function notificationRouteCatalogue(): NotificationRoute[] {
   return NOTIFICATION_ROUTES.map((r) => ({ ...r }));
+}
+
+/** Notification routes canonical to a methodology — those carrying its tag, plus the neutral (`"*"`) ones.
+ *  E.g. a Scrum deployment preloads its ceremony reminders; a PRINCE2 one its stage-gate alerts. */
+export function notificationRoutesForMethodology(methodology: string): NotificationRoute[] {
+  return NOTIFICATION_ROUTES.filter((r) => matchesMethodology(r.methodologies, methodology));
 }
 
 /** Does a route's predicate match an event? ("*" in kinds = any kind.) */

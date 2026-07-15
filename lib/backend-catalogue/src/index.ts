@@ -41,3 +41,6 @@ export * from "./field-vocabulary";
 export * from "./methodology-pack";
 export * from "./entity-resolution";
 export * from "./dashboard-preset-catalogue";
+export * from "./rollup";
+export * from "./methodology-group";
+export * from "./composition";

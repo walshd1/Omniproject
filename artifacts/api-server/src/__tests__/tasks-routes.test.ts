@@ -130,3 +130,42 @@ test("attachment upload requires a filename", async () => {
   const bad = await req(`/tasks/${task.id}/attachments`, { method: "POST", body: { url: "https://x/y" } });
   assert.equal(bad.status, 400);
 });
+
+test("completing a RECURRING task spawns the next occurrence (Todoist-style)", async () => {
+  // Seed a recurring task with a known due date, then complete it.
+  const created = await json(await req("/tasks", { method: "POST", body: { title: "Weekly review", status: "next", recurrence: "every week", dueDate: "2026-03-02" } }));
+  const done = await req(`/tasks/${created.id}`, { method: "PATCH", body: { status: "done" } });
+  assert.equal(done.status, 200);
+  const body = await json(done);
+  assert.ok(body.nextOccurrence, "a next occurrence is spawned");
+  assert.equal(body.nextOccurrence.dueDate, "2026-03-09"); // +1 week
+
+  // The spawned task exists, is actionable again, and carries the rule.
+  const all = await json(await req("/tasks"));
+  const spawned = all.find((t: { id: string }) => t.id === body.nextOccurrence.id);
+  assert.ok(spawned, "the spawned task is listed");
+  assert.equal(spawned.recurrence, "every week");
+  assert.equal(spawned.dueDate, "2026-03-09");
+  assert.notEqual(spawned.status, "done");
+});
+
+test("completing a NON-recurring task does not spawn anything", async () => {
+  const created = await json(await req("/tasks", { method: "POST", body: { title: "One-off", status: "next", dueDate: "2026-03-02" } }));
+  const done = await json(await req(`/tasks/${created.id}`, { method: "PATCH", body: { status: "done" } }));
+  assert.equal(done.nextOccurrence, undefined);
+});
+
+test("a non-completing update to a recurring task does not spawn", async () => {
+  const created = await json(await req("/tasks", { method: "POST", body: { title: "Recur", status: "next", recurrence: "every day", dueDate: "2026-03-02" } }));
+  const edited = await json(await req(`/tasks/${created.id}`, { method: "PATCH", body: { priority: "high" } }));
+  assert.equal(edited.nextOccurrence, undefined);
+});
+
+test("POST /tasks/reminders/sweep fires a due reminder once, then dedupes", async () => {
+  await req("/tasks", { method: "POST", body: { title: "Renew cert", status: "next", assignee: "ops@demo", reminderAt: "2026-01-01T09:00:00Z", dueDate: "2026-01-02" } });
+  const first = await json(await req("/tasks/reminders/sweep", { method: "POST", body: {} }));
+  assert.ok(first.fired >= 1, "at least the due reminder fired");
+  const before = first.fired;
+  const second = await json(await req("/tasks/reminders/sweep", { method: "POST", body: {} }));
+  assert.ok(second.fired < before, "already-fired reminders are not re-fired");
+});

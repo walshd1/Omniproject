@@ -101,14 +101,25 @@ function testSourcesUnder(dirs: string[]): string[] {
  *    call, not merely imports it. Tests are searched in `dir` AND across the whole SPA `src` tree, so
  *    a test that lives next to a shared harness (not beside the component) still counts.
  */
-export function fsProbes(dir: string, pageFile: string): CoverageProbes {
-  const pageBody = referenceBody(fs.existsSync(pageFile) ? fs.readFileSync(pageFile, "utf8") : "");
-  const root = srcRootOf(pageFile);
+export function fsProbes(dir: string, pageFile: string | string[]): CoverageProbes {
+  // A plane can be wired from more than one place: the page that renders it AND/OR a renderer REGISTRY it
+  // is registered in (e.g. a `Record<string, Component>`, as the report plane now uses). Accept several
+  // sources and union their bodies so a component wired via ANY of them counts as wired.
+  const pageFiles = Array.isArray(pageFile) ? pageFile : [pageFile];
+  const pageBody = pageFiles.map((f) => referenceBody(fs.existsSync(f) ? fs.readFileSync(f, "utf8") : "")).join("\n");
+  const root = pageFiles.map(srcRootOf).find((r): r is string => !!r) ?? null;
   const testBodies = testSourcesUnder([dir, ...(root ? [root] : [])]).map(referenceBody);
   return {
     componentExists: (c) => fs.existsSync(path.join(dir, `${c}.tsx`)),
-    // Rendered as JSX, or registered as a record value / array element.
-    wiredInPage: (c) => new RegExp(`<${esc(c)}[\\s/>]`).test(pageBody) || new RegExp(`[:[]\\s*${esc(c)}\\b`).test(pageBody),
+    // Wired as JSX (`<Comp…`), a record value / array element (`: Comp` / `[ Comp`), OR an object
+    // SHORTHAND registry entry (`{ …, Comp, … }`) — the shape a `Record<string, Component>` renderer
+    // registry uses (imports are stripped by referenceBody, so a bare `Comp,` here means registration).
+    wiredInPage: (c) => {
+      const e = esc(c);
+      return new RegExp(`<${e}[\\s/>]`).test(pageBody)
+        || new RegExp(`[:[]\\s*${e}\\b`).test(pageBody)
+        || new RegExp(`(^|[,{[])\\s*${e}\\s*(,|:|\\}|\\]|$)`, "m").test(pageBody);
+    },
     // Rendered in a test, or referenced inside a render*/expect call.
     hasTest: (c) =>
       testBodies.some(
