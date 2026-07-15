@@ -72,9 +72,14 @@ be forced, not even by the server.*
      **human passkey can never be satisfied by an AI signature**.
   2. **Separation of duties** — an AI (or its principal) cannot approve a proposal it initiated; an AI cannot
      be the **sole or final** approver above a sensitivity threshold — a **human stage stays mandatory** there.
-  3. **Grant-bound & default-deny** — an AI approves only what an admin explicitly permitted, within scope +
-     write-cap + expiry, fail-closed audited (existing autonomous model).
-  4. **Advisory by default** — an AI stage is advisory unless an admin makes it binding within a grant.
+  3. **Grant-bound, per-workflow, human-issued, NEVER agentic** — an AI's ability to approve a stage is
+     conferred **only by an explicit human grant, scoped to a single workflow** (never a blanket/global
+     grant, never inferred). The grant-issuing action is itself a **hard human-only** action: it can never be
+     bound to an approval chain an AI could satisfy, and is **never executable by an autonomous/agentic
+     actor** — default-deny, not even under some other grant. So **no agentic path can create, widen, or
+     bootstrap AI-approval authority**: only a human, explicitly, per workflow. Each grant is scope + expiry
+     bound and fail-closed audited (existing autonomous model).
+  4. **Advisory by default** — an AI stage is advisory unless a human makes it binding within its per-workflow grant.
   5. **Escape hatch stays human** — PMO redirect/bypass is always a human passkey action, never AI.
 
 ## 5. Workflow engine — a caller, mostly
@@ -93,8 +98,10 @@ be forced, not even by the server.*
 2. **Per-approval challenge + verify** (Node `crypto`), recorded in the audit chain. *New.*
 3. **Chain engine**: generalize `dual-control` to N stages (role/named, configurable rejection, PMO
    redirect/bypass), signatures required per stage. *New, reuses queue/executor.*
-4. **AI-as-approver** guardrails (key-class segregation, separation of duties, grant-bound, advisory default).
-   *New, reuses autonomous-grant.*
+4. **AI-as-approver** guardrails (key-class segregation, separation of duties, advisory default). Includes a
+   **per-workflow, human-only "grant AI-approval" action** on the hard human-only list — never chain-gateable
+   by an AI, never executable by an autonomous actor, so AI can't bootstrap its own authority. *New, reuses
+   autonomous-grant.*
 5. **Inbox** surface (MyWork + notify-bus). *Mostly reused.*
 6. **Bind chains to actions** (generalize `DUAL_CONTROL_ACTIONS` → per-action/per-workflow-step). *New glue.*
 7. **Workflow engine** (branch/loop interpreter over existing node surfaces) + JSON storage. *New interpreter.*
