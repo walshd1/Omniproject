@@ -38,7 +38,6 @@ const ScreenPage = lazy(() => import("./pages/ScreenPage").then((m) => ({ defaul
 const Settings = lazy(() => import("./pages/Settings").then((m) => ({ default: m.Settings })));
 const Configurator = lazy(() => import("./pages/Configurator").then((m) => ({ default: m.Configurator })));
 const Resources = lazy(() => import("./pages/Resources").then((m) => ({ default: m.Resources })));
-const Explore = lazy(() => import("./pages/Explore").then((m) => ({ default: m.Explore })));
 const Login = lazy(() => import("./pages/Login").then((m) => ({ default: m.Login })));
 
 const queryClient = new QueryClient({
@@ -116,9 +115,10 @@ function Router() {
       <Route path="/resources">
         <AppLayout><Resources /></AppLayout>
       </Route>
-      {/* Exploration mode is intentionally OUTSIDE the live AppLayout chrome. */}
+      {/* Exploration mode is intentionally OUTSIDE the live AppLayout chrome. Hosted through the generic
+          builder (bare, no header) so it too is a JSON screen def, but without the AppLayout wrapper. */}
       <Route path="/explore">
-        <Explore />
+        <ScreenPage id="explore" />
       </Route>
       <Route path="/settings">
         <AppLayout><Settings /></AppLayout>

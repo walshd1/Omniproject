@@ -9,6 +9,7 @@ import programmes from "../screens/programmes.json";
 import programmeDetail from "../screens/programme-detail.json";
 import projects from "../screens/projects.json";
 import projectDetail from "../screens/project-detail.json";
+import explore from "../screens/explore.json";
 
 /**
  * Screen-definition catalogue — the panel-bearing ScreenDefs the generic builder renders, authored as
@@ -41,6 +42,7 @@ const ENTRIES: ScreenCatalogueEntry[] = [
   programmeDetail as ScreenCatalogueEntry,
   projects as ScreenCatalogueEntry,
   projectDetail as ScreenCatalogueEntry,
+  explore as ScreenCatalogueEntry,
 ];
 
 const byId = new Map(ENTRIES.map((s) => [s.id, s]));

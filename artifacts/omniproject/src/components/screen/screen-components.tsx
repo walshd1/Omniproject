@@ -22,6 +22,7 @@ export const SCREEN_COMPONENTS: Record<string, ComponentType<ScreenComponentProp
   "programme-detail": lazy(() => import("../../pages/ProgrammeDetail").then((m) => ({ default: m.ProgrammeDetail as ComponentType<ScreenComponentProps> }))),
   projects: lazy(() => import("../../pages/Projects").then((m) => ({ default: m.Projects as ComponentType<ScreenComponentProps> }))),
   "project-detail": lazy(() => import("../../pages/ProjectDetail").then((m) => ({ default: m.ProjectDetail as ComponentType<ScreenComponentProps> }))),
+  explore: lazy(() => import("../../pages/Explore").then((m) => ({ default: m.Explore as ComponentType<ScreenComponentProps> }))),
 };
 
 /** Whether a screen component is registered for this id. */
