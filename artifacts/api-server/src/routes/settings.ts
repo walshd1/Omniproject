@@ -48,6 +48,9 @@ router.patch("/settings", requireRole("admin"), async (req, res) => {
     capabilityStates: "PUT /api/governance/:id",
     webhooks: "POST/DELETE /api/webhooks",
     federatedPeers: "PUT /api/federated-peers",
+    // Acceptances are passkey-signed human acts; they can only be set through their own signing route,
+    // never as a bulk value (which would grant AI authority with no signature).
+    workflowAcceptances: "POST /api/approvals/workflow-acceptances/:workflowId",
   };
   for (const key of Object.keys(STEP_UP_ONLY_KEYS)) {
     if (key in body) {

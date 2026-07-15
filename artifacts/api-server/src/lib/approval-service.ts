@@ -9,6 +9,11 @@ import {
 import {
   issueChallenge, consumeChallenge, getCredential, verifyWebAuthnAssertion, type AssertionInput,
 } from "./passkey";
+import { aiApprovalAuthorization } from "./responsibility-acceptance-service";
+
+/** The action-id prefix a workflow RUN binds to (`workflow.run:<id>`) — matched here rather than imported
+ *  from workflow-run to keep this module free of that dependency cycle. */
+const WORKFLOW_RUN_PREFIX = /^workflow\.run:/;
 
 /**
  * Approval SERVICE — orchestrates the pure engine (`approval-chain`) + the crypto (`passkey`) +
@@ -122,6 +127,17 @@ export async function submitDecision(proposalId: string, actor: Actor, signed: S
   if (!p) throw new ApprovalServiceError("unknown proposal");
   const stage = activeStage(p.def, p.state);
   if (!stage) throw new ApprovalServiceError(`proposal is already ${p.state.status}`);
+
+  // AI-as-approver gate (design §4.2): an AI may cast a binding APPROVAL only for a workflow run, and only
+  // under a VALID, standing human responsibility acceptance (version-hash-bound + signer still current).
+  // Default-DENY — absent/voided acceptance means the AI has no authority and nothing advances. (A `reject`
+  // by an AI is not an authority grab, so it isn't gated; the engine's humanOnly check still applies.)
+  if (actor.via === "ai" && signed.decision === "approve") {
+    const workflowId = WORKFLOW_RUN_PREFIX.test(p.action) ? p.action.slice(p.action.indexOf(":") + 1) : "";
+    if (!workflowId) throw new ApprovalServiceError("AI approval is only permitted for a workflow run under a signed acceptance");
+    const auth = aiApprovalAuthorization(workflowId);
+    if (!auth.ok) throw new ApprovalServiceError(`AI approval refused: ${auth.reason}`);
+  }
 
   const scope = `${proposalId}:${stage.id}:${actor.sub}`;
   const clientData = safeParseJson<Record<string, unknown>>(Buffer.from(signed.clientDataJSON, "base64url").toString("utf8"));

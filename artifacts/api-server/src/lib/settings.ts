@@ -22,6 +22,7 @@ import { validateFieldRouting, FieldRoutingError, type FieldRoute } from "./fiel
 import { validateApprovalChains, ApprovalChainError, type ChainDef } from "./approval-chain";
 import { validateApprovalBindings, ApprovalBindingError, type ApprovalBinding } from "./approval-binding";
 import { validateWorkflows, WorkflowError, type WorkflowDef } from "./workflow";
+import { validateWorkflowAcceptances, ResponsibilityAcceptanceError, type WorkflowAcceptance } from "./responsibility-acceptance";
 import { validateCustomFields, validateCustomFieldSources, CustomFieldError, type CustomField } from "./custom-fields";
 import { sanitizeBranding } from "./branding";
 import { sanitizeUserPrefs } from "./user-prefs";
@@ -285,6 +286,9 @@ export interface BrokerConfig {
   approvalBindings: ApprovalBinding[];
   /** Admin/PMO/PM-authored workflows (org/project-scoped), stored as JSON. See docs/design/WORKFLOW-APPROVAL-CHAINS.md. */
   workflows: WorkflowDef[];
+  /** Standing, passkey-signed human responsibility acceptances that authorize an AI to approve a specific
+   *  workflow VERSION (content-hash-bound; voided by any edit or the signer's offboarding). §4.2. */
+  workflowAcceptances: WorkflowAcceptance[];
   /** Admin-defined fields extending the reference superset. Each must be mapped in `fieldRouting`
    *  (route it to the Postgres backend if there's no external source) — see lib/custom-fields. */
   customFields: CustomField[];
@@ -1029,6 +1033,7 @@ const FIELD_DESCRIPTORS: { [K in keyof SettingsState]: FieldDescriptor<K> } = {
   approvalChains: { seed: () => [], validate: normalisedBy((v) => validateApprovalChains(v), ApprovalChainError) },
   approvalBindings: { seed: () => [], validate: normalisedBy((v) => validateApprovalBindings(v), ApprovalBindingError) },
   workflows: { seed: () => [], validate: normalisedBy((v) => validateWorkflows(v), WorkflowError) },
+  workflowAcceptances: { seed: () => [], validate: normalisedBy((v) => validateWorkflowAcceptances(v), ResponsibilityAcceptanceError) },
   fieldValidation: {
     // Validate the rule DEFINITIONS (shape + patterns compile); values are enforced on the write path.
     seed: () => [],
