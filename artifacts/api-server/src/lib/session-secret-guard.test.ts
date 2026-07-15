@@ -59,6 +59,52 @@ test("real OIDC configured + a genuinely strong secret set (NODE_ENV not 'produc
   assert.equal(r.ok, true);
 });
 
+// The modern real-auth methods (named OIDC / OAuth2 / SAML / magic-link) that the LEGACY
+// OIDC_ISSUER_URL-only signal used to miss — each must now, on its own, mark the deployment as
+// production so a default/missing SESSION_SECRET is refused (the auth-bypass gap this closes).
+test("named OIDC provider (OIDC_PROVIDERS trio) + no secret is refused", () => {
+  const r = evaluateSessionSecret({
+    OIDC_PROVIDERS: "okta",
+    OIDC_OKTA_ISSUER_URL: "https://acme.okta.com",
+    OIDC_OKTA_CLIENT_ID: "cid",
+    OIDC_OKTA_CLIENT_SECRET: "csecret",
+  });
+  assert.equal(r.ok, false);
+  assert.ok(r.signals.some((s) => s.includes("real authentication method")));
+});
+
+test("SAML (entry point + cert + callback) + no secret is refused", () => {
+  const r = evaluateSessionSecret({
+    SAML_IDP_ENTRY_POINT: "https://idp.example.com/sso",
+    SAML_IDP_CERT: "MIIC...cert",
+    SAML_CALLBACK_URL: "https://omni.example.com/api/auth/saml/callback",
+  });
+  assert.equal(r.ok, false);
+});
+
+test("generic OAuth2 (all five vars) + no secret is refused", () => {
+  const r = evaluateSessionSecret({
+    OAUTH2_AUTH_URL: "https://idp/authorize",
+    OAUTH2_TOKEN_URL: "https://idp/token",
+    OAUTH2_USERINFO_URL: "https://idp/userinfo",
+    OAUTH2_CLIENT_ID: "cid",
+    OAUTH2_CLIENT_SECRET: "csecret",
+  });
+  assert.equal(r.ok, false);
+});
+
+test("magic-link enabled + no secret is refused", () => {
+  const r = evaluateSessionSecret({ MAGIC_LINK_ENABLED: "true" });
+  assert.equal(r.ok, false);
+});
+
+test("an incomplete named-OIDC config (still demo auth) does NOT trip the guard", () => {
+  // Only OIDC_PROVIDERS set, no trio → isDemoAuthFrom stays true → no real-auth signal.
+  const r = evaluateSessionSecret({ OIDC_PROVIDERS: "okta" });
+  assert.equal(r.ok, true);
+  assert.equal(r.looksProduction, false);
+});
+
 test("a licence configured, no secret, NODE_ENV not production is refused", () => {
   const r = evaluateSessionSecret({ LICENSE_KEY: "some-licence" });
   assert.equal(r.ok, false);
