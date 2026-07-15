@@ -81,8 +81,8 @@ be forced, not even by the server.*
        - (a) **any change** to the workflow or the AI's actions (the content hash no longer matches), OR
        - (b) the **responsible signer's removal / deprovisioning** from the system — accountability must always
          point to a **current** person, so a departed owner's standing acceptance lapses immediately.
-     On a void the AI **reverts to advisory** and cannot run autonomously until a present human re-reviews and
-     re-signs. Crucially, a void only revokes **forward** authority: approvals the signer already made remain
+     On a void the workflow **HALTS — nothing runs** — until a present human re-reviews and re-signs; there is
+     no advisory-autonomous fallback. Crucially, a void only revokes **forward** authority: approvals the signer already made remain
      **immutable audit records** — history is never rewritten, their past signatures stand as the record of
      what happened; only future autonomous action lapses. Every autonomous AI approval therefore traces to a
      named, still-present human who owns that exact workflow version. No self-approval — an AI (or its
@@ -94,10 +94,11 @@ be forced, not even by the server.*
      actor** — default-deny, not even under some other grant. So **no agentic path can create, widen, or
      bootstrap AI-approval authority**: only a human, explicitly, per workflow. Each grant is scope + expiry
      bound and fail-closed audited (existing autonomous model).
-  4. **Advisory until signed off** — an AI stage is advisory (or the chain simply can't run autonomously)
-     until the workflow carries a **valid** human responsibility acceptance (#2/#3). Only then may an AI stage
-     be *binding* or *sole*. If that acceptance is absent, voided (workflow changed **or the signer left the
-     system**), or expired, the AI reverts to advisory and a human must approve.
+  4. **Advisory input vs. autonomous approval** — an AI may give *advisory* input in a chain a **human**
+     approves (no acceptance needed; the human decides). For an AI to be a *binding/sole* approver requires a
+     **valid** human responsibility acceptance (#2/#3). Without one — never signed, voided (workflow changed
+     **or the signer left the system**), or expired — the workflow **cannot run autonomously: nothing runs**
+     until a present human re-reviews + re-signs. There is no advisory-autonomous fallback.
   5. **Escape hatch stays human** — PMO redirect/bypass is always a human passkey action, never AI.
 
 ## 5. Workflow engine — a caller, mostly
@@ -130,17 +131,19 @@ be forced, not even by the server.*
 - Settled (§4.2): an AI may be the sole/autonomous approver only under a **version-bound, passkey-signed human
   responsibility acceptance** — accountability is established at authorization time, not per run. Open: whether
   a sensitivity threshold forbids AI stages *entirely* for some actions, and who owns that (org PMO vs. per-project PM).
-- Re-acceptance UX: an acceptance is voided by a workflow edit (content-hash change) OR the signer's removal
-  (settled, §4.2) — open is only the UX: how the (new) responsible human is prompted to re-review + re-sign, and
-  what runs meanwhile (nothing, or advisory-only).
-- Reads posture for AI: keep today's default-permitted-but-governed (allowlist + RBAC scope + audit), or add a
-  **default-deny-reads for autonomous actors** option so *every* AI action — reads included — needs an explicit
-  human grant (matches the writes/approvals posture).
+- **Settled** — on a void (workflow edit OR signer removal, §4.2) **nothing runs**: the workflow halts until a
+  present human re-reviews + re-signs; no advisory-autonomous fallback. Open is only the UX for prompting the
+  (new) responsible human to re-sign.
+- **Settled — AI is default-DENY**: every AI action, **reads included**, needs an explicit human grant; nothing
+  is permitted by default. The 'governed' posture (default-permitted + allowlist + RBAC scope + audit) remains
+  available as an **opt-in option** per deployment, not the default.
 - Exact JSON schema for a chain and a workflow (versioned, drift-guarded).
 - Quorum-per-stage (deferred) and parallel stages (deferred).
-- Passkey recovery / approver offboarding: a leaver's public key is revoked and their standing responsibility
-  acceptances lapse (forward authority gone), while their **past signed approvals stay valid** in the audit
-  chain (history preserved) — the mechanism/hook that ties deprovisioning to acceptance-void is TBD.
+- **Settled — offboarding is IdP-driven**: removal/deprovisioning happens in the IdP (OIDC); the gateway is
+  already aware via the existing deprovisioning signal (`isDeprovisioned`, `lib/rbac`/`lib/oidc`) and revokes
+  the user's public key, so their signature **no longer matches** any responsibility acceptance → those
+  acceptances void automatically (nothing runs). No separate offboarding job — it falls out of the
+  key-no-longer-valid check. Past signed approvals stay valid in the audit chain (history preserved).
 
 ## Related, independent
 
