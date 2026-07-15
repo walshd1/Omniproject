@@ -5,6 +5,61 @@ import type { ReportDefinition } from "./report-catalogue";
 
 export const REPORTS_DATA: ReportDefinition[] = [
   {
+    "id": "benefits-realisation",
+    "label": "Benefits Realisation",
+    "docsUrl": "",
+    "kind": "portfolio",
+    "renderer": {
+      "engine": "builtin",
+      "component": "BenefitsRealisation"
+    },
+    "capabilities": {
+      "requiresCapability": null,
+      "timeSeries": false,
+      "exports": [
+        "csv",
+        "pdf",
+        "png"
+      ]
+    },
+    "tools": [
+      "benefitPlanned",
+      "benefitActual",
+      "realisation"
+    ],
+    "notes": "Planned-vs-realised benefits roll-up from benefit* fields. Stateless.",
+    "order": 101,
+    "methodologies": [
+      "prince2"
+    ]
+  },
+  {
+    "id": "benefits-realisation-rollup",
+    "label": "Portfolio Benefits Realisation",
+    "docsUrl": "",
+    "kind": "portfolio",
+    "renderer": {
+      "engine": "builtin",
+      "component": "BenefitsRealisationRollup"
+    },
+    "capabilities": {
+      "requiresCapability": null,
+      "timeSeries": false,
+      "exports": [
+        "csv",
+        "pdf",
+        "png"
+      ]
+    },
+    "tools": [
+      "benefitPlanned",
+      "benefitActual",
+      "realisation"
+    ],
+    "notes": "Portfolio realisation lens over planned-vs-realised benefits. Stateless.",
+    "order": 102
+  },
+  {
     "id": "burndown",
     "label": "Sprint burndown",
     "docsUrl": "",
@@ -91,6 +146,62 @@ export const REPORTS_DATA: ReportDefinition[] = [
     ],
     "notes": "Programme and portfolio resource utilisation, aggregated across each project's capacity. For programme managers (their programmes) and the PMO (the whole portfolio).",
     "order": 35
+  },
+  {
+    "id": "capex-opex",
+    "label": "CapEx / OpEx",
+    "docsUrl": "",
+    "kind": "financial",
+    "renderer": {
+      "engine": "builtin",
+      "component": "CapexOpex"
+    },
+    "capabilities": {
+      "requiresCapability": "financials",
+      "timeSeries": false,
+      "exports": [
+        "csv",
+        "pdf",
+        "png"
+      ]
+    },
+    "tools": [
+      "capex",
+      "opex",
+      "split"
+    ],
+    "notes": "Splits project spend into capital vs operating. Stateless.",
+    "order": 76
+  },
+  {
+    "id": "critical-path",
+    "label": "Critical Path (CPM)",
+    "docsUrl": "",
+    "kind": "schedule",
+    "renderer": {
+      "engine": "builtin",
+      "component": "CriticalPath"
+    },
+    "capabilities": {
+      "requiresCapability": "scheduling",
+      "timeSeries": false,
+      "exports": [
+        "csv",
+        "pdf",
+        "png"
+      ]
+    },
+    "tools": [
+      "dependsOn",
+      "criticalPath",
+      "slack"
+    ],
+    "notes": "CPM critical path, derived live from dependencies and dates. Stateless.",
+    "order": 12,
+    "methodologies": [
+      "waterfall",
+      "prince2"
+    ]
   },
   {
     "id": "cross-programme-dependencies",
@@ -184,6 +295,35 @@ export const REPORTS_DATA: ReportDefinition[] = [
     "order": 73
   },
   {
+    "id": "dependency-links",
+    "label": "Dependency Links",
+    "docsUrl": "",
+    "kind": "schedule",
+    "renderer": {
+      "engine": "builtin",
+      "component": "DependencyLinks"
+    },
+    "capabilities": {
+      "requiresCapability": "scheduling",
+      "timeSeries": false,
+      "exports": [
+        "csv",
+        "pdf",
+        "png"
+      ]
+    },
+    "tools": [
+      "dependsOn",
+      "crossSystem"
+    ],
+    "notes": "Cross-system dependency links by opaque hash. Stateless.",
+    "order": 16,
+    "methodologies": [
+      "waterfall",
+      "prince2"
+    ]
+  },
+  {
     "id": "evm",
     "label": "Earned Value (EVM)",
     "docsUrl": "",
@@ -217,6 +357,33 @@ export const REPORTS_DATA: ReportDefinition[] = [
       "waterfall",
       "prince2"
     ]
+  },
+  {
+    "id": "exec-board-pack",
+    "label": "Executive Board Pack",
+    "docsUrl": "",
+    "kind": "portfolio",
+    "renderer": {
+      "engine": "builtin",
+      "component": "ExecBoardPack"
+    },
+    "capabilities": {
+      "requiresCapability": null,
+      "timeSeries": false,
+      "exports": [
+        "csv",
+        "pdf",
+        "png"
+      ]
+    },
+    "tools": [
+      "health",
+      "financials",
+      "risk",
+      "milestones"
+    ],
+    "notes": "Consolidated board-ready portfolio view. Stateless.",
+    "order": 5
   },
   {
     "id": "federated-portfolio",
@@ -271,6 +438,32 @@ export const REPORTS_DATA: ReportDefinition[] = [
     ],
     "notes": "Budget vs actual vs committed.",
     "order": 70
+  },
+  {
+    "id": "forecast-windows",
+    "label": "Forecast Windows",
+    "docsUrl": "",
+    "kind": "financial",
+    "renderer": {
+      "engine": "builtin",
+      "component": "ForecastWindows"
+    },
+    "capabilities": {
+      "requiresCapability": "financials",
+      "timeSeries": true,
+      "exports": [
+        "csv",
+        "pdf",
+        "png"
+      ]
+    },
+    "tools": [
+      "budget",
+      "forecast",
+      "sCurve"
+    ],
+    "notes": "Time-phased budget S-curve for forecasting. Stateless.",
+    "order": 77
   },
   {
     "id": "gantt",
@@ -331,6 +524,32 @@ export const REPORTS_DATA: ReportDefinition[] = [
     ],
     "notes": "Projected income (revenue) vs actually invoiced (invoicedAmount) per work item, with the unbilled gap and purchase-order references. Stateless, derived from the financial field group.",
     "order": 74
+  },
+  {
+    "id": "monte-carlo-risk",
+    "label": "Monte Carlo Risk",
+    "docsUrl": "",
+    "kind": "quality",
+    "renderer": {
+      "engine": "builtin",
+      "component": "MonteCarloRisk"
+    },
+    "capabilities": {
+      "requiresCapability": null,
+      "timeSeries": false,
+      "exports": [
+        "csv",
+        "pdf",
+        "png"
+      ]
+    },
+    "tools": [
+      "p50",
+      "p80",
+      "confidence"
+    ],
+    "notes": "Monte Carlo schedule/effort risk simulation. Stateless.",
+    "order": 105
   },
   {
     "id": "portfolio-benefits",
@@ -474,6 +693,61 @@ export const REPORTS_DATA: ReportDefinition[] = [
     "order": 90
   },
   {
+    "id": "portfolio-roadmap",
+    "label": "Portfolio Roadmap",
+    "docsUrl": "",
+    "kind": "schedule",
+    "renderer": {
+      "engine": "builtin",
+      "component": "PortfolioRoadmap"
+    },
+    "capabilities": {
+      "requiresCapability": "scheduling",
+      "timeSeries": false,
+      "exports": [
+        "csv",
+        "pdf",
+        "png"
+      ]
+    },
+    "tools": [
+      "start",
+      "end",
+      "progress"
+    ],
+    "notes": "Project bars on a timeline, derived from work-item dates. Stateless.",
+    "order": 11,
+    "methodologies": [
+      "waterfall",
+      "prince2"
+    ]
+  },
+  {
+    "id": "portfolio-trends",
+    "label": "Portfolio Trends",
+    "docsUrl": "",
+    "kind": "portfolio",
+    "renderer": {
+      "engine": "builtin",
+      "component": "PortfolioTrends"
+    },
+    "capabilities": {
+      "requiresCapability": null,
+      "timeSeries": true,
+      "exports": [
+        "csv",
+        "pdf",
+        "png"
+      ]
+    },
+    "tools": [
+      "history",
+      "trend"
+    ],
+    "notes": "Portfolio trends from point-in-time snapshots. Stateless.",
+    "order": 111
+  },
+  {
     "id": "project-health",
     "label": "Project Health",
     "docsUrl": "",
@@ -504,6 +778,31 @@ export const REPORTS_DATA: ReportDefinition[] = [
     ],
     "notes": "Predictive project-health / risk scoring: derives a composite 0-100 health score and RAG band per project from the delivery-risk signals its work items carry — RAG health status, risk level, blocked flags, schedule slip (overdue open items), budget burn running ahead of delivery, benefit confidence and the open-vs-done ratio. Shows a RAG heatmap distribution, an at-risk ranking (worst first, with the driving factors) and portfolio red/amber/green + mean-health StatCards. Portfolio risk roll-up, derived live; nothing is stored.",
     "order": 72
+  },
+  {
+    "id": "project-trend",
+    "label": "Project Trend",
+    "docsUrl": "",
+    "kind": "progress",
+    "renderer": {
+      "engine": "builtin",
+      "component": "ProjectTrend"
+    },
+    "capabilities": {
+      "requiresCapability": null,
+      "timeSeries": true,
+      "exports": [
+        "csv",
+        "pdf",
+        "png"
+      ]
+    },
+    "tools": [
+      "history",
+      "trend"
+    ],
+    "notes": "Point-in-time history trend for a project. Stateless.",
+    "order": 55
   },
   {
     "id": "raid-register",
@@ -586,6 +885,62 @@ export const REPORTS_DATA: ReportDefinition[] = [
     ],
     "notes": "Portfolio-level resource levelling on top of the capacity roll-up: over/under-allocated people across programme AND country boundaries, skills supply-vs-demand, and a what-if move action with before/after over/under-allocation deltas. Cross-border moves are gated by the same data-residency policy the broker/egress hop enforces.",
     "order": 37
+  },
+  {
+    "id": "scenario-sandbox",
+    "label": "Scenario What-if",
+    "docsUrl": "",
+    "kind": "portfolio",
+    "renderer": {
+      "engine": "builtin",
+      "component": "ScenarioSandbox"
+    },
+    "capabilities": {
+      "requiresCapability": null,
+      "timeSeries": false,
+      "exports": [
+        "csv",
+        "pdf",
+        "png"
+      ]
+    },
+    "tools": [
+      "include",
+      "budgetCap",
+      "priority"
+    ],
+    "notes": "Model include/exclude project sets under a constraint. Forked local state, nothing written back.",
+    "order": 110
+  },
+  {
+    "id": "schedule-sandbox",
+    "label": "Schedule What-if",
+    "docsUrl": "",
+    "kind": "schedule",
+    "renderer": {
+      "engine": "builtin",
+      "component": "ScheduleSandbox"
+    },
+    "capabilities": {
+      "requiresCapability": "scheduling",
+      "timeSeries": false,
+      "exports": [
+        "csv",
+        "pdf",
+        "png"
+      ]
+    },
+    "tools": [
+      "shift",
+      "dependsOn",
+      "slack"
+    ],
+    "notes": "Drag a work package and watch downstream dates shift. Forked local state, nothing written back.",
+    "order": 13,
+    "methodologies": [
+      "waterfall",
+      "prince2"
+    ]
   },
   {
     "id": "staff-cost",

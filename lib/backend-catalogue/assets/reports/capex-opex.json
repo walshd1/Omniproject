@@ -1,0 +1,11 @@
+{
+  "id": "capex-opex",
+  "label": "CapEx / OpEx",
+  "docsUrl": "",
+  "kind": "financial",
+  "renderer": { "engine": "builtin", "component": "CapexOpex" },
+  "capabilities": { "requiresCapability": "financials", "timeSeries": false, "exports": ["csv", "pdf", "png"] },
+  "tools": ["capex","opex","split"],
+  "notes": "Splits project spend into capital vs operating. Stateless.",
+  "order": 76
+}

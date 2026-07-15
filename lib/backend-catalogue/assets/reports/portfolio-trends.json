@@ -1,0 +1,11 @@
+{
+  "id": "portfolio-trends",
+  "label": "Portfolio Trends",
+  "docsUrl": "",
+  "kind": "portfolio",
+  "renderer": { "engine": "builtin", "component": "PortfolioTrends" },
+  "capabilities": { "requiresCapability": null, "timeSeries": true, "exports": ["csv", "pdf", "png"] },
+  "tools": ["history","trend"],
+  "notes": "Portfolio trends from point-in-time snapshots. Stateless.",
+  "order": 111
+}

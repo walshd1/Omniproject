@@ -1,0 +1,11 @@
+{
+  "id": "scenario-sandbox",
+  "label": "Scenario What-if",
+  "docsUrl": "",
+  "kind": "portfolio",
+  "renderer": { "engine": "builtin", "component": "ScenarioSandbox" },
+  "capabilities": { "requiresCapability": null, "timeSeries": false, "exports": ["csv", "pdf", "png"] },
+  "tools": ["include","budgetCap","priority"],
+  "notes": "Model include/exclude project sets under a constraint. Forked local state, nothing written back.",
+  "order": 110
+}

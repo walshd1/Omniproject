@@ -1,0 +1,11 @@
+{
+  "id": "exec-board-pack",
+  "label": "Executive Board Pack",
+  "docsUrl": "",
+  "kind": "portfolio",
+  "renderer": { "engine": "builtin", "component": "ExecBoardPack" },
+  "capabilities": { "requiresCapability": null, "timeSeries": false, "exports": ["csv", "pdf", "png"] },
+  "tools": ["health","financials","risk","milestones"],
+  "notes": "Consolidated board-ready portfolio view. Stateless.",
+  "order": 5
+}

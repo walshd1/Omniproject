@@ -1,0 +1,12 @@
+{
+  "id": "schedule-sandbox",
+  "label": "Schedule What-if",
+  "docsUrl": "",
+  "kind": "schedule",
+  "renderer": { "engine": "builtin", "component": "ScheduleSandbox" },
+  "capabilities": { "requiresCapability": "scheduling", "timeSeries": false, "exports": ["csv", "pdf", "png"] },
+  "tools": ["shift","dependsOn","slack"],
+  "notes": "Drag a work package and watch downstream dates shift. Forked local state, nothing written back.",
+  "order": 13,
+  "methodologies": ["waterfall", "prince2"]
+}

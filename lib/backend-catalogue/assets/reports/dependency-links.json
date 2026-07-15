@@ -1,0 +1,12 @@
+{
+  "id": "dependency-links",
+  "label": "Dependency Links",
+  "docsUrl": "",
+  "kind": "schedule",
+  "renderer": { "engine": "builtin", "component": "DependencyLinks" },
+  "capabilities": { "requiresCapability": "scheduling", "timeSeries": false, "exports": ["csv", "pdf", "png"] },
+  "tools": ["dependsOn","crossSystem"],
+  "notes": "Cross-system dependency links by opaque hash. Stateless.",
+  "order": 16,
+  "methodologies": ["waterfall", "prince2"]
+}

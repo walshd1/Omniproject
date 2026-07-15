@@ -1,0 +1,11 @@
+{
+  "id": "monte-carlo-risk",
+  "label": "Monte Carlo Risk",
+  "docsUrl": "",
+  "kind": "quality",
+  "renderer": { "engine": "builtin", "component": "MonteCarloRisk" },
+  "capabilities": { "requiresCapability": null, "timeSeries": false, "exports": ["csv", "pdf", "png"] },
+  "tools": ["p50","p80","confidence"],
+  "notes": "Monte Carlo schedule/effort risk simulation. Stateless.",
+  "order": 105
+}
