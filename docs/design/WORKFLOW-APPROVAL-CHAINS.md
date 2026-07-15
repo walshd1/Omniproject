@@ -122,6 +122,12 @@ workflow/chain actually uses AI. A human-only or manual workflow uses none of it
      the specific data/workflow, bound to the signer's presence, voided on signer removal or scope change, and
      nothing runs against sensitive data until signed). Enforcement reuses the existing DLP primitive
      (`redactForEgress` / `AI_DLP_REDACT`) but flips its posture from opt-in redaction to **default-deny**.
+     Admins **extend the definition with regex rules**: an *add* pattern classes matching content sensitive
+     (e.g. anything containing `high secret project`), a *remove/exclude* pattern narrows it. Asymmetric on
+     purpose — an *add* is **tightening** (admin-gated + audited), but a *remove* **exposes data to AI**, so it
+     is a **relaxation**: it must itself be **passkey-signed** by an Admin/PMO and can **never** un-protect the
+     built-in PII / secret / financial classes without that signed act. All admin patterns compile on the
+     **linear-time regex engine** (`re2js` / `lib/safe-regex`), so a pathological pattern can't ReDoS the classifier.
 
 ## 5. Workflow engine — a caller, mostly
 
@@ -160,9 +166,10 @@ workflow/chain actually uses AI. A human-only or manual workflow uses none of it
 - **Settled — AI is default-DENY**: every AI action, **reads included**, needs an explicit human grant; nothing
   is permitted by default. The 'governed' posture (default-permitted + allowlist + RBAC scope + audit) remains
   available as an **opt-in option** per deployment, not the default.
-- Sensitive classes (§4.6) — **settled**: reuse the DLP **PII / secret / sensitive** detection and **add
-  financial** (the registry financials field group). Open only: how a field/dataset gets *additionally*
-  admin-marked sensitive beyond these built-in classes.
+- Sensitive classes (§4.6) — **settled**: reuse the DLP **PII / secret / sensitive** detection, **add financial**
+  (registry financials group), and let admins extend via **ReDoS-safe (`re2js`) regex add/remove rules** — an
+  *add* is admin-gated tightening; a *remove* exposes data to AI, so it's a signed relaxation and can't
+  un-protect the built-in classes.
 - Exact JSON schema for a chain and a workflow (versioned, drift-guarded).
 - Quorum-per-stage (deferred) and parallel stages (deferred).
 - **Settled — offboarding is IdP-driven**: removal/deprovisioning happens in the IdP (OIDC); the gateway is
