@@ -2,10 +2,7 @@ import { useEffect, useState } from "react";
 import { useLocation } from "wouter";
 import { FlaskConical, ExternalLink, LogOut, Download, AlertTriangle } from "lucide-react";
 import { ReplicaWorkbench } from "../components/explore/ReplicaWorkbench";
-import { PortfolioTrends } from "../components/reports/PortfolioTrends";
-import { ScenarioSandbox } from "../components/reports/ScenarioSandbox";
-import { ScheduleSandbox } from "../components/reports/ScheduleSandbox";
-import { DependencyLinks } from "../components/reports/DependencyLinks";
+import { CatalogueReport } from "../components/reports/CatalogueReport";
 import { TimeTravel } from "../components/reports/TimeTravel";
 import { loadSnapshots, exportSnapshots } from "../lib/snapshots";
 import { loadEdges, exportEdges } from "../lib/dependencies";
@@ -142,11 +139,11 @@ export function Explore() {
         </header>
 
         <ReplicaWorkbench />
-        <PortfolioTrends />
+        <CatalogueReport id="portfolio-trends" />
         <TimeTravel />
-        <ScenarioSandbox />
-        <ScheduleSandbox />
-        <DependencyLinks />
+        <CatalogueReport id="scenario-sandbox" />
+        <CatalogueReport id="schedule-sandbox" />
+        <CatalogueReport id="dependency-links" />
       </div>
 
       {/* Keyboard parity: the sandbox is mounted OUTSIDE AppLayout, so ⌘K would otherwise be a
