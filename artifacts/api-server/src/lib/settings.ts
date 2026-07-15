@@ -20,6 +20,7 @@ import { logger } from "./logger";
 import { isTruthy } from "./env-config";
 import { validateFieldRouting, FieldRoutingError, type FieldRoute } from "./field-routing";
 import { validateApprovalChains, ApprovalChainError, type ChainDef } from "./approval-chain";
+import { validateApprovalBindings, ApprovalBindingError, type ApprovalBinding } from "./approval-binding";
 import { validateCustomFields, validateCustomFieldSources, CustomFieldError, type CustomField } from "./custom-fields";
 import { sanitizeBranding } from "./branding";
 import { sanitizeUserPrefs } from "./user-prefs";
@@ -279,6 +280,8 @@ export interface BrokerConfig {
   fieldRouting: FieldRoute[];
   /** Approval-chain definitions (org/project-scoped), authored by PMO/PM. See docs/design/WORKFLOW-APPROVAL-CHAINS.md. */
   approvalChains: ChainDef[];
+  /** Which action ids are gated by which chain (action → chainId). Empty ⇒ nothing is chain-gated. */
+  approvalBindings: ApprovalBinding[];
   /** Admin-defined fields extending the reference superset. Each must be mapped in `fieldRouting`
    *  (route it to the Postgres backend if there's no external source) — see lib/custom-fields. */
   customFields: CustomField[];
@@ -1021,6 +1024,7 @@ const FIELD_DESCRIPTORS: { [K in keyof SettingsState]: FieldDescriptor<K> } = {
   },
   customFields: { seed: () => [], validate: normalisedBy((v) => validateCustomFields(v), CustomFieldError) },
   approvalChains: { seed: () => [], validate: normalisedBy((v) => validateApprovalChains(v), ApprovalChainError) },
+  approvalBindings: { seed: () => [], validate: normalisedBy((v) => validateApprovalBindings(v), ApprovalBindingError) },
   fieldValidation: {
     // Validate the rule DEFINITIONS (shape + patterns compile); values are enforced on the write path.
     seed: () => [],
