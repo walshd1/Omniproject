@@ -9,7 +9,13 @@ import { parseOr400, v } from "../lib/validate";
 import { CANONICAL_TASK_STATUS, CANONICAL_PRIORITY, CANONICAL_ENERGY, normaliseTaskStatus } from "../broker/vocabulary";
 import { summariseTasks } from "../lib/task-summary";
 import { nextOccurrence } from "../lib/recurrence";
+import { runReminderSweep } from "../lib/reminder-sweep";
+import { getNotifyBus } from "../lib/notify-bus";
+import { sharedKv } from "../lib/shared-state";
+import crypto from "node:crypto";
 import type { Task } from "../broker/types";
+
+const REMINDER_TTL_MS = 30 * 24 * 60 * 60 * 1000; // a fired reminder is remembered for 30d (dedupe window)
 
 /**
  * Recurring-task expansion (Todoist-style): when a PATCH COMPLETES a task that carries a `recurrence` rule,
@@ -159,6 +165,28 @@ router.patch("/tasks/:taskId", requireRole("manager"), (req, res) => {
     res.json(next ? { ...updated, nextOccurrence: { id: next.id, dueDate: next.dueDate } } : updated);
   });
 });
+
+// POST /api/tasks/reminders/sweep — deliver any DUE task reminders in-app (pmo+, cron/routine-driven). Fires
+// each task whose `reminderAt` has passed once (deduped via shared-state), notifying the assignee. Runs in
+// the caller's scope, so a portfolio-wide sweep needs a portfolio (pmo/admin) caller.
+router.post("/tasks/reminders/sweep", requireRole("pmo"), (req, res) =>
+  withBrokerErrors(req, res, "reminder sweep failed", async () => {
+    if (!brokerHasTasks()) { res.json({ fired: 0, taskIds: [] }); return; }
+    const tasks = await getTasks(req);
+    const bus = getNotifyBus();
+    const result = await runReminderSweep({
+      tasks,
+      nowMs: Date.now(),
+      isFired: async (key) => !!(await sharedKv.get(key)),
+      markFired: async (key) => { await sharedKv.set(key, "1", { ttlMs: REMINDER_TTL_MS }); },
+      notify: (n, target) => void bus.publish({
+        notification: { id: `rem-${crypto.randomUUID()}`, kind: n.kind, title: n.title, body: n.body, read: false, timestamp: Date.now() },
+        ...(target.sub || target.email ? { target } : {}),
+      }),
+    });
+    res.json(result);
+  }),
+);
 
 // ── Comments ─────────────────────────────────────────────────────────────────
 const CommentBody = v.object({ body: v.string({ min: 1, max: 10_000, trim: true }) });

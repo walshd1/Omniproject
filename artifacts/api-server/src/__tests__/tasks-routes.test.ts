@@ -160,3 +160,12 @@ test("a non-completing update to a recurring task does not spawn", async () => {
   const edited = await json(await req(`/tasks/${created.id}`, { method: "PATCH", body: { priority: "high" } }));
   assert.equal(edited.nextOccurrence, undefined);
 });
+
+test("POST /tasks/reminders/sweep fires a due reminder once, then dedupes", async () => {
+  await req("/tasks", { method: "POST", body: { title: "Renew cert", status: "next", assignee: "ops@demo", reminderAt: "2026-01-01T09:00:00Z", dueDate: "2026-01-02" } });
+  const first = await json(await req("/tasks/reminders/sweep", { method: "POST", body: {} }));
+  assert.ok(first.fired >= 1, "at least the due reminder fired");
+  const before = first.fired;
+  const second = await json(await req("/tasks/reminders/sweep", { method: "POST", body: {} }));
+  assert.ok(second.fired < before, "already-fired reminders are not re-fired");
+});
