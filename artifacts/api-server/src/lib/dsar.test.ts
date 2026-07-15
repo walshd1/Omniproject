@@ -19,7 +19,7 @@ test("zero-at-rest subject: nothing held, but the not-retained + systems-of-reco
 });
 
 test("surfaces a SCIM directory record, a revocation mark, and content-free provenance refs", () => {
-  process.env["SCIM_TOKEN"] = "scim-secret";
+  process.env["SCIM_TOKEN"] = "scim-secret-strong-012345";
   createUser({ userName: "subj@x.io", active: true });
   revokeUserSessions("subj@x.io");
   record({ callId: "c1", hop: "invoke", action: "listProjects", actor: "subj@x.io", content: { secret: "should-not-appear" } });
@@ -35,7 +35,7 @@ test("surfaces a SCIM directory record, a revocation mark, and content-free prov
 });
 
 test("the human summary names the subject and the held facts", () => {
-  process.env["SCIM_TOKEN"] = "scim-secret";
+  process.env["SCIM_TOKEN"] = "scim-secret-strong-012345";
   createUser({ userName: "amy@x.io", active: false });
   const r = buildDsarReport({ email: "amy@x.io" }, NOW);
   const text = dsarSummaryText(r);

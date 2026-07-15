@@ -32,8 +32,6 @@ export interface OidcConfig {
   scope: string;
   /** Expected ID-token audience (defaults to clientId). */
   audience: string;
-  /** Verify the ID token signature + claims against the issuer JWKS. */
-  verifyToken: boolean;
   /** Requested `acr_values` (space-delimited), best-effort — asks the IdP for a specific
    *  authentication strength. Not all IdPs honour it; the gateway still separately VERIFIES
    *  the resulting amr/acr claim (see rbac.hasStrongAuth) rather than trusting the request. */
@@ -113,8 +111,10 @@ export interface OidcProvider extends OidcConfig {
   label: string;
 }
 
-// Verify by default; OIDC_SKIP_TOKEN_VERIFY=true is a global escape hatch only.
-const verifyToken = process.env["OIDC_SKIP_TOKEN_VERIFY"]?.trim().toLowerCase() !== "true";
+// NOTE: ID-token validation (signature + iss/aud/exp/nonce against the issuer JWKS) is ALWAYS performed
+// by openid-client on the login path — it is not toggleable. `OIDC_SKIP_TOKEN_VERIFY` is intentionally
+// NOT wired to anything (a real off-switch would be an auth-bypass footgun); env-config.ts still flags it
+// as a CRITICAL boot finding so an operator who sets it expecting an effect is told it does nothing.
 
 /** Read one provider's config from a set of env keys, or null if the required three are absent. */
 function providerFromEnv(id: string, label: string, keyPrefix: string): OidcProvider | null {
@@ -130,7 +130,6 @@ function providerFromEnv(id: string, label: string, keyPrefix: string): OidcProv
     clientSecret,
     scope: process.env[`${keyPrefix}_SCOPE`]?.trim() || "openid profile email",
     audience: process.env[`${keyPrefix}_AUDIENCE`]?.trim() || clientId,
-    verifyToken,
     acrValues: process.env[`${keyPrefix}_ACR_VALUES`]?.trim() || undefined,
   };
 }

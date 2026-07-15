@@ -104,9 +104,14 @@ export function openConfig(token: string): string | null {
   const dot = rest.indexOf(".");
   if (dot <= 0) return null;
   const version = Number(rest.slice(0, dot));
-  if (!Number.isInteger(version)) return null;
+  // Bound the version (mirrors key-registry's clamp) so a crafted token can't push currentVersion to an
+  // absurd value like 1e300, and only note it AFTER the AES-GCM tag authenticates the token — an
+  // unverified, attacker-supplied version must never advance in-memory key state before decryption.
+  if (!Number.isInteger(version) || version < 1 || version > 1_000_000) return null;
+  const plaintext = decrypt(rest.slice(dot + 1), v2 ? internalKeyV2(version) : internalKey(version));
+  if (plaintext === null) return null;
   noteVersion(version);
-  return decrypt(rest.slice(dot + 1), v2 ? internalKeyV2(version) : internalKey(version));
+  return plaintext;
 }
 
 /** Read possibly-sealed config text: open if sealed, else return as-is (plaintext migration).

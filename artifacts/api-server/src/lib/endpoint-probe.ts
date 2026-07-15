@@ -1,4 +1,5 @@
 import { safeFetch, EgressError } from "./egress";
+import { isSafeOutboundUrl } from "./url-safety";
 
 /**
  * User-defined endpoint validation + reachability probing.
@@ -8,13 +9,18 @@ import { safeFetch, EgressError } from "./egress";
  * validated + reachability-tested here; the governance module just consumes `validEndpoint`.
  */
 
-/** Validate a user-defined endpoint: a well-formed http(s) URL (capped at 2048 chars), or null. */
+/** Validate a user-defined endpoint: a well-formed http(s) URL (capped at 2048 chars), or null.
+ *  Also rejects a link-local/cloud-metadata literal at the WRITE boundary — parity with the other
+ *  outbound-URL write paths (routes/ai-providers.ts, lib/webhooks.ts) so such a host can never even be
+ *  STORED in a capability, not just blocked at call time. (Call-time safeFetch is still the backstop.) */
 export function validEndpoint(raw: string): string | null {
   const t = raw.trim();
   if (!t) return null;
   try {
     const u = new URL(t);
-    return u.protocol === "http:" || u.protocol === "https:" ? t.slice(0, 2048) : null;
+    if (u.protocol !== "http:" && u.protocol !== "https:") return null;
+    if (!isSafeOutboundUrl(t)) return null; // link-local/metadata literal → refuse at write time
+    return t.slice(0, 2048);
   } catch {
     return null;
   }
@@ -30,7 +36,13 @@ export interface EndpointCheck {
  *  timeout = not. Admin-initiated (like the connection test), with a short timeout. */
 export async function checkEndpointReachable(url: string, timeoutMs = 3000): Promise<EndpointCheck> {
   const valid = validEndpoint(url);
-  if (!valid) return { reachable: false, error: "not a valid http(s) URL" };
+  if (!valid) {
+    // validEndpoint rejects both malformed URLs and well-formed-but-unsafe (link-local/metadata) literals.
+    // Distinguish them so the admin gets an accurate reason (and the SSRF block reads as "blocked").
+    let wellFormed = false;
+    try { const u = new URL(url); wellFormed = u.protocol === "http:" || u.protocol === "https:"; } catch { /* malformed */ }
+    return { reachable: false, error: wellFormed ? "blocked: link-local/metadata target not allowed" : "not a valid http(s) URL" };
+  }
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {

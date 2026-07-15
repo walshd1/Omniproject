@@ -31,10 +31,12 @@ test("samlCacheProvider: saveAsync never overwrites an existing key (returns nul
   await cp.removeAsync(key);
 });
 
-test("replayProtection is disabled without Redis (preserves stateless single-replica default)", () => {
-  // Test env has no REDIS_URL ⇒ shared state is in-process ⇒ the fail-closed validateInResponseTo
-  // is NOT enabled, so SP-initiated login can't break on a stateless/multi-replica-no-Redis deploy.
-  assert.deepEqual(replayProtection(), {});
+test("replayProtection defaults to 'ifPresent' single-replica (no REDIS_URL) — protects SP-initiated, safe for IdP-initiated", () => {
+  // Test env has no REDIS_URL ⇒ single-replica: redirect + ACS share a process, so the in-memory cache is
+  // correct. "ifPresent" validates an InResponseTo when the response carries one without fail-closing an
+  // IdP-initiated response that has none. (The unsafe multi-replica-no-Redis window is covered separately.)
+  delete process.env["REDIS_URL"];
+  assert.equal(replayProtection()["validateInResponseTo"], "ifPresent");
 });
 
 test("SAML_STRICT_REPLAY opts a single-replica deploy into validateInResponseTo (in-memory cache)", () => {

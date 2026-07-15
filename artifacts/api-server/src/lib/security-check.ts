@@ -139,6 +139,21 @@ export function securityFindings(env: Env): SecurityFinding[] {
       message: "RATE_LIMIT_DISABLED is on in production — abuse/DoS protection is removed.",
     });
   }
+  // SCIM token present but too weak to be trusted. SCIM drives deprovisioning + group→role membership,
+  // so a short/brute-forceable token is a privilege-escalation vector — the gate DISABLES SCIM when the
+  // token is under the floor (fail-closed, see lib/scim), which would silently stop provisioning; surface
+  // it loudly so the operator sets a strong token rather than wondering why SCIM went dark.
+  {
+    const scimTok = env["SCIM_TOKEN"]?.trim();
+    if (scimTok && scimTok.length < 24) {
+      out.push({
+        id: "scim-token-weak",
+        severity: "warn",
+        message: `SCIM_TOKEN is set but shorter than the 24-char minimum — SCIM provisioning is DISABLED until it is strengthened ` +
+          "(a weak SCIM token would let an attacker deprovision users or grant admin via group membership). Use a strong random token.",
+      });
+    }
+  }
   // mTLS deliberately downgraded to accept an unverified broker certificate — the same class
   // of "explicit insecure escape hatch left on in prod" as the checks above, so it gets the
   // same CRITICAL treatment (refuses to boot by default) rather than a log-only warning.
