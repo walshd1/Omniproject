@@ -65,19 +65,21 @@ export function scheduleWindow(
   items: { startDate?: string | null; dueDate?: string | null }[],
   asOf: number,
 ): { start: number; end: number } | null {
-  const starts: number[] = [];
-  const ends: number[] = [];
+  // Both a start and a due bound BOTH ends of the window (a start with no due still bounds it), so
+  // the min/max range is simply over every valid date. Fold it into the loop — a spread over the
+  // built arrays (Math.min(...starts)) both allocates and stack-overflows past ~65k dated items.
+  let lo = Infinity;
+  let hi = -Infinity;
+  let any = false;
   for (const it of items) {
     const s = it.startDate ? Date.parse(it.startDate) : NaN;
     const d = it.dueDate ? Date.parse(it.dueDate) : NaN;
-    if (!Number.isNaN(s)) starts.push(s);
-    if (!Number.isNaN(d)) ends.push(d);
-    if (!Number.isNaN(s)) ends.push(s); // a start with no due still bounds the window
-    if (!Number.isNaN(d)) starts.push(d);
+    if (!Number.isNaN(s)) { any = true; if (s < lo) lo = s; if (s > hi) hi = s; }
+    if (!Number.isNaN(d)) { any = true; if (d < lo) lo = d; if (d > hi) hi = d; }
   }
-  if (!starts.length || !ends.length) return null;
-  const start = Math.min(...starts, asOf);
-  const end = Math.max(...ends, asOf);
+  if (!any) return null;
+  const start = Math.min(lo, asOf);
+  const end = Math.max(hi, asOf);
   return { start, end };
 }
 

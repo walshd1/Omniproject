@@ -211,8 +211,10 @@ test("PATCH /settings refuses capabilityStates (step-up + validation bypass) but
   const bad = await h.req("/settings", { cookie: adminCookie(), method: "PATCH", body: { capabilityStates: { "provider:ollama": { state: "public", endpoint: "http://169.254.169.254/" } } } });
   assert.equal(bad.status, 400);
   assert.match(((await bad.json()) as { error: string }).error, /governance/i);
-  // A normal settings key still applies through the same route.
-  const ok = await h.req("/settings", { cookie: adminCookie(), method: "PATCH", body: { errorTelemetry: true } });
+  // A normal (choice, non-security) settings key still applies immediately through the same route.
+  // NB: errorTelemetry is NOT such a key — it's security-classified (egress), so changing it is held for a
+  // signed sign-off (§0 invariant). Use a true choice key to prove the route still writes normally.
+  const ok = await h.req("/settings", { cookie: adminCookie(), method: "PATCH", body: { reportingCurrency: "USD" } });
   assert.equal(ok.status, 200);
 });
 

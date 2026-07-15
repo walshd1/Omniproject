@@ -72,6 +72,16 @@ export class WebhookNotFoundError extends Error {
  * minted id + signing secret). Pure — throws on bad input, never touches settings. Split from
  * `createWebhook` so validation/construction and persistence are two separate, testable steps.
  */
+export function buildWebhook(input: unknown): WebhookSubscription {
+  return parseWebhookInput(input);
+}
+
+/** The webhook list that ADDS `sub` to the current set — the proposed patch a guarded create persists
+ *  (directly if it applies, or sealed in a held sign-off proposal). Pure read of current settings. */
+export function webhooksWith(sub: WebhookSubscription): WebhookSubscription[] {
+  return [...subs(), sub];
+}
+
 function parseWebhookInput(input: unknown): WebhookSubscription {
   if (!input || typeof input !== "object") throw new Error("webhook must be an object");
   const o = input as Record<string, unknown>;

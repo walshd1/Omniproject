@@ -390,7 +390,7 @@ export interface VerifyReport {
 }
 
 /** Normalised error taxonomy — no broker-specific status quirks leak upward. */
-export type BrokerErrorCode = "conflict" | "not_found" | "unauthorized" | "bad_request" | "unavailable";
+export type BrokerErrorCode = "conflict" | "not_found" | "unauthorized" | "bad_request" | "rate_limited" | "unavailable";
 
 export class BrokerError extends Error {
   readonly code: BrokerErrorCode;
@@ -415,6 +415,7 @@ export class BrokerError extends Error {
     if (status === 409) return new BrokerError("conflict", "the item was modified by someone else", details);
     if (status === 404) return new BrokerError("not_found", "the requested resource was not found");
     if (status === 401 || status === 403) return new BrokerError("unauthorized", "the backend rejected the request as unauthorized");
+    if (status === 429) return new BrokerError("rate_limited", "the backend is rate-limiting requests; retry shortly");
     if (status >= 400 && status < 500) return new BrokerError("bad_request", "the backend rejected the request");
     return new BrokerError("unavailable", "the backend is currently unavailable");
   }
@@ -425,6 +426,7 @@ const STATUS_FOR: Record<BrokerErrorCode, number> = {
   not_found: 404,
   unauthorized: 401,
   bad_request: 400,
+  rate_limited: 429,
   unavailable: 502,
 };
 

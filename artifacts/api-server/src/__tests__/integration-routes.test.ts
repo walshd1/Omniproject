@@ -211,6 +211,15 @@ test("GET /api/odata/Issues and /Programmes resolve", async () => {
   }
 });
 
+test("GET /api/odata/Issues pushes a projectId $filter down to a scoped single-project read", async () => {
+  // A real project resolves through the pushdown path (scoped getIssues, not the portfolio fan-out).
+  const real = await readJson(await get("/api/odata/Issues?$filter=projectId eq 'proj-1'"));
+  assert.ok(Array.isArray(real.value));
+  // An unknown / out-of-set project yields an empty feed, never an error or a leak.
+  const none = await readJson(await get("/api/odata/Issues?$filter=projectId eq 'no-such-project'"));
+  assert.equal(none.value.length, 0);
+});
+
 // ── AI status route (lib/ai aiStatus) ─────────────────────────────────────────
 
 test("GET /api/ai/status reports the active provider", async () => {

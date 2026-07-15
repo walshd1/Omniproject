@@ -21,12 +21,20 @@ function escapeCell(value: CsvValue): string {
   return s;
 }
 
+/** UTF-8 BOM prefix so Excel opens non-ASCII content correctly. */
+export const CSV_BOM = "﻿";
+
+/** Encode ONE CSV record (header or data row) — the per-row kernel, exposed so a large export can be
+ *  streamed line-by-line to the socket instead of building the whole string in memory first. */
+export function csvLine(cells: CsvValue[]): string {
+  return cells.map(escapeCell).join(",");
+}
+
 /** Build a CSV string from a header row + data rows. */
 export function toCsv(headers: string[], rows: CsvValue[][]): string {
-  const lines = [headers.map(escapeCell).join(",")];
+  const lines = [csvLine(headers)];
   for (const row of rows) {
-    lines.push(row.map(escapeCell).join(","));
+    lines.push(csvLine(row));
   }
-  // Prepend a UTF-8 BOM so Excel opens non-ASCII content correctly.
-  return "﻿" + lines.join("\r\n");
+  return CSV_BOM + lines.join("\r\n");
 }

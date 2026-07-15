@@ -14,7 +14,7 @@ export function Burnup({ projectId }: { projectId: string }) {
       title="Burnup"
       emptyMessage="No history available from the backend."
       testId="burnup-chart"
-      select={(points) => burnupSeries(points)}
+      select={burnupSeries}
     >
       {(series) => (
         <ChartView

@@ -19,6 +19,10 @@ import {
   type ProjectMember,
   type TaskItem,
   type TaskItemWrite,
+  type TaskComment,
+  type TaskCommentWrite,
+  type TaskAttachment,
+  type TaskAttachmentWrite,
   type Summary,
   type HistoryPoint,
   type HistoryState,
@@ -124,15 +128,24 @@ function webhookUrl(): string {
 
 /**
  * Deterministic idempotency key:
- *   sha256(action + projectId + issueId + timestamp_rounded_to_nearest_minute)
+ *   sha256(action + projectId + issueId + omniInstanceId + timestamp_rounded_to_nearest_minute)
  * Identical actions on the same entity within the same minute collapse to the
  * same key, letting n8n drop duplicate triggers / webhook storms.
+ *
+ * A CREATE carries neither projectId nor issueId (the entity doesn't exist yet), so without a
+ * third dimension every create in a given minute — a single UI double-submit OR a legitimate batch
+ * of N distinct new projects — collapses to ONE key, and n8n drops all but the first. The
+ * gateway-minted per-create correlation GUID (`omniInstanceId`, server-minted once per create,
+ * unique per project) distinguishes them: distinct creates get distinct keys, while a transport
+ * redelivery of the SAME create still carries the same GUID and is still deduped. For updates it's
+ * absent, so their key is unchanged.
  */
 export function idempotencyKey(action: string, payload: Record<string, unknown>): string {
   const projectId = String(payload["projectId"] ?? "");
   const issueId = String(payload["issueId"] ?? "");
+  const instance = String(payload["omniInstanceId"] ?? "");
   const minute = Math.round(Date.now() / 60_000);
-  return crypto.createHash("sha256").update(`${action}:${projectId}:${issueId}:${minute}`).digest("hex");
+  return crypto.createHash("sha256").update(`${action}:${projectId}:${issueId}:${instance}:${minute}`).digest("hex");
 }
 
 /** The backend routing hint sent as the "source" for CRUD/list actions. */
@@ -354,6 +367,27 @@ async function unwrapResponse<T>(
  * steps above in sequence: build the envelope, sign/encrypt it, send it with
  * pool failover, then unwrap the response — auditing every outcome along the way.
  */
+/** How many times a 429 (backend rate-limit) is retried in-request before the error surfaces. Small,
+ *  so a sustained overload fails fast (as 429) rather than holding the request open. */
+const MAX_RATE_LIMIT_RETRIES = 2;
+/** Upper bound on a single honoured Retry-After wait — we absorb short bursts, not long stalls. */
+const MAX_RETRY_WAIT_MS = 3_000;
+
+const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
+
+/** Delay before a 429 retry: honour the backend's `Retry-After` (delta-seconds or HTTP-date), bounded;
+ *  fall back to a capped exponential backoff when it's absent/unparseable. */
+export function retryAfterMs(res: { headers: { get(name: string): string | null } }, attempt: number, now: number): number {
+  const raw = res.headers.get("retry-after");
+  if (raw) {
+    const secs = Number(raw);
+    if (Number.isFinite(secs)) return Math.min(Math.max(secs * 1000, 0), MAX_RETRY_WAIT_MS);
+    const when = Date.parse(raw);
+    if (!Number.isNaN(when)) return Math.min(Math.max(when - now, 0), MAX_RETRY_WAIT_MS);
+  }
+  return Math.min(250 * 2 ** attempt, MAX_RETRY_WAIT_MS); // 250ms, 500ms, …
+}
+
 async function callBroker<T = unknown>(
   action: string,
   payload: Record<string, unknown>,
@@ -383,7 +417,18 @@ async function callBroker<T = unknown>(
 
   const psk = pskEnabled();
   const init = signAndEncrypt(envelope, opts.ctx, psk);
-  const { res, targets, lastErr } = await sendWithFailover(init);
+  // Backpressure-aware send: when the backend/sidecar replies 429 (rate-limited), honour its
+  // Retry-After and re-send a BOUNDED number of times before surfacing the 429. Safe to retry — a
+  // 429 means the request was REJECTED, not applied, and the idempotency key dedupes it regardless.
+  let res: BrokerResponse | undefined;
+  let targets: string[] = [];
+  let lastErr: unknown;
+  for (let attempt = 0; ; attempt++) {
+    ({ res, targets, lastErr } = await sendWithFailover(init));
+    if (!res || res.status !== 429 || attempt >= MAX_RATE_LIMIT_RETRIES) break;
+    await res.text().catch(() => ""); // drain the rejected response body before retrying
+    await sleep(retryAfterMs(res, attempt, Date.now()));
+  }
 
   if (!res) {
     const isTimeout = isTimeoutError(lastErr);
@@ -570,6 +615,34 @@ export class ReferenceBroker implements Broker {
   async createTaskItem(ctx: ActorContext, projectId: string, taskId: string, input: TaskItemWrite): Promise<TaskItem> {
     const r = await callBroker<TaskItem>("create_task_item", { projectId, taskId, ...input }, { ctx, source: backendSource(), withActor: true });
     if (!r.data) throw new BrokerError("bad_request", "create_task_item returned no item");
+    return r.data;
+  }
+
+  // Comments (Jira-class) — OPTIONAL: a backend that stores comments first-class (e.g. OmniStore) serves
+  // these; one that doesn't answers 501, which surfaces as a "not supported" backend error the caller
+  // handles (the gateway degrades the comment feature to its ephemeral thread store). issueId is the
+  // task/work-item id — the gateway's optional `Broker` signature carries it as `taskId`.
+  async listTaskComments(ctx: ActorContext, taskId: string): Promise<TaskComment[]> {
+    const r = await callBroker<TaskComment[]>("list_task_comments", { issueId: taskId }, { ctx, source: backendSource(), withActor: false });
+    return r.data ?? [];
+  }
+
+  async addTaskComment(ctx: ActorContext, taskId: string, input: TaskCommentWrite): Promise<TaskComment> {
+    const r = await callBroker<TaskComment>("add_task_comment", { issueId: taskId, ...input }, { ctx, source: backendSource(), withActor: true });
+    if (!r.data) throw new BrokerError("bad_request", "add_task_comment returned no comment");
+    return r.data;
+  }
+
+  // Attachments (Jira-class) — OPTIONAL, same contract as comments: file REFERENCES only (zero-at-rest).
+  // A backend that tracks attachment refs (e.g. OmniStore) serves these; one that doesn't answers 501.
+  async listTaskAttachments(ctx: ActorContext, taskId: string): Promise<TaskAttachment[]> {
+    const r = await callBroker<TaskAttachment[]>("list_task_attachments", { issueId: taskId }, { ctx, source: backendSource(), withActor: false });
+    return r.data ?? [];
+  }
+
+  async addTaskAttachment(ctx: ActorContext, taskId: string, input: TaskAttachmentWrite): Promise<TaskAttachment> {
+    const r = await callBroker<TaskAttachment>("add_task_attachment", { issueId: taskId, ...input }, { ctx, source: backendSource(), withActor: true });
+    if (!r.data) throw new BrokerError("bad_request", "add_task_attachment returned no attachment");
     return r.data;
   }
 

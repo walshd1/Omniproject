@@ -86,8 +86,14 @@ export function CrossProgrammeDependencies() {
   const pos = useMemo(() => layout(graphIds), [graphIds]);
 
   const rows = useMemo(
-    () => [...map.nodes].filter((n) => criticalSet.has(n.id) || map.edges.some((e) => e.from === n.id || e.to === n.id))
-      .sort((a, b) => a.es - b.es || b.duration - a.duration),
+    () => {
+      // Endpoint ids of every edge, built once — the row filter then tests set membership
+      // instead of rescanning all edges per node (was O(nodes × edges)).
+      const endpointSet = new Set<string>();
+      for (const e of map.edges) { endpointSet.add(e.from); endpointSet.add(e.to); }
+      return [...map.nodes].filter((n) => criticalSet.has(n.id) || endpointSet.has(n.id))
+        .sort((a, b) => a.es - b.es || b.duration - a.duration);
+    },
     [map, criticalSet],
   );
 

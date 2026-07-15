@@ -75,6 +75,24 @@ describe("CommandPalette", () => {
     expect(useStore.getState().isCommandOpen).toBe(false);
   });
 
+  it("indexes catalogue reports for a direct jump (the ≤2-actions rule)", () => {
+    useStore.setState({ isCommandOpen: true });
+    renderWithProviders(<CommandPalette />, { client: seeded([]) });
+    expect(screen.getByText("Reports", { selector: "*" })).toBeInTheDocument();
+    // A direct jump to a specific report — otherwise a scroll-and-hunt on the Reports page.
+    expect(screen.getByText("Report · Earned Value (EVM)")).toBeInTheDocument();
+    expect(screen.getByText("Report · Gantt chart")).toBeInTheDocument();
+  });
+
+  it("selecting a report arms the one-shot jump signal and closes the palette", async () => {
+    const user = userEvent.setup();
+    useStore.setState({ isCommandOpen: true, reportsJump: null });
+    renderWithProviders(<CommandPalette />, { client: seeded([]) });
+    await user.click(screen.getByText("Report · Earned Value (EVM)"));
+    expect(useStore.getState().reportsJump).toBe("evm");
+    expect(useStore.getState().isCommandOpen).toBe(false);
+  });
+
   it("New Project opens the dialog flag (≤2 actions from anywhere)", async () => {
     const user = userEvent.setup();
     useStore.setState({ isCommandOpen: true, isNewProjectOpen: false });

@@ -13,7 +13,7 @@ export const SETTINGS_PANEL_KEYS = [
   "rateCard", "scopeUplift", "rateGrid", "identityMap", "costRules", "customReports", "customBackend",
   "contentPages", "priorityWeights", "federatedPeers", "governanceRules", "fieldVisibility",
   "governanceDashboard", "governance", "aiProviders", "actionCatalogue", "a11y", "calendarPush", "labels",
-  "priorityLabels", "viewBuilder", "methodologyComposer", "performance",
+  "priorityLabels", "viewBuilder", "methodologyComposer", "performance", "usageLimits",
 ] as const;
 
 export type SettingsPanelKey = (typeof SETTINGS_PANEL_KEYS)[number];

@@ -12,6 +12,7 @@ import {
   type AiGovContext,
 } from "./ai-governance";
 import { safeFetch } from "./egress";
+import { recordUsage as recordVendorUsage } from "./usage-metering";
 
 /**
  * AI provider client. Providers are first-class entities (lib/ai-providers) and their API
@@ -259,5 +260,8 @@ export async function aiChat(messages: ChatMessage[], ctx?: AiGovContext): Promi
   const content = await def.chat(endpoint, key, model, outbound);
 
   await recordChatUsage(ctx, messages, content);
+  // Meter this AI call+tokens against the provider vendor for the admin usage/cost screen (fleet-wide,
+  // fire-and-forget — separate from the per-scope governance budget above).
+  void recordVendorUsage(provider.kind, { calls: 1, tokens: estimateTokens(messages) + estimateTokens([{ content }]) }).catch(() => {});
   return { content, provider: provider.kind, model };
 }

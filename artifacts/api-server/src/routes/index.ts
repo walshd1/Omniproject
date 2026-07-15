@@ -61,6 +61,10 @@ import toolsRouter from "./tools";
 import provenanceRouter from "./provenance";
 import securityRouter from "./security";
 import healthWatchRouter from "./health-watch";
+import usageRouter from "./usage";
+import approvalsRouter from "./approvals";
+import approvalChainsRouter from "./approval-chains";
+import workflowsRouter from "./workflows";
 import scimRouter from "./scim";
 import breakGlassRouter from "./break-glass";
 import { isDeprovisioned } from "../lib/rbac";
@@ -199,6 +203,10 @@ router.use(requireAuth, toolsRouter);
 router.use(requireAuth, provenanceRouter);
 router.use(requireAuth, securityRouter);
 router.use(requireAuth, healthWatchRouter);
+router.use(requireAuth, usageRouter);
+router.use(requireAuth, approvalsRouter);
+router.use(requireAuth, approvalChainsRouter);
+router.use(requireAuth, workflowsRouter);
 
 /**
  * Mount the optional feature modules. Each enabled module is reached through a dynamic

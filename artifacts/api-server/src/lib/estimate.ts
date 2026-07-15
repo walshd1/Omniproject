@@ -1,4 +1,5 @@
 import { sanitizeForPrompt } from "./copilot";
+import { safeParseJson } from "./safe-json";
 
 /**
  * AI-assisted ESTIMATION — a read-only advisory that SUGGESTS an effort estimate for a described
@@ -60,7 +61,9 @@ export function parseEstimate(raw: string, unit: EstimateUnit): EstimateSuggesti
   const match = raw.match(/\{[\s\S]*\}/);
   if (!match) return fallback;
   let obj: unknown;
-  try { obj = JSON.parse(match[0]); } catch { return fallback; }
+  // The model reply is UNTRUSTED — safeParseJson strips __proto__/constructor/prototype at every depth
+  // (a bare JSON.parse here would let a crafted reply attempt prototype pollution before we coerce).
+  try { obj = safeParseJson(match[0]); } catch { return fallback; }
   if (typeof obj !== "object" || obj === null) return fallback;
   const rec = obj as Record<string, unknown>;
 

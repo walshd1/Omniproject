@@ -73,48 +73,69 @@ export function normaliseHeader(s: string): string {
   return s.toLowerCase().replace(/[^a-z0-9]/g, "");
 }
 
-/** Dice coefficient on character bigrams — a cheap, dependency-free fuzzy score. */
-function similarity(a: string, b: string): number {
-  if (a === b) return 1;
-  if (a.length < 2 || b.length < 2) return 0;
-  const bigrams = (s: string): Map<string, number> => {
-    const m = new Map<string, number>();
-    for (let i = 0; i < s.length - 1; i++) {
-      const g = s.slice(i, i + 2);
-      m.set(g, (m.get(g) ?? 0) + 1);
-    }
-    return m;
-  };
-  const A = bigrams(a);
-  const B = bigrams(b);
-  let overlap = 0;
-  for (const [g, n] of A) overlap += Math.min(n, B.get(g) ?? 0);
-  const total = a.length - 1 + (b.length - 1);
-  return (2 * overlap) / total;
+/** Character-bigram multiset of a normalised string — the shared kernel of the Dice score. */
+function bigrams(s: string): Map<string, number> {
+  const m = new Map<string, number>();
+  for (let i = 0; i < s.length - 1; i++) {
+    const g = s.slice(i, i + 2);
+    m.set(g, (m.get(g) ?? 0) + 1);
+  }
+  return m;
 }
 
-/** Score a single header against the registry; returns the best candidate. */
-function scoreHeader(column: string, registry: FieldDescriptor[]): ColumnSuggestion {
+/** Dice coefficient from two already-computed bigram multisets — lets the caller reuse the registry
+ *  side's bigrams across every header instead of rebuilding them per comparison. */
+function diceScore(a: string, aBig: Map<string, number>, b: string, bBig: Map<string, number>): number {
+  if (a === b) return 1;
+  if (a.length < 2 || b.length < 2) return 0;
+  let overlap = 0;
+  for (const [g, n] of aBig) overlap += Math.min(n, bBig.get(g) ?? 0);
+  return (2 * overlap) / (a.length - 1 + (b.length - 1));
+}
+
+/** A registry field with its normalised key/label + their bigrams precomputed ONCE, so scoring N
+ *  headers doesn't re-normalise and re-bigram the whole registry N times. */
+interface PreparedField {
+  f: FieldDescriptor;
+  normKey: string;
+  normLabel: string;
+  bigKey: Map<string, number>;
+  bigLabel: Map<string, number>;
+}
+
+/** Precompute the registry-side comparison view once (per suggest call). */
+function prepareRegistry(registry: FieldDescriptor[]): PreparedField[] {
+  return registry.map((f) => {
+    const normKey = normaliseHeader(f.key);
+    const normLabel = normaliseHeader(f.label);
+    return { f, normKey, normLabel, bigKey: bigrams(normKey), bigLabel: bigrams(normLabel) };
+  });
+}
+
+/** Score a single header against the (precomputed) registry; returns the best candidate. */
+function scoreHeader(column: string, prepared: PreparedField[]): ColumnSuggestion {
   const norm = normaliseHeader(column);
   if (!norm) return { column, suggestedField: null, type: null, confidence: 0, basis: "none" };
 
   // 1. Exact key/label match.
-  for (const f of registry) {
-    if (normaliseHeader(f.key) === norm || normaliseHeader(f.label) === norm) {
-      return { column, suggestedField: f.key, type: f.type, confidence: 1, basis: "exact" };
+  for (const p of prepared) {
+    if (p.normKey === norm || p.normLabel === norm) {
+      return { column, suggestedField: p.f.key, type: p.f.type, confidence: 1, basis: "exact" };
     }
   }
   // 2. Curated synonym.
   const syn = SYNONYMS[norm];
   if (syn) {
-    const f = registry.find((r) => r.key === syn);
-    if (f) return { column, suggestedField: f.key, type: f.type, confidence: 0.9, basis: "synonym" };
+    const p = prepared.find((r) => r.f.key === syn);
+    if (p) return { column, suggestedField: p.f.key, type: p.f.type, confidence: 0.9, basis: "synonym" };
   }
-  // 3. Fuzzy — best similarity over key + label, capped below the curated tiers.
+  // 3. Fuzzy — best similarity over key + label, capped below the curated tiers. The header's own
+  // bigrams are built once here and reused against every field's precomputed bigrams.
+  const normBig = bigrams(norm);
   let best: { f: FieldDescriptor; score: number } | null = null;
-  for (const f of registry) {
-    const score = Math.max(similarity(norm, normaliseHeader(f.key)), similarity(norm, normaliseHeader(f.label)));
-    if (!best || score > best.score) best = { f, score };
+  for (const p of prepared) {
+    const score = Math.max(diceScore(norm, normBig, p.normKey, p.bigKey), diceScore(norm, normBig, p.normLabel, p.bigLabel));
+    if (!best || score > best.score) best = { f: p.f, score };
   }
   if (best && best.score >= 0.6) {
     return { column, suggestedField: best.f.key, type: best.f.type, confidence: Math.min(0.85, best.score), basis: "fuzzy" };
@@ -128,7 +149,8 @@ function scoreHeader(column: string, registry: FieldDescriptor[]): ColumnSuggest
  * to unmapped so a human resolves the clash deliberately.
  */
 export function suggestColumnMapping(headers: string[], registry: FieldDescriptor[] = FIELD_REGISTRY): ColumnSuggestion[] {
-  const scored = headers.map((h) => scoreHeader(h, registry));
+  const prepared = prepareRegistry(registry);
+  const scored = headers.map((h) => scoreHeader(h, prepared));
   // Resolve collisions: if two columns claim the same field, keep the most
   // confident; demote the rest to unmapped.
   const claimed = new Map<string, number>(); // field key → index of current winner

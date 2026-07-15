@@ -116,6 +116,8 @@ function dominantCurrency(projects: Row[]): string {
   return native;
 }
 
+/** Sum a programme's project financials into one rollup (budget, actual cost, variance, …), or null
+ *  when none of the projects carry any financial fields (nothing to report). */
 export function aggregateFinancials(projects: Row[]): ProgrammeFinancials | null {
   let budget = 0;
   let actualCost = 0;

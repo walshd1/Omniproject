@@ -134,6 +134,10 @@ export function realisationSchedule(
   asOf: number,
 ): RealisationSchedule {
   const dated: { due: number; planned: number; actual: number }[] = [];
+  // Track the due-date range as we go — a spread over dated.map (Math.min(...)) both allocates a
+  // throwaway array and stack-overflows on a large portfolio.
+  let dueLo = Infinity;
+  let dueHi = -Infinity;
   let undated = 0;
   let totalPlanned = 0;
   let excludedForFx = 0;
@@ -151,7 +155,7 @@ export function realisationSchedule(
       totalPlanned += planned;
       const due = r.benefitDueDate ? Date.parse(r.benefitDueDate) : NaN;
       if (Number.isNaN(due)) undated += planned;
-      else dated.push({ due, planned, actual });
+      else { dated.push({ due, planned, actual }); if (due < dueLo) dueLo = due; if (due > dueHi) dueHi = due; }
     }
   }
 
@@ -159,8 +163,8 @@ export function realisationSchedule(
     return { periods: [], plannedToDate: 0, realisedToDate: 0, shortfallToDate: 0, overdueUnrealised: 0, undated: round2(undated), totalPlanned: round2(totalPlanned), excludedForFx };
   }
 
-  const lo = Math.min(...dated.map((d) => d.due));
-  const hi = Math.max(...dated.map((d) => d.due), asOf);
+  const lo = dueLo;
+  const hi = Math.max(dueHi, asOf);
   const quarters = quartersBetween(lo, hi);
 
   let cumPlanned = 0;

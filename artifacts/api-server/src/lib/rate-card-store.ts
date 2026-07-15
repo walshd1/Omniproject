@@ -132,10 +132,21 @@ export function projectTypeFor(projectId: string): string {
   return ensureLoaded().projectTypeOf[projectId] ?? "*";
 }
 
+// Index the project types by id, memoized on the array's IDENTITY — the loaded/mutated state always
+// REPLACES `projectTypes` with a fresh array, so a changed reference rebuilds the map (never stale)
+// while repeated lookups against the same state skip the linear .find.
+let projectTypeIndex: { arr: ProjectType[]; byId: Map<string, ProjectType> } | null = null;
+function projectTypeById(typeId: string): ProjectType | undefined {
+  const types = ensureLoaded().projectTypes;
+  if (!projectTypeIndex || projectTypeIndex.arr !== types) {
+    projectTypeIndex = { arr: types, byId: new Map(types.map((t) => [t.id, t])) };
+  }
+  return projectTypeIndex.byId.get(typeId);
+}
+
 /** The value model for a project — its type's declared columns, or the default cost + charge. */
 export function valueModelFor(projectId: string): ValueColumn[] {
-  const typeId = projectTypeFor(projectId);
-  const type = ensureLoaded().projectTypes.find((t) => t.id === typeId);
+  const type = projectTypeById(projectTypeFor(projectId));
   return type?.values && type.values.length > 0 ? type.values : DEFAULT_VALUE_MODEL;
 }
 

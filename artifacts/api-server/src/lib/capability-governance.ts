@@ -329,6 +329,18 @@ export function setCapabilityState(id: string, input: unknown): CapabilitySettin
   return clean;
 }
 
+/**
+ * Build the `capabilityStates` PATCH that sets ONE capability (sanitized) WITHOUT persisting — so the route
+ * can route it through the invariant guard (raising a capability's exposure is a security reduction → held
+ * for a signed sign-off; lowering it applies immediately). Throws {@link UnknownCapabilityError} on a bad id.
+ */
+export function capabilityStatePatch(id: string, input: unknown): { clean: CapabilitySetting; next: Record<string, CapabilitySetting> } {
+  const cap = getCapability(id);
+  if (!cap) throw new UnknownCapabilityError(id);
+  const clean = sanitizeCapabilitySetting(cap, input);
+  return { clean, next: { ...getSettings().capabilityStates, [id]: clean } };
+}
+
 /** Thrown when an unknown capability id is addressed. */
 export class UnknownCapabilityError extends Error {
   constructor(id: string) {

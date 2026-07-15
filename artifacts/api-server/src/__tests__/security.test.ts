@@ -25,6 +25,8 @@ process.env["OIDC_PMO_ROLES"] = "omni-pmo";
 process.env["OIDC_MANAGER_ROLES"] = "omni-managers";
 process.env["OIDC_DEFAULT_ROLE"] = "viewer";
 process.env["NODE_ENV"] = "production";
+process.env["WEBAUTHN_RP_ID"] = "localhost";           // approvals are signed against this rp
+process.env["WEBAUTHN_ORIGIN"] = "https://localhost";
 process.env["RATE_LIMIT_DISABLED"] = "true"; // isolate auth behaviour from the limiter
 // RATE_LIMIT_DISABLED in "production" is a CRITICAL boot-refusing finding by default (env-config),
 // independent of OIDC being configured — opt out for this harness only.
@@ -68,6 +70,46 @@ after(() => {
 });
 
 const req = (path: string, init?: RequestInit) => fetch(`${base}${path}`, init);
+
+// ── Signed sign-off helper (§0 invariant) ────────────────────────────────────
+// A settings change that REDUCES the posture (enabling egress, swapping the broker trust root) is HELD
+// for a passkey-signed sign-off instead of applying immediately. These helpers register ADMIN's passkey
+// once and satisfy the solo confirm+sign chain so a gated change can be driven to "applied" in-test.
+const SO_KEYS = crypto.generateKeyPairSync("ec", { namedCurve: "P-256" });
+const sha256 = (b: Buffer): Buffer => crypto.createHash("sha256").update(b).digest();
+let passkeyReady = false;
+
+async function ensurePasskey(sub: string): Promise<void> {
+  if (passkeyReady) return;
+  const { registerCredential } = await import("../lib/passkey");
+  await registerCredential(sub, { credentialId: "solo", publicKeySpki: SO_KEYS.publicKey.export({ type: "spki", format: "der" }).toString("base64") });
+  passkeyReady = true;
+}
+
+/** Drive a HELD relaxation proposal to "applied" by satisfying the solo admin confirm+sign stage. */
+async function signOffRelaxation(proposalId: string, sub = "admin-1"): Promise<void> {
+  await ensurePasskey(sub);
+  const { challengeForStage, submitDecision } = await import("../lib/approval-service");
+  const ch = (await challengeForStage(proposalId, sub))!;
+  const clientData = Buffer.from(JSON.stringify({ type: "webauthn.get", challenge: ch.challenge, origin: "https://localhost", crossOrigin: false }));
+  const authData = Buffer.concat([sha256(Buffer.from("localhost")), Buffer.from([0x05]), Buffer.alloc(4)]);
+  const signature = crypto.sign("sha256", Buffer.concat([authData, sha256(clientData)]), SO_KEYS.privateKey);
+  const res = await submitDecision(proposalId, { sub, roles: ["admin"], via: "human" }, {
+    decision: "approve", credentialId: "solo",
+    clientDataJSON: clientData.toString("base64url"), authenticatorData: authData.toString("base64url"), signature: signature.toString("base64url"),
+  });
+  assert.equal(res.status, "approved");
+  assert.equal(res.executed, true);
+}
+
+/** PATCH /api/settings expecting a HELD relaxation (202), returning the pending proposal id. */
+async function patchHeld(body: unknown, cookie: string): Promise<string> {
+  const res = await req("/api/settings", { method: "PATCH", headers: { cookie, "content-type": "application/json" }, body: JSON.stringify(body) });
+  assert.equal(res.status, 202, "a security-reducing change is held for a signed sign-off");
+  const id = ((await res.json()) as { pending?: { proposalId?: string } }).pending?.proposalId;
+  assert.ok(id, "held response carries a proposal id");
+  return id!;
+}
 
 test("unauthenticated request to a protected route is 401", async () => {
   const res = await req("/api/projects");
@@ -431,13 +473,16 @@ test("SSRF guard: the IPv4-mapped IPv6 form of the metadata address is rejected 
 });
 
 test("SSRF guard: a legitimately-internal brokerUrl is accepted (not over-blocked)", async () => {
-  // Self-hosted brokers are internal by design; an http(s) private host must pass.
+  // Self-hosted brokers are internal by design; an http(s) private host must PASS the SSRF guard. Under the
+  // §0 invariant a brokerUrl change (trust-root swap) is held for a signed sign-off, so "accepted" now means
+  // 202 (validated + held), not 400 (SSRF-blocked). The guard runs in validatePatch before the hold, so a
+  // blocked URL would still be a 400 here — this proves the internal URL is not over-blocked.
   const res = await req("/api/settings", {
     method: "PATCH",
     headers: { cookie: ADMIN, "content-type": "application/json" },
     body: JSON.stringify({ brokerUrl: "http://n8n:5678/webhook/omni" }),
   });
-  assert.equal(res.status, 200);
+  assert.equal(res.status, 202);
 });
 
 test("/fx-rates returns a rate table to an authenticated session", async () => {
@@ -479,22 +524,20 @@ test("logging sync: enabling with url + acknowledgement unlocks the timeTravel c
   const before = (await (await req("/api/capabilities", { headers: { cookie: ADMIN } })).json()) as { timeTravel?: boolean };
   assert.equal(before.timeTravel, false);
 
-  const enable = await req("/api/settings", {
-    method: "PATCH",
-    headers: { cookie: ADMIN, "content-type": "application/json" },
-    body: JSON.stringify({ loggingSync: { enabled: true, url: "https://logs.internal:9200/ingest", acknowledgedWarranty: true } }),
-  });
-  assert.equal(enable.status, 200);
+  // Enabling egress is a security REDUCTION → held for a signed sign-off, then applied by the executor.
+  const proposalId = await patchHeld({ loggingSync: { enabled: true, url: "https://logs.internal:9200/ingest", acknowledgedWarranty: true } }, ADMIN);
+  await signOffRelaxation(proposalId);
 
   const after = (await (await req("/api/capabilities", { headers: { cookie: ADMIN } })).json()) as { timeTravel?: boolean };
   assert.equal(after.timeTravel, true);
 
-  // Restore (off) so global store state doesn't leak into other tests.
-  await req("/api/settings", {
+  // Restore (off): DISABLING egress strengthens the posture, so it applies immediately (200, not held).
+  const off = await req("/api/settings", {
     method: "PATCH",
     headers: { cookie: ADMIN, "content-type": "application/json" },
     body: JSON.stringify({ loggingSync: { enabled: false, url: null, acknowledgedWarranty: false } }),
   });
+  assert.equal(off.status, 200);
 });
 
 test("time-travel replay is gated 409 until the logging sync is enabled, then 200 for a portfolio-scoped caller", async () => {
@@ -503,11 +546,9 @@ test("time-travel replay is gated 409 until the logging sync is enabled, then 20
   const locked = await req("/api/history/replay", { headers: { cookie: PMO_ADMIN } });
   assert.equal(locked.status, 409); // enabled-wall first (scope is fine for PMO_ADMIN)
 
-  await req("/api/settings", {
-    method: "PATCH",
-    headers: { cookie: ADMIN, "content-type": "application/json" },
-    body: JSON.stringify({ loggingSync: { enabled: true, url: "https://logs.internal:9200/ingest", acknowledgedWarranty: true } }),
-  });
+  // Enabling the sync is a held relaxation → sign it off so the executor applies it.
+  const proposalId = await patchHeld({ loggingSync: { enabled: true, url: "https://logs.internal:9200/ingest", acknowledgedWarranty: true } }, ADMIN);
+  await signOffRelaxation(proposalId);
 
   // With the sync on, a portfolio-scoped principal replays; a user-scoped VIEWER is still refused (403)
   // — the scope gate is independent of the enabled gate, so enabling the sync doesn't widen who can read.

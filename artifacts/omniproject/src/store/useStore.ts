@@ -19,6 +19,10 @@ export interface OmniStore {
   // on arrival, then clears it. Lets ⌘K jump straight to any of the ~46 admin panels (2 actions).
   settingsJump: string | null
   setSettingsJump: (key: string | null) => void
+  // A one-shot signal from the command palette: the Reports page scrolls this report id into view
+  // on arrival, then clears it. Lets ⌘K jump straight to any catalogue report (2 actions).
+  reportsJump: string | null
+  setReportsJump: (id: string | null) => void
   activeProjectId: string | null
   setActiveProjectId: (id: string | null) => void
   aiProvider: 'none' | 'openai' | 'ollama' | 'anthropic' | 'openrouter'
@@ -74,6 +78,9 @@ export const useStore = create<OmniStore>((set) => ({
   setShortcutsOpen: (open) => set({ isShortcutsOpen: open }),
   settingsJump: null,
   setSettingsJump: (key) => set({ settingsJump: key }),
+
+  reportsJump: null,
+  setReportsJump: (id) => set({ reportsJump: id }),
   activeProjectId: getInitialActiveProjectId(),
   setActiveProjectId: (id) => {
     if (id) writeLs(ACTIVE_PROJECT_KEY, id)

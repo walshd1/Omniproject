@@ -60,6 +60,9 @@ export const DEFAULT_APPROVED_ACTIONS: readonly string[] = [
   "list_projects", "list_issues", "project_summary", "get_portfolio_health",
   "get_capabilities", "get_notifications", "list_reports", "list_screens",
   "portfolio_copilot",
+  // A read, so approved by default — but it ALSO requires its `jqlSearch` feature to be enabled
+  // (off by default), so the feature flag is the real admin opt-in; approval alone won't surface it.
+  "search_issues",
 ];
 
 /** Approved action → its scope ({} = global/unconstrained). */

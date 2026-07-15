@@ -1,0 +1,39 @@
+# OmniProject + OmniStore (the first-party stateful backend), one-stop-shop mode.
+#   docker compose -f docker-compose.omnistore.yml up --build
+#
+# The gateway stays stateless and holds NO store data — it just points BROKER_URL at the OmniStore
+# backend over the shared PSK-authenticated wire. OmniStore holds the encrypted, chain-verified log on
+# a persistent volume (you own its backups/DR). Swap OmniStore for Jira/OpenProject/a SQL sidecar by
+# repointing BROKER_URL — OmniStore is optional.
+services:
+  omnistore:
+    build:
+      context: .
+      dockerfile: services/omnistore/Dockerfile
+    environment:
+      PORT: "5702"
+      OMNISTORE_FILE: /var/lib/omnistore/store.sealed
+      # Set a stable base64-32 key so the store is portable/recoverable independent of the gateway.
+      # OMNISTORE_KEY: "…"
+      BROKER_PSK: "${BROKER_PSK:?set a shared gateway<->backend PSK}"
+      SIDECAR_MAX_INFLIGHT: "64" # shed load with 429+Retry-After past this; the gateway backs off
+    volumes:
+      - omnistore-data:/var/lib/omnistore
+    restart: unless-stopped
+
+  gateway:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    depends_on:
+      - omnistore
+    ports:
+      - "3000:3000"
+    environment:
+      PORT: "3000"
+      BROKER_URL: http://omnistore:5702 # any broker can point here — OmniStore is just a backend
+      BROKER_PSK: "${BROKER_PSK:?set a shared gateway<->backend PSK}"
+    restart: unless-stopped
+
+volumes:
+  omnistore-data:

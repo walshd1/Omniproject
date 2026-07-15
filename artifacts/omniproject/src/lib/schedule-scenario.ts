@@ -151,10 +151,13 @@ export function computeSchedule(
   const queue: string[] = [];
   for (const it of items) if ((indegree.get(it.id) ?? 0) === 0) queue.push(it.id);
   const order: string[] = [];
+  const inOrder = new Set<string>();
   const localIndeg = new Map(indegree);
-  while (queue.length) {
-    const id = queue.shift()!;
+  let head = 0;
+  while (head < queue.length) {
+    const id = queue[head++]!;
     order.push(id);
+    inOrder.add(id);
     for (const s of succs.get(id) ?? []) {
       localIndeg.set(s, (localIndeg.get(s) ?? 0) - 1);
       if ((localIndeg.get(s) ?? 0) === 0) queue.push(s);
@@ -162,7 +165,7 @@ export function computeSchedule(
   }
   const hasCycle = order.length < items.length;
   // Append any cycle-trapped nodes so they still get a (constraint-free) result.
-  if (hasCycle) for (const it of items) if (!order.includes(it.id)) order.push(it.id);
+  if (hasCycle) for (const it of items) if (!inOrder.has(it.id)) { order.push(it.id); inOrder.add(it.id); }
 
   const resolvedStart = new Map<string, number>();
   const resolvedEnd = new Map<string, number>();
@@ -178,6 +181,13 @@ export function computeSchedule(
     resolvedEnd.set(id, start + it.durationDays);
   }
 
+  // Running min/max folded into the single build loop (avoids O(n) spread
+  // allocations and a latent stack-overflow on large lists). Empty-safe via the
+  // length guards below, exactly matching the previous `? … : 0` handling.
+  let baseEndMax = -Infinity;
+  let resEndMax = -Infinity;
+  let rangeStartMin = Infinity;
+  let rangeEndMax = -Infinity;
   const resolved: ResolvedItem[] = items.map((it) => {
     const rs = resolvedStart.get(it.id)!;
     const re = resolvedEnd.get(it.id)!;
@@ -187,6 +197,10 @@ export function computeSchedule(
     const total = rs - it.baseStartDay;
     const breached = it.baseDueDay != null && re > it.baseDueDay;
     const wasBreached = it.baseDueDay != null && it.baseEndDay > it.baseDueDay;
+    baseEndMax = Math.max(baseEndMax, it.baseEndDay);
+    resEndMax = Math.max(resEndMax, re);
+    rangeStartMin = Math.min(rangeStartMin, it.baseStartDay, rs);
+    rangeEndMax = Math.max(rangeEndMax, it.baseEndDay, re);
     return {
       ...it,
       resolvedStartDay: rs,
@@ -201,8 +215,8 @@ export function computeSchedule(
     };
   });
 
-  const baseEnd = items.length ? Math.max(...items.map((it) => it.baseEndDay)) : 0;
-  const resEnd = resolved.length ? Math.max(...resolved.map((it) => it.resolvedEndDay)) : 0;
+  const baseEnd = items.length ? baseEndMax : 0;
+  const resEnd = resolved.length ? resEndMax : 0;
 
   const summary: ScheduleSummary = {
     directlyMovedCount: resolved.filter((it) => it.movedByUser).length,
@@ -213,12 +227,10 @@ export function computeSchedule(
     hasCycle,
   };
 
-  const starts = resolved.flatMap((it) => [it.baseStartDay, it.resolvedStartDay]);
-  const ends = resolved.flatMap((it) => [it.baseEndDay, it.resolvedEndDay]);
   return {
     items: resolved,
     summary,
-    rangeStartDay: starts.length ? Math.min(...starts) : 0,
-    rangeEndDay: ends.length ? Math.max(...ends) : 0,
+    rangeStartDay: resolved.length ? rangeStartMin : 0,
+    rangeEndDay: resolved.length ? rangeEndMax : 0,
   };
 }

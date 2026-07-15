@@ -1,6 +1,7 @@
 {
   "name": "@workspace/api-server",
   "version": "0.0.0",
+  "license": "Apache-2.0",
   "private": true,
   "type": "module",
   "scripts": {
@@ -8,6 +9,7 @@
     "build": "node ./build.mjs",
     "start": "node --enable-source-maps ./dist/index.mjs",
     "sidecar": "tsx src/broker/reference-sidecar.ts",
+    "omnistore": "tsx src/broker/omnistore/main.ts",
     "broker:send": "tsx src/broker/send-cli.ts",
     "broker:replay": "tsx src/broker/replay-cli.ts",
     "smoke": "tsx --test src/broker/smoke.integration.test.ts",

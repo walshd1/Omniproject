@@ -125,6 +125,16 @@ export const FEATURE_MODULES: readonly FeatureModule[] = [
     description: "Fast cross-entity quick-find over projects, issues and programmes.",
   },
   {
+    // JQL search TOOL (MCP): a rich Jira-style query over the caller's scope-bounded work items,
+    // evaluated in the read model (lib/jql). Default-OFF: a powerful cross-project query surface an
+    // admin opts into. No backend route to mount — it gates the MCP `search_issues` tool via its `feature`.
+    id: "jqlSearch",
+    label: "JQL search",
+    description: "Rich Jira-style query language (JQL) for searching work items, exposed as an AI/MCP tool.",
+    defaultOff: true,
+    reason: "cost", // rich cross-project queries can scan the whole scoped portfolio
+  },
+  {
     // Live collaboration: per-surface presence + advisory, soft-TTL field "locks" over SSE. Has a
     // backend route (the SSE stream + heartbeat) so it loads lazily; the SPA gates it via useFeatures.
     id: "presence",
@@ -145,6 +155,18 @@ export const FEATURE_MODULES: readonly FeatureModule[] = [
     load: () => import("../routes/comments"),
     defaultOff: true,
     reason: "storage", // holds comment state in the shared-state seam (soft, opt-in write-through)
+  },
+  {
+    // Admin bulk-action runner: apply one canonical broker write (create/update project) to many
+    // projects at once, declaratively. Has a backend route (POST /api/admin/bulk), so it loads
+    // lazily; OFF until an admin opts in — it fans out project-level writes (high blast radius), so
+    // it stays gated behind the feature toggle + requireRole("manager") + step-up on the route.
+    id: "bulkActions",
+    label: "Bulk actions",
+    description: "Apply a canonical write (create/update project) to many projects at once, with a dry-run preview.",
+    load: () => import("../routes/bulk"),
+    defaultOff: true,
+    reason: "safety", // fans out project-level writes — high blast radius, opt-in only
   },
   {
     // UI-only: makes the per-user PREDICTIVE (speculative) prefetch toggle AVAILABLE (off by default

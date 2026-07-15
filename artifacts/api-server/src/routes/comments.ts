@@ -123,14 +123,22 @@ function dispatchMentions(comment: Comment): void {
 }
 
 /** Optional durable write-through: when COMMENT_PERSISTENCE=backend, persist an issue-scoped comment
- *  as a `note` TaskItem through the neutral broker seam. Project-scoped rooms (no task id) and the
- *  default (off) are a no-op — the ephemeral store is always the source for the thread. */
+ *  through the neutral broker seam. A backend that stores comments FIRST-CLASS (e.g. OmniStore) gets a
+ *  real comment via `addTaskComment`; a backend that only models notes falls back to a `note` TaskItem,
+ *  so the write-through still works everywhere. Project-scoped rooms (no task id) and the default (off)
+ *  are a no-op — the ephemeral store is always the source for the live thread. */
 async function maybePersistToBackend(req: Request, comment: Comment): Promise<void> {
   if (process.env["COMMENT_PERSISTENCE"]?.trim().toLowerCase() !== "backend") return;
   const m = /^issue:([^:]+):([^:]+)$/.exec(comment.roomId);
-  if (!m) return; // only issue:<projectId>:<issueId> rooms map to a backend task item
+  if (!m) return; // only issue:<projectId>:<issueId> rooms map to a backend work item
   const [, projectId, issueId] = m;
-  await getBroker().createTaskItem(contextFromReq(req), projectId!, issueId!, { kind: "note", content: comment.body });
+  const broker = getBroker();
+  const ctx = contextFromReq(req);
+  if (broker.addTaskComment) {
+    await broker.addTaskComment(ctx, issueId!, { body: comment.body });
+    return;
+  }
+  await broker.createTaskItem(ctx, projectId!, issueId!, { kind: "note", content: comment.body });
 }
 
 export default router;

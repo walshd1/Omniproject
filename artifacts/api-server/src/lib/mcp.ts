@@ -23,6 +23,9 @@ export interface McpTool {
   action: string;
   /** Mutating tool — gated behind MCP_WRITE_ENABLED + a contributor+ session. */
   write?: boolean;
+  /** Optional feature-module id that must be ENABLED for this tool to be advertised or callable.
+   *  A tool whose feature is off is invisible AND refused — the "optional to enable" gate. */
+  feature?: string;
 }
 
 // ⚠️ HERE BE DRAGONS — MCP writes let an AGENT mutate your real backend through
@@ -49,6 +52,10 @@ const READ_TOOLS: McpTool[] = [
   // model only ever sees the minimal aggregated snapshot. `mode` picks RAG (methodology lens)
   // or freeform; `methodology` optionally pins which lens RAG retrieves.
   { name: "omniproject_portfolio_copilot", action: "portfolio_copilot", description: "Ask a plain-language question about portfolio health and get a read-only narrative answer over a minimal, aggregated snapshot (RAG, variances, blockers). Optionally lens the answer through a delivery methodology.", inputSchema: { type: "object", properties: { question: { type: "string", description: "The portfolio question to answer." }, mode: { type: "string", enum: ["rag", "freeform"], description: "rag (default) applies a methodology persona; freeform answers plainly." }, methodology: { type: "string", description: "Optional methodology hint (e.g. scrum, prince2) to pin the RAG lens." } }, required: ["question"] } },
+  // JQL search — a rich Jira-style query over the caller's SCOPE-BOUNDED work items, evaluated in the
+  // read model (never in a datastore). OFF by default: gated behind the `jqlSearch` feature, so it's
+  // invisible + refused until an admin opts in. A read, but a powerful cross-project one, hence the gate.
+  { name: "omniproject_search_issues", action: "search_issues", feature: "jqlSearch", description: "Search work items with a JQL-style query over everything you can see, e.g. \"status = open AND priority IN (high, medium) ORDER BY storyPoints DESC\". Operators: = != > >= < <= ~ (contains) !~ IN, IS [NOT] EMPTY; AND/OR/NOT with parentheses; ORDER BY. Read-only.", inputSchema: { type: "object", properties: { jql: { type: "string", description: "The JQL query. Empty matches all." }, limit: { type: "number", description: "Max rows to return (default 200, max 500)." } }, required: ["jql"] } },
 ];
 
 /** Write tools (gated — see DRAGONS). Advertised only when writes are enabled. */
@@ -89,6 +96,9 @@ export interface McpPolicy {
   writesEnabled: boolean;
   /** This caller may write (contributor+ session, never a read-only token). */
   canWrite: boolean;
+  /** Is a feature-module enabled? Supplied by the route (lib/feature-modules). A tool declaring a
+   *  `feature` is hidden + refused unless this returns true. Absent ⇒ feature-gated tools are OFF. */
+  featureEnabled?: (feature: string) => boolean;
 }
 
 /**
@@ -100,8 +110,9 @@ export async function handleMcp(req: JsonRpcRequest, exec: McpExecutor, serverVe
   const id = req.id ?? null;
   const isNotification = req.id === undefined;
   // Advertise write tools only when writes are enabled (a disabled server looks
-  // read-only to the client).
-  const visibleTools = policy.writesEnabled ? MCP_TOOLS : READ_TOOLS;
+  // read-only to the client), and hide any feature-gated tool whose feature is off.
+  const featureOn = (t: McpTool): boolean => !t.feature || (policy.featureEnabled?.(t.feature) ?? false);
+  const visibleTools = (policy.writesEnabled ? MCP_TOOLS : READ_TOOLS).filter(featureOn);
 
   switch (req.method) {
     case "initialize":
@@ -118,6 +129,8 @@ export async function handleMcp(req: JsonRpcRequest, exec: McpExecutor, serverVe
       const args = (req.params?.["arguments"] as Record<string, unknown>) ?? {};
       const tool = toolByName(name);
       if (!tool) return err(id, -32602, `unknown tool: ${name}`);
+      // Gate a feature-scoped tool: refuse it exactly as if it didn't exist when the feature is off.
+      if (!featureOn(tool)) return err(id, -32601, `tool "${name}" is not enabled`);
       // Gate writes: disabled server OR insufficient privilege → refuse loudly.
       if (tool.write) {
         if (!policy.writesEnabled) return err(id, -32004, "MCP writes are disabled — set MCP_WRITE_ENABLED to allow them (here be dragons).");

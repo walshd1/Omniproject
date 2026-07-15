@@ -14,9 +14,13 @@ interface Entry {
   exp: number;
 }
 
+/** Hard cap on live entries so memory tracks the working set, not every distinct key ever seen — a
+ *  TTL alone lets a write-once-never-read key sit resident until it expires. Mirrors broker/cache.ts. */
+const MAX_ENTRIES = 5_000;
+
 export class ReadCache {
   private readonly store = new Map<string, Entry>();
-  constructor(private readonly ttlMs: number) {}
+  constructor(private readonly ttlMs: number, private readonly maxEntries: number = MAX_ENTRIES) {}
 
   /** True only when a positive TTL was configured. */
   enabled(): boolean {
@@ -31,12 +35,29 @@ export class ReadCache {
       this.store.delete(key);
       return undefined;
     }
+    // LRU touch: re-insert so this key moves to the end and is evicted last (Map keeps insertion order).
+    this.store.delete(key);
+    this.store.set(key, e);
     return e.value as T;
   }
 
   set(key: string, value: unknown, now = Date.now()): void {
     if (!this.enabled()) return;
+    // Re-insert at the end (LRU position), then bound the size.
+    this.store.delete(key);
     this.store.set(key, { value, exp: now + this.ttlMs });
+    if (this.store.size > this.maxEntries) this.evict(now);
+  }
+
+  /** Bound the store: drop everything already expired (free), then, if still over the cap, evict the
+   *  least-recently-used (insertion-order front) until back under it. */
+  private evict(now: number): void {
+    for (const [k, e] of this.store) if (e.exp <= now) this.store.delete(k);
+    while (this.store.size > this.maxEntries) {
+      const oldest = this.store.keys().next().value;
+      if (oldest === undefined) break;
+      this.store.delete(oldest);
+    }
   }
 
   /** Memoise an async read for the TTL. With the cache disabled this is a

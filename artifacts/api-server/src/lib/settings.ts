@@ -19,6 +19,9 @@ import { isValidCadence, type SnapshotCadence } from "../history/cadence";
 import { logger } from "./logger";
 import { isTruthy } from "./env-config";
 import { validateFieldRouting, FieldRoutingError, type FieldRoute } from "./field-routing";
+import { validateApprovalChains, ApprovalChainError, type ChainDef } from "./approval-chain";
+import { validateApprovalBindings, ApprovalBindingError, type ApprovalBinding } from "./approval-binding";
+import { validateWorkflows, WorkflowError, type WorkflowDef } from "./workflow";
 import { validateCustomFields, validateCustomFieldSources, CustomFieldError, type CustomField } from "./custom-fields";
 import { sanitizeBranding } from "./branding";
 import { sanitizeUserPrefs } from "./user-prefs";
@@ -27,6 +30,7 @@ import { sanitizeLabels } from "./labels";
 import { isForbiddenKey, stripDangerousKeysDeep } from "./safe-json";
 import { validateFieldValidation, FieldValidationError, type FieldValidationRule } from "./field-validation";
 import { validateProgrammeRegistry, ProgrammeRegistryError, type ProgrammeRegistry } from "./programmes";
+import type { UsagePolicy } from "./usage-metering";
 import { validateBrokerKinds, brokerKindsFromEnv, BrokerKindsError } from "./broker-kinds";
 import { validateClosedProjects, ClosedProjectError, type ClosedProjectRegistry } from "./closed-projects";
 import { validateGuidAliases, GuidAliasError, type GuidAliases } from "./guid-aliases";
@@ -275,6 +279,12 @@ export interface BrokerConfig {
   /** The field-routing matrix: which source (vendor·broker·sourceField) feeds which UI element.
    *  One-to-one at both ends (anti-collision) — see lib/field-routing. */
   fieldRouting: FieldRoute[];
+  /** Approval-chain definitions (org/project-scoped), authored by PMO/PM. See docs/design/WORKFLOW-APPROVAL-CHAINS.md. */
+  approvalChains: ChainDef[];
+  /** Which action ids are gated by which chain (action → chainId). Empty ⇒ nothing is chain-gated. */
+  approvalBindings: ApprovalBinding[];
+  /** Admin/PMO/PM-authored workflows (org/project-scoped), stored as JSON. See docs/design/WORKFLOW-APPROVAL-CHAINS.md. */
+  workflows: WorkflowDef[];
   /** Admin-defined fields extending the reference superset. Each must be mapped in `fieldRouting`
    *  (route it to the Postgres backend if there's no external source) — see lib/custom-fields. */
   customFields: CustomField[];
@@ -336,6 +346,10 @@ export interface FinancialConfig {
    * routes/portfolio-priority-weights + the SPA PortfolioPrioritisation report.
    */
   priorityWeights: PriorityWeights;
+  /** Admin-entered per-vendor usage governance: an optional volume LIMIT + unit COST per external
+   *  vendor, so the usage screen can show cost totals and warn at 50/75/90/100% of a limit. Config
+   *  only — the counters themselves live in the shared-state seam (lib/usage-metering). */
+  usagePolicies?: Record<string, UsagePolicy>;
 }
 
 /** Outbound integrations: OIDC issuer, webhooks, federated peers, digest email, calendar push,
@@ -1012,6 +1026,9 @@ const FIELD_DESCRIPTORS: { [K in keyof SettingsState]: FieldDescriptor<K> } = {
     validate: normalisedBy((v) => validateFieldRouting(v), FieldRoutingError),
   },
   customFields: { seed: () => [], validate: normalisedBy((v) => validateCustomFields(v), CustomFieldError) },
+  approvalChains: { seed: () => [], validate: normalisedBy((v) => validateApprovalChains(v), ApprovalChainError) },
+  approvalBindings: { seed: () => [], validate: normalisedBy((v) => validateApprovalBindings(v), ApprovalBindingError) },
+  workflows: { seed: () => [], validate: normalisedBy((v) => validateWorkflows(v), WorkflowError) },
   fieldValidation: {
     // Validate the rule DEFINITIONS (shape + patterns compile); values are enforced on the write path.
     seed: () => [],
@@ -1102,6 +1119,7 @@ const FIELD_DESCRIPTORS: { [K in keyof SettingsState]: FieldDescriptor<K> } = {
   dashboards: { seed: () => [], validate: shapeChecked(validateDashboards) },
   contentPages: { seed: () => [], validate: shapeChecked(validateContentPages) },
   priorityWeights: { seed: () => ({ ...DEFAULT_PRIORITY_WEIGHTS }), validate: shapeChecked(validatePriorityWeights) },
+  usagePolicies: { seed: () => ({}), validate: shapeChecked(validateUsagePolicies) },
 };
 
 // The mutable in-memory store, seeded once from the descriptors. An undefined seed (deploymentProfile
@@ -1326,6 +1344,34 @@ function validatePriorityWeights(value: unknown): void {
     const v = o[k];
     if (typeof v !== "number" || !Number.isFinite(v) || v < 0) {
       throw new SettingsValidationError(`priorityWeights.${k} must be a non-negative number`);
+    }
+  }
+}
+
+const USAGE_PERIODS = ["hour", "day", "month"] as const;
+const USAGE_METRICS = ["calls", "tokens"] as const;
+const USAGE_COST_PER = ["call", "token", "ktoken"] as const;
+
+/** Shape-validate the per-vendor usage policies: `{ [vendor]: { limit?, cost? } }`. A limit needs a
+ *  known period+metric and a positive max; a cost needs a known unit, a non-negative amount and a
+ *  currency. Unknown keys are ignored so the shape can't be used to smuggle arbitrary config. */
+function validateUsagePolicies(value: unknown): void {
+  if (typeof value !== "object" || value == null || Array.isArray(value)) throw new SettingsValidationError("usagePolicies must be an object");
+  for (const [vendor, raw] of Object.entries(value as Record<string, unknown>)) {
+    if (isForbiddenKey(vendor)) throw new SettingsValidationError("usagePolicies vendor key is not allowed");
+    if (typeof raw !== "object" || raw == null) throw new SettingsValidationError(`usagePolicies.${vendor} must be an object`);
+    const p = raw as Record<string, unknown>;
+    if (p["limit"] !== undefined && p["limit"] !== null) {
+      const l = p["limit"] as Record<string, unknown>;
+      if (!(USAGE_PERIODS as readonly unknown[]).includes(l["period"])) throw new SettingsValidationError(`usagePolicies.${vendor}.limit.period must be one of: ${USAGE_PERIODS.join(", ")}`);
+      if (!(USAGE_METRICS as readonly unknown[]).includes(l["metric"])) throw new SettingsValidationError(`usagePolicies.${vendor}.limit.metric must be one of: ${USAGE_METRICS.join(", ")}`);
+      if (typeof l["max"] !== "number" || !Number.isFinite(l["max"]) || (l["max"] as number) <= 0) throw new SettingsValidationError(`usagePolicies.${vendor}.limit.max must be a positive number`);
+    }
+    if (p["cost"] !== undefined && p["cost"] !== null) {
+      const c = p["cost"] as Record<string, unknown>;
+      if (!(USAGE_COST_PER as readonly unknown[]).includes(c["per"])) throw new SettingsValidationError(`usagePolicies.${vendor}.cost.per must be one of: ${USAGE_COST_PER.join(", ")}`);
+      if (typeof c["amount"] !== "number" || !Number.isFinite(c["amount"]) || (c["amount"] as number) < 0) throw new SettingsValidationError(`usagePolicies.${vendor}.cost.amount must be a non-negative number`);
+      if (typeof c["currency"] !== "string" || !c["currency"].trim()) throw new SettingsValidationError(`usagePolicies.${vendor}.cost.currency must be a non-empty string`);
     }
   }
 }
@@ -1592,7 +1638,7 @@ export function registerCapabilityStatesSanitizer(fn: CapabilityStatesSanitizer)
 /** Validate a settings patch and return a NORMALIZED copy (reportingCurrency upper-cased,
  *  fxRateAsOfDate/reportingCurrency empty-string coerced to null, …) — pure, never mutates the
  *  caller's `patch` object. Throws SettingsValidationError on bad input. */
-function validatePatch(rawPatch: Record<string, unknown>): Record<string, unknown> {
+export function validatePatch(rawPatch: Record<string, unknown>): Record<string, unknown> {
   // Strip prototype-pollution-dangerous OWN keys (__proto__/constructor/prototype) at every depth BEFORE
   // any field is read or persisted. Over HTTP the express.json reviver already does this, but a config-
   // snapshot restore / internal updateSettings() call parses with bare JSON.parse — so a field whose

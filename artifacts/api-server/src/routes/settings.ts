@@ -1,10 +1,12 @@
 import { Router } from "express";
-import { getSettings, updateSettings, redactSettingsForRead, SettingsValidationError } from "../lib/settings";
+import { getSettings, redactSettingsForRead, SettingsValidationError } from "../lib/settings";
 import { evaluateConstraints } from "../lib/settings-constraints";
 import { listSettingsPresets } from "../lib/settings-presets";
 import { requireRole } from "../lib/rbac";
 import { captureVersion } from "../lib/config-store";
 import { resetBroker } from "../broker";
+import { getSession } from "./auth";
+import { applySettingsGuarded } from "../lib/settings-guard";
 
 /**
  * Gateway-local settings (the broker URL, AI provider, …). Control-plane, never
@@ -33,7 +35,7 @@ router.get("/settings/presets", (_req, res) => {
 
 // Changing settings re-wires the gateway (broker URL, AI provider) — admin only.
 // Each change is versioned so it can be rolled back (see config-store).
-router.patch("/settings", requireRole("admin"), (req, res) => {
+router.patch("/settings", requireRole("admin"), async (req, res) => {
   const body = (req.body ?? {}) as Record<string, unknown>;
   // Some settings keys carry SECRETS or capability elevations and have dedicated STEP-UP-gated routes
   // that also sanitize the value. Letting the bulk PATCH /settings write them here would bypass BOTH the
@@ -55,8 +57,19 @@ router.patch("/settings", requireRole("admin"), (req, res) => {
   }
   try {
     const before = getSettings().backendSource;
-    const settings = updateSettings(body);
+    // Governing invariant (§0): a change that REDUCES the security posture is held for a signed sign-off
+    // (dual-control, or a single admin's confirm+sign) rather than applied here. A choice/strengthening
+    // change applies immediately.
+    const guarded = await applySettingsGuarded(body, getSession(req)?.sub ?? "admin");
+    if (!guarded.applied) {
+      res.status(202).json({
+        pending: guarded.pending,
+        message: "This change reduces the security posture and needs a signed sign-off before it applies. See /api/approvals/inbox.",
+      });
+      return;
+    }
     captureVersion("settings updated");
+    const settings = getSettings();
     // The demo broker's vendor flavour is derived from backendSource at build time,
     // so rebuild it when that changes — the demo re-presents as the new vendor.
     if (settings.backendSource !== before) resetBroker();
