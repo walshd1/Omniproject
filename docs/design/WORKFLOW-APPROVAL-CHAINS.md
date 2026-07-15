@@ -28,6 +28,7 @@ largely a *caller* of existing surfaces.
 | RBAC + scope | `requireRole`, `assertProjectScope`, project/programme scope |
 | Org / project JSON config | `lib/settings.ts` (org) + project/programme config |
 | Server signing | `lib/signing.ts` |
+| Sensitive-data / AI DLP | `lib/ai.ts` `redactForEgress` / `AI_DLP_REDACT` (posture flips opt-in → default-deny) |
 | Query engine (for report/filter steps) | `lib/jql.ts` (this branch), OData `applyODataQuery` |
 | Approver inbox surface | `pages/MyWork.tsx` + notify-bus |
 
@@ -103,6 +104,13 @@ be forced, not even by the server.*
      **or the signer left the system**), or expired — the workflow **cannot run autonomously: nothing runs**
      until a present human re-reviews + re-signs. There is no advisory-autonomous fallback.
   5. **Escape hatch stays human** — PMO redirect/bypass is always a human passkey action, never AI.
+  6. **Sensitive data is an AI no-go by default** — data classified sensitive (PII, secrets, and any field or
+     dataset an admin marks sensitive) is **withheld from AI entirely by default** — not merely redacted-if-
+     enabled. Relaxing it (letting AI see specific sensitive data) is a deliberate act an **Admin or PMO** must
+     **passkey-sign** to authorize, taking responsibility — the same signed-acceptance discipline (scoped to
+     the specific data/workflow, bound to the signer's presence, voided on signer removal or scope change, and
+     nothing runs against sensitive data until signed). Enforcement reuses the existing DLP primitive
+     (`redactForEgress` / `AI_DLP_REDACT`) but flips its posture from opt-in redaction to **default-deny**.
 
 ## 5. Workflow engine — a caller, mostly
 
@@ -141,6 +149,8 @@ be forced, not even by the server.*
 - **Settled — AI is default-DENY**: every AI action, **reads included**, needs an explicit human grant; nothing
   is permitted by default. The 'governed' posture (default-permitted + allowlist + RBAC scope + audit) remains
   available as an **opt-in option** per deployment, not the default.
+- What counts as **sensitive** (§4.6): reuse the DLP PII/secret detection + admin-marked sensitive
+  fields/datasets; a canonical classification (and how a field/dataset is marked sensitive) is the dependency.
 - Exact JSON schema for a chain and a workflow (versioned, drift-guarded).
 - Quorum-per-stage (deferred) and parallel stages (deferred).
 - **Settled — offboarding is IdP-driven**: removal/deprovisioning happens in the IdP (OIDC); the gateway is
