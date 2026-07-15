@@ -118,7 +118,7 @@ export const CHOICE_SETTINGS: readonly string[] = [
   "disabledFeatures", "enabledFeatures", "programmeFeatures", "projectFeatures",
   // PresentationConfig (all presentation)
   "branding", "labelOverrides", "priorityLabels", "screenLayouts", "hiddenFields",
-  "savedViews", "dashboards", "customReports", "reportOverrides", "methodologyComposition", "contentPages",
+  "savedViews", "dashboards", "customReports", "reportOverrides", "reports", "methodologyComposition", "contentPages",
   // UserConfig
   "userPrefs",
   // PlatformConfig

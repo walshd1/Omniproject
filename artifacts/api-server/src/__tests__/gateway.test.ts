@@ -965,6 +965,7 @@ const SAMPLE_SETTINGS = {
   approvalBindings: [],
   workflows: [],
   workflowAcceptances: [],
+  reports: [],
 };
 
 test("redactSettingsForRead: masks webhook signing secrets (never leaked over GET)", async () => {

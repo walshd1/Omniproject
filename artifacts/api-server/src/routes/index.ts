@@ -65,6 +65,7 @@ import usageRouter from "./usage";
 import approvalsRouter from "./approvals";
 import approvalChainsRouter from "./approval-chains";
 import workflowsRouter from "./workflows";
+import reportsRouter from "./reports";
 import scimRouter from "./scim";
 import breakGlassRouter from "./break-glass";
 import { isDeprovisioned } from "../lib/rbac";
@@ -207,6 +208,7 @@ router.use(requireAuth, usageRouter);
 router.use(requireAuth, approvalsRouter);
 router.use(requireAuth, approvalChainsRouter);
 router.use(requireAuth, workflowsRouter);
+router.use(requireAuth, reportsRouter);
 
 /**
  * Mount the optional feature modules. Each enabled module is reached through a dynamic
