@@ -57,6 +57,7 @@ export function Wiki() {
   const { data: features } = useFeatures();
   const presenceOn = featureEnabled(features, "presence");
   const commentsOn = featureEnabled(features, "comments");
+  const coEditOn = featureEnabled(features, "wikiCoEdit");
   const viewingDocId = mode === "view" && docId ? docId : "";
   const room = viewingDocId ? wikiRoomId(viewingDocId) : null;
   const { peers } = usePresence(room, presenceOn && !!room);
@@ -135,7 +136,7 @@ export function Wiki() {
               <DocEditor spaceId={spaceId} docs={docs} saving={create.isPending} onCancel={() => setMode("view")} onSave={onCreate} />
             )}
             {mode === "edit" && docQ.data && (
-              <DocEditor spaceId={docQ.data.spaceId} doc={docQ.data} docs={docs} saving={save.isPending} onCancel={() => setMode("view")} onSave={onSave} />
+              <DocEditor spaceId={docQ.data.spaceId} doc={docQ.data} docs={docs} coEdit={coEditOn} coEditRoomId={wikiRoomId(docQ.data.id)} saving={save.isPending} onCancel={() => setMode("view")} onSave={onSave} />
             )}
             {mode === "view" && (
               docQ.data ? (

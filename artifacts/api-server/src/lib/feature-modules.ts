@@ -157,6 +157,17 @@ export const FEATURE_MODULES: readonly FeatureModule[] = [
     reason: "storage", // holds comment state in the shared-state seam (soft, opt-in write-through)
   },
   {
+    // Real-time collaborative EDITING of wiki documents (Yjs CRDT over an SSE relay). The server is a dumb
+    // fan-out — the durable doc still saves through the broker seam; the CRDT stream is transient. Has a
+    // backend route (the relay), so it loads lazily; OFF until opted in (holds an SSE stream per editor).
+    id: "wikiCoEdit",
+    label: "Wiki co-editing",
+    description: "Edit a wiki document together in real time, with each other's changes merging live (CRDT).",
+    load: () => import("../routes/collab"),
+    defaultOff: true,
+    reason: "cost", // holds an SSE stream per editor; per-replica in-memory relay rooms
+  },
+  {
     // Admin bulk-action runner: apply one canonical broker write (create/update project) to many
     // projects at once, declaratively. Has a backend route (POST /api/admin/bulk), so it loads
     // lazily; OFF until an admin opts in — it fans out project-level writes (high blast radius), so

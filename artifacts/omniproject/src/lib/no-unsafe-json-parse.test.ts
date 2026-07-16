@@ -29,6 +29,7 @@ const ALLOWLIST: Record<string, { count: number; reason: string }> = {
   "components/settings/BrokerLog.tsx": { count: 1, reason: "SSE broker-log entry from own gateway (/api/admin/broker-log/stream), display-only" },
   "lib/live-events.ts": { count: 1, reason: "shared SSE live-event stream from own gateway, fanned out to listeners (not merged)" },
   "lib/presence.ts": { count: 1, reason: "SSE presence stream from own gateway, peers list is display-only" },
+  "lib/collab.ts": { count: 1, reason: "SSE co-edit relay frame from own gateway; parse is try/caught and the payload is an opaque base64 Yjs update fed to Y.applyUpdate (CRDT merge, never executed)" },
 };
 
 /** Recursively list every non-test .ts/.tsx under src/, excluding safe-json.ts itself. */

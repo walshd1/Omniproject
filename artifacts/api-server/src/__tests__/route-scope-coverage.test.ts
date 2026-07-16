@@ -65,6 +65,10 @@ const CLASSIFICATION: Record<string, ScopeClass> = {
   "GET /comments/:roomId": "project-scope",
   "POST /comments/:roomId": "project-scope",
   "DELETE /comments/:roomId/:commentId": "project-scope",
+  // Wiki co-edit relay: same room-scope guard as presence/comments (a project-encoding room is scope-checked;
+  // a doc:<id> wiki room is org-content with no boundary). Both routes are additionally contributor+.
+  "GET /collab/rooms/:roomId/stream": "project-scope",
+  "POST /collab/rooms/:roomId": "project-scope",
 
   // ── Task-scoped: assertTaskScope on the caller-supplied taskId ──
   "GET /tasks/:taskId": "task-scope",
@@ -173,7 +177,7 @@ function collectRoutes(router: IRouter): string[] {
  *  code isn't mounted in the test env (so a per-resource route in a disabled module can't escape the ratchet). */
 async function perResourceRoutes(): Promise<Set<string>> {
   const assembled = (await import("../routes/index")).default as IRouter;
-  const featureMods = ["presence", "comments", "odata", "integrations"];
+  const featureMods = ["presence", "comments", "collab", "odata", "integrations"];
   const routes = new Set<string>(collectRoutes(assembled));
   for (const name of featureMods) {
     const mod = (await import(`../routes/${name}`)).default as IRouter;
