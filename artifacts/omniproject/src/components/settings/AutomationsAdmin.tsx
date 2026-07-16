@@ -9,6 +9,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useAutomations, useSaveAutomations, previewAutomation, runAutomation, type Automation, type AutomationPreview, type AutomationRun } from "../../lib/automations";
 import { AdminSection } from "./AdminSection";
 import { EditableRowTable } from "./EditableRowTable";
+import { safeParseJson } from "../../lib/safe-json";
 
 /**
  * Automations admin — the "when X, do Y" recipe builder. A recipe compiles to the workflow engine; the
@@ -153,7 +154,7 @@ export function AutomationsAdmin() {
                       {AUTOMATION_ACTIONS.map((ad) => <option key={ad.kind} value={ad.kind}>{ad.label}{ad.mutating ? " (needs grant)" : ""}</option>)}
                     </select>
                   ) },
-                  { header: "Params (JSON)", cell: (a: AutomationAction, i) => <Input aria-label={`Action ${i + 1} params`} value={JSON.stringify(a.params ?? {})} onChange={(e) => { try { const params = JSON.parse(e.target.value || "{}"); setRecipe(ri, { actions: r.actions.map((x, j) => j === i ? { ...x, params } : x) }); } catch { /* keep typing */ } }} className="h-8 max-w-64 font-mono text-[10px]" /> },
+                  { header: "Params (JSON)", cell: (a: AutomationAction, i) => <Input aria-label={`Action ${i + 1} params`} value={JSON.stringify(a.params ?? {})} onChange={(e) => { try { const params = safeParseJson<Record<string, unknown>>(e.target.value || "{}"); setRecipe(ri, { actions: r.actions.map((x, j) => j === i ? { ...x, params } : x) }); } catch { /* keep typing */ } }} className="h-8 max-w-64 font-mono text-[10px]" /> },
                 ]}
               />
               <Button type="button" variant="outline" size="sm" onClick={() => setRecipe(ri, { actions: [...r.actions, { kind: "notify", params: {} }] })} data-testid={`automation-${r.id}-add-action`}>Add action</Button>
