@@ -140,3 +140,38 @@ export function deleteArtifact(type: string, scope: ArtifactScope, id: string): 
   writeCollection(type, scope, next);
   return true;
 }
+
+/** Reconstruct a scope from a collection filename (the inverse of `scopeFileName`), or null if unrecognised.
+ *  NOTE: `user`/`project` tokens are filename-safe, so a scope with special characters in its id is
+ *  approximate — good enough to READ the collection back for a portfolio sweep, not to reconstruct the sub. */
+function scopeFromFileName(name: string): ArtifactScope | null {
+  if (name === "org.json") return { kind: "org" };
+  const user = name.match(/^user-(.+)\.json$/);
+  if (user) return { kind: "user", sub: user[1]! };
+  const project = name.match(/^project-(.+)\.json$/);
+  if (project) return { kind: "project", projectId: project[1]! };
+  return null;
+}
+
+/**
+ * Every collection of a type across ALL scopes — for portfolio-wide sweeps (e.g. the goal check-in cadence).
+ * Scans `OMNI_CONFIG_DIR/artifacts/<type>/`, reads + decrypts each sealed file, and returns each as
+ * `{ scope, items }`. Empty when the store is disabled. Items carry their own authoritative fields (owner,
+ * etc.), so a caller that needs the true owner should read it off the item, not the (approximate) scope.
+ */
+export function listAllArtifactCollections<T extends { id: string }>(type: string): { scope: ArtifactScope; items: T[] }[] {
+  const dir = process.env["OMNI_CONFIG_DIR"]?.trim();
+  if (!dir) return [];
+  const typeDir = path.join(dir, "artifacts", safeToken(type));
+  let names: string[];
+  try { names = fs.readdirSync(typeDir); } catch { return []; }
+  const out: { scope: ArtifactScope; items: T[] }[] = [];
+  for (const name of names) {
+    if (!name.endsWith(".json")) continue;
+    const scope = scopeFromFileName(name);
+    if (!scope) continue;
+    const items = readCollection<T>(type, scope);
+    if (items.length) out.push({ scope, items });
+  }
+  return out;
+}

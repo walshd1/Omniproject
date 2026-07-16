@@ -10,6 +10,7 @@
  */
 import type { ActorContext } from "../broker/types";
 import { makeScopedId, parseScopedId, scopeFromParsed, type ArtifactScope, type StorageTarget } from "./artifact-store";
+import { nextOccurrence } from "./recurrence";
 
 /** A rejected goal write (maps to 400). */
 export class GoalError extends Error {
@@ -40,6 +41,7 @@ export const GOAL_LIMITS = {
   maxLinks: 200,
   maxRef: 256,
   maxLinkLabel: 200,
+  maxCadence: 128,
   maxGoalBytes: 64 * 1024,
 } as const;
 
@@ -97,6 +99,10 @@ export interface Goal {
   checkins: GoalCheckIn[];
   /** Links to work items in a system of record (reference-only). */
   links: GoalLink[];
+  /** Check-in cadence — a recurrence rule ("every 2 weeks", "FREQ=WEEKLY", …), or null for no cadence. */
+  cadence: string | null;
+  /** The next scheduled check-in date (YYYY-MM-DD), derived from the cadence; null when no cadence. */
+  nextCheckInAt: string | null;
   version: number;
   createdAt: string;
   updatedAt: string;
@@ -113,6 +119,8 @@ export interface GoalMeta {
   checkInCount: number;
   lastCheckInAt: string | null;
   linkCount: number;
+  cadence?: string | null;
+  nextCheckInAt?: string | null;
   projectId?: string | null;
   ownerSub?: string | null;
   storage?: GoalStorage;
@@ -125,6 +133,7 @@ export interface SanitizedGoalWrite {
   description: string | null;
   status: GoalStatus;
   keyResults: KeyResult[];
+  cadence: string | null;
   storage: GoalStorage;
   projectId?: string;
 }
@@ -201,8 +210,10 @@ export function sanitizeGoalWrite(raw: unknown): SanitizedGoalWrite {
   const description = cleanText(obj["description"], GOAL_LIMITS.maxDescription).trim();
   const keyResults = sanitizeKeyResults(obj["keyResults"]);
   const status: GoalStatus = isGoalStatus(obj["status"]) ? obj["status"] : "on_track";
+  const cadenceRaw = cleanText(obj["cadence"], GOAL_LIMITS.maxCadence).trim();
+  const cadence = cadenceRaw || null;
   const storage: GoalStorage = isGoalStorage(obj["storage"]) ? obj["storage"] : "user";
-  const out: SanitizedGoalWrite = { title, description: description || null, status, keyResults, storage };
+  const out: SanitizedGoalWrite = { title, description: description || null, status, keyResults, cadence, storage };
   const projectId = obj["projectId"];
   if (typeof projectId === "string" && projectId.trim()) out.projectId = projectId.trim();
   if (storage === "project" && !out.projectId) throw new GoalError("a project goal needs a projectId");
@@ -247,6 +258,8 @@ export function newGoalRow(id: string, input: SanitizedGoalWrite, ctx: ActorCont
     progressPct: goalProgress(input.keyResults),
     checkins: [],
     links: [],
+    cadence: input.cadence,
+    nextCheckInAt: input.cadence ? nextOccurrence(input.cadence, now) : null,
     version: 1,
     createdAt: now,
     updatedAt: now,
@@ -329,12 +342,15 @@ export function applyCheckIn(existing: Goal, input: SanitizedCheckIn, checkInId:
   const by = actorLabel(ctx);
   const checkin: GoalCheckIn = { id: checkInId, at: now, by, note: input.note, status, progressPct, krValues: input.krValues };
   const checkins = [...(existing.checkins ?? []), checkin].slice(-GOAL_LIMITS.maxCheckIns);
+  // Checking in advances the cadence to the next occurrence after this check-in.
+  const nextCheckInAt = existing.cadence ? nextOccurrence(existing.cadence, now) : (existing.nextCheckInAt ?? null);
   return {
     ...existing,
     keyResults,
     progressPct,
     status,
     checkins,
+    nextCheckInAt,
     version: (existing.version ?? 1) + 1,
     updatedAt: now,
     updatedBy: by,
@@ -343,6 +359,11 @@ export function applyCheckIn(existing: Goal, input: SanitizedCheckIn, checkInId:
 
 /** Apply an UPDATE to an existing goal, preserving id/owner/storage/createdAt; progress is recomputed. */
 export function mergeGoalRow(existing: Goal, input: SanitizedGoalWrite, ctx: ActorContext, now: string): Goal {
+  // The cadence changing (incl. cleared) reseeds the next check-in; an unchanged cadence keeps its schedule.
+  const cadenceChanged = (existing.cadence ?? null) !== input.cadence;
+  const nextCheckInAt = cadenceChanged
+    ? (input.cadence ? nextOccurrence(input.cadence, now) : null)
+    : (existing.nextCheckInAt ?? null);
   return {
     ...existing,
     title: input.title,
@@ -351,6 +372,8 @@ export function mergeGoalRow(existing: Goal, input: SanitizedGoalWrite, ctx: Act
     status: input.status,
     keyResults: input.keyResults,
     progressPct: goalProgress(input.keyResults),
+    cadence: input.cadence,
+    nextCheckInAt,
     version: (existing.version ?? 1) + 1,
     updatedAt: now,
     updatedBy: actorLabel(ctx),
@@ -369,10 +392,85 @@ export function goalMeta(g: Goal): GoalMeta {
     checkInCount: checkins.length,
     lastCheckInAt: checkins.length ? checkins[checkins.length - 1]!.at : null,
     linkCount: g.links?.length ?? 0,
+    cadence: g.cadence ?? null,
+    nextCheckInAt: g.nextCheckInAt ?? null,
     updatedAt: g.updatedAt,
   };
   if (g.projectId !== undefined) meta.projectId = g.projectId;
   if (g.ownerSub !== undefined) meta.ownerSub = g.ownerSub;
   if (g.storage !== undefined) meta.storage = g.storage;
   return meta;
+}
+
+// ── Check-in cadence sweep (roadmap 3.2 slice 4) ─────────────────────────────────────────────────────────
+// A managed cadence: a goal with a recurrence `cadence` carries a `nextCheckInAt`. A sweep (cron/routine-
+// driven, like the task reminder sweep) finds goals whose next check-in is due, nudges the owner via the
+// notify bus, and rolls the schedule forward — so the reminder recurs every period even if a check-in is
+// missed. Pure selection + the injected runner live here; the route wires the store, bus and dedupe.
+
+/** The one-time fire key for a goal's CURRENT check-in — the date is in the key so rolling the schedule
+ *  forward is a fresh reminder, while the same due date never double-fires. */
+export function goalCheckinFireKey(goal: Pick<Goal, "id" | "nextCheckInAt">): string {
+  return `goal:checkin:fired:${goal.id}:${goal.nextCheckInAt ?? ""}`;
+}
+
+/** Goals whose check-in is DUE at `nowMs`: a `nextCheckInAt` in the past, not achieved, not already fired. Pure. */
+export function dueGoalCheckins(goals: readonly Goal[], nowMs: number, isFired: (key: string) => boolean): Goal[] {
+  return goals.filter((g) => {
+    if (!g.nextCheckInAt) return false;
+    const at = Date.parse(g.nextCheckInAt);
+    if (Number.isNaN(at) || at > nowMs) return false;
+    if (g.status === "achieved") return false; // an achieved goal needs no more check-ins
+    return !isFired(goalCheckinFireKey(g));
+  });
+}
+
+/** A check-in reminder notification for a goal, targeted at its owner (by sub). */
+export function goalCheckinNotification(goal: Goal): { notification: { kind: string; title: string; body: string }; target: { sub?: string } } {
+  return {
+    notification: {
+      kind: "goal-checkin",
+      title: `Check-in due: ${goal.title}`,
+      body: `Progress ${goal.progressPct ?? 0}% · update your key results`,
+    },
+    target: goal.ownerSub ? { sub: goal.ownerSub } : {},
+  };
+}
+
+/** Roll a goal's check-in schedule forward past `now` (pure). No-op when the goal has no cadence. */
+export function advanceGoalCadence(goal: Goal, now: string): Goal {
+  if (!goal.cadence) return { ...goal, nextCheckInAt: null };
+  return { ...goal, nextCheckInAt: nextOccurrence(goal.cadence, now) };
+}
+
+export interface GoalCheckinSweepDeps {
+  goals: readonly Goal[];
+  nowMs: number;
+  nowISO: string;
+  isFired: (key: string) => boolean | Promise<boolean>;
+  markFired: (key: string) => void | Promise<void>;
+  notify: (n: { kind: string; title: string; body: string }, target: { sub?: string }) => void | Promise<void>;
+  /** Persist the schedule roll-forward for a due goal (the route writes it back to the goal's scope). */
+  reschedule: (goal: Goal) => void | Promise<void>;
+}
+
+/**
+ * Run one check-in sweep: for every goal whose check-in is due, mark-then-notify (at-most-once) and roll the
+ * schedule forward. Returns the count nudged. Deterministic given its deps.
+ */
+export async function runGoalCheckinSweep(deps: GoalCheckinSweepDeps): Promise<{ nudged: number; goalIds: string[] }> {
+  const flags = new Map<string, boolean>();
+  for (const g of deps.goals) {
+    if (g.nextCheckInAt) flags.set(goalCheckinFireKey(g), !!(await deps.isFired(goalCheckinFireKey(g))));
+  }
+  const due = dueGoalCheckins(deps.goals, deps.nowMs, (k) => flags.get(k) ?? false);
+  const goalIds: string[] = [];
+  for (const g of due) {
+    await deps.markFired(goalCheckinFireKey(g)); // mark first — at-most-once even if notify throws
+    const { notification, target } = goalCheckinNotification(g);
+    await deps.notify(notification, target);
+    await deps.reschedule(advanceGoalCadence(g, deps.nowISO)); // roll the cadence forward
+    goalIds.push(g.id);
+  }
+  return { nudged: goalIds.length, goalIds };
 }

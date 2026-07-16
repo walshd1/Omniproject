@@ -4,7 +4,8 @@ import {
   keyResultAttainment, goalProgress, sanitizeGoalWrite, sanitizeKeyResults,
   sanitizeCheckInWrite, applyCheckIn, GOAL_LIMITS,
   sanitizeGoalLink, addGoalLink, removeGoalLink, goalLinkKey,
-  makeGoalId, parseGoalId, newGoalRow, mergeGoalRow, goalMeta, GoalError, type KeyResult,
+  dueGoalCheckins, advanceGoalCadence, runGoalCheckinSweep, goalCheckinFireKey,
+  makeGoalId, parseGoalId, newGoalRow, mergeGoalRow, goalMeta, GoalError, type KeyResult, type Goal,
 } from "./goal";
 import type { ActorContext } from "../broker/types";
 
@@ -123,4 +124,55 @@ test("goal links: sanitise, idempotent add, keyed remove", () => {
   assert.equal(removed.version, 3);
   // Removing an unknown key is a no-op (no version bump).
   assert.equal(removeGoalLink(row, "nope", ctx, now).version, row.version);
+});
+
+test("cadence seeds nextCheckInAt on create and advances it on check-in", () => {
+  const w = sanitizeGoalWrite({ title: "Weekly review", cadence: "every week", keyResults: [{ id: "kr-1", label: "x", target: 1, current: 0 }] });
+  assert.equal(w.cadence, "every week");
+  const row = newGoalRow(makeGoalId("user", "g"), w, ctx, "2026-01-01T00:00:00Z");
+  assert.match(row.nextCheckInAt ?? "", /^\d{4}-\d{2}-\d{2}$/);
+  const first = row.nextCheckInAt!;
+  // A check-in a fortnight later rolls the schedule forward past that date.
+  const after = applyCheckIn(row, sanitizeCheckInWrite({ krValues: { "kr-1": 1 } }), "ci", ctx, "2026-01-15T00:00:00Z");
+  assert.match(after.nextCheckInAt ?? "", /^\d{4}-\d{2}-\d{2}$/);
+  assert.ok(Date.parse(after.nextCheckInAt!) > Date.parse(first), "check-in advances the cadence");
+});
+
+test("dueGoalCheckins selects past-due, non-achieved, not-yet-fired goals", () => {
+  const base: Goal = newGoalRow(makeGoalId("user", "g"), sanitizeGoalWrite({ title: "G", cadence: "every week", keyResults: [] }), ctx, "2026-01-01T00:00:00Z");
+  const due: Goal = { ...base, id: "due", nextCheckInAt: "2026-01-01" };
+  const future: Goal = { ...base, id: "future", nextCheckInAt: "2999-01-01" };
+  const achieved: Goal = { ...base, id: "achieved", nextCheckInAt: "2026-01-01", status: "achieved" };
+  const now = Date.parse("2026-06-01T00:00:00Z");
+  const picked = dueGoalCheckins([due, future, achieved], now, () => false).map((g) => g.id);
+  assert.deepEqual(picked, ["due"]);
+  // A fired goal is skipped.
+  assert.equal(dueGoalCheckins([due], now, (k) => k === goalCheckinFireKey(due)).length, 0);
+});
+
+test("advanceGoalCadence rolls forward (or clears when no cadence)", () => {
+  const g: Goal = { ...newGoalRow(makeGoalId("user", "g"), sanitizeGoalWrite({ title: "G", cadence: "every week", keyResults: [] }), ctx, "2026-01-01T00:00:00Z"), nextCheckInAt: "2026-01-01" };
+  assert.ok(Date.parse(advanceGoalCadence(g, "2026-06-01T00:00:00Z").nextCheckInAt!) > Date.parse("2026-06-01"));
+  assert.equal(advanceGoalCadence({ ...g, cadence: null }, "2026-06-01T00:00:00Z").nextCheckInAt, null);
+});
+
+test("runGoalCheckinSweep nudges the owner once and reschedules", async () => {
+  const base = newGoalRow(makeGoalId("user", "g"), sanitizeGoalWrite({ title: "Review", cadence: "every week", keyResults: [] }), { sub: "owner-1" } as ActorContext, "2026-01-01T00:00:00Z");
+  const due: Goal = { ...base, id: "due", nextCheckInAt: "2026-01-01" };
+  const notified: Array<{ sub: string | undefined; title: string }> = [];
+  const rescheduled: string[] = [];
+  const fired = new Set<string>();
+  const result = await runGoalCheckinSweep({
+    goals: [due],
+    nowMs: Date.parse("2026-06-01T00:00:00Z"),
+    nowISO: "2026-06-01T00:00:00Z",
+    isFired: (k) => fired.has(k),
+    markFired: (k) => { fired.add(k); },
+    notify: (n, target) => { notified.push({ sub: target.sub, title: n.title }); },
+    reschedule: (g) => { rescheduled.push(g.nextCheckInAt ?? ""); },
+  });
+  assert.equal(result.nudged, 1);
+  assert.equal(notified[0]!.sub, "owner-1");
+  assert.match(notified[0]!.title, /Check-in due: Review/);
+  assert.match(rescheduled[0]!, /^\d{4}-\d{2}-\d{2}$/); // rolled forward
 });
