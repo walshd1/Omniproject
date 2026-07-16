@@ -156,6 +156,8 @@ export async function logout(): Promise<void> {
   clearClientSessionData();
   // Purge the encrypted offline cache (my-work/tasks) so nothing survives the session on a shared device.
   await import("./offline-cache").then((m) => m.clearOfflineCache()).catch(() => {});
+  // Drop this device's push subscription so a shared device stops receiving the user's notifications.
+  await import("./web-push-client").then((m) => m.unsubscribeFromPush()).catch(() => {});
   await fetch("/api/auth/logout", { method: "POST", credentials: "same-origin" }).catch(() => {});
   window.location.href = "/login";
 }

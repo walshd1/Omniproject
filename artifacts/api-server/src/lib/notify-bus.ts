@@ -63,6 +63,10 @@ class NotifyBus extends RedisBus {
    * mode), or null when delivery is asynchronous across replicas (Redis mode).
    */
   async publish(env: NotifyEnvelope): Promise<number | null> {
+    // Browser Web Push fires ONCE here, on the origin replica (best-effort, lazily loaded so this hot module
+    // takes no static dep on the push stack) — NOT in handleMessage, which every replica runs (that would
+    // multi-send). No-op unless the pushNotifications module + VAPID keys are configured.
+    void import("./push-delivery").then((m) => m.deliverWebPush(env)).catch(() => { /* push is best-effort */ });
     // In Redis mode every replica (including this one) delivers via its subscription,
     // so we don't also deliver locally — that would double-send.
     if (await this.broadcast(JSON.stringify(env))) return null;

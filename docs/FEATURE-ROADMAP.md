@@ -398,7 +398,7 @@ authoring, and the drift guards — no feature bypasses the golden rules.
   passkey-signed, chain-gated review decision — the creative-review markup competitors have, on OmniProject's
   own governance rails.
 
-### 2.5 Native mobile + offline  🚧 In progress (slices 1–2)
+### 2.5 Native mobile + offline  🚧 In progress (slices 1–3)
 - **Competitors.** All. **Gap.** PWA caches app-shell only; no offline data, no native apps.
 - **Acceptance.** Offline-capable data cache for my-work/tasks with sync-on-reconnect;
   installable; push notifications; (stretch) native shells.
@@ -430,6 +430,22 @@ authoring, and the drift guards — no feature bypasses the golden rules.
   encrypted-ephemeral explainer. **Zero-at-rest preserved**: nothing plaintext at rest, narrow scope, nothing
   survives the session. Crypto round-trip / wrong-key / tampered-GCM / allow-list / TTL / guarded-no-op tests;
   toggle + settings-card tests. **Next:** push notifications (slice 3).
+- **Slice 3 ✅ (browser Web Push notifications).** An extra delivery channel on top of the existing in-app
+  SSE + external channels, reaching a device even when the PWA is closed — via the MIT **`web-push`** dep
+  (VAPID RFC 8292 + payload encryption RFC 8291). Server: `lib/web-push` (VAPID config gate — **inert unless
+  `VAPID_PUBLIC_KEY`/`PRIVATE_KEY` are set** — plus an **egress allow-list**: a subscription `endpoint` is
+  only POSTed to when its host is a known push service (FCM/Mozilla/Windows/Apple), bounding SSRF);
+  `lib/push-subscriptions` stores each device's subscription **per-user, AES-256-GCM sealed** in the artifact
+  store (the endpoint URL is sensitive → zero-at-rest); `lib/push-delivery` is the bus effect the notify bus
+  fires **ONCE on the origin replica** (lazy-imported, best-effort) — only **personal** notifications
+  (addressed to a `sub`) push; broadcasts stay on SSE; a `410/404`-gone subscription is **pruned**.
+  `routes/push` (vapid-key / subscribe / unsubscribe, viewer+, `501` when unconfigured) behind a **default-off
+  `pushNotifications`** module. Client: `sw.js` gains `push` + `notificationclick` handlers (focus/route an
+  open window); `lib/web-push-client` feature-detects + subscribes via `PushManager`; `lib/use-push` + a
+  **Notifications on this device** settings card — per-device, off by default, and the subscription is
+  **dropped on logout**. **Zero-at-rest preserved**: subscriptions sealed, no keys ⇒ nothing sent. Endpoint
+  allow-list / error-classification / config-gate / sealed round-trip / delivery-prune / route tests +
+  client capability-probe tests. **Next:** native shells (stretch, backlogged) — Phase 2 otherwise complete.
 
 ---
 
@@ -698,3 +714,12 @@ so an attachment field would be a URL reference (`url` type) pointing at the sys
   off. `lib/use-offline-cache` — off-by-default per-user toggle behind a new `offlineCache` module + hydrate-
   on-open + allow-listed write-back subscriber; an Offline-access settings card. Zero-at-rest preserved
   (encrypted, narrow, ephemeral). Crypto/allow-list/TTL/guarded-no-op + toggle/settings tests. Next: push.
+- _2026-07-16_ — Phase 2.5 slice 3 (browser Web Push) shipped: the `web-push` dep adds a push channel that
+  reaches a closed PWA, riding the existing notify bus. Server — `lib/web-push` (VAPID config gate: inert
+  without keys; endpoint egress allow-list bounds SSRF to known push services), `lib/push-subscriptions`
+  (per-user AES-256-GCM-sealed device subscriptions — endpoint URL is zero-at-rest), `lib/push-delivery` (bus
+  effect fired ONCE on the origin replica; personal-only; prunes gone subs), `routes/push` behind a default-
+  off `pushNotifications` module. Client — `sw.js` `push`/`notificationclick` handlers, `lib/web-push-client`
+  (feature-detect + PushManager subscribe), `lib/use-push` + a per-device Notifications settings card (off by
+  default, dropped on logout). Zero-at-rest preserved. Allow-list/classify/config-gate/sealed round-trip/
+  delivery-prune/route + client-probe tests. **Phase 2.5 slices 1–3 done; native shells backlogged (stretch).**
