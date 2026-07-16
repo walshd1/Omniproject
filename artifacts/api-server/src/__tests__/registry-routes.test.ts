@@ -105,20 +105,6 @@ test("a bad submission is 400", async () => {
   assert.equal((await req("/registry", { method: "POST", body: { kind: "report", name: "x" } })).status, 400);
 });
 
-test("published reference designs are readable and each example re-submits cleanly", async () => {
-  const designs = (await req("/registry/reference").then((x) => x.json())) as Array<{ slug: string; example: unknown }>;
-  assert.ok(designs.length >= 3, "reference designs are published");
-  // A reference example is a valid submission — round-trip the first one through the real submit path.
-  const first = designs[0]!;
-  assert.equal((await req("/registry", { method: "POST", body: first.example, cookie: CONTRIBUTOR })).status, 201);
-  // One by slug.
-  const one = await req(`/registry/reference/${first.slug}`);
-  assert.equal(one.status, 200);
-  assert.equal(((await one.json()) as { slug: string }).slug, first.slug);
-  // An unknown slug is 404, not mistaken for an item id.
-  assert.equal((await req("/registry/reference/nope")).status, 404);
-});
-
 test("visibility: a viewer sees approved items but not another user's draft", async () => {
   // A fresh draft by the contributor.
   const draft = await (await req("/registry", { method: "POST", body: { ...SUBMIT, name: "Secret draft" }, cookie: CONTRIBUTOR })).json() as { id: string };

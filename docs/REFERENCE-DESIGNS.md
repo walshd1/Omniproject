@@ -5,26 +5,22 @@ report, dashboard, and chart is declarative config the app renders through one g
 builder. Nothing here is bespoke code — which means **you can author your own** and
 contribute them to your org's [registry](./FEATURE-ROADMAP.md#35-org-registry-of-approved-bespoke-items--community-release-seam).
 
-This page is the human-readable companion to the machine-readable reference designs the
-API publishes. Each design is an **annotated, copy-pasteable example** that is guaranteed
-valid — a test holds every example to the same sanitiser and def-validators the real
-submit path enforces, so a published reference can never drift into a shape the product
-would reject.
+This page is the human-readable companion to the **reference skeletons** in the repo. Each
+skeleton is a heavily-commented `.jsonc` template you copy and adapt.
 
 ## Where to get them
 
-- **Source of truth:** the plain JSON files in [`reference-designs/`](../reference-designs/)
-  at the repo root — **outside the running system**, so you can read, copy and adapt them
-  without touching code. Add a new one by dropping a `.json` file into the right subfolder;
-  there is nothing to compile.
-- **API (convenience):** `GET /api/registry/reference` returns every design; `GET
-  /api/registry/reference/:slug` returns one. (Viewer+; the `registry` feature module must
-  be enabled.) The endpoint simply *loads the files above* — it is not a second copy.
+- **The skeletons:** the commented `.jsonc` files in
+  [`reference-designs/`](../reference-designs/) at the repo root. They are **pure reference
+  material** — the running app **never loads, reads, or serves them**. There is no endpoint
+  and no build step; add one by dropping a `.jsonc` file into the right subfolder.
+- Each skeleton has the **submission envelope** + a **payload** shaped like the real thing,
+  with inline `//` comments explaining every field and the `<PLACEHOLDER>` values to fill.
 
-Each design has: a `slug`, a `title`, the registry `kind` it teaches, a `summary`, an
-array of teaching `notes`, and an `example` — a **complete registry submission**. To use
-one, `POST` its `example` to `/api/registry` (or paste it into the submit form): it works
-as-is, lands as a `draft`, and an admin approves it for org-wide reuse.
+To use one, copy the skeleton, strip the comments, fill in the placeholders, then `POST`
+the result to `/api/registry` (or paste it into the Registry submit form): it lands as a
+`draft`, and an admin approves it for org-wide reuse. The submit endpoint runs the real
+sanitiser + def-validators, so anything malformed is rejected there with a clear message.
 
 ## The submission envelope
 
@@ -57,9 +53,9 @@ designs below show a real, valid payload for each.
 | `dashboard` | a widget grid |
 | `plugin` | an extension manifest (typed contributions — see the marketplace) |
 
-## Published references
+## The skeletons
 
-### 1. A visualisation primitive (`reference-designs/primitives/grouped-column.primitive.json`)
+### 1. A visualisation primitive (`reference-designs/primitives/chart.primitive.jsonc`)
 
 Add a new chart type as pure JSON. It appears in the builder palette and in reports with
 **no code change** — the renderer already exists; you are only describing which inputs it
@@ -70,7 +66,7 @@ Key fields: a unique kebab-case `id`, a `category` (palette group), an optional
 each `key`/`label`/`type`/`required`/`description`; `type: "rows"` takes tabular data,
 `"series"` picks which keys to plot).
 
-### 2. A screen definition (`reference-designs/screens/delivery-health.screen.json`)
+### 2. A screen definition (`reference-designs/screens/screen.jsonc`)
 
 Compose a screen from panels. Stored org-wide, merged over the built-in catalogue (org id
 wins), rendered by the generic builder.
@@ -81,7 +77,7 @@ renderer); anything else on a panel (`source`, `config`, `title`) passes through
 renderer. An unknown panel kind degrades to a labelled placeholder, so defs are
 forward-compatible.
 
-### 3. An intake form (`reference-designs/forms/change-request.form.json`)
+### 3. An intake form (`reference-designs/forms/form.jsonc`)
 
 Author a request/intake form; each submission becomes a work item through the broker.
 
@@ -91,14 +87,14 @@ field maps to `title`; `description`/`labels` may be shared, every other target 
 Choice types need `options`. `target.kind` is `issue`; `target.projectId` is bound by an
 admin before the form accepts submissions.
 
-### 4. A custom report (`reference-designs/reports/open-work-by-assignee.report.json`)
+### 4. A custom report (`reference-designs/reports/report.jsonc`)
 
 Define a report as a declarative `query` (entity + grouping + measure) plus a `viz` that
 names a **primitive** id and maps query columns onto its inputs. Because it references a
 primitive rather than embedding a chart, the report inherits primitive improvements
 automatically.
 
-### 5. A dashboard (`reference-designs/dashboards/portfolio-overview.dashboard.json`)
+### 5. A dashboard (`reference-designs/dashboards/dashboard.jsonc`)
 
 Lay out a dashboard as a grid of `widgets`; each has a unique `id`, a `kind`
 (metric/report/chart), a `source`, and a grid `layout` (x/y/w/h). Widgets reference other

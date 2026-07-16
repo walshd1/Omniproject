@@ -696,27 +696,24 @@ authoring, and the drift guards — no feature bypasses the golden rules.
   (admin or own-draft), behind the new default-off **`registry`** module. 2 catalogue + 9 pure model + 2 seam +
   6 route tests (incl. sealed-at-rest, visibility, RBAC negatives) + drift guard; all three packages typecheck
   clean.
-- **Slice 2 ✅ (published reference designs — so people can build their own).** The reference designs are **plain
-  JSON files committed in the repo** under **`reference-designs/`** (primitives / screens / forms / reports /
-  dashboards) — deliberately *outside the running system*, so anyone can read, copy and adapt them (add one by
-  dropping in a `.json` file, nothing to compile). Each file is a self-contained design (`title` / `summary` /
-  `notes` / `example`) whose `example` is a *complete registry submission* with a real payload (grounded in the
-  actual `PrimitiveDef` / `OrgScreenDef` / `FormDef` formats). Server `lib/registry-reference` is only a thin,
-  cached **loader** (resolves the repo root via the `pnpm-workspace.yaml` marker, reads the files, `[]` when
-  absent); `routes/registry` serves them at `GET /registry/reference` + `/reference/:slug` (viewer+, ordered
-  before `/:id`). The published guarantee is enforced against the FILES: a test reads every `.json` on disk and
-  holds it to the real `sanitizeRegistrySubmit`, and the screen/form examples to the real `validateScreenDefs` /
-  `validateForms`, so a reference can never drift into a shape the product would reject. `reference-designs/README.md`
-  + `docs/REFERENCE-DESIGNS.md` are the human companions.
-- **Slice 3 ✅ (registry UI + reference viewer — completes 3.5).** SPA `lib/registry` hooks (`useRegistry` /
-  `useRegistryItem` / `useReferenceDesigns` / `useCommunityStatus` + submit / review / release / retract / delete)
-  and `pages/Registry` — a `/registry` surface: the visible-items list, an **admin review queue** (approve/reject
-  drafts), **release-to-community** + **retract** toggles with a community-connection indicator, a **reference-designs
-  panel** that loads the published files and **prefills the submit form** from any design in one click, and a
-  paste-JSON submit form with a client-side validity guard. Admin actions are role-gated (`roleAtLeast(admin)`);
+- **Slice 2 ✅ (reference skeletons — so people can build their own).** The reference designs are heavily-commented
+  **`.jsonc` skeletons** committed in the repo under **`reference-designs/`** (primitives / screens / forms /
+  reports / dashboards). They are **pure reference material — the app never loads, reads, or serves them**; there
+  is no endpoint and no build step. Each skeleton carries the submission envelope + a payload shaped like the real
+  thing (grounded in the actual `PrimitiveDef` / `OrgScreenDef` / `FormDef` formats), with inline `//` comments
+  explaining every field and the `<PLACEHOLDER>` values to fill. An author copies a skeleton, strips the comments,
+  fills the placeholders, and submits — the real `sanitizeRegistrySubmit` + def-validators run on the SUBMIT path
+  and reject anything malformed there. `reference-designs/README.md` + `docs/REFERENCE-DESIGNS.md` are the guides.
+  _(Correction from an earlier take: reference designs were briefly a loaded module + `/registry/reference`
+  endpoint + UI panel — all removed; they are static repo skeletons only.)_
+- **Slice 3 ✅ (registry UI — completes 3.5).** SPA `lib/registry` hooks (`useRegistry` / `useRegistryItem` /
+  `useCommunityStatus` + submit / review / release / retract / delete) and `pages/Registry` — a `/registry` surface:
+  the visible-items list, an **admin review queue** (approve/reject drafts), **release-to-community** + **retract**
+  toggles with a community-connection indicator, and a paste-JSON submit form with a client-side validity guard (it
+  points authors at the repo's `reference-designs/` skeletons). Admin actions are role-gated (`roleAtLeast(admin)`);
   non-admins see approved items + their own. Wired as an admin-group nav item gated on the **`registry`** module +
-  pmo/admin visibility (nav-order + admin-shelf drift guards + `nav.registry` i18n + `/registry` route). 6 page
-  tests (list, review queue, release control, non-admin gating, JSON guard, prefill, empty state); nav/i18n guards +
+  pmo/admin visibility (nav-order + admin-shelf drift guards + `nav.registry` i18n + `/registry` route). 5 page
+  tests (list, review queue, release control, non-admin gating, JSON guard, empty state); nav/i18n guards +
   all three packages typecheck clean.
 
 ---
