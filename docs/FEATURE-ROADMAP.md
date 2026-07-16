@@ -451,7 +451,7 @@ authoring, and the drift guards — no feature bypasses the golden rules.
 
 ## Phase 3 — deepen what exists only partially
 
-### 3.1 Full interactive scheduling engine  🚧 In progress (slices 1–4)
+### 3.1 Full interactive scheduling engine  🚧 In progress (slices 1–5)
 - **Competitors.** MS Project, Smartsheet, Planview. **Have.** Gantt + CPM + baselines +
   Monte-Carlo. **Missing.** Auto-scheduling: working calendars, task constraints
   (SNET/FNLT), lead/lag, drag-a-bar-and-cascade-dependencies.
@@ -498,6 +498,17 @@ authoring, and the drift guards — no feature bypasses the golden rules.
   coarse model has no FS/SS/FF/SF or lag yet, so edges default to FS/0 — richer edges layer on without
   changing the seam. Pure + projected. 5 unit tests. **Next:** the read-only auto-scheduled forecast overlay
   wiring real data through the engine on a Gantt (slice 5), then interactive drag-cascade (slice 6).
+- **Slice 5 ✅ (auto-scheduled forecast report).** First surface of the engine on real data. `lib/project-
+  forecast` — the pure glue (`computeProjectForecast`) that runs `autoSchedule` over a project's live issues
+  + dependency overlay and returns ready-to-render rows sorted earliest-start-first; `resolveProjectStartDay`
+  floors the plan at the earliest anchored start (else an injected `nowDay`, keeping the maths deterministic).
+  `components/reports/AutoScheduleForecast` — a new **built-in report** (catalogue `auto-schedule-forecast`,
+  registered renderer) showing projected finish, activity count, breach count, a cycle warning, and a per-
+  activity table (start / finish / working days / **driven-by** attribution / constraint status), tinting
+  breached rows. Explicitly a projection — a note reminds the user nothing is written back; committing a plan
+  means editing the real dates. 4 forecast unit tests + 3 component tests (table/driver, empty, cycle);
+  renderer-coverage guard green. **Next:** interactive drag-a-bar-cascade that writes committed dates back
+  through the issue-update seam (slice 6).
 
 ### 3.2 Goals / OKRs as a managed cadence  ⬜ Todo
 - **Competitors.** Asana Goals, Viva Goals, ClickUp. **Have.** Strategy cascade + PI board

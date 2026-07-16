@@ -5,6 +5,36 @@ import type { ReportDefinition } from "./report-catalogue";
 
 export const REPORTS_DATA: ReportDefinition[] = [
   {
+    "id": "auto-schedule-forecast",
+    "label": "Auto-schedule Forecast",
+    "docsUrl": "",
+    "kind": "schedule",
+    "renderer": {
+      "engine": "builtin",
+      "component": "AutoScheduleForecast"
+    },
+    "capabilities": {
+      "requiresCapability": "scheduling",
+      "timeSeries": false,
+      "exports": [
+        "csv",
+        "pdf",
+        "png"
+      ]
+    },
+    "tools": [
+      "dependsOn",
+      "criticalPath",
+      "slack"
+    ],
+    "notes": "Forward-pass auto-schedule: earliest working-day start per activity from durations, typed dependencies and date constraints on a working calendar. Stateless projection, nothing written back.",
+    "order": 14,
+    "methodologies": [
+      "waterfall",
+      "prince2"
+    ]
+  },
+  {
     "id": "benefits-realisation",
     "label": "Benefits Realisation",
     "docsUrl": "",
