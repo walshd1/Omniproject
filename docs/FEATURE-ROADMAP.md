@@ -743,6 +743,28 @@ authoring, and the drift guards — no feature bypasses the golden rules.
 - **Slices.** (1) reference handoff + `<UseNative>` button; (2) sandboxed Live-Embed preview;
   (3) OAuth + content import (metadata/thumbnail via `safeFetch`).
 
+### X.2 AI primitive-authoring studio (companion skill)  🚧 In progress (slice 1 of 4)
+- **Rationale.** Primitives + JSON defs are the app's building blocks, but authoring one means knowing the
+  shape. A **companion AI skill** takes a plain description (later: a description + a picture), **builds** a
+  primitive JSON bundle, **tests** it against the real schema, **renders** it back, and **iterates** on the
+  user's feedback until they're happy — then writes the bundle into the registry (submit → admin review). AI
+  proposes, human disposes; the model never emits code, only a declarative primitive descriptor.
+- **Design.** Reuses the AI seam (`aiChat` / a `complete` callback + defensive-JSON parse, like
+  `backend-suggest`), the chart-render surfaces (`ArtifactRenderer` / `ChartView`) for the live preview, and
+  the registry submit path (`sanitizeRegistrySubmit`) for the write. Governed like every AI surface (default-off
+  feature module + a governed capability + `requireRole(contributor)`), never a new security boundary.
+- **Slice 1 ✅ (the deterministic "test" — shared primitive-bundle schema + validator).** New
+  `backend-catalogue/primitive-schema`: the closed sets a primitive payload may use — `PRIMITIVE_CATEGORIES`
+  (chart / graphic / table / tile), `PRIMITIVE_PARAM_TYPES` (rows / series / … / enum), `CHART_VIEW_TYPES`
+  (bar / line / … / gantt) — plus `validatePrimitiveDef(raw)`, a pure validator that **collects every problem**
+  (never throws) and returns the normalised `PrimitiveDefShape` when clean. This is the deterministic test the
+  skill runs on any generated/pasted bundle before it may be stored. A **drift guard** in the SPA
+  (`charts/catalogue.drift.test`) asserts the shipped `PRIMITIVE_CATALOGUE` (the runtime rendering side) only
+  ever uses these sets, so the validator can't diverge from what actually renders. 5 catalogue + 2 drift tests;
+  backend-catalogue + SPA typecheck clean. **Next:** slice 2 — the server skill (AI generate → validate →
+  return feedback); slice 3 — the companion studio UI (describe → preview → iterate → submit); slice 4 — image
+  input (extend the `aiChat` vision chokepoint).
+
 ---
 
 ## Primitives as objects / methods / classes
