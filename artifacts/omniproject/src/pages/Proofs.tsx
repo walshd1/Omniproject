@@ -4,12 +4,14 @@ import { Input } from "@/components/ui/input";
 import { Stamp, Plus, Trash2, Save, Check, X, RotateCcw } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth, roleAtLeast } from "../lib/auth";
+import { useFeatures, featureEnabled } from "../lib/features";
 import type { Annotation, DeliverableKind, ProofDecision } from "@workspace/backend-catalogue";
 import {
   useProofs, useProof, useCreateProof, useSaveProof, useDeleteProof, useDecideProof,
-  type ProofStorage,
+  proofRoomId, type ProofStorage,
 } from "../lib/proofs";
 import { AnnotationOverlay } from "../components/proof/AnnotationOverlay";
+import { CommentsPanel } from "../components/issue-dialog/CommentsPanel";
 
 /**
  * Proofs — the creative-review page (roadmap 2.4 slice 2). Browse proofs, open one to overlay its
@@ -55,9 +57,16 @@ export function Proofs() {
   // Working copy of the open proof's annotations; seeded when it loads, saved on demand.
   const [annotations, setAnnotations] = useState<Annotation[]>([]);
   const [dirty, setDirty] = useState(false);
+  const [selectedAnnId, setSelectedAnnId] = useState<string | null>(null);
   useEffect(() => {
     if (proofQ.data) { setAnnotations(proofQ.data.annotations ?? []); setDirty(false); }
   }, [proofQ.data]);
+  useEffect(() => { setSelectedAnnId(null); }, [proofId]); // reset the open thread when switching proofs
+
+  // Threaded review reuses the shared comments seam, keyed by the `proof:<id>[#<annId>]` room. A selected
+  // annotation gets its own thread; otherwise the proof's general-discussion thread.
+  const commentsOn = featureEnabled(useFeatures().data, "comments");
+  const selectedAnnIndex = selectedAnnId ? annotations.findIndex((a) => a.id === selectedAnnId) : -1;
 
   const onChange = (next: Annotation[]) => { setAnnotations(next); setDirty(true); };
 
@@ -163,7 +172,17 @@ export function Proofs() {
                   </div>
                 )}
 
-                <AnnotationOverlay deliverable={open.deliverable} annotations={annotations} onChange={onChange} readOnly={!canAuthor} />
+                <AnnotationOverlay deliverable={open.deliverable} annotations={annotations} onChange={onChange} readOnly={!canAuthor} onSelect={setSelectedAnnId} />
+
+                {/* Threaded review — a comment thread per annotation (or the proof's general discussion). */}
+                {commentsOn && (
+                  <div className="border-t border-border pt-2" data-testid="proof-review-thread">
+                    <p className="text-[10px] uppercase tracking-widest text-muted-foreground mb-1">
+                      {selectedAnnIndex >= 0 ? `Review thread · annotation ${selectedAnnIndex + 1}` : "General review"}
+                    </p>
+                    <CommentsPanel key={selectedAnnId ?? "general"} roomId={proofRoomId(open.id, selectedAnnId ?? undefined)} />
+                  </div>
+                )}
               </div>
             ) : (
               <p className="text-sm text-muted-foreground" data-testid="proofs-no-selection">Select a proof to review, or create one.</p>

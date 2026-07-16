@@ -346,7 +346,7 @@ authoring, and the drift guards — no feature bypasses the golden rules.
 - **2.3 complete.** Whiteboards now have a native primitive-built canvas, storage targets, SVG/PNG export,
   sticky → work item, and multi-user live cursors — the inline "good enough" canvas the roadmap called for.
 
-### 2.4 Proofing / deliverable review & annotation  🚧 In progress (slices 1–2)
+### 2.4 Proofing / deliverable review & annotation  🚧 In progress (slices 1–3)
 - **Competitors.** Adobe Workfront, Wrike, Smartsheet. **Gap.** No creative review markup.
 - **Acceptance.** Attach a deliverable (image/PDF), pin annotations, threaded review,
   approve/reject decision bound to a version; ties into approval chains.
@@ -373,8 +373,15 @@ authoring, and the drift guards — no feature bypasses the golden rules.
   storage target), Save, Delete, and a **review decision bar** (Approve / Request changes / Reject → the
   server-stamped, version-bound decision route). Authoring is contributor+ (a viewer sees the markers,
   read-only); an org proof's write/delete/decision needs manager+. Nav entry (feature-gated on `proofing`) +
-  route + e2e manifest + i18n. Pure geometry (`lib/proof-geometry`) + overlay + page tests. **Next:** threaded
-  review (a comment thread per annotation) and approval-chain + passkey binding of the decision.
+  route + e2e manifest + i18n. Pure geometry (`lib/proof-geometry`) + overlay + page tests.
+- **Slice 3 ✅ (threaded review).** A **comment thread per annotation**, reusing the existing comments seam
+  with **no backend change** — the overlay lifts its selection (`onSelect`), and the page renders a
+  `CommentsPanel` keyed by the `proof:<id>#<annotationId>` room (an unselected proof shows its general-
+  discussion thread, `proof:<id>`). Same room-scope treatment as wiki doc comments (org-content; a caller
+  needs the proof id, and the proof read is already access-controlled). Gated on the existing `comments`
+  module; read for any authed user, post contributor+ (the seam's own RBAC). Overlay `onSelect` +
+  general/per-annotation thread switch tests. **Next:** binding the approve/reject decision into the
+  **approval chain + passkey sign-off** (the governance leverage — an auditable, non-repudiable sign-off).
 
 ### 2.5 Native mobile + offline  ⬜ Todo
 - **Competitors.** All. **Gap.** PWA caches app-shell only; no offline data, no native apps.
@@ -626,3 +633,8 @@ so an attachment field would be a URL reference (`url` type) pointing at the sys
   decision bar (Approve / Request changes / Reject → the server-stamped version-bound decision route).
   contributor+ authoring (viewer read-only); org proofs manager+. Nav (feature-gated) + route + e2e + i18n;
   pure `lib/proof-geometry` + overlay + page tests. Next: threaded review + approval-chain binding.
+- _2026-07-16_ — Phase 2.4 slice 3 (threaded review) shipped: a comment thread per annotation, reusing the
+  existing comments seam with NO backend change — the overlay lifts its selection (onSelect) and the page
+  renders a CommentsPanel keyed by the `proof:<id>#<annotationId>` room (general discussion under `proof:<id>`
+  when nothing is selected). Gated on the `comments` module; same org-content room posture as wiki doc
+  comments. Overlay onSelect + thread-switch tests. Next: approval-chain + passkey binding of the decision.
