@@ -19,8 +19,8 @@ import { validateForms } from "./form-def";
 import { validatePrimitiveDef } from "@workspace/backend-catalogue";
 
 /** A user-definable JSON kind the importer accepts. */
-export type DefKind = "primitive" | "screen" | "form" | "report" | "dashboard" | "jsonDef";
-export const DEF_KINDS: readonly DefKind[] = ["primitive", "screen", "form", "report", "dashboard", "jsonDef"];
+export type DefKind = "primitive" | "screen" | "form" | "report" | "dashboard" | "businessRule" | "theme" | "font" | "jsonDef";
+export const DEF_KINDS: readonly DefKind[] = ["primitive", "screen", "form", "report", "dashboard", "businessRule", "theme", "font", "jsonDef"];
 
 /** The artifact-store type key: one sealed collection per scope holds every stored def. */
 export const DEF_ARTIFACT = "def";
@@ -76,8 +76,24 @@ export function validateDef(kind: DefKind, payload: unknown): DefValidation {
     case "form": return fromThrowing(() => validateForms([payload])[0]);
     case "report": return structural(payload, ["id"]);
     case "dashboard": return structural(payload, ["id"]);
+    case "businessRule": return structural(payload, ["id"]);
+    case "theme": return validateTheme(payload);
+    case "font": return structural(payload, ["id", "family"]);
     case "jsonDef": return structural(payload, []);
   }
+}
+
+/** A colour theme: an id + a `colors` map of string colour values (checked so a theme can't smuggle a
+ *  non-string / executable value into the styling layer). */
+function validateTheme(payload: unknown): DefValidation {
+  const base = structural(payload, ["id"]);
+  if (!base.ok) return base;
+  const colors = (payload as Record<string, unknown>)["colors"];
+  if (colors !== undefined) {
+    if (typeof colors !== "object" || colors === null || Array.isArray(colors)) return { ok: false, errors: ["colors must be an object of colour values"] };
+    if (Object.values(colors as Record<string, unknown>).some((v) => typeof v !== "string")) return { ok: false, errors: ["every colors value must be a string"] };
+  }
+  return { ok: true, errors: [], value: payload };
 }
 
 export interface SanitizedDef {

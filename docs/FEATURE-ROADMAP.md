@@ -832,7 +832,7 @@ authoring, and the drift guards — no feature bypasses the golden rules.
   encrypted stores.** (Future: generalise the Studio's AI generation beyond primitives — the importer + the
   Definitions page already accept screen/form/report/dashboard/jsonDef today.)
 
-### X.4 Definition editing, configurable permissions, and universal JSON coverage  🚧 In progress (slices 1–2 of 3)
+### X.4 Definition editing, configurable permissions, and universal JSON coverage  ✅ Done (slices 1–3)
 - **Goal.** Round out the importer into a full lifecycle: an **editor** (read + edit existing defs, not just
   create), an **admin-configurable permission model** per scope, and coverage of **everything** a user or admin
   can write in JSON — business rules, colour themes, fonts — through the same one validated path.
@@ -858,8 +858,16 @@ authoring, and the drift guards — no feature bypasses the golden rules.
   gains an **edit-in-place panel** — an Edit button on each row loads the def, seeds a JSON editor + name field,
   Validate (dry-run) → Save changes (PUT), Cancel. 1 route test (re-validate + rowVersion bump + kind kept +
   invalid-400 + missing-404) + 1 page test (opens the editor seeded with the payload); api-server + SPA typecheck
-  clean. **Next:** slice 3 — add `businessRule` / `theme` (colours) / `font` def kinds so all user/admin-writable
-  JSON flows through the importer.
+  clean.
+- **Slice 3 ✅ (business rules, colours, fonts — universal coverage).** Added three def kinds so *everything a
+  user or admin can write in JSON* flows through the one importer: **`businessRule`**, **`theme`** (colours), and
+  **`font`**. `validateDef` gains their validators — `businessRule` (structural, needs an id), `theme` (an id + a
+  `colors` map whose every value must be a string, so a theme can't smuggle a non-string/executable into the
+  styling layer), `font` (needs id + family). Wired through both `DEF_KINDS` lists (server + SPA) and the
+  Definitions kind picker (with labels). 1 lib test (rules/themes/fonts validate, bad shapes rejected); api-server
+  + SPA typecheck clean. **X.4 complete: read + edit existing defs, an admin-configurable per-scope permission
+  model, and every user/admin-writable JSON kind — primitives, screens, forms, reports, dashboards, business
+  rules, colour themes, fonts — flowing through one validated importer into the scoped encrypted stores.**
 
 The mental model: each entry in the store is a **class** — its config are properties (a field's
 `options`, `maxLength`; a panel's `source`), it produces a typed **value**, and it carries
