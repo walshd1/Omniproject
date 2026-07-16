@@ -52,6 +52,7 @@ export default defineConfig({
         manualChunks(id) {
           if (!id.includes("node_modules")) return undefined;
           if (id.includes("recharts") || id.includes("d3-") || id.includes("victory")) return "charts";
+          if (id.includes("roughjs") || id.includes("perfect-freehand") || id.includes("path-data-parser") || id.includes("points-on-")) return "canvas-libs";
           if (id.includes("@radix-ui") || id.includes("cmdk")) return "radix";
           if (id.includes("react-dom") || id.includes("scheduler") || id.includes("/react/")) return "react-vendor";
           return undefined;

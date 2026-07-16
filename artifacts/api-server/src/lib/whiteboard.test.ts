@@ -67,6 +67,15 @@ test("coordinates are clamped to a finite range", () => {
   assert.equal(el.y, 0, "NaN → default");
 });
 
+test("a freehand draw element keeps bounded points; an empty one is dropped", () => {
+  const many = Array.from({ length: CANVAS_LIMITS.maxDrawPoints + 500 }, (_, i) => [i, i]);
+  const el = sanitizeCanvasElement({ id: "d", type: "draw", x: 0, y: 0, points: many, strokeWidth: 999 }, 0)!;
+  assert.equal(el.type, "draw");
+  assert.equal(el.points!.length, CANVAS_LIMITS.maxDrawPoints, "points capped");
+  assert.ok(el.strokeWidth! <= 64, "stroke width clamped");
+  assert.equal(sanitizeCanvasElement({ id: "empty", type: "draw", x: 0, y: 0, points: [] }, 0), null, "no points → dropped");
+});
+
 test("an oversized scene is rejected (total size, after per-element caps)", () => {
   // Each element's text is capped, but enough max-size elements still blow the total-scene budget.
   const many = Array.from({ length: 1000 }, (_, i) => ({ id: `t${i}`, type: "text", text: "x".repeat(CANVAS_LIMITS.maxText) }));

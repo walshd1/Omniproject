@@ -116,6 +116,21 @@ export function sanitizeCanvasElement(raw: unknown, index: number): CanvasElemen
       el.text = cleanText(obj["text"], CANVAS_LIMITS.maxName);
       break;
     }
+    case "draw": {
+      const rawPts = obj["points"];
+      if (!Array.isArray(rawPts)) return null; // a pen stroke without points is meaningless → drop
+      const points: number[][] = [];
+      for (const p of rawPts) {
+        if (!Array.isArray(p) || p.length < 2) continue;
+        points.push([coord(p[0]), coord(p[1])]);
+        if (points.length >= CANVAS_LIMITS.maxDrawPoints) break;
+      }
+      if (points.length === 0) return null;
+      el.points = points;
+      const sw = Number(obj["strokeWidth"]);
+      el.strokeWidth = Number.isFinite(sw) ? Math.min(64, Math.max(1, sw)) : 4;
+      break;
+    }
   }
   return el;
 }
