@@ -181,23 +181,30 @@ Routes are thin shells over the broker methods (like every other broker passthro
 ## Screenshot + AI fallback (when the vendor API is lacking)
 
 Some tools have no usable read API, or a board type the API can't export. For those, a third import
-mechanism: **capture an image of the artifact and let an AI vision model interpret it** — returning a
-thumbnail plus extracted text / a structured summary that lands as the attachment's metadata.
+mechanism: **capture an image of the artifact and let an AI vision model extract it into STRUCTURED JSON** —
+a typed schema per artifact kind (e.g. a whiteboard → `{ stickies: [...], connectors: [...] }`), plus a
+thumbnail. The JSON — not an opaque summary — is the output, and it is **auditable and adjustable**:
 
+- **Structured, typed output.** The model is asked for JSON against a per-`kind` schema, validated on the
+  way in (typed 400 on malformed), so the result is data the app can render, diff and store — never a blob.
+- **Auditable.** The extraction is provenance-stamped **AI·GENERATED** (model, prompt hash, timestamp) and
+  written to the tamper-evident **audit chain**, so what the AI produced — and from which screenshot — is on
+  the record.
+- **Adjustable — human disposes.** The JSON is a **proposal**, surfaced for review; a user can edit/correct
+  fields before it's **accepted**. Nothing is committed to the work item silently — same "AI proposes, human
+  reviews" pattern as nl-action / estimates / insights. Acceptance is the audited write; edits are attributed
+  to the human, not the model.
 - **Capture** runs server-side in the pre-installed **headless Chromium** (Playwright), navigating the
-  artifact URL under the user's own session/token — never a service account, so scope isn't widened.
-- **The capture is an egress event** → the headless browser's navigation is subject to the same
-  SSRF/egress/residency posture (host-allowlisted to the vendor's domains; residency-gated).
-- **Interpretation goes through the existing AI plane** → the image + prompt run through the single
-  `aiChat`/vision chokepoint, so it inherits the **AI kill switch, per-role model allowlist, token budget,
-  and — critically — DLP redaction** (a screenshot can carry secrets/PII; redact before egress) and
-  **AI·GENERATED provenance** on whatever it extracts.
-- **Reference-first, still.** The screenshot + AI summary are *derived metadata* on a reference; the board
-  itself stays in the vendor. It's the graceful-degradation path — "no API? we still capture and understand
-  it" — not a replacement for the reference model.
+  artifact URL under the user's own session/token — never a service account, so scope isn't widened; the
+  navigation is an egress event under the same SSRF/egress/residency posture (vendor-host-allowlisted).
+- **Governed AI plane.** The image + prompt run through the single `aiChat`/vision chokepoint → AI kill
+  switch, per-role model allowlist, token budget, and **DLP redaction** (a screenshot can carry secrets/PII —
+  redact before egress).
+- **Reference-first, still.** The JSON + thumbnail are *derived metadata* on a reference; the board stays in
+  the vendor.
 
-This is the honest answer to "your API is lacking": we can still take it in, just via pixels + AI instead
-of a clean API pull.
+This is the honest answer to "your API is lacking": we still take it in — as auditable, adjustable JSON via
+pixels + AI — rather than a clean API pull.
 
 ## Security invariants (vendor-agnostic — hold by construction)
 
