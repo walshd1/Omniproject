@@ -670,7 +670,7 @@ authoring, and the drift guards — no feature bypasses the golden rules.
   for installing pure-JSON extensions. Auto-surfacing installed contributions into the live report/content
   catalogues (via `activeContributions`) is a natural follow-up.**
 
-### 3.5 Org registry of approved bespoke items + community-release seam  🚧 In progress (slice 1 of 3)
+### 3.5 Org registry of approved bespoke items + community-release seam  🚧 In progress (slices 1–2 of 3)
 - **Rationale.** Orgs accumulate bespoke building blocks — custom reports, screens, dashboards, forms,
   **primitives** and raw **JSON defs**, plus extension **plugins** — scattered across users and projects. There's
   no curated, org-wide place to collect the *approved* ones for reuse, and no path (when an org chooses) to share
@@ -695,8 +695,17 @@ authoring, and the drift guards — no feature bypasses the golden rules.
   only approved + their own), submit (contributor+), review/release/retract (admin), `community/status`, delete
   (admin or own-draft), behind the new default-off **`registry`** module. 2 catalogue + 9 pure model + 2 seam +
   6 route tests (incl. sealed-at-rest, visibility, RBAC negatives) + drift guard; all three packages typecheck
-  clean. **Next:** slice 2 — published **reference designs** for primitives + JSON defs (so people can build their
-  own); slice 3 — the registry UI (submit / browse / admin approval queue / release toggle) + reference viewer.
+  clean.
+- **Slice 2 ✅ (published reference designs — so people can build their own).** `lib/registry-reference` — five
+  annotated, **copy-pasteable** examples (a viz `primitive`, a `screen` + a `form` JSON def, a custom `report`,
+  a `dashboard`), each a *complete registry submission* whose `payload` is a real shape (grounded in the actual
+  `PrimitiveDef` / `OrgScreenDef` / `FormDef` formats). `routes/registry` gains `GET /registry/reference` +
+  `/reference/:slug` (viewer+, ordered before `/:id`). The published guarantee is enforced: a test holds **every**
+  example to the real `sanitizeRegistrySubmit`, and the screen/form examples to the real `validateScreenDefs` /
+  `validateForms`, so a reference can never drift into a shape the product would reject. New `docs/REFERENCE-DESIGNS.md`
+  is the human companion (submission envelope, per-kind payload guide, safety rationale). 5 pure + reference route
+  tests; api-server typecheck clean. **Next:** slice 3 — the registry UI (submit / browse / admin approval queue /
+  release toggle) + a reference-designs viewer, gated on the `registry` module.
 
 ---
 

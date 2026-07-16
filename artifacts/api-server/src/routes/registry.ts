@@ -9,6 +9,7 @@ import {
   registryItemMeta, listRegistryItems, getRegistryItem, putRegistryItem, deleteRegistryItem, RegistryError,
   type RegistryItem, type RegistryItemMeta,
 } from "../lib/registry";
+import { REGISTRY_REFERENCE_DESIGNS, referenceDesign } from "../lib/registry-reference";
 
 /**
  * ORG REGISTRY routes (org-wide store of approved bespoke items), behind the default-off `registry` module.
@@ -35,6 +36,19 @@ function visibleTo(req: Parameters<typeof contextFromReq>[0], items: RegistryIte
 router.get("/registry/community/status", requireRole("viewer"), (_req, res) => {
   const cm = getCommunityMarketplace();
   res.json({ connected: cm.configured(), name: cm.name() });
+});
+
+// GET /api/registry/reference — the published reference designs (annotated, copy-pasteable examples) so
+// anyone can learn the canonical shape and build their own primitives / JSON defs (viewer+).
+router.get("/registry/reference", requireRole("viewer"), (_req, res) => {
+  res.json(REGISTRY_REFERENCE_DESIGNS);
+});
+
+// GET /api/registry/reference/:slug — one reference design by slug (viewer+).
+router.get("/registry/reference/:slug", requireRole("viewer"), (req, res) => {
+  const design = referenceDesign(String(req.params["slug"]));
+  if (!design) { res.status(404).json({ error: "Reference design not found" }); return; }
+  res.json(design);
 });
 
 // GET /api/registry?kind=&status=&visibility= — the visible items (payload omitted) (viewer+).
