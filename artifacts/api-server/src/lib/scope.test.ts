@@ -15,6 +15,16 @@ test("resolveScope: pmo and admin get all-data scope", () => {
   assert.deepEqual(resolveScope(grants("manager", "pmo"), { sub: "a", groups: [] }), { level: "all" });
 });
 
+test("project scope (guest): in-scope only for the one project id, fail-closed otherwise", () => {
+  const guest: Scope = { level: "project", projectId: "proj-001" };
+  assert.equal(inScope(guest, { id: "proj-001" }), true, "its own project");
+  assert.equal(inScope(guest, { id: "proj-002" }), false, "any other project");
+  assert.equal(inScope(guest, {}), false, "an unattributable row is never leaked");
+  // A project-list filter keeps exactly the guest's project.
+  const rows = [{ id: "proj-001", name: "A" }, { id: "proj-002", name: "B" }];
+  assert.deepEqual(filterInScope(guest, rows), [{ id: "proj-001", name: "A" }]);
+});
+
 test("resolveScope: a manager is scoped to their owned programmes (from groups)", () => {
   const s = resolveScope(grants("manager"), { sub: "pm-1", groups: ["programme:alpha", "programme:beta", "other-group"] });
   assert.equal(s.level, "programme");

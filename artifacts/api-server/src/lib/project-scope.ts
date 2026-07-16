@@ -24,6 +24,10 @@ import { auditScopeDenied } from "./audit";
 export async function assertProjectScope(req: Request, projectId: string): Promise<{ ok: true } | { ok: false; error: string }> {
   const scope = scopeForReq(req);
   if (scope.level === "all") return { ok: true }; // PMO/admin (and demo) see everything
+  // A GUEST (project-scoped) may touch ONLY its one invited project — decided by id, nothing else visible.
+  if (scope.level === "project") {
+    return scope.projectId === projectId ? { ok: true } : { ok: false, error: "project not in your scope" };
+  }
   const registry = getSettings().programmeRegistry;
   const visible = await getProjects(req, { includeClosed: true });
   const project = visible.find((p) => String(p["id"]) === projectId || qualifiedId(p) === projectId);

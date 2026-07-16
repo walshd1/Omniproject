@@ -230,13 +230,26 @@ authoring, and the drift guards — no feature bypasses the golden rules.
 - **2.1 complete.** Wiki now has documents-of-primitives, authoring, presence+comments, a page tree,
   version history + diff, and real-time co-edit — all zero-at-rest through the broker seam.
 
-### 2.2 Guest / external collaboration & client portals  ⬜ Todo
+### 2.2 Guest / external collaboration & client portals  🚧 In progress (slice 1)
 - **Competitors.** Monday, Wrike, Smartsheet. **Gap.** Enterprise-IdP/SCIM only; no
   limited-seat guest access (blocks agencies/consultancies).
 - **Acceptance.** Scoped guest principals (single project/board), magic-link or restricted
   IdP, read-or-comment tiers, no portfolio/admin surface, fully audited; a client-facing
   status portal view.
 - **Leverage.** magic-link auth, RBAC ladder, scope guards, screen visibility gating.
+- **Slice 1 ✅ (scoped guest principal + portal backend).** A new **`guest` role FLOOR** (below viewer,
+  in both server + client ladders) that fails every `requireRole("viewer")` gate — so a guest is locked
+  out of the whole app by a single hard viewer-floor gate and can reach ONLY the portal. A new **`project`
+  scope level** confines a guest to exactly one project id (enforced at the gateway `assertProjectScope`
+  AND re-enforced at the broker data seam). Guests are issued via a **sealed, single-use magic-link invite**
+  (`mintGuestToken`, scope claims inside the token) — governed by `GUEST_PORTAL_ENABLED`, so it works
+  alongside a configured IdP (unlike plain magic-link). `POST /api/portal/invites` (manager+, project-scoped)
+  and `GET /api/portal/status` (guest+, its one project) — the status is an explicit **allow-list** of
+  client-safe fields (name, progress, RAG rollup, dated milestones); never budget/cost/benefit. Every guest
+  action is audited automatically. Security tests: guest 403 on all app routes, single-use, invite RBAC,
+  no financial leakage, portal-off ⇒ 404.
+- **Slice 2 (next).** The client-facing portal PAGE (a bare `/portal` route like `/explore`), a guest
+  redirect (a guest lands only on the portal), the invite UI (manager action), and the comment tier.
 
 ### 2.3 Whiteboards / visual canvas  ⬜ Todo
 - **Competitors.** Miro/Mural, ClickUp, Monday. **Gap.** No infinite canvas.
@@ -446,3 +459,9 @@ so an attachment field would be a URL reference (`url` type) pointing at the sys
   seeding), a dumb contributor+ SSE relay (`/api/collab/rooms/:roomId`, room-scope-guarded, never stores
   the opaque payload — durable doc still saves through the broker seam), a state-vector join-sync using
   only `yjs` core (no y-prosemirror), behind the default-off `wikiCoEdit` flag. New dep: `yjs` (client).
+- _2026-07-16_ — Phase 2.2 slice 1 (scoped guest principal + portal backend) shipped: a `guest` role floor
+  (server + client) that fails every viewer+ gate (one hard viewer-floor gate locks guests to the portal),
+  a `project` scope level confining a guest to one project (gateway + broker-seam enforced), sealed
+  single-use magic-link invites (`GUEST_PORTAL_ENABLED`, works alongside an IdP), and `POST /portal/invites`
+  (manager+) / `GET /portal/status` (guest+, allow-listed client-safe fields — no financials). Guest actions
+  auto-audited. Portal UI + redirect + comment tier are slice 2.

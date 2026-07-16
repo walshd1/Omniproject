@@ -10,7 +10,9 @@ export interface AuthUser {
 // PLUS two ORTHOGONAL authorities (pmo, admin) that each confer manager-level base but are
 // independent of each other — a pure admin does NOT satisfy `pmo`, and vice-versa. The `role`
 // the gateway sends is the single representative label (highest authority, else base).
-export type Role = "viewer" | "contributor" | "manager" | "pmo" | "admin";
+// `guest` is the invite-only FLOOR (below viewer) — a client-facing portal principal confined to one
+// project. It never satisfies a viewer+ gate, so it can't reach the app proper; mirrors the gateway.
+export type Role = "guest" | "viewer" | "contributor" | "manager" | "pmo" | "admin";
 
 export interface AuthState {
   authenticated: boolean;
@@ -25,14 +27,18 @@ export interface AuthState {
   oauth2Configured?: boolean;
   /** Whether passwordless magic-link sign-in is enabled (no IdP). */
   magicLinkEnabled?: boolean;
+  /** Present ONLY for a guest principal: the single project it's confined to and its access tier. The SPA
+   *  uses this to route a guest to the client portal and nowhere else. */
+  guest?: { projectId: string; tier: "read" | "comment" };
   /** This session was flagged as an implausible location jump from its own last login,
    *  and hasn't been re-verified since (a step-up minted after the flag clears it). Not
    *  a lockout — the SPA prompts a step-up before the next sensitive (admin/pmo) action. */
   impossibleTravel?: boolean;
 }
 
-/** The linear base ladder. The authorities (pmo/admin) sit above it and confer manager base. */
-const BASE_RANK = { viewer: 0, contributor: 1, manager: 2 } as const;
+/** The linear base ladder. `guest` is the floor (below viewer). The authorities (pmo/admin) sit above it
+ *  and confer manager base. */
+const BASE_RANK = { guest: 0, viewer: 1, contributor: 2, manager: 3 } as const;
 type BaseRole = keyof typeof BASE_RANK;
 const AUTHORITIES = new Set<Role>(["pmo", "admin"]);
 /** A role's base rung — an authority confers manager-level base. */
