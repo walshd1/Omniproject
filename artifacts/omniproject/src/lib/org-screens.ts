@@ -1,6 +1,7 @@
 import { useMemo } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { getJson, sendJson } from "./api";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { sendJson } from "./api";
+import { useSettingsSlice, settingsQueryKey } from "./settings-query";
 import { mergeScreens, resolveScreenDef, screenDefs, type ScreenCatalogueEntry } from "./screen-catalogue";
 
 /**
@@ -11,14 +12,8 @@ import { mergeScreens, resolveScreenDef, screenDefs, type ScreenCatalogueEntry }
  */
 export type OrgScreenDef = ScreenCatalogueEntry;
 
-export const orgScreensQueryKey = ["screen-defs"] as const;
-
 export function useOrgScreenDefs() {
-  return useQuery({
-    queryKey: orgScreensQueryKey,
-    queryFn: () => getJson<{ screenDefs: OrgScreenDef[] }>("/api/screen-defs").then((r) => r.screenDefs ?? []),
-    staleTime: 30_000,
-  });
+  return useSettingsSlice((s) => (Array.isArray(s["screenDefs"]) ? (s["screenDefs"] as OrgScreenDef[]) : []));
 }
 
 /** Persist the full org screen-defs list (CSRF attached by the global fetch patch). PMO-gated server-side. */
@@ -26,7 +21,7 @@ export function useSaveOrgScreenDefs() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (screenDefs: OrgScreenDef[]) => sendJson<unknown>("/api/screen-defs", { screenDefs }, "PUT", "Failed to save screens"),
-    onSuccess: () => qc.invalidateQueries({ queryKey: orgScreensQueryKey }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: settingsQueryKey }),
   });
 }
 

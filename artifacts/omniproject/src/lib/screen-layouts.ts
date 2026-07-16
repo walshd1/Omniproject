@@ -1,5 +1,6 @@
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { getJson, sendJson } from "./api";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { sendJson } from "./api";
+import { useSettingsSlice, settingsQueryKey } from "./settings-query";
 import type { ScreenLayout } from "./screen";
 
 /**
@@ -11,14 +12,8 @@ import type { ScreenLayout } from "./screen";
  */
 export type ScreenLayoutMap = Record<string, ScreenLayout>;
 
-export const screenLayoutsQueryKey = ["screen-layouts"] as const;
-
 export function useScreenLayouts() {
-  return useQuery({
-    queryKey: screenLayoutsQueryKey,
-    queryFn: () => getJson<{ screenLayouts: ScreenLayoutMap }>("/api/screen-layouts").then((r) => r.screenLayouts ?? {}),
-    staleTime: 30_000,
-  });
+  return useSettingsSlice((s) => (s["screenLayouts"] && typeof s["screenLayouts"] === "object" ? (s["screenLayouts"] as ScreenLayoutMap) : {}));
 }
 
 /** Persist the full layout map (CSRF attached by the global fetch patch). PMO-gated server-side. */
@@ -29,7 +24,7 @@ export function useSaveScreenLayouts() {
       return sendJson<unknown>("/api/screen-layouts", { screenLayouts }, "PUT", "Failed to save screen layout");
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: screenLayoutsQueryKey });
+      qc.invalidateQueries({ queryKey: settingsQueryKey });
     },
   });
 }

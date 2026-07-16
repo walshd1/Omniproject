@@ -8,7 +8,7 @@ import {
   type Capabilities,
 } from "@workspace/api-client-react";
 import { renderWithProviders } from "../test/utils";
-import { methodologyCompositionQueryKey } from "../lib/methodology-composition-api";
+import { settingsQueryKey } from "../lib/settings-query";
 import { Reports } from "./Reports";
 
 function project(over: Partial<Project> = {}): Project {
@@ -96,7 +96,7 @@ describe("Reports", () => {
   it("hides a section the methodology composition curates out", () => {
     const qc = seed([project()], caps({ portfolio: true }));
     // Only portfolio-rag is composed in — every other reportId-gated section is curated out.
-    qc.setQueryData(methodologyCompositionQueryKey, ["report:portfolio-rag"]);
+    qc.setQueryData(settingsQueryKey, { methodologyComposition: ["report:portfolio-rag"] });
     renderWithProviders(<Reports />, { client: qc });
     expect(screen.queryByRole("heading", { name: /Federated Portfolio/i })).toBeNull();
     // portfolio-rag (Portfolio Health) stays visible.

@@ -2,15 +2,14 @@ import { describe, it, expect, vi, afterEach } from "vitest";
 import { screen, fireEvent, waitFor } from "@testing-library/react";
 import { QueryClient } from "@tanstack/react-query";
 import { renderWithProviders } from "../../test/utils";
-import { orgScreensQueryKey } from "../../lib/org-screens";
-import { disabledScreensQueryKey } from "../../lib/screen-state";
+import { settingsQueryKey } from "../../lib/settings-query";
 import { ScreensAdmin } from "./ScreensAdmin";
 
 function seed(role: string | undefined, org: unknown[] = [], disabled: string[] = []): QueryClient {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity }, mutations: { retry: false } } });
   if (role) qc.setQueryData(["auth", "me"], { authenticated: true, role, user: { sub: "u1" } });
-  qc.setQueryData(orgScreensQueryKey, org);
-  qc.setQueryData(disabledScreensQueryKey, disabled);
+  // Screen defs + disabled screens are slices of the one shared /api/settings read.
+  qc.setQueryData(settingsQueryKey, { screenDefs: org, disabledScreens: disabled });
   return qc;
 }
 
