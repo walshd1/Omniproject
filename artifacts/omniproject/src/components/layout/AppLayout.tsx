@@ -12,13 +12,15 @@ import { DataQualityBadge } from "../DataQualityBadge";
 import { ApiPortalLink } from "../ApiPortalLink";
 import { useStore } from "../../store/useStore";
 import { useListProjects, useHealthCheck, getHealthCheckQueryKey } from "@workspace/api-client-react";
-import { LogOut, Menu, ChevronDown, ShieldCheck, Flag } from "lucide-react";
+import { LogOut, Menu, ChevronDown, ShieldCheck, Flag, DownloadCloud } from "lucide-react";
 import { ReportProblemDialog } from "../ReportProblemDialog";
 import { useNavShelves, type NavItem } from "../../lib/nav";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { useAuth, logout } from "../../lib/auth";
 import { usePublicSetupStatus } from "../../lib/setup";
 import { useT } from "../../lib/i18n";
+import { useOnline, connectivityState } from "../../lib/connectivity";
+import { useInstallPrompt } from "../../lib/use-install-prompt";
 import { useBranding } from "../../lib/branding";
 import { LanguageSwitcher } from "../LanguageSwitcher";
 import { ThemeScope } from "../../lib/theme-scope";
@@ -56,7 +58,12 @@ export function AppLayout({ children }: { children: ReactNode }) {
   const health = useHealthCheck({
     query: { queryKey: getHealthCheckQueryKey(), refetchInterval: 30_000, retry: false },
   });
-  const connected = health.data?.status === "ok";
+  // Connectivity = device network (navigator.onLine) + gateway health. Device-offline reads differently
+  // from a reachable-but-unhealthy gateway (see lib/connectivity).
+  const online = useOnline();
+  const conn = connectivityState(online, health.data?.status === "ok");
+  const connected = conn === "connected";
+  const { canInstall, promptInstall } = useInstallPrompt();
 
   // Fall back to the first project when none is explicitly active, so the global
   // Cmd+K "New Issue" dialog always has a target project.
@@ -271,8 +278,17 @@ export function AppLayout({ children }: { children: ReactNode }) {
           </div>
 
           <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2 border border-border px-2 py-1 bg-card" title="Gateway health" role="status" aria-live="polite">
-              <div className={`w-2 h-2 rounded-full ${connected ? "bg-green-500" : "bg-red-500 animate-pulse"}`}></div>
+            {canInstall && (
+              <button type="button" data-testid="pwa-install" onClick={() => void promptInstall()}
+                className="flex items-center gap-1.5 border border-border px-2 py-1 bg-card text-xs font-bold tracking-widest hover:bg-muted"
+                title="Install OmniProject as an app">
+                <DownloadCloud className="w-3.5 h-3.5" /> {t("header.install")}
+              </button>
+            )}
+            <div className="flex items-center gap-2 border border-border px-2 py-1 bg-card" data-testid="connectivity"
+              title={conn === "offline" ? "No network connection" : conn === "unreachable" ? "Gateway unreachable" : "Gateway health"}
+              role="status" aria-live="polite">
+              <div className={`w-2 h-2 rounded-full ${connected ? "bg-green-500" : conn === "unreachable" ? "bg-amber-500 animate-pulse" : "bg-red-500 animate-pulse"}`}></div>
               <span className="text-xs font-bold tracking-widest">{connected ? t("header.connected") : t("header.offline")}</span>
             </div>
             <DataQualityBadge />
