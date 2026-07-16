@@ -38,6 +38,15 @@ const WRITE_CLASSIFIERS = {
   updateTask: (args, now): WriteRequest => ({ action: "update_task", projectId: str(rec(args[2])["projectId"]), now }),
   addTaskComment: (_args, now): WriteRequest => ({ action: "add_task_comment", now }),
   addTaskAttachment: (_args, now): WriteRequest => ({ action: "add_task_attachment", now }),
+  // writeWikiDoc(ctx, op, input) authors a knowledge-base document — a genuine mutation. Guard it under a
+  // per-op action so an autonomous actor must be granted `${op}_wiki_doc`; the wiki isn't project-scoped,
+  // so projectId is null (the grant bounds it by action/field, fail-closed for an ungranted actor).
+  writeWikiDoc: (args, now): WriteRequest => {
+    const op = str(args[1]) ?? "update";
+    const input = rec(args[2]);
+    const fields = Object.keys(input).filter((k) => k !== "id" && k !== "spaceId");
+    return { action: `${op}_wiki_doc`, projectId: null, fields, now };
+  },
   // storeCredential(ctx, {backend,name,value}) delegates a vendor secret into the broker vault — a
   // genuine mutation. The secret VALUE is never put in the request (grants scope by action/project,
   // not by content); an autonomous actor with no store_credential grant is denied, fail-closed.
