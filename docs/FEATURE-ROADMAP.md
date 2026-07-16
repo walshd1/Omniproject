@@ -451,7 +451,7 @@ authoring, and the drift guards — no feature bypasses the golden rules.
 
 ## Phase 3 — deepen what exists only partially
 
-### 3.1 Full interactive scheduling engine  🚧 In progress (slices 1–5)
+### 3.1 Full interactive scheduling engine  ✅ Done (slices 1–6)
 - **Competitors.** MS Project, Smartsheet, Planview. **Have.** Gantt + CPM + baselines +
   Monte-Carlo. **Missing.** Auto-scheduling: working calendars, task constraints
   (SNET/FNLT), lead/lag, drag-a-bar-and-cascade-dependencies.
@@ -509,6 +509,17 @@ authoring, and the drift guards — no feature bypasses the golden rules.
   means editing the real dates. 4 forecast unit tests + 3 component tests (table/driver, empty, cycle);
   renderer-coverage guard green. **Next:** interactive drag-a-bar-cascade that writes committed dates back
   through the issue-update seam (slice 6).
+- **Slice 6 ✅ (interactive drag-a-bar-cascade — completes 3.1).** An **opt-in** "Cascade dependents" toggle
+  on the board Gantt (default off ⇒ today's exact single-bar move). `lib/cascade-reschedule` (`computeCascade`)
+  — pure **push-only** cascade maths: anchors every task at its CURRENT position (nothing is pulled earlier)
+  and isolates a drag's effect by diffing two `autoSchedule` runs (baseline vs dragged-anchor-bumped) so
+  pre-existing dependency slack cancels out and only THIS drag's knock-on is written. When the toggle is on,
+  releasing a dragged bar computes the per-issue day-shifts and `commitCascade` writes the dragged bar **and**
+  every pushed dependent back through the existing issue-update seam in one optimistic move with an
+  all-or-revert failure path (any write — incl. a 409 — rolls the whole timeline back). Only shown when the
+  backend can store the schedule dates. 6 cascade unit tests (push-later, no-pull-earlier, dependent-only,
+  no-deps, zero-drag, knock-on-isolation) + 3 component tests (toggle gating ×2, cascade-writes-both). **3.1
+  complete: working calendars, task constraints, lead/lag, and drag-a-bar-and-cascade all shipped.**
 
 ### 3.2 Goals / OKRs as a managed cadence  ⬜ Todo
 - **Competitors.** Asana Goals, Viva Goals, ClickUp. **Have.** Strategy cascade + PI board
