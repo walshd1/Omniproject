@@ -56,8 +56,9 @@ already exist, so they close the most competitive distance for the least build.
   `Intake` screen. Server: `lib/form-def.ts` (validation + submission→IssueWrite),
   `routes/forms.ts` (defs GET/PUT admin-PMO + scope-guarded `/forms/:id/submit`).
   Tests: shared catalogue (3), form-def (12), forms route (7), FormPanel (4), FormsAdmin (3).
-- **Field primitives (have).** text, textarea, number, date, select, checkbox, email, url —
-  all with server-side validation. **Backlog (add as needed):** multi-select, radio,
+- **Field primitives (have).** text, textarea, number, date, email, url, select (dropdown),
+  radio, likert (defaults a 5-point scale), multiselect, checkbox, yesno, address (composite
+  sub-fields) — all with server-side validation + serialisation to the mapped backend field. **Backlog (add as needed):** multi-select, radio,
   currency/money, user/assignee picker, project/entity picker, section/heading (layout),
   hidden/prefilled (e.g. requestedBy = current user), datetime/time, rating/scale, and
   conditional (show-if) logic. See "Form primitive backlog" below.
@@ -197,6 +198,17 @@ already exist, so they close the most competitive distance for the least build.
 - **Leverage.** Panel registry, screen-def bundles, MCP, config-bundle delivery.
 
 ---
+
+## Primitives as objects / methods / classes
+
+The mental model: each entry in the store is a **class** — its config are properties (a field's
+`options`, `maxLength`; a panel's `source`), it produces a typed **value**, and it carries
+**methods** (validate, render, serialise-to-backend). An instance placed on a screen or form is
+an **object**; the family-specific renderer map is where a class's `render` method lives, and
+`form-def.ts` holds the field classes' `validate`/`serialise` methods. The unified store is the
+class registry; the drift guard keeps it honest. Adding a primitive = defining a new class
+(catalogue entry + renderer/validator) — it then shows up everywhere, and JSON defs instantiate
+it as objects.
 
 ## Single shared primitive store
 

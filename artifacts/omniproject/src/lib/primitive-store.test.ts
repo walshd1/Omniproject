@@ -74,7 +74,7 @@ describe("primitive-store (single shared store)", () => {
   });
 
   it("categoriesFor lists a family's subfolders", () => {
-    expect(categoriesFor("field").sort()).toEqual(["boolean", "choice", "numeric", "temporal", "text"]);
+    expect(categoriesFor("field").sort()).toEqual(["boolean", "choice", "composite", "numeric", "scale", "temporal", "text"]);
     expect(categoriesFor("panel")).toContain("input");
   });
 

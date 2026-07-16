@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Workflow } from "lucide-react";
-import { AUTOMATION_TRIGGERS, AUTOMATION_ACTIONS, type AutomationRecipe, type AutomationCondition, type AutomationAction, type TriggerKind, type ActionKind } from "@workspace/backend-catalogue";
+import { AUTOMATION_TRIGGERS, AUTOMATION_ACTIONS, type AutomationCondition, type AutomationAction, type TriggerKind, type ActionKind } from "@workspace/backend-catalogue";
 import { useAuth, isPmoOrAdmin } from "../../lib/auth";
 import { useDraftAdmin } from "../../hooks/use-draft-admin";
 import { useToast } from "@/hooks/use-toast";

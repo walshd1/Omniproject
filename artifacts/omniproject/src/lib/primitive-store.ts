@@ -63,10 +63,15 @@ const FIELD_META: Record<string, { category: string; tags: string[] }> = {
   textarea: { category: "text", tags: ["multiline"] },
   email: { category: "text", tags: ["validated"] },
   url: { category: "text", tags: ["validated"] },
+  address: { category: "composite", tags: ["multiline"] },
   number: { category: "numeric", tags: [] },
   date: { category: "temporal", tags: [] },
-  select: { category: "choice", tags: [] },
+  select: { category: "choice", tags: ["dropdown"] },
+  radio: { category: "choice", tags: [] },
+  multiselect: { category: "choice", tags: ["multi"] },
+  likert: { category: "scale", tags: ["survey"] },
   checkbox: { category: "boolean", tags: [] },
+  yesno: { category: "boolean", tags: [] },
 };
 
 /** `viz` family — cross-cutting tags per data-visualisation primitive (subfolder is its chart category). */

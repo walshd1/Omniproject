@@ -10,12 +10,30 @@
  */
 import { matchesMethodology } from "./methodology-match";
 
-/** The supported field input types. `email`/`url` are text fields with format validation. */
-export type FormFieldType = "text" | "textarea" | "number" | "date" | "select" | "checkbox" | "email" | "url";
+/**
+ * The supported field input types — each is effectively a small CLASS: its config are properties (options,
+ * required, maxLength), it produces a typed value, and it carries validate/serialize behaviour (in
+ * form-def.ts). `email`/`url` validate a format; `select`/`radio`/`likert` are single-choice; `multiselect`
+ * is multi-choice (array value); `yesno` is a boolean; `address` is a composite of sub-fields.
+ */
+export type FormFieldType =
+  | "text" | "textarea" | "number" | "date" | "email" | "url"
+  | "select" | "radio" | "likert" | "multiselect" | "checkbox" | "yesno" | "address";
 
 /** The field-input primitives, as a value (the single list the validator, admin picker and the unified
  *  primitive store all draw from — so the `field` family can't drift from the FormFieldType union). */
-export const FORM_FIELD_TYPES: readonly FormFieldType[] = ["text", "textarea", "number", "date", "select", "checkbox", "email", "url"];
+export const FORM_FIELD_TYPES: readonly FormFieldType[] = [
+  "text", "textarea", "number", "date", "email", "url",
+  "select", "radio", "likert", "multiselect", "checkbox", "yesno", "address",
+];
+
+/** The default agreement scale a `likert` field uses when the author doesn't supply its own options. */
+export const LIKERT_DEFAULT_OPTIONS: readonly string[] = [
+  "Strongly disagree", "Disagree", "Neutral", "Agree", "Strongly agree",
+];
+
+/** The sub-fields a composite `address` primitive collects, in order. */
+export const ADDRESS_SUBFIELDS: readonly string[] = ["line1", "line2", "city", "region", "postcode", "country"];
 
 /**
  * One field on a form. `options` is required for `select`. Every field MUST declare `mapTo` — the backend

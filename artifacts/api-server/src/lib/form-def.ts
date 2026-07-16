@@ -8,13 +8,16 @@
  * Same "JSON def in the encrypted config store, rendered by a generic primitive" pattern as screen defs and
  * the RACI / stakeholder registers.
  */
-import { ISSUE_WRITE_TARGETS, type FormDefinition, type FormFieldDef, type FormFieldType, type FormTargetDef } from "@workspace/backend-catalogue";
+import { ISSUE_WRITE_TARGETS, FORM_FIELD_TYPES, LIKERT_DEFAULT_OPTIONS, ADDRESS_SUBFIELDS, type FormDefinition, type FormFieldDef, type FormFieldType, type FormTargetDef } from "@workspace/backend-catalogue";
 
 export class FormDefError extends Error {
   constructor(message: string) { super(message); this.name = "FormDefError"; }
 }
 
-const FIELD_TYPES = new Set<string>(["text", "textarea", "number", "date", "select", "checkbox", "email", "url"]);
+// Derived from the shared list — the server's accepted field types can't drift from the FormFieldType union.
+const FIELD_TYPES = new Set<string>(FORM_FIELD_TYPES);
+/** Field types that offer a fixed set of choices (author-supplied `options`). `likert` defaults its scale. */
+const CHOICE_TYPES = new Set<string>(["select", "radio", "multiselect", "likert"]);
 /** Hard ceiling on any text-ish field even when a def sets a larger (or no) maxLength — defence in depth
  *  beneath the global 256kb body limit, so a single field can't carry an unbounded blob into an issue. */
 const ABSOLUTE_MAX_LEN = 10_000;
@@ -75,9 +78,10 @@ export function validateForms(value: unknown): FormDef[] {
       }
       const field: FormField = { key, label: fLabel, type: type as FormFieldType, mapTo };
       if (f["required"] === true) field.required = true;
-      if (type === "select") {
-        const options = Array.isArray(f["options"]) ? (f["options"] as unknown[]).map(str).filter(Boolean) : [];
-        if (options.length === 0) throw new FormDefError(`form "${id}" select field "${key}" needs options`);
+      if (CHOICE_TYPES.has(type)) {
+        let options = Array.isArray(f["options"]) ? (f["options"] as unknown[]).map(str).filter(Boolean) : [];
+        if (options.length === 0 && type === "likert") options = [...LIKERT_DEFAULT_OPTIONS]; // a likert defaults its scale
+        if (options.length === 0) throw new FormDefError(`form "${id}" ${type} field "${key}" needs options`);
         field.options = options;
       }
       if (f["maxLength"] != null) {
@@ -136,10 +140,33 @@ export function validateSubmission(def: FormDef, values: unknown): Record<string
         clean[field.key] = v === true || v === "true" || v === "on";
         break;
       }
-      case "select": {
+      case "yesno": {
+        // A boolean rendered as Yes/No — accept the common encodings.
+        clean[field.key] = v === true || v === "true" || v === "yes" || v === "Yes";
+        break;
+      }
+      case "select":
+      case "radio":
+      case "likert": {
         const s = str(v);
         if (!field.options?.includes(s)) throw new FormDefError(`"${field.label}" must be one of: ${(field.options ?? []).join(", ")}`);
         clean[field.key] = s;
+        break;
+      }
+      case "multiselect": {
+        const arr = Array.isArray(v) ? v.map(str) : str(v) ? [str(v)] : [];
+        if (field.required && arr.length === 0) throw new FormDefError(`"${field.label}" needs at least one selection`);
+        for (const item of arr) if (!field.options?.includes(item)) throw new FormDefError(`"${field.label}" has an invalid option "${item}"`);
+        clean[field.key] = arr;
+        break;
+      }
+      case "address": {
+        // A composite of sub-fields — keep only the known ones, trimmed + length-capped.
+        const o = (v && typeof v === "object" && !Array.isArray(v)) ? (v as Record<string, unknown>) : {};
+        const addr: Record<string, string> = {};
+        for (const sub of ADDRESS_SUBFIELDS) { const val = str(o[sub]); if (val) { capLength(field, val); addr[sub] = val; } }
+        if (field.required && !addr["line1"] && !addr["city"]) throw new FormDefError(`"${field.label}" needs at least a street or city`);
+        clean[field.key] = addr;
         break;
       }
       case "email": {
@@ -190,17 +217,33 @@ export function issueWriteFromSubmission(def: FormDef, clean: Record<string, unk
   const descLines: string[] = def.description ? [def.description] : [];
 
   // Route EACH answered field to its mapped backend field. description/labels aggregate; others are scalar.
+  // Rich values (multiselect arrays, address objects) are serialised to a string for scalar/description
+  // targets, or fanned into the labels array element-by-element for a labels target.
   for (const f of def.fields) {
     const v = clean[f.key];
     if (v === undefined) continue;
-    if (f.mapTo === "description") descLines.push(`${f.label}: ${String(v)}`);
-    else if (f.mapTo === "labels") { const s = str(v); if (s) labels.push(s); }
-    else out[f.mapTo] = v;
+    if (f.mapTo === "labels") { for (const s of asStrings(v)) if (s) labels.push(s); }
+    else if (f.mapTo === "description") descLines.push(`${f.label}: ${serializeValue(v)}`);
+    else out[f.mapTo] = Array.isArray(v) || (v && typeof v === "object") ? serializeValue(v) : v;
   }
 
   if (descLines.length > 0) out["description"] = descLines.join("\n");
   if (labels.length > 0) out["labels"] = labels;
   return out;
+}
+
+/** A value as a flat list of strings (for the labels target): array → its elements; address → its lines. */
+function asStrings(v: unknown): string[] {
+  if (Array.isArray(v)) return v.map(str).filter(Boolean);
+  if (v && typeof v === "object") return Object.values(v as Record<string, unknown>).map(str).filter(Boolean);
+  return str(v) ? [str(v)] : [];
+}
+
+/** Serialise a submitted value to a single human-readable string (for a scalar / description target). */
+function serializeValue(v: unknown): string {
+  if (Array.isArray(v)) return v.map(str).filter(Boolean).join(", ");
+  if (v && typeof v === "object") return ADDRESS_SUBFIELDS.map((k) => str((v as Record<string, unknown>)[k])).filter(Boolean).join(", ");
+  return String(v);
 }
 
 /**

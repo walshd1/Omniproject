@@ -127,3 +127,36 @@ test("filterIssueWriteToWritable keeps core + advertised fields, drops the rest"
   assert.deepEqual(issue, { projectId: "p1", title: "T", description: "d", status: "triage", storyPoints: 3 });
   assert.deepEqual(dropped, ["budget"]);
 });
+
+test("new field primitives validate + serialise (radio, likert, yesno, multiselect, address)", () => {
+  const def = validateForms([{ id: "f", label: "F", fields: [
+    { key: "t", label: "T", type: "text", mapTo: "title" },
+    { key: "rad", label: "Rad", type: "radio", mapTo: "priority", options: ["low", "high"] },
+    { key: "lik", label: "Agree?", type: "likert", mapTo: "description" }, // defaults its scale
+    { key: "yn", label: "Billable?", type: "yesno", mapTo: "description" },
+    { key: "ms", label: "Tags", type: "multiselect", mapTo: "labels", options: ["a", "b", "c"] },
+    { key: "addr", label: "Site", type: "address", mapTo: "description" },
+  ], target: { kind: "issue", projectId: "p1" } }])[0]!;
+
+  // likert defaulted a 5-point scale.
+  assert.equal(def.fields.find((x) => x.key === "lik")!.options!.length, 5);
+
+  // radio must be one of its options; multiselect items must all be valid.
+  assert.throws(() => validateSubmission(def, { t: "x", rad: "nope" }), FormDefError);
+  assert.throws(() => validateSubmission(def, { t: "x", ms: ["a", "z"] }), FormDefError);
+
+  const clean = validateSubmission(def, {
+    t: "Move office", rad: "high", lik: "Agree", yn: "yes",
+    ms: ["a", "c"], addr: { line1: "1 High St", city: "Leeds", postcode: "LS1", country: "UK", junk: "x" },
+  });
+  assert.deepEqual(clean["ms"], ["a", "c"]);       // array value
+  assert.equal(clean["yn"], true);                  // boolean
+  assert.deepEqual(clean["addr"], { line1: "1 High St", city: "Leeds", postcode: "LS1", country: "UK" }); // junk dropped
+
+  const w = issueWriteFromSubmission(def, clean);
+  assert.equal(w["priority"], "high");              // radio → scalar
+  assert.deepEqual(w["labels"], ["a", "c"]);        // multiselect → labels array (fanned out)
+  assert.match(String(w["description"]), /Agree\?: Agree/);       // likert into description
+  assert.match(String(w["description"]), /Billable\?: true/);     // yesno serialised
+  assert.match(String(w["description"]), /Site: 1 High St, Leeds, LS1, UK/); // address serialised
+});

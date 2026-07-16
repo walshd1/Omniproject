@@ -17,7 +17,14 @@ import { useForms, findForm, submitForm } from "../../../lib/forms";
  */
 type Values = Record<string, unknown>;
 
-const emptyFor = (f: FormFieldDef): unknown => (f.type === "checkbox" ? false : "");
+const emptyFor = (f: FormFieldDef): unknown =>
+  f.type === "checkbox" || f.type === "yesno" ? false : f.type === "multiselect" ? [] : f.type === "address" ? {} : "";
+
+const ADDRESS_PARTS: Array<{ key: string; label: string }> = [
+  { key: "line1", label: "Address line 1" }, { key: "line2", label: "Address line 2" },
+  { key: "city", label: "City" }, { key: "region", label: "Region / State" },
+  { key: "postcode", label: "Postcode" }, { key: "country", label: "Country" },
+];
 
 export function FormPanel({ panel }: { panel: Panel }) {
   const c = (panel.config ?? {}) as Record<string, unknown>;
@@ -47,14 +54,20 @@ export function FormPanel({ panel }: { panel: Panel }) {
   const get = (f: FormFieldDef): unknown => (f.key in values ? values[f.key] : emptyFor(f));
   const set = (key: string, v: unknown) => setValues((prev) => ({ ...prev, [key]: v }));
 
+  const isEmpty = (f: FormFieldDef, v: unknown): boolean => {
+    if (f.type === "checkbox" || f.type === "yesno") return false; // a boolean is always "answered"
+    if (f.type === "multiselect") return !Array.isArray(v) || v.length === 0;
+    if (f.type === "address") return !v || typeof v !== "object" || Object.values(v as Record<string, unknown>).every((x) => !String(x ?? "").trim());
+    return v === undefined || v === null || (typeof v === "string" && v.trim() === "");
+  };
+
   const validate = (): boolean => {
     const next: Record<string, string> = {};
     for (const f of def.fields) {
       const v = get(f);
       const s = typeof v === "string" ? v : "";
-      const empty = v === undefined || v === null || (typeof v === "string" && v.trim() === "");
-      if (f.required && f.type !== "checkbox" && empty) { next[f.key] = `${f.label} is required`; continue; }
-      if (empty) continue;
+      if (f.required && isEmpty(f, v)) { next[f.key] = `${f.label} is required`; continue; }
+      if (isEmpty(f, v)) continue;
       if (f.type === "number" && !Number.isFinite(Number(v))) next[f.key] = `${f.label} must be a number`;
       else if (f.type === "email" && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s)) next[f.key] = `${f.label} must be a valid email`;
       else if (f.type === "url" && !/^https?:\/\/.+/i.test(s)) next[f.key] = `${f.label} must be a valid http(s) URL`;
@@ -130,6 +143,43 @@ export function FormPanel({ panel }: { panel: Panel }) {
                     onChange={(e) => set(f.key, e.target.checked)}
                     className="h-4 w-4 self-start"
                   />
+                ) : f.type === "yesno" ? (
+                  <div data-testid={`form-field-${f.key}`} className="flex gap-3">
+                    {[["Yes", true], ["No", false]].map(([lbl, val]) => (
+                      <label key={lbl as string} className="flex items-center gap-1 font-normal">
+                        <input type="radio" name={f.key} checked={get(f) === val} onChange={() => set(f.key, val)} /> {lbl}
+                      </label>
+                    ))}
+                  </div>
+                ) : f.type === "radio" || f.type === "likert" ? (
+                  <div data-testid={`form-field-${f.key}`} className={f.type === "likert" ? "flex flex-wrap gap-3" : "flex flex-col gap-1"}>
+                    {(f.options ?? []).map((o) => (
+                      <label key={o} className="flex items-center gap-1 font-normal">
+                        <input type="radio" name={f.key} value={o} checked={String(get(f) ?? "") === o} onChange={() => set(f.key, o)} /> {o}
+                      </label>
+                    ))}
+                  </div>
+                ) : f.type === "multiselect" ? (
+                  <div data-testid={`form-field-${f.key}`} className="flex flex-col gap-1">
+                    {(f.options ?? []).map((o) => {
+                      const arr = Array.isArray(get(f)) ? (get(f) as string[]) : [];
+                      return (
+                        <label key={o} className="flex items-center gap-1 font-normal">
+                          <input type="checkbox" checked={arr.includes(o)} onChange={(e) => set(f.key, e.target.checked ? [...arr, o] : arr.filter((x) => x !== o))} /> {o}
+                        </label>
+                      );
+                    })}
+                  </div>
+                ) : f.type === "address" ? (
+                  <div data-testid={`form-field-${f.key}`} className="flex flex-col gap-1">
+                    {ADDRESS_PARTS.map((part) => {
+                      const addr = (get(f) && typeof get(f) === "object" ? get(f) : {}) as Record<string, string>;
+                      return (
+                        <Input key={part.key} aria-label={`${f.label} ${part.label}`} data-testid={`form-field-${f.key}-${part.key}`} placeholder={part.label}
+                          value={String(addr[part.key] ?? "")} onChange={(e) => set(f.key, { ...addr, [part.key]: e.target.value })} />
+                      );
+                    })}
+                  </div>
                 ) : (
                   <Input
                     type={f.type === "number" ? "number" : f.type === "date" ? "date" : f.type === "email" ? "email" : f.type === "url" ? "url" : "text"}
