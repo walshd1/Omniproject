@@ -793,7 +793,7 @@ authoring, and the drift guards — no feature bypasses the golden rules.
   (backward-compat + per-provider shape) + a skill image-attach test; api-server + SPA typecheck clean.
   **X.2 complete: describe (or sketch) → build → test → render → iterate → submit, end to end.**
 
-### X.3 The definition importer — one validated path into the scoped encrypted stores  🚧 In progress (slices 1–2 of 3)
+### X.3 The definition importer — one validated path into the scoped encrypted stores  ✅ Done (slices 1–3)
 - **Principle.** *Anything a user defines in JSON must go through one importer* so it can land in a **per-user**,
   **project-wide**, or **org-wide** encrypted store — never hand-dropped into an encrypted folder, never stored
   unvalidated. This makes the "validate at the boundary → authorize + stamp → encrypt-and-write" pipeline a
@@ -822,8 +822,15 @@ authoring, and the drift guards — no feature bypasses the golden rules.
   with delete. Client-side JSON-parse guard before any request. Wired as an admin-group nav item gated on the
   **`defImporter`** module + pmo/admin visibility (`/definitions` route + `nav.definitions` i18n + nav-order/
   admin-shelf drift guards). 5 page tests (list, parse guard, dry-run errors, save gating, project-id reveal);
-  nav/i18n guards + SPA typecheck clean. **Next:** slice 3 — route the Studio's submit through the importer
-  with a scope picker, and generalise its AI generation beyond primitives (screen/form/report/dashboard).
+  nav/i18n guards + SPA typecheck clean.
+- **Slice 3 ✅ (the Studio saves through the importer — completes X.3).** The AI Studio's "submit" now routes
+  through the **definition importer** (`useImportDef`) instead of a separate path: a **scope picker** (my private
+  area / org-wide) sits beside the save button, and a valid generated primitive is written to that scoped
+  encrypted store (`POST /defs`) — so even AI-authored JSON goes through the one validated choke point. 4 page
+  tests incl. a save-through-importer assertion; SPA typecheck clean. **X.3 complete: every user-defined JSON
+  definition — pasted or AI-authored — flows through one validated importer into the per-user / project / org
+  encrypted stores.** (Future: generalise the Studio's AI generation beyond primitives — the importer + the
+  Definitions page already accept screen/form/report/dashboard/jsonDef today.)
 
 ---
 

@@ -2,14 +2,15 @@ import { useState } from "react";
 import { Sparkles, Check, AlertTriangle, Send, RefreshCw, Wand2, ImagePlus, X } from "lucide-react";
 import { ChartView, type ChartViewSpec } from "../components/charts/ChartView";
 import { useStudioStatus, useGeneratePrimitive, type PrimitiveStudioResult, type StudioImage } from "../lib/studio";
-import { useSubmitRegistryItem } from "../lib/registry";
+import { useImportDef, type DefStorage } from "../lib/defs";
 import type { PrimitiveDefShape } from "@workspace/backend-catalogue";
 import { useToast } from "@/hooks/use-toast";
 
 /**
  * Primitive Studio (roadmap X.2) — the AI authoring companion. Describe a chart/graphic; the skill generates
  * a candidate primitive bundle and validates it; we render it back with the test results; refine on feedback
- * and regenerate; when it's valid and you're happy, submit it to the registry (draft → admin review). The
+ * and regenerate; when it's valid and you're happy, SAVE it through the definition importer (X.3) into the
+ * scoped encrypted store you pick (your private area or org-wide). The
  * model only proposes a declarative descriptor — never code. Behind the default-off `studio` module.
  */
 
@@ -70,11 +71,12 @@ function Preview({ result }: { result: PrimitiveStudioResult }) {
 export function Studio() {
   const { data: status } = useStudioStatus();
   const generate = useGeneratePrimitive();
-  const submit = useSubmitRegistryItem();
+  const importDef = useImportDef();
   const { toast } = useToast();
   const [description, setDescription] = useState("");
   const [feedback, setFeedback] = useState("");
   const [image, setImage] = useState<StudioImage | null>(null);
+  const [storage, setStorage] = useState<DefStorage>("user");
   const [result, setResult] = useState<PrimitiveStudioResult | null>(null);
 
   const onPickImage = (file: File | undefined) => {
@@ -101,12 +103,16 @@ export function Studio() {
     });
   };
 
+  const STORAGE_LABEL: Record<DefStorage, string> = { user: "my private area", project: "a project", org: "org-wide" };
   const save = () => {
     if (!result) return;
-    submit.mutate(result.submission, {
-      onSuccess: (it) => toast({ title: "SUBMITTED TO REGISTRY", description: `${it.name} — awaiting admin review.` }),
-      onError: () => toast({ title: "SUBMIT FAILED", description: "Is the registry module enabled? You need contributor access." }),
-    });
+    importDef.mutate(
+      { kind: "primitive", storage, name: result.submission.name, payload: result.submission.payload },
+      {
+        onSuccess: (d) => toast({ title: "SAVED", description: `${d.name} → ${STORAGE_LABEL[storage]} (encrypted store).` }),
+        onError: () => toast({ title: "SAVE FAILED", description: "Is the importer enabled? Org-wide needs manager+; check your access." }),
+      },
+    );
   };
 
   return (
@@ -169,9 +175,15 @@ export function Studio() {
               placeholder="e.g. make the bars horizontal and add a legend"
               className="w-full border border-border bg-background px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
             />
-            <div className="flex gap-2">
+            <div className="flex gap-2 items-center flex-wrap">
               <button type="button" onClick={() => run(true)} disabled={!feedback.trim() || generate.isPending} data-testid="studio-refine" className="inline-flex items-center gap-1.5 border border-border px-3 py-1.5 text-xs font-black uppercase tracking-widest hover:bg-muted/40 disabled:opacity-40"><RefreshCw className="w-3.5 h-3.5" />Refine</button>
-              <button type="button" onClick={save} disabled={!result.valid || submit.isPending} data-testid="studio-submit" className="inline-flex items-center gap-1.5 border border-primary bg-primary text-primary-foreground px-3 py-1.5 text-xs font-black uppercase tracking-widest disabled:opacity-40"><Send className="w-3.5 h-3.5" />Submit to registry</button>
+              <span className="flex-1" />
+              <label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Save to</label>
+              <select data-testid="studio-storage" value={storage} onChange={(e) => setStorage(e.target.value as DefStorage)} className="border border-border bg-background px-2 py-1.5 text-xs">
+                <option value="user">My private area</option>
+                <option value="org">Org-wide</option>
+              </select>
+              <button type="button" onClick={save} disabled={!result.valid || importDef.isPending} data-testid="studio-submit" className="inline-flex items-center gap-1.5 border border-primary bg-primary text-primary-foreground px-3 py-1.5 text-xs font-black uppercase tracking-widest disabled:opacity-40"><Send className="w-3.5 h-3.5" />Save to store</button>
             </div>
           </div>
         </div>
