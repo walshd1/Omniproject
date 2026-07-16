@@ -11,6 +11,10 @@
 import type { ActorContext } from "../broker/types";
 import { makeScopedId, parseScopedId, scopeFromParsed, type ArtifactScope, type StorageTarget } from "./artifact-store";
 import { nextOccurrence } from "./recurrence";
+import { KEY_RESULT_KINDS, isBinaryKeyResultKind, type KeyResultKind } from "@workspace/backend-catalogue";
+
+const KEY_RESULT_KIND_SET = new Set<string>(KEY_RESULT_KINDS);
+const isKeyResultKind = (k: unknown): k is KeyResultKind => typeof k === "string" && KEY_RESULT_KIND_SET.has(k);
 
 /** A rejected goal write (maps to 400). */
 export class GoalError extends Error {
@@ -45,10 +49,15 @@ export const GOAL_LIMITS = {
   maxGoalBytes: 64 * 1024,
 } as const;
 
-/** A measurable key result: progress from `startValue` → `target`, currently at `current` (in `unit`). */
+/**
+ * A measurable key result — a typed primitive (the `keyResult` family in the unified store): progress from
+ * `startValue` → `target`, currently at `current` (in `unit`). Its `kind` (number/percent/currency/milestone)
+ * governs how attainment is computed (milestone is binary) and how the value renders.
+ */
 export interface KeyResult {
   id: string;
   label: string;
+  kind: KeyResultKind;
   startValue: number;
   target: number;
   current: number;
@@ -162,7 +171,9 @@ function num(v: unknown, def = 0): number {
  * toward `target`. Works for increasing AND decreasing targets (the ratio is sign-symmetric); when start ==
  * target it's 100 if met, else 0. Clamped to [0, 100]. Pure.
  */
-export function keyResultAttainment(kr: Pick<KeyResult, "startValue" | "target" | "current">): number {
+export function keyResultAttainment(kr: Pick<KeyResult, "startValue" | "target" | "current"> & { kind?: KeyResultKind }): number {
+  // A binary (milestone) key result is met-or-not; the proportional kinds roll `current` toward `target`.
+  if (kr.kind && isBinaryKeyResultKind(kr.kind)) return kr.current >= kr.target ? 100 : 0;
   const span = kr.target - kr.startValue;
   if (span === 0) return kr.current >= kr.target ? 100 : 0;
   const ratio = (kr.current - kr.startValue) / span;
@@ -185,6 +196,7 @@ export function sanitizeKeyResult(raw: unknown, index: number): KeyResult {
   const kr: KeyResult = {
     id: cleanText(obj["id"], 64) || `kr-${index + 1}`,
     label,
+    kind: isKeyResultKind(obj["kind"]) ? obj["kind"] : "number",
     startValue: num(obj["startValue"], 0),
     target: num(obj["target"], 0),
     current: num(obj["current"], num(obj["startValue"], 0)),

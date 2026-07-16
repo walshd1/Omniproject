@@ -3,7 +3,8 @@ import { Target, Plus, Trash2, Link2, CheckCircle2 } from "lucide-react";
 import { DataState } from "../components/DataState";
 import {
   useGoals, useGoal, useCreateGoal, useCheckInGoal, useLinkGoal, useUnlinkGoal, useDeleteGoal,
-  goalStatusTone, GOAL_STATUSES, type GoalStatus, type GoalInput, type KeyResult,
+  goalStatusTone, GOAL_STATUSES, KEY_RESULT_KINDS, formatKeyResultValue,
+  type GoalStatus, type GoalInput, type KeyResult, type KeyResultKind,
 } from "../lib/goals";
 
 /**
@@ -25,7 +26,8 @@ function StatusBadge({ status }: { status: GoalStatus }) {
   return <span className={`text-[10px] font-bold uppercase tracking-widest border px-1.5 py-0.5 ${goalStatusTone(status)}`}>{status.replace("_", " ")}</span>;
 }
 
-interface DraftKr { label: string; target: string; current: string; unit: string }
+interface DraftKr { label: string; kind: KeyResultKind; target: string; current: string; unit: string }
+const newDraftKr = (): DraftKr => ({ label: "", kind: "number", target: "100", current: "0", unit: "" });
 
 function CreateGoalForm({ onDone }: { onDone: () => void }) {
   const create = useCreateGoal();
@@ -33,14 +35,14 @@ function CreateGoalForm({ onDone }: { onDone: () => void }) {
   const [description, setDescription] = useState("");
   const [cadence, setCadence] = useState("");
   const [storage, setStorage] = useState<"user" | "org">("user");
-  const [krs, setKrs] = useState<DraftKr[]>([{ label: "", target: "100", current: "0", unit: "" }]);
+  const [krs, setKrs] = useState<DraftKr[]>([newDraftKr()]);
 
   const setKr = (i: number, patch: Partial<DraftKr>) => setKrs((prev) => prev.map((k, j) => (j === i ? { ...k, ...patch } : k)));
 
   const submit = () => {
     const keyResults: GoalInput["keyResults"] = krs
       .filter((k) => k.label.trim())
-      .map((k) => ({ label: k.label.trim(), target: Number(k.target) || 0, current: Number(k.current) || 0, ...(k.unit.trim() ? { unit: k.unit.trim() } : {}) }));
+      .map((k) => ({ label: k.label.trim(), kind: k.kind, target: Number(k.target) || 0, current: Number(k.current) || 0, ...(k.unit.trim() ? { unit: k.unit.trim() } : {}) }));
     if (!title.trim()) return;
     create.mutate(
       { title: title.trim(), storage, keyResults, ...(description.trim() ? { description: description.trim() } : {}), ...(cadence.trim() ? { cadence: cadence.trim() } : {}) },
@@ -57,13 +59,16 @@ function CreateGoalForm({ onDone }: { onDone: () => void }) {
         {krs.map((k, i) => (
           <div key={i} className="flex gap-1.5">
             <input aria-label={`Key result ${i + 1} label`} value={k.label} onChange={(e) => setKr(i, { label: e.target.value })} placeholder="Measure" className="flex-1 border border-border bg-background px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-ring" />
+            <select aria-label={`Key result ${i + 1} kind`} value={k.kind} onChange={(e) => setKr(i, { kind: e.target.value as KeyResultKind })} className="border border-border bg-background px-1 py-1 text-xs">
+              {KEY_RESULT_KINDS.map((kind) => <option key={kind} value={kind}>{kind}</option>)}
+            </select>
             <input aria-label={`Key result ${i + 1} current`} type="number" value={k.current} onChange={(e) => setKr(i, { current: e.target.value })} className="w-16 border border-border bg-background px-2 py-1 text-xs tabular-nums" />
             <span className="self-center text-xs text-muted-foreground">/</span>
             <input aria-label={`Key result ${i + 1} target`} type="number" value={k.target} onChange={(e) => setKr(i, { target: e.target.value })} className="w-16 border border-border bg-background px-2 py-1 text-xs tabular-nums" />
             <input aria-label={`Key result ${i + 1} unit`} value={k.unit} onChange={(e) => setKr(i, { unit: e.target.value })} placeholder="unit" className="w-14 border border-border bg-background px-2 py-1 text-xs" />
           </div>
         ))}
-        <button type="button" onClick={() => setKrs((prev) => [...prev, { label: "", target: "100", current: "0", unit: "" }])} className="text-xs text-primary hover:underline">+ Add key result</button>
+        <button type="button" onClick={() => setKrs((prev) => [...prev, newDraftKr()])} className="text-xs text-primary hover:underline">+ Add key result</button>
       </div>
       <div className="flex items-center gap-2">
         <input data-testid="goal-cadence" value={cadence} onChange={(e) => setCadence(e.target.value)} placeholder="Check-in cadence (e.g. every 2 weeks)" className="flex-1 border border-border bg-background px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-ring" />
@@ -128,9 +133,9 @@ function KeyResultCheckIn({ goalId }: { goalId: string }) {
             <div className="text-[10px] uppercase tracking-widest text-muted-foreground">Check in</div>
             {goal.keyResults.map((kr) => (
               <div key={kr.id} className="flex items-center gap-2 text-sm">
-                <span className="flex-1 truncate" title={kr.label}>{kr.label}</span>
+                <span className="flex-1 truncate" title={kr.label}>{kr.label} <span className="text-[10px] uppercase text-muted-foreground">{kr.kind}</span></span>
                 <input aria-label={`Update ${kr.label}`} type="number" value={current(kr)} onChange={(e) => setValues((p) => ({ ...p, [kr.id]: e.target.value }))} className="w-20 border border-border bg-background px-2 py-1 text-xs tabular-nums" />
-                <span className="text-xs text-muted-foreground w-16">/ {kr.target}{kr.unit ? ` ${kr.unit}` : ""}</span>
+                <span className="text-xs text-muted-foreground w-20">/ {formatKeyResultValue(kr.kind, kr.target, kr.unit)}</span>
               </div>
             ))}
             {goal.keyResults.length === 0 && <p className="text-xs text-muted-foreground">No key results — add them by editing the goal.</p>}

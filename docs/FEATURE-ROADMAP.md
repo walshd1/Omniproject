@@ -591,6 +591,17 @@ authoring, and the drift guards — no feature bypasses the golden rules.
   (nav-order drift guard + `nav.goals` in 4 locales updated). 3 page tests (list, empty, create-toggle);
   nav/i18n guards green; typecheck clean. **3.2 complete: first-class goals with key results, check-ins,
   goal↔work linking, and a managed check-in cadence — all as a sealed, projected overlay.**
+- **Follow-up ✅ (key results as a first-class primitive family).** Aligned goals with the "everything is a
+  primitive/class in the unified store" architecture (like proofs → the `annotation` family on the `proof`
+  surface). New `backend-catalogue/goal-catalogue` is the single source of truth: `KEY_RESULT_KINDS`
+  (`number` / `percent` / `currency` / `milestone`), `BINARY_KEY_RESULT_KINDS` + `isBinaryKeyResultKind`, and
+  the shared presentational method `formatKeyResultValue(kind, value, unit)`. `primitive-store` gains the
+  **`keyResult` family** (from `KEY_RESULT_KINDS`) placeable on a new **`goal` placement surface**, drift-
+  guarded (`primitive-store.test` binds the family to the catalogue + the surface). A `KeyResult` now carries
+  a `kind`; `keyResultAttainment` is kind-aware (milestone is binary met/not, the rest roll proportionally),
+  validated server-side (unknown kind → `number`). Client + Goals authoring UI pick a kind per key result and
+  render values via the catalogue formatter. 2 catalogue tests + drift-guard + server attainment/sanitise
+  tests; both packages typecheck clean.
 
 ### 3.3 Live time tracking + invoicing  ⬜ Todo
 - **Competitors.** Harvest/Toggl, Workfront. **Have.** Timesheets (submit/approve) +
