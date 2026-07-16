@@ -538,7 +538,7 @@ authoring, and the drift guards — no feature bypasses the golden rules.
   `guestInvite` panel was missing from `SETTINGS_PANEL_KEYS`). 3 component tests (seed, save-PATCH, validation
   gate) + the panel drift-guard now green. **Working-time is now fully user-configurable.**
 
-### 3.2 Goals / OKRs as a managed cadence  🚧 In progress (slice 1)
+### 3.2 Goals / OKRs as a managed cadence  🚧 In progress (slices 1–2)
 - **Competitors.** Asana Goals, Viva Goals, ClickUp. **Have.** Strategy cascade + PI board
   as *reports*. **Missing.** First-class goal objects with check-ins, progress updates,
   goal↔work linking on a cadence.
@@ -556,6 +556,13 @@ authoring, and the drift guards — no feature bypasses the golden rules.
   the new default-off **`goals`** feature module. 6 pure unit tests + 6 route tests (sealed-at-rest, derived
   progress, version bump, list projection, RBAC floor, delete). **Next:** key-result check-ins + progress
   history (slice 2), goal↔work linking (slice 3), check-in cadence via the reminder sweep (slice 4), UI (5).
+- **Slice 2 ✅ (key-result check-ins + progress history).** A check-in is a point-in-time progress update:
+  `POST /api/goals/:id/checkin` (contributor+; org ⇒ manager+) updates the named key results' `current`
+  values, recomputes progress, optionally sets the status + a note, and appends a **bounded** (`maxCheckIns`
+  100) snapshot to the goal's `checkins[]` history. `sanitizeCheckInWrite` caps the note, validates the
+  status, and coerces `krValues` (KR id → number, unknown/non-numeric dropped); `applyCheckIn` is pure (id +
+  clock injected). `GoalMeta` now carries `checkInCount` + `lastCheckInAt`. 2 more pure tests (sanitise;
+  apply incl. history bounding) + 1 route test. **Next:** goal↔work linking (slice 3).
 
 ### 3.3 Live time tracking + invoicing  ⬜ Todo
 - **Competitors.** Harvest/Toggl, Workfront. **Have.** Timesheets (submit/approve) +
