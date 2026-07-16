@@ -1,6 +1,6 @@
 import { forwardRef, useImperativeHandle, useMemo, useRef, useState } from "react";
 import rough from "roughjs";
-import { MousePointer2, StickyNote, Square, Type, Spline, Pen, Frame, Trash2 } from "lucide-react";
+import { MousePointer2, StickyNote, Square, Type, Spline, Pen, Frame, Trash2, ClipboardList } from "lucide-react";
 import type { CanvasElement, CanvasElementType, ShapeKind, StickyColor } from "@workspace/backend-catalogue";
 import { STICKY_COLORS, SHAPE_KINDS } from "@workspace/backend-catalogue";
 import { Button } from "@/components/ui/button";
@@ -33,7 +33,11 @@ export const CanvasEditor = forwardRef<CanvasEditorHandle, {
   elements: CanvasElement[];
   onChange: (next: CanvasElement[]) => void;
   readOnly?: boolean;
-}>(function CanvasEditor({ elements, onChange, readOnly = false }, ref) {
+  /** When provided, a selected sticky offers a "Create work item" action (the page owns issue creation). */
+  onConvertSticky?: ((el: CanvasElement) => void) | undefined;
+  /** True while a conversion is in flight (disables the button). */
+  converting?: boolean | undefined;
+}>(function CanvasEditor({ elements, onChange, readOnly = false, onConvertSticky, converting = false }, ref) {
   const gen = useMemo(() => rough.generator(), []);
   const svgRef = useRef<SVGSVGElement>(null);
   useImperativeHandle(ref, () => ({ getSvg: () => svgRef.current }), []);
@@ -182,6 +186,12 @@ export const CanvasEditor = forwardRef<CanvasEditorHandle, {
                     className={`h-5 w-5 rounded border ${selected.color === c ? "ring-2 ring-foreground" : "border-border"}`} style={{ backgroundColor: STICKY_HEX[c] }} />
                 ))}
               </div>
+            )}
+            {selected.type === "sticky" && onConvertSticky && (
+              <Button type="button" variant="outline" size="sm" className="w-full" data-testid="canvas-to-issue"
+                disabled={converting || !selected.text?.trim()} onClick={() => onConvertSticky(selected)}>
+                <ClipboardList className="h-3 w-3 mr-1" />{converting ? "Creating…" : "Create work item"}
+              </Button>
             )}
             {selected.type === "shape" && (
               <select aria-label="Selected shape kind" value={selected.shape ?? "rectangle"} onChange={(e) => patchSelected({ shape: e.target.value as ShapeKind })} className="h-8 border border-border bg-background text-xs px-1 w-full">

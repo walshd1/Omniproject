@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { screen, fireEvent } from "@testing-library/react";
 import { QueryClient } from "@tanstack/react-query";
+import { getListProjectsQueryKey, type Project } from "@workspace/api-client-react";
 import { renderWithProviders } from "../test/utils";
 import { Whiteboards } from "./Whiteboards";
 
@@ -17,6 +18,7 @@ function mockFetch() {
     let body: unknown = {};
     if (url.includes("/api/whiteboards/wb1")) body = BOARD;
     else if (url.includes("/api/whiteboards")) body = BOARDS;
+    else if (url.includes("/api/projects")) body = [{ id: "p1", name: "Apollo", identifier: "APO", source: "plane" }];
     return Promise.resolve(new Response(JSON.stringify(body), { status: 200 }));
   });
 }
@@ -52,6 +54,25 @@ describe("Whiteboards page", () => {
     fireEvent.click(await screen.findByTestId("board-link-wb1"));
     expect(await screen.findByTestId("whiteboard-export-svg")).toBeInTheDocument();
     expect(screen.getByTestId("whiteboard-export-png")).toBeInTheDocument();
+  });
+
+  it("converts a selected sticky into a work item (POSTs an issue to the chosen project)", async () => {
+    const fetchSpy = mockFetch();
+    const qc = seed("contributor");
+    qc.setQueryData(getListProjectsQueryKey(), [{ id: "p1", name: "Apollo", identifier: "APO", source: "plane" }] as Project[]);
+    renderWithProviders(<Whiteboards />, { client: qc });
+    fireEvent.click(await screen.findByTestId("board-link-wb1"));
+    // The projects are seeded, so the convert target (p1) is chosen before we convert.
+    const picker = await screen.findByTestId("whiteboard-convert-project") as HTMLSelectElement;
+    expect(picker.value).toBe("p1");
+    // Select the seeded sticky (bounds 20..140 x, 20..100 y) via a pointer-down on the canvas surface.
+    fireEvent.pointerDown(await screen.findByTestId("canvas-surface"), { clientX: 30, clientY: 30, pointerId: 1 });
+    fireEvent.click(await screen.findByTestId("canvas-to-issue"));
+    await new Promise((r) => setTimeout(r, 0));
+    const issuePost = fetchSpy.mock.calls.find(([u, o]) =>
+      String(u).includes("/api/projects/p1/issues") && (o as RequestInit | undefined)?.method === "POST");
+    expect(issuePost, "an issue was POSTed to the selected project").toBeTruthy();
+    expect(String((issuePost![1] as RequestInit).body)).toContain("Cutover");
   });
 
   it("lets a contributor start a new board", async () => {
