@@ -538,11 +538,24 @@ authoring, and the drift guards — no feature bypasses the golden rules.
   `guestInvite` panel was missing from `SETTINGS_PANEL_KEYS`). 3 component tests (seed, save-PATCH, validation
   gate) + the panel drift-guard now green. **Working-time is now fully user-configurable.**
 
-### 3.2 Goals / OKRs as a managed cadence  ⬜ Todo
+### 3.2 Goals / OKRs as a managed cadence  🚧 In progress (slice 1)
 - **Competitors.** Asana Goals, Viva Goals, ClickUp. **Have.** Strategy cascade + PI board
   as *reports*. **Missing.** First-class goal objects with check-ins, progress updates,
   goal↔work linking on a cadence.
 - **Leverage.** strategy-cascade lib, reminder-sweep/recurrence for check-in cadence.
+- **Design.** First-class GOAL objects in the same sealed storage-target store as proofs/whiteboards/wiki
+  (user / project / org, AES-256-GCM at rest; no sidecar — a goal is OmniProject-held). Progress is DERIVED
+  from key-result attainment server-side, never trusted from the client. Behind a default-off `goals` module.
+- **Slice 1 ✅ (goal object foundation).** `lib/goal` — the model + single sanitising choke point: a `Goal`
+  is an objective (title/description) + measurable `KeyResult`s (`startValue`→`target`, `current`, `unit`);
+  `keyResultAttainment` (0–100, clamped, sign-symmetric for decreasing targets, met-only when start==target)
+  and `goalProgress` (mean attainment) derive progress; `sanitizeGoalWrite` bounds/validates every write;
+  self-describing ids (`makeGoalId`/`parseGoalId`/`goalScope`) + `newGoalRow`/`mergeGoalRow` (owner + progress
+  + version stamped server-side). `routes/goals` — REST CRUD (list/get/create/update/delete) over the storage
+  targets, RBAC read viewer+ / author contributor+ / org-writes manager+ via `authorizeStorageTarget`, behind
+  the new default-off **`goals`** feature module. 6 pure unit tests + 6 route tests (sealed-at-rest, derived
+  progress, version bump, list projection, RBAC floor, delete). **Next:** key-result check-ins + progress
+  history (slice 2), goal↔work linking (slice 3), check-in cadence via the reminder sweep (slice 4), UI (5).
 
 ### 3.3 Live time tracking + invoicing  ⬜ Todo
 - **Competitors.** Harvest/Toggl, Workfront. **Have.** Timesheets (submit/approve) +

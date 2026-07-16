@@ -1,0 +1,71 @@
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import {
+  keyResultAttainment, goalProgress, sanitizeGoalWrite, sanitizeKeyResults,
+  makeGoalId, parseGoalId, newGoalRow, mergeGoalRow, goalMeta, GoalError, type KeyResult,
+} from "./goal";
+import type { ActorContext } from "../broker/types";
+
+/** Goal/OKR model: key-result attainment, progress roll-up, write sanitising, ids, and the row lifecycle. */
+
+const ctx: ActorContext = { sub: "u1", name: "Ada", email: "ada@x.io" } as ActorContext;
+const kr = (over: Partial<KeyResult>): KeyResult => ({ id: "k", label: "KR", startValue: 0, target: 100, current: 0, ...over });
+
+test("keyResultAttainment: 0 at start, 100 at target, clamped, sign-symmetric for decreasing targets", () => {
+  assert.equal(keyResultAttainment(kr({ current: 0 })), 0);
+  assert.equal(keyResultAttainment(kr({ current: 50 })), 50);
+  assert.equal(keyResultAttainment(kr({ current: 100 })), 100);
+  assert.equal(keyResultAttainment(kr({ current: 150 })), 100); // clamp above target
+  assert.equal(keyResultAttainment(kr({ current: -10 })), 0); // clamp below start
+  // A "reduce" goal: 200 → 100, currently 150 = halfway.
+  assert.equal(keyResultAttainment(kr({ startValue: 200, target: 100, current: 150 })), 50);
+  // start == target: met only when reached.
+  assert.equal(keyResultAttainment(kr({ startValue: 5, target: 5, current: 5 })), 100);
+  assert.equal(keyResultAttainment(kr({ startValue: 5, target: 5, current: 4 })), 0);
+});
+
+test("goalProgress: mean of key-result attainment, 0 when none", () => {
+  assert.equal(goalProgress([]), 0);
+  assert.equal(goalProgress([kr({ current: 100 }), kr({ current: 0 })]), 50);
+  assert.equal(goalProgress([kr({ current: 100 }), kr({ current: 50 }), kr({ current: 50 })]), 67);
+});
+
+test("sanitizeGoalWrite: requires a title, defaults status/storage, keeps clean fields", () => {
+  const w = sanitizeGoalWrite({ title: "  Grow revenue  ", description: "FY26", keyResults: [{ label: "ARR", target: 1_000_000, current: 250_000, unit: "$" }] });
+  assert.equal(w.title, "Grow revenue");
+  assert.equal(w.status, "on_track");
+  assert.equal(w.storage, "user");
+  assert.equal(w.keyResults[0]!.id, "kr-1"); // id stamped when absent
+  assert.equal(w.keyResults[0]!.unit, "$");
+  assert.throws(() => sanitizeGoalWrite({ title: "" }), (e) => e instanceof GoalError);
+  assert.throws(() => sanitizeGoalWrite({ title: "x", keyResults: [{ target: 1 }] }), (e) => e instanceof GoalError && /label/.test((e as Error).message));
+  assert.throws(() => sanitizeGoalWrite({ title: "x", storage: "project" }), (e) => e instanceof GoalError && /projectId/.test((e as Error).message));
+});
+
+test("sanitizeKeyResults: bounds the count and rejects a non-array", () => {
+  assert.throws(() => sanitizeKeyResults({}), (e) => e instanceof GoalError);
+  const many = Array.from({ length: 21 }, (_, i) => ({ label: `k${i}`, target: 1 }));
+  assert.throws(() => sanitizeKeyResults(many), (e) => e instanceof GoalError && /at most/.test((e as Error).message));
+});
+
+test("ids are self-describing and round-trip", () => {
+  const id = makeGoalId("project", "abc", "P1");
+  assert.match(id, /^project~/);
+  assert.deepEqual(parseGoalId(id), { storage: "project", projectId: "P1", localId: "abc" });
+  assert.equal(parseGoalId("sidecar~x~y"), null); // not a JSON target
+});
+
+test("newGoalRow stamps owner + derives progress; mergeGoalRow bumps version + recomputes", () => {
+  const w = sanitizeGoalWrite({ title: "Ship", keyResults: [{ label: "beta users", target: 100, current: 40 }] });
+  const row = newGoalRow(makeGoalId("user", "g1"), w, ctx, "2026-01-01T00:00:00Z");
+  assert.equal(row.ownerSub, "u1");
+  assert.equal(row.progressPct, 40);
+  assert.equal(row.version, 1);
+  assert.equal(goalMeta(row).keyResultCount, 1);
+
+  const w2 = sanitizeGoalWrite({ title: "Ship", keyResults: [{ label: "beta users", target: 100, current: 90 }] });
+  const merged = mergeGoalRow(row, w2, ctx, "2026-02-01T00:00:00Z");
+  assert.equal(merged.version, 2);
+  assert.equal(merged.progressPct, 90);
+  assert.equal(merged.createdAt, row.createdAt); // preserved
+});
