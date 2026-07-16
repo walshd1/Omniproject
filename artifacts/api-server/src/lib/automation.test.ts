@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { validateAutomations, compileRecipe, recipeRequirements, actionProjectId, AutomationError } from "./automation";
+import { validateAutomations, compileRecipe, matchesConditions, recipeRequirements, actionProjectId, AutomationError } from "./automation";
 import { recipeMutates } from "@workspace/backend-catalogue";
 
 /**
@@ -52,18 +52,28 @@ test("actionProjectId resolves an explicit param, else the project scope", () =>
   assert.equal(actionProjectId(withParam, withParam.actions[0]!), "proj-9"); // explicit param wins
 });
 
-test("compileRecipe produces a valid workflow: conditions wrap the action steps", () => {
+test("compileRecipe compiles ACTIONS only (conditions are evaluated by the runner)", () => {
   const [inform] = validateAutomations([INFORM]);
   const wf = compileRecipe(inform!);
   assert.equal(wf.id, "recipe:r1");
-  assert.equal(wf.steps[0]!.kind, "condition");     // the condition gates…
-  assert.equal(wf.steps[0]!.then![0]!.kind, "action"); // …the action
-  assert.equal(wf.steps[0]!.then![0]!.action, "notify");
+  assert.equal(wf.steps.length, 1);
+  assert.equal(wf.steps[0]!.kind, "action");
+  assert.equal(wf.steps[0]!.action, "notify");
 });
 
-test("compileRecipe with no conditions is a flat action list", () => {
+test("matchesConditions evaluates the trigger-subject predicate (ALL must pass)", () => {
+  const [inform] = validateAutomations([INFORM]); // condition: priority eq high
+  assert.equal(matchesConditions(inform!, { priority: "high" }), true);
+  assert.equal(matchesConditions(inform!, { priority: "low" }), false);
+  assert.equal(matchesConditions(inform!, {}), false);
+  // no conditions ⇒ always matches
   const [mutating] = validateAutomations([MUTATING]);
-  const wf = compileRecipe(mutating!);
-  assert.equal(wf.steps[0]!.kind, "action");
-  assert.equal(wf.steps[0]!.action, "broker.writeIssue");
+  assert.equal(matchesConditions(mutating!, {}), true);
+  // operator coverage
+  const r = validateAutomations([{ ...INFORM, conditions: [
+    { field: "status", op: "in", value: "todo, doing" }, { field: "points", op: "gt", value: "3" }, { field: "blocked", op: "truthy" },
+  ] }])[0]!;
+  assert.equal(matchesConditions(r, { status: "doing", points: 5, blocked: true }), true);
+  assert.equal(matchesConditions(r, { status: "done", points: 5, blocked: true }), false); // status not in set
+  assert.equal(matchesConditions(r, { status: "todo", points: 2, blocked: true }), false); // points not > 3
 });

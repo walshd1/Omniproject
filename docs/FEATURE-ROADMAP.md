@@ -94,8 +94,22 @@ already exist, so they close the most competitive distance for the least build.
   compile to the existing workflow engine — no new engine. Inform (notify) recipes run via the existing
   read+notify effect surface; **mutating recipes are gated to the autonomous-grant path** (the workflow runner
   refuses silent mutations). RBAC gate enforced: a viewer can author an inform recipe but not a work-item
-  write. **Next slice:** live trigger binding (schedule/event → runner) + the grant-bound execution of
-  mutating recipes.
+  write.
+- **Slice 2 shipped (execution):** `POST /automations/:id/run` — RBAC re-checked at run time, conditions
+  evaluated against the trigger subject (`matchesConditions`, eq/ne/in/gt/lt/truthy), then the compiled
+  action-only workflow runs through the caller-scoped effect surface. Inform recipes fire; mutating recipes
+  return 202 (held for a grant). A "Test run" button in the builder. `compileRecipe` now compiles actions
+  only (conditions are a runner-side pre-gate, the correct model for an external trigger subject).
+- **Next slice:** live trigger binding (schedule → scheduled-job; event → the broker event/notify bus) so
+  recipes fire automatically, and the grant-bound execution of mutating recipes.
+- **Slice 4 — external executors + pub/sub triggers.** A recipe should be able to run **in-engine** (our
+  workflow runner) OR be **dispatched to an external orchestrator** the deployment already runs — **Node-RED,
+  Power Automate**, Make, n8n, Airflow — by compiling to that orchestrator's flow format. This reuses the
+  existing broker **templates** (`src/broker/templates/*`) + `workflow-generator`, so "author once, run where
+  you like". And an **MQTT-style subscription trigger**: OmniProject subscribes to a topic (the `mqtt`
+  notification channel already in the catalogue) and recipes fire on messages — a pub/sub event model that
+  also lets external flows publish back. Same RBAC gate + audit; the executor is just where the effects land.
+  **Leverage.** broker templates, `workflow-generator`, the `mqtt` channel, notify/event bus.
 - **Rationale.** A friendly "when X, do Y" builder. The powerful JSON **workflow engine +
   broker templates** already exist but are admin/developer-facing — this is the missing
   on-ramp.
@@ -123,7 +137,7 @@ already exist, so they close the most competitive distance for the least build.
   per-collection gate; `autonomous-guard` + `autonomous-grant` for scheduled/agent runs;
   scheduled-job/recurrence for time triggers; settings collection for recipe defs.
 
-### 1.3 Project & portfolio template gallery  ⬜ Todo
+### 1.3 Project & portfolio template gallery  ✅ Done (slice 1)
 - **Rationale.** "Spin up a project/portfolio from a template." Everyone has it; OmniProject
   has methodology presets + screen-def bundles but no end-user template gallery.
 - **Competitors.** All of them.
@@ -133,17 +147,60 @@ already exist, so they close the most competitive distance for the least build.
   audited.
 - **Architecture leverage.** `config-bundle`/`config-snapshot` plumbing; `screenDefs`
   merge; methodology composition presets.
+- **Delivered (slice 1).** Built like forms: shared `template-catalogue` (shipped starters:
+  scrum-starter, prince2-starter) → org-overridable `templates` config store → admin **gallery**
+  (`TemplatesAdmin`: add-from-catalogue, curate, instantiate). Server: `lib/project-template.ts`
+  (validation + pure instantiation plan), `routes/templates.ts` (defs GET/PUT admin-PMO +
+  `POST /templates/:id/instantiate` — manager+, creates the project + seeds its work items through
+  the broker, audited). New `:id` route classified in the route-scope ratchet.
+  Tests: shared catalogue (2), lib (3), route (4), TemplatesAdmin (3). **Follow-up:** capture a
+  LIVE project's screen-defs + config bundle into a template (currently authored/curated), and
+  apply a template's methodology/composition on instantiate.
 
 ---
 
 ## Phase 2 — expected by specific segments
 
-### 2.1 Collaborative docs / wiki / knowledge base  ⬜ Todo
+### Pre-build due diligence (per item: what we already have · what to reuse from others)
+
+Before building any Phase 2 item we check two things — (1) what already exists in this codebase to
+build **on**, and (2) proven, license-compatible code/design from **others** to adapt. Everything
+must still obey the golden rules (JSON-def artifacts, built of **primitives**, **zero-at-rest** via
+the broker seam, RBAC/capability gating, sanitisation, drift-guarded).
+
+| Item | Have (build on) | Reuse/adapt from others |
+| --- | --- | --- |
+| **2.1 Docs/wiki** | Content-pages store + `settingsCollectionRouter`; `TextPanel` + `md.ts`; **presence-hub** (rooms) ; **comments/mentions** ; settings **version history** (`captureVersion`); primitive store | **TipTap** (MIT, ProseMirror) headless rich-text — schema = the primitive allow-list; **Yjs** (MIT) CRDT for co-edit (binds via `y-prosemirror`, `awareness`=cursors) over our SSE; store PM-JSON not HTML (no sink); DOMPurify only on paste. |
+| **2.2 Guest/portal** | **magic-link** (`mintMagicToken`/`consume`, single-use), RBAC ladder, `Scope`/`resolveScope`, `guardProjectScope`, API-token programme scoping | Design: signed, scope-claimed, expiring token below `viewer` (GitLab project tokens / Metabase signed embeds / Notion share tiers). No new dependency. |
+| **2.3 Whiteboard** | Panel registry (`PANEL_RENDERERS`/`PANEL_META`), presence live-cursors, broker `writeIssue` for sticky→item | **Excalidraw** (MIT) embeddable canvas, JSON scene model, PNG/SVG export → wrap as a `canvas` panel kind. (tldraw is better UX but non-MIT — check terms.) Pairs with X.1 native handoff. |
+| **2.4 Proofing** | `TaskAttachment { url }` zero-at-rest refs; **approval-chain** engine + **passkey** sign-off; comments threads | **PDF.js** (Apache-2) to render; annotations as our own JSON overlay (pin x/y/page), not embedded in the PDF — deliverable stays a broker ref. Pin model per Wrike/Ziflow. |
+| **2.5 Mobile/offline** | PWA shell SW (`sw.js`, never caches `/api/*`), `registerServiceWorker`, my-work/tasks read models, notifications SSE | **Workbox** (MIT) for read-cache + background-sync write queue; **Yjs + y-indexeddb** for offline edits; **web-push** (MIT) + VAPID for real push; Capacitor (MIT) shells as a stretch. |
+
+**Highest-leverage single adopt: Yjs** — one dependency serves 2.1 (co-edit), 2.3 (cursors), 2.5
+(offline). Introduce it once, behind our seam. Every visual surface (TipTap nodes, Excalidraw scene,
+PDF overlay) enters as a **primitive** in the shared store, so it inherits capability-gating, admin
+authoring, and the drift guards — no feature bypasses the golden rules.
+
+
+### 2.1 Collaborative docs / wiki / knowledge base  🚧 In progress (slice 1)
 - **Competitors.** Notion, ClickUp, Confluence, Wrike. **Gap.** "Content pages" is a CMS
   library, not real-time rich-text co-editing / linked wiki.
 - **Acceptance.** Rich-text documents with links/embeds, per-space organisation, presence
   on a doc, comments/mentions, version history; readable/editable under existing RBAC.
 - **Leverage.** Presence hub + comments + content-pages storage; reuse SSE for co-presence.
+- **Slice 1 ✅ (foundation).** Documents are **built of primitive blocks** (`DOC_BLOCK_TYPES` →
+  the `block` primitive family in the shared store, drift-guarded): heading/paragraph/quote/
+  callout/code, bullet/numbered/checklist, divider/table/embed. Bodies live in the backend
+  through a new **broker seam** (`listWikiSpaces`/`listWikiDocs`/`getWikiDoc`/`writeWikiDoc`,
+  optional + capability-gated → 501 when unsupported) — **zero-at-rest**. `/api/wiki/*` routes
+  gated by existing RBAC (read viewer+, author contributor+, delete manager+). Every write
+  passes one **sanitising choke point** (`sanitizeWikiDocWrite`): control-char stripping,
+  length caps, per-type field allow-listing (smuggled fields dropped), safe-scheme-only embeds;
+  bodies stored as block JSON (no HTML sink), rendered as escaped React text. `[[wiki-links]]`
+  + server-resolved **backlinks**. Read-only `DocRenderer` + client hooks. Presence room
+  `doc:<id>` and comments thread `doc:<id>` reuse the existing seams (no new realtime surface).
+- **Slice 2+ (next).** Authoring UI + page tree/spaces nav; **Yjs** CRDT co-edit (binds via
+  `y-prosemirror`, awareness = live cursors) over our SSE; version-diff history.
 
 ### 2.2 Guest / external collaboration & client portals  ⬜ Todo
 - **Competitors.** Monday, Wrike, Smartsheet. **Gap.** Enterprise-IdP/SCIM only; no
@@ -158,6 +215,8 @@ already exist, so they close the most competitive distance for the least build.
 - **Acceptance.** Freeform canvas (sticky notes, shapes, connectors, freehand), multi-user
   live cursors, convert a sticky → work item; export.
 - **Leverage.** Presence/live-events; new `canvas` panel kind; drill-to for item creation.
+- **Pairs with:** X.1 Native handoff — our inline whiteboard is the "good enough" version; the
+  "Use native" button hands off to Miro/Lucid/Figma when connected.
 
 ### 2.4 Proofing / deliverable review & annotation  ⬜ Todo
 - **Competitors.** Adobe Workfront, Wrike, Smartsheet. **Gap.** No creative review markup.
@@ -196,6 +255,33 @@ already exist, so they close the most competitive distance for the least build.
 - **Competitors.** Jira/Monday/Asana marketplaces. **Have.** 41 connectors + MCP + broker
   seam. **Missing.** UI-extension ecosystem (installable panels/screens/reports).
 - **Leverage.** Panel registry, screen-def bundles, MCP, config-bundle delivery.
+
+---
+
+## Cross-cutting
+
+### X.1 Native handoff (companion-app bridge)  ⬜ Todo — full design in `docs/NATIVE-HANDOFF.md`
+- **Rationale.** Our inline artifacts (whiteboard, doc, sheet, board, gantt, dashboard) are "good
+  enough"; a **"Use native"** button hands off to the specialist SaaS a connected backend already
+  fronts (Miro, Notion, Smartsheet, MS Project, Power BI, …). The user works there under their own
+  login and the artifact comes back **through the broker** as a reference. Purest expression of the
+  thesis: *your tools stay the source of truth; nothing syncs, nothing migrates.*
+- **Generalised — every SaaS backend, every artifact kind**, not whiteboard-specific. A connector
+  advertises the native surfaces it fronts; the SPA lights up "Use native (\<vendor\>)" on any
+  artifact whose `kind` a connected backend advertises.
+- **Contract.** A `NativeSurface` descriptor in the connector catalogue + three optional broker
+  methods: `nativeSurfaces` (advertise, capability-unioned), `nativeHandoff` (mint the vetted,
+  host-allowlisted vendor URL), `nativeImport` (bring it back through the broker as a
+  `TaskAttachment { url }`). One reusable capability-gated `<UseNative>` control — no per-vendor UI.
+- **Why it's safe.** Broker-mediated ⇒ inherits every data-seam control for free: `safeFetch`
+  (SSRF/egress), residency 451 fail-closed, vault credentials (user's own OAuth token, scope never
+  widened), sanitiser, provenance, audit. Connector-minted URLs (never user input), login stays in
+  the user's real browser (we never wrap the vendor's auth screen), reference-only by default
+  (zero-at-rest). **A new connector capability, not a new security boundary.**
+- **Leverage.** Broker seam + connector catalogue + capability resolver + attachments +
+  vault/`storeCredential` + egress/residency + provenance/audit + the primitive store (`kind`).
+- **Slices.** (1) reference handoff + `<UseNative>` button; (2) sandboxed Live-Embed preview;
+  (3) OAuth + content import (metadata/thumbnail via `safeFetch`).
 
 ---
 
@@ -295,5 +381,22 @@ so an attachment field would be a URL reference (`url` type) pointing at the sys
   ruleset as the grid. Documented the form primitive backlog and, for 1.2, the hard
   RBAC-gating constraint (automate only what you may edit).
 - _2026-07-16_ — Forms capability gating: a form can only map onto issue fields the
-  connected backend advertises as storable, enforced at authoring and submit. **Next up:
-  Phase 1.2 (automation recipes).**
+  connected backend advertises as storable, enforced at authoring and submit.
+- _2026-07-16_ — Phase 1.2 slice 1 (automation recipes) shipped; single shared primitive store
+  (subfolders + tags + drift guard) with every authoring surface wired to it; richer form field
+  primitives (radio/likert/multiselect/yesno/address). Branch merged to `main` (PR #661).
+- _2026-07-16_ — Added cross-cutting **X.1 Native handoff** design (`docs/NATIVE-HANDOFF.md`):
+  a generalised "Use native" companion-app bridge — broker-mediated, so it inherits every
+  data-seam control. Generalised across all SaaS backends + artifact kinds.
+- _2026-07-16_ — Phase 1.3 refinement: **templates stored as default JSON + org override** —
+  both apps resolve the shipped catalogue ∪ the org's overrides (org wins by id) via
+  `resolveProjectTemplates`, so a shipped starter is instantiable directly and an org can
+  customise or revert it. Gallery shows the effective set with per-row Customise/Revert.
+- _2026-07-16_ — Phase 2 **pre-build due-diligence** recorded (per item: existing code to build
+  on + proven external code/design to adapt). Yjs flagged as the highest-leverage single adopt
+  (co-edit + cursors + offline). Building Phase 2 in order, starting 2.1.
+- _2026-07-16_ — Phase 2.1 slice 1 (collaborative docs/wiki foundation) shipped: documents built
+  of `block` primitives (new drift-guarded family), a zero-at-rest broker wiki seam, RBAC-gated
+  `/api/wiki/*` routes behind one sanitising choke point (per-type allow-listing, safe-scheme
+  embeds, no HTML sink), `[[wiki-link]]` backlinks, read-only `DocRenderer` + client hooks.
+  Presence/comments reuse the existing `doc:<id>` room seams. Yjs co-edit + authoring UI next.

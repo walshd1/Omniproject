@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { PRIMITIVES, primitiveStore, primitivesByFamily, primitivesFor, getPrimitive, primitiveTree, categoriesFor, allTags, primitivesByTag } from "./primitive-store";
 import { PANEL_RENDERERS } from "../components/screen/registry";
 import { PRIMITIVE_LIBRARY } from "../definitions/primitives";
-import { FORM_FIELD_TYPES, componentLibrary } from "@workspace/backend-catalogue";
+import { FORM_FIELD_TYPES, DOC_BLOCK_TYPES, componentLibrary } from "@workspace/backend-catalogue";
 
 /**
  * Drift guard for THE single primitive store. It binds each family back to its authoritative registry, so
@@ -27,6 +27,16 @@ describe("primitive-store (single shared store)", () => {
     expect(store).toEqual([...FORM_FIELD_TYPES].sort());
   });
 
+  it("the block family exactly matches the shared document block types", () => {
+    const store = primitivesByFamily("block").map((p) => p.id).sort();
+    expect(store).toEqual([...DOC_BLOCK_TYPES].sort());
+  });
+
+  it("block primitives are placeable only on the content surface", () => {
+    expect(primitivesByFamily("block").every((p) => p.placeableIn.includes("content"))).toBe(true);
+    expect(primitivesFor("content").some((p) => p.family === "block")).toBe(true);
+  });
+
   it("the component family exactly matches the shared component library", () => {
     const store = primitivesByFamily("component").map((p) => p.id).sort();
     const lib = componentLibrary().map((c) => c.id).sort();
@@ -34,7 +44,7 @@ describe("primitive-store (single shared store)", () => {
   });
 
   it("ids are unique within each family", () => {
-    for (const family of ["panel", "viz", "field", "component"] as const) {
+    for (const family of ["panel", "viz", "field", "block", "component"] as const) {
       const ids = primitivesByFamily(family).map((p) => p.id);
       expect(new Set(ids).size, `family ${family}`).toBe(ids.length);
     }
