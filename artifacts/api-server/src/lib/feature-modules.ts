@@ -224,6 +224,14 @@ export const FEATURE_MODULES: readonly FeatureModule[] = [
     reason: "storage", // holds invoice data in the encrypted-JSON store
   },
   {
+    id: "marketplace",
+    label: "Plugin marketplace",
+    description: "Install org-wide extensions that contribute pure-JSON reports, pages, dashboards and screens.",
+    load: () => import("../routes/marketplace"),
+    defaultOff: true,
+    reason: "storage", // holds installed-extension config in the encrypted-JSON store; install is admin-gated
+  },
+  {
     // Admin bulk-action runner: apply one canonical broker write (create/update project) to many
     // projects at once, declaratively. Has a backend route (POST /api/admin/bulk), so it loads
     // lazily; OFF until an admin opts in — it fans out project-level writes (high blast radius), so

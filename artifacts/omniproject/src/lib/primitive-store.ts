@@ -1,6 +1,6 @@
 import { PANEL_RENDERERS } from "../components/screen/registry";
 import { PRIMITIVE_LIBRARY } from "../definitions/primitives";
-import { componentLibrary, FORM_FIELD_TYPES, DOC_BLOCK_TYPES, CANVAS_ELEMENT_TYPES, ANNOTATION_TYPES, KEY_RESULT_KINDS, INVOICE_LINE_KINDS } from "@workspace/backend-catalogue";
+import { componentLibrary, FORM_FIELD_TYPES, DOC_BLOCK_TYPES, CANVAS_ELEMENT_TYPES, ANNOTATION_TYPES, KEY_RESULT_KINDS, INVOICE_LINE_KINDS, EXTENSION_CONTRIBUTION_KINDS } from "@workspace/backend-catalogue";
 
 /**
  * THE single shared primitive store — one catalogue over every renderable building block in the product,
@@ -20,9 +20,11 @@ import { componentLibrary, FORM_FIELD_TYPES, DOC_BLOCK_TYPES, CANVAS_ELEMENT_TYP
  *  - `annotation` proof review markers (pin/box/highlight) — from ANNOTATION_TYPES.
  *  - `keyResult` goal measures (number/percent/currency/milestone) — from KEY_RESULT_KINDS.
  *  - `invoiceLine` invoice charges (labour/expense/fixed/discount) — from INVOICE_LINE_KINDS.
+ *  - `extensionContribution` marketplace extension parts (report/contentPage/dashboard/screen) — from
+ *    EXTENSION_CONTRIBUTION_KINDS.
  */
-export type PrimitiveFamily = "panel" | "viz" | "field" | "component" | "block" | "canvas" | "annotation" | "keyResult" | "invoiceLine";
-export type PlacementSurface = "screen" | "report" | "dashboard" | "content" | "form" | "export" | "canvas" | "proof" | "goal" | "invoice";
+export type PrimitiveFamily = "panel" | "viz" | "field" | "component" | "block" | "canvas" | "annotation" | "keyResult" | "invoiceLine" | "extensionContribution";
+export type PlacementSurface = "screen" | "report" | "dashboard" | "content" | "form" | "export" | "canvas" | "proof" | "goal" | "invoice" | "marketplace";
 
 export interface Primitive {
   /** Unique WITHIN its family (a `table` panel and a `table` viz are different primitives). */
@@ -127,6 +129,14 @@ const INVOICE_LINE_META: Record<string, { category: string; tags: string[] }> = 
   discount: { category: "adjustment", tags: ["reduction"] },
 };
 
+/** `extensionContribution` family — subfolder + tags per marketplace extension contribution primitive. */
+const EXTENSION_CONTRIBUTION_META: Record<string, { category: string; tags: string[] }> = {
+  report: { category: "surface", tags: ["report"] },
+  contentPage: { category: "surface", tags: ["content"] },
+  dashboard: { category: "surface", tags: ["dashboard"] },
+  screen: { category: "surface", tags: ["screen"] },
+};
+
 /** `viz` family — cross-cutting tags per data-visualisation primitive (subfolder is its chart category). */
 const VIZ_TAGS: Record<string, string[]> = {
   bar: ["comparison"], line: ["timeseries", "trend"], area: ["timeseries", "trend"],
@@ -205,6 +215,14 @@ function invoiceLinePrimitives(): Primitive[] {
   });
 }
 
+/** `extensionContribution` family — the marketplace extension parts. They live on the `marketplace` surface. */
+function extensionContributionPrimitives(): Primitive[] {
+  return EXTENSION_CONTRIBUTION_KINDS.map((id) => {
+    const meta = EXTENSION_CONTRIBUTION_META[id] ?? { category: "other", tags: [] };
+    return { id, sourceId: id, family: "extensionContribution", label: titleCase(id), category: meta.category, tags: meta.tags, placeableIn: ["marketplace"] };
+  });
+}
+
 /** `component` family — hosted reports + widgets, already placement-tagged by the shared library. */
 function componentPrimitives(): Primitive[] {
   return componentLibrary().map((c) => ({
@@ -228,6 +246,7 @@ export const PRIMITIVES: Primitive[] = [
   ...annotationPrimitives(),
   ...keyResultPrimitives(),
   ...invoiceLinePrimitives(),
+  ...extensionContributionPrimitives(),
   ...componentPrimitives(),
 ];
 

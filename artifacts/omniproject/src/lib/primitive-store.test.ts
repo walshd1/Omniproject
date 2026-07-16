@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { PRIMITIVES, primitiveStore, primitivesByFamily, primitivesFor, getPrimitive, primitiveTree, categoriesFor, allTags, primitivesByTag } from "./primitive-store";
 import { PANEL_RENDERERS } from "../components/screen/registry";
 import { PRIMITIVE_LIBRARY } from "../definitions/primitives";
-import { FORM_FIELD_TYPES, DOC_BLOCK_TYPES, CANVAS_ELEMENT_TYPES, ANNOTATION_TYPES, KEY_RESULT_KINDS, INVOICE_LINE_KINDS, componentLibrary } from "@workspace/backend-catalogue";
+import { FORM_FIELD_TYPES, DOC_BLOCK_TYPES, CANVAS_ELEMENT_TYPES, ANNOTATION_TYPES, KEY_RESULT_KINDS, INVOICE_LINE_KINDS, EXTENSION_CONTRIBUTION_KINDS, componentLibrary } from "@workspace/backend-catalogue";
 
 /**
  * Drift guard for THE single primitive store. It binds each family back to its authoritative registry, so
@@ -77,6 +77,16 @@ describe("primitive-store (single shared store)", () => {
     expect(primitivesFor("invoice").some((p) => p.family === "invoiceLine")).toBe(true);
   });
 
+  it("the extensionContribution family exactly matches the shared contribution kinds", () => {
+    const store = primitivesByFamily("extensionContribution").map((p) => p.id).sort();
+    expect(store).toEqual([...EXTENSION_CONTRIBUTION_KINDS].sort());
+  });
+
+  it("extensionContribution primitives are placeable only on the marketplace surface", () => {
+    expect(primitivesByFamily("extensionContribution").every((p) => p.placeableIn.includes("marketplace"))).toBe(true);
+    expect(primitivesFor("marketplace").some((p) => p.family === "extensionContribution")).toBe(true);
+  });
+
   it("the component family exactly matches the shared component library", () => {
     const store = primitivesByFamily("component").map((p) => p.id).sort();
     const lib = componentLibrary().map((c) => c.id).sort();
@@ -84,7 +94,7 @@ describe("primitive-store (single shared store)", () => {
   });
 
   it("ids are unique within each family", () => {
-    for (const family of ["panel", "viz", "field", "block", "canvas", "annotation", "keyResult", "invoiceLine", "component"] as const) {
+    for (const family of ["panel", "viz", "field", "block", "canvas", "annotation", "keyResult", "invoiceLine", "extensionContribution", "component"] as const) {
       const ids = primitivesByFamily(family).map((p) => p.id);
       expect(new Set(ids).size, `family ${family}`).toBe(ids.length);
     }
