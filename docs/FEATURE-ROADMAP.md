@@ -538,7 +538,7 @@ authoring, and the drift guards — no feature bypasses the golden rules.
   `guestInvite` panel was missing from `SETTINGS_PANEL_KEYS`). 3 component tests (seed, save-PATCH, validation
   gate) + the panel drift-guard now green. **Working-time is now fully user-configurable.**
 
-### 3.2 Goals / OKRs as a managed cadence  🚧 In progress (slices 1–2)
+### 3.2 Goals / OKRs as a managed cadence  🚧 In progress (slices 1–3)
 - **Competitors.** Asana Goals, Viva Goals, ClickUp. **Have.** Strategy cascade + PI board
   as *reports*. **Missing.** First-class goal objects with check-ins, progress updates,
   goal↔work linking on a cadence.
@@ -563,6 +563,14 @@ authoring, and the drift guards — no feature bypasses the golden rules.
   status, and coerces `krValues` (KR id → number, unknown/non-numeric dropped); `applyCheckIn` is pure (id +
   clock injected). `GoalMeta` now carries `checkInCount` + `lastCheckInAt`. 2 more pure tests (sanitise;
   apply incl. history bounding) + 1 route test. **Next:** goal↔work linking (slice 3).
+- **Slice 3 ✅ (goal↔work linking).** A goal can link to work items in a system of record, **reference-only**
+  (zero-at-rest — an addressing triple `system`/`projectRef`/`itemRef` + an optional cached label, never the
+  item's content), like the dependency overlay. `GoalLink` carries a stable URL-safe `key` (`goalLinkKey` =
+  base64url of the triple) so links are idempotent + deletable by key. `POST /api/goals/:id/links` (add,
+  idempotent, bounded to `maxLinks` 200) and `DELETE /api/goals/:id/links/:key` (unlink), both contributor+.
+  `sanitizeGoalLink` validates the triple; `addGoalLink`/`removeGoalLink` are pure and bump the version only
+  on a real change. `GoalMeta` gains `linkCount`. 1 pure test + 1 route test. **Next:** the recurring check-in
+  cadence via the reminder sweep (slice 4), then the UI (slice 5).
 
 ### 3.3 Live time tracking + invoicing  ⬜ Todo
 - **Competitors.** Harvest/Toggl, Workfront. **Have.** Timesheets (submit/approve) +

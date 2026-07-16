@@ -8,7 +8,8 @@ import {
   artifactStoreEnabled, listArtifacts, getArtifact, putArtifact, deleteArtifact,
 } from "../lib/artifact-store";
 import {
-  GOAL_ARTIFACT, sanitizeGoalWrite, sanitizeCheckInWrite, applyCheckIn, makeGoalId, parseGoalId, goalScope,
+  GOAL_ARTIFACT, sanitizeGoalWrite, sanitizeCheckInWrite, applyCheckIn,
+  sanitizeGoalLink, addGoalLink, removeGoalLink, makeGoalId, parseGoalId, goalScope,
   newGoalRow, mergeGoalRow, goalMeta, GoalError, type Goal, type GoalMeta, type GoalStorage,
 } from "../lib/goal";
 
@@ -118,6 +119,48 @@ router.post("/goals/:id/checkin", requireRole("contributor"), (req, res) => {
     const row = applyCheckIn(existing, input, crypto.randomUUID(), ctx, new Date().toISOString());
     putArtifact(GOAL_ARTIFACT, scope, row);
     res.status(201).json(row);
+  });
+});
+
+// POST /api/goals/:id/links — link a work item to the goal (reference-only, idempotent) (contributor+).
+router.post("/goals/:id/links", requireRole("contributor"), (req, res) => {
+  const id = String(req.params["id"]);
+  const parsed = parseGoalId(id);
+  if (!parsed) { res.status(404).json({ error: "Goal not found" }); return; }
+  let link;
+  try { link = sanitizeGoalLink(req.body, new Date().toISOString()); }
+  catch (e) { if (e instanceof GoalError) { res.status(400).json({ error: e.message }); return; } throw e; }
+  return withBrokerErrors(req, res, "link_goal failed", async () => {
+    if (!(await authorizeTarget(req, res, parsed.storage, parsed.projectId, "write"))) return;
+    if (!artifactStoreEnabled()) { res.status(404).json({ error: "Goal not found" }); return; }
+    const ctx = contextFromReq(req);
+    const scope = goalScope(parsed, ctx.sub);
+    const existing = scope ? getArtifact<Goal>(GOAL_ARTIFACT, scope, id) : null;
+    if (!scope || !existing) { res.status(404).json({ error: "Goal not found" }); return; }
+    let row;
+    try { row = addGoalLink(existing, link, ctx, new Date().toISOString()); }
+    catch (e) { if (e instanceof GoalError) { res.status(400).json({ error: e.message }); return; } throw e; }
+    putArtifact(GOAL_ARTIFACT, scope, row);
+    res.status(201).json(row);
+  });
+});
+
+// DELETE /api/goals/:id/links/:key — unlink a work item by its link key (contributor+).
+router.delete("/goals/:id/links/:key", requireRole("contributor"), (req, res) => {
+  const id = String(req.params["id"]);
+  const key = String(req.params["key"]);
+  const parsed = parseGoalId(id);
+  if (!parsed) { res.status(404).json({ error: "Goal not found" }); return; }
+  return withBrokerErrors(req, res, "unlink_goal failed", async () => {
+    if (!(await authorizeTarget(req, res, parsed.storage, parsed.projectId, "write"))) return;
+    if (!artifactStoreEnabled()) { res.status(404).json({ error: "Goal not found" }); return; }
+    const ctx = contextFromReq(req);
+    const scope = goalScope(parsed, ctx.sub);
+    const existing = scope ? getArtifact<Goal>(GOAL_ARTIFACT, scope, id) : null;
+    if (!scope || !existing) { res.status(404).json({ error: "Goal not found" }); return; }
+    const row = removeGoalLink(existing, key, ctx, new Date().toISOString());
+    putArtifact(GOAL_ARTIFACT, scope, row);
+    res.json(row);
   });
 });
 

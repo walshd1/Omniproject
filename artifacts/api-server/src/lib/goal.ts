@@ -37,6 +37,9 @@ export const GOAL_LIMITS = {
   maxKeyResults: 20,
   maxCheckInNote: 2000,
   maxCheckIns: 100,
+  maxLinks: 200,
+  maxRef: 256,
+  maxLinkLabel: 200,
   maxGoalBytes: 64 * 1024,
 } as const;
 
@@ -64,6 +67,20 @@ export interface GoalCheckIn {
   krValues: Record<string, number>;
 }
 
+/**
+ * A link from a goal to a piece of work in a system of record. Reference-only (zero-at-rest) — like the
+ * dependency overlay, we keep an addressing triple + an optional cached label, never the item's content.
+ */
+export interface GoalLink {
+  /** Stable, URL-safe key derived from the addressing triple (so a link is idempotent + deletable by key). */
+  key: string;
+  system: string;
+  projectRef: string;
+  itemRef: string;
+  label?: string;
+  linkedAt: string;
+}
+
 /** A stored goal row. */
 export interface Goal {
   id: string;
@@ -78,6 +95,8 @@ export interface Goal {
   progressPct: number;
   /** Progress check-in history (most recent last); appended by the check-in route, bounded. */
   checkins: GoalCheckIn[];
+  /** Links to work items in a system of record (reference-only). */
+  links: GoalLink[];
   version: number;
   createdAt: string;
   updatedAt: string;
@@ -93,6 +112,7 @@ export interface GoalMeta {
   keyResultCount: number;
   checkInCount: number;
   lastCheckInAt: string | null;
+  linkCount: number;
   projectId?: string | null;
   ownerSub?: string | null;
   storage?: GoalStorage;
@@ -226,11 +246,46 @@ export function newGoalRow(id: string, input: SanitizedGoalWrite, ctx: ActorCont
     keyResults: input.keyResults,
     progressPct: goalProgress(input.keyResults),
     checkins: [],
+    links: [],
     version: 1,
     createdAt: now,
     updatedAt: now,
     updatedBy: actorLabel(ctx),
   };
+}
+
+/** The stable, URL-safe key for a work-item link (base64url of the addressing triple). Pure + deterministic. */
+export function goalLinkKey(system: string, projectRef: string, itemRef: string): string {
+  return Buffer.from(JSON.stringify([system, projectRef, itemRef])).toString("base64url");
+}
+
+/** Validate + normalise a raw work-item link (throws {@link GoalError} on a bad shape). */
+export function sanitizeGoalLink(raw: unknown, now: string): GoalLink {
+  const obj = (raw ?? {}) as Record<string, unknown>;
+  const system = cleanText(obj["system"], GOAL_LIMITS.maxRef).trim();
+  const projectRef = cleanText(obj["projectRef"], GOAL_LIMITS.maxRef).trim();
+  const itemRef = cleanText(obj["itemRef"], GOAL_LIMITS.maxRef).trim();
+  if (!system || !projectRef || !itemRef) throw new GoalError("a link needs system, projectRef and itemRef");
+  const link: GoalLink = { key: goalLinkKey(system, projectRef, itemRef), system, projectRef, itemRef, linkedAt: now };
+  const label = cleanText(obj["label"], GOAL_LIMITS.maxLinkLabel).trim();
+  if (label) link.label = label;
+  return link;
+}
+
+/** Add a work-item link (idempotent by key; bounded). Bumps version. */
+export function addGoalLink(existing: Goal, link: GoalLink, ctx: ActorContext, now: string): Goal {
+  const links = existing.links ?? [];
+  if (links.some((l) => l.key === link.key)) return existing; // idempotent — already linked
+  if (links.length >= GOAL_LIMITS.maxLinks) throw new GoalError(`a goal may have at most ${GOAL_LIMITS.maxLinks} links`);
+  return { ...existing, links: [...links, link], version: (existing.version ?? 1) + 1, updatedAt: now, updatedBy: actorLabel(ctx) };
+}
+
+/** Remove a work-item link by key. Bumps version only if something was removed. */
+export function removeGoalLink(existing: Goal, key: string, ctx: ActorContext, now: string): Goal {
+  const links = existing.links ?? [];
+  const next = links.filter((l) => l.key !== key);
+  if (next.length === links.length) return existing;
+  return { ...existing, links: next, version: (existing.version ?? 1) + 1, updatedAt: now, updatedBy: actorLabel(ctx) };
 }
 
 /** A sanitised check-in write: an optional note + status, and the key-result values to apply. */
@@ -313,6 +368,7 @@ export function goalMeta(g: Goal): GoalMeta {
     keyResultCount: g.keyResults?.length ?? 0,
     checkInCount: checkins.length,
     lastCheckInAt: checkins.length ? checkins[checkins.length - 1]!.at : null,
+    linkCount: g.links?.length ?? 0,
     updatedAt: g.updatedAt,
   };
   if (g.projectId !== undefined) meta.projectId = g.projectId;
