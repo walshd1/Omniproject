@@ -202,6 +202,13 @@ thumbnail. The JSON — not an opaque summary — is the output, and it is **aud
   redact before egress).
 - **Reference-first, still.** The JSON + thumbnail are *derived metadata* on a reference; the board stays in
   the vendor.
+- **May propose a new primitive — and that's the ceiling.** If nothing in the primitive store (the class
+  registry) can render the extracted artifact, the AI may additionally **propose a new primitive
+  *descriptor*** — the class shape only (kind / family / category / value schema), as JSON. It does **not**
+  write the renderer (a renderer is code; it ships as a normal update per "a new primitive = catalogue entry
+  + renderer + the JSON defs that use it"). The descriptor is a proposal like everything else here: audited,
+  human-reviewed, accepted or rejected. Extract JSON + optionally propose a primitive descriptor is the
+  **entire** extent of the AI's authority on this path — no actions, no mutations, no code, nothing else.
 
 This is the honest answer to "your API is lacking": we still take it in — as auditable, adjustable JSON via
 pixels + AI — rather than a clean API pull.
