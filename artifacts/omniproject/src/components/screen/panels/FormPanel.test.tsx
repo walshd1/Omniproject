@@ -15,10 +15,10 @@ import type { FormDef } from "../../../lib/forms";
 const FORM: FormDef = {
   id: "intake-request", label: "Work request",
   fields: [
-    { key: "summary", label: "Summary", type: "text", required: true },
-    { key: "priority", label: "Priority", type: "select", options: ["Low", "High"], required: true },
+    { key: "summary", label: "Summary", type: "text", mapTo: "title", required: true },
+    { key: "priority", label: "Priority", type: "select", mapTo: "priority", options: ["Low", "High"], required: true },
   ],
-  target: { kind: "issue", projectId: "proj-001", titleFrom: "summary" },
+  target: { kind: "issue", projectId: "proj-001" },
 };
 
 function seed(forms: FormDef[]): QueryClient {

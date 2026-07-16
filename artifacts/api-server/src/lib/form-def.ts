@@ -8,7 +8,7 @@
  * Same "JSON def in the encrypted config store, rendered by a generic primitive" pattern as screen defs and
  * the RACI / stakeholder registers.
  */
-import type { FormDefinition, FormFieldDef, FormFieldType, FormTargetDef } from "@workspace/backend-catalogue";
+import { ISSUE_WRITE_TARGETS, type FormDefinition, type FormFieldDef, type FormFieldType, type FormTargetDef } from "@workspace/backend-catalogue";
 
 export class FormDefError extends Error {
   constructor(message: string) { super(message); this.name = "FormDefError"; }
@@ -29,10 +29,11 @@ export type FormDef = FormDefinition;
 export type { FormFieldType };
 
 /** Issue fields a form is allowed to map onto (a safe subset of IssueWrite — strings/number/labels only). */
-export const ISSUE_WRITE_ALLOWLIST = new Set<string>([
-  "title", "description", "priority", "assignee", "labels", "dueDate", "startDate",
-  "storyPoints", "estimateHours", "budget", "impact", "urgency", "riskLevel", "healthStatus",
-]);
+export const ISSUE_WRITE_ALLOWLIST = new Set<string>(ISSUE_WRITE_TARGETS);
+
+/** Targets that AGGREGATE several fields; every other target is scalar (one field each). `description`
+ *  concatenates "Label: value" lines; `labels` collects each value into the labels array. */
+export const AGGREGATING_TARGETS = new Set<string>(["description", "labels"]);
 
 const str = (v: unknown): string => (typeof v === "string" ? v.trim() : "");
 const isForbiddenKey = (k: string): boolean => k === "__proto__" || k === "constructor" || k === "prototype";
@@ -51,6 +52,8 @@ export function validateForms(value: unknown): FormDef[] {
 
     if (!Array.isArray(o["fields"]) || o["fields"].length === 0) throw new FormDefError(`form "${id}" needs at least one field`);
     const fieldKeys = new Set<string>();
+    const scalarTargets = new Set<string>(); // a non-aggregating target may be claimed by only ONE field
+    let titleFields = 0;
     const fields = (o["fields"] as unknown[]).map((rawF) => {
       const f = (rawF ?? {}) as Record<string, unknown>;
       const key = str(f["key"]);
@@ -61,7 +64,16 @@ export function validateForms(value: unknown): FormDef[] {
       fieldKeys.add(key);
       if (!fLabel) throw new FormDefError(`form "${id}" field "${key}" needs a label`);
       if (!FIELD_TYPES.has(type)) throw new FormDefError(`form "${id}" field "${key}" type must be one of text, textarea, number, date, select, checkbox, email, url`);
-      const field: FormField = { key, label: fLabel, type: type as FormFieldType };
+      // EVERY field must map to a writable issue field — nothing a user types is homeless.
+      const mapTo = str(f["mapTo"]);
+      if (!mapTo) throw new FormDefError(`form "${id}" field "${key}" must map to a backend field (mapTo)`);
+      if (!ISSUE_WRITE_ALLOWLIST.has(mapTo)) throw new FormDefError(`form "${id}" field "${key}" maps to "${mapTo}", which is not a writable issue field`);
+      if (mapTo === "title") titleFields++;
+      if (!AGGREGATING_TARGETS.has(mapTo)) {
+        if (scalarTargets.has(mapTo)) throw new FormDefError(`form "${id}" has two fields mapping to "${mapTo}" (only description/labels may be shared)`);
+        scalarTargets.add(mapTo);
+      }
+      const field: FormField = { key, label: fLabel, type: type as FormFieldType, mapTo };
       if (f["required"] === true) field.required = true;
       if (type === "select") {
         const options = Array.isArray(f["options"]) ? (f["options"] as unknown[]).map(str).filter(Boolean) : [];
@@ -77,6 +89,8 @@ export function validateForms(value: unknown): FormDef[] {
       if (str(f["help"])) field.help = str(f["help"]);
       return field;
     });
+    // An issue needs exactly one title source.
+    if (titleFields !== 1) throw new FormDefError(`form "${id}" must have exactly one field mapping to "title" (has ${titleFields})`);
 
     const rawTarget = (o["target"] ?? {}) as Record<string, unknown>;
     if (str(rawTarget["kind"]) !== "issue") throw new FormDefError(`form "${id}" target.kind must be "issue"`);
@@ -84,25 +98,8 @@ export function validateForms(value: unknown): FormDef[] {
     // submit endpoint refuses an untargeted form (400) — validation here allows it so templates can be stored.
     const projectId = str(rawTarget["projectId"]);
     const target: FormTarget = { kind: "issue", ...(projectId ? { projectId } : {}) };
-    const titleFrom = str(rawTarget["titleFrom"]);
-    if (titleFrom) {
-      if (!fieldKeys.has(titleFrom)) throw new FormDefError(`form "${id}" target.titleFrom "${titleFrom}" is not a field`);
-      target.titleFrom = titleFrom;
-    }
     if (str(rawTarget["status"])) target.status = str(rawTarget["status"]);
-    if (str(rawTarget["priority"])) target.priority = str(rawTarget["priority"]);
     if (Array.isArray(rawTarget["labels"])) target.labels = (rawTarget["labels"] as unknown[]).map(str).filter(Boolean);
-    if (rawTarget["map"] && typeof rawTarget["map"] === "object" && !Array.isArray(rawTarget["map"])) {
-      const map: Record<string, string> = {};
-      for (const [issueField, formKey] of Object.entries(rawTarget["map"] as Record<string, unknown>)) {
-        if (isForbiddenKey(issueField)) continue;
-        if (!ISSUE_WRITE_ALLOWLIST.has(issueField)) throw new FormDefError(`form "${id}" target.map key "${issueField}" is not a writable issue field`);
-        const fk = str(formKey);
-        if (!fieldKeys.has(fk)) throw new FormDefError(`form "${id}" target.map "${issueField}" points at unknown field "${fk}"`);
-        map[issueField] = fk;
-      }
-      if (Object.keys(map).length > 0) target.map = map;
-    }
 
     const def: FormDef = { id, label, fields, target };
     if (str(o["description"])) def.description = str(o["description"]);
@@ -185,29 +182,24 @@ function capLength(field: FormFieldDef, s: string): void {
  * any allow-listed mapped fields. Returned as a plain record the route spreads into `broker.writeIssue`.
  */
 export function issueWriteFromSubmission(def: FormDef, clean: Record<string, unknown>): Record<string, unknown> {
-  const labelFor = (key: string): string => def.fields.find((f) => f.key === key)?.label ?? key;
-  const title = (def.target.titleFrom ? str(clean[def.target.titleFrom]) : "") || def.label;
-
-  // Compose a description from every answered field, so nothing the user typed is lost.
-  const lines = def.fields
-    .filter((f) => clean[f.key] !== undefined)
-    .map((f) => `${f.label}: ${String(clean[f.key])}`);
-  const description = [def.description, lines.join("\n")].filter(Boolean).join("\n\n") || undefined;
-
-  const out: Record<string, unknown> = { projectId: def.target.projectId, title };
-  if (description) out["description"] = description;
+  const out: Record<string, unknown> = {};
+  if (def.target.projectId) out["projectId"] = def.target.projectId;
+  // Intake markers first (a field mapping to the same target overrides / aggregates onto them).
   if (def.target.status) out["status"] = def.target.status;
-  if (def.target.priority) out["priority"] = def.target.priority;
-  if (def.target.labels && def.target.labels.length > 0) out["labels"] = [...def.target.labels];
+  const labels: string[] = [...(def.target.labels ?? [])];
+  const descLines: string[] = def.description ? [def.description] : [];
 
-  // Allow-listed field mapping overrides the composed defaults where configured.
-  for (const [issueField, formKey] of Object.entries(def.target.map ?? {})) {
-    const v = clean[formKey];
+  // Route EACH answered field to its mapped backend field. description/labels aggregate; others are scalar.
+  for (const f of def.fields) {
+    const v = clean[f.key];
     if (v === undefined) continue;
-    if (issueField === "labels") out["labels"] = [...(out["labels"] as string[] | undefined ?? []), str(v)].filter(Boolean);
-    else out[issueField] = v;
+    if (f.mapTo === "description") descLines.push(`${f.label}: ${String(v)}`);
+    else if (f.mapTo === "labels") { const s = str(v); if (s) labels.push(s); }
+    else out[f.mapTo] = v;
   }
-  void labelFor; // (kept for future per-field descriptions)
+
+  if (descLines.length > 0) out["description"] = descLines.join("\n");
+  if (labels.length > 0) out["labels"] = labels;
   return out;
 }
 
@@ -223,10 +215,12 @@ export const CORE_ISSUE_FIELDS = new Set<string>(["projectId", "title"]);
  * These pure helpers keep form-def.ts free of any request/broker import so they stay unit-testable.
  */
 
-/** The target.map issue-field keys a form maps to that AREN'T vendor-advertised writable — for authoring
+/** The distinct issue fields a form's fields map to that AREN'T vendor-advertised writable — for authoring
  *  rejection ("you can't map to X; the backend doesn't support writing it"). */
 export function unwritableMapFields(def: FormDef, writable: ReadonlySet<string>): string[] {
-  return Object.keys(def.target.map ?? {}).filter((k) => !CORE_ISSUE_FIELDS.has(k) && !writable.has(k));
+  const bad = new Set<string>();
+  for (const f of def.fields) if (!CORE_ISSUE_FIELDS.has(f.mapTo) && !writable.has(f.mapTo)) bad.add(f.mapTo);
+  return [...bad];
 }
 
 /** Defensive submit-time filter: drop any composed issue field the backend doesn't advertise as storable

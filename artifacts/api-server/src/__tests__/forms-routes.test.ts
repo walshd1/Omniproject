@@ -24,10 +24,10 @@ const req = (p: string, o: Parameters<Harness["req"]>[1] = {}) => h.req(p, { coo
 const FORM = {
   id: "intake", label: "Work request",
   fields: [
-    { key: "summary", label: "Summary", type: "text", required: true },
-    { key: "priority", label: "Priority", type: "select", options: ["Low", "High"], required: true },
+    { key: "summary", label: "Summary", type: "text", mapTo: "title", required: true },
+    { key: "priority", label: "Priority", type: "select", mapTo: "priority", options: ["Low", "High"], required: true },
   ],
-  target: { kind: "issue", projectId: "proj-001", titleFrom: "summary", status: "triage", labels: ["intake"], map: { priority: "priority" } },
+  target: { kind: "issue", projectId: "proj-001", status: "triage", labels: ["intake"] },
 };
 
 test("forms: save definitions (admin) + read them back", async () => {
@@ -77,7 +77,7 @@ test("forms: authoring can only map onto vendor-advertised writable fields", asy
   const prev = process.env["CAPABILITIES"];
   process.env["CAPABILITIES"] = "issues"; // financials/scheduling OFF → budget/dueDate not storable
   try {
-    const mapsBudget = { ...FORM, target: { ...FORM.target, map: { priority: "priority", budget: "priority" } } };
+    const mapsBudget = { ...FORM, fields: [...FORM.fields, { key: "cost", label: "Cost", type: "number", mapTo: "budget" }] };
     const bad = await req("/forms", { method: "PUT", body: { forms: [mapsBudget] } });
     assert.equal(bad.status, 400); // budget isn't advertised writable → rejected at authoring
     // Mapping only issues-domain fields (priority) is fine.
@@ -89,7 +89,7 @@ test("forms: authoring can only map onto vendor-advertised writable fields", asy
 test("forms: submit defensively drops a field the backend no longer advertises", async () => {
   const { updateSettings } = await import("../lib/settings");
   // Author with full caps (budget mapping allowed), then submit under a restricted backend.
-  updateSettings({ forms: [{ ...FORM, fields: [...FORM.fields, { key: "cost", label: "Cost", type: "number" }], target: { ...FORM.target, map: { priority: "priority", budget: "cost" } } }] });
+  updateSettings({ forms: [{ ...FORM, fields: [...FORM.fields, { key: "cost", label: "Cost", type: "number", mapTo: "budget" }] }] });
   const prev = process.env["CAPABILITIES"];
   process.env["CAPABILITIES"] = "issues"; // financials now OFF
   try {

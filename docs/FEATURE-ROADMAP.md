@@ -76,6 +76,14 @@ already exist, so they close the most competitive distance for the least build.
   authoring (PUT /forms rejects a map to an unsupported field, naming it) and submit
   (defensively drops any field the backend no longer advertises, in case capabilities
   changed since authoring). Core fields (projectId/title) are always kept.
+- **Mandatory field mapping (nothing is homeless).** Every form field MUST declare a
+  `mapTo` — the backend field its value writes to — so a value always has a place to live;
+  there is no "dump everything into the description" fallback. Validation (server + admin
+  builder) requires: a `mapTo` on each field, that it is a *writable* issue field, exactly
+  one field mapped to `title`, and unique scalar targets (`description`/`labels` may
+  aggregate several fields; everything else is one-field-each). If the backend can't store
+  a field, or the builder doesn't map it, the field can't be used. The admin builder's
+  "maps to" picker only offers capability-writable targets.
 
 ### 1.2 User-facing automation recipes  ⬜ Todo
 - **Rationale.** A friendly "when X, do Y" builder. The powerful JSON **workflow engine +

@@ -2,8 +2,10 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ClipboardList } from "lucide-react";
-import { FORMS, type FormDefinition, type FormFieldDef, type FormFieldType } from "@workspace/backend-catalogue";
+import { FORMS, ISSUE_WRITE_TARGETS, type FormDefinition, type FormFieldDef, type FormFieldType } from "@workspace/backend-catalogue";
 import { useAuth, isPmoOrAdmin } from "../../lib/auth";
+import { useGetCapabilities } from "@workspace/api-client-react";
+import { canStoreField } from "../../lib/capabilities-fields";
 import { useDraftAdmin } from "../../hooks/use-draft-admin";
 import { useToast } from "@/hooks/use-toast";
 import { useForms, useSaveForms, type FormDef } from "../../lib/forms";
@@ -26,8 +28,13 @@ function uniqueId(base: string, taken: Set<string>): string {
 
 export function FormsAdmin() {
   const { data: auth } = useAuth();
+  const { data: caps } = useGetCapabilities();
   const { data: server } = useForms();
   const save = useSaveForms();
+  // Issue fields a form may map onto: the catalogue targets the connected backend advertises as storable.
+  // title/description/labels are core (always offered); the rest are capability-gated.
+  const CORE_TARGETS = new Set(["title", "description", "labels"]);
+  const mapTargets = ISSUE_WRITE_TARGETS.filter((t) => CORE_TARGETS.has(t) || canStoreField(caps, t));
   const { toast } = useToast();
   const { draft, setDraft, dirty, reset } = useDraftAdmin<FormDef[], FormDef[]>(server, structuredClone);
   const [templateId, setTemplateId] = useState("");
@@ -42,7 +49,7 @@ export function FormsAdmin() {
 
   const addBlank = () => {
     const id = uniqueId("form", ids);
-    setDraft([...forms, { id, label: "New form", fields: [{ key: "summary", label: "Summary", type: "text", required: true }], target: { kind: "issue" } }]);
+    setDraft([...forms, { id, label: "New form", fields: [{ key: "summary", label: "Summary", type: "text", mapTo: "title", required: true }], target: { kind: "issue" } }]);
   };
   const addFromTemplate = () => {
     const tpl = FORMS.find((f) => f.id === templateId);
@@ -52,17 +59,27 @@ export function FormsAdmin() {
     setTemplateId("");
   };
 
-  // Validation: id+label, ≥1 field, unique field keys, select fields need options, a target project to submit.
+  // Validation mirrors the server: id+label, ≥1 field, unique keys, select options, EVERY field mapped to a
+  // (writable) issue field, exactly one title, scalar targets unique. So a saved form always has a home for
+  // every value the backend can store.
+  const AGG = new Set(["description", "labels"]);
   const formBad = (f: FormDef): string | null => {
     if (!f.id.trim() || !f.label.trim()) return "id and label required";
     if (f.fields.length === 0) return "at least one field";
     const keys = new Set<string>();
+    const scalars = new Set<string>();
+    let titles = 0;
     for (const k of f.fields) {
       if (!k.key.trim() || !k.label.trim()) return "each field needs a key and label";
       if (keys.has(k.key)) return `duplicate field key "${k.key}"`;
       keys.add(k.key);
       if (k.type === "select" && (!k.options || k.options.length === 0)) return `select field "${k.key}" needs options`;
+      if (!k.mapTo) return `field "${k.key}" must map to a backend field`;
+      if (!mapTargets.includes(k.mapTo as (typeof mapTargets)[number])) return `field "${k.key}" maps to "${k.mapTo}", which the backend can't store`;
+      if (k.mapTo === "title") titles++;
+      if (!AGG.has(k.mapTo)) { if (scalars.has(k.mapTo)) return `two fields map to "${k.mapTo}"`; scalars.add(k.mapTo); }
     }
+    if (titles !== 1) return `exactly one field must map to "title" (has ${titles})`;
     return null;
   };
   const anyBad = forms.some((f) => formBad(f) !== null) || new Set(forms.map((f) => f.id)).size !== forms.length;
@@ -123,13 +140,20 @@ export function FormsAdmin() {
                     {FIELD_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
                   </select>
                 ) },
+                { header: "Maps to", cell: (k, i) => (
+                  <select aria-label={`Field ${i + 1} maps to`} value={k.mapTo ?? ""} onChange={(e) => setField(fi, i, { mapTo: e.target.value })} className={`h-8 border bg-background px-1 text-xs ${k.mapTo && !mapTargets.includes(k.mapTo as (typeof mapTargets)[number]) ? "border-destructive" : "border-foreground"}`}>
+                    <option value="">— pick a field —</option>
+                    {mapTargets.map((t) => <option key={t} value={t}>{t}</option>)}
+                    {k.mapTo && !mapTargets.includes(k.mapTo as (typeof mapTargets)[number]) && <option value={k.mapTo}>{k.mapTo} (unsupported)</option>}
+                  </select>
+                ) },
                 { header: "Required", cell: (k, i) => <input type="checkbox" aria-label={`Field ${i + 1} required`} checked={k.required === true} onChange={(e) => setField(fi, i, { required: e.target.checked })} /> },
                 { header: "Options", cell: (k, i) => k.type === "select"
                   ? <Input aria-label={`Field ${i + 1} options`} value={(k.options ?? []).join(", ")} onChange={(e) => setField(fi, i, { options: e.target.value.split(",").map((s) => s.trim()).filter(Boolean) })} className="h-8 max-w-40" placeholder="a, b, c" />
                   : <span className="text-xs text-muted-foreground">—</span> },
               ]}
             />
-            <Button type="button" variant="outline" size="sm" onClick={() => setForm(fi, { fields: [...f.fields, { key: uniqueId("field", new Set(f.fields.map((k) => k.key))), label: "Field", type: "text" }] })} data-testid={`form-${f.id}-add-field`}>Add field</Button>
+            <Button type="button" variant="outline" size="sm" onClick={() => setForm(fi, { fields: [...f.fields, { key: uniqueId("field", new Set(f.fields.map((k) => k.key))), label: "Field", type: "text", mapTo: "description" }] })} data-testid={`form-${f.id}-add-field`}>Add field</Button>
             {bad && <p className="text-xs text-destructive" data-testid={`form-bad-${f.id}`}>{bad}</p>}
           </div>
         );
