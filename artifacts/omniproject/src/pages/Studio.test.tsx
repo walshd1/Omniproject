@@ -43,6 +43,26 @@ describe("Studio page", () => {
     expect(screen.getByTestId("studio-submit")).not.toBeDisabled();
   });
 
+  it("saves a valid primitive through the definition importer at the chosen scope", async () => {
+    let importBody: unknown;
+    const orig = globalThis.fetch;
+    globalThis.fetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url.includes("/api/studio/primitive")) return new Response(JSON.stringify({ result: validResult }), { status: 200, headers: { "Content-Type": "application/json" } });
+      if (url.includes("/api/defs")) { importBody = JSON.parse(String(init?.body)); return new Response(JSON.stringify({ id: "user~x", name: "Grouped columns", kind: "primitive", storage: "user" }), { status: 201, headers: { "Content-Type": "application/json" } }); }
+      return new Response("{}", { status: 200, headers: { "Content-Type": "application/json" } });
+    }) as typeof fetch;
+    try {
+      renderWithProviders(<Studio />, { client: seed() });
+      fireEvent.change(screen.getByTestId("studio-description"), { target: { value: "a grouped column chart" } });
+      fireEvent.click(screen.getByTestId("studio-generate"));
+      await waitFor(() => expect(screen.getByTestId("studio-submit")).not.toBeDisabled());
+      fireEvent.click(screen.getByTestId("studio-submit"));
+      await waitFor(() => expect(importBody).toBeTruthy());
+      expect(importBody).toMatchObject({ kind: "primitive", storage: "user", name: "Grouped columns" });
+    } finally { globalThis.fetch = orig; }
+  });
+
   it("shows validation errors and keeps submit disabled for an invalid primitive", async () => {
     mockFetchRouter({ "POST /api/studio/primitive": { ok: true, body: { result: invalidResult } } });
     renderWithProviders(<Studio />, { client: seed() });
