@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { PRIMITIVES, primitiveStore, primitivesByFamily, primitivesFor, getPrimitive } from "./primitive-store";
+import { PRIMITIVES, primitiveStore, primitivesByFamily, primitivesFor, getPrimitive, primitiveTree, categoriesFor, allTags, primitivesByTag } from "./primitive-store";
 import { PANEL_RENDERERS } from "../components/screen/registry";
 import { PRIMITIVE_LIBRARY } from "../definitions/primitives";
 import { FORM_FIELD_TYPES, componentLibrary } from "@workspace/backend-catalogue";
@@ -53,5 +53,38 @@ describe("primitive-store (single shared store)", () => {
     expect(getPrimitive("viz", "nope")).toBeUndefined();
     expect(primitiveStore()).not.toBe(PRIMITIVES);
     expect(primitiveStore().length).toBe(PRIMITIVES.length);
+  });
+
+  it("every primitive has a non-empty category subfolder", () => {
+    for (const p of PRIMITIVES) expect(p.category, `${p.family}/${p.id}`).toBeTruthy();
+  });
+
+  it("primitiveTree groups family -> category subfolders -> primitives", () => {
+    const tree = primitiveTree();
+    const panel = tree.find((t) => t.family === "panel")!;
+    expect(panel.folders.length).toBeGreaterThan(1); // panels span multiple subfolders (data/input/visualisation/…)
+    // Every primitive in the tree lands under its own category, and folders are non-empty.
+    for (const fam of tree) for (const folder of fam.folders) {
+      expect(folder.primitives.length).toBeGreaterThan(0);
+      expect(folder.primitives.every((p) => p.category === folder.category)).toBe(true);
+    }
+    // A surface-scoped tree only contains placeable primitives.
+    const formTree = primitiveTree("form");
+    expect(formTree.every((t) => t.family === "field")).toBe(true);
+  });
+
+  it("categoriesFor lists a family's subfolders", () => {
+    expect(categoriesFor("field").sort()).toEqual(["boolean", "choice", "numeric", "temporal", "text"]);
+    expect(categoriesFor("panel")).toContain("input");
+  });
+
+  it("tags are cross-cutting and filterable across families", () => {
+    expect(allTags()).toContain("editable");
+    // "editable" spans a panel (register/form) — cross-cutting, independent of the folder path.
+    const editable = primitivesByTag("editable");
+    expect(editable.some((p) => p.id === "register")).toBe(true);
+    expect(editable.some((p) => p.id === "form")).toBe(true);
+    expect(primitivesByTag("timeseries").some((p) => p.family === "viz")).toBe(true);
+    expect(primitivesByTag("nonexistent-tag")).toEqual([]);
   });
 });

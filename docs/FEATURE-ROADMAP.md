@@ -202,12 +202,18 @@ of truth rather than a registry each. Four families under one `Primitive` shape 
 - `field` — form input controls (from the shared `FORM_FIELD_TYPES`)
 - `component` — hosted reports + dashboard widgets (from the shared component library)
 
+Each primitive carries a **`category` subfolder** (the palette groups as `family / category`) and
+**`tags`** (orthogonal, cross-cutting labels for filtering — "timeseries", "editable", "financial",
+…). Helpers: `primitiveTree(surface?)` (family → category subfolders → primitives, optionally scoped
+to a placement surface), `categoriesFor(family)`, `allTags()`, `primitivesByTag(tag)`,
+`primitivesFor(surface)`.
+
 It doesn't rip out the family-specific renderer maps (a renderer is a React component and must
 live in the app); it unifies their metadata and a **drift guard** (`primitive-store.test.ts`)
 binds each family back to its registry, so the store can never silently diverge from what
 actually renders. **Follow-up:** migrate the browsable palette + each authoring surface
-(ScreenEditor, report/dashboard builders, FormsAdmin) to read placement options from
-`primitivesFor(surface)` so there is one palette everywhere too.
+(ScreenEditor, report/dashboard builders, FormsAdmin) to render from `primitiveTree(surface)` so
+there is one folder/tag-organised palette everywhere too.
 
 ## Form primitive backlog
 
