@@ -398,11 +398,27 @@ authoring, and the drift guards — no feature bypasses the golden rules.
   passkey-signed, chain-gated review decision — the creative-review markup competitors have, on OmniProject's
   own governance rails.
 
-### 2.5 Native mobile + offline  ⬜ Todo
+### 2.5 Native mobile + offline  🚧 In progress (slice 1)
 - **Competitors.** All. **Gap.** PWA caches app-shell only; no offline data, no native apps.
 - **Acceptance.** Offline-capable data cache for my-work/tasks with sync-on-reconnect;
   installable; push notifications; (stretch) native shells.
 - **Leverage.** Existing PWA service worker; my-work/tasks read models; notifications SSE.
+- **Already in place (pre-2.5).** Installable app-shell PWA: `public/manifest.webmanifest` (standalone, SVG
+  any+maskable icons, theme/bg, `display_override`) linked in `index.html` (+ apple-touch-icon, theme-color,
+  `viewport-fit=cover`); `public/sw.js` (network-first navigations, stale-while-revalidate hashed assets) +
+  `lib/pwa.ts` prod-only registration — **app-shell ONLY, never `/api`/`/auth`/non-GET**, so zero-at-rest
+  holds; `lib/platform.ts` capability detection (serviceWorker/standalone/touch/webShare/`nativeBridge` hook).
+- **Zero-at-rest decision for offline data:** the offline read cache will be **encrypted + ephemeral +
+  opt-in** — my-work/tasks read models only, AES-GCM'd with a session-scoped non-extractable WebCrypto key,
+  TTL'd, wiped on logout; off by default behind a per-user toggle. (Slice 2.)
+- **Slice 1 ✅ (true offline detection + install-prompt UX).** `lib/connectivity` — a `useOnline` hook
+  (`navigator.onLine` + online/offline events) and a pure `connectivityState(online, healthy)` that
+  distinguishes **offline** (no network) from **unreachable** (network up, gateway down) from **connected**;
+  the header indicator now reflects all three (device-offline dominates), amber for unreachable. `lib/
+  use-install-prompt` captures `beforeinstallprompt`, suppresses the native infobar, and surfaces our own
+  **Install** button (replayable once; clears on `appinstalled`; stays hidden on iOS/Safari, which has no
+  such event). i18n `header.install` (4 locales). Client-only, **no zero-at-rest impact**. Pure + hook tests.
+  **Next:** the encrypted-ephemeral offline cache (slice 2), then push notifications (slice 3).
 
 ---
 
@@ -660,3 +676,8 @@ so an attachment field would be a URL reference (`url` type) pointing at the sys
   stale sign-off can't land on newer artwork; separation-of-duties enforced by the engine. Unbound ⇒ direct
   (default). Executor unit tests + a full end-to-end passkey round-trip route test + SoD refusal. **2.4
   (proofing) is complete.**
+- _2026-07-16_ — Phase 2.5 slice 1 (offline detection + install-prompt UX) shipped: `lib/connectivity`
+  (`useOnline` + a pure `connectivityState` distinguishing offline / unreachable / connected — the header now
+  reflects all three) and `lib/use-install-prompt` (capture `beforeinstallprompt` → our own Install button,
+  replay-once, clears on `appinstalled`). i18n `header.install`. Client-only, no zero-at-rest impact. The
+  offline DATA cache (encrypted + ephemeral + opt-in per the golden-rule decision) is slice 2; push slice 3.
