@@ -10,7 +10,8 @@ import type { ProjectTemplate } from "@workspace/backend-catalogue";
  */
 export type Template = ProjectTemplate;
 
-/** The org's project templates. */
+/** The org's project templates (the override layer only). The gallery merges these over the shipped
+ *  catalogue via `resolveProjectTemplates`; see TemplatesAdmin. */
 export function useTemplates() {
   return useSettingsSlice((s) => (Array.isArray(s["templates"]) ? (s["templates"] as Template[]) : []));
 }

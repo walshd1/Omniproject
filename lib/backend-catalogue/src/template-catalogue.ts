@@ -75,3 +75,22 @@ export function projectTemplateCatalogue(): ProjectTemplate[] {
 export function projectTemplatesForMethodology(methodology: string): ProjectTemplate[] {
   return PROJECT_TEMPLATES.filter((t) => matchesMethodology(t.methodologies, methodology));
 }
+
+/**
+ * The EFFECTIVE template set: the shipped default catalogue with the org's stored templates merged over it —
+ * an org template with the same id OVERRIDES the built-in, a new id is appended. The "default JSON with
+ * org-level override" model (same as screens). Both apps resolve through this so a shipped template is
+ * directly usable and an org can customise it.
+ */
+export function resolveProjectTemplates(org: readonly ProjectTemplate[]): ProjectTemplate[] {
+  const overrides = new Map(org.map((t) => [t.id, t]));
+  const merged = PROJECT_TEMPLATES.map((b) => overrides.get(b.id) ?? b);
+  const builtinIds = new Set(PROJECT_TEMPLATES.map((b) => b.id));
+  for (const t of org) if (!builtinIds.has(t.id)) merged.push(t);
+  return merged;
+}
+
+/** Resolve one template by id from the merged set (org override wins over the shipped default). */
+export function resolveProjectTemplate(id: string, org: readonly ProjectTemplate[]): ProjectTemplate | undefined {
+  return org.find((t) => t.id === id) ?? getProjectTemplate(id);
+}

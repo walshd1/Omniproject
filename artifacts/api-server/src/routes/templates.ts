@@ -5,6 +5,7 @@ import { requireAnyRole, requireRole } from "../lib/rbac";
 import { getBroker, contextFromReq, withBrokerErrors } from "../broker";
 import type { IssueWrite } from "../broker/types";
 import { planInstantiation } from "../lib/project-template";
+import { resolveProjectTemplate } from "@workspace/backend-catalogue";
 import { randomUUID } from "node:crypto";
 
 /**
@@ -18,7 +19,9 @@ const router = Router();
 /** Instantiate a template: create a project + seed its work items. Manager+ (creating a project). */
 router.post("/templates/:id/instantiate", requireRole("manager"), async (req, res) => {
   const id = String((req.params as { id?: unknown }).id ?? "");
-  const template = (getSettings().templates ?? []).find((t) => t.id === id);
+  // Resolve from the shipped catalogue merged with the org's overrides (default JSON + org override), so a
+  // built-in template is instantiable directly and an org customisation of the same id wins.
+  const template = resolveProjectTemplate(id, getSettings().templates ?? []);
   if (!template) { res.status(404).json({ error: "Template not found" }); return; }
 
   const body = (req.body ?? {}) as { name?: unknown; programmeId?: unknown };

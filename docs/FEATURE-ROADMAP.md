@@ -161,6 +161,27 @@ already exist, so they close the most competitive distance for the least build.
 
 ## Phase 2 — expected by specific segments
 
+### Pre-build due diligence (per item: what we already have · what to reuse from others)
+
+Before building any Phase 2 item we check two things — (1) what already exists in this codebase to
+build **on**, and (2) proven, license-compatible code/design from **others** to adapt. Everything
+must still obey the golden rules (JSON-def artifacts, built of **primitives**, **zero-at-rest** via
+the broker seam, RBAC/capability gating, sanitisation, drift-guarded).
+
+| Item | Have (build on) | Reuse/adapt from others |
+| --- | --- | --- |
+| **2.1 Docs/wiki** | Content-pages store + `settingsCollectionRouter`; `TextPanel` + `md.ts`; **presence-hub** (rooms) ; **comments/mentions** ; settings **version history** (`captureVersion`); primitive store | **TipTap** (MIT, ProseMirror) headless rich-text — schema = the primitive allow-list; **Yjs** (MIT) CRDT for co-edit (binds via `y-prosemirror`, `awareness`=cursors) over our SSE; store PM-JSON not HTML (no sink); DOMPurify only on paste. |
+| **2.2 Guest/portal** | **magic-link** (`mintMagicToken`/`consume`, single-use), RBAC ladder, `Scope`/`resolveScope`, `guardProjectScope`, API-token programme scoping | Design: signed, scope-claimed, expiring token below `viewer` (GitLab project tokens / Metabase signed embeds / Notion share tiers). No new dependency. |
+| **2.3 Whiteboard** | Panel registry (`PANEL_RENDERERS`/`PANEL_META`), presence live-cursors, broker `writeIssue` for sticky→item | **Excalidraw** (MIT) embeddable canvas, JSON scene model, PNG/SVG export → wrap as a `canvas` panel kind. (tldraw is better UX but non-MIT — check terms.) Pairs with X.1 native handoff. |
+| **2.4 Proofing** | `TaskAttachment { url }` zero-at-rest refs; **approval-chain** engine + **passkey** sign-off; comments threads | **PDF.js** (Apache-2) to render; annotations as our own JSON overlay (pin x/y/page), not embedded in the PDF — deliverable stays a broker ref. Pin model per Wrike/Ziflow. |
+| **2.5 Mobile/offline** | PWA shell SW (`sw.js`, never caches `/api/*`), `registerServiceWorker`, my-work/tasks read models, notifications SSE | **Workbox** (MIT) for read-cache + background-sync write queue; **Yjs + y-indexeddb** for offline edits; **web-push** (MIT) + VAPID for real push; Capacitor (MIT) shells as a stretch. |
+
+**Highest-leverage single adopt: Yjs** — one dependency serves 2.1 (co-edit), 2.3 (cursors), 2.5
+(offline). Introduce it once, behind our seam. Every visual surface (TipTap nodes, Excalidraw scene,
+PDF overlay) enters as a **primitive** in the shared store, so it inherits capability-gating, admin
+authoring, and the drift guards — no feature bypasses the golden rules.
+
+
 ### 2.1 Collaborative docs / wiki / knowledge base  ⬜ Todo
 - **Competitors.** Notion, ClickUp, Confluence, Wrike. **Gap.** "Content pages" is a CMS
   library, not real-time rich-text co-editing / linked wiki.
@@ -354,3 +375,10 @@ so an attachment field would be a URL reference (`url` type) pointing at the sys
 - _2026-07-16_ — Added cross-cutting **X.1 Native handoff** design (`docs/NATIVE-HANDOFF.md`):
   a generalised "Use native" companion-app bridge — broker-mediated, so it inherits every
   data-seam control. Generalised across all SaaS backends + artifact kinds.
+- _2026-07-16_ — Phase 1.3 refinement: **templates stored as default JSON + org override** —
+  both apps resolve the shipped catalogue ∪ the org's overrides (org wins by id) via
+  `resolveProjectTemplates`, so a shipped starter is instantiable directly and an org can
+  customise or revert it. Gallery shows the effective set with per-row Customise/Revert.
+- _2026-07-16_ — Phase 2 **pre-build due-diligence** recorded (per item: existing code to build
+  on + proven external code/design to adapt). Yjs flagged as the highest-leverage single adopt
+  (co-edit + cursors + offline). Building Phase 2 in order, starting 2.1.

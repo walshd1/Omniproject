@@ -42,6 +42,25 @@ test("templates: instantiate creates a project and seeds its work items", async 
   assert.ok(issues.some((i) => i.title === "Sprint 0"));
 });
 
+test("templates: a shipped built-in instantiates directly without saving an org copy", async () => {
+  // No org templates saved (afterEach reset). The shipped catalogue resolves server-side.
+  const r = await req("/templates/scrum-starter/instantiate", { method: "POST", body: { name: "Vega" } });
+  assert.equal(r.status, 201);
+  const body = (await r.json()) as { project: { name: string }; seeded: number };
+  assert.equal(body.project.name, "Vega");
+  assert.ok(body.seeded > 0);
+});
+
+test("templates: an org override of a built-in id wins over the shipped default", async () => {
+  await req("/templates", { method: "PUT", body: { templates: [{ id: "scrum-starter", label: "Org scrum", seedIssues: [{ title: "Only one" }] }] } });
+  const r = await req("/templates/scrum-starter/instantiate", { method: "POST", body: { name: "Rigel" } });
+  assert.equal(r.status, 201);
+  const body = (await r.json()) as { project: { id: string }; seeded: number };
+  assert.equal(body.seeded, 1);
+  const issues = (await (await req(`/projects/${body.project.id}/issues`)).json()) as Array<{ title: string }>;
+  assert.ok(issues.some((i) => i.title === "Only one"));
+});
+
 test("templates: instantiating an unknown template → 404", async () => {
   assert.equal((await req("/templates/ghost/instantiate", { method: "POST", body: { name: "X" } })).status, 404);
 });

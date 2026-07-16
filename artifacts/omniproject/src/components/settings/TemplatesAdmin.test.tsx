@@ -24,13 +24,17 @@ describe("TemplatesAdmin", () => {
     expect(screen.queryByTestId("templates-admin")).not.toBeInTheDocument();
   });
 
-  it("a PMO adds a template from the catalogue and saves it", async () => {
+  it("shows shipped starters in the gallery even with no org templates", () => {
+    renderWithProviders(<TemplatesAdmin />, { client: seed("admin") });
+    // Built-in starters resolve into the gallery directly (default JSON + org override).
+    expect(screen.getByTestId("template-row-scrum-starter")).toBeInTheDocument();
+    expect(screen.getByTestId("template-row-prince2-starter")).toBeInTheDocument();
+  });
+
+  it("a PMO customises a shipped template and saves it as an org override", async () => {
     const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("{}", { status: 200 }));
     renderWithProviders(<TemplatesAdmin />, { client: seed("admin") });
-    const sel = screen.getByTestId("template-catalogue-select") as HTMLSelectElement;
-    const first = Array.from(sel.querySelectorAll("option")).map((o) => o.value).find((v) => v !== "")!;
-    fireEvent.change(sel, { target: { value: first } });
-    fireEvent.click(screen.getByTestId("template-add-catalogue"));
+    fireEvent.click(screen.getByTestId("template-customise-scrum-starter"));
     fireEvent.click(screen.getByTestId("templates-save"));
     const put = await waitFor(() => {
       const c = fetchMock.mock.calls.find(([u, i]) => u === "/api/templates" && (i as RequestInit)?.method === "PUT");
@@ -39,10 +43,24 @@ describe("TemplatesAdmin", () => {
     });
     const body = JSON.parse((put[1] as RequestInit).body as string) as { templates: Template[] };
     expect(body.templates).toHaveLength(1);
+    expect(body.templates[0]!.id).toBe("scrum-starter");
     expect(body.templates[0]!.seedIssues!.length).toBeGreaterThan(0);
   });
 
-  it("a manager instantiates a saved template (POST /instantiate)", async () => {
+  it("a manager instantiates a shipped template directly (POST /instantiate)", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(() => Promise.resolve(
+      new Response(JSON.stringify({ project: { id: "p9", name: "Apollo" }, seeded: 1 }), { status: 201 }),
+    ));
+    renderWithProviders(<TemplatesAdmin />, { client: seed("manager") });
+    fireEvent.change(screen.getByTestId("template-name-scrum-starter"), { target: { value: "Apollo" } });
+    fireEvent.click(screen.getByTestId("template-use-scrum-starter"));
+    await waitFor(() => {
+      const c = fetchMock.mock.calls.find(([u, i]) => u === "/api/templates/scrum-starter/instantiate" && (i as RequestInit)?.method === "POST");
+      expect(c).toBeTruthy();
+    });
+  });
+
+  it("a manager instantiates a saved org template (POST /instantiate)", async () => {
     const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(() => Promise.resolve(
       new Response(JSON.stringify({ project: { id: "p9", name: "Apollo" }, seeded: 1 }), { status: 201 }),
     ));
