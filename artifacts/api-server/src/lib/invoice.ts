@@ -10,9 +10,25 @@
 import type { ActorContext } from "../broker/types";
 import { makeScopedId, parseScopedId, scopeFromParsed, type ArtifactScope, type StorageTarget } from "./artifact-store";
 import {
-  INVOICE_LINE_KINDS, invoiceLineAmount, round2,
+  INVOICE_LINE_KINDS, INVOICE_STATUSES, invoiceLineAmount, round2,
   type InvoiceLineKind, type InvoiceStatus,
 } from "@workspace/backend-catalogue";
+
+const INVOICE_STATUS_SET = new Set<string>(INVOICE_STATUSES);
+export const isInvoiceStatus = (s: unknown): s is InvoiceStatus => typeof s === "string" && INVOICE_STATUS_SET.has(s);
+
+/** Allowed status transitions. draft→issued→paid is the happy path; a live invoice can be voided; paid/void
+ *  are terminal. Keyed by the CURRENT status → the set of statuses it may move to. */
+export const INVOICE_TRANSITIONS: Record<InvoiceStatus, InvoiceStatus[]> = {
+  draft: ["issued", "void"],
+  issued: ["paid", "void"],
+  paid: [],
+  void: [],
+};
+
+/** Whether an invoice may move from `from` to `to`. Pure. */
+export const canTransitionInvoice = (from: InvoiceStatus, to: InvoiceStatus): boolean =>
+  (INVOICE_TRANSITIONS[from] ?? []).includes(to);
 
 /** A rejected invoice write (maps to 400). */
 export class InvoiceError extends Error {
@@ -241,6 +257,22 @@ export function mergeInvoiceRow(existing: Invoice, input: SanitizedInvoiceWrite,
     total: totals.total,
     note: input.note,
     dueAt: input.dueAt,
+    version: (existing.version ?? 1) + 1,
+    updatedAt: now,
+    updatedBy: actorLabel(ctx),
+  };
+}
+
+/**
+ * Move an invoice to `next` status (assumes the transition was validated by {@link canTransitionInvoice}).
+ * Stamps `issuedAt` on issue and `paidAt` on pay; bumps the version. Pure.
+ */
+export function applyInvoiceStatus(existing: Invoice, next: InvoiceStatus, ctx: ActorContext, now: string): Invoice {
+  return {
+    ...existing,
+    status: next,
+    issuedAt: next === "issued" ? now : existing.issuedAt,
+    paidAt: next === "paid" ? now : existing.paidAt,
     version: (existing.version ?? 1) + 1,
     updatedAt: now,
     updatedBy: actorLabel(ctx),

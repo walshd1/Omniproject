@@ -85,6 +85,22 @@ test("list returns metadata (no lines); update recomputes totals", async () => {
   assert.equal(((await put.json()) as { total: number }).total, 1000);
 });
 
+test("status flow: issue → paid, and an issued invoice can't be edited", async () => {
+  const created = await (await req("/invoices", { method: "POST", body: { ...DRAFT, number: "INV-STATUS" } })).json() as { id: string };
+  const gid = encodeURIComponent(created.id);
+  // draft → paid is rejected (must issue first).
+  assert.equal((await req(`/invoices/${gid}/status`, { method: "POST", body: { status: "paid" } })).status, 409);
+  // draft → issued.
+  const issued = await req(`/invoices/${gid}/status`, { method: "POST", body: { status: "issued" } });
+  assert.equal(issued.status, 200);
+  assert.equal(((await issued.json()) as { status: string; issuedAt: string }).status, "issued");
+  // An issued invoice is locked for edits.
+  assert.equal((await req(`/invoices/${gid}`, { method: "PUT", body: { ...DRAFT, number: "INV-STATUS" } })).status, 409);
+  // issued → paid.
+  const paid = await req(`/invoices/${gid}/status`, { method: "POST", body: { status: "paid" } });
+  assert.equal(((await paid.json()) as { status: string; paidAt: string }).status, "paid");
+});
+
 test("a bad write is 400; a contributor cannot touch invoices (manager+)", async () => {
   assert.equal((await req("/invoices", { method: "POST", body: { clientName: "x" } })).status, 400);
   // Force real claim→role resolution (else a non-OIDC session is a demo session that holds every grant).

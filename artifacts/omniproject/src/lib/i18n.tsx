@@ -35,6 +35,7 @@ const EN: Dict = {
   "nav.programmes": "Programmes",
   "nav.projects": "Projects",
   "nav.budgets": "Budgets",
+  "nav.invoices": "Invoices",
   "nav.reports": "Reports",
   "nav.resources": "Resources",
   "nav.resourcePlanning": "Resource planning",

@@ -603,7 +603,7 @@ authoring, and the drift guards — no feature bypasses the golden rules.
   render values via the catalogue formatter. 2 catalogue tests + drift-guard + server attainment/sanitise
   tests; both packages typecheck clean.
 
-### 3.3 Live time tracking + invoicing  🚧 In progress (slices 1–2)
+### 3.3 Live time tracking + invoicing  ✅ Done (slices 1–3)
 - **Competitors.** Harvest/Toggl, Workfront. **Have.** Timesheets (submit/approve) +
   income/invoicing reports. **Missing.** Start/stop timers, invoice generation.
 - **Leverage.** timesheet lib, income/invoicing reports, financials.
@@ -629,6 +629,16 @@ authoring, and the drift guards — no feature bypasses the golden rules.
   throughout (financial docs), only a **draft** may be edited (409 otherwise), behind the new default-off
   **`invoicing`** module. 3 catalogue + 3 pure + 3 route tests + drift guard; all three packages typecheck
   clean. **Next:** invoice generation from billable timesheet hours × rate card + status flow + UI (slice 3).
+- **Slice 3 ✅ (invoice status flow + UI — completes 3.3).** Server: `INVOICE_TRANSITIONS` + `canTransitionInvoice`
+  + `applyInvoiceStatus` (draft→issued→paid, live→void; stamps `issuedAt`/`paidAt`; terminal states closed) and
+  `POST /api/invoices/:id/status` (manager+, 409 on an illegal move). Client: `lib/invoices` hooks (list / get /
+  create / update / setStatus / delete) + `pages/Invoices` — a list with derived totals + status badges, a
+  create form with a typed **line editor** (kind × qty × price, live amount + subtotal preview) and derived
+  server-side totals, and a detail panel with the line table, subtotal/tax/total, and the **issue → paid / void**
+  actions. Wired as an `/invoices` route + a primary nav item gated on the **`invoicing`** module (nav-order
+  guard + `nav.invoices` i18n). 1 status pure + 1 status route test + 3 page tests. **3.3 complete: a live
+  start/stop timer + first-class invoices (typed line primitives, derived totals, lifecycle). Auto-generating
+  invoice lines from billable timesheet actuals × the rate-card engine is a natural follow-up.**
 
 ### 3.4 Third-party app / plugin marketplace  ⬜ Todo
 - **Competitors.** Jira/Monday/Asana marketplaces. **Have.** 41 connectors + MCP + broker
