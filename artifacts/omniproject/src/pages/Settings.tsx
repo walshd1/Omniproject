@@ -55,6 +55,7 @@ import { CustomReportsAdmin } from "../components/settings/CustomReportsAdmin";
 import { BudgetPlansAdmin } from "../components/settings/BudgetPlansAdmin";
 import { ResourceAllocationsAdmin } from "../components/settings/ResourceAllocationsAdmin";
 import { ScreensAdmin } from "../components/settings/ScreensAdmin";
+import { RoleMapAdmin } from "../components/settings/RoleMapAdmin";
 import { RaciAdmin } from "../components/settings/RaciAdmin";
 import { StakeholdersAdmin } from "../components/settings/StakeholdersAdmin";
 import { FormsAdmin } from "../components/settings/FormsAdmin";
@@ -159,6 +160,7 @@ const ADMIN_PANELS: AdminPanel[] = [
   { key: "fieldVisibility", Component: FieldVisibilityAdmin },
   { key: "governanceDashboard", Component: GovernanceDashboard },
   { key: "governance", Component: GovernanceAdmin },
+  { key: "roleMap", Component: RoleMapAdmin },
   { key: "aiProviders", Component: AiProvidersAdmin },
   { key: "actionCatalogue", Component: ActionCatalogue },
   { key: "a11y", Component: A11yControls, wrap: "bare" },
