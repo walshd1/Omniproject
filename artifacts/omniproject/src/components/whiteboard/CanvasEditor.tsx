@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { CanvasElements } from "./CanvasRenderer";
 import { STICKY_HEX, elementBounds, newElement, moveElement, updateElement, removeElement, newElementId } from "../../lib/canvas-geometry";
+import type { RemoteCursor } from "../../lib/whiteboard-cursors";
 
 /**
  * CanvasEditor — the interactive native whiteboard editor (roadmap 2.3 slice 2). It reimplements the standard
@@ -37,7 +38,11 @@ export const CanvasEditor = forwardRef<CanvasEditorHandle, {
   onConvertSticky?: ((el: CanvasElement) => void) | undefined;
   /** True while a conversion is in flight (disables the button). */
   converting?: boolean | undefined;
-}>(function CanvasEditor({ elements, onChange, readOnly = false, onConvertSticky, converting = false }, ref) {
+  /** Other users' live cursors to draw over the canvas (empty when the feature is off). */
+  cursors?: RemoteCursor[] | undefined;
+  /** Broadcast this tab's pointer position (SVG coords) — called on every move over the surface. */
+  onCursorMove?: ((x: number, y: number) => void) | undefined;
+}>(function CanvasEditor({ elements, onChange, readOnly = false, onConvertSticky, converting = false, cursors = [], onCursorMove }, ref) {
   const gen = useMemo(() => rough.generator(), []);
   const svgRef = useRef<SVGSVGElement>(null);
   useImperativeHandle(ref, () => ({ getSvg: () => svgRef.current }), []);
@@ -159,13 +164,25 @@ export const CanvasEditor = forwardRef<CanvasEditorHandle, {
       <div className="flex gap-2">
         <div className="flex-1 border border-border rounded overflow-hidden" style={{ height: 480, touchAction: "none" }}>
           <svg ref={svgRef} width="100%" height="100%" style={{ background: "#ffffff", cursor: tool === "select" ? "default" : "crosshair" }}
-            data-testid="canvas-surface" onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp}>
+            data-testid="canvas-surface" onPointerDown={onPointerDown}
+            onPointerMove={(e) => { if (onCursorMove) { const p = pt(e); onCursorMove(p.x, p.y); } onPointerMove(e); }}
+            onPointerUp={onPointerUp}>
             <defs>
               <marker id="wb-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
                 <path d="M 0 0 L 10 5 L 0 10 z" fill="#1e1e1e" />
               </marker>
             </defs>
             <CanvasElements elements={draft ? [...elements, draft] : elements} selectedId={selectedId} gen={gen} />
+            {/* Other users' live cursors (overlay; non-interactive) — drawn last so they sit on top. */}
+            <g data-testid="canvas-cursors" pointerEvents="none">
+              {cursors.map((c) => (
+                <g key={c.cid} transform={`translate(${c.x} ${c.y})`} data-testid={`canvas-cursor-${c.cid}`}>
+                  <path d="M0 0 L0 15 L4 11 L7 17 L10 15 L7 10 L12 10 Z" fill={c.color} stroke="#ffffff" strokeWidth={0.75} />
+                  <rect x={13} y={2} width={c.label.length * 6 + 8} height={15} rx={3} fill={c.color} />
+                  <text x={17} y={13} fontSize={9} fontWeight={600} fill="#ffffff">{c.label}</text>
+                </g>
+              ))}
+            </g>
           </svg>
         </div>
 

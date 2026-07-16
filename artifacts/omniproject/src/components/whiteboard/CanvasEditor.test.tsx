@@ -54,4 +54,19 @@ describe("CanvasEditor", () => {
     fireEvent.pointerDown(screen.getByTestId("canvas-surface"), { clientX: 20, clientY: 20, pointerId: 1 });
     expect(screen.getByTestId("canvas-to-issue")).toBeDisabled();
   });
+
+  it("draws other users' live cursors from the cursors prop", () => {
+    const cursors = [{ cid: "peer1", label: "Grace", color: "#e11", x: 50, y: 60, at: Date.now() }];
+    render(<CanvasEditor elements={[]} onChange={() => {}} cursors={cursors} />);
+    const cursor = screen.getByTestId("canvas-cursor-peer1");
+    expect(cursor).toBeInTheDocument();
+    expect(cursor).toHaveTextContent("Grace");
+  });
+
+  it("publishes the pointer position on move over the surface", () => {
+    const onCursorMove = vi.fn<(x: number, y: number) => void>();
+    render(<CanvasEditor elements={[]} onChange={() => {}} onCursorMove={onCursorMove} />);
+    fireEvent.pointerMove(screen.getByTestId("canvas-surface"), { clientX: 42, clientY: 24, pointerId: 1 });
+    expect(onCursorMove).toHaveBeenCalledWith(42, 24);
+  });
 });
