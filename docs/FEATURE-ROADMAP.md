@@ -268,7 +268,7 @@ authoring, and the drift guards — no feature bypasses the golden rules.
   posts a scoped invite. Client hooks (`usePortalStatus`/`useInviteGuest`), e2e route-manifest + smoke,
   unit tests. The **comment tier** (a guest leaving comments on its project) is deferred to a later slice.
 
-### 2.3 Whiteboards / visual canvas  🚧 In progress (slices 1–2)
+### 2.3 Whiteboards / visual canvas  ✅ Done (slices 1–3)
 - **Competitors.** Miro/Mural, ClickUp, Monday. **Gap.** No infinite canvas.
 - **Acceptance.** Freeform canvas (sticky notes, shapes, connectors, freehand), multi-user
   live cursors, convert a sticky → work item; export.
@@ -331,8 +331,20 @@ authoring, and the drift guards — no feature bypasses the golden rules.
   header picker, defaulting to the board's own project for a project-stored board, else the first visible
   project). On success the sticky is **linked back** to that project's board (an absolute URL, so the
   write-side sanitiser keeps it — save the board to persist the link). contributor+ (issue authoring); the
-  editor stays dumb (it just calls back), the page owns project selection + creation. **Slice 3 (remaining):**
-  multi-user live cursors.
+  editor stays dumb (it just calls back), the page owns project selection + creation.
+- **Slice 3e ✅ (multi-user live cursors), completing 2.3.** Cursor presence on a board over the SAME generic
+  in-memory relay the wiki co-edit uses (`lib/collab-hub`) but on a distinct `board:<id>` room space — added
+  to the **whiteboard** feature module itself (a `GET …/rooms/:roomId/stream` SSE + a `POST …/rooms/:roomId`
+  broadcast), so cursors ship with whiteboards and stay decoupled from the wiki flag. Purely transient like
+  presence — **nothing is stored**; the durable scene still saves through the storage target. Each tab
+  broadcasts its pointer position (throttled ~60ms); peers' cursors render as labelled pointers with a
+  per-user colour and a short TTL so a silent leave fades. **Identity (label + colour) is stamped
+  server-side** from the session, so a peer can't spoof another's name; only the position is client-supplied.
+  A project board's cursor room is `guardProjectScope`-checked (IDOR), classified + probed by the route-scope
+  ratchet. viewer+ (seeing/sharing a cursor isn't authoring); gated on the existing **presence** governance
+  toggle, and degrades to a no-op where `EventSource` is unavailable. Reuses the shared `peerColor`.
+- **2.3 complete.** Whiteboards now have a native primitive-built canvas, storage targets, SVG/PNG export,
+  sticky → work item, and multi-user live cursors — the inline "good enough" canvas the roadmap called for.
 
 ### 2.4 Proofing / deliverable review & annotation  ⬜ Todo
 - **Competitors.** Adobe Workfront, Wrike, Smartsheet. **Gap.** No creative review markup.
@@ -568,3 +580,10 @@ so an attachment field would be a URL reference (`url` type) pointing at the sys
   board's own project), then links the sticky back to that project's board (absolute URL → survives the
   sanitiser). contributor+; the editor calls back, the page owns project selection. Only live cursors remain
   for 2.3.
+- _2026-07-16_ — Phase 2.3 slice 3e (multi-user live cursors) shipped, **completing 2.3**: cursor presence on
+  a board over the shared in-memory relay (`lib/collab-hub`) on a `board:<id>` room, added to the whiteboard
+  feature module itself (SSE stream + broadcast) so it's decoupled from the wiki co-edit flag. Transient
+  (nothing stored); throttled position from the client, identity (label + colour) stamped server-side (no
+  spoofing); short TTL fades a silent leave; project-board rooms are `guardProjectScope`-checked. viewer+,
+  gated on the existing `presence` toggle, degrades to a no-op without `EventSource`. **2.3 (whiteboards) is
+  now complete** — native canvas, storage targets, export, sticky→item, live cursors.

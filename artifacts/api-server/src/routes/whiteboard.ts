@@ -1,10 +1,14 @@
 import crypto from "node:crypto";
-import { Router } from "express";
+import { Router, type Request, type Response } from "express";
 import { contextFromReq, withBrokerErrors } from "../broker";
 import type { Whiteboard, WhiteboardMeta } from "../broker/types";
-import { requireRole } from "../lib/rbac";
-import { assertProjectScope } from "../lib/project-scope";
+import { getSession } from "./auth";
+import { requireRole, isDeprovisioned } from "../lib/rbac";
+import { assertProjectScope, guardProjectScope } from "../lib/project-scope";
 import { authorizeStorageTarget } from "../lib/storage-target-authz";
+import { joinCollabRoom, relayToRoom, collabConnectionCount, MAX_COLLAB_STREAMS_PER_SUB } from "../lib/collab-hub";
+import { openSse, keepAlive } from "../lib/sse";
+import { peerColor } from "../lib/presence-hub";
 import {
   artifactStoreEnabled, listArtifacts, getArtifact, putArtifact, deleteArtifact,
 } from "../lib/artifact-store";
@@ -160,5 +164,67 @@ router.delete("/whiteboards/:id", requireRole("contributor"), (req, res) =>
     res.status(204).end();
   }),
 );
+
+// ── Live cursors (roadmap 2.3) ──────────────────────────────────────────────────────────────────────────
+// Multi-user cursor presence on a board, over the SAME generic in-memory relay the wiki co-edit uses
+// (lib/collab-hub) but on a distinct `board:<id>` room space. Purely transient — like presence, nothing is
+// stored (the durable scene still saves through the storage target). Position comes from the client; the
+// sender's LABEL + COLOUR are stamped server-side from the session, so a client can't spoof another person.
+
+/** A safe, bounded room id / cid (client-controlled → clamp length). */
+function cleanRoom(v: unknown, max: number): string | null {
+  if (typeof v !== "string") return null;
+  const s = v.trim();
+  return !s || s.length > max ? null : s;
+}
+
+/** The projectId a cursor room's board id encodes (`board:project~<projectId>~<localId>`), or null — so a
+ *  project board's cursor room is scope-guarded (IDOR); user/org/sidecar boards have no project boundary. */
+function roomBoardProjectId(roomId: string): string | null {
+  if (!roomId.startsWith("board:")) return null;
+  const parsed = parseWhiteboardId(roomId.slice("board:".length));
+  return parsed?.storage === "project" ? (parsed.projectId ?? null) : null;
+}
+
+async function guardCursorRoom(req: Request, res: Response, roomId: string): Promise<boolean> {
+  const projectId = roomBoardProjectId(roomId);
+  return projectId ? guardProjectScope(req, res, projectId) : true;
+}
+
+// GET /api/whiteboards/rooms/:roomId/stream — join a board's live-cursor room, receive peers' cursors (viewer+).
+router.get("/whiteboards/rooms/:roomId/stream", requireRole("viewer"), async (req: Request, res: Response) => {
+  const roomId = cleanRoom(req.params["roomId"], 200);
+  const cid = cleanRoom(req.query["cid"], 80);
+  if (!roomId || !cid) { res.status(400).json({ error: "roomId and cid are required" }); return; }
+  if (!(await guardCursorRoom(req, res, roomId))) return;
+  const sub = getSession(req)?.sub ?? "anonymous";
+  if (sub !== "anonymous" && collabConnectionCount(sub) >= MAX_COLLAB_STREAMS_PER_SUB) {
+    res.status(429).json({ error: "too many concurrent cursor streams for this account" });
+    return;
+  }
+  const stream = openSse(res, { ok: true });
+  const leave = joinCollabRoom({ roomId, cid, sub, send: stream.send });
+  keepAlive(stream, req, leave, 25_000, () => {
+    if (!isDeprovisioned(req)) return false;
+    stream.send("revoked", { reason: "deprovisioned" });
+    return true;
+  });
+});
+
+// POST /api/whiteboards/rooms/:roomId — broadcast this tab's cursor position to the room (viewer+).
+// Body: { cid, msg: { x, y } }. The position is opaque + bounded; identity is stamped server-side.
+router.post("/whiteboards/rooms/:roomId", requireRole("viewer"), async (req: Request, res: Response) => {
+  const roomId = cleanRoom(req.params["roomId"], 200);
+  const body = (req.body ?? {}) as { cid?: unknown; msg?: unknown };
+  const cid = cleanRoom(body.cid, 80);
+  if (!roomId || !cid) { res.status(400).json({ error: "roomId and cid are required" }); return; }
+  if (!(await guardCursorRoom(req, res, roomId))) return;
+  if (JSON.stringify(body.msg ?? null).length > 2_000) { res.status(413).json({ error: "message too large" }); return; }
+  const session = getSession(req);
+  const sub = session?.sub ?? "anonymous";
+  const label = session?.name || session?.email || "Someone";
+  const delivered = relayToRoom(roomId, cid, "cursor", { from: cid, label, color: peerColor(sub), msg: body.msg });
+  res.json({ ok: true, delivered });
+});
 
 export default router;

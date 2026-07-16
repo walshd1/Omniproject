@@ -69,6 +69,11 @@ const CLASSIFICATION: Record<string, ScopeClass> = {
   // a doc:<id> wiki room is org-content with no boundary). Both routes are additionally contributor+.
   "GET /collab/rooms/:roomId/stream": "project-scope",
   "POST /collab/rooms/:roomId": "project-scope",
+  // Whiteboard live-cursor relay: a `board:<id>` room. Same room-scope guard — a board id that encodes a
+  // project (`board:project~<projectId>~…`) is guardProjectScope-checked; user/org/sidecar board rooms have
+  // no project boundary. Transient cursor fan-out (nothing stored); identity is stamped server-side.
+  "GET /whiteboards/rooms/:roomId/stream": "project-scope",
+  "POST /whiteboards/rooms/:roomId": "project-scope",
 
   // ── Task-scoped: assertTaskScope on the caller-supplied taskId ──
   "GET /tasks/:taskId": "task-scope",

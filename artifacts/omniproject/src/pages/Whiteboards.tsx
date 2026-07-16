@@ -5,18 +5,20 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth, roleAtLeast } from "../lib/auth";
 import { useListProjects, useCreateIssue } from "@workspace/api-client-react";
 import type { CanvasElement } from "@workspace/backend-catalogue";
+import { useFeatures, featureEnabled } from "../lib/features";
 import {
   useWhiteboards, useWhiteboard, useCreateWhiteboard, useSaveWhiteboard, useDeleteWhiteboard,
-  type WhiteboardStorage,
+  whiteboardRoomId, type WhiteboardStorage,
 } from "../lib/whiteboard";
+import { useLiveCursors } from "../lib/whiteboard-cursors";
 import { CanvasEditor, type CanvasEditorHandle } from "../components/whiteboard/CanvasEditor";
 import { sceneBounds, toExportSvg, svgToPngBlob, downloadBlob, exportFileStem } from "../lib/whiteboard-export";
 
 /**
  * Whiteboards — the visual-canvas page (roadmap 2.3). Browse boards, open one into the native SVG editor
- * (built of our `canvas` primitives), turn a sticky into a work item (broker `createIssue` in a chosen
- * project), export it as SVG/PNG (client-side, nothing uploaded), and save to a chosen STORAGE TARGET (all
- * AES-256-GCM sealed at rest):
+ * (built of our `canvas` primitives) with multi-user live cursors, turn a sticky into a work item (broker
+ * `createIssue` in a chosen project), export it as SVG/PNG (client-side, nothing uploaded), and save to a
+ * chosen STORAGE TARGET (all AES-256-GCM sealed at rest):
  *   - Personal — the author's private encrypted-JSON area (only they see it),
  *   - Org-wide — the shared encrypted-JSON area (writing needs manager+),
  *   - Built-in store — the sidecar system-of-record, when it's loaded.
@@ -42,6 +44,11 @@ export function Whiteboards() {
   const canAuthor = roleAtLeast(auth?.role, "contributor");
   const canDelete = roleAtLeast(auth?.role, "manager");
   const unsupported = boardsQ.isError; // routes answer 501 → hook errors when the backend has no whiteboards
+
+  // Live cursors: multi-user presence on the open board, reusing the shared "presence" governance toggle
+  // (only holds an SSE stream while a board is open). Transient — nothing is stored.
+  const cursorsOn = featureEnabled(useFeatures().data, "presence");
+  const { cursors, publish } = useLiveCursors(boardId ? whiteboardRoomId(boardId) : null, cursorsOn && !!boardId);
 
   const boards = Array.isArray(boardsQ.data) ? boardsQ.data : [];
 
@@ -190,7 +197,8 @@ export function Whiteboards() {
                     <Button type="button" variant="ghost" size="sm" data-testid="whiteboard-delete" disabled={del.isPending} onClick={onDelete}><Trash2 className="h-3 w-3 mr-1" />Delete</Button>}
                 </header>
                 <CanvasEditor ref={editorRef} elements={elements} onChange={onChange} readOnly={!canAuthor}
-                  onConvertSticky={canAuthor ? onConvertSticky : undefined} converting={createIssue.isPending} />
+                  onConvertSticky={canAuthor ? onConvertSticky : undefined} converting={createIssue.isPending}
+                  cursors={cursors} onCursorMove={cursorsOn ? publish : undefined} />
               </div>
             ) : (
               <p className="text-sm text-muted-foreground" data-testid="whiteboards-no-selection">Select a whiteboard to open, or create one.</p>
