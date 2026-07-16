@@ -18,7 +18,7 @@
  * from but genuinely shouldn't be browsing (e.g. the Configurator, which reads live
  * broker/backend state a plain contributor has no reason to poke at even read-only).
  */
-import { Layers, Briefcase, BarChart3, FlaskConical, Settings as SettingsIcon, PlugZap, Boxes, Users, Inbox, LayoutDashboard, FileText, ListChecks, Wallet, Columns3, type LucideIcon } from "lucide-react";
+import { Layers, Briefcase, BarChart3, FlaskConical, Settings as SettingsIcon, PlugZap, Boxes, Users, Inbox, LayoutDashboard, FileText, BookOpen, ListChecks, Wallet, Columns3, type LucideIcon } from "lucide-react";
 import { useGetCapabilities } from "@workspace/api-client-react";
 import { canSurfaceEntity } from "./capabilities-fields";
 import { useFeatures, featureEnabled } from "./features";
@@ -59,6 +59,7 @@ export const NAV_ITEMS: NavItem[] = [
   { href: "/tasks", i18nKey: "nav.tasks", label: "Tasks", icon: ListChecks, match: (l) => l.startsWith("/tasks"), group: "primary" },
   { href: "/dashboards", i18nKey: "nav.dashboards", label: "Dashboards", icon: LayoutDashboard, match: (l) => l.startsWith("/dashboards"), requiresFeature: "dashboards", group: "primary" },
   { href: "/content", i18nKey: "nav.content", label: "Content", icon: FileText, match: (l) => l.startsWith("/content"), requiresFeature: "contentPages", group: "primary" },
+  { href: "/wiki", i18nKey: "nav.wiki", label: "Wiki", icon: BookOpen, match: (l) => l.startsWith("/wiki"), group: "primary" },
   { href: "/programmes", i18nKey: "nav.programmes", label: "Programmes", icon: Boxes, match: (l) => l.startsWith("/programmes"), requiresEntity: "programme", group: "primary" },
   { href: "/projects", i18nKey: "nav.projects", label: "Projects", icon: Briefcase, chord: "G+P", match: (l) => l.startsWith("/projects"), group: "primary" },
   { href: "/budgets", i18nKey: "nav.budgets", label: "Budgets", icon: Wallet, match: (l) => l.startsWith("/budgets"), group: "primary" },

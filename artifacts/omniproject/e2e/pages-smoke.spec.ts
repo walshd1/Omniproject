@@ -22,6 +22,7 @@ const CASES: { path: string; heading: RegExp; testids?: string[]; tab?: RegExp }
   { path: "/my-work", heading: /my work/i, testids: ["my-work-list", "my-work-empty"] },
   { path: "/dashboards", heading: /dashboards/i, testids: ["dashboard-grid", "dashboards-empty", "dashboard-live"] },
   { path: "/content", heading: /content/i, testids: ["content-page-grid", "content-pages-empty"] },
+  { path: "/wiki", heading: /wiki/i, testids: ["wiki-page"] },
   { path: "/programmes", heading: /programmes/i },
   { path: "/projects", heading: /projects index/i },
   { path: "/projects/proj-001", heading: /.+/, tab: /grid|board|timeline/i },
