@@ -93,9 +93,12 @@ export interface NativeSurface {
   vendor: string;                 // catalogue vendor id, e.g. "miro", "notion", "smartsheet"
   label: string;                  // "Open in Miro"
   actions: Array<"open" | "create" | "embed">;
-  /** Bring-back cost: a bare reference (cheapest, zero-at-rest), or a content pull (⇒ vault
-   *  credential + API egress; capability-gated enrichment). */
-  importMode: "reference" | "content";
+  /** Bring-back cost/mechanism:
+   *   - "reference"  — a bare link (cheapest, zero-at-rest); always available.
+   *   - "content"    — pull the artifact's data via the vendor API (vault credential + egress).
+   *   - "screenshot" — for vendors with NO usable API: capture an image of the artifact and let an AI
+   *                    vision model interpret it into a thumbnail + extracted text/structured summary. */
+  importMode: "reference" | "content" | "screenshot";
 }
 
 /** Anchor: WHAT OmniProject entity the native surface is bound to, so the reimport attaches back. */
@@ -175,6 +178,27 @@ One reusable, capability-gated control — no per-vendor UI:
 Routes are thin shells over the broker methods (like every other broker passthrough), RBAC-gated
 (contributor+ to attach), audited.
 
+## Screenshot + AI fallback (when the vendor API is lacking)
+
+Some tools have no usable read API, or a board type the API can't export. For those, a third import
+mechanism: **capture an image of the artifact and let an AI vision model interpret it** — returning a
+thumbnail plus extracted text / a structured summary that lands as the attachment's metadata.
+
+- **Capture** runs server-side in the pre-installed **headless Chromium** (Playwright), navigating the
+  artifact URL under the user's own session/token — never a service account, so scope isn't widened.
+- **The capture is an egress event** → the headless browser's navigation is subject to the same
+  SSRF/egress/residency posture (host-allowlisted to the vendor's domains; residency-gated).
+- **Interpretation goes through the existing AI plane** → the image + prompt run through the single
+  `aiChat`/vision chokepoint, so it inherits the **AI kill switch, per-role model allowlist, token budget,
+  and — critically — DLP redaction** (a screenshot can carry secrets/PII; redact before egress) and
+  **AI·GENERATED provenance** on whatever it extracts.
+- **Reference-first, still.** The screenshot + AI summary are *derived metadata* on a reference; the board
+  itself stays in the vendor. It's the graceful-degradation path — "no API? we still capture and understand
+  it" — not a replacement for the reference model.
+
+This is the honest answer to "your API is lacking": we can still take it in, just via pixels + AI instead
+of a clean API pull.
+
 ## Security invariants (vendor-agnostic — hold by construction)
 
 1. **Connector-minted URLs, host-allowlisted.** Handoff URLs and API hosts come from the
@@ -204,3 +228,6 @@ Routes are thin shells over the broker methods (like every other broker passthro
 2. **Embed preview** — inline sandboxed vendor Live-Embed (Tier 2).
 3. **Content import** — OAuth connection (vault) + `importMode:"content"` metadata/thumbnail pull
    via `safeFetch`, capability-gated.
+4. **Screenshot + AI fallback** — `importMode:"screenshot"` for vendors with no usable API: headless
+   Chromium capture (user session, egress/residency-guarded) → AI vision interpretation through the governed
+   `aiChat` chokepoint (DLP-redacted, provenance-stamped).

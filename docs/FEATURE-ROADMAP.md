@@ -102,6 +102,14 @@ already exist, so they close the most competitive distance for the least build.
   only (conditions are a runner-side pre-gate, the correct model for an external trigger subject).
 - **Next slice:** live trigger binding (schedule → scheduled-job; event → the broker event/notify bus) so
   recipes fire automatically, and the grant-bound execution of mutating recipes.
+- **Slice 4 — external executors + pub/sub triggers.** A recipe should be able to run **in-engine** (our
+  workflow runner) OR be **dispatched to an external orchestrator** the deployment already runs — **Node-RED,
+  Power Automate**, Make, n8n, Airflow — by compiling to that orchestrator's flow format. This reuses the
+  existing broker **templates** (`src/broker/templates/*`) + `workflow-generator`, so "author once, run where
+  you like". And an **MQTT-style subscription trigger**: OmniProject subscribes to a topic (the `mqtt`
+  notification channel already in the catalogue) and recipes fire on messages — a pub/sub event model that
+  also lets external flows publish back. Same RBAC gate + audit; the executor is just where the effects land.
+  **Leverage.** broker templates, `workflow-generator`, the `mqtt` channel, notify/event bus.
 - **Rationale.** A friendly "when X, do Y" builder. The powerful JSON **workflow engine +
   broker templates** already exist but are admin/developer-facing — this is the missing
   on-ramp.
