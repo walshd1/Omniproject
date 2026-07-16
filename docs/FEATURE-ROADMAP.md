@@ -451,7 +451,7 @@ authoring, and the drift guards — no feature bypasses the golden rules.
 
 ## Phase 3 — deepen what exists only partially
 
-### 3.1 Full interactive scheduling engine  🚧 In progress (slice 1)
+### 3.1 Full interactive scheduling engine  🚧 In progress (slices 1–2)
 - **Competitors.** MS Project, Smartsheet, Planview. **Have.** Gantt + CPM + baselines +
   Monte-Carlo. **Missing.** Auto-scheduling: working calendars, task constraints
   (SNET/FNLT), lead/lag, drag-a-bar-and-cascade-dependencies.
@@ -468,6 +468,15 @@ authoring, and the drift guards — no feature bypasses the golden rules.
   the shared `DAY_MS` bucketing (day 0 = 1970-01-01 Thu); weekday derived in **UTC** to match `startOfDay`.
   `makeWorkingCalendar` accepts holidays/exceptions as ISO strings or day indices and rejects an empty week.
   13 anchored unit tests. **Next:** task constraints (SNET/FNLT) + lead/lag on the dependency model (slice 2).
+- **Slice 2 ✅ (typed dependencies + task constraints).** `lib/schedule-constraints` — the pure, calendar-aware
+  primitives a forward pass applies one task / one edge at a time. **Typed dependencies**: FS / SS / FF / SF
+  each with a `lagWorkingDays` (negative = lead); `earliestStartFromDependency` returns the successor start a
+  placed predecessor imposes (FF/SF derive it from a required finish via `startFromFinish`, the inverse of
+  `workingFinish`). **Task constraints**: ASAP / SNET / SNLT / FNET / FNLT / MSO / MFO — `applyConstraint`
+  drives the forward pass (SNET/FNET push later, MSO/MFO fix the date, SNLT/FNLT/ASAP leave it) and
+  `constraintViolation` reports a breached deadline / must-date. All offsets skip non-working time via the
+  slice-1 calendar; still pure + projected (no persistence). 14 anchored unit tests. **Next:** the multi-task
+  forward-pass auto-scheduler that topologically composes these (slice 3), then drag-a-bar-cascade (slice 4).
 
 ### 3.2 Goals / OKRs as a managed cadence  ⬜ Todo
 - **Competitors.** Asana Goals, Viva Goals, ClickUp. **Have.** Strategy cascade + PI board
