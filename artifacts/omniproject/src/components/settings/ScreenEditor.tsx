@@ -4,6 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { SCREEN_COMPONENT_IDS } from "../screen/screen-components";
 import { safeParseJson } from "../../lib/safe-json";
+import { familyFolders } from "../../lib/primitive-store";
 import type { OrgScreenDef } from "../../lib/org-screens";
 
 /**
@@ -14,7 +15,9 @@ import type { OrgScreenDef } from "../../lib/org-screens";
  * It emits the same JSON screen def the store persists, so "build from scratch" and "modify a default" are
  * one flow. A raw-JSON escape hatch stays for power users / fields the form doesn't surface.
  */
-const PANEL_KINDS = ["table", "chart", "view", "component", "metric", "text", "list", "graph", "map"] as const;
+// Panel primitives come from the ONE shared store (grouped into subfolders), so the picker always matches
+// the registered panel kinds instead of a hand-maintained list that drifts (it used to miss register/form/…).
+const PANEL_FOLDERS = familyFolders("panel", "screen");
 const VIEW_IDS = ["kanban", "scrum", "gantt", "prince2", "raid", "list", "flow"] as const;
 const CHART_TYPES = ["bar", "line", "area", "pie"] as const;
 
@@ -114,7 +117,13 @@ export function ScreenEditor({ def, onSave, onCancel, saving, allowRoute }: {
               <div className="flex flex-wrap items-center gap-2">
                 <Input value={asStr(p.id)} onChange={(e) => setPanel(i, { id: e.target.value })} placeholder="panel id" className="h-8 max-w-32 font-mono" aria-label={`Panel ${i + 1} id`} data-testid={`panel-id-${i}`} />
                 <select value={kind} onChange={(e) => setPanel(i, { kind: e.target.value })} className="h-8 border-2 border-foreground bg-background px-1 text-xs font-bold" aria-label={`Panel ${i + 1} kind`} data-testid={`panel-kind-${i}`}>
-                  {PANEL_KINDS.map((k) => <option key={k} value={k}>{k}</option>)}
+                  {PANEL_FOLDERS.map((folder) => (
+                    <optgroup key={folder.category} label={folder.category}>
+                      {folder.primitives.map((p) => <option key={p.id} value={p.id}>{p.id}</option>)}
+                    </optgroup>
+                  ))}
+                  {/* Keep a config-folder-added / unknown kind selectable so editing it doesn't lose it. */}
+                  {kind && !PANEL_FOLDERS.some((f) => f.primitives.some((p) => p.id === kind)) && <option value={kind}>{kind}</option>}
                 </select>
                 <Input value={asStr(p.title)} onChange={(e) => setPanel(i, { title: e.target.value })} placeholder="title" className="h-8 max-w-40" aria-label={`Panel ${i + 1} title`} />
                 <Input type="number" value={typeof p.span === "number" ? p.span : ""} onChange={(e) => setPanel(i, { span: e.target.value === "" ? undefined : Number(e.target.value) })} placeholder="span" className="h-8 max-w-16 tabular-nums" aria-label={`Panel ${i + 1} span`} />

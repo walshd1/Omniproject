@@ -31,6 +31,17 @@ describe("FormsAdmin", () => {
     expect(screen.getByTestId("forms-empty")).toBeInTheDocument();
   });
 
+  it("the field-type picker is driven by the shared store, grouped into subfolders", () => {
+    renderWithProviders(<FormsAdmin />, { client: seed("pmo") });
+    fireEvent.click(screen.getByTestId("form-add-blank"));
+    const typeSelect = screen.getByLabelText("Field 1 type");
+    const options = Array.from(typeSelect.querySelectorAll("option")).map((o) => o.getAttribute("value"));
+    expect(options).toEqual(expect.arrayContaining(["text", "select", "email", "url", "checkbox"]));
+    // subfolders (text / numeric / temporal / choice / boolean) render as optgroups
+    const groups = Array.from(typeSelect.querySelectorAll("optgroup")).map((g) => g.getAttribute("label"));
+    expect(groups).toEqual(expect.arrayContaining(["text", "choice", "boolean"]));
+  });
+
   it("adds a form from a template and saves it via PUT /api/forms", async () => {
     const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("{}", { status: 200 }));
     renderWithProviders(<FormsAdmin />, { client: seed("admin") });

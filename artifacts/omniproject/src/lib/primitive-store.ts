@@ -182,6 +182,12 @@ export function categoriesFor(family: PrimitiveFamily): string[] {
   return uniq(primitivesByFamily(family).map((p) => p.category)).sort();
 }
 
+/** One family's subfolders (optionally scoped to a placement surface) — the shape an authoring surface
+ *  renders as grouped options / a folder list. */
+export function familyFolders(family: PrimitiveFamily, surface?: PlacementSurface): PrimitiveFolder[] {
+  return primitiveTree(surface).find((t) => t.family === family)?.folders ?? [];
+}
+
 /** Every distinct tag across the store (for a tag filter / cloud), sorted. */
 export function allTags(): string[] {
   return uniq(PRIMITIVES.flatMap((p) => p.tags)).sort();

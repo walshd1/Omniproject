@@ -60,6 +60,18 @@ describe("ScreensAdmin", () => {
     expect(kanban.id).toBe("kanban"); // pinned — the editor can't retarget the override
   });
 
+  it("panel-kind picker is driven by the shared primitive store (incl. previously-missing kinds)", () => {
+    renderWithProviders(<ScreensAdmin />, { client: seed("pmo") });
+    fireEvent.click(screen.getByTestId("screen-edit-kanban"));
+    const kindSelect = screen.getByTestId("panel-kind-0");
+    const options = Array.from(kindSelect.querySelectorAll("option")).map((o) => o.getAttribute("value"));
+    // These come from the store, not the old hand-maintained PANEL_KINDS list which omitted them.
+    expect(options).toContain("register");
+    expect(options).toContain("form");
+    // Grouped into subfolders (optgroups).
+    expect(kindSelect.querySelectorAll("optgroup").length).toBeGreaterThan(1);
+  });
+
   it("sets per-screen edit access for a register-bearing screen (PUTs collection-edit-roles)", async () => {
     const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("{}", { status: 200 }));
     renderWithProviders(<ScreensAdmin />, { client: seed("admin") });

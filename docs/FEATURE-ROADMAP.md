@@ -211,9 +211,23 @@ to a placement surface), `categoriesFor(family)`, `allTags()`, `primitivesByTag(
 It doesn't rip out the family-specific renderer maps (a renderer is a React component and must
 live in the app); it unifies their metadata and a **drift guard** (`primitive-store.test.ts`)
 binds each family back to its registry, so the store can never silently diverge from what
-actually renders. **Follow-up:** migrate the browsable palette + each authoring surface
-(ScreenEditor, report/dashboard builders, FormsAdmin) to render from `primitiveTree(surface)` so
-there is one folder/tag-organised palette everywhere too.
+actually renders.
+
+**Why it's derived, not hand-listed — extensibility.** The store is *computed* from the
+registries, so a new primitive ships as a normal update: add its catalogue entry + renderer (or,
+for viz, a drop-in primitive JSON — `PRIMITIVE_LIBRARY` already merges those) and it appears in
+the store automatically; the drift guard guarantees coverage; every authoring surface picks it up
+with no per-surface edit; and any new JSON **def files** (screens / forms / reports) that
+reference it render through the existing generic renderers. So "a new primitive + the JSON defs
+that use it" is one shippable bundle.
+
+**Authoring surfaces wired (done):** the screen builder's panel-kind picker (`ScreenEditor`) and
+the form builder's field-type picker (`FormsAdmin`) now render their options from
+`familyFolders(family, surface)` — grouped into subfolders, sourced from the store. This also
+fixed a stale hand-maintained panel list that had drifted (it omitted register/form/…).
+**Follow-up:** the browsable palette (`PrimitiveLibrary`) and the report/dashboard builders still
+render their own lists — migrate them to `primitiveTree(surface)` for one folder/tag palette
+everywhere.
 
 ## Form primitive backlog
 

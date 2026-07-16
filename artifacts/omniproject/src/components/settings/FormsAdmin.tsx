@@ -2,10 +2,11 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ClipboardList } from "lucide-react";
-import { FORMS, ISSUE_WRITE_TARGETS, FORM_FIELD_TYPES, type FormDefinition, type FormFieldDef, type FormFieldType } from "@workspace/backend-catalogue";
+import { FORMS, ISSUE_WRITE_TARGETS, type FormDefinition, type FormFieldDef, type FormFieldType } from "@workspace/backend-catalogue";
 import { useAuth, isPmoOrAdmin } from "../../lib/auth";
 import { useGetCapabilities } from "@workspace/api-client-react";
 import { canStoreField } from "../../lib/capabilities-fields";
+import { familyFolders } from "../../lib/primitive-store";
 import { useDraftAdmin } from "../../hooks/use-draft-admin";
 import { useToast } from "@/hooks/use-toast";
 import { useForms, useSaveForms, type FormDef } from "../../lib/forms";
@@ -18,7 +19,9 @@ import { EditableRowTable } from "./EditableRowTable";
  * shipped TEMPLATE (the shared FORMS catalogue) and modify it, or build one from scratch; the org's forms are
  * stored in the encrypted config store and each submission creates a work item through the broker.
  */
-const FIELD_TYPES: readonly FormFieldType[] = FORM_FIELD_TYPES;
+// The field-input primitives, grouped into subfolders (text / numeric / temporal / choice / boolean) from
+// the ONE shared primitive store — so the type picker matches the store, not a separate flat list.
+const FIELD_FOLDERS = familyFolders("field", "form");
 
 function uniqueId(base: string, taken: Set<string>): string {
   let id = base, n = 2;
@@ -137,7 +140,11 @@ export function FormsAdmin() {
                 { header: "Label", cell: (k, i) => <Input aria-label={`Field ${i + 1} label`} value={k.label} onChange={(e) => setField(fi, i, { label: e.target.value })} className="h-8 max-w-40" /> },
                 { header: "Type", cell: (k, i) => (
                   <select aria-label={`Field ${i + 1} type`} value={k.type} onChange={(e) => setField(fi, i, { type: e.target.value as FormFieldType })} className="h-8 border border-foreground bg-background px-1 text-xs">
-                    {FIELD_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+                    {FIELD_FOLDERS.map((folder) => (
+                      <optgroup key={folder.category} label={folder.category}>
+                        {folder.primitives.map((p) => <option key={p.id} value={p.id}>{p.id}</option>)}
+                      </optgroup>
+                    ))}
                   </select>
                 ) },
                 { header: "Maps to", cell: (k, i) => (
