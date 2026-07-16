@@ -47,7 +47,7 @@ jobs:
           output-file: sbom.cyclonedx.json
 
       - name: Attest build provenance for the image
-        uses: actions/attest-build-provenance@v1
+        uses: actions/attest-build-provenance@v4
         with:
           subject-name: omni-shell
           subject-digest: ${{ steps.img.outputs.digest }}
