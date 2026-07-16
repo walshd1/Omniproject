@@ -50,6 +50,13 @@ import { RateGridAdmin } from "../components/settings/RateGridAdmin";
 import { IdentityMapAdmin } from "../components/settings/IdentityMapAdmin";
 import { CostRulesAdmin } from "../components/settings/CostRulesAdmin";
 import { CustomReportsAdmin } from "../components/settings/CustomReportsAdmin";
+import { BudgetPlansAdmin } from "../components/settings/BudgetPlansAdmin";
+import { ResourceAllocationsAdmin } from "../components/settings/ResourceAllocationsAdmin";
+import { ScreensAdmin } from "../components/settings/ScreensAdmin";
+import { RaciAdmin } from "../components/settings/RaciAdmin";
+import { StakeholdersAdmin } from "../components/settings/StakeholdersAdmin";
+import { FormsAdmin } from "../components/settings/FormsAdmin";
+import { AutomationsAdmin } from "../components/settings/AutomationsAdmin";
 import { CustomBackendAdmin } from "../components/settings/CustomBackendAdmin";
 import { ContentPagesAdmin } from "../components/settings/ContentPagesAdmin";
 import { FederatedPeersAdmin } from "../components/settings/FederatedPeersAdmin";
@@ -131,6 +138,13 @@ const ADMIN_PANELS: AdminPanel[] = [
   { key: "rateGrid", Component: RateGridAdmin },
   { key: "identityMap", Component: IdentityMapAdmin },
   { key: "costRules", Component: CostRulesAdmin },
+  { key: "budgetPlans", Component: BudgetPlansAdmin },
+  { key: "resourceAllocations", Component: ResourceAllocationsAdmin },
+  { key: "raci", Component: RaciAdmin },
+  { key: "stakeholders", Component: StakeholdersAdmin },
+  { key: "forms", Component: FormsAdmin },
+  { key: "automations", Component: AutomationsAdmin },
+  { key: "screens", Component: ScreensAdmin },
   { key: "customReports", Component: CustomReportsAdmin },
   { key: "customBackend", Component: CustomBackendAdmin },
   { key: "contentPages", Component: ContentPagesAdmin },

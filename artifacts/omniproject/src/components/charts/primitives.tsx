@@ -48,7 +48,7 @@ const color = (i: number, palette: string[] = CHART_PALETTE) => palette[i % pale
 
 /** Grouped or stacked bars. Horizontal (category axis on the left) by default; `orientation:
  *  "vertical"` draws upright columns. Bars get rounded data-ends per the mark spec. */
-export function SeriesBarChart({ data, series, stacked = false, legend = true, orientation = "horizontal", height, referenceLines, valueFormatter = formatChartNumber, palette = CHART_PALETTE }: {
+export function SeriesBarChart({ data, series, stacked = false, legend = true, orientation = "horizontal", height, referenceLines, valueFormatter = formatChartNumber, palette = CHART_PALETTE, onDatumClick }: {
   data: ChartRow[];
   series: ChartSeries[];
   stacked?: boolean;
@@ -60,12 +60,19 @@ export function SeriesBarChart({ data, series, stacked = false, legend = true, o
   valueFormatter?: (n: number) => string;
   /** Categorical colours (recolourable); defaults to the validated CHART_PALETTE. */
   palette?: string[];
+  /** Optional: fired with the clicked category's data row (for drill-through). Omitted ⇒ non-interactive. */
+  onDatumClick?: (row: ChartRow) => void;
 }) {
   const horizontal = orientation === "horizontal";
   const h = height ?? (horizontal ? Math.max(180, data.length * 34) : 260);
   return (
     <ResponsiveContainer width="100%" height={h}>
-      <BarChart data={data} layout={horizontal ? "vertical" : "horizontal"} margin={{ top: 4, right: 16, bottom: 4, left: 8 }}>
+      <BarChart
+        data={data}
+        layout={horizontal ? "vertical" : "horizontal"}
+        margin={{ top: 4, right: 16, bottom: 4, left: 8 }}
+        {...(onDatumClick ? { onClick: (s: unknown) => { const p = (s as { activePayload?: Array<{ payload?: ChartRow }> } | null)?.activePayload?.[0]?.payload; if (p) onDatumClick(p); }, className: "cursor-pointer" } : {})}
+      >
         <CartesianGrid {...gridTheme} />
         {horizontal ? (
           <>
@@ -151,7 +158,7 @@ export function SeriesAreaChart({ data, series, stacked = false, legend = true, 
 /** A part-to-whole pie. Caps to the palette's fixed slots (never cycling categorical hues) with the
  *  remainder aggregated into a neutral "Other" slice, and direct % labels so identity isn't
  *  colour-alone. Takes any `{ name, value }[]`. */
-export function SharePieChart({ data, legend = true, height = 260, maxSlices = CHART_PALETTE.length, donut = false, palette = CHART_PALETTE }: {
+export function SharePieChart({ data, legend = true, height = 260, maxSlices = CHART_PALETTE.length, donut = false, palette = CHART_PALETTE, onDatumClick }: {
   data: { name: string; value: number }[];
   legend?: boolean;
   height?: ChartHeight;
@@ -159,6 +166,8 @@ export function SharePieChart({ data, legend = true, height = 260, maxSlices = C
   /** Render as a donut (a hole in the middle) rather than a solid pie. */
   donut?: boolean;
   palette?: string[];
+  /** Optional: fired with the clicked slice's `{ name, value }` (for drill-through). */
+  onDatumClick?: (row: { name: string; value: number }) => void;
 }) {
   const sorted = data.filter((d) => d.value > 0).sort((a, b) => b.value - a.value);
   const slices = sorted.length <= maxSlices
@@ -173,6 +182,7 @@ export function SharePieChart({ data, legend = true, height = 260, maxSlices = C
     <ResponsiveContainer width="100%" height={height}>
       <PieChart>
         <Pie data={slices} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={92} innerRadius={donut ? 52 : 0} labelLine={false}
+          {...(onDatumClick ? { onClick: (d: unknown) => { const s = d as { name?: string; value?: number } | undefined; if (s?.name != null) onDatumClick({ name: String(s.name), value: Number(s.value) || 0 }); }, className: "cursor-pointer" } : {})}
           label={(e: { name?: string; percent?: number }) => `${truncateLabel(e.name ?? "")} ${Math.round((e.percent ?? 0) * 100)}%`}>
           {slices.map((d, i) => <Cell key={d.name} fill={d.name === "Other" ? OTHER_COLOR : color(i, palette)} />)}
         </Pie>

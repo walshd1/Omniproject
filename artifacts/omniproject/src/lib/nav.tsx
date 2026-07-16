@@ -18,11 +18,15 @@
  * from but genuinely shouldn't be browsing (e.g. the Configurator, which reads live
  * broker/backend state a plain contributor has no reason to poke at even read-only).
  */
-import { Layers, Briefcase, BarChart3, FlaskConical, Settings as SettingsIcon, PlugZap, Boxes, Users, Inbox, LayoutDashboard, FileText, ListChecks, type LucideIcon } from "lucide-react";
+import { Layers, Briefcase, BarChart3, FlaskConical, Settings as SettingsIcon, PlugZap, Boxes, Users, Inbox, LayoutDashboard, FileText, ListChecks, Wallet, Columns3, type LucideIcon } from "lucide-react";
 import { useGetCapabilities } from "@workspace/api-client-react";
 import { canSurfaceEntity } from "./capabilities-fields";
 import { useFeatures, featureEnabled } from "./features";
 import { useAuth, isPmoOrAdmin, type Role } from "./auth";
+import { useMethodologyComposition } from "./methodology-composition-api";
+import { visibleRoutedScreens, screenVisibleUnder, type ScreenCatalogueEntry } from "./screen-catalogue";
+import { useRoutedScreens } from "./org-screens";
+import { useDisabledScreens, isScreenDisabled } from "./screen-state";
 
 /** Which shelf a nav item lives on. "admin" items are collapsed behind the Advanced gate. */
 export type NavGroup = "primary" | "admin";
@@ -57,8 +61,10 @@ export const NAV_ITEMS: NavItem[] = [
   { href: "/content", i18nKey: "nav.content", label: "Content", icon: FileText, match: (l) => l.startsWith("/content"), requiresFeature: "contentPages", group: "primary" },
   { href: "/programmes", i18nKey: "nav.programmes", label: "Programmes", icon: Boxes, match: (l) => l.startsWith("/programmes"), requiresEntity: "programme", group: "primary" },
   { href: "/projects", i18nKey: "nav.projects", label: "Projects", icon: Briefcase, chord: "G+P", match: (l) => l.startsWith("/projects"), group: "primary" },
+  { href: "/budgets", i18nKey: "nav.budgets", label: "Budgets", icon: Wallet, match: (l) => l.startsWith("/budgets"), group: "primary" },
   { href: "/reports", i18nKey: "nav.reports", label: "Reports", icon: BarChart3, chord: "G+R", match: (l) => l.startsWith("/reports"), group: "primary" },
   { href: "/resources", i18nKey: "nav.resources", label: "Resources", icon: Users, match: (l) => l.startsWith("/resources"), requiresEntity: "member", group: "primary" },
+  { href: "/resource-planning", i18nKey: "nav.resourcePlanning", label: "Resource planning", icon: Users, match: (l) => l.startsWith("/resource-planning"), group: "primary" },
   { href: "/explore", i18nKey: "nav.explore", label: "Explore", icon: FlaskConical, chord: "G+E", match: (l) => l.startsWith("/explore"), group: "admin" },
   { href: "/settings", i18nKey: "nav.settings", label: "Settings", icon: SettingsIcon, chord: "G+S", match: (l) => l.startsWith("/settings"), group: "admin" },
   { href: "/configurator", i18nKey: "nav.configurator", label: "Configurator", icon: PlugZap, chord: "G+C", match: (l) => l.startsWith("/configurator") || l.startsWith("/setup"), group: "admin", visibleToRoles: isPmoOrAdmin },
@@ -121,12 +127,45 @@ export function useVisibleNavItems(): NavItem[] {
   const { data: caps } = useGetCapabilities();
   const { data: features } = useFeatures();
   const { data: auth } = useAuth();
-  return NAV_ITEMS.filter(
+  const { data: composition } = useMethodologyComposition();
+  const { data: disabled } = useDisabledScreens();
+  // The EFFECTIVE routed screens (built-in + the org's stored/overridden ones), gated by the composition
+  // and the admin OFF switch.
+  const routed = useRoutedScreens();
+  const staticItems = NAV_ITEMS.filter(
     (item) =>
       (!item.requiresEntity || canSurfaceEntity(caps, item.requiresEntity)) &&
       (!item.requiresFeature || featureEnabled(features, item.requiresFeature)) &&
       (!item.visibleToRoles || item.visibleToRoles(auth?.role)),
   );
+  const composed = composition ?? null;
+  const screenItems = routed
+    .filter((s) => !isScreenDisabled(disabled, s.id) && screenVisibleUnder(composed, s))
+    .map(screenToNavItem);
+  return [...staticItems, ...screenItems];
+}
+
+/** Map a routed catalogue screen to a nav item. Catalogue labels come from their JSON (not the i18n dict),
+ *  so the label doubles as the i18n key — translate() returns it verbatim (no ugly fallback), still
+ *  override-able by adding a matching key. Icon is a generic board glyph. */
+function screenToNavItem(s: ScreenCatalogueEntry): NavItem {
+  const label = s.nav?.label ?? s.label;
+  return {
+    href: s.route!,
+    i18nKey: label,
+    label,
+    icon: Columns3,
+    match: (l: string) => l.startsWith(s.route!),
+    group: s.nav?.group ?? "primary",
+  };
+}
+
+/**
+ * Nav items for the BUILT-IN routed screens visible under a composition (pure; used in tests and as the
+ * org-independent baseline). The live nav (useVisibleNavItems) additionally merges the org's stored screens.
+ */
+export function catalogueScreenNavItems(composition: Parameters<typeof visibleRoutedScreens>[0]): NavItem[] {
+  return visibleRoutedScreens(composition).map(screenToNavItem);
 }
 
 /**

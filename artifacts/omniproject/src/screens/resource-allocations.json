@@ -1,0 +1,63 @@
+{
+  "id": "resource-allocations",
+  "label": "Resource planning",
+  "hint": "Planned resource bookings by person, project and period. Edit the bookings in Settings → Resource allocations.",
+  "panels": [
+    {
+      "id": "allocations-register",
+      "kind": "register",
+      "title": "Bookings",
+      "span": 12,
+      "config": {
+        "collection": "resourceAllocations",
+        "endpoint": "/api/resource-allocations",
+        "idPrefix": "alloc",
+        "addLabel": "Add booking",
+        "columns": [
+          { "field": "resource", "label": "Resource", "type": "text" },
+          { "field": "projectId", "label": "Project", "type": "text" },
+          { "field": "hours", "label": "Hours", "type": "number" },
+          { "field": "periodStart", "label": "Start", "type": "date" },
+          { "field": "periodEnd", "label": "End", "type": "date" }
+        ]
+      }
+    },
+    {
+      "id": "hours-by-resource-chart",
+      "kind": "chart",
+      "title": "Booked hours by resource",
+      "span": 12,
+      "config": { "chartType": "bar", "xKey": "resource", "series": [{ "key": "hours", "label": "Booked hours" }] },
+      "source": { "url": "/api/resource-allocations/rows?groupBy=resource&metric=sum:hours" }
+    },
+    {
+      "id": "hours-by-resource",
+      "kind": "table",
+      "title": "Hours by resource",
+      "span": 6,
+      "source": { "url": "/api/resource-allocations/rows?groupBy=resource&metric=sum:hours" }
+    },
+    {
+      "id": "hours-by-project",
+      "kind": "table",
+      "title": "Hours by project",
+      "span": 6,
+      "source": { "url": "/api/resource-allocations/rows?groupBy=projectId&metric=sum:hours" },
+      "config": {
+        "drillTo": {
+          "target": "grid",
+          "projectIdField": "projectId",
+          "label": "Project work items",
+          "predicateFrom": [{ "field": "projectId", "op": "eq", "fromField": "projectId" }]
+        }
+      }
+    },
+    {
+      "id": "all-bookings",
+      "kind": "table",
+      "title": "All bookings",
+      "span": 12,
+      "source": { "url": "/api/resource-allocations/rows" }
+    }
+  ]
+}

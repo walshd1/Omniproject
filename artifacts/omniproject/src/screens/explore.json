@@ -1,0 +1,15 @@
+{
+  "id": "explore",
+  "label": "Explore",
+  "bare": true,
+  "panels": [
+    {
+      "id": "explore",
+      "kind": "component",
+      "config": {
+        "component": "explore"
+      }
+    }
+  ],
+  "core": true
+}

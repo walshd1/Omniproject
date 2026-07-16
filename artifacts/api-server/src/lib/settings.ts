@@ -25,6 +25,12 @@ import { validateWorkflows, WorkflowError, type WorkflowDef } from "./workflow";
 import { validateWorkflowAcceptances, ResponsibilityAcceptanceError, type WorkflowAcceptance } from "./responsibility-acceptance";
 import { validateResourceAllocations, ResourceAllocationError, type ResourceAllocation } from "./resource-allocation";
 import { validateBudgetPlans, BudgetPlanError, type BudgetPlan } from "./budget-plan";
+import { validateScreenDefs, ScreenDefError, type OrgScreenDef } from "./screen-def";
+import { validateRaci, RaciError, type RaciEntry } from "./raci";
+import { validateStakeholders, StakeholderError, type Stakeholder } from "./stakeholder";
+import { validateForms, FormDefError, type FormDef } from "./form-def";
+import { validateAutomations, AutomationError } from "./automation";
+import type { AutomationRecipe } from "@workspace/backend-catalogue";
 import { reportCatalogue, type ReportDefinition } from "@workspace/backend-catalogue";
 import { validateCustomFields, validateCustomFieldSources, CustomFieldError, type CustomField } from "./custom-fields";
 import { sanitizeBranding } from "./branding";
@@ -486,6 +492,35 @@ export interface PresentationConfig {
   /** Multi-year / period budget PLANS — an editable time-phased budget per project (the planning side of
    *  financials, above actuals + forecast). Stored as JSON. See routes/budget-plans. */
   budgetPlans: BudgetPlan[];
+  /** RACI register — flat (task, role, responsibility) assignments; the RACI screen renders them. */
+  raci: RaciEntry[];
+  /** Stakeholder register — flat (name, role, influence, interest, engagement) rows; the Stakeholders
+   *  screen renders them. */
+  stakeholders: Stakeholder[];
+  /** Intake / request FORMS — admin/PMO-authored forms (typed fields + a target project); the `form` panel
+   *  renders them and each submission becomes a work item through the broker. See routes/forms. */
+  forms: FormDef[];
+  /** Automation RECIPES — user-authored "when X, do Y" rules that compile to the workflow engine. Authoring
+   *  and execution are RBAC-gated to what the author may edit. See routes/automations. */
+  automations: AutomationRecipe[];
+  /** Org-authored SCREEN DEFINITIONS — a PMO's built-from-scratch or modified screens, stored in the
+   *  (encrypted) deployment config to OVERRIDE a shipped default (matched by id) or add net-new screens;
+   *  also the delivery vehicle for a new-methodology JSON bundle. The SPA merges these over its built-in
+   *  screen catalogue and renders them through the one generic builder. See routes/screen-defs. */
+  screenDefs: OrgScreenDef[];
+  /** Screen ids an admin/PMO has turned OFF for this deployment — hidden from nav and refused by the
+   *  builder (an off screen shows a "turned off" state, never a crash). Overriding vs disabling are the
+   *  two admin controls on the Screens admin panel. See routes/disabled-screens. */
+  disabledScreens: string[];
+  /** Per-collection EDIT policy for on-screen editable content (collectionKey → a role, or "readonly").
+   *  The default is user-editable; an admin/PMO raises the bar or locks a collection read-only. Enforced
+   *  server-side (lib/collection-edit-policy) and mirrored by the SPA's edit controls. */
+  collectionEditRoles: Record<string, string>;
+  /** Org-saved PANEL VIEWS — a named period/pivot preset (group + aggregation + filters) a user has saved
+   *  off a table/chart panel's control bar, scoped to a `screen`+`panel`, so a filtered view can be recalled
+   *  later. Shared, customer-level presentation config (rides the config-bundle snapshot); never project
+   *  data. Writes follow the collection edit-policy (default user-editable). See routes/panel-views. */
+  panelViews: PanelView[];
   /**
    * Methodology composition — the PMO/admin's curated set of visible artifact / output / ruleset ids,
    * assembled from one-click methodology presets and refined per item (so "some Scrum + some PRINCE2" is
@@ -579,6 +614,22 @@ export interface SavedView {
   groupBy?: string;
   /** Optional presentation styling for the rendered view (title/font/colours/background). */
   style?: ArtifactStyle;
+}
+
+/**
+ * A saved PANEL VIEW — a named pivot/period preset a user has captured off a table/chart panel's control
+ * bar. `screen`+`panel` scope it to the panel it was saved from; `state` is the exact control state
+ * (group dimension, aggregation, per-field filter selections) to re-apply. Shared, customer-level config.
+ */
+export interface PanelView {
+  id: string;
+  label: string;
+  /** The screen id the source panel lives on. */
+  screen: string;
+  /** The panel id within that screen. */
+  panel: string;
+  /** The control state to re-apply: group dimension, aggregation, and per-field filter selections. */
+  state: { groupBy: string; agg: string; filters: Record<string, string[]> };
 }
 
 /**
@@ -1134,6 +1185,27 @@ const FIELD_DESCRIPTORS: { [K in keyof SettingsState]: FieldDescriptor<K> } = {
   reports: { seed: () => reportCatalogue() as unknown as ReportDefinition[], validate: shapeChecked(validateReports) },
   resourceAllocations: { seed: () => [], validate: normalisedBy((v) => validateResourceAllocations(v), ResourceAllocationError) },
   budgetPlans: { seed: () => [], validate: normalisedBy((v) => validateBudgetPlans(v), BudgetPlanError) },
+  screenDefs: { seed: () => [], validate: normalisedBy((v) => validateScreenDefs(v), ScreenDefError) },
+  disabledScreens: { seed: () => [], validate: stringArrayField("disabledScreens") },
+  collectionEditRoles: {
+    seed: () => ({}),
+    validate: (value) => {
+      if (typeof value !== "object" || value == null || Array.isArray(value)) throw new SettingsValidationError("collectionEditRoles must be an object");
+      const allowed = new Set(["viewer", "contributor", "manager", "pmo", "admin", "readonly"]);
+      const out: Record<string, string> = {};
+      for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+        if (isForbiddenKey(k)) continue;
+        if (typeof v !== "string" || !allowed.has(v)) throw new SettingsValidationError(`collectionEditRoles["${k}"] must be one of viewer, contributor, manager, pmo, admin, readonly`);
+        out[k] = v;
+      }
+      return out;
+    },
+  },
+  panelViews: { seed: () => [], validate: shapeChecked(validatePanelViews) },
+  forms: { seed: () => [], validate: normalisedBy((v) => validateForms(v), FormDefError) },
+  automations: { seed: () => [], validate: normalisedBy((v) => validateAutomations(v), AutomationError) },
+  raci: { seed: () => [], validate: normalisedBy((v) => validateRaci(v), RaciError) },
+  stakeholders: { seed: () => [], validate: normalisedBy((v) => validateStakeholders(v), StakeholderError) },
   methodologyComposition: {
     seed: () => null,
     validate: (value) => {
@@ -1530,6 +1602,36 @@ function validateSavedViews(value: unknown): void {
       }
     }
     validateArtifactStyle((view as Record<string, unknown>)["style"], `saved view "${String(id)}"`);
+  }
+}
+
+/**
+ * Shape-validate saved PANEL VIEWS. Each needs a string id/label and a scoping screen+panel id, plus a
+ * `state` object whose `groupBy`/`agg` are strings and whose `filters` map field → an array of string
+ * values. Hardened because these are shared, customer-level config that ride the config bundle; a malformed
+ * or hostile entry must 400, never persist a shape a renderer could choke on.
+ */
+function validatePanelViews(value: unknown): void {
+  if (!Array.isArray(value)) throw new SettingsValidationError("panelViews must be an array");
+  const ids = new Set<string>();
+  for (const view of value) {
+    if (!view || typeof view !== "object") throw new SettingsValidationError("each panel view must be an object");
+    const { id, label, screen, panel, state } = view as Record<string, unknown>;
+    if (typeof id !== "string" || !id) throw new SettingsValidationError("each panel view needs a string id");
+    if (ids.has(id)) throw new SettingsValidationError(`duplicate panel view id "${id}"`);
+    ids.add(id);
+    if (typeof label !== "string" || !label) throw new SettingsValidationError("each panel view needs a label");
+    if (typeof screen !== "string" || !screen) throw new SettingsValidationError("each panel view needs a screen id");
+    if (typeof panel !== "string" || !panel) throw new SettingsValidationError("each panel view needs a panel id");
+    if (!state || typeof state !== "object") throw new SettingsValidationError("each panel view needs a state object");
+    const { groupBy, agg, filters } = state as Record<string, unknown>;
+    if (typeof groupBy !== "string") throw new SettingsValidationError("panel view state.groupBy must be a string");
+    if (typeof agg !== "string") throw new SettingsValidationError("panel view state.agg must be a string");
+    if (!filters || typeof filters !== "object" || Array.isArray(filters)) throw new SettingsValidationError("panel view state.filters must be an object");
+    for (const [field, vals] of Object.entries(filters as Record<string, unknown>)) {
+      if (isForbiddenKey(field)) throw new SettingsValidationError("panel view filter field is not allowed");
+      if (!Array.isArray(vals) || vals.some((v) => typeof v !== "string")) throw new SettingsValidationError(`panel view filter "${field}" must be an array of strings`);
+    }
   }
 }
 

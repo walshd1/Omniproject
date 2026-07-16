@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { requireRole } from "../lib/rbac";
+import { requireCollectionEdit } from "../lib/collection-edit-policy";
 import { getSettings } from "../lib/settings";
 import { settingsCollectionRouter } from "../lib/settings-collection-router";
 import { allocationRows } from "../lib/resource-allocation";
@@ -24,7 +24,7 @@ router.use(settingsCollectionRouter({
   path: "/resource-allocations",
   settingsKey: "resourceAllocations",
   versionLabel: "resource allocations updated",
-  writeGuards: [requireRole("manager")],
+  writeGuards: [requireCollectionEdit("resourceAllocations", "manager")],
 }));
 
 export default router;

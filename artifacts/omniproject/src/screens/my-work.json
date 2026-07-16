@@ -1,0 +1,15 @@
+{
+  "id": "my-work",
+  "label": "My Work",
+  "bare": true,
+  "panels": [
+    {
+      "id": "my-work",
+      "kind": "component",
+      "config": {
+        "component": "my-work"
+      }
+    }
+  ],
+  "core": true
+}

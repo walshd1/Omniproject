@@ -8,7 +8,7 @@
  * the CompositionItem list from whatever catalogues it wants to expose (views, reports, screens, outputs,
  * rulesets), each carrying the methodology tags it already has.
  */
-export type CompositionKind = "view" | "report" | "screen" | "output" | "ruleset";
+export type CompositionKind = "view" | "report" | "screen" | "output" | "ruleset" | "form";
 
 export interface CompositionItem {
   id: string;

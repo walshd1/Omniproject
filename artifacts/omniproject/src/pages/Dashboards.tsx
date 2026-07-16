@@ -15,6 +15,7 @@ import {
   type DashboardWidget,
 } from "../lib/dashboards";
 import { downloadDashboard, readDashboardFile } from "../lib/dashboard-file";
+import { primitivesFor } from "../lib/primitive-store";
 import { WidgetView } from "../components/dashboard/widgets";
 import { DataState } from "../components/DataState";
 import { useToast } from "@/hooks/use-toast";
@@ -63,6 +64,13 @@ export function Dashboards() {
     () => availableWidgets((entity) => canSurfaceEntity(caps, entity)),
     [caps],
   );
+  // The add-widget picker is sourced from the ONE shared primitive store (the `component` family placeable
+  // on a dashboard), intersected with the capability-available widgets so nothing a backend can't feed is
+  // offered. Value is the widget's bare `sourceId` (the type addWidget expects).
+  const widgetPrimitives = useMemo(() => {
+    const available = new Map(catalogue.map((w) => [w.type, w.label]));
+    return primitivesFor("dashboard").filter((p) => p.family === "component" && available.has(p.sourceId));
+  }, [catalogue]);
 
   // Role-tailored "what needs me today" presets whose every widget this backend can surface.
   const presets = useMemo(
@@ -245,8 +253,8 @@ export function Dashboards() {
               onChange={(e) => { if (e.target.value) addWidget(e.target.value); }}
             >
               <option value="">+ Add widget…</option>
-              {catalogue.map((w) => (
-                <option key={w.type} value={w.type}>{w.label}</option>
+              {widgetPrimitives.map((p) => (
+                <option key={p.sourceId} value={p.sourceId}>{p.label}</option>
               ))}
             </select>
             <label className="flex items-center gap-1 text-[10px] uppercase tracking-widest text-muted-foreground">

@@ -1,0 +1,15 @@
+{
+  "id": "reports",
+  "label": "Reports",
+  "bare": true,
+  "panels": [
+    {
+      "id": "reports",
+      "kind": "component",
+      "config": {
+        "component": "reports"
+      }
+    }
+  ],
+  "core": true
+}

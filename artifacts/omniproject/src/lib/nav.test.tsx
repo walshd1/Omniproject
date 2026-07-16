@@ -9,6 +9,7 @@ import {
   roleSeesAdminByDefault,
   partitionNavByGroup,
   navShelvesForRole,
+  catalogueScreenNavItems,
 } from "./nav";
 import { featuresQueryKey, type FeatureStatus } from "./features";
 import type { Role } from "./auth";
@@ -57,8 +58,10 @@ describe("NAV_ITEMS", () => {
       "/content",
       "/programmes",
       "/projects",
+      "/budgets",
       "/reports",
       "/resources",
+      "/resource-planning",
       "/explore",
       "/settings",
       "/configurator",
@@ -162,7 +165,7 @@ describe("useVisibleNavItems — role gating (hard gate)", () => {
 
 describe("nav grouping — progressive disclosure", () => {
   const ADMIN_HREFS = ["/explore", "/settings", "/configurator"];
-  const PRIMARY_HREFS = ["/", "/my-work", "/tasks", "/dashboards", "/content", "/programmes", "/projects", "/reports", "/resources"];
+  const PRIMARY_HREFS = ["/", "/my-work", "/tasks", "/dashboards", "/content", "/programmes", "/projects", "/budgets", "/reports", "/resources", "/resource-planning"];
 
   it("classifies the everyday surfaces as primary and the governance/config surfaces as admin", () => {
     for (const item of NAV_ITEMS) {
@@ -175,6 +178,25 @@ describe("nav grouping — progressive disclosure", () => {
     const { primary, admin } = partitionNavByGroup(NAV_ITEMS);
     expect(primary.map((i) => i.href)).toEqual(PRIMARY_HREFS);
     expect(admin.map((i) => i.href)).toEqual(ADMIN_HREFS);
+  });
+});
+
+describe("catalogueScreenNavItems — methodology-gated catalogue screens", () => {
+  it("includes a catalogue screen under an uncurated composition", () => {
+    const hrefs = catalogueScreenNavItems(null).map((i) => i.href);
+    expect(hrefs).toContain("/kanban");
+  });
+
+  it("includes a methodology-tagged catalogue screen when its methodology is selected", () => {
+    const items = catalogueScreenNavItems(["screen:kanban"]);
+    const kanban = items.find((i) => i.href === "/kanban");
+    expect(kanban).toBeTruthy();
+    expect(kanban!.label).toBe("Kanban");
+  });
+
+  it("hides a methodology-tagged catalogue screen when a different methodology is selected", () => {
+    const hrefs = catalogueScreenNavItems(["screen:something-else"]).map((i) => i.href);
+    expect(hrefs).not.toContain("/kanban");
   });
 });
 
