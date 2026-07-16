@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ClipboardList } from "lucide-react";
-import { FORMS, ISSUE_WRITE_TARGETS, type FormDefinition, type FormFieldDef, type FormFieldType } from "@workspace/backend-catalogue";
+import { FORMS, ISSUE_WRITE_TARGETS, FORM_FIELD_TYPES, type FormDefinition, type FormFieldDef, type FormFieldType } from "@workspace/backend-catalogue";
 import { useAuth, isPmoOrAdmin } from "../../lib/auth";
 import { useGetCapabilities } from "@workspace/api-client-react";
 import { canStoreField } from "../../lib/capabilities-fields";
@@ -18,7 +18,7 @@ import { EditableRowTable } from "./EditableRowTable";
  * shipped TEMPLATE (the shared FORMS catalogue) and modify it, or build one from scratch; the org's forms are
  * stored in the encrypted config store and each submission creates a work item through the broker.
  */
-const FIELD_TYPES: FormFieldType[] = ["text", "textarea", "number", "date", "select", "checkbox", "email", "url"];
+const FIELD_TYPES: readonly FormFieldType[] = FORM_FIELD_TYPES;
 
 function uniqueId(base: string, taken: Set<string>): string {
   let id = base, n = 2;

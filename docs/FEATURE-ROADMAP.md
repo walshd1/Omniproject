@@ -189,6 +189,26 @@ already exist, so they close the most competitive distance for the least build.
 
 ---
 
+## Single shared primitive store
+
+`artifacts/omniproject/src/lib/primitive-store.ts` is THE one catalogue over every renderable
+building block, so screens, reports, dashboards, content pages and forms draw from one source
+of truth rather than a registry each. Four families under one `Primitive` shape + one
+`placeableIn` vocabulary:
+
+- `panel` — screen building blocks (from the panel renderer registry)
+- `viz` — data-visualisation primitives (from the chart primitive library; shared by chart
+  panels *and* reports)
+- `field` — form input controls (from the shared `FORM_FIELD_TYPES`)
+- `component` — hosted reports + dashboard widgets (from the shared component library)
+
+It doesn't rip out the family-specific renderer maps (a renderer is a React component and must
+live in the app); it unifies their metadata and a **drift guard** (`primitive-store.test.ts`)
+binds each family back to its registry, so the store can never silently diverge from what
+actually renders. **Follow-up:** migrate the browsable palette + each authoring surface
+(ScreenEditor, report/dashboard builders, FormsAdmin) to read placement options from
+`primitivesFor(surface)` so there is one palette everywhere too.
+
 ## Form primitive backlog
 
 Ordered by value for a PPM/intake context. Each is a new `FormFieldType` in the shared

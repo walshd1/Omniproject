@@ -13,6 +13,10 @@ import { matchesMethodology } from "./methodology-match";
 /** The supported field input types. `email`/`url` are text fields with format validation. */
 export type FormFieldType = "text" | "textarea" | "number" | "date" | "select" | "checkbox" | "email" | "url";
 
+/** The field-input primitives, as a value (the single list the validator, admin picker and the unified
+ *  primitive store all draw from — so the `field` family can't drift from the FormFieldType union). */
+export const FORM_FIELD_TYPES: readonly FormFieldType[] = ["text", "textarea", "number", "date", "select", "checkbox", "email", "url"];
+
 /**
  * One field on a form. `options` is required for `select`. Every field MUST declare `mapTo` — the backend
  * (issue) field its value is written to — so nothing a user types is homeless: if a value has no backend
