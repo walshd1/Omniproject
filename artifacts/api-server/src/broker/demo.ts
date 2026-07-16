@@ -88,6 +88,15 @@ function seedWikiDocs(): WikiDoc[] {
         { id: "b2", type: "paragraph", text: "Every project runs on the overlay; nothing is stored at rest." },
       ],
     },
+    {
+      // A child page (nested under Onboarding) so the page tree has real hierarchy to render.
+      id: "doc-first-week", spaceId: "space-pmo", parentId: "doc-onboarding", slug: "your-first-week", title: "Your first week",
+      updatedAt: "2026-07-03T09:00:00.000Z", updatedBy: "grace@demo",
+      blocks: [
+        { id: "b1", type: "heading", level: 2, text: "Your first week" },
+        { id: "b2", type: "paragraph", text: "A day-by-day guide to getting productive on the overlay." },
+      ],
+    },
   ];
 }
 let SAMPLE_WIKI_DOCS: WikiDoc[] = seedWikiDocs();

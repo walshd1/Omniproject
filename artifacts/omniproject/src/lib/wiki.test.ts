@@ -6,6 +6,7 @@ import {
   wikiRoomId, wikiSpacesKey, wikiDocsKey, wikiDocKey,
   useWikiSpaces, useWikiDocs, useWikiDoc,
   useCreateWikiDoc, useSaveWikiDoc, useDeleteWikiDoc,
+  buildDocTree, flattenDocTree, descendantIds, type WikiDocSummary,
 } from "./wiki";
 
 /** Wiki client hooks: query keys + the read/write endpoints they call. */
@@ -49,6 +50,37 @@ describe("wiki read hooks", () => {
     const { result } = renderHook(() => useWikiDoc("d1"), { wrapper: wrapper(qc()) });
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(f.mock.calls.some(([u]) => String(u) === "/api/wiki/docs/d1")).toBe(true);
+  });
+});
+
+describe("page tree (buildDocTree / flattenDocTree / descendantIds)", () => {
+  const doc = (id: string, parentId: string | null, title = id): WikiDocSummary =>
+    ({ id, spaceId: "s1", parentId, slug: id, title, updatedAt: "" });
+
+  it("nests children under parents and orders siblings by title", () => {
+    const roots = buildDocTree([doc("a", null, "Alpha"), doc("b", null, "Beta"), doc("a1", "a", "Alpha child")]);
+    expect(roots.map((r) => r.id)).toEqual(["a", "b"]); // Alpha before Beta
+    expect(roots[0]!.children.map((c) => c.id)).toEqual(["a1"]);
+    expect(roots[0]!.depth).toBe(0);
+    expect(roots[0]!.children[0]!.depth).toBe(1);
+  });
+
+  it("flattens to parent-before-children order with depth tags", () => {
+    const flat = flattenDocTree(buildDocTree([doc("a", null), doc("a1", "a"), doc("a1x", "a1")]));
+    expect(flat.map((n) => [n.id, n.depth])).toEqual([["a", 0], ["a1", 1], ["a1x", 2]]);
+  });
+
+  it("treats a dangling, self, or cyclic parent as a root (never drops a page)", () => {
+    // dangling parent (ghost), self-parent, and a 2-cycle (x↔y) all degrade to roots.
+    const flat = flattenDocTree(buildDocTree([doc("d", "ghost"), doc("s", "s"), doc("x", "y"), doc("y", "x")]));
+    expect(new Set(flat.map((n) => n.id))).toEqual(new Set(["d", "s", "x", "y"]));
+    expect(flat.every((n) => n.depth === 0)).toBe(true); // all promoted to roots, none lost
+  });
+
+  it("collects the descendant ids of a subtree (for cycle-free parent options)", () => {
+    const docs = [doc("a", null), doc("a1", "a"), doc("a1x", "a1"), doc("b", null)];
+    expect(descendantIds(docs, "a")).toEqual(new Set(["a1", "a1x"]));
+    expect(descendantIds(docs, "b")).toEqual(new Set());
   });
 });
 
