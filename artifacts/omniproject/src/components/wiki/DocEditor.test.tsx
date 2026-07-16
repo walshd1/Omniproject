@@ -34,6 +34,36 @@ describe("DocEditor", () => {
     expect(input.blocks[1]).toMatchObject({ type: "heading", text: "Steps", level: 2 });
   });
 
+  it("offers a parent-page picker and emits the chosen parentId (page tree)", () => {
+    const onSave = vi.fn<(i: WikiDocInput) => void>();
+    const docs = [
+      { id: "p1", spaceId: "s1", parentId: null, slug: "p1", title: "Parent one", updatedAt: "" },
+      { id: "p2", spaceId: "s2", parentId: null, slug: "p2", title: "Other space", updatedAt: "" },
+    ];
+    render(<DocEditor spaceId="s1" docs={docs} onSave={onSave} onCancel={() => {}} />);
+    // Only same-space docs are offered as parents.
+    expect(screen.getByRole("option", { name: "Parent one" })).toBeInTheDocument();
+    expect(screen.queryByRole("option", { name: "Other space" })).not.toBeInTheDocument();
+    fireEvent.change(screen.getByTestId("doc-title"), { target: { value: "Child" } });
+    fireEvent.change(screen.getByTestId("doc-parent"), { target: { value: "p1" } });
+    fireEvent.click(screen.getByTestId("doc-save"));
+    expect(onSave.mock.calls[0]![0].parentId).toBe("p1");
+  });
+
+  it("excludes the doc itself and its descendants from parent options (no cycles)", () => {
+    const doc = { id: "a", spaceId: "s1", parentId: null, slug: "a", title: "A", updatedAt: "", blocks: [] };
+    const docs = [
+      doc,
+      { id: "a1", spaceId: "s1", parentId: "a", slug: "a1", title: "A child", updatedAt: "" },
+      { id: "b", spaceId: "s1", parentId: null, slug: "b", title: "B", updatedAt: "" },
+    ];
+    render(<DocEditor spaceId="s1" doc={doc} docs={docs} onSave={() => {}} onCancel={() => {}} />);
+    // A itself and its descendant A-child can't be parents; B can.
+    expect(screen.queryByRole("option", { name: "A" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("option", { name: "A child" })).not.toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "B" })).toBeInTheDocument();
+  });
+
   it("edits an existing doc's blocks and can remove one", () => {
     const onSave = vi.fn<(i: WikiDocInput) => void>();
     const doc = { id: "d1", spaceId: "s1", slug: "d", title: "Doc", updatedAt: "", blocks: [

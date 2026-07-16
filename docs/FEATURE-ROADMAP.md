@@ -204,8 +204,16 @@ authoring, and the drift guards — no feature bypasses the golden rules.
   insertable palette is drawn from the shared primitive store's `block` family (documents built of
   primitives). Create/edit/delete under the existing RBAC ladder (author contributor+, delete
   manager+); 501 → "unsupported" notice. Nav entry + route-coverage manifest + unit/e2e tests.
-- **Slice 3+ (next).** **Yjs** CRDT co-edit (binds via `y-prosemirror`, awareness = live cursors)
-  over our SSE; live presence on a doc; version-diff history; a page tree (parentId nesting).
+- **Slice 3 ✅ (live collaboration).** Presence avatars + a comments/@mentions thread on the doc view,
+  keyed by the `doc:<id>` room. No backend change: `guardRoomScope` returns true for non-project rooms,
+  so the existing comments/presence routes already serve doc rooms under the issue-comment RBAC (read
+  any authed, write contributor+). `CommentsPanel` was generalised to a room-agnostic `roomId` prop.
+- **Slice 4 ✅ (page tree).** Documents nest by `parentId` (already sanitised + stored server-side): a
+  pure, cycle-safe `buildDocTree`/`flattenDocTree` renders the doc list as an indented tree, and the
+  `DocEditor` gains a "parent page" picker that excludes the doc itself and its descendants (no cycles).
+  A dangling/cyclic parent degrades to a root, so no page can be hidden or loop the walk.
+- **Slice 5+ (next).** **Yjs** CRDT co-edit (binds via `y-prosemirror`, awareness = live cursors)
+  over our SSE; version-diff history.
 
 ### 2.2 Guest / external collaboration & client portals  ⬜ Todo
 - **Competitors.** Monday, Wrike, Smartsheet. **Gap.** Enterprise-IdP/SCIM only; no
@@ -405,3 +413,12 @@ so an attachment field would be a URL reference (`url` type) pointing at the sys
   `/api/wiki/*` routes behind one sanitising choke point (per-type allow-listing, safe-scheme
   embeds, no HTML sink), `[[wiki-link]]` backlinks, read-only `DocRenderer` + client hooks.
   Presence/comments reuse the existing `doc:<id>` room seams. Yjs co-edit + authoring UI next.
+- _2026-07-16_ — Phase 2.1 slice 2 (authoring UI) shipped: a `/wiki` page — spaces nav + doc list,
+  a read view (blocks + backlinks), and a block-based `DocEditor` whose palette is the primitive
+  store's `block` family. Create/edit/delete under the RBAC ladder; 501 → unsupported notice.
+- _2026-07-16_ — Phase 2.1 slice 3 (live collaboration) shipped: presence avatars + comments/@mentions
+  on the doc view via the `doc:<id>` room, reusing the existing seams with no backend change
+  (`guardRoomScope` already allows non-project rooms). `CommentsPanel` generalised to a `roomId` prop.
+- _2026-07-16_ — Phase 2.1 slice 4 (page tree) shipped: docs nest by `parentId` with a pure,
+  cycle-safe `buildDocTree`; the sidebar renders an indented tree and the editor offers a descendant-
+  excluding parent picker. Dangling/cyclic parents degrade to roots (no page hidden or lost).

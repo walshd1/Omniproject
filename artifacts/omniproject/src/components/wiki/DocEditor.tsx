@@ -5,7 +5,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { ArrowUp, ArrowDown, Trash2, Plus } from "lucide-react";
 import { CALLOUT_TONES, type DocBlock, type DocBlockType, type CalloutTone } from "@workspace/backend-catalogue";
 import { primitivesByFamily } from "../../lib/primitive-store";
-import type { WikiDoc, WikiDocInput } from "../../lib/wiki";
+import { descendantIds, type WikiDoc, type WikiDocInput, type WikiDocSummary } from "../../lib/wiki";
 
 /**
  * DocEditor — the block-based authoring surface for a wiki document (roadmap 2.1 slice 2). The palette of
@@ -33,17 +33,23 @@ function blankBlock(type: DocBlockType): DocBlock {
   }
 }
 
-export function DocEditor({ doc, spaceId, onSave, onCancel, saving }: {
+export function DocEditor({ doc, spaceId, docs = [], onSave, onCancel, saving }: {
   doc?: WikiDoc;
   spaceId: string;
+  /** Sibling docs in this space, for the "parent page" picker (page tree). */
+  docs?: WikiDocSummary[];
   onSave: (input: WikiDocInput) => void;
   onCancel: () => void;
   saving?: boolean;
 }) {
   const [title, setTitle] = useState(doc?.title ?? "");
   const [blocks, setBlocks] = useState<DocBlock[]>(doc?.blocks?.length ? doc.blocks.map((b) => ({ ...b })) : [blankBlock("paragraph")]);
+  const [parentId, setParentId] = useState<string>(doc?.parentId ?? "");
   // The insertable block palette comes from the primitive store's `block` family (not a hard-coded list).
   const palette = primitivesByFamily("block");
+  // Candidate parents: docs in this space, minus this doc itself and its own descendants (no cycles).
+  const excluded = doc ? new Set([doc.id, ...descendantIds(docs, doc.id)]) : new Set<string>();
+  const parentOptions = docs.filter((d) => d.spaceId === spaceId && !excluded.has(d.id));
 
   const patch = (i: number, p: Partial<DocBlock>) => setBlocks(blocks.map((b, j) => (j === i ? { ...b, ...p } : b)));
   const move = (i: number, d: -1 | 1) => {
@@ -57,11 +63,21 @@ export function DocEditor({ doc, spaceId, onSave, onCancel, saving }: {
   const add = (type: DocBlockType) => setBlocks([...blocks, blankBlock(type)]);
 
   const canSave = title.trim().length > 0 && !saving;
-  const submit = () => onSave({ spaceId, title: title.trim(), blocks });
+  const submit = () => onSave({ spaceId, title: title.trim(), blocks, parentId: parentId || null });
 
   return (
     <div className="space-y-3" data-testid="doc-editor">
       <Input aria-label="Document title" data-testid="doc-title" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Document title" className="text-lg font-bold" />
+
+      {parentOptions.length > 0 && (
+        <label className="flex items-center gap-2 text-xs text-muted-foreground">
+          <span className="uppercase tracking-widest font-bold">Parent page</span>
+          <select aria-label="Parent page" data-testid="doc-parent" value={parentId} onChange={(e) => setParentId(e.target.value)} className="h-8 border border-foreground bg-background px-1 text-xs">
+            <option value="">— none (top level) —</option>
+            {parentOptions.map((d) => <option key={d.id} value={d.id}>{d.title}</option>)}
+          </select>
+        </label>
+      )}
 
       <div className="space-y-2">
         {blocks.map((b, i) => (

@@ -6,7 +6,10 @@ import { Wiki } from "./Wiki";
 
 /** The wiki page: browse spaces/docs, read a doc, and RBAC-gate authoring. */
 const SPACES = [{ id: "space-a", key: "a", name: "Space A" }];
-const DOCS = [{ id: "d1", spaceId: "space-a", slug: "d1", title: "Doc One", updatedAt: "" }];
+const DOCS = [
+  { id: "d1", spaceId: "space-a", parentId: null, slug: "d1", title: "Doc One", updatedAt: "" },
+  { id: "d2", spaceId: "space-a", parentId: "d1", slug: "d2", title: "Doc Two", updatedAt: "" },
+];
 const DOC = { id: "d1", spaceId: "space-a", slug: "d1", title: "Doc One", updatedAt: "", blocks: [{ id: "b", type: "paragraph", text: "hello world" }], backlinks: [] };
 
 function mockWikiFetch() {
@@ -53,6 +56,16 @@ describe("Wiki page", () => {
     fireEvent.click(await screen.findByTestId("wiki-new-doc"));
     expect(await screen.findByTestId("doc-editor")).toBeInTheDocument();
     expect(screen.getByTestId("block-palette")).toBeInTheDocument();
+  });
+
+  it("renders the doc list as a page tree, nesting a child under its parent", async () => {
+    mockWikiFetch();
+    renderWithProviders(<Wiki />, { client: seed("viewer") });
+    const parent = await screen.findByTestId("doc-link-d1");
+    const child = await screen.findByTestId("doc-link-d2");
+    // Child is one level deeper than its parent (indentation carried on data-depth).
+    expect(parent).toHaveAttribute("data-depth", "0");
+    expect(child).toHaveAttribute("data-depth", "1");
   });
 
   it("mounts the comments thread on the open document (doc:<id> room)", async () => {

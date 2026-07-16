@@ -8,7 +8,7 @@ import { usePresence } from "../lib/presence";
 import {
   useWikiSpaces, useWikiDocs, useWikiDoc,
   useCreateWikiDoc, useSaveWikiDoc, useDeleteWikiDoc,
-  wikiRoomId, type WikiDocInput,
+  wikiRoomId, buildDocTree, flattenDocTree, type WikiDocInput,
 } from "../lib/wiki";
 import { DocRenderer } from "../components/wiki/DocRenderer";
 import { DocEditor } from "../components/wiki/DocEditor";
@@ -36,6 +36,8 @@ export function Wiki() {
 
   const docsQ = useWikiDocs(spaceId || undefined);
   const docs = (Array.isArray(docsQ.data) ? docsQ.data : []).filter((d) => d.spaceId === spaceId);
+  // Nest the flat list into a page tree by parentId; render flattened with per-depth indentation.
+  const docTree = flattenDocTree(buildDocTree(docs));
   const docQ = useWikiDoc(mode !== "new" && docId ? docId : undefined);
 
   const create = useCreateWikiDoc();
@@ -95,11 +97,12 @@ export function Wiki() {
               ))}
             </div>
             <ul className="space-y-1" data-testid="wiki-doc-list">
-              {docs.map((d) => (
+              {docTree.map((d) => (
                 <li key={d.id}>
-                  <button type="button" data-testid={`doc-link-${d.id}`} onClick={() => { setDocId(d.id); setMode("view"); }}
-                    className={`w-full text-left text-sm px-2 py-1 rounded ${d.id === docId ? "bg-muted font-bold" : "hover:bg-muted/50"}`}>
-                    {d.title}
+                  <button type="button" data-testid={`doc-link-${d.id}`} data-depth={d.depth} onClick={() => { setDocId(d.id); setMode("view"); }}
+                    style={{ paddingLeft: `${0.5 + d.depth * 0.9}rem` }}
+                    className={`w-full text-left text-sm pr-2 py-1 rounded ${d.id === docId ? "bg-muted font-bold" : "hover:bg-muted/50"}`}>
+                    {d.depth > 0 && <span aria-hidden className="text-muted-foreground mr-1">↳</span>}{d.title}
                   </button>
                 </li>
               ))}
@@ -115,10 +118,10 @@ export function Wiki() {
           {/* Main pane */}
           <section className="min-w-0" data-testid="wiki-main">
             {mode === "new" && spaceId && (
-              <DocEditor spaceId={spaceId} saving={create.isPending} onCancel={() => setMode("view")} onSave={onCreate} />
+              <DocEditor spaceId={spaceId} docs={docs} saving={create.isPending} onCancel={() => setMode("view")} onSave={onCreate} />
             )}
             {mode === "edit" && docQ.data && (
-              <DocEditor spaceId={docQ.data.spaceId} doc={docQ.data} saving={save.isPending} onCancel={() => setMode("view")} onSave={onSave} />
+              <DocEditor spaceId={docQ.data.spaceId} doc={docQ.data} docs={docs} saving={save.isPending} onCancel={() => setMode("view")} onSave={onSave} />
             )}
             {mode === "view" && (
               docQ.data ? (
