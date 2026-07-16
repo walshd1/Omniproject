@@ -3,13 +3,17 @@ import { Button } from "@/components/ui/button";
 import { BookOpen, Plus, Pencil, Trash2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth, roleAtLeast } from "../lib/auth";
+import { useFeatures, featureEnabled } from "../lib/features";
+import { usePresence } from "../lib/presence";
 import {
   useWikiSpaces, useWikiDocs, useWikiDoc,
   useCreateWikiDoc, useSaveWikiDoc, useDeleteWikiDoc,
-  type WikiDocInput,
+  wikiRoomId, type WikiDocInput,
 } from "../lib/wiki";
 import { DocRenderer } from "../components/wiki/DocRenderer";
 import { DocEditor } from "../components/wiki/DocEditor";
+import { PresenceAvatars } from "../components/presence/PresenceAvatars";
+import { CommentsPanel } from "../components/issue-dialog/CommentsPanel";
 
 /**
  * Wiki — the collaborative docs / knowledge base page (roadmap 2.1 slice 2). Browse spaces → docs, read a
@@ -41,6 +45,17 @@ export function Wiki() {
   const canAuthor = roleAtLeast(auth?.role, "contributor");
   const canDelete = roleAtLeast(auth?.role, "manager");
   const unsupported = spacesQ.isError; // routes answer 501 → hook errors when the backend has no wiki
+
+  // Live collaboration on the open doc, reusing the shared presence + comments seams keyed by the
+  // `doc:<id>` room (same server RBAC as issue comments: read for any authed user, write for
+  // contributor+). Gated by the same feature modules as everywhere else; presence only joins while a
+  // doc is actually open for reading.
+  const { data: features } = useFeatures();
+  const presenceOn = featureEnabled(features, "presence");
+  const commentsOn = featureEnabled(features, "comments");
+  const viewingDocId = mode === "view" && docId ? docId : "";
+  const room = viewingDocId ? wikiRoomId(viewingDocId) : null;
+  const { peers } = usePresence(room, presenceOn && !!room);
 
   const onCreate = (input: WikiDocInput) => create.mutate(input, {
     onSuccess: (d) => { setDocId(d.id); setMode("view"); toast({ title: "DOCUMENT CREATED", description: d.title }); },
@@ -110,6 +125,7 @@ export function Wiki() {
                 <article className="space-y-3">
                   <header className="flex flex-wrap items-center gap-2">
                     <h2 className="text-2xl font-bold flex-1 min-w-0">{docQ.data.title}</h2>
+                    {presenceOn && peers.length > 0 && <PresenceAvatars peers={peers} />}
                     {canAuthor && <Button type="button" variant="outline" size="sm" data-testid="wiki-edit-doc" onClick={() => setMode("edit")}><Pencil className="h-3 w-3 mr-1" />Edit</Button>}
                     {canDelete && <Button type="button" variant="ghost" size="sm" data-testid="wiki-delete-doc" disabled={del.isPending} onClick={onDelete}><Trash2 className="h-3 w-3 mr-1" />Delete</Button>}
                   </header>
@@ -124,6 +140,7 @@ export function Wiki() {
                       </ul>
                     </footer>
                   )}
+                  {commentsOn && <CommentsPanel roomId={wikiRoomId(docQ.data.id)} />}
                 </article>
               ) : (
                 <p className="text-sm text-muted-foreground" data-testid="wiki-no-selection">Select a document to read, or create one.</p>
