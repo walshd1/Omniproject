@@ -12,7 +12,8 @@
 import type { Request } from "express";
 import { getBroker, contextFromReq } from "../broker";
 import type { ActorContext, Whiteboard, WhiteboardMeta, WhiteboardWrite, WhiteboardScene } from "../broker/types";
-import type { ArtifactScope } from "./artifact-store";
+import type { StorageTarget } from "./artifact-store";
+import { makeScopedId, parseScopedId, scopeFromParsed, isStorageTarget } from "./artifact-store";
 import {
   CANVAS_ELEMENT_TYPES, CANVAS_LIMITS, SHAPE_KINDS, STICKY_COLORS,
   type CanvasElement, type CanvasElementType, type ShapeKind, type StickyColor,
@@ -30,8 +31,7 @@ export class WhiteboardError extends Error {
  *   - `org`      the org-wide shared encrypted-JSON area (needs org-write permission).
  *   - `sidecar`  the built-in system-of-record (the OmniStore), when it's loaded.
  */
-export type WhiteboardStorage = "user" | "project" | "org" | "sidecar";
-const STORAGE_SET = new Set<string>(["user", "project", "org", "sidecar"]);
+export type WhiteboardStorage = StorageTarget;
 /** The artifact-store type key for whiteboards. */
 export const WHITEBOARD_ARTIFACT = "whiteboard";
 
@@ -43,34 +43,15 @@ export interface SanitizedWhiteboardWrite {
   projectId?: string;
 }
 
-/** Build a self-describing whiteboard id that encodes WHERE it lives (so a later read/write routes to the
- *  right store without a lookup). Delimiter `~` is not used in a uuid or storage word. */
-export function makeWhiteboardId(storage: WhiteboardStorage, localId: string, projectId?: string): string {
-  return storage === "project" ? `project~${projectId}~${localId}` : `${storage}~${localId}`;
-}
+/** Build a self-describing whiteboard id (shared scoped-id primitive). */
+export const makeWhiteboardId = makeScopedId;
 
-/** Parse a self-describing id back to its storage + parts, or null if malformed. */
-export function parseWhiteboardId(id: string): { storage: WhiteboardStorage; projectId?: string; localId: string } | null {
-  const parts = id.split("~");
-  const storage = parts[0];
-  if (storage === "user" || storage === "org" || storage === "sidecar") {
-    return parts.length >= 2 ? { storage, localId: parts.slice(1).join("~") } : null;
-  }
-  if (storage === "project") {
-    // project~<projectId>~<localId>; localId is a uuid (no ~), projectId is everything between.
-    return parts.length >= 3 ? { storage, projectId: parts.slice(1, -1).join("~"), localId: parts[parts.length - 1]! } : null;
-  }
-  return null;
-}
+/** Parse a self-describing whiteboard id back to its storage + parts, or null if malformed. */
+export const parseWhiteboardId = parseScopedId;
 
 /** The encrypted-JSON scope for a non-sidecar id. The caller's OWN sub is always used for a user board, so
  *  the id can never address another user's private area. */
-export function whiteboardScope(parsed: { storage: WhiteboardStorage; projectId?: string }, sub: string | undefined): ArtifactScope | null {
-  if (parsed.storage === "user") return { kind: "user", sub: sub ?? "" };
-  if (parsed.storage === "org") return { kind: "org" };
-  if (parsed.storage === "project" && parsed.projectId) return { kind: "project", projectId: parsed.projectId };
-  return null;
-}
+export const whiteboardScope = scopeFromParsed;
 
 /** A board's actor label for the audit `updatedBy` field (email > name > sub). */
 const actorLabel = (ctx: ActorContext): string | null => ctx.email ?? ctx.name ?? ctx.sub ?? null;
@@ -269,7 +250,7 @@ export function sanitizeWhiteboardWrite(raw: unknown): SanitizedWhiteboardWrite 
   if (!name) throw new WhiteboardError("a whiteboard needs a name");
   const scene = sanitizeWhiteboardScene(obj["scene"] ?? { elements: [] });
   // Storage target — the caller's choice, permission-gated at the route. Defaults to the private user area.
-  const storage: WhiteboardStorage = typeof obj["storage"] === "string" && STORAGE_SET.has(obj["storage"]) ? (obj["storage"] as WhiteboardStorage) : "user";
+  const storage: WhiteboardStorage = isStorageTarget(obj["storage"]) ? obj["storage"] : "user";
   const out: SanitizedWhiteboardWrite = { name, scene, storage };
   const projectId = obj["projectId"];
   if (typeof projectId === "string" && projectId.trim()) out.projectId = projectId.trim();

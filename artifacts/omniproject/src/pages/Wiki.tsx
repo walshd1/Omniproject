@@ -8,7 +8,8 @@ import { usePresence } from "../lib/presence";
 import {
   useWikiSpaces, useWikiDocs, useWikiDoc,
   useCreateWikiDoc, useSaveWikiDoc, useDeleteWikiDoc,
-  wikiRoomId, buildDocTree, flattenDocTree, type WikiDocInput, type WikiDocVersion,
+  wikiRoomId, wikiDocStorage, buildDocTree, flattenDocTree,
+  type WikiDocInput, type WikiDocVersion, type WikiDocStorage,
 } from "../lib/wiki";
 import { DocRenderer } from "../components/wiki/DocRenderer";
 import { DocEditor } from "../components/wiki/DocEditor";
@@ -19,10 +20,17 @@ import { CommentsPanel } from "../components/issue-dialog/CommentsPanel";
 /**
  * Wiki — the collaborative docs / knowledge base page (roadmap 2.1 slice 2). Browse spaces → docs, read a
  * document (rendered from its primitive blocks, with server-resolved backlinks), and author under the
- * existing RBAC ladder: read for anyone (viewer+), create/edit for contributor+, delete for manager+. All
- * content lives in the backend through the broker seam (zero-at-rest); when the connected backend has no
- * wiki, the API answers 501 and this page shows an unsupported notice.
+ * existing RBAC ladder: read for anyone (viewer+), create/edit/delete for contributor+ (an org write needs
+ * manager+). A page is saved to a STORAGE TARGET the author picks — their private / the org-wide encrypted-
+ * JSON area (both AES-256-GCM sealed at rest) or the built-in store; the id is self-describing so a later
+ * read routes to the right store. When no wiki backing exists the API answers 501 and this page shows an
+ * unsupported notice.
  */
+/** The label shown on a document's storage badge / in the create control. */
+const STORAGE_LABEL: Record<WikiDocStorage, string> = {
+  user: "Personal", project: "Project", org: "Org-wide", sidecar: "Built-in store",
+};
+
 export function Wiki() {
   const { data: auth } = useAuth();
   const { toast } = useToast();
@@ -31,6 +39,7 @@ export function Wiki() {
   const [docId, setDocId] = useState<string>("");
   const [mode, setMode] = useState<"view" | "edit" | "new">("view");
   const [showHistory, setShowHistory] = useState(false);
+  const [newStorage, setNewStorage] = useState<WikiDocStorage>("user");
 
   const spaces = Array.isArray(spacesQ.data) ? spacesQ.data : [];
   // Default to the first space once loaded.
@@ -62,8 +71,8 @@ export function Wiki() {
   const room = viewingDocId ? wikiRoomId(viewingDocId) : null;
   const { peers } = usePresence(room, presenceOn && !!room);
 
-  const onCreate = (input: WikiDocInput) => create.mutate(input, {
-    onSuccess: (d) => { setDocId(d.id); setMode("view"); toast({ title: "DOCUMENT CREATED", description: d.title }); },
+  const onCreate = (input: WikiDocInput) => create.mutate({ ...input, storage: newStorage }, {
+    onSuccess: (d) => { setDocId(d.id); setMode("view"); toast({ title: "DOCUMENT CREATED", description: `${d.title} · ${STORAGE_LABEL[newStorage]}` }); },
     onError: (e) => toast({ title: "COULD NOT CREATE", description: e instanceof Error ? e.message : "Try again.", variant: "destructive" }),
   });
   const onSave = (input: WikiDocInput) => save.mutate(input, {
@@ -124,9 +133,17 @@ export function Wiki() {
               {docs.length === 0 && <li className="text-xs text-muted-foreground px-2" data-testid="wiki-docs-empty">No documents yet.</li>}
             </ul>
             {canAuthor && spaceId && mode !== "new" && (
-              <Button type="button" variant="outline" size="sm" data-testid="wiki-new-doc" onClick={() => { setDocId(""); setMode("new"); }}>
-                <Plus className="h-3 w-3 mr-1" />New document
-              </Button>
+              <div className="flex items-center gap-1">
+                <select aria-label="New document storage target" data-testid="wiki-storage" value={newStorage} onChange={(e) => setNewStorage(e.target.value as WikiDocStorage)}
+                  className="h-8 border border-border bg-background text-xs px-1">
+                  <option value="user">Personal</option>
+                  {canDelete && <option value="org">Org-wide</option>}
+                  <option value="sidecar">Built-in store</option>
+                </select>
+                <Button type="button" variant="outline" size="sm" data-testid="wiki-new-doc" onClick={() => { setDocId(""); setMode("new"); }}>
+                  <Plus className="h-3 w-3 mr-1" />New document
+                </Button>
+              </div>
             )}
           </aside>
 
@@ -143,10 +160,15 @@ export function Wiki() {
                 <article className="space-y-3">
                   <header className="flex flex-wrap items-center gap-2">
                     <h2 className="text-2xl font-bold flex-1 min-w-0">{docQ.data.title}</h2>
+                    <span className="text-[10px] uppercase tracking-widest px-1.5 py-0.5 rounded border border-border text-muted-foreground" data-testid="wiki-storage-badge">
+                      {STORAGE_LABEL[wikiDocStorage(docQ.data.id)]}
+                    </span>
                     {presenceOn && peers.length > 0 && <PresenceAvatars peers={peers} />}
                     <Button type="button" variant="ghost" size="sm" data-testid="wiki-history-toggle" aria-pressed={showHistory} onClick={() => setShowHistory((s) => !s)}><History className="h-3 w-3 mr-1" />History</Button>
                     {canAuthor && <Button type="button" variant="outline" size="sm" data-testid="wiki-edit-doc" onClick={() => setMode("edit")}><Pencil className="h-3 w-3 mr-1" />Edit</Button>}
-                    {canDelete && <Button type="button" variant="ghost" size="sm" data-testid="wiki-delete-doc" disabled={del.isPending} onClick={onDelete}><Trash2 className="h-3 w-3 mr-1" />Delete</Button>}
+                    {/* Delete is contributor+ for personal/project/sidecar docs; an org-wide doc additionally needs manager+. */}
+                    {canAuthor && (wikiDocStorage(docQ.data.id) !== "org" || canDelete) &&
+                      <Button type="button" variant="ghost" size="sm" data-testid="wiki-delete-doc" disabled={del.isPending} onClick={onDelete}><Trash2 className="h-3 w-3 mr-1" />Delete</Button>}
                   </header>
                   {showHistory && (
                     <DocHistory key={docQ.data.id} docId={docQ.data.id} current={docQ.data} canRestore={canAuthor} restoring={save.isPending} onRestore={onRestore} onClose={() => setShowHistory(false)} />

@@ -9,7 +9,12 @@
  */
 import type { Request } from "express";
 import { getBroker, contextFromReq } from "../broker";
-import type { WikiSpace, WikiDoc, WikiDocWrite, WikiDocVersion, WikiDocVersionMeta } from "../broker/types";
+import type { ActorContext, WikiSpace, WikiDoc, WikiDocWrite, WikiDocVersion, WikiDocVersionMeta } from "../broker/types";
+import type { StorageTarget } from "./artifact-store";
+import {
+  makeScopedId, parseScopedId, scopeFromParsed, isStorageTarget,
+  listArtifacts, getArtifact, putArtifact, deleteArtifact,
+} from "./artifact-store";
 import {
   DOC_BLOCK_TYPES, WIKI_LIMITS, CALLOUT_TONES, docWikiLinks, slugifyDocTitle,
   type DocBlock, type DocBlockType, type DocListItem, type CalloutTone,
@@ -129,22 +134,131 @@ export function sanitizeDocBlocks(raw: unknown): DocBlock[] {
 }
 
 /**
- * Sanitise a whole document write. The single choke point for POST/PUT — validates the title/space, derives
- * a slug when missing, and sanitises every block. Throws {@link WikiError} (→ 400) on any hard violation.
+ * Where a document is stored — the author's CHOICE (permission-gated at the route):
+ *   - `user`     the author's PRIVATE encrypted-JSON area (only they see it).
+ *   - `project`  a project's shared encrypted-JSON area (needs project scope).
+ *   - `org`      the org-wide shared encrypted-JSON area (needs org-write permission).
+ *   - `sidecar`  the built-in system-of-record (the broker), when it models a wiki.
+ * The same storage-target pattern as whiteboards — one shared primitive, no drift.
  */
-export function sanitizeWikiDocWrite(raw: unknown): WikiDocWrite {
+export type WikiDocStorage = StorageTarget;
+/** The artifact-store type keys for wiki documents and their retained revisions. */
+export const WIKI_DOC_ARTIFACT = "wiki-doc";
+export const WIKI_VERSION_ARTIFACT = "wiki-doc-version";
+/** How many revisions to retain per JSON-stored document (a bounded ring, mirroring the sidecar). */
+export const MAX_WIKI_DOC_VERSIONS = 50;
+
+/** A sanitised document write PLUS its chosen storage target. */
+export interface SanitizedWikiDocWrite extends WikiDocWrite {
+  storage: WikiDocStorage;
+  projectId?: string;
+}
+
+/**
+ * Sanitise a whole document write. The single choke point for POST/PUT — validates the title/space, derives
+ * a slug when missing, sanitises every block, and records the storage target. Throws {@link WikiError}
+ * (→ 400) on any hard violation.
+ */
+export function sanitizeWikiDocWrite(raw: unknown): SanitizedWikiDocWrite {
   const obj = (raw ?? {}) as Record<string, unknown>;
   const spaceId = typeof obj["spaceId"] === "string" ? obj["spaceId"].trim() : "";
   if (!spaceId) throw new WikiError("a document needs a spaceId");
   const title = sanitizeText(obj["title"], WIKI_LIMITS.maxTitle).trim();
   if (!title) throw new WikiError("a document needs a title");
   const blocks = sanitizeDocBlocks(obj["blocks"] ?? []);
-  const out: WikiDocWrite = { spaceId, title, blocks };
+  // Storage target — the author's choice, permission-gated at the route. Defaults to the private user area.
+  const storage: WikiDocStorage = isStorageTarget(obj["storage"]) ? obj["storage"] : "user";
+  const out: SanitizedWikiDocWrite = { spaceId, title, blocks, storage };
   const parentId = obj["parentId"];
   if (typeof parentId === "string" && parentId.trim()) out.parentId = parentId.trim();
   const slug = typeof obj["slug"] === "string" && obj["slug"].trim() ? slugifyDocTitle(obj["slug"]) : slugifyDocTitle(title);
   out.slug = slug;
+  const projectId = obj["projectId"];
+  if (typeof projectId === "string" && projectId.trim()) out.projectId = projectId.trim();
+  if (storage === "project" && !out.projectId) throw new WikiError("a project document needs a projectId");
   return out;
+}
+
+// ── Storage-target model: self-describing ids, JSON-store rows + version ring (mirrors whiteboards) ──────────
+
+/** Build a self-describing wiki-doc id (shared scoped-id primitive). */
+export const makeWikiDocId = makeScopedId;
+/** Parse a self-describing wiki-doc id back to its storage + parts, or null if malformed. */
+export const parseWikiDocId = parseScopedId;
+/** The encrypted-JSON scope for a non-sidecar id (the caller's OWN sub is always used for a user doc). */
+export const wikiDocScope = scopeFromParsed;
+
+/** The document's actor label (email > name > sub) for the audit `updatedBy`/`author`. */
+const actorLabel = (ctx: ActorContext): string | null => ctx.email ?? ctx.name ?? ctx.sub ?? null;
+
+/**
+ * Build the row for a NEW document destined for an encrypted-JSON store. The id is self-describing, the
+ * author is recorded, everything else comes from the sanitised write. Kept a plain {@link WikiDoc} so the
+ * read path is identical to a sidecar doc.
+ */
+export function newJsonDocRow(id: string, input: SanitizedWikiDocWrite, ctx: ActorContext, now: string): WikiDoc {
+  return {
+    id,
+    spaceId: input.spaceId,
+    parentId: input.parentId ?? null,
+    slug: input.slug ?? slugifyDocTitle(input.title),
+    title: input.title,
+    blocks: input.blocks,
+    updatedAt: now,
+    updatedBy: actorLabel(ctx),
+  };
+}
+
+/** Apply an UPDATE to an existing JSON document, preserving its id (a write can't move it between stores). */
+export function mergeJsonDocRow(existing: WikiDoc, input: SanitizedWikiDocWrite, ctx: ActorContext, now: string): WikiDoc {
+  return {
+    ...existing,
+    spaceId: input.spaceId,
+    parentId: input.parentId ?? null,
+    slug: input.slug ?? existing.slug,
+    title: input.title,
+    blocks: input.blocks,
+    updatedAt: now,
+    updatedBy: actorLabel(ctx),
+  };
+}
+
+/** The summary view of a document (block bodies dropped) — the list projection. */
+export function docSummary(d: WikiDoc): WikiDoc {
+  return { ...d, blocks: [] };
+}
+
+/**
+ * Capture a revision of a JSON-stored document into its scope's version collection and trim the per-doc ring.
+ * Snapshots are independent copies, so a later edit can't mutate a stored version. `versionId` is unique
+ * within the collection. Runs on every JSON create/update, mirroring the sidecar's history retention.
+ */
+export function captureJsonDocVersion(scope: Parameters<typeof putArtifact>[1], doc: WikiDoc, versionId: string): void {
+  putArtifact<WikiDocVersion & { id: string }>(WIKI_VERSION_ARTIFACT, scope, {
+    id: versionId, versionId, docId: doc.id, at: doc.updatedAt, author: doc.updatedBy ?? null,
+    title: doc.title, blocks: doc.blocks.map((b) => ({ ...b })),
+  });
+  // Trim this doc's ring: keep the newest MAX_WIKI_DOC_VERSIONS by `at`, delete the rest from the collection.
+  const mine = listArtifacts<WikiDocVersion & { id: string }>(WIKI_VERSION_ARTIFACT, scope)
+    .filter((v) => v.docId === doc.id)
+    .sort((a, b) => a.at.localeCompare(b.at));
+  for (const stale of mine.slice(0, Math.max(0, mine.length - MAX_WIKI_DOC_VERSIONS))) {
+    deleteArtifact(WIKI_VERSION_ARTIFACT, scope, stale.id);
+  }
+}
+
+/** The retained revisions of a JSON-stored document, newest first (metadata only). */
+export function listJsonDocVersions(scope: Parameters<typeof listArtifacts>[1], docId: string): WikiDocVersionMeta[] {
+  return listArtifacts<WikiDocVersion & { id: string }>(WIKI_VERSION_ARTIFACT, scope)
+    .filter((v) => v.docId === docId)
+    .sort((a, b) => b.at.localeCompare(a.at))
+    .map(({ versionId, docId: d, at, author, title }) => ({ versionId, docId: d, at, author: author ?? null, title }));
+}
+
+/** One retained revision of a JSON-stored document with its blocks, or null. */
+export function getJsonDocVersion(scope: Parameters<typeof getArtifact>[1], docId: string, versionId: string): WikiDocVersion | null {
+  const v = getArtifact<WikiDocVersion & { id: string }>(WIKI_VERSION_ARTIFACT, scope, versionId);
+  return v && v.docId === docId ? { versionId: v.versionId, docId: v.docId, at: v.at, author: v.author ?? null, title: v.title, blocks: v.blocks } : null;
 }
 
 /** A backlink: another document that references THIS one via a `[[wiki-link]]`. */

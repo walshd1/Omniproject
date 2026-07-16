@@ -118,14 +118,21 @@ const CLASSIFICATION: Record<string, ScopeClass> = {
   // Template id names an org-global config object (the `templates` collection), NOT tenant data; instantiate
   // is manager+ gated and creates a NEW project via the scope-checked broker, so the id is not a lateral vector.
   "POST /templates/:id/instantiate": "global-config",
-  // Wiki document id names an org-wide shared content object in the knowledge base, NOT per-tenant/per-project
-  // data. Read is open to any member (viewer+); create/update is contributor+, delete manager+; bodies live in
-  // the backend through the broker seam. There is no per-user or per-project partition for the id to breach.
+  // A wiki-doc id is SELF-DESCRIBING (`<target>~…~<localId>`) — it names a store, not a bare tenant id (same
+  // storage-target model as whiteboards):
+  //  - `user~…`    the caller's PRIVATE area — the scope always uses the CALLER's own sub, so one user's id
+  //                can never address another's area (structurally isolated, no lateral vector).
+  //  - `project~…` a project's shared area — guarded by guardProjectScope on the encoded projectId (stricter
+  //                than org-content).
+  //  - `org~…`     the org-wide shared area — read viewer+, write/delete manager+ (the org-content posture).
+  //  - `sidecar~…` the built-in wiki, reached through the broker seam.
+  // Classified org-content: the open-read variant (org) has no partition to breach; the user/project variants
+  // add STRICTER guards on top. Read viewer+, author contributor+, delete contributor+ (org write manager+).
   "GET /wiki/docs/:id": "org-content",
   "PUT /wiki/docs/:id": "org-content",
   "DELETE /wiki/docs/:id": "org-content",
-  // A document's revision history — same org-wide shared content, read-only (viewer+); the versionId names a
-  // revision within the doc's own history, not per-tenant data.
+  // A document's revision history — same self-describing id; the versionId names a revision within the doc's
+  // own history (read-only, viewer+, per-target as above), not per-tenant data.
   "GET /wiki/docs/:id/versions": "org-content",
   "GET /wiki/docs/:id/versions/:versionId": "org-content",
   // A whiteboard id is SELF-DESCRIBING (`<target>~…~<localId>`): it names a store, not a bare tenant id.

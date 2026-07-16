@@ -24,6 +24,53 @@ export type ArtifactScope =
   | { kind: "project"; projectId: string }
   | { kind: "org" };
 
+/**
+ * A STORAGE TARGET — where a user-held artifact (a whiteboard, a wiki page) is saved. The first three map to
+ * the scoped encrypted-JSON areas below; `sidecar` means the built-in system-of-record (reached through the
+ * broker seam) instead. The author chooses one; the route permission-gates it. Shared so every artifact kind
+ * uses the SAME self-describing-id + scope logic (no drift between whiteboards and wiki).
+ */
+export type StorageTarget = "user" | "project" | "org" | "sidecar";
+const STORAGE_TARGETS = new Set<string>(["user", "project", "org", "sidecar"]);
+/** Whether a string is a known storage target. */
+export function isStorageTarget(s: unknown): s is StorageTarget {
+  return typeof s === "string" && STORAGE_TARGETS.has(s);
+}
+
+/**
+ * Build a SELF-DESCRIBING artifact id that encodes WHERE it lives (`<target>~…~<localId>`), so a later
+ * read/write routes to the right store without a lookup. `~` never appears in a uuid or a target word.
+ */
+export function makeScopedId(storage: StorageTarget, localId: string, projectId?: string): string {
+  return storage === "project" ? `project~${projectId}~${localId}` : `${storage}~${localId}`;
+}
+
+/** Parse a self-describing id back to its target + parts, or null when malformed. */
+export function parseScopedId(id: string): { storage: StorageTarget; projectId?: string; localId: string } | null {
+  const parts = id.split("~");
+  const storage = parts[0];
+  if (storage === "user" || storage === "org" || storage === "sidecar") {
+    return parts.length >= 2 ? { storage, localId: parts.slice(1).join("~") } : null;
+  }
+  if (storage === "project") {
+    // project~<projectId>~<localId>; localId is a uuid (no ~), projectId is everything between.
+    return parts.length >= 3 ? { storage, projectId: parts.slice(1, -1).join("~"), localId: parts[parts.length - 1]! } : null;
+  }
+  return null;
+}
+
+/**
+ * The encrypted-JSON scope for a parsed non-sidecar id. The caller's OWN sub is always used for a `user`
+ * artifact, so an id can never address another user's private area (cross-user access is structurally
+ * impossible). Returns null for a sidecar id (there is no JSON scope) or a project id missing its projectId.
+ */
+export function scopeFromParsed(parsed: { storage: StorageTarget; projectId?: string }, sub: string | undefined): ArtifactScope | null {
+  if (parsed.storage === "user") return { kind: "user", sub: sub ?? "" };
+  if (parsed.storage === "org") return { kind: "org" };
+  if (parsed.storage === "project" && parsed.projectId) return { kind: "project", projectId: parsed.projectId };
+  return null;
+}
+
 /** Max items retained per (type, scope) collection — bounds one sealed file's growth. */
 const MAX_PER_COLLECTION = 1000;
 

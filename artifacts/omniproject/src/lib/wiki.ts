@@ -10,16 +10,31 @@ import type { DocBlock } from "@workspace/backend-catalogue";
  */
 
 export interface WikiSpace { id: string; key: string; name: string; description?: string | null }
-export interface WikiDocSummary { id: string; spaceId: string; parentId?: string | null; slug: string; title: string; updatedAt: string; updatedBy?: string | null }
+/**
+ * Where a document is saved — the author's CHOICE (permission-gated server-side):
+ *   - `user`     their PRIVATE encrypted-JSON area (default; only they see it).
+ *   - `project`  a project's shared encrypted-JSON area (needs project access).
+ *   - `org`      the org-wide shared encrypted-JSON area (writing needs manager+).
+ *   - `sidecar`  the built-in system-of-record, when it models a wiki.
+ */
+export type WikiDocStorage = "user" | "project" | "org" | "sidecar";
+export interface WikiDocSummary { id: string; spaceId: string; parentId?: string | null; slug: string; title: string; storage?: WikiDocStorage; updatedAt: string; updatedBy?: string | null }
 export interface WikiBacklink { id: string; title: string; slug: string; spaceId: string }
 export interface WikiDoc extends WikiDocSummary { blocks: DocBlock[]; backlinks?: WikiBacklink[] }
-export interface WikiDocInput { spaceId: string; title: string; blocks: DocBlock[]; parentId?: string | null; slug?: string }
+export interface WikiDocInput { spaceId: string; title: string; blocks: DocBlock[]; parentId?: string | null; slug?: string; storage?: WikiDocStorage; projectId?: string | null }
 /** A saved revision's metadata (history list) and full body (preview / diff / restore). */
 export interface WikiDocVersionMeta { versionId: string; docId: string; at: string; author?: string | null; title: string }
 export interface WikiDocVersion extends WikiDocVersionMeta { blocks: DocBlock[] }
 
 /** The shared-surface room id a document uses for presence + comments (matches the server convention). */
 export const wikiRoomId = (docId: string) => `doc:${docId}`;
+
+/** The storage target encoded in a self-describing doc id (`<target>~…`) — for a storage badge. Defaults to
+ *  `user` when the prefix isn't a known target (e.g. a legacy bare id). */
+export function wikiDocStorage(id: string): WikiDocStorage {
+  const head = id.split("~")[0];
+  return head === "user" || head === "project" || head === "org" || head === "sidecar" ? head : "user";
+}
 
 /** A document with its children resolved — the page-tree node the sidebar renders. */
 export interface WikiDocNode extends WikiDocSummary { children: WikiDocNode[]; depth: number }
