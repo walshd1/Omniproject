@@ -53,7 +53,7 @@ jobs:
           subject-digest: ${{ steps.img.outputs.digest }}
 
       - name: Attest the SBOM
-        uses: actions/attest-sbom@v1
+        uses: actions/attest-sbom@v4
         with:
           subject-name: omni-shell
           subject-digest: ${{ steps.img.outputs.digest }}
