@@ -24,32 +24,36 @@ const TOOLS: { tool: Tool; icon: typeof MousePointer2; label: string }[] = [
 
 const pct = (n: number): string => `${(n * 100).toFixed(3)}%`;
 
-export function AnnotationOverlay({ deliverable, annotations, onChange, readOnly = false }: {
+export function AnnotationOverlay({ deliverable, annotations, onChange, readOnly = false, onSelect }: {
   deliverable: Deliverable;
   annotations: Annotation[];
   onChange: (next: Annotation[]) => void;
   readOnly?: boolean;
+  /** Fired when the selected annotation changes (null on deselect) — lets the page show its review thread. */
+  onSelect?: ((id: string | null) => void) | undefined;
 }) {
   const surfaceRef = useRef<HTMLDivElement>(null);
   const [tool, setTool] = useState<Tool>("select");
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedId, setSelectedIdState] = useState<string | null>(null);
   const drag = useRef<{ id: string } | null>(null);
 
+  const select = (id: string | null) => { setSelectedIdState(id); onSelect?.(id); };
   const selected = annotations.find((a) => a.id === selectedId) ?? null;
   const rect = () => surfaceRef.current!.getBoundingClientRect();
 
   const onSurfacePointerDown = (e: React.PointerEvent) => {
-    if (readOnly || tool === "select") return;
+    if (tool === "select") { select(null); return; } // click empty canvas → deselect (closes the thread)
+    if (readOnly) return;
     const at = toNorm(e.clientX, e.clientY, rect());
     const ann = placeAnnotation(tool, at, newAnnotationId());
     onChange([...annotations, ann]);
-    setSelectedId(ann.id);
+    select(ann.id);
     setTool("select");
   };
 
   const onMarkerPointerDown = (e: React.PointerEvent, id: string) => {
     e.stopPropagation();
-    setSelectedId(id);
+    select(id);
     if (readOnly || tool !== "select") return;
     (e.target as Element).setPointerCapture?.(e.pointerId);
     drag.current = { id };
@@ -67,7 +71,7 @@ export function AnnotationOverlay({ deliverable, annotations, onChange, readOnly
     const { resolved: _drop, ...rest } = a; // set/clear without assigning `undefined` (exactOptionalPropertyTypes)
     return checked ? { ...rest, resolved: true } : rest;
   }));
-  const remove = () => { if (selected) { onChange(annotations.filter((a) => a.id !== selected.id)); setSelectedId(null); } };
+  const remove = () => { if (selected) { onChange(annotations.filter((a) => a.id !== selected.id)); select(null); } };
 
   return (
     <div className="flex flex-col gap-2" data-testid="annotation-overlay">

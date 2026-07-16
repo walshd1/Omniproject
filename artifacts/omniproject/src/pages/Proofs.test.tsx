@@ -19,6 +19,7 @@ function mockFetch() {
     if (url.includes("/api/proofs/user~p1/decision")) body = { ...PROOF, decision: "approved", decisionVersion: 1, decidedBy: "me" };
     else if (url.includes("/api/proofs/user~p1")) body = PROOF;
     else if (url.includes("/api/proofs")) body = LIST;
+    else if (url.includes("/api/comments")) body = { comments: [] };
     return Promise.resolve(new Response(JSON.stringify(body), { status: 200 }));
   });
 }
@@ -59,6 +60,17 @@ describe("Proofs page", () => {
       String(u).includes("/api/proofs/user~p1/decision") && (o as RequestInit | undefined)?.method === "POST");
     expect(post, "a decision was POSTed").toBeTruthy();
     expect(String((post![1] as RequestInit).body)).toContain("approved");
+  });
+
+  it("shows a general review thread, and switches to a per-annotation thread on select", async () => {
+    mockFetch();
+    renderWithProviders(<Proofs />, { client: seed("contributor") });
+    fireEvent.click(await screen.findByTestId("proof-link-user~p1"));
+    const thread = await screen.findByTestId("proof-review-thread");
+    expect(thread).toHaveTextContent(/General review/i);
+    // Selecting the seeded pin switches the thread to that annotation.
+    fireEvent.pointerDown(await screen.findByTestId("annotation-a1"), { pointerId: 1 });
+    expect(await screen.findByTestId("proof-review-thread")).toHaveTextContent(/annotation 1/i);
   });
 
   it("shows an unsupported notice when proofing is off (501)", async () => {

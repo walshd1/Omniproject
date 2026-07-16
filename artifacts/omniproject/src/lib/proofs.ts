@@ -27,8 +27,10 @@ export interface Proof extends ProofMeta {
 }
 export interface ProofInput { name: string; deliverable: Deliverable; annotations: Annotation[]; storage?: ProofStorage; projectId?: string | null }
 
-/** The shared-surface room id a proof uses for presence + review comments (matches the server convention). */
-export const proofRoomId = (proofId: string) => `proof:${proofId}`;
+/** The shared-surface room id a proof uses for presence + review comments (matches the server convention).
+ *  Pass an annotationId for a THREAD PINNED TO THAT ANNOTATION; omit it for the proof's general discussion. */
+export const proofRoomId = (proofId: string, annotationId?: string) =>
+  annotationId ? `proof:${proofId}#${annotationId}` : `proof:${proofId}`;
 
 export const proofsKey = (projectId?: string) => ["proofs", projectId ?? "all"] as const;
 export const proofKey = (id: string) => ["proof", id] as const;

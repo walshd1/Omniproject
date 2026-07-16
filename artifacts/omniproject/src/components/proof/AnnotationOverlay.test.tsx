@@ -43,6 +43,16 @@ describe("AnnotationOverlay", () => {
     expect(onChange.mock.calls.at(-1)![0]).toEqual([]);
   });
 
+  it("reports selection via onSelect (marker select, and deselect on empty-canvas click)", () => {
+    const anns: Annotation[] = [{ id: "a1", type: "pin", x: 0.2, y: 0.2 }];
+    const onSelect = vi.fn<(id: string | null) => void>();
+    render(<AnnotationOverlay deliverable={IMG} annotations={anns} onChange={() => {}} onSelect={onSelect} />);
+    fireEvent.pointerDown(screen.getByTestId("annotation-a1"), { pointerId: 1 });
+    expect(onSelect).toHaveBeenLastCalledWith("a1");
+    fireEvent.pointerDown(screen.getByTestId("annotation-surface"), { clientX: 5, clientY: 5, pointerId: 2 });
+    expect(onSelect).toHaveBeenLastCalledWith(null); // clicking empty canvas (select tool) deselects
+  });
+
   it("hides all editing in read-only mode (a viewer still sees markers)", () => {
     const anns: Annotation[] = [{ id: "a1", type: "pin", x: 0.2, y: 0.2 }];
     render(<AnnotationOverlay deliverable={IMG} annotations={anns} onChange={() => {}} readOnly />);
