@@ -120,6 +120,10 @@ const CLASSIFICATION: Record<string, ScopeClass> = {
   "GET /wiki/docs/:id": "org-content",
   "PUT /wiki/docs/:id": "org-content",
   "DELETE /wiki/docs/:id": "org-content",
+  // A document's revision history — same org-wide shared content, read-only (viewer+); the versionId names a
+  // revision within the doc's own history, not per-tenant data.
+  "GET /wiki/docs/:id/versions": "org-content",
+  "GET /wiki/docs/:id/versions/:versionId": "org-content",
 
   // ── Own-resource / approver: in-handler RBAC + state machine ──
   "POST /timesheets/:id/action": "self-or-approver",

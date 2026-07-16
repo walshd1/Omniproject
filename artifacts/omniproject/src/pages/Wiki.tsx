@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { BookOpen, Plus, Pencil, Trash2 } from "lucide-react";
+import { BookOpen, Plus, Pencil, Trash2, History } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth, roleAtLeast } from "../lib/auth";
 import { useFeatures, featureEnabled } from "../lib/features";
@@ -8,10 +8,11 @@ import { usePresence } from "../lib/presence";
 import {
   useWikiSpaces, useWikiDocs, useWikiDoc,
   useCreateWikiDoc, useSaveWikiDoc, useDeleteWikiDoc,
-  wikiRoomId, buildDocTree, flattenDocTree, type WikiDocInput,
+  wikiRoomId, buildDocTree, flattenDocTree, type WikiDocInput, type WikiDocVersion,
 } from "../lib/wiki";
 import { DocRenderer } from "../components/wiki/DocRenderer";
 import { DocEditor } from "../components/wiki/DocEditor";
+import { DocHistory } from "../components/wiki/DocHistory";
 import { PresenceAvatars } from "../components/presence/PresenceAvatars";
 import { CommentsPanel } from "../components/issue-dialog/CommentsPanel";
 
@@ -29,6 +30,7 @@ export function Wiki() {
   const [spaceId, setSpaceId] = useState<string>("");
   const [docId, setDocId] = useState<string>("");
   const [mode, setMode] = useState<"view" | "edit" | "new">("view");
+  const [showHistory, setShowHistory] = useState(false);
 
   const spaces = Array.isArray(spacesQ.data) ? spacesQ.data : [];
   // Default to the first space once loaded.
@@ -73,6 +75,18 @@ export function Wiki() {
       onSuccess: () => { setDocId(""); setMode("view"); toast({ title: "DOCUMENT DELETED" }); },
       onError: (e) => toast({ title: "COULD NOT DELETE", description: e instanceof Error ? e.message : "Try again.", variant: "destructive" }),
     });
+  };
+  // Restore a revision by re-saving the current doc with its content — the normal update path (same
+  // sanitiser + RBAC gate), which itself records a new revision. No special "restore" power.
+  const onRestore = (version: WikiDocVersion) => {
+    if (!docQ.data) return;
+    save.mutate(
+      { spaceId: docQ.data.spaceId, title: version.title, blocks: version.blocks, parentId: docQ.data.parentId ?? null },
+      {
+        onSuccess: () => { setShowHistory(false); toast({ title: "REVISION RESTORED", description: version.title }); },
+        onError: (e) => toast({ title: "COULD NOT RESTORE", description: e instanceof Error ? e.message : "Try again.", variant: "destructive" }),
+      },
+    );
   };
 
   return (
@@ -129,9 +143,13 @@ export function Wiki() {
                   <header className="flex flex-wrap items-center gap-2">
                     <h2 className="text-2xl font-bold flex-1 min-w-0">{docQ.data.title}</h2>
                     {presenceOn && peers.length > 0 && <PresenceAvatars peers={peers} />}
+                    <Button type="button" variant="ghost" size="sm" data-testid="wiki-history-toggle" aria-pressed={showHistory} onClick={() => setShowHistory((s) => !s)}><History className="h-3 w-3 mr-1" />History</Button>
                     {canAuthor && <Button type="button" variant="outline" size="sm" data-testid="wiki-edit-doc" onClick={() => setMode("edit")}><Pencil className="h-3 w-3 mr-1" />Edit</Button>}
                     {canDelete && <Button type="button" variant="ghost" size="sm" data-testid="wiki-delete-doc" disabled={del.isPending} onClick={onDelete}><Trash2 className="h-3 w-3 mr-1" />Delete</Button>}
                   </header>
+                  {showHistory && (
+                    <DocHistory key={docQ.data.id} docId={docQ.data.id} current={docQ.data} canRestore={canAuthor} restoring={save.isPending} onRestore={onRestore} onClose={() => setShowHistory(false)} />
+                  )}
                   <DocRenderer blocks={docQ.data.blocks} />
                   {!!docQ.data.backlinks?.length && (
                     <footer className="border-t border-border pt-2" data-testid="wiki-backlinks">

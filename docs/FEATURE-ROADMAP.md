@@ -212,8 +212,15 @@ authoring, and the drift guards — no feature bypasses the golden rules.
   pure, cycle-safe `buildDocTree`/`flattenDocTree` renders the doc list as an indented tree, and the
   `DocEditor` gains a "parent page" picker that excludes the doc itself and its descendants (no cycles).
   A dangling/cyclic parent degrades to a root, so no page can be hidden or loop the walk.
-- **Slice 5+ (next).** **Yjs** CRDT co-edit (binds via `y-prosemirror`, awareness = live cursors)
-  over our SSE; version-diff history.
+- **Slice 5 ✅ (version history + diff).** The system of record captures a **revision snapshot on every
+  write** (bounded ring); two optional capability-gated broker reads (`listWikiDocVersions`,
+  `getWikiDocVersion` → 501 when a backend doesn't retain history) expose the history behind viewer+
+  routes. The doc view gains a **History** panel: revisions newest-first, a pure structural
+  **block diff** (`diffDocBlocks`, aligned by block id — no text-diff dependency, bodies stay block
+  JSON) of "what changed since this revision", and a **Restore** that re-saves through the ordinary
+  update path — same sanitiser + RBAC gate, and itself a new revision (no special restore power).
+- **Slice 6+ (next).** **Yjs** CRDT co-edit (binds via `y-prosemirror`, awareness = live cursors)
+  over our SSE — the one remaining real-time piece.
 
 ### 2.2 Guest / external collaboration & client portals  ⬜ Todo
 - **Competitors.** Monday, Wrike, Smartsheet. **Gap.** Enterprise-IdP/SCIM only; no
@@ -422,3 +429,7 @@ so an attachment field would be a URL reference (`url` type) pointing at the sys
 - _2026-07-16_ — Phase 2.1 slice 4 (page tree) shipped: docs nest by `parentId` with a pure,
   cycle-safe `buildDocTree`; the sidebar renders an indented tree and the editor offers a descendant-
   excluding parent picker. Dangling/cyclic parents degrade to roots (no page hidden or lost).
+- _2026-07-16_ — Phase 2.1 slice 5 (version history + diff) shipped: the SoR captures a revision
+  snapshot per write (bounded ring); two optional broker reads (`listWikiDocVersions`/`getWikiDocVersion`,
+  501 when unsupported) feed a viewer+ History panel with a pure structural block diff (`diffDocBlocks`)
+  and a Restore that re-saves via the normal update path (same sanitiser + RBAC, itself a new revision).

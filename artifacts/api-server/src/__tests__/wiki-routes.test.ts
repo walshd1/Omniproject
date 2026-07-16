@@ -58,6 +58,23 @@ test("wiki: update then delete a doc", async () => {
   assert.equal((await req(`/wiki/docs/${created.id}`)).status, 404);
 });
 
+test("wiki: version history captures a revision per write and serves it back for restore", async () => {
+  // A seeded doc already has a baseline revision; each save appends one more.
+  const before = (await (await req("/wiki/docs/doc-standards/versions")).json()) as Array<{ versionId: string; title: string }>;
+  assert.ok(before.length >= 1, "seeded doc has a baseline revision");
+
+  await req("/wiki/docs/doc-standards", { method: "PUT", body: { spaceId: "space-pmo", title: "Delivery standards v2", blocks: [{ id: "b1", type: "paragraph", text: "revised" }] } });
+  const list = (await (await req("/wiki/docs/doc-standards/versions")).json()) as Array<{ versionId: string; title: string }>;
+  assert.equal(list.length, before.length + 1, "a revision was captured on update");
+  assert.equal(list[0]!.title, "Delivery standards v2", "newest revision is first");
+
+  // The OLDEST revision still carries the pre-edit content — the material for a restore.
+  const oldest = list[list.length - 1]!;
+  const full = (await (await req(`/wiki/docs/doc-standards/versions/${oldest.versionId}`)).json()) as { blocks: unknown[]; title: string };
+  assert.ok(Array.isArray(full.blocks), "a revision carries its block body");
+  assert.equal((await req("/wiki/docs/doc-standards/versions/nope")).status, 404, "unknown revision → 404");
+});
+
 test("wiki: RBAC — a viewer can read but not author; a contributor can author", async () => {
   // Leave demo mode so RBAC is real, and pin the group→role mapping so viewer/contributor resolve.
   const prev = { iss: process.env["OIDC_ISSUER_URL"], view: process.env["OIDC_VIEWER_ROLES"], contrib: process.env["OIDC_CONTRIBUTOR_ROLES"] };

@@ -14,6 +14,9 @@ export interface WikiDocSummary { id: string; spaceId: string; parentId?: string
 export interface WikiBacklink { id: string; title: string; slug: string; spaceId: string }
 export interface WikiDoc extends WikiDocSummary { blocks: DocBlock[]; backlinks?: WikiBacklink[] }
 export interface WikiDocInput { spaceId: string; title: string; blocks: DocBlock[]; parentId?: string | null; slug?: string }
+/** A saved revision's metadata (history list) and full body (preview / diff / restore). */
+export interface WikiDocVersionMeta { versionId: string; docId: string; at: string; author?: string | null; title: string }
+export interface WikiDocVersion extends WikiDocVersionMeta { blocks: DocBlock[] }
 
 /** The shared-surface room id a document uses for presence + comments (matches the server convention). */
 export const wikiRoomId = (docId: string) => `doc:${docId}`;
@@ -82,6 +85,8 @@ export function descendantIds(docs: readonly WikiDocSummary[], id: string): Set<
 export const wikiSpacesKey = ["wiki", "spaces"] as const;
 export const wikiDocsKey = (spaceId?: string) => ["wiki", "docs", spaceId ?? "all"] as const;
 export const wikiDocKey = (id: string) => ["wiki", "doc", id] as const;
+export const wikiVersionsKey = (docId: string) => ["wiki", "versions", docId] as const;
+export const wikiVersionKey = (docId: string, versionId: string) => ["wiki", "version", docId, versionId] as const;
 
 /** The knowledge-base spaces. */
 export function useWikiSpaces() {
@@ -104,6 +109,27 @@ export function useWikiDoc(id: string | undefined) {
   });
 }
 
+/** A document's saved revisions, newest first (metadata only). Errors (→ hook isError) when the backend
+ *  doesn't retain history (501); the history panel treats that as "unavailable". */
+export function useWikiDocVersions(docId: string | undefined) {
+  return useQuery({
+    queryKey: wikiVersionsKey(docId ?? ""),
+    queryFn: () => getJson<WikiDocVersionMeta[]>(`/api/wiki/docs/${encodeURIComponent(docId!)}/versions`),
+    enabled: !!docId,
+    staleTime: 10_000,
+  });
+}
+
+/** One saved revision with its blocks (for preview / diff / restore). */
+export function useWikiDocVersion(docId: string | undefined, versionId: string | undefined) {
+  return useQuery({
+    queryKey: wikiVersionKey(docId ?? "", versionId ?? ""),
+    queryFn: () => getJson<WikiDocVersion>(`/api/wiki/docs/${encodeURIComponent(docId!)}/versions/${encodeURIComponent(versionId!)}`),
+    enabled: !!docId && !!versionId,
+    staleTime: 60_000,
+  });
+}
+
 /** Create a document (contributor+ server-side). */
 export function useCreateWikiDoc() {
   const qc = useQueryClient();
@@ -118,7 +144,11 @@ export function useSaveWikiDoc(id: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (input: WikiDocInput) => sendJson<WikiDoc>(`/api/wiki/docs/${encodeURIComponent(id)}`, input, "PUT", "Failed to save document"),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: wikiDocKey(id) }); qc.invalidateQueries({ queryKey: ["wiki", "docs"] }); },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: wikiDocKey(id) });
+      qc.invalidateQueries({ queryKey: ["wiki", "docs"] });
+      qc.invalidateQueries({ queryKey: wikiVersionsKey(id) }); // a save appends a revision
+    },
   });
 }
 
