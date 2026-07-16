@@ -22,6 +22,9 @@ export type PlacementSurface = "screen" | "report" | "dashboard" | "content" | "
 export interface Primitive {
   /** Unique WITHIN its family (a `table` panel and a `table` viz are different primitives). */
   id: string;
+  /** The bare value an author inserts to USE this primitive — the panel kind, viz id, field type, or
+   *  (for the namespaced `component` family) the underlying report id / widget type. */
+  sourceId: string;
   family: PrimitiveFamily;
   label: string;
   /** SUBFOLDER within the family — the palette groups primitives as `family / category`. Always set. */
@@ -79,7 +82,7 @@ const VIZ_TAGS: Record<string, string[]> = {
 function panelPrimitives(): Primitive[] {
   return Object.keys(PANEL_RENDERERS).map((id) => {
     const meta = PANEL_META[id] ?? { category: "other", tags: [] };
-    return { id, family: "panel", label: titleCase(id), category: meta.category, tags: meta.tags, placeableIn: ["screen"] };
+    return { id, sourceId: id, family: "panel", label: titleCase(id), category: meta.category, tags: meta.tags, placeableIn: ["screen"] };
   });
 }
 
@@ -87,6 +90,7 @@ function panelPrimitives(): Primitive[] {
 function vizPrimitives(): Primitive[] {
   return PRIMITIVE_LIBRARY.map((p) => ({
     id: p.id,
+    sourceId: p.id,
     family: "viz",
     label: p.label ?? titleCase(p.id),
     category: p.category, // "chart" | "graphic" | "table" | "tile"
@@ -99,7 +103,7 @@ function vizPrimitives(): Primitive[] {
 function fieldPrimitives(): Primitive[] {
   return FORM_FIELD_TYPES.map((id) => {
     const meta = FIELD_META[id] ?? { category: "other", tags: [] };
-    return { id, family: "field", label: titleCase(id), category: meta.category, tags: meta.tags, placeableIn: ["form"] };
+    return { id, sourceId: id, family: "field", label: titleCase(id), category: meta.category, tags: meta.tags, placeableIn: ["form"] };
   });
 }
 
@@ -107,6 +111,7 @@ function fieldPrimitives(): Primitive[] {
 function componentPrimitives(): Primitive[] {
   return componentLibrary().map((c) => ({
     id: c.id,
+    sourceId: c.sourceId,
     family: "component",
     label: c.label,
     category: c.category, // the report kind, or "dashboard" for a widget

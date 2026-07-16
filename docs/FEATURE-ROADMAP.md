@@ -221,13 +221,19 @@ with no per-surface edit; and any new JSON **def files** (screens / forms / repo
 reference it render through the existing generic renderers. So "a new primitive + the JSON defs
 that use it" is one shippable bundle.
 
-**Authoring surfaces wired (done):** the screen builder's panel-kind picker (`ScreenEditor`) and
-the form builder's field-type picker (`FormsAdmin`) now render their options from
-`familyFolders(family, surface)` — grouped into subfolders, sourced from the store. This also
-fixed a stale hand-maintained panel list that had drifted (it omitted register/form/…).
-**Follow-up:** the browsable palette (`PrimitiveLibrary`) and the report/dashboard builders still
-render their own lists — migrate them to `primitiveTree(surface)` for one folder/tag palette
-everywhere.
+**Authoring surfaces wired (done — one palette everywhere):**
+- `ScreenEditor` panel-kind picker → `familyFolders("panel","screen")` (subfolder optgroups); fixed a
+  stale hand-maintained list that had drifted (omitted register/form/…).
+- `FormsAdmin` field-type picker → `familyFolders("field","form")` (subfolder optgroups).
+- `PrimitiveLibrary` (the browsable palette, also embedded in the **report builder**
+  `CustomReportsAdmin`) → renders the whole store via `primitiveTree(surface?)`: every family, grouped
+  into category subfolders, with tag chips; viz primitives keep their chart-catalogue detail; `surface`
+  scopes it; `onPick` returns the store `Primitive`.
+- `Dashboards` add-widget picker → the store's `component` family placeable on a dashboard
+  (`primitivesFor("dashboard")`), intersected with the capability-available widgets, value = `sourceId`.
+
+Every insertion/browse surface now reads from the one store, so a new primitive shipped as an update
+appears in all of them with no per-surface edit.
 
 ## Form primitive backlog
 
