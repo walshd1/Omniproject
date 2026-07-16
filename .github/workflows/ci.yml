@@ -51,16 +51,16 @@ jobs:
         run: pnpm run typecheck
 
       - name: Unit tests + coverage gate (gateway)
-        # v8/c8 coverage over 3k+ tests sits near the default ~4 GB heap; give Node headroom so a
-        # borderline run can't OOM the worker (ubuntu-latest has ~16 GB).
+        # v8/c8 coverage over 3k+ tests far exceeds the default ~4 GB heap; a worker fork peaked ~6 GB in
+        # CI, so give Node 8 GB of headroom (ubuntu-latest has ~16 GB, and only one fork peaks at a time).
         run: pnpm --filter @workspace/api-server run test:coverage
         env:
-          NODE_OPTIONS: --max-old-space-size=6144
+          NODE_OPTIONS: --max-old-space-size=8192
 
       - name: Unit tests + coverage gate (SPA)
         run: pnpm --filter @workspace/omniproject run test:coverage
         env:
-          NODE_OPTIONS: --max-old-space-size=6144
+          NODE_OPTIONS: --max-old-space-size=8192
 
       - name: Unit tests (tooling — setup wizard, deploy generators)
         run: pnpm --filter @workspace/scripts run test
