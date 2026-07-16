@@ -12,7 +12,7 @@ import type { ActorContext } from "../broker/types";
 /** Goal/OKR model: key-result attainment, progress roll-up, write sanitising, ids, and the row lifecycle. */
 
 const ctx: ActorContext = { sub: "u1", name: "Ada", email: "ada@x.io" } as ActorContext;
-const kr = (over: Partial<KeyResult>): KeyResult => ({ id: "k", label: "KR", startValue: 0, target: 100, current: 0, ...over });
+const kr = (over: Partial<KeyResult>): KeyResult => ({ id: "k", label: "KR", kind: "number", startValue: 0, target: 100, current: 0, ...over });
 
 test("keyResultAttainment: 0 at start, 100 at target, clamped, sign-symmetric for decreasing targets", () => {
   assert.equal(keyResultAttainment(kr({ current: 0 })), 0);
@@ -25,6 +25,20 @@ test("keyResultAttainment: 0 at start, 100 at target, clamped, sign-symmetric fo
   // start == target: met only when reached.
   assert.equal(keyResultAttainment(kr({ startValue: 5, target: 5, current: 5 })), 100);
   assert.equal(keyResultAttainment(kr({ startValue: 5, target: 5, current: 4 })), 0);
+});
+
+test("keyResultAttainment: a milestone kind is binary (met ⇒ 100, else 0)", () => {
+  assert.equal(keyResultAttainment(kr({ kind: "milestone", target: 1, current: 0 })), 0);
+  assert.equal(keyResultAttainment(kr({ kind: "milestone", target: 1, current: 1 })), 100);
+  // A proportional kind still rolls partway (50%), where a milestone would be 0.
+  assert.equal(keyResultAttainment(kr({ kind: "percent", target: 1, current: 0.5 })), 50);
+});
+
+test("sanitizeGoalWrite: key-result kind defaults to number and validates", () => {
+  const w = sanitizeGoalWrite({ title: "G", keyResults: [{ label: "a", target: 1 }, { label: "b", kind: "currency", target: 1000 }, { label: "c", kind: "bogus", target: 1 }] });
+  assert.equal(w.keyResults[0]!.kind, "number"); // default
+  assert.equal(w.keyResults[1]!.kind, "currency");
+  assert.equal(w.keyResults[2]!.kind, "number"); // invalid → default
 });
 
 test("goalProgress: mean of key-result attainment, 0 when none", () => {

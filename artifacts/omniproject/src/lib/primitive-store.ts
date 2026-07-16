@@ -1,6 +1,6 @@
 import { PANEL_RENDERERS } from "../components/screen/registry";
 import { PRIMITIVE_LIBRARY } from "../definitions/primitives";
-import { componentLibrary, FORM_FIELD_TYPES, DOC_BLOCK_TYPES, CANVAS_ELEMENT_TYPES, ANNOTATION_TYPES } from "@workspace/backend-catalogue";
+import { componentLibrary, FORM_FIELD_TYPES, DOC_BLOCK_TYPES, CANVAS_ELEMENT_TYPES, ANNOTATION_TYPES, KEY_RESULT_KINDS } from "@workspace/backend-catalogue";
 
 /**
  * THE single shared primitive store — one catalogue over every renderable building block in the product,
@@ -18,9 +18,10 @@ import { componentLibrary, FORM_FIELD_TYPES, DOC_BLOCK_TYPES, CANVAS_ELEMENT_TYP
  *  - `block`     document/wiki content blocks (heading/paragraph/checklist/…) — from DOC_BLOCK_TYPES.
  *  - `canvas`    whiteboard elements (sticky/shape/text/connector/frame) — from CANVAS_ELEMENT_TYPES.
  *  - `annotation` proof review markers (pin/box/highlight) — from ANNOTATION_TYPES.
+ *  - `keyResult` goal measures (number/percent/currency/milestone) — from KEY_RESULT_KINDS.
  */
-export type PrimitiveFamily = "panel" | "viz" | "field" | "component" | "block" | "canvas" | "annotation";
-export type PlacementSurface = "screen" | "report" | "dashboard" | "content" | "form" | "export" | "canvas" | "proof";
+export type PrimitiveFamily = "panel" | "viz" | "field" | "component" | "block" | "canvas" | "annotation" | "keyResult";
+export type PlacementSurface = "screen" | "report" | "dashboard" | "content" | "form" | "export" | "canvas" | "proof" | "goal";
 
 export interface Primitive {
   /** Unique WITHIN its family (a `table` panel and a `table` viz are different primitives). */
@@ -109,6 +110,14 @@ const ANNOTATION_META: Record<string, { category: string; tags: string[] }> = {
   highlight: { category: "region", tags: ["area", "emphasis"] },
 };
 
+/** `keyResult` family — subfolder + tags per goal key-result measure primitive. */
+const KEY_RESULT_META: Record<string, { category: string; tags: string[] }> = {
+  number: { category: "quantitative", tags: ["count"] },
+  percent: { category: "quantitative", tags: ["ratio"] },
+  currency: { category: "quantitative", tags: ["financial"] },
+  milestone: { category: "binary", tags: ["deliverable"] },
+};
+
 /** `viz` family — cross-cutting tags per data-visualisation primitive (subfolder is its chart category). */
 const VIZ_TAGS: Record<string, string[]> = {
   bar: ["comparison"], line: ["timeseries", "trend"], area: ["timeseries", "trend"],
@@ -171,6 +180,14 @@ function annotationPrimitives(): Primitive[] {
   });
 }
 
+/** `keyResult` family — the goal measure primitives. Key results live on a goal (the `goal` surface). */
+function keyResultPrimitives(): Primitive[] {
+  return KEY_RESULT_KINDS.map((id) => {
+    const meta = KEY_RESULT_META[id] ?? { category: "other", tags: [] };
+    return { id, sourceId: id, family: "keyResult", label: titleCase(id), category: meta.category, tags: meta.tags, placeableIn: ["goal"] };
+  });
+}
+
 /** `component` family — hosted reports + widgets, already placement-tagged by the shared library. */
 function componentPrimitives(): Primitive[] {
   return componentLibrary().map((c) => ({
@@ -192,6 +209,7 @@ export const PRIMITIVES: Primitive[] = [
   ...blockPrimitives(),
   ...canvasPrimitives(),
   ...annotationPrimitives(),
+  ...keyResultPrimitives(),
   ...componentPrimitives(),
 ];
 

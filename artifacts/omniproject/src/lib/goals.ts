@@ -1,5 +1,8 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { type KeyResultKind } from "@workspace/backend-catalogue";
 import { getJson, sendJson } from "./api";
+
+export { KEY_RESULT_KINDS, formatKeyResultValue, type KeyResultKind } from "@workspace/backend-catalogue";
 
 /**
  * Goals / OKRs client hooks over `/api/goals/*` (roadmap 3.2). A goal is a first-class OBJECTIVE with
@@ -11,7 +14,7 @@ import { getJson, sendJson } from "./api";
 export type GoalStorage = "user" | "project" | "org";
 export type GoalStatus = "draft" | "on_track" | "at_risk" | "off_track" | "achieved";
 
-export interface KeyResult { id: string; label: string; startValue: number; target: number; current: number; unit?: string }
+export interface KeyResult { id: string; label: string; kind: KeyResultKind; startValue: number; target: number; current: number; unit?: string }
 export interface GoalCheckIn { id: string; at: string; by: string | null; note: string | null; status: GoalStatus; progressPct: number; krValues: Record<string, number> }
 export interface GoalLink { key: string; system: string; projectRef: string; itemRef: string; label?: string; linkedAt: string }
 
