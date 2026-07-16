@@ -640,7 +640,7 @@ authoring, and the drift guards — no feature bypasses the golden rules.
   start/stop timer + first-class invoices (typed line primitives, derived totals, lifecycle). Auto-generating
   invoice lines from billable timesheet actuals × the rate-card engine is a natural follow-up.**
 
-### 3.4 Third-party app / plugin marketplace  🚧 In progress (slice 1)
+### 3.4 Third-party app / plugin marketplace  ✅ Done (slices 1–2)
 - **Competitors.** Jira/Monday/Asana marketplaces. **Have.** 41 connectors + MCP + broker
   seam. **Missing.** UI-extension ecosystem (installable panels/screens/reports).
 - **Leverage.** Panel registry, screen-def bundles, MCP, config-bundle delivery.
@@ -660,6 +660,15 @@ authoring, and the drift guards — no feature bypasses the golden rules.
   **`marketplace`** module. 2 catalogue + 2 pure (incl. store round-trip + active/disabled) + 3 route tests +
   drift guard; all three packages typecheck clean. **Next:** the marketplace UI + surfacing contributions into
   the report/content catalogues (slice 2).
+- **Slice 2 ✅ (marketplace UI — completes the 3.4 MVP).** `lib/marketplace` hooks (`useExtensions` /
+  `useExtension` / install / setStatus / uninstall) + `pages/Marketplace` — a `/marketplace` admin surface:
+  the installed-extension list (status + contribution kinds), an **install-from-manifest** form (paste JSON,
+  client-side validity guard before the server round-trip), and per-extension **enable/disable** + **uninstall**
+  actions. Wired as an admin-group nav item gated on the **`marketplace`** module + pmo/admin visibility
+  (nav-order + admin-shelf drift guards + `nav.marketplace` i18n). 3 page tests (list, empty, bad-JSON guard);
+  nav/i18n guards + typecheck green. **3.4 MVP complete: an optional, default-off, admin-governed marketplace
+  for installing pure-JSON extensions. Auto-surfacing installed contributions into the live report/content
+  catalogues (via `activeContributions`) is a natural follow-up.**
 
 ---
 
