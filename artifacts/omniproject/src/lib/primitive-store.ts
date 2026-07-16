@@ -1,6 +1,6 @@
 import { PANEL_RENDERERS } from "../components/screen/registry";
 import { PRIMITIVE_LIBRARY } from "../definitions/primitives";
-import { componentLibrary, FORM_FIELD_TYPES } from "@workspace/backend-catalogue";
+import { componentLibrary, FORM_FIELD_TYPES, DOC_BLOCK_TYPES } from "@workspace/backend-catalogue";
 
 /**
  * THE single shared primitive store — one catalogue over every renderable building block in the product,
@@ -15,8 +15,9 @@ import { componentLibrary, FORM_FIELD_TYPES } from "@workspace/backend-catalogue
  *  - `viz`       data-visualisation primitives (bar/line/pie/gantt/table/tile/…) — from the chart catalogue.
  *  - `field`     form input controls (text/select/email/…) — from FORM_FIELD_TYPES.
  *  - `component` hosted reports + dashboard widgets — from the shared component library.
+ *  - `block`     document/wiki content blocks (heading/paragraph/checklist/…) — from DOC_BLOCK_TYPES.
  */
-export type PrimitiveFamily = "panel" | "viz" | "field" | "component";
+export type PrimitiveFamily = "panel" | "viz" | "field" | "component" | "block";
 export type PlacementSurface = "screen" | "report" | "dashboard" | "content" | "form" | "export";
 
 export interface Primitive {
@@ -74,6 +75,21 @@ const FIELD_META: Record<string, { category: string; tags: string[] }> = {
   yesno: { category: "boolean", tags: [] },
 };
 
+/** `block` family — subfolder + tags per document/wiki content block type. */
+const BLOCK_META: Record<string, { category: string; tags: string[] }> = {
+  heading: { category: "text", tags: ["structure"] },
+  paragraph: { category: "text", tags: [] },
+  quote: { category: "text", tags: ["emphasis"] },
+  callout: { category: "text", tags: ["emphasis"] },
+  code: { category: "text", tags: ["monospace"] },
+  "bullet-list": { category: "list", tags: [] },
+  "numbered-list": { category: "list", tags: [] },
+  checklist: { category: "list", tags: ["interactive"] },
+  divider: { category: "structure", tags: [] },
+  table: { category: "structure", tags: ["tabular"] },
+  embed: { category: "media", tags: ["reference", "external"] },
+};
+
 /** `viz` family — cross-cutting tags per data-visualisation primitive (subfolder is its chart category). */
 const VIZ_TAGS: Record<string, string[]> = {
   bar: ["comparison"], line: ["timeseries", "trend"], area: ["timeseries", "trend"],
@@ -112,6 +128,14 @@ function fieldPrimitives(): Primitive[] {
   });
 }
 
+/** `block` family — the document/wiki content blocks. Blocks live in documents (the `content` surface). */
+function blockPrimitives(): Primitive[] {
+  return DOC_BLOCK_TYPES.map((id) => {
+    const meta = BLOCK_META[id] ?? { category: "other", tags: [] };
+    return { id, sourceId: id, family: "block", label: titleCase(id), category: meta.category, tags: meta.tags, placeableIn: ["content"] };
+  });
+}
+
 /** `component` family — hosted reports + widgets, already placement-tagged by the shared library. */
 function componentPrimitives(): Primitive[] {
   return componentLibrary().map((c) => ({
@@ -130,6 +154,7 @@ export const PRIMITIVES: Primitive[] = [
   ...panelPrimitives(),
   ...vizPrimitives(),
   ...fieldPrimitives(),
+  ...blockPrimitives(),
   ...componentPrimitives(),
 ];
 
@@ -164,7 +189,7 @@ export interface PrimitiveFamilyTree {
   folders: PrimitiveFolder[];
 }
 
-const FAMILY_ORDER: PrimitiveFamily[] = ["panel", "viz", "field", "component"];
+const FAMILY_ORDER: PrimitiveFamily[] = ["panel", "viz", "field", "block", "component"];
 
 /**
  * The store as a browsable TREE — family → category subfolders → primitives. Optionally scoped to one

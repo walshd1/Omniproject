@@ -15,6 +15,7 @@
 
 import type { SessionBind } from "../lib/session-key";
 import type { Scope } from "../lib/scope";
+import type { DocBlock } from "@workspace/backend-catalogue";
 
 /** Loosely-typed record — the normalised row shape the broker exchanges. */
 export type Row = Record<string, unknown>;
@@ -211,6 +212,42 @@ export interface TaskAttachmentWrite {
   url?: string | null | undefined;
   contentType?: string | null | undefined;
   size?: number | null | undefined;
+}
+
+/**
+ * A WIKI SPACE — a named container for documents (a knowledge base / team space). Like everything else the
+ * body lives in the backend system of record; OmniProject is zero-at-rest. Only backends that model a
+ * wiki/knowledge base expose these.
+ */
+export interface WikiSpace extends Row {
+  id: string;
+  /** Short stable key (URL segment). */
+  key: string;
+  name: string;
+  description?: string | null;
+}
+
+/**
+ * A WIKI DOCUMENT — a page in a space, built of primitive `DocBlock`s (see backend-catalogue). Nesting is by
+ * `parentId` (a page tree); `slug` is the URL segment within the space. Content is authored in OmniProject
+ * but STORED through the broker, so it inherits the data seam's residency and audit controls.
+ */
+export interface WikiDoc extends Row {
+  id: string;
+  spaceId: string;
+  parentId?: string | null;
+  slug: string;
+  title: string;
+  blocks: DocBlock[];
+  updatedAt: string;
+  updatedBy?: string | null;
+}
+export interface WikiDocWrite {
+  spaceId: string;
+  parentId?: string | null | undefined;
+  slug?: string | undefined;
+  title: string;
+  blocks: DocBlock[];
 }
 
 /** A child issue/note raised against a task (the work-item). */
@@ -488,6 +525,17 @@ export interface Broker {
   /** Task attachments — file REFERENCES, only when the backend supports them (capability-gated). */
   listTaskAttachments?(ctx: ActorContext, taskId: string): Promise<TaskAttachment[]>;
   addTaskAttachment?(ctx: ActorContext, taskId: string, input: TaskAttachmentWrite): Promise<TaskAttachment>;
+
+  // ── Wiki / collaborative docs — OPTIONAL, so a backend that doesn't model a knowledge base simply omits
+  //    them (the routes answer 501). Bodies live here, in the system of record — zero-at-rest.
+  /** The wiki spaces (knowledge bases / team spaces). */
+  listWikiSpaces?(ctx: ActorContext): Promise<WikiSpace[]>;
+  /** Documents, optionally scoped to one space. */
+  listWikiDocs?(ctx: ActorContext, opts?: { spaceId?: string }): Promise<WikiDoc[]>;
+  /** One document by id (with its blocks), or null. */
+  getWikiDoc?(ctx: ActorContext, id: string): Promise<WikiDoc | null>;
+  /** Create / update / delete a document (contributor+, capability-gated). Returns the doc (null on delete). */
+  writeWikiDoc?(ctx: ActorContext, op: "create" | "update" | "delete", input: WikiDocWrite & { id?: string }): Promise<WikiDoc | null>;
 
   // Read-model long tail (explicit methods — no action strings leak upward)
   listActivity(ctx: ActorContext): Promise<Row[]>;

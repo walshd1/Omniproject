@@ -27,6 +27,9 @@ import {
   type TaskCommentWrite,
   type TaskAttachment,
   type TaskAttachmentWrite,
+  type WikiSpace,
+  type WikiDoc,
+  type WikiDocWrite,
   type Summary,
   type HistoryPoint,
   type HistoryState,
@@ -53,9 +56,41 @@ let taskItemCounter = 100;
 let taskCounter = 100;
 let taskCommentCounter = 100;
 let taskAttachmentCounter = 100;
+let wikiDocCounter = 100;
 /** In-memory task comments + attachments per task (demo only). */
 const SAMPLE_TASK_COMMENTS: Record<string, TaskComment[]> = {};
 const SAMPLE_TASK_ATTACHMENTS: Record<string, TaskAttachment[]> = {};
+/** Demo wiki spaces + documents (the knowledge base the seam proves out). */
+const SAMPLE_WIKI_SPACES: WikiSpace[] = [
+  { id: "space-eng", key: "eng", name: "Engineering", description: "How the delivery team works." },
+  { id: "space-pmo", key: "pmo", name: "PMO", description: "Governance, standards and onboarding." },
+];
+function seedWikiDocs(): WikiDoc[] {
+  return [
+    {
+      id: "doc-onboarding", spaceId: "space-pmo", parentId: null, slug: "onboarding", title: "Onboarding",
+      updatedAt: "2026-07-01T09:00:00.000Z", updatedBy: "grace@demo",
+      blocks: [
+        { id: "b1", type: "heading", level: 1, text: "Welcome to the PMO" },
+        { id: "b2", type: "paragraph", text: "Start with the [[Delivery standards]] then book your intro." },
+        { id: "b3", type: "callout", tone: "info", text: "Ask in #pmo if anything is unclear." },
+        { id: "b4", type: "checklist", items: [
+          { text: "Read the delivery standards", checked: true },
+          { text: "Set up your access", checked: false },
+        ] },
+      ],
+    },
+    {
+      id: "doc-standards", spaceId: "space-pmo", parentId: null, slug: "delivery-standards", title: "Delivery standards",
+      updatedAt: "2026-07-02T09:00:00.000Z", updatedBy: "grace@demo",
+      blocks: [
+        { id: "b1", type: "heading", level: 1, text: "Delivery standards" },
+        { id: "b2", type: "paragraph", text: "Every project runs on the overlay; nothing is stored at rest." },
+      ],
+    },
+  ];
+}
+let SAMPLE_WIKI_DOCS: WikiDoc[] = seedWikiDocs();
 /** In-memory child issues/notes per task (demo only). */
 const SAMPLE_TASK_ITEMS: Record<string, TaskItem[]> = {};
 /** Demo GTD tasks — actionable next-actions across the portfolio, distinct from issues. */
@@ -73,10 +108,12 @@ const SAMPLE_TASKS: Task[] = [
 export function resetDemoBrokerState(): void {
   resetDemoDataToSeed();
   for (const k of Object.keys(SAMPLE_TASK_ITEMS)) delete SAMPLE_TASK_ITEMS[k];
+  SAMPLE_WIKI_DOCS = seedWikiDocs();
   issueCounter = 100;
   raidCounter = 100;
   projectCounter = 100;
   taskItemCounter = 100;
+  wikiDocCounter = 100;
 }
 
 // Scheduled once per process (guarded below), not per DemoBroker instance —
@@ -398,6 +435,60 @@ export class DemoBroker implements Broker {
     (SAMPLE_TASK_ATTACHMENTS[taskId] ??= []).push(attachment);
     persistDemoState();
     return { ...attachment };
+  }
+
+  async listWikiSpaces(): Promise<WikiSpace[]> {
+    return SAMPLE_WIKI_SPACES.map((s) => ({ ...s }));
+  }
+
+  async listWikiDocs(_ctx: ActorContext, opts?: { spaceId?: string }): Promise<WikiDoc[]> {
+    const docs = opts?.spaceId ? SAMPLE_WIKI_DOCS.filter((d) => d.spaceId === opts.spaceId) : SAMPLE_WIKI_DOCS;
+    // List view: omit the (potentially large) block bodies.
+    return docs.map((d) => ({ ...d, blocks: [] }));
+  }
+
+  async getWikiDoc(_ctx: ActorContext, id: string): Promise<WikiDoc | null> {
+    const doc = SAMPLE_WIKI_DOCS.find((d) => d.id === id);
+    return doc ? { ...doc, blocks: doc.blocks.map((b) => ({ ...b })) } : null;
+  }
+
+  async writeWikiDoc(ctx: ActorContext, op: "create" | "update" | "delete", input: WikiDocWrite & { id?: string }): Promise<WikiDoc | null> {
+    const who = ctx.email ?? ctx.name ?? "demo@local";
+    const now = new Date().toISOString();
+    if (op === "delete") {
+      const before = SAMPLE_WIKI_DOCS.length;
+      SAMPLE_WIKI_DOCS = SAMPLE_WIKI_DOCS.filter((d) => d.id !== input.id);
+      if (SAMPLE_WIKI_DOCS.length === before) throw new BrokerError("not_found", "Document not found");
+      persistDemoState();
+      return null;
+    }
+    if (!SAMPLE_WIKI_SPACES.some((s) => s.id === input.spaceId)) throw new BrokerError("not_found", "Space not found");
+    if (op === "update") {
+      const doc = SAMPLE_WIKI_DOCS.find((d) => d.id === input.id);
+      if (!doc) throw new BrokerError("not_found", "Document not found");
+      doc.title = input.title;
+      doc.blocks = input.blocks;
+      doc.spaceId = input.spaceId;
+      doc.parentId = input.parentId ?? null;
+      if (input.slug) doc.slug = input.slug;
+      doc.updatedAt = now;
+      doc.updatedBy = who;
+      persistDemoState();
+      return { ...doc, blocks: doc.blocks.map((b) => ({ ...b })) };
+    }
+    const created: WikiDoc = {
+      id: `doc-${++wikiDocCounter}`,
+      spaceId: input.spaceId,
+      parentId: input.parentId ?? null,
+      slug: input.slug ?? `doc-${wikiDocCounter}`,
+      title: input.title,
+      blocks: input.blocks,
+      updatedAt: now,
+      updatedBy: who,
+    };
+    SAMPLE_WIKI_DOCS.push(created);
+    persistDemoState();
+    return { ...created, blocks: created.blocks.map((b) => ({ ...b })) };
   }
 
   async listActivity(): Promise<Row[]> {

@@ -182,12 +182,25 @@ PDF overlay) enters as a **primitive** in the shared store, so it inherits capab
 authoring, and the drift guards — no feature bypasses the golden rules.
 
 
-### 2.1 Collaborative docs / wiki / knowledge base  ⬜ Todo
+### 2.1 Collaborative docs / wiki / knowledge base  🚧 In progress (slice 1)
 - **Competitors.** Notion, ClickUp, Confluence, Wrike. **Gap.** "Content pages" is a CMS
   library, not real-time rich-text co-editing / linked wiki.
 - **Acceptance.** Rich-text documents with links/embeds, per-space organisation, presence
   on a doc, comments/mentions, version history; readable/editable under existing RBAC.
 - **Leverage.** Presence hub + comments + content-pages storage; reuse SSE for co-presence.
+- **Slice 1 ✅ (foundation).** Documents are **built of primitive blocks** (`DOC_BLOCK_TYPES` →
+  the `block` primitive family in the shared store, drift-guarded): heading/paragraph/quote/
+  callout/code, bullet/numbered/checklist, divider/table/embed. Bodies live in the backend
+  through a new **broker seam** (`listWikiSpaces`/`listWikiDocs`/`getWikiDoc`/`writeWikiDoc`,
+  optional + capability-gated → 501 when unsupported) — **zero-at-rest**. `/api/wiki/*` routes
+  gated by existing RBAC (read viewer+, author contributor+, delete manager+). Every write
+  passes one **sanitising choke point** (`sanitizeWikiDocWrite`): control-char stripping,
+  length caps, per-type field allow-listing (smuggled fields dropped), safe-scheme-only embeds;
+  bodies stored as block JSON (no HTML sink), rendered as escaped React text. `[[wiki-links]]`
+  + server-resolved **backlinks**. Read-only `DocRenderer` + client hooks. Presence room
+  `doc:<id>` and comments thread `doc:<id>` reuse the existing seams (no new realtime surface).
+- **Slice 2+ (next).** Authoring UI + page tree/spaces nav; **Yjs** CRDT co-edit (binds via
+  `y-prosemirror`, awareness = live cursors) over our SSE; version-diff history.
 
 ### 2.2 Guest / external collaboration & client portals  ⬜ Todo
 - **Competitors.** Monday, Wrike, Smartsheet. **Gap.** Enterprise-IdP/SCIM only; no
@@ -382,3 +395,8 @@ so an attachment field would be a URL reference (`url` type) pointing at the sys
 - _2026-07-16_ — Phase 2 **pre-build due-diligence** recorded (per item: existing code to build
   on + proven external code/design to adapt). Yjs flagged as the highest-leverage single adopt
   (co-edit + cursors + offline). Building Phase 2 in order, starting 2.1.
+- _2026-07-16_ — Phase 2.1 slice 1 (collaborative docs/wiki foundation) shipped: documents built
+  of `block` primitives (new drift-guarded family), a zero-at-rest broker wiki seam, RBAC-gated
+  `/api/wiki/*` routes behind one sanitising choke point (per-type allow-listing, safe-scheme
+  embeds, no HTML sink), `[[wiki-link]]` backlinks, read-only `DocRenderer` + client hooks.
+  Presence/comments reuse the existing `doc:<id>` room seams. Yjs co-edit + authoring UI next.

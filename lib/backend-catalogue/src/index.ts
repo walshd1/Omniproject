@@ -30,6 +30,7 @@ export * from "./report-catalogue";
 export * from "./form-catalogue";
 export * from "./automation-catalogue";
 export * from "./template-catalogue";
+export * from "./wiki-catalogue";
 export * from "./widget-catalogue";
 export * from "./component-library";
 export * from "./screen-catalogue";

@@ -32,6 +32,7 @@ type ScopeClass =
   | "all-scope-only"     // route gated to pmo/admin (scope "all") — a lower principal can't reach the id at all
   | "admin-nontenant"    // id names an admin-global object (AI provider, SCIM user/group, webhook, governed capability, approval) — admin+step-up gated, not per-tenant data
   | "global-config"      // id names global UI/catalogue config (screen id, methodology pack/preset) — a fixed global set, not tenant data
+  | "org-content"        // id names an ORG-WIDE shared content object (wiki doc) — read open to any member (viewer+), writes role-gated; no per-user/project partition exists to breach
   | "self-or-approver";  // in-handler RBAC: caller acts on its own resource, approvals gated by role
 
 /**
@@ -113,6 +114,12 @@ const CLASSIFICATION: Record<string, ScopeClass> = {
   // Template id names an org-global config object (the `templates` collection), NOT tenant data; instantiate
   // is manager+ gated and creates a NEW project via the scope-checked broker, so the id is not a lateral vector.
   "POST /templates/:id/instantiate": "global-config",
+  // Wiki document id names an org-wide shared content object in the knowledge base, NOT per-tenant/per-project
+  // data. Read is open to any member (viewer+); create/update is contributor+, delete manager+; bodies live in
+  // the backend through the broker seam. There is no per-user or per-project partition for the id to breach.
+  "GET /wiki/docs/:id": "org-content",
+  "PUT /wiki/docs/:id": "org-content",
+  "DELETE /wiki/docs/:id": "org-content",
 
   // ── Own-resource / approver: in-handler RBAC + state machine ──
   "POST /timesheets/:id/action": "self-or-approver",
