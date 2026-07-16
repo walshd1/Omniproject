@@ -119,9 +119,11 @@ export function docWikiLinks(blocks: readonly DocBlock[]): string[] {
 
 /** A URL-safe slug for a document title (lowercased, hyphenated, ascii-word runs). */
 export function slugifyDocTitle(title: string): string {
-  return title
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 120) || "untitled";
+  const collapsed = title.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+  // Trim leading/trailing "-" by index-walking rather than an end-anchored `-+$` regex, which
+  // backtracks polynomially on a long run of dashes (CodeQL js/polynomial-redos). Linear.
+  let start = 0, end = collapsed.length;
+  while (start < end && collapsed.charCodeAt(start) === 45) start++; // 45 = "-"
+  while (end > start && collapsed.charCodeAt(end - 1) === 45) end--;
+  return collapsed.slice(start, end).slice(0, 120) || "untitled";
 }
