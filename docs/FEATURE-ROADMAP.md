@@ -869,7 +869,7 @@ authoring, and the drift guards — no feature bypasses the golden rules.
   model, and every user/admin-writable JSON kind — primitives, screens, forms, reports, dashboards, business
   rules, colour themes, fonts — flowing through one validated importer into the scoped encrypted stores.**
 
-### X.5 Surface the admin-editable permission model (roles/groups)  🚧 In progress (slice 1 of 2)
+### X.5 Surface the admin-editable permission model (roles/groups)  ✅ Done (slices 1–2)
 - **Finding.** A stock-take of the RBAC surfaces showed the permission model is *mostly* already system-wide
   and admin-editable — but not uniformly reachable: **capability governance** (permission sets: the capability ×
   surface matrix) is fully surfaced (`GovernanceAdmin`), and per-collection edit-roles are surfaced
@@ -884,8 +884,16 @@ authoring, and the drift guards — no feature bypasses the golden rules.
   control is configured) with an **undo** when a rollback is available. Admin-gated (the gateway also enforces
   it). Registered in `ADMIN_PANELS` + `SETTINGS_PANEL_KEYS` (drift-guarded). 4 tests (renders the roles + source,
   hides guest, local edits, non-admin renders nothing, `parseGroups`); settings drift guard + SPA typecheck
-  clean. **Next:** slice 2 — surface the def-scope permission policy (`PUT /defs/policy`) in the same admin
-  area, so the importer's per-scope gate is editable from the UI too.
+  clean.
+- **Slice 2 ✅ (surface the def-scope policy).** SPA `lib/def-policy` (`useDefPolicy` + `saveDefPolicy`) +
+  `components/settings/DefPolicyAdmin` — a new **`defPolicy` Settings panel**: a per-scope gate selector (per-user
+  / project / org → contributor / manager / pmoOrAdmin / admin) over the existing `GET`/`PUT /defs/policy`, so the
+  importer's write permissions are editable from the UI (previously backend-only). Admin-gated, save-on-change,
+  and it hints to enable the `defImporter` module when the policy can't be loaded. Registered in `ADMIN_PANELS`
+  + `SETTINGS_PANEL_KEYS` (drift-guarded). 4 tests (current values, save-on-change, module-off shell, non-admin
+  empty); settings drift guard + SPA typecheck clean. **X.5 complete: the admin-editable permission model —
+  capability governance (permission sets), the group → role mapping, per-collection edit-roles, and the
+  definition-importer scope policy — is now all reachable from the admin Settings UI.**
 
 The mental model: each entry in the store is a **class** — its config are properties (a field's
 `options`, `maxLength`; a panel's `source`), it produces a typed **value**, and it carries
