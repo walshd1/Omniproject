@@ -177,6 +177,9 @@ export function sanitizeWhiteboardWrite(raw: unknown): WhiteboardWrite {
   const out: WhiteboardWrite = { name, scene };
   const projectId = obj["projectId"];
   if (typeof projectId === "string" && projectId.trim()) out.projectId = projectId.trim();
+  // Requested visibility (org-wide vs personal); anything but "user" is treated as org. The OWNER is never
+  // taken from the client — the broker stamps it from the caller's identity.
+  if (obj["visibility"] === "user") out.visibility = "user";
   return out;
 }
 

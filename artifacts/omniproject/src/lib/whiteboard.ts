@@ -12,9 +12,11 @@ import { getJson, sendJson } from "./api";
 
 export type { CanvasElement } from "@workspace/backend-catalogue";
 export interface WhiteboardScene { elements: CanvasElement[]; appState?: Record<string, unknown> }
-export interface WhiteboardMeta { id: string; name: string; projectId?: string | null; updatedAt: string; updatedBy?: string | null }
+/** Org-wide (shared) vs personal (owner-only) — the sidecar SoR persists + enforces this. */
+export type WhiteboardVisibility = "org" | "user";
+export interface WhiteboardMeta { id: string; name: string; projectId?: string | null; ownerSub?: string | null; visibility?: WhiteboardVisibility; updatedAt: string; updatedBy?: string | null }
 export interface Whiteboard extends WhiteboardMeta { scene: WhiteboardScene }
-export interface WhiteboardInput { name: string; scene: WhiteboardScene; projectId?: string | null }
+export interface WhiteboardInput { name: string; scene: WhiteboardScene; projectId?: string | null; visibility?: WhiteboardVisibility }
 
 /** The shared-surface room id a board uses for presence + live cursors (matches the server convention). */
 export const whiteboardRoomId = (boardId: string) => `board:${boardId}`;

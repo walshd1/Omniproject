@@ -282,7 +282,18 @@ authoring, and the drift guards — no feature bypasses the golden rules.
   connector, pen, frame; an inspector edits/deletes the selected element. Added a `draw` primitive for
   freehand. Saves through the seam (contributor+); nav entry (feature-gated), route + e2e manifest + smoke.
   The canvas libs are a 31 kB lazy chunk (vs. ~1 MB for Excalidraw). Pure geometry/reducers + editor +
-  page tests. **Slice 3 (next):** live cursors (collab relay) + sticky → work item + export.
+  page tests.
+- **Slice 3a ✅ (sidecar SoR persistence + org/personal ownership).** The **built-in broker** (our
+  self-hosted system of record) now implements the whiteboard capability, so boards genuinely persist on
+  a standalone deployment — not just the demo. Scenes are stored in the **OmniStore**'s encrypted,
+  hash-chained, append-only event log (durable + tamper-evident at rest; proven by a seal→reopen test).
+  A board is **org-wide (shared) or personal (owner-only)**: the owner is stamped server-side from the
+  caller (never the client), and a shared pure rule (`whiteboard-ownership`) enforces visibility/edit/
+  delete across BOTH the demo and built-in brokers — a personal board is `not_found` to a non-owner (no
+  leak). Capability-gated on the store: a store that can't persist (the SQL sidecar) leaves the methods
+  undefined → routes 501. This is the correct reading of **zero-at-rest**: the sidecar IS the system of
+  record; the stateless overlay still stores nothing. **Slice 3 (next):** live cursors + sticky → work
+  item + export.
 
 ### 2.4 Proofing / deliverable review & annotation  ⬜ Todo
 - **Competitors.** Adobe Workfront, Wrike, Smartsheet. **Gap.** No creative review markup.

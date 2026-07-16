@@ -4,6 +4,7 @@ import { versionConflict } from "../lib/concurrency";
 import { CAPABILITY_DOMAINS, FIELD_KEYS, ENTITY_KEYS } from "../lib/capabilities";
 import { isDone, isClosed, isTaskClosed } from "./vocabulary";
 import { inScope } from "../lib/scope";
+import { whiteboardVisibleTo, newWhiteboardRow, mergeWhiteboardUpdate } from "./whiteboard-ownership";
 import { programmeIdsOf } from "../lib/programmes";
 import {
   SAMPLE_PROJECTS, SAMPLE_ISSUES, SAMPLE_RAID, SAMPLE_CAPACITY, SAMPLE_FINANCIALS,
@@ -136,6 +137,7 @@ function seedWhiteboards(): Whiteboard[] {
   return [
     {
       id: "wb-roadmap", name: "Delivery roadmap sketch", projectId: "proj-001",
+      ownerSub: "grace@demo", visibility: "org",
       updatedAt: "2026-07-04T09:00:00.000Z", updatedBy: "grace@demo",
       scene: {
         elements: [
@@ -568,46 +570,39 @@ export class DemoBroker implements Broker {
     return v ? { ...v, blocks: v.blocks.map((b) => ({ ...b })) } : null;
   }
 
-  async listWhiteboards(_ctx: ActorContext, opts?: { projectId?: string }): Promise<Whiteboard[]> {
-    const boards = opts?.projectId ? SAMPLE_WHITEBOARDS.filter((b) => b.projectId === opts.projectId) : SAMPLE_WHITEBOARDS;
+  async listWhiteboards(ctx: ActorContext, opts?: { projectId?: string }): Promise<Whiteboard[]> {
+    const boards = SAMPLE_WHITEBOARDS
+      .filter((b) => (!opts?.projectId || b.projectId === opts.projectId) && whiteboardVisibleTo(b, ctx.sub));
     // List view: omit the (potentially large) scene bodies.
     return boards.map((b) => ({ ...b, scene: { elements: [] } }));
   }
 
-  async getWhiteboard(_ctx: ActorContext, id: string): Promise<Whiteboard | null> {
+  async getWhiteboard(ctx: ActorContext, id: string): Promise<Whiteboard | null> {
     const b = SAMPLE_WHITEBOARDS.find((w) => w.id === id);
-    return b ? { ...b, scene: { elements: [...b.scene.elements], ...(b.scene.appState ? { appState: { ...b.scene.appState } } : {}) } } : null;
+    if (!b || !whiteboardVisibleTo(b, ctx.sub)) return null; // a personal board is invisible to non-owners
+    return { ...b, scene: { elements: [...b.scene.elements], ...(b.scene.appState ? { appState: { ...b.scene.appState } } : {}) } };
   }
 
   async writeWhiteboard(ctx: ActorContext, op: "create" | "update" | "delete", input: WhiteboardWrite & { id?: string }): Promise<Whiteboard | null> {
-    const who = ctx.email ?? ctx.name ?? "demo@local";
     const now = new Date().toISOString();
     if (op === "delete") {
-      const before = SAMPLE_WHITEBOARDS.length;
+      const board = SAMPLE_WHITEBOARDS.find((w) => w.id === input.id);
+      // A personal board is invisible (→ not_found) to a non-owner, so a delete can't target it either.
+      if (!board || !whiteboardVisibleTo(board, ctx.sub)) throw new BrokerError("not_found", "Whiteboard not found");
       SAMPLE_WHITEBOARDS = SAMPLE_WHITEBOARDS.filter((w) => w.id !== input.id);
-      if (SAMPLE_WHITEBOARDS.length === before) throw new BrokerError("not_found", "Whiteboard not found");
       persistDemoState();
       return null;
     }
     if (op === "update") {
-      const board = SAMPLE_WHITEBOARDS.find((w) => w.id === input.id);
-      if (!board) throw new BrokerError("not_found", "Whiteboard not found");
-      board.name = input.name;
-      board.scene = input.scene;
-      board.projectId = input.projectId ?? null;
-      board.updatedAt = now;
-      board.updatedBy = who;
+      const idx = SAMPLE_WHITEBOARDS.findIndex((w) => w.id === input.id);
+      const board = idx >= 0 ? SAMPLE_WHITEBOARDS[idx]! : undefined;
+      if (!board || !whiteboardVisibleTo(board, ctx.sub)) throw new BrokerError("not_found", "Whiteboard not found");
+      const merged = mergeWhiteboardUpdate(board, ctx, input, now);
+      SAMPLE_WHITEBOARDS[idx] = merged;
       persistDemoState();
-      return { ...board };
+      return { ...merged };
     }
-    const created: Whiteboard = {
-      id: `wb-${++whiteboardCounter}`,
-      name: input.name,
-      projectId: input.projectId ?? null,
-      scene: input.scene,
-      updatedAt: now,
-      updatedBy: who,
-    };
+    const created = newWhiteboardRow(ctx, `wb-${++whiteboardCounter}`, input, now);
     SAMPLE_WHITEBOARDS.push(created);
     persistDemoState();
     return { ...created };

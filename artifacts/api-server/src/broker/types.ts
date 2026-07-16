@@ -285,11 +285,19 @@ export interface WhiteboardScene {
   /** A minimal, sanitised view state (e.g. background colour) — never a full editor appState. */
   appState?: Record<string, unknown>;
 }
+/** Where a board lives: `org` = shared org-wide (any viewer+); `user` = personal to its owner only. */
+export type WhiteboardVisibility = "org" | "user";
+
 export interface Whiteboard extends Row {
   id: string;
   name: string;
   /** Optional owning project (a board raised against a project); null for an org-level board. */
   projectId?: string | null;
+  /** The board's creator (a user `sub`) — the owner for a personal board. Set server-side, never trusted
+   *  from the client. */
+  ownerSub?: string | null;
+  /** Org-wide vs personal. A `user` board is visible/editable only to its `ownerSub`. Defaults to `org`. */
+  visibility?: WhiteboardVisibility;
   scene: WhiteboardScene;
   updatedAt: string;
   updatedBy?: string | null;
@@ -297,6 +305,8 @@ export interface Whiteboard extends Row {
 export interface WhiteboardWrite {
   name: string;
   projectId?: string | null | undefined;
+  /** Requested visibility (org-wide vs personal). The OWNER is set server-side from the caller, never here. */
+  visibility?: WhiteboardVisibility | undefined;
   scene: WhiteboardScene;
 }
 /** A board's metadata (no scene body) — the list view. */
@@ -304,6 +314,8 @@ export interface WhiteboardMeta {
   id: string;
   name: string;
   projectId?: string | null;
+  ownerSub?: string | null;
+  visibility?: WhiteboardVisibility;
   updatedAt: string;
   updatedBy?: string | null;
 }
