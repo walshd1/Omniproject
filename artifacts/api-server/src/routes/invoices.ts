@@ -9,7 +9,7 @@ import {
 } from "../lib/artifact-store";
 import {
   INVOICE_ARTIFACT, sanitizeInvoiceWrite, makeInvoiceId, parseInvoiceId, invoiceScope,
-  newInvoiceRow, mergeInvoiceRow, invoiceMeta, InvoiceError,
+  newInvoiceRow, mergeInvoiceRow, invoiceMeta, isInvoiceStatus, canTransitionInvoice, applyInvoiceStatus, InvoiceError,
   type Invoice, type InvoiceMeta, type InvoiceStorage,
 } from "../lib/invoice";
 
@@ -92,6 +92,27 @@ router.put("/invoices/:id", requireRole("manager"), (req, res) => {
     if (!scope || !existing) { res.status(404).json({ error: "Invoice not found" }); return; }
     if (existing.status !== "draft") { res.status(409).json({ error: "only a draft invoice can be edited" }); return; }
     const row = mergeInvoiceRow(existing, input, ctx, new Date().toISOString());
+    putArtifact(INVOICE_ARTIFACT, scope, row);
+    res.json(row);
+  });
+});
+
+// POST /api/invoices/:id/status — transition an invoice (draft→issued→paid; live→void) (manager+).
+router.post("/invoices/:id/status", requireRole("manager"), (req, res) => {
+  const next = (req.body ?? {})["status"];
+  if (!isInvoiceStatus(next)) { res.status(400).json({ error: "status must be draft, issued, paid or void" }); return; }
+  const id = String(req.params["id"]);
+  const parsed = parseInvoiceId(id);
+  if (!parsed) { res.status(404).json({ error: "Invoice not found" }); return; }
+  return withBrokerErrors(req, res, "transition_invoice failed", async () => {
+    if (!(await authorizeTarget(req, res, parsed.storage, parsed.projectId, "write"))) return;
+    if (!artifactStoreEnabled()) { res.status(404).json({ error: "Invoice not found" }); return; }
+    const ctx = contextFromReq(req);
+    const scope = invoiceScope(parsed, ctx.sub);
+    const existing = scope ? getArtifact<Invoice>(INVOICE_ARTIFACT, scope, id) : null;
+    if (!scope || !existing) { res.status(404).json({ error: "Invoice not found" }); return; }
+    if (!canTransitionInvoice(existing.status, next)) { res.status(409).json({ error: `cannot move a ${existing.status} invoice to ${next}` }); return; }
+    const row = applyInvoiceStatus(existing, next, ctx, new Date().toISOString());
     putArtifact(INVOICE_ARTIFACT, scope, row);
     res.json(row);
   });

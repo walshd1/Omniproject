@@ -2,7 +2,8 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   sanitizeInvoiceWrite, computeTotals, makeInvoiceId, parseInvoiceId,
-  newInvoiceRow, mergeInvoiceRow, invoiceMeta, InvoiceError, type InvoiceLine,
+  newInvoiceRow, mergeInvoiceRow, invoiceMeta, canTransitionInvoice, applyInvoiceStatus,
+  InvoiceError, type InvoiceLine,
 } from "./invoice";
 import type { ActorContext } from "../broker/types";
 
@@ -48,4 +49,24 @@ test("newInvoiceRow derives totals + starts draft; mergeInvoiceRow bumps version
   assert.equal(merged.version, 2);
   assert.equal(merged.total, 800);
   assert.equal(merged.createdAt, row.createdAt);
+});
+
+test("status flow: draft→issued→paid; live→void; terminal states are closed", () => {
+  assert.equal(canTransitionInvoice("draft", "issued"), true);
+  assert.equal(canTransitionInvoice("issued", "paid"), true);
+  assert.equal(canTransitionInvoice("draft", "void"), true);
+  assert.equal(canTransitionInvoice("draft", "paid"), false); // must issue first
+  assert.equal(canTransitionInvoice("paid", "issued"), false); // terminal
+  assert.equal(canTransitionInvoice("void", "draft"), false); // terminal
+
+  const w = sanitizeInvoiceWrite({ number: "INV-1", clientName: "Acme", currency: "USD", storage: "org", lines: [] });
+  const draft = newInvoiceRow(makeInvoiceId("org", "i1"), w, ctx, "2026-01-01T00:00:00Z");
+  const issued = applyInvoiceStatus(draft, "issued", ctx, "2026-01-02T00:00:00Z");
+  assert.equal(issued.status, "issued");
+  assert.equal(issued.issuedAt, "2026-01-02T00:00:00Z");
+  const paid = applyInvoiceStatus(issued, "paid", ctx, "2026-01-09T00:00:00Z");
+  assert.equal(paid.status, "paid");
+  assert.equal(paid.paidAt, "2026-01-09T00:00:00Z");
+  assert.equal(paid.issuedAt, "2026-01-02T00:00:00Z"); // preserved
+  assert.equal(paid.version, 3);
 });
