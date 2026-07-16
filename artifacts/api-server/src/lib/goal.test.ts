@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   keyResultAttainment, goalProgress, sanitizeGoalWrite, sanitizeKeyResults,
+  sanitizeCheckInWrite, applyCheckIn, GOAL_LIMITS,
   makeGoalId, parseGoalId, newGoalRow, mergeGoalRow, goalMeta, GoalError, type KeyResult,
 } from "./goal";
 import type { ActorContext } from "../broker/types";
@@ -68,4 +69,31 @@ test("newGoalRow stamps owner + derives progress; mergeGoalRow bumps version + r
   assert.equal(merged.version, 2);
   assert.equal(merged.progressPct, 90);
   assert.equal(merged.createdAt, row.createdAt); // preserved
+});
+
+test("sanitizeCheckInWrite: caps the note, keeps a valid status, coerces numeric KR values", () => {
+  const ci = sanitizeCheckInWrite({ note: "  going well  ", status: "at_risk", krValues: { "kr-1": "60", "kr-2": 30, bad: "x" } });
+  assert.equal(ci.note, "going well");
+  assert.equal(ci.status, "at_risk");
+  assert.deepEqual(ci.krValues, { "kr-1": 60, "kr-2": 30 }); // non-numeric dropped
+  assert.equal(sanitizeCheckInWrite({}).status, undefined);
+  assert.throws(() => sanitizeCheckInWrite({ krValues: [] }), (e) => e instanceof GoalError);
+});
+
+test("applyCheckIn: updates KR values, recomputes progress, sets status, appends bounded history", () => {
+  const w = sanitizeGoalWrite({ title: "Adopt", keyResults: [{ id: "kr-1", label: "teams", target: 100, current: 0 }] });
+  let row = newGoalRow(makeGoalId("user", "g"), w, ctx, "2026-01-01T00:00:00Z");
+  row = applyCheckIn(row, sanitizeCheckInWrite({ note: "kickoff", status: "at_risk", krValues: { "kr-1": 40 } }), "ci-1", ctx, "2026-01-08T00:00:00Z");
+  assert.equal(row.keyResults[0]!.current, 40);
+  assert.equal(row.progressPct, 40);
+  assert.equal(row.status, "at_risk");
+  assert.equal(row.version, 2);
+  assert.equal(row.checkins.length, 1);
+  assert.deepEqual(row.checkins[0], { id: "ci-1", at: "2026-01-08T00:00:00Z", by: "ada@x.io", note: "kickoff", status: "at_risk", progressPct: 40, krValues: { "kr-1": 40 } });
+  assert.equal(goalMeta(row).checkInCount, 1);
+  assert.equal(goalMeta(row).lastCheckInAt, "2026-01-08T00:00:00Z");
+
+  // History is bounded to the last maxCheckIns.
+  for (let i = 0; i < GOAL_LIMITS.maxCheckIns + 5; i++) row = applyCheckIn(row, sanitizeCheckInWrite({ krValues: { "kr-1": i } }), `x-${i}`, ctx, "2026-02-01T00:00:00Z");
+  assert.equal(row.checkins.length, GOAL_LIMITS.maxCheckIns);
 });

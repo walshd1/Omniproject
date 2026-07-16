@@ -35,6 +35,8 @@ export const GOAL_LIMITS = {
   maxUnit: 24,
   maxKeyResultLabel: 200,
   maxKeyResults: 20,
+  maxCheckInNote: 2000,
+  maxCheckIns: 100,
   maxGoalBytes: 64 * 1024,
 } as const;
 
@@ -46,6 +48,20 @@ export interface KeyResult {
   target: number;
   current: number;
   unit?: string;
+}
+
+/** A point-in-time progress check-in on a goal (the cadence history). */
+export interface GoalCheckIn {
+  id: string;
+  at: string;
+  by: string | null;
+  note: string | null;
+  /** The status recorded at this check-in. */
+  status: GoalStatus;
+  /** The goal's derived progress at this check-in (a snapshot). */
+  progressPct: number;
+  /** The key-result values applied by this check-in (KR id → value). */
+  krValues: Record<string, number>;
 }
 
 /** A stored goal row. */
@@ -60,6 +76,8 @@ export interface Goal {
   keyResults: KeyResult[];
   /** Derived (0–100), recomputed from key-result attainment on every write — never client-supplied. */
   progressPct: number;
+  /** Progress check-in history (most recent last); appended by the check-in route, bounded. */
+  checkins: GoalCheckIn[];
   version: number;
   createdAt: string;
   updatedAt: string;
@@ -73,6 +91,8 @@ export interface GoalMeta {
   status: GoalStatus;
   progressPct: number;
   keyResultCount: number;
+  checkInCount: number;
+  lastCheckInAt: string | null;
   projectId?: string | null;
   ownerSub?: string | null;
   storage?: GoalStorage;
@@ -205,10 +225,64 @@ export function newGoalRow(id: string, input: SanitizedGoalWrite, ctx: ActorCont
     status: input.status,
     keyResults: input.keyResults,
     progressPct: goalProgress(input.keyResults),
+    checkins: [],
     version: 1,
     createdAt: now,
     updatedAt: now,
     updatedBy: actorLabel(ctx),
+  };
+}
+
+/** A sanitised check-in write: an optional note + status, and the key-result values to apply. */
+export interface SanitizedCheckIn {
+  note: string | null;
+  status?: GoalStatus;
+  krValues: Record<string, number>;
+}
+
+/** Sanitise a check-in write — a capped note, an optional valid status, and numeric key-result values keyed
+ *  by KR id (unknown ids are dropped when applied). Throws {@link GoalError} (→ 400). */
+export function sanitizeCheckInWrite(raw: unknown): SanitizedCheckIn {
+  const obj = (raw ?? {}) as Record<string, unknown>;
+  const note = cleanText(obj["note"], GOAL_LIMITS.maxCheckInNote).trim();
+  const out: SanitizedCheckIn = { note: note || null, krValues: {} };
+  if (isGoalStatus(obj["status"])) out.status = obj["status"];
+  const raw2 = obj["krValues"];
+  if (raw2 !== undefined && raw2 !== null) {
+    if (typeof raw2 !== "object" || Array.isArray(raw2)) throw new GoalError("krValues must be an object keyed by key-result id");
+    let count = 0;
+    for (const [k, v] of Object.entries(raw2 as Record<string, unknown>)) {
+      if (count++ >= GOAL_LIMITS.maxKeyResults) break;
+      const n = Number(v);
+      if (typeof k === "string" && k && Number.isFinite(n)) out.krValues[k.slice(0, 64)] = n;
+    }
+  }
+  return out;
+}
+
+/**
+ * Apply a check-in: update the named key results' `current` values, recompute progress, optionally set the
+ * status, and append a bounded snapshot to the history. Version bumps. Pure (the caller supplies the id +
+ * clock so it stays testable).
+ */
+export function applyCheckIn(existing: Goal, input: SanitizedCheckIn, checkInId: string, ctx: ActorContext, now: string): Goal {
+  const keyResults = existing.keyResults.map((kr) =>
+    Object.prototype.hasOwnProperty.call(input.krValues, kr.id) ? { ...kr, current: input.krValues[kr.id]! } : kr,
+  );
+  const progressPct = goalProgress(keyResults);
+  const status = input.status ?? existing.status ?? "on_track";
+  const by = actorLabel(ctx);
+  const checkin: GoalCheckIn = { id: checkInId, at: now, by, note: input.note, status, progressPct, krValues: input.krValues };
+  const checkins = [...(existing.checkins ?? []), checkin].slice(-GOAL_LIMITS.maxCheckIns);
+  return {
+    ...existing,
+    keyResults,
+    progressPct,
+    status,
+    checkins,
+    version: (existing.version ?? 1) + 1,
+    updatedAt: now,
+    updatedBy: by,
   };
 }
 
@@ -230,12 +304,15 @@ export function mergeGoalRow(existing: Goal, input: SanitizedGoalWrite, ctx: Act
 
 /** The metadata view of a goal (key results dropped) — the list projection. */
 export function goalMeta(g: Goal): GoalMeta {
+  const checkins = g.checkins ?? [];
   const meta: GoalMeta = {
     id: g.id,
     title: g.title,
     status: g.status ?? "on_track",
     progressPct: g.progressPct ?? 0,
     keyResultCount: g.keyResults?.length ?? 0,
+    checkInCount: checkins.length,
+    lastCheckInAt: checkins.length ? checkins[checkins.length - 1]!.at : null,
     updatedAt: g.updatedAt,
   };
   if (g.projectId !== undefined) meta.projectId = g.projectId;

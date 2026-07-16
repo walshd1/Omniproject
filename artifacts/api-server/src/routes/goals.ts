@@ -8,7 +8,7 @@ import {
   artifactStoreEnabled, listArtifacts, getArtifact, putArtifact, deleteArtifact,
 } from "../lib/artifact-store";
 import {
-  GOAL_ARTIFACT, sanitizeGoalWrite, makeGoalId, parseGoalId, goalScope,
+  GOAL_ARTIFACT, sanitizeGoalWrite, sanitizeCheckInWrite, applyCheckIn, makeGoalId, parseGoalId, goalScope,
   newGoalRow, mergeGoalRow, goalMeta, GoalError, type Goal, type GoalMeta, type GoalStorage,
 } from "../lib/goal";
 
@@ -96,6 +96,28 @@ router.put("/goals/:id", requireRole("contributor"), (req, res) => {
     const row = mergeGoalRow(existing, input, ctx, new Date().toISOString());
     putArtifact(GOAL_ARTIFACT, scope, row);
     res.json(row);
+  });
+});
+
+// POST /api/goals/:id/checkin — record a progress check-in: update key-result values, recompute progress,
+// optionally set status + a note, and append a bounded history entry (contributor+; org goal ⇒ manager+).
+router.post("/goals/:id/checkin", requireRole("contributor"), (req, res) => {
+  let input;
+  try { input = sanitizeCheckInWrite(req.body); }
+  catch (e) { if (e instanceof GoalError) { res.status(400).json({ error: e.message }); return; } throw e; }
+  const id = String(req.params["id"]);
+  const parsed = parseGoalId(id);
+  if (!parsed) { res.status(404).json({ error: "Goal not found" }); return; }
+  return withBrokerErrors(req, res, "checkin_goal failed", async () => {
+    if (!(await authorizeTarget(req, res, parsed.storage, parsed.projectId, "write"))) return;
+    if (!artifactStoreEnabled()) { res.status(404).json({ error: "Goal not found" }); return; }
+    const ctx = contextFromReq(req);
+    const scope = goalScope(parsed, ctx.sub);
+    const existing = scope ? getArtifact<Goal>(GOAL_ARTIFACT, scope, id) : null;
+    if (!scope || !existing) { res.status(404).json({ error: "Goal not found" }); return; }
+    const row = applyCheckIn(existing, input, crypto.randomUUID(), ctx, new Date().toISOString());
+    putArtifact(GOAL_ARTIFACT, scope, row);
+    res.status(201).json(row);
   });
 });
 

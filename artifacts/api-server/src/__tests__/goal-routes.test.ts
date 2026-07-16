@@ -80,6 +80,22 @@ test("update recomputes progress and bumps the version", async () => {
   assert.equal(goal.progressPct, 100);
 });
 
+test("a check-in updates key results, appends history, and recomputes progress", async () => {
+  const created = await (await req("/goals", { method: "POST", body: { title: "Adopt", keyResults: [{ id: "kr-1", label: "teams", target: 100, current: 0 }] } })).json() as { id: string };
+  const r = await req(`/goals/${encodeURIComponent(created.id)}/checkin`, { method: "POST", body: { note: "week 1", status: "at_risk", krValues: { "kr-1": 60 } } });
+  assert.equal(r.status, 201);
+  const goal = (await r.json()) as { progressPct: number; status: string; version: number; keyResults: Array<{ current: number }>; checkins: Array<{ note: string; progressPct: number }> };
+  assert.equal(goal.keyResults[0]!.current, 60);
+  assert.equal(goal.progressPct, 60);
+  assert.equal(goal.status, "at_risk");
+  assert.equal(goal.version, 2);
+  assert.equal(goal.checkins.length, 1);
+  assert.equal(goal.checkins[0]!.note, "week 1");
+  // The list projection surfaces the check-in count.
+  const metas = (await req("/goals").then((x) => x.json())) as Array<{ id: string; checkInCount: number }>;
+  assert.equal(metas.find((m) => m.id === created.id)!.checkInCount, 1);
+});
+
 test("list returns metadata (no key results); a viewer may read the endpoint", async () => {
   await req("/goals", { method: "POST", body: { title: "Listable", keyResults: [{ label: "x", target: 1, current: 1 }] } });
   const r = await req("/goals"); // as the owner (ADMIN)
