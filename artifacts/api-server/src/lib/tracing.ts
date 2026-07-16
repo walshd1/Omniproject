@@ -52,6 +52,17 @@ function otlpEndpoint(): string | null {
   return base ? `${base.replace(/\/$/, "")}/v1/traces` : null;
 }
 
+// In-flight best-effort exports. Each `finish`-handler export is fire-and-forget w.r.t. the response (it
+// must never block it), but we still TRACK the promise so it can be awaited deterministically — on graceful
+// shutdown (don't drop the last spans) and in tests (assert on the export without racing a macrotask drain).
+const pendingExports = new Set<Promise<void>>();
+
+/** Await every in-flight span export to settle. Used by graceful shutdown to flush pending telemetry, and
+ *  by tests to await the fire-and-forget export deterministically. Never rejects (exports are best-effort). */
+export async function flushSpanExports(): Promise<void> {
+  await Promise.allSettled([...pendingExports]);
+}
+
 /** Best-effort OTLP/HTTP span export (JSON). Swallows errors; never blocks the request. */
 async function exportSpan(span: { ctx: TraceContext; name: string; startNs: number; endNs: number; status: number; attrs: Record<string, string | number> }): Promise<void> {
   const url = otlpEndpoint();
@@ -118,13 +129,16 @@ export function tracingMiddleware(req: Request, res: Response, next: NextFunctio
   const startHr = process.hrtime.bigint();
   res.on("finish", () => {
     const endNs = startNs + Number(process.hrtime.bigint() - startHr);
-    void exportSpan({
+    // Fire-and-forget w.r.t. the response, but tracked so flushSpanExports() can await it (shutdown / tests).
+    const p = exportSpan({
       ctx,
       name: `${req.method} ${(req as { route?: { path?: string } }).route?.path ?? req.path}`,
       startNs, endNs,
       status: res.statusCode,
       attrs: { "http.method": req.method, "http.route": req.path, "http.status_code": res.statusCode },
     });
+    pendingExports.add(p);
+    void p.finally(() => pendingExports.delete(p));
   });
 
   als.run(ctx, () => next());
