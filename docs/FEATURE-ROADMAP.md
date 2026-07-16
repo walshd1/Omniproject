@@ -793,6 +793,29 @@ authoring, and the drift guards — no feature bypasses the golden rules.
   (backward-compat + per-provider shape) + a skill image-attach test; api-server + SPA typecheck clean.
   **X.2 complete: describe (or sketch) → build → test → render → iterate → submit, end to end.**
 
+### X.3 The definition importer — one validated path into the scoped encrypted stores  🚧 In progress (slice 1 of 3)
+- **Principle.** *Anything a user defines in JSON must go through one importer* so it can land in a **per-user**,
+  **project-wide**, or **org-wide** encrypted store — never hand-dropped into an encrypted folder, never stored
+  unvalidated. This makes the "validate at the boundary → authorize + stamp → encrypt-and-write" pipeline a
+  single, reusable choke point for every user-defined def kind (not just charts).
+- **Design.** Reuses what already exists: the AES-256-GCM sealed, scoped `artifact-store` (user/project/org
+  files) + the shared `authorizeStorageTarget` gate (own area always; project by project scope; org by
+  manager+). The new bit is the **kind-aware validation layer**: each def kind is validated by the REAL product
+  validator before the store sees it. Distinct from `/api/import` (the tabular data importer: spreadsheet/SQL
+  rows → work items) — this is DEFINITIONS → the sealed def stores.
+- **Slice 1 ✅ (the importer core — lib + routes).** `lib/def-import`: `DEF_KINDS` (primitive / screen / form /
+  report / dashboard / jsonDef); `validateDef(kind, payload)` dispatches to the real validators
+  (`validatePrimitiveDef` / `validateScreenDefs` / `validateForms`; a structural check for report/dashboard/
+  jsonDef until they get bespoke validators) and **collects every error**; `sanitizeDef` is the single choke
+  point (kind + bounded name + size-capped payload + per-kind validity, throwing `DefError` → 400);
+  `newStoredDef` / `storedDefMeta` + scoped store helpers. `routes/defs` — `POST /defs/validate` (dry-run),
+  `POST /defs` (validate → the shared target gate → sealed write at the chosen scope), `GET /defs` (aggregated
+  across the caller's user + org + in-scope project areas, payload omitted), `GET /defs/:id`, `DELETE /defs/:id`
+  — behind the default-off **`defImporter`** module. Read viewer+, author/delete contributor+, org target
+  manager+. 5 pure + 4 route tests (validate dry-run, sealed-at-rest user round-trip, bad payload/target 400,
+  org-target RBAC). api-server typecheck clean. **Next:** slice 2 — the Studio submits through the importer
+  with a scope picker (and authors more than primitives); slice 3 — a paste/upload importer UI.
+
 ---
 
 ## Primitives as objects / methods / classes

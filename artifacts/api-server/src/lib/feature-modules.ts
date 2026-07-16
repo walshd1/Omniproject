@@ -248,6 +248,14 @@ export const FEATURE_MODULES: readonly FeatureModule[] = [
     reason: "cost", // calls an AI provider; further gated by the ai-authoring capability + contributor role
   },
   {
+    id: "defImporter",
+    label: "JSON definition importer",
+    description: "The single validated write-path for any user-defined JSON definition (primitive/screen/form/report/dashboard) into the per-user, project, or org-wide encrypted stores.",
+    load: () => import("../routes/defs"),
+    defaultOff: true,
+    reason: "storage", // writes user-defined JSON into the encrypted-JSON store; scope-gated per storage target
+  },
+  {
     // Admin bulk-action runner: apply one canonical broker write (create/update project) to many
     // projects at once, declaratively. Has a backend route (POST /api/admin/bulk), so it loads
     // lazily; OFF until an admin opts in — it fans out project-level writes (high blast radius), so
