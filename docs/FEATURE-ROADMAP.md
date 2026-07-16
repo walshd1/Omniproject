@@ -793,7 +793,7 @@ authoring, and the drift guards — no feature bypasses the golden rules.
   (backward-compat + per-provider shape) + a skill image-attach test; api-server + SPA typecheck clean.
   **X.2 complete: describe (or sketch) → build → test → render → iterate → submit, end to end.**
 
-### X.3 The definition importer — one validated path into the scoped encrypted stores  🚧 In progress (slice 1 of 3)
+### X.3 The definition importer — one validated path into the scoped encrypted stores  🚧 In progress (slices 1–2 of 3)
 - **Principle.** *Anything a user defines in JSON must go through one importer* so it can land in a **per-user**,
   **project-wide**, or **org-wide** encrypted store — never hand-dropped into an encrypted folder, never stored
   unvalidated. This makes the "validate at the boundary → authorize + stamp → encrypt-and-write" pipeline a
@@ -813,8 +813,17 @@ authoring, and the drift guards — no feature bypasses the golden rules.
   across the caller's user + org + in-scope project areas, payload omitted), `GET /defs/:id`, `DELETE /defs/:id`
   — behind the default-off **`defImporter`** module. Read viewer+, author/delete contributor+, org target
   manager+. 5 pure + 4 route tests (validate dry-run, sealed-at-rest user round-trip, bad payload/target 400,
-  org-target RBAC). api-server typecheck clean. **Next:** slice 2 — the Studio submits through the importer
-  with a scope picker (and authors more than primitives); slice 3 — a paste/upload importer UI.
+  org-target RBAC). api-server typecheck clean.
+- **Slice 2 ✅ (the importer UI — a usable surface).** SPA `lib/defs` (`useDefs` / `useValidateDef` /
+  `useImportDef` / `useDeleteDef`) + `pages/Definitions` — a `/definitions` surface: pick a **kind**
+  (primitive / screen / form / report / dashboard / jsonDef) + a **storage target** (my private area / a
+  project / org-wide), paste the JSON, **Validate** (dry-run against the real schema, shows every error), then
+  **Save to store** (through the importer → sealed at the chosen scope). Lists the stored defs (kind + scope)
+  with delete. Client-side JSON-parse guard before any request. Wired as an admin-group nav item gated on the
+  **`defImporter`** module + pmo/admin visibility (`/definitions` route + `nav.definitions` i18n + nav-order/
+  admin-shelf drift guards). 5 page tests (list, parse guard, dry-run errors, save gating, project-id reveal);
+  nav/i18n guards + SPA typecheck clean. **Next:** slice 3 — route the Studio's submit through the importer
+  with a scope picker, and generalise its AI generation beyond primitives (screen/form/report/dashboard).
 
 ---
 

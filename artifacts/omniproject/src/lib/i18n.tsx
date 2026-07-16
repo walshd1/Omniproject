@@ -43,6 +43,7 @@ const EN: Dict = {
   "nav.studio": "Studio",
   "nav.marketplace": "Marketplace",
   "nav.registry": "Registry",
+  "nav.definitions": "Definitions",
   "nav.settings": "Settings",
   "nav.configurator": "Configurator",
   "nav.advanced": "Advanced",
