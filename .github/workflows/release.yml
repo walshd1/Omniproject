@@ -47,20 +47,20 @@ jobs:
           output-file: sbom.cyclonedx.json
 
       - name: Attest build provenance for the image
-        uses: actions/attest-build-provenance@v1
+        uses: actions/attest-build-provenance@v4
         with:
           subject-name: omni-shell
           subject-digest: ${{ steps.img.outputs.digest }}
 
       - name: Attest the SBOM
-        uses: actions/attest-sbom@v1
+        uses: actions/attest-sbom@v4
         with:
           subject-name: omni-shell
           subject-digest: ${{ steps.img.outputs.digest }}
           sbom-path: sbom.cyclonedx.json
 
       - name: Publish the GitHub Release with the signed SBOM
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           files: sbom.cyclonedx.json
           generate_release_notes: true
