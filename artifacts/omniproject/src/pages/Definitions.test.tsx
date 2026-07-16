@@ -2,7 +2,7 @@ import { describe, it, expect, afterEach, vi } from "vitest";
 import { screen, fireEvent, waitFor } from "@testing-library/react";
 import { QueryClient } from "@tanstack/react-query";
 import { renderWithProviders, mockFetchRouter } from "../test/utils";
-import { defsKey, type StoredDefMeta } from "../lib/defs";
+import { defsKey, defKey, type StoredDefMeta } from "../lib/defs";
 import { Definitions } from "./Definitions";
 
 /** The Definitions (importer) page: list, JSON-parse guard, validate dry-run, and save gating. */
@@ -54,5 +54,19 @@ describe("Definitions page", () => {
     expect(screen.queryByTestId("def-project")).not.toBeInTheDocument();
     fireEvent.change(screen.getByTestId("def-storage"), { target: { value: "project" } });
     expect(screen.getByTestId("def-project")).toBeInTheDocument();
+  });
+
+  it("opens the editor for a row and seeds it with the def's payload", async () => {
+    const client = seed([meta({ id: "user~e1", name: "Editable" })]);
+    client.setQueryData(defKey("user~e1"), {
+      id: "user~e1", kind: "primitive", name: "Editable", storage: "user",
+      createdBy: "cee@x.io", createdAt: "2026-01-01T00:00:00Z", updatedAt: "2026-01-01T00:00:00Z",
+      rowVersion: 1, payload: { id: "grouped-column", label: "Grouped columns" },
+    });
+    renderWithProviders(<Definitions />, { client });
+    fireEvent.click(screen.getByTestId("def-edit-btn-user~e1"));
+    await waitFor(() => expect(screen.getByTestId("def-edit-user~e1")).toBeInTheDocument());
+    expect((screen.getByTestId("def-edit-name") as HTMLInputElement).value).toBe("Editable");
+    expect((screen.getByTestId("def-edit-payload") as HTMLTextAreaElement).value).toContain("grouped-column");
   });
 });
