@@ -869,6 +869,24 @@ authoring, and the drift guards — no feature bypasses the golden rules.
   model, and every user/admin-writable JSON kind — primitives, screens, forms, reports, dashboards, business
   rules, colour themes, fonts — flowing through one validated importer into the scoped encrypted stores.**
 
+### X.5 Surface the admin-editable permission model (roles/groups)  🚧 In progress (slice 1 of 2)
+- **Finding.** A stock-take of the RBAC surfaces showed the permission model is *mostly* already system-wide
+  and admin-editable — but not uniformly reachable: **capability governance** (permission sets: the capability ×
+  surface matrix) is fully surfaced (`GovernanceAdmin`), and per-collection edit-roles are surfaced
+  (`ScreensAdmin`); the **group → role mapping** existed only in the backend (`routes/role-map` +
+  `lib/rbac` `getRoleMap`/`setRoleMap`/`rollback`, sealed + four-eyes + step-up gated) with **no admin UI** —
+  an admin had to `curl PUT /admin/role-map`. (Custom roles are deliberately NOT editable: the 6 roles are a
+  hard-coded, statically-verifiable boundary; admins assign groups to fixed roles, they can't invent roles.)
+- **Slice 1 ✅ (the group → role mapping editor).** SPA `lib/role-map` (`useRoleMap` + `saveRoleMap` /
+  `rollbackRoleMap` + `parseGroups`) + `components/settings/RoleMapAdmin` — a new **`roleMap` Settings panel**:
+  per claim-mappable role (guest excluded — it's invite-only), the IdP groups that confer it, each tagged
+  env-baseline vs admin-override, editable and **saved behind the same step-up gate** (four-eyes when dual
+  control is configured) with an **undo** when a rollback is available. Admin-gated (the gateway also enforces
+  it). Registered in `ADMIN_PANELS` + `SETTINGS_PANEL_KEYS` (drift-guarded). 4 tests (renders the roles + source,
+  hides guest, local edits, non-admin renders nothing, `parseGroups`); settings drift guard + SPA typecheck
+  clean. **Next:** slice 2 — surface the def-scope permission policy (`PUT /defs/policy`) in the same admin
+  area, so the importer's per-scope gate is editable from the UI too.
+
 The mental model: each entry in the store is a **class** — its config are properties (a field's
 `options`, `maxLength`; a panel's `source`), it produces a typed **value**, and it carries
 **methods** (validate, render, serialise-to-backend). An instance placed on a screen or form is
