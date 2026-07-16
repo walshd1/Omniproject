@@ -232,6 +232,14 @@ export const FEATURE_MODULES: readonly FeatureModule[] = [
     reason: "storage", // holds installed-extension config in the encrypted-JSON store; install is admin-gated
   },
   {
+    id: "registry",
+    label: "Approved-items registry",
+    description: "An org store of approved bespoke templates, reports, primitives and JSON defs, with optional community release.",
+    load: () => import("../routes/registry"),
+    defaultOff: true,
+    reason: "storage", // holds curated registry items in the encrypted-JSON store; review/release admin-gated
+  },
+  {
     // Admin bulk-action runner: apply one canonical broker write (create/update project) to many
     // projects at once, declaratively. Has a backend route (POST /api/admin/bulk), so it loads
     // lazily; OFF until an admin opts in — it fans out project-level writes (high blast radius), so

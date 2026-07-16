@@ -670,6 +670,34 @@ authoring, and the drift guards — no feature bypasses the golden rules.
   for installing pure-JSON extensions. Auto-surfacing installed contributions into the live report/content
   catalogues (via `activeContributions`) is a natural follow-up.**
 
+### 3.5 Org registry of approved bespoke items + community-release seam  🚧 In progress (slice 1 of 3)
+- **Rationale.** Orgs accumulate bespoke building blocks — custom reports, screens, dashboards, forms,
+  **primitives** and raw **JSON defs**, plus extension **plugins** — scattered across users and projects. There's
+  no curated, org-wide place to collect the *approved* ones for reuse, and no path (when an org chooses) to share
+  them with a wider community. This is the internal **app store of vetted config**, ready to connect to an
+  as-yet-unbuilt **online marketplace**.
+- **Design.** A registry item is a typed, **pure-JSON building block** (`template` / `report` / `primitive` /
+  `plugin` / `screen` / `dashboard` / `form` / `jsonDef`) — no executable code — that moves through a small
+  lifecycle: **submit** (contributor+) → **review** approve/reject (admin) → optionally **release to the
+  community** (admin). Items are **org-wide** config in the sealed store. The community-release step calls a
+  **connector seam** (`community-marketplace`, like the broker): the default is *unconfigured* — release still
+  completes locally (the item is marked `community`, queued) and publishes for real once an online marketplace is
+  wired. **Optional, default-off** (`registry` module). Primitive-aligned like everything else.
+- **Slice 1 ✅ (registry model + `registryItem` primitive family + lifecycle routes + community seam).** New
+  `backend-catalogue/registry-catalogue`: `REGISTRY_ITEM_KINDS` (8 kinds), `REGISTRY_APPROVAL_STATUSES`
+  (draft / approved / rejected), `REGISTRY_VISIBILITIES` (internal / community), `registryItemKindLabel`.
+  `primitive-store` gains the **`registryItem` family** placeable on a new **`registry` surface**, drift-guarded.
+  Server `lib/registry` — the model + single sanitiser (`sanitizeRegistrySubmit`): bounded name/publisher/version
+  /tags + a size-capped pure-JSON `payload`; identity/review/release stamped server-side; the
+  `submit→review→release→retract` transitions + `approvedRegistryItems(kind)` / `communityRegistryItems()` read
+  hooks over the sealed org store. `lib/community-marketplace` — the **future-marketplace connector seam** (default
+  `UNCONFIGURED` no-op publish + `register`/`reset`/`get`). `routes/registry` — list/get (viewer+, non-admins see
+  only approved + their own), submit (contributor+), review/release/retract (admin), `community/status`, delete
+  (admin or own-draft), behind the new default-off **`registry`** module. 2 catalogue + 9 pure model + 2 seam +
+  6 route tests (incl. sealed-at-rest, visibility, RBAC negatives) + drift guard; all three packages typecheck
+  clean. **Next:** slice 2 — published **reference designs** for primitives + JSON defs (so people can build their
+  own); slice 3 — the registry UI (submit / browse / admin approval queue / release toggle) + reference viewer.
+
 ---
 
 ## Cross-cutting
