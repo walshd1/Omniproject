@@ -6,6 +6,7 @@ import { useAuth, roleAtLeast } from "../lib/auth";
 import type { CanvasElement } from "@workspace/backend-catalogue";
 import {
   useWhiteboards, useWhiteboard, useCreateWhiteboard, useSaveWhiteboard, useDeleteWhiteboard,
+  type WhiteboardVisibility,
 } from "../lib/whiteboard";
 import { CanvasEditor } from "../components/whiteboard/CanvasEditor";
 
@@ -36,6 +37,7 @@ export function Whiteboards() {
   // Working copy of the open board's scene; seeded when a board loads, saved on demand.
   const [elements, setElements] = useState<CanvasElement[]>([]);
   const [dirty, setDirty] = useState(false);
+  const [newVisibility, setNewVisibility] = useState<WhiteboardVisibility>("org");
   useEffect(() => {
     if (boardQ.data) { setElements(boardQ.data.scene.elements ?? []); setDirty(false); }
   }, [boardQ.data]);
@@ -43,16 +45,16 @@ export function Whiteboards() {
   const onChange = (next: CanvasElement[]) => { setElements(next); setDirty(true); };
 
   const onCreate = () => create.mutate(
-    { name: "Untitled board", scene: { elements: [] } },
+    { name: "Untitled board", scene: { elements: [] }, visibility: newVisibility },
     {
-      onSuccess: (b) => { setBoardId(b.id); toast({ title: "WHITEBOARD CREATED" }); },
+      onSuccess: (b) => { setBoardId(b.id); toast({ title: "WHITEBOARD CREATED", description: newVisibility === "user" ? "Personal (only you)" : "Shared with your org" }); },
       onError: (e) => toast({ title: "COULD NOT CREATE", description: e instanceof Error ? e.message : "Try again.", variant: "destructive" }),
     },
   );
   const onSave = () => {
     if (!boardQ.data) return;
     save.mutate(
-      { name: boardQ.data.name, scene: { elements } },
+      { name: boardQ.data.name, scene: { elements }, visibility: boardQ.data.visibility ?? "org" },
       {
         onSuccess: () => { setDirty(false); toast({ title: "WHITEBOARD SAVED" }); },
         onError: (e) => toast({ title: "COULD NOT SAVE", description: e instanceof Error ? e.message : "Try again.", variant: "destructive" }),
@@ -91,9 +93,16 @@ export function Whiteboards() {
               {boards.length === 0 && <li className="text-xs text-muted-foreground px-2" data-testid="whiteboards-empty">No whiteboards yet.</li>}
             </ul>
             {canAuthor && (
-              <Button type="button" variant="outline" size="sm" data-testid="whiteboard-new" disabled={create.isPending} onClick={onCreate}>
-                <Plus className="h-3 w-3 mr-1" />New whiteboard
-              </Button>
+              <div className="flex items-center gap-1">
+                <select aria-label="New board visibility" data-testid="whiteboard-visibility" value={newVisibility} onChange={(e) => setNewVisibility(e.target.value as WhiteboardVisibility)}
+                  className="h-8 border border-border bg-background text-xs px-1">
+                  <option value="org">Shared</option>
+                  <option value="user">Personal</option>
+                </select>
+                <Button type="button" variant="outline" size="sm" data-testid="whiteboard-new" disabled={create.isPending} onClick={onCreate}>
+                  <Plus className="h-3 w-3 mr-1" />New
+                </Button>
+              </div>
             )}
           </aside>
 
@@ -101,7 +110,11 @@ export function Whiteboards() {
             {boardQ.data ? (
               <div className="space-y-2">
                 <header className="flex flex-wrap items-center gap-2">
-                  <h2 className="text-lg font-bold flex-1 min-w-0">{boardQ.data.name}</h2>
+                  <h2 className="text-lg font-bold min-w-0">{boardQ.data.name}</h2>
+                  <span className="text-[10px] uppercase tracking-widest px-1.5 py-0.5 rounded border border-border text-muted-foreground flex-1-none" data-testid="whiteboard-visibility-badge">
+                    {boardQ.data.visibility === "user" ? "Personal" : "Shared"}
+                  </span>
+                  <span className="flex-1" />
                   {canAuthor && <Button type="button" size="sm" data-testid="whiteboard-save" disabled={!dirty || save.isPending} onClick={onSave}><Save className="h-3 w-3 mr-1" />{save.isPending ? "Saving…" : "Save"}</Button>}
                   {canDelete && <Button type="button" variant="ghost" size="sm" data-testid="whiteboard-delete" disabled={del.isPending} onClick={onDelete}><Trash2 className="h-3 w-3 mr-1" />Delete</Button>}
                 </header>
