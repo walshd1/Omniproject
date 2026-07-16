@@ -57,10 +57,25 @@ jobs:
         env:
           NODE_OPTIONS: --max-old-space-size=8192
 
-      - name: Unit tests + coverage gate (SPA)
-        run: pnpm --filter @workspace/omniproject run test:coverage
+      - name: Unit tests + coverage gate (SPA, sharded)
+        # @vitest/coverage-v8 accumulates raw coverage per worker across files, so a single run OOMs the
+        # worker (~8 GB, GC-ineffective) on this suite — a heap bump can't outrun it. Shard into 4 fresh
+        # processes (memory released between shards) with per-shard thresholds disabled (each shard only
+        # covers its slice; a real test failure still fails the shard under `set -e`), then merge the
+        # blob reports and enforce the real thresholds on the combined coverage.
+        working-directory: artifacts/omniproject
         env:
-          NODE_OPTIONS: --max-old-space-size=8192
+          NODE_OPTIONS: --max-old-space-size=6144
+        run: |
+          rm -rf .vitest-reports
+          for i in 1 2 3 4; do
+            echo "::group::SPA coverage shard $i/4"
+            npx vitest run --coverage --reporter=blob --shard="$i/4" \
+              --coverage.thresholds.lines=0 --coverage.thresholds.functions=0 \
+              --coverage.thresholds.statements=0 --coverage.thresholds.branches=0
+            echo "::endgroup::"
+          done
+          npx vitest run --merge-reports --coverage
 
       - name: Unit tests (tooling — setup wizard, deploy generators)
         run: pnpm --filter @workspace/scripts run test
