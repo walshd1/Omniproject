@@ -182,7 +182,7 @@ PDF overlay) enters as a **primitive** in the shared store, so it inherits capab
 authoring, and the drift guards — no feature bypasses the golden rules.
 
 
-### 2.1 Collaborative docs / wiki / knowledge base  ✅ Done (slices 1–6)
+### 2.1 Collaborative docs / wiki / knowledge base  ✅ Done (slices 1–7)
 - **Competitors.** Notion, ClickUp, Confluence, Wrike. **Gap.** "Content pages" is a CMS
   library, not real-time rich-text co-editing / linked wiki.
 - **Acceptance.** Rich-text documents with links/embeds, per-space organisation, presence
@@ -227,8 +227,21 @@ authoring, and the drift guards — no feature bypasses the golden rules.
   join-sync handshake (state-vector exchange) uses only `yjs` core — no `y-prosemirror`/`y-protocols`.
   Deterministic seeding (fixed client id) means two people opening a page at once never duplicate its
   blocks. Behind the default-off `wikiCoEdit` flag; the editor degrades to plain local state when off.
+- **Slice 7 ✅ (storage-target model — the canonical "user-held artifact" pattern, shared with whiteboards).**
+  A page now saves to a **storage target the author chooses**: their **private** / a **project's** shared /
+  the **org-wide** shared **encrypted-JSON** area (one AES-256-GCM sealed file per (type, scope) under
+  `OMNI_CONFIG_DIR`, via the reusable `lib/artifact-store`) or the **sidecar** SoR. The scoped-id primitive
+  (`makeScopedId`/`parseScopedId`/`scopeFromParsed`) and the per-target authz gate (`storage-target-authz`)
+  are now **shared** with whiteboards — one implementation, no drift. Doc ids are **self-describing**
+  (`<target>~…`) so a read routes with no lookup; a `user` scope always uses the caller's own sub (cross-user
+  is structurally impossible). JSON docs keep **full feature parity**: a bounded **version ring** (retained in
+  a sibling sealed collection, so history/diff/restore work), **backlinks** resolved across every accessible
+  store, and space grouping (broker spaces ∪ a `General` fallback ∪ synthesised spaces from JSON docs, so a
+  JSON-only deployment is fully usable). `GET /wiki/docs` aggregates across accessible stores. Per-target RBAC
+  (org write/delete = manager+, project = `guardProjectScope`); the page's create control picks Personal /
+  Org-wide / Built-in store. The wiki no longer depends on a broker at all.
 - **2.1 complete.** Wiki now has documents-of-primitives, authoring, presence+comments, a page tree,
-  version history + diff, and real-time co-edit — all zero-at-rest through the broker seam.
+  version history + diff, real-time co-edit, and author-chosen encrypted-JSON storage targets — zero-at-rest.
 
 ### 2.2 Guest / external collaboration & client portals  ✅ Done (slices 1–2; comment tier deferred)
 - **Competitors.** Monday, Wrike, Smartsheet. **Gap.** Enterprise-IdP/SCIM only; no
@@ -524,3 +537,11 @@ so an attachment field would be a URL reference (`url` type) pointing at the sys
   always uses the caller's own sub (cross-user is structurally impossible). Per-target RBAC (org write/delete
   = manager+, project = `guardProjectScope`); `GET /whiteboards` aggregates across accessible stores. **The
   canonical pattern for user-held artifacts — wiki pages adopt it next.**
+- _2026-07-16_ — Phase 2.1 slice 7 (wiki storage-target model) shipped, rolling the whiteboard pattern
+  "across the board": a wiki page saves to the author's private / a project's / the org-wide **encrypted-JSON**
+  area or the **sidecar**. The scoped-id primitive (`makeScopedId`/`parseScopedId`/`scopeFromParsed`) and the
+  per-target authz gate (`storage-target-authz`) are now **shared** with whiteboards (one implementation, no
+  drift). JSON docs keep full parity — a bounded **version ring** (sealed sibling collection → history/diff/
+  restore still work), **backlinks** across every accessible store, and space grouping (broker ∪ `General`
+  fallback ∪ synthesised). Self-describing ids, `user` scope always the caller's own sub, per-target RBAC. The
+  wiki no longer needs a broker at all.

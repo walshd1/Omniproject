@@ -1,10 +1,10 @@
 import crypto from "node:crypto";
 import { Router } from "express";
-import type { Request, Response } from "express";
 import { contextFromReq, withBrokerErrors } from "../broker";
 import type { Whiteboard, WhiteboardMeta } from "../broker/types";
-import { hasRole, requireRole } from "../lib/rbac";
-import { guardProjectScope, assertProjectScope } from "../lib/project-scope";
+import { requireRole } from "../lib/rbac";
+import { assertProjectScope } from "../lib/project-scope";
+import { authorizeStorageTarget } from "../lib/storage-target-authz";
 import {
   artifactStoreEnabled, listArtifacts, getArtifact, putArtifact, deleteArtifact,
 } from "../lib/artifact-store";
@@ -13,7 +13,6 @@ import {
   sanitizeWhiteboardWrite, makeWhiteboardId, parseWhiteboardId, whiteboardScope,
   newJsonBoardRow, mergeJsonBoardRow, boardMeta, WhiteboardError, WHITEBOARD_ARTIFACT,
 } from "../lib/whiteboard";
-import type { WhiteboardStorage } from "../lib/whiteboard";
 
 /**
  * WHITEBOARDS / visual canvas (roadmap 2.3). A board is saved to a STORAGE TARGET the author chooses — the
@@ -35,32 +34,14 @@ import type { WhiteboardStorage } from "../lib/whiteboard";
  */
 const router = Router();
 
-/**
- * Per-target authorization for one board operation. Returns true when allowed; otherwise it has already
- * sent the response (403/400/501) and the caller must return. The RBAC floor (viewer read / contributor
- * write) is applied by the route middleware; this adds the target-specific rule on top.
- */
-async function authorizeTarget(
-  req: Request, res: Response, storage: WhiteboardStorage, projectId: string | undefined, op: "read" | "write",
-): Promise<boolean> {
-  switch (storage) {
-    case "user":
-      return true; // the caller's own private area — structurally isolated (scope uses the caller's sub)
-    case "project":
-      if (!projectId) { res.status(400).json({ error: "a project whiteboard needs a projectId" }); return false; }
-      return guardProjectScope(req, res, projectId); // 403 + audit on a cross-scope id
-    case "org":
-      // Org-wide: reads are open to any viewer+ (already floored); writes/deletes need manager+.
-      if (op === "write" && !hasRole(req, "manager")) {
-        res.status(403).json({ error: "org-wide whiteboards require at least the manager role" });
-        return false;
-      }
-      return true;
-    case "sidecar":
-      if (!brokerHasWhiteboards()) { res.status(501).json({ error: "this backend does not support whiteboards" }); return false; }
-      return true;
-  }
-}
+/** Per-target authorization for one board operation (the shared storage-target gate). */
+const authorizeTarget = (
+  req: Parameters<typeof authorizeStorageTarget>[0], res: Parameters<typeof authorizeStorageTarget>[1],
+  storage: Parameters<typeof authorizeStorageTarget>[2], projectId: string | undefined, op: "read" | "write",
+): Promise<boolean> =>
+  authorizeStorageTarget(req, res, storage, projectId, op, {
+    capability: brokerHasWhiteboards(), capabilityError: "this backend does not support whiteboards",
+  });
 
 // GET /api/whiteboards?projectId= — the boards (scene bodies omitted) the caller can reach, aggregated across
 // every accessible store: their private area, the org area, the requested project's area (when in scope) and
