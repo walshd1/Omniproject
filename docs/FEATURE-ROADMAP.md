@@ -451,7 +451,7 @@ authoring, and the drift guards — no feature bypasses the golden rules.
 
 ## Phase 3 — deepen what exists only partially
 
-### 3.1 Full interactive scheduling engine  🚧 In progress (slices 1–3)
+### 3.1 Full interactive scheduling engine  🚧 In progress (slices 1–4)
 - **Competitors.** MS Project, Smartsheet, Planview. **Have.** Gantt + CPM + baselines +
   Monte-Carlo. **Missing.** Auto-scheduling: working calendars, task constraints
   (SNET/FNLT), lead/lag, drag-a-bar-and-cascade-dependencies.
@@ -488,6 +488,16 @@ authoring, and the drift guards — no feature bypasses the golden rules.
   FS/SS/FF/SF + lead/lag, and constraints. Cyclic edges are ignored + flagged (trapped nodes still placed);
   self-loops / dangling edges dropped. Pure + projected. 9 unit tests (FS chain + lag, SS/lag, SNET override,
   FNLT breach, floor, cycle, edge hygiene, empty). **Next:** drag-a-bar-cascade Gantt integration (slice 4).
+- **Slice 4 ✅ (adapter seam: real issues → engine).** `lib/schedule-adapter` — the ONE place the scheduler
+  touches app types, keeping the engine (`working-calendar` / `schedule-constraints` / `auto-schedule`) free
+  of them. `issueDurationWorkingDays` (inclusive start→due span in WORKING days, else estimate ÷ 8h, else a
+  0-day milestone — mirrors `CriticalPath.durationDays` but calendar-aware); `issuesToScheduleTasks` (anchors
+  each task's `earliestStartDay` to its snapped start, attaches an optional per-issue constraint);
+  `dependencyEdgesToTyped` (maps the dependency overlay to typed precedence within one project — `blocks` →
+  FS from→to, `depends_on` → the reverse, `relates_to` skipped; cross-project / dangling edges dropped). The
+  coarse model has no FS/SS/FF/SF or lag yet, so edges default to FS/0 — richer edges layer on without
+  changing the seam. Pure + projected. 5 unit tests. **Next:** the read-only auto-scheduled forecast overlay
+  wiring real data through the engine on a Gantt (slice 5), then interactive drag-cascade (slice 6).
 
 ### 3.2 Goals / OKRs as a managed cadence  ⬜ Todo
 - **Competitors.** Asana Goals, Viva Goals, ClickUp. **Have.** Strategy cascade + PI board
