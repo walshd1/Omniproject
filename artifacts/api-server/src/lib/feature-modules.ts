@@ -178,6 +178,17 @@ export const FEATURE_MODULES: readonly FeatureModule[] = [
     reason: "cost",
   },
   {
+    // Proofing / deliverable review: a proof references an image/PDF (never inlined — zero-at-rest) and
+    // carries annotation primitives + a review decision, held in the encrypted-JSON store. Has a backend
+    // route, so it loads lazily; OFF until opted in.
+    id: "proofing",
+    label: "Proofing & review",
+    description: "Attach a deliverable (image/PDF), pin annotations, and record an approve/reject decision.",
+    load: () => import("../routes/proofs"),
+    defaultOff: true,
+    reason: "storage", // holds proof + annotation metadata in the encrypted-JSON store
+  },
+  {
     // Admin bulk-action runner: apply one canonical broker write (create/update project) to many
     // projects at once, declaratively. Has a backend route (POST /api/admin/bulk), so it loads
     // lazily; OFF until an admin opts in — it fans out project-level writes (high blast radius), so

@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { PRIMITIVES, primitiveStore, primitivesByFamily, primitivesFor, getPrimitive, primitiveTree, categoriesFor, allTags, primitivesByTag } from "./primitive-store";
 import { PANEL_RENDERERS } from "../components/screen/registry";
 import { PRIMITIVE_LIBRARY } from "../definitions/primitives";
-import { FORM_FIELD_TYPES, DOC_BLOCK_TYPES, CANVAS_ELEMENT_TYPES, componentLibrary } from "@workspace/backend-catalogue";
+import { FORM_FIELD_TYPES, DOC_BLOCK_TYPES, CANVAS_ELEMENT_TYPES, ANNOTATION_TYPES, componentLibrary } from "@workspace/backend-catalogue";
 
 /**
  * Drift guard for THE single primitive store. It binds each family back to its authoritative registry, so
@@ -45,6 +45,16 @@ describe("primitive-store (single shared store)", () => {
   it("canvas primitives are placeable only on the canvas surface", () => {
     expect(primitivesByFamily("canvas").every((p) => p.placeableIn.includes("canvas"))).toBe(true);
     expect(primitivesFor("canvas").some((p) => p.family === "canvas")).toBe(true);
+  });
+
+  it("the annotation family exactly matches the shared annotation types", () => {
+    const store = primitivesByFamily("annotation").map((p) => p.id).sort();
+    expect(store).toEqual([...ANNOTATION_TYPES].sort());
+  });
+
+  it("annotation primitives are placeable only on the proof surface", () => {
+    expect(primitivesByFamily("annotation").every((p) => p.placeableIn.includes("proof"))).toBe(true);
+    expect(primitivesFor("proof").some((p) => p.family === "annotation")).toBe(true);
   });
 
   it("the component family exactly matches the shared component library", () => {

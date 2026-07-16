@@ -15,7 +15,7 @@
 
 import type { SessionBind } from "../lib/session-key";
 import type { Scope } from "../lib/scope";
-import type { DocBlock, CanvasElement } from "@workspace/backend-catalogue";
+import type { DocBlock, CanvasElement, Annotation, Deliverable, ProofDecision } from "@workspace/backend-catalogue";
 
 /** Loosely-typed record — the normalised row shape the broker exchanges. */
 export type Row = Record<string, unknown>;
@@ -321,6 +321,51 @@ export interface WhiteboardMeta {
   ownerSub?: string | null;
   visibility?: WhiteboardVisibility;
   storage?: "user" | "project" | "org" | "sidecar";
+  updatedAt: string;
+  updatedBy?: string | null;
+}
+
+/**
+ * A PROOF — a deliverable (image/PDF, referenced not inlined) under creative review (roadmap 2.4). Carries a
+ * list of typed `annotation`-family primitives pinned onto it and a review decision bound to the current
+ * version. Held in the encrypted-JSON store (storage-target model), like a whiteboard.
+ */
+export interface Proof extends Row {
+  id: string;
+  name: string;
+  projectId?: string | null;
+  ownerSub?: string | null;
+  /** Where the proof lives: user / project / org (encrypted-JSON) — the id also encodes this. */
+  storage?: "user" | "project" | "org";
+  /** The deliverable under review — a safe-scheme reference (zero-at-rest). */
+  deliverable: Deliverable;
+  /** Bumps when the deliverable is replaced; a review decision is bound to the version it was made against. */
+  version: number;
+  annotations: Annotation[];
+  /** The current review decision, and who/when — stamped server-side, never from the client. */
+  decision: ProofDecision;
+  decisionVersion?: number;
+  decidedBy?: string | null;
+  decidedAt?: string | null;
+  updatedAt: string;
+  updatedBy?: string | null;
+}
+/** A proof write (create/update) — the sanitised, client-supplied fields (decision is set via its own route). */
+export interface ProofWrite {
+  name: string;
+  projectId?: string | null | undefined;
+  deliverable: Deliverable;
+  annotations: Annotation[];
+}
+/** A proof's metadata (no annotations/deliverable body) — the list view. */
+export interface ProofMeta {
+  id: string;
+  name: string;
+  projectId?: string | null;
+  ownerSub?: string | null;
+  storage?: "user" | "project" | "org";
+  version: number;
+  decision: ProofDecision;
   updatedAt: string;
   updatedBy?: string | null;
 }

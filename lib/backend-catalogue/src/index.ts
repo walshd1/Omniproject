@@ -32,6 +32,7 @@ export * from "./automation-catalogue";
 export * from "./template-catalogue";
 export * from "./wiki-catalogue";
 export * from "./canvas-catalogue";
+export * from "./proof-catalogue";
 export * from "./widget-catalogue";
 export * from "./component-library";
 export * from "./screen-catalogue";
