@@ -20,6 +20,7 @@ const FAMILY_LABEL: Record<PrimitiveFamily, string> = {
   keyResult: "Goal key results",
   invoiceLine: "Invoice lines",
   extensionContribution: "Extension contributions",
+  registryItem: "Registry items",
   component: "Reports & widgets",
 };
 

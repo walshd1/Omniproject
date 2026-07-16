@@ -1,6 +1,6 @@
 import { PANEL_RENDERERS } from "../components/screen/registry";
 import { PRIMITIVE_LIBRARY } from "../definitions/primitives";
-import { componentLibrary, FORM_FIELD_TYPES, DOC_BLOCK_TYPES, CANVAS_ELEMENT_TYPES, ANNOTATION_TYPES, KEY_RESULT_KINDS, INVOICE_LINE_KINDS, EXTENSION_CONTRIBUTION_KINDS } from "@workspace/backend-catalogue";
+import { componentLibrary, FORM_FIELD_TYPES, DOC_BLOCK_TYPES, CANVAS_ELEMENT_TYPES, ANNOTATION_TYPES, KEY_RESULT_KINDS, INVOICE_LINE_KINDS, EXTENSION_CONTRIBUTION_KINDS, REGISTRY_ITEM_KINDS } from "@workspace/backend-catalogue";
 
 /**
  * THE single shared primitive store — one catalogue over every renderable building block in the product,
@@ -22,9 +22,11 @@ import { componentLibrary, FORM_FIELD_TYPES, DOC_BLOCK_TYPES, CANVAS_ELEMENT_TYP
  *  - `invoiceLine` invoice charges (labour/expense/fixed/discount) — from INVOICE_LINE_KINDS.
  *  - `extensionContribution` marketplace extension parts (report/contentPage/dashboard/screen) — from
  *    EXTENSION_CONTRIBUTION_KINDS.
+ *  - `registryItem` org-registry approved items (template/report/primitive/plugin/…) — from
+ *    REGISTRY_ITEM_KINDS.
  */
-export type PrimitiveFamily = "panel" | "viz" | "field" | "component" | "block" | "canvas" | "annotation" | "keyResult" | "invoiceLine" | "extensionContribution";
-export type PlacementSurface = "screen" | "report" | "dashboard" | "content" | "form" | "export" | "canvas" | "proof" | "goal" | "invoice" | "marketplace";
+export type PrimitiveFamily = "panel" | "viz" | "field" | "component" | "block" | "canvas" | "annotation" | "keyResult" | "invoiceLine" | "extensionContribution" | "registryItem";
+export type PlacementSurface = "screen" | "report" | "dashboard" | "content" | "form" | "export" | "canvas" | "proof" | "goal" | "invoice" | "marketplace" | "registry";
 
 export interface Primitive {
   /** Unique WITHIN its family (a `table` panel and a `table` viz are different primitives). */
@@ -137,6 +139,18 @@ const EXTENSION_CONTRIBUTION_META: Record<string, { category: string; tags: stri
   screen: { category: "surface", tags: ["screen"] },
 };
 
+/** `registryItem` family — subfolder + tags per org-registry approved-item primitive. */
+const REGISTRY_ITEM_META: Record<string, { category: string; tags: string[] }> = {
+  template: { category: "reusable", tags: ["scaffold"] },
+  report: { category: "reusable", tags: ["report"] },
+  primitive: { category: "reusable", tags: ["building-block"] },
+  plugin: { category: "reusable", tags: ["extension"] },
+  screen: { category: "reusable", tags: ["screen"] },
+  dashboard: { category: "reusable", tags: ["dashboard"] },
+  form: { category: "reusable", tags: ["form"] },
+  jsonDef: { category: "reusable", tags: ["config"] },
+};
+
 /** `viz` family — cross-cutting tags per data-visualisation primitive (subfolder is its chart category). */
 const VIZ_TAGS: Record<string, string[]> = {
   bar: ["comparison"], line: ["timeseries", "trend"], area: ["timeseries", "trend"],
@@ -223,6 +237,14 @@ function extensionContributionPrimitives(): Primitive[] {
   });
 }
 
+/** `registryItem` family — the org-registry approved-item kinds. They live on the `registry` surface. */
+function registryItemPrimitives(): Primitive[] {
+  return REGISTRY_ITEM_KINDS.map((id) => {
+    const meta = REGISTRY_ITEM_META[id] ?? { category: "other", tags: [] };
+    return { id, sourceId: id, family: "registryItem", label: titleCase(id), category: meta.category, tags: meta.tags, placeableIn: ["registry"] };
+  });
+}
+
 /** `component` family — hosted reports + widgets, already placement-tagged by the shared library. */
 function componentPrimitives(): Primitive[] {
   return componentLibrary().map((c) => ({
@@ -247,6 +269,7 @@ export const PRIMITIVES: Primitive[] = [
   ...keyResultPrimitives(),
   ...invoiceLinePrimitives(),
   ...extensionContributionPrimitives(),
+  ...registryItemPrimitives(),
   ...componentPrimitives(),
 ];
 
