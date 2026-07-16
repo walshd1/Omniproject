@@ -158,6 +158,8 @@ already exist, so they close the most competitive distance for the least build.
 - **Acceptance.** Freeform canvas (sticky notes, shapes, connectors, freehand), multi-user
   live cursors, convert a sticky → work item; export.
 - **Leverage.** Presence/live-events; new `canvas` panel kind; drill-to for item creation.
+- **Pairs with:** X.1 Native handoff — our inline whiteboard is the "good enough" version; the
+  "Use native" button hands off to Miro/Lucid/Figma when connected.
 
 ### 2.4 Proofing / deliverable review & annotation  ⬜ Todo
 - **Competitors.** Adobe Workfront, Wrike, Smartsheet. **Gap.** No creative review markup.
@@ -196,6 +198,33 @@ already exist, so they close the most competitive distance for the least build.
 - **Competitors.** Jira/Monday/Asana marketplaces. **Have.** 41 connectors + MCP + broker
   seam. **Missing.** UI-extension ecosystem (installable panels/screens/reports).
 - **Leverage.** Panel registry, screen-def bundles, MCP, config-bundle delivery.
+
+---
+
+## Cross-cutting
+
+### X.1 Native handoff (companion-app bridge)  ⬜ Todo — full design in `docs/NATIVE-HANDOFF.md`
+- **Rationale.** Our inline artifacts (whiteboard, doc, sheet, board, gantt, dashboard) are "good
+  enough"; a **"Use native"** button hands off to the specialist SaaS a connected backend already
+  fronts (Miro, Notion, Smartsheet, MS Project, Power BI, …). The user works there under their own
+  login and the artifact comes back **through the broker** as a reference. Purest expression of the
+  thesis: *your tools stay the source of truth; nothing syncs, nothing migrates.*
+- **Generalised — every SaaS backend, every artifact kind**, not whiteboard-specific. A connector
+  advertises the native surfaces it fronts; the SPA lights up "Use native (\<vendor\>)" on any
+  artifact whose `kind` a connected backend advertises.
+- **Contract.** A `NativeSurface` descriptor in the connector catalogue + three optional broker
+  methods: `nativeSurfaces` (advertise, capability-unioned), `nativeHandoff` (mint the vetted,
+  host-allowlisted vendor URL), `nativeImport` (bring it back through the broker as a
+  `TaskAttachment { url }`). One reusable capability-gated `<UseNative>` control — no per-vendor UI.
+- **Why it's safe.** Broker-mediated ⇒ inherits every data-seam control for free: `safeFetch`
+  (SSRF/egress), residency 451 fail-closed, vault credentials (user's own OAuth token, scope never
+  widened), sanitiser, provenance, audit. Connector-minted URLs (never user input), login stays in
+  the user's real browser (we never wrap the vendor's auth screen), reference-only by default
+  (zero-at-rest). **A new connector capability, not a new security boundary.**
+- **Leverage.** Broker seam + connector catalogue + capability resolver + attachments +
+  vault/`storeCredential` + egress/residency + provenance/audit + the primitive store (`kind`).
+- **Slices.** (1) reference handoff + `<UseNative>` button; (2) sandboxed Live-Embed preview;
+  (3) OAuth + content import (metadata/thumbnail via `safeFetch`).
 
 ---
 
@@ -295,5 +324,10 @@ so an attachment field would be a URL reference (`url` type) pointing at the sys
   ruleset as the grid. Documented the form primitive backlog and, for 1.2, the hard
   RBAC-gating constraint (automate only what you may edit).
 - _2026-07-16_ — Forms capability gating: a form can only map onto issue fields the
-  connected backend advertises as storable, enforced at authoring and submit. **Next up:
-  Phase 1.2 (automation recipes).**
+  connected backend advertises as storable, enforced at authoring and submit.
+- _2026-07-16_ — Phase 1.2 slice 1 (automation recipes) shipped; single shared primitive store
+  (subfolders + tags + drift guard) with every authoring surface wired to it; richer form field
+  primitives (radio/likert/multiselect/yesno/address). Branch merged to `main` (PR #661).
+- _2026-07-16_ — Added cross-cutting **X.1 Native handoff** design (`docs/NATIVE-HANDOFF.md`):
+  a generalised "Use native" companion-app bridge — broker-mediated, so it inherits every
+  data-seam control. Generalised across all SaaS backends + artifact kinds.
