@@ -230,7 +230,7 @@ authoring, and the drift guards — no feature bypasses the golden rules.
 - **2.1 complete.** Wiki now has documents-of-primitives, authoring, presence+comments, a page tree,
   version history + diff, and real-time co-edit — all zero-at-rest through the broker seam.
 
-### 2.2 Guest / external collaboration & client portals  🚧 In progress (slice 1)
+### 2.2 Guest / external collaboration & client portals  ✅ Done (slices 1–2; comment tier deferred)
 - **Competitors.** Monday, Wrike, Smartsheet. **Gap.** Enterprise-IdP/SCIM only; no
   limited-seat guest access (blocks agencies/consultancies).
 - **Acceptance.** Scoped guest principals (single project/board), magic-link or restricted
@@ -248,8 +248,12 @@ authoring, and the drift guards — no feature bypasses the golden rules.
   client-safe fields (name, progress, RAG rollup, dated milestones); never budget/cost/benefit. Every guest
   action is audited automatically. Security tests: guest 403 on all app routes, single-use, invite RBAC,
   no financial leakage, portal-off ⇒ 404.
-- **Slice 2 (next).** The client-facing portal PAGE (a bare `/portal` route like `/explore`), a guest
-  redirect (a guest lands only on the portal), the invite UI (manager action), and the comment tier.
+- **Slice 2 ✅ (portal UI + invite).** A bare **`/portal`** route (no AppLayout chrome, like `/explore`)
+  rendering the guest's curated status (progress bar, RAG rollup, dated milestones) read-only; a **guest
+  redirect** in AppLayout bounces any guest to `/portal` (and returns null to avoid a shell flash), so a
+  guest only ever sees the portal. A manager **invite panel** in Settings (`GuestInvitePanel`, manager+)
+  posts a scoped invite. Client hooks (`usePortalStatus`/`useInviteGuest`), e2e route-manifest + smoke,
+  unit tests. The **comment tier** (a guest leaving comments on its project) is deferred to a later slice.
 
 ### 2.3 Whiteboards / visual canvas  ⬜ Todo
 - **Competitors.** Miro/Mural, ClickUp, Monday. **Gap.** No infinite canvas.
@@ -465,3 +469,6 @@ so an attachment field would be a URL reference (`url` type) pointing at the sys
   single-use magic-link invites (`GUEST_PORTAL_ENABLED`, works alongside an IdP), and `POST /portal/invites`
   (manager+) / `GET /portal/status` (guest+, allow-listed client-safe fields — no financials). Guest actions
   auto-audited. Portal UI + redirect + comment tier are slice 2.
+- _2026-07-16_ — Phase 2.2 slice 2 (portal UI + invite) shipped, **completing 2.2** (comment tier deferred):
+  a bare `/portal` status page, an AppLayout guest redirect (a guest only ever sees the portal), a manager
+  `GuestInvitePanel` in Settings, client hooks, e2e manifest + smoke, unit tests.

@@ -36,6 +36,7 @@ import { useRoutedScreens } from "./lib/org-screens";
 const Dashboards = lazy(() => import("./pages/Dashboards").then((m) => ({ default: m.Dashboards })));
 const ContentPages = lazy(() => import("./pages/ContentPages").then((m) => ({ default: m.ContentPages })));
 const Wiki = lazy(() => import("./pages/Wiki").then((m) => ({ default: m.Wiki })));
+const Portal = lazy(() => import("./pages/Portal").then((m) => ({ default: m.Portal })));
 const ScreenPage = lazy(() => import("./pages/ScreenPage").then((m) => ({ default: m.ScreenPage })));
 const Settings = lazy(() => import("./pages/Settings").then((m) => ({ default: m.Settings })));
 const Configurator = lazy(() => import("./pages/Configurator").then((m) => ({ default: m.Configurator })));
@@ -141,6 +142,11 @@ function Router() {
           builder (bare, no header) so it too is a JSON screen def, but without the AppLayout wrapper. */}
       <Route path="/explore">
         <ScreenPage id="explore" />
+      </Route>
+      {/* Client-facing guest portal — BARE (no AppLayout), like /explore: a guest must never see the app
+          chrome. Guests are bounced here from any AppLayout route (see AppLayout's guest guard). */}
+      <Route path="/portal">
+        <Portal />
       </Route>
       <Route path="/settings">
         <AppLayout><Settings /></AppLayout>

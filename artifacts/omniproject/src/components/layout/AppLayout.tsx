@@ -85,6 +85,16 @@ export function AppLayout({ children }: { children: ReactNode }) {
     }
   }, [auth, authLoading, authError, setLocation]);
 
+  // Guest guard: a GUEST principal (client-portal, below viewer) may see ONLY the bare /portal — never the
+  // app shell. It's already 403'd on every app API by the gateway's viewer-floor gate; this bounces it out
+  // of the chrome so it doesn't render a shell full of empty/denied panels. /portal is outside AppLayout,
+  // so the guest is never redirected away from the portal itself.
+  useEffect(() => {
+    if (!authLoading && auth?.authenticated && auth.role === "guest") {
+      setLocation("/portal");
+    }
+  }, [auth, authLoading, setLocation]);
+
   // Two-key "chord" navigation (g then d/p/r/s, like Gmail/GitHub): pressing 'g'
   // arms a one-shot listener for the destination key; it auto-disarms after the
   // chord window if no follow-up key arrives.
@@ -139,6 +149,8 @@ export function AppLayout({ children }: { children: ReactNode }) {
   // Don't render the authenticated shell for an unauthenticated OR errored auth state (the effect
   // above redirects to /login; returning null here prevents a fail-open flash of the app).
   if (authError || (auth && !auth.authenticated)) return null;
+  // Nor for a guest — the effect above bounces it to /portal; returning null avoids a flash of the shell.
+  if (auth?.role === "guest") return null;
 
   const initials = (auth?.user?.name || auth?.user?.email || "ME")
     .split(/[\s@.]+/)

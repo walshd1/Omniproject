@@ -29,6 +29,9 @@ const CASES: { path: string; heading: RegExp; testids?: string[]; tab?: RegExp }
   { path: "/reports", heading: /enterprise reporting/i },
   { path: "/resources", heading: /resource planning/i, testids: ["capacity-summary"] },
   { path: "/explore", heading: /exploration sandbox/i, testids: ["explore-mode"] },
+  // A normal (non-guest) demo session hits the portal's "unavailable" notice — the page still paints its
+  // own heading + testid, which is what the smoke checks (guest-only content needs a guest session).
+  { path: "/portal", heading: /project portal/i, testids: ["portal-page"] },
   { path: "/settings", heading: /system configuration/i },
   { path: "/configurator", heading: /configurator/i },
   { path: "/setup", heading: /.+/, testids: ["setup-start-here"] },

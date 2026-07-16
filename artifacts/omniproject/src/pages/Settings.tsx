@@ -27,6 +27,7 @@ import { FieldValidationAdmin } from "../components/settings/FieldValidationAdmi
 import { ProgrammeRegistryAdmin } from "../components/settings/ProgrammeRegistryAdmin";
 import { BrokerKindsAdmin } from "../components/settings/BrokerKindsAdmin";
 import { ClosedProjectsAdmin } from "../components/settings/ClosedProjectsAdmin";
+import { GuestInvitePanel } from "../components/settings/GuestInvitePanel";
 import { GuidAliasesAdmin } from "../components/settings/GuidAliasesAdmin";
 import { SelfHostCapabilitiesAdmin } from "../components/settings/SelfHostCapabilitiesAdmin";
 import { TranslationLayer } from "../components/settings/TranslationLayer";
@@ -143,6 +144,7 @@ const ADMIN_PANELS: AdminPanel[] = [
   { key: "resourceAllocations", Component: ResourceAllocationsAdmin },
   { key: "raci", Component: RaciAdmin },
   { key: "stakeholders", Component: StakeholdersAdmin },
+  { key: "guestInvite", Component: GuestInvitePanel },
   { key: "forms", Component: FormsAdmin },
   { key: "automations", Component: AutomationsAdmin },
   { key: "templates", Component: TemplatesAdmin },
