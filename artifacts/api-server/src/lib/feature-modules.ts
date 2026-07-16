@@ -168,6 +168,16 @@ export const FEATURE_MODULES: readonly FeatureModule[] = [
     reason: "cost", // holds an SSE stream per editor; per-replica in-memory relay rooms
   },
   {
+    // Visual whiteboards / canvas. Scenes live in the backend through the broker seam (zero-at-rest);
+    // has a backend route, so it loads lazily; OFF until opted in (the canvas editor is a heavy surface).
+    id: "whiteboard",
+    label: "Whiteboards",
+    description: "Freeform visual canvases (sticky notes, shapes, connectors) stored through the data seam.",
+    load: () => import("../routes/whiteboard"),
+    defaultOff: true,
+    reason: "cost",
+  },
+  {
     // Admin bulk-action runner: apply one canonical broker write (create/update project) to many
     // projects at once, declaratively. Has a backend route (POST /api/admin/bulk), so it loads
     // lazily; OFF until an admin opts in — it fans out project-level writes (high blast radius), so

@@ -255,13 +255,29 @@ authoring, and the drift guards — no feature bypasses the golden rules.
   posts a scoped invite. Client hooks (`usePortalStatus`/`useInviteGuest`), e2e route-manifest + smoke,
   unit tests. The **comment tier** (a guest leaving comments on its project) is deferred to a later slice.
 
-### 2.3 Whiteboards / visual canvas  ⬜ Todo
+### 2.3 Whiteboards / visual canvas  🚧 In progress (slice 1)
 - **Competitors.** Miro/Mural, ClickUp, Monday. **Gap.** No infinite canvas.
 - **Acceptance.** Freeform canvas (sticky notes, shapes, connectors, freehand), multi-user
   live cursors, convert a sticky → work item; export.
 - **Leverage.** Presence/live-events; new `canvas` panel kind; drill-to for item creation.
 - **Pairs with:** X.1 Native handoff — our inline whiteboard is the "good enough" version; the
   "Use native" button hands off to Miro/Lucid/Figma when connected.
+- **Slice 1 ✅ (canvas primitive family + broker seam + sanitiser + hooks).** Dependency-free foundation,
+  mirroring the wiki — and, per the "built of primitives" rule, the whiteboard is our OWN model, not an
+  opaque third-party scene. A new **`canvas` primitive family** (`CANVAS_ELEMENT_TYPES` in
+  backend-catalogue → the shared primitive store, drift-guarded): **sticky / shape / text / connector /
+  frame**. A scene is a list of these typed primitives. Optional capability-gated broker methods
+  (`listWhiteboards`/`getWhiteboard`/`writeWhiteboard` → 501 when unsupported), a demo impl, RBAC-gated
+  `/api/whiteboards/*` routes (read viewer+, author contributor+, delete manager+) behind the default-off
+  `whiteboard` feature module. Stored as neutral JSON through the seam (**zero-at-rest**) via one
+  **sanitising choke point** (`sanitizeWhiteboardWrite`): count + total-size caps, **per-type field
+  allow-listing** (a smuggled field/inline image/script link can't ride along), coordinate clamping, safe-
+  scheme links only, unknown-type elements dropped. Drift guards updated (autonomous-guard classifier +
+  read allow-list, route-scope classification, primitive-store family binding). Client hooks. Tests.
+- **Slice 2 (next).** A **native canvas editor built of the `canvas` primitives** (plain SVG — no heavy
+  dependency for the MVP; optional MIT techniques/libs from Excalidraw's ecosystem — roughjs/perfect-
+  freehand — may be adopted with attribution for the sketchy look / pen strokes, or Excalidraw offered as
+  the "use native" handoff per X.1). **Slice 3:** live cursors (collab relay) + sticky → work item.
 
 ### 2.4 Proofing / deliverable review & annotation  ⬜ Todo
 - **Competitors.** Adobe Workfront, Wrike, Smartsheet. **Gap.** No creative review markup.

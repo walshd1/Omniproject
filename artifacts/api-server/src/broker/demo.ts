@@ -32,6 +32,8 @@ import {
   type WikiDocWrite,
   type WikiDocVersion,
   type WikiDocVersionMeta,
+  type Whiteboard,
+  type WhiteboardWrite,
   type Summary,
   type HistoryPoint,
   type HistoryState,
@@ -129,6 +131,25 @@ function captureWikiVersion(doc: WikiDoc, author: string, at: string): void {
   });
   if (list.length > MAX_WIKI_VERSIONS) list.splice(0, list.length - MAX_WIKI_VERSIONS);
 }
+/** Demo whiteboards — freeform canvases, scenes stored through the seam (zero-at-rest). RAM-only. */
+function seedWhiteboards(): Whiteboard[] {
+  return [
+    {
+      id: "wb-roadmap", name: "Delivery roadmap sketch", projectId: "proj-001",
+      updatedAt: "2026-07-04T09:00:00.000Z", updatedBy: "grace@demo",
+      scene: {
+        elements: [
+          { id: "e1", type: "sticky", x: 40, y: 40, w: 160, h: 120, text: "Cutover plan", color: "blue" },
+          { id: "e2", type: "shape", x: 240, y: 60, w: 120, h: 80, shape: "rectangle", text: "Go / no-go" },
+          { id: "e3", type: "connector", x: 200, y: 100, x2: 240, y2: 100, from: "e1", to: "e2" },
+        ],
+        appState: { viewBackgroundColor: "#ffffff" },
+      },
+    },
+  ];
+}
+let SAMPLE_WHITEBOARDS: Whiteboard[] = seedWhiteboards();
+let whiteboardCounter = 100;
 /** In-memory child issues/notes per task (demo only). */
 const SAMPLE_TASK_ITEMS: Record<string, TaskItem[]> = {};
 /** Demo GTD tasks — actionable next-actions across the portfolio, distinct from issues. */
@@ -148,6 +169,8 @@ export function resetDemoBrokerState(): void {
   for (const k of Object.keys(SAMPLE_TASK_ITEMS)) delete SAMPLE_TASK_ITEMS[k];
   SAMPLE_WIKI_DOCS = seedWikiDocs();
   SAMPLE_WIKI_VERSIONS = seedWikiVersions();
+  SAMPLE_WHITEBOARDS = seedWhiteboards();
+  whiteboardCounter = 100;
   issueCounter = 100;
   raidCounter = 100;
   projectCounter = 100;
@@ -543,6 +566,51 @@ export class DemoBroker implements Broker {
   async getWikiDocVersion(_ctx: ActorContext, docId: string, versionId: string): Promise<WikiDocVersion | null> {
     const v = (SAMPLE_WIKI_VERSIONS[docId] ?? []).find((x) => x.versionId === versionId);
     return v ? { ...v, blocks: v.blocks.map((b) => ({ ...b })) } : null;
+  }
+
+  async listWhiteboards(_ctx: ActorContext, opts?: { projectId?: string }): Promise<Whiteboard[]> {
+    const boards = opts?.projectId ? SAMPLE_WHITEBOARDS.filter((b) => b.projectId === opts.projectId) : SAMPLE_WHITEBOARDS;
+    // List view: omit the (potentially large) scene bodies.
+    return boards.map((b) => ({ ...b, scene: { elements: [] } }));
+  }
+
+  async getWhiteboard(_ctx: ActorContext, id: string): Promise<Whiteboard | null> {
+    const b = SAMPLE_WHITEBOARDS.find((w) => w.id === id);
+    return b ? { ...b, scene: { elements: [...b.scene.elements], ...(b.scene.appState ? { appState: { ...b.scene.appState } } : {}) } } : null;
+  }
+
+  async writeWhiteboard(ctx: ActorContext, op: "create" | "update" | "delete", input: WhiteboardWrite & { id?: string }): Promise<Whiteboard | null> {
+    const who = ctx.email ?? ctx.name ?? "demo@local";
+    const now = new Date().toISOString();
+    if (op === "delete") {
+      const before = SAMPLE_WHITEBOARDS.length;
+      SAMPLE_WHITEBOARDS = SAMPLE_WHITEBOARDS.filter((w) => w.id !== input.id);
+      if (SAMPLE_WHITEBOARDS.length === before) throw new BrokerError("not_found", "Whiteboard not found");
+      persistDemoState();
+      return null;
+    }
+    if (op === "update") {
+      const board = SAMPLE_WHITEBOARDS.find((w) => w.id === input.id);
+      if (!board) throw new BrokerError("not_found", "Whiteboard not found");
+      board.name = input.name;
+      board.scene = input.scene;
+      board.projectId = input.projectId ?? null;
+      board.updatedAt = now;
+      board.updatedBy = who;
+      persistDemoState();
+      return { ...board };
+    }
+    const created: Whiteboard = {
+      id: `wb-${++whiteboardCounter}`,
+      name: input.name,
+      projectId: input.projectId ?? null,
+      scene: input.scene,
+      updatedAt: now,
+      updatedBy: who,
+    };
+    SAMPLE_WHITEBOARDS.push(created);
+    persistDemoState();
+    return { ...created };
   }
 
   async listActivity(): Promise<Row[]> {
