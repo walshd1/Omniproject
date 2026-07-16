@@ -38,6 +38,14 @@ test("iteration messages include the previous payload and the feedback", () => {
   assert.match(msgs[1]!.content, /"id":"x"/);
 });
 
+test("a reference image is attached to the user turn", () => {
+  const msgs = buildPrimitiveMessages({ description: "a chart like this", image: { mime: "image/png", dataBase64: "AAAA" } });
+  assert.match(msgs[1]!.content, /attached reference image/);
+  assert.deepEqual(msgs[1]!.images, [{ mime: "image/png", dataBase64: "AAAA" }]);
+  // No image → no images field.
+  assert.equal(buildPrimitiveMessages({ description: "plain" })[1]!.images, undefined);
+});
+
 test("a good reply generates a valid, normalised bundle", async () => {
   const result = await generatePrimitiveBundle({ description: "grouped columns" }, async () => GOOD_REPLY);
   assert.equal(result.valid, true);

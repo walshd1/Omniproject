@@ -28,10 +28,17 @@ export interface PrimitiveStudioResult {
   def?: PrimitiveDefShape;
 }
 
+export interface StudioImage {
+  mime: string;
+  dataBase64: string;
+}
+
 export interface GenerateInput {
   description: string;
   feedback?: string;
   previous?: Record<string, unknown>;
+  /** A reference picture (a sketch / screenshot) the primitive should be based on. */
+  image?: StudioImage;
 }
 
 export const studioStatusKey = ["studio-status"] as const;

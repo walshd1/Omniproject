@@ -743,7 +743,7 @@ authoring, and the drift guards — no feature bypasses the golden rules.
 - **Slices.** (1) reference handoff + `<UseNative>` button; (2) sandboxed Live-Embed preview;
   (3) OAuth + content import (metadata/thumbnail via `safeFetch`).
 
-### X.2 AI primitive-authoring studio (companion skill)  🚧 In progress (slices 1–3 of 4)
+### X.2 AI primitive-authoring studio (companion skill)  ✅ Done (slices 1–4)
 - **Rationale.** Primitives + JSON defs are the app's building blocks, but authoring one means knowing the
   shape. A **companion AI skill** takes a plain description (later: a description + a picture), **builds** a
   primitive JSON bundle, **tests** it against the real schema, **renders** it back, and **iterates** on the
@@ -781,6 +781,17 @@ authoring, and the drift guards — no feature bypasses the golden rules.
   gated on the **`studio`** module (`/studio` route + `nav.studio` i18n + nav-order guard). 3 page tests (unavailable
   warning, valid→preview→submit-enabled, invalid→errors→submit-disabled); full SPA suite + typecheck clean. **Next:**
   slice 4 — image input (extend the `aiChat` vision chokepoint so a picture + description can seed a primitive).
+- **Slice 4 ✅ (image input — completes X.2).** Extended the shared `aiChat` seam for vision **additively**:
+  `ChatMessage` gains an optional `images?: ChatImage[]`, and each provider adapter maps through a small helper
+  (`toOpenAiMessages` / `toAnthropicMessages` / `toOllamaMessages`) — with no image the body is byte-identical
+  to before, with one it becomes that provider's native shape (OpenAI `image_url` data-URI parts, Anthropic
+  base64 image blocks, Ollama sibling `images` array). DLP redaction already spreads the message so images
+  survive; token/budget estimation reads only text (images uncounted — noted). `primitive-studio` threads an
+  optional `image` onto the user turn; `routes/studio` accepts a bounded, MIME-allowlisted `image` (png/jpeg/
+  webp/gif, ≤~4.5 MB); `pages/Studio` adds an attach-image control (file → base64) with a thumbnail + remove,
+  sent with generate/refine so **a picture + description** seeds the primitive. 5 vision-mapper tests
+  (backward-compat + per-provider shape) + a skill image-attach test; api-server + SPA typecheck clean.
+  **X.2 complete: describe (or sketch) → build → test → render → iterate → submit, end to end.**
 
 ---
 

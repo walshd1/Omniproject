@@ -19,10 +19,15 @@ import { generatePrimitiveBundle, PrimitiveStudioParseError } from "../lib/primi
 const router = Router();
 
 const STUDIO_PROMPT_MAX = 4_000;
+const STUDIO_IMAGE_MAX = 6_000_000; // ~4.5 MB decoded; bounded well under the express json limit
 const PRIMITIVE_BODY = v.object({
   description: v.string({ trim: true, min: 1, max: STUDIO_PROMPT_MAX }),
   feedback: v.optional(v.string({ trim: true, max: STUDIO_PROMPT_MAX })),
   surface: v.optional(v.string({ max: 200 })),
+  image: v.optional(v.object({
+    mime: v.enum(["image/png", "image/jpeg", "image/webp", "image/gif"] as const),
+    dataBase64: v.string({ min: 1, max: STUDIO_IMAGE_MAX }),
+  })),
 });
 
 /** The previous attempt's payload, echoed back for an iteration — a plain object or nothing. Bounded by the
@@ -68,10 +73,15 @@ router.post("/studio/primitive", requireRole("contributor"), async (req, res) =>
   try {
     const previous = previousPayload(req);
     const result = await generatePrimitiveBundle(
-      { description: parsed.description, ...(parsed.feedback ? { feedback: parsed.feedback } : {}), ...(previous ? { previous } : {}) },
+      {
+        description: parsed.description,
+        ...(parsed.feedback ? { feedback: parsed.feedback } : {}),
+        ...(previous ? { previous } : {}),
+        ...(parsed.image ? { image: parsed.image } : {}),
+      },
       async (messages) => (await aiChat(messages, govCtx(req))).content,
     );
-    recordRequestAudit(req, { category: "request", action: "studio.primitive_generated", write: false, meta: { valid: result.valid } });
+    recordRequestAudit(req, { category: "request", action: "studio.primitive_generated", write: false, meta: { valid: result.valid, withImage: !!parsed.image } });
     res.json({ result });
   } catch (err) {
     if (err instanceof PrimitiveStudioParseError) { res.status(502).json({ error: err.message }); return; }
