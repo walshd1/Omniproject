@@ -670,7 +670,7 @@ authoring, and the drift guards — no feature bypasses the golden rules.
   for installing pure-JSON extensions. Auto-surfacing installed contributions into the live report/content
   catalogues (via `activeContributions`) is a natural follow-up.**
 
-### 3.5 Org registry of approved bespoke items + community-release seam  🚧 In progress (slices 1–2 of 3)
+### 3.5 Org registry of approved bespoke items + community-release seam  ✅ Done (slices 1–3)
 - **Rationale.** Orgs accumulate bespoke building blocks — custom reports, screens, dashboards, forms,
   **primitives** and raw **JSON defs**, plus extension **plugins** — scattered across users and projects. There's
   no curated, org-wide place to collect the *approved* ones for reuse, and no path (when an org chooses) to share
@@ -696,16 +696,28 @@ authoring, and the drift guards — no feature bypasses the golden rules.
   (admin or own-draft), behind the new default-off **`registry`** module. 2 catalogue + 9 pure model + 2 seam +
   6 route tests (incl. sealed-at-rest, visibility, RBAC negatives) + drift guard; all three packages typecheck
   clean.
-- **Slice 2 ✅ (published reference designs — so people can build their own).** `lib/registry-reference` — five
-  annotated, **copy-pasteable** examples (a viz `primitive`, a `screen` + a `form` JSON def, a custom `report`,
-  a `dashboard`), each a *complete registry submission* whose `payload` is a real shape (grounded in the actual
-  `PrimitiveDef` / `OrgScreenDef` / `FormDef` formats). `routes/registry` gains `GET /registry/reference` +
-  `/reference/:slug` (viewer+, ordered before `/:id`). The published guarantee is enforced: a test holds **every**
-  example to the real `sanitizeRegistrySubmit`, and the screen/form examples to the real `validateScreenDefs` /
-  `validateForms`, so a reference can never drift into a shape the product would reject. New `docs/REFERENCE-DESIGNS.md`
-  is the human companion (submission envelope, per-kind payload guide, safety rationale). 5 pure + reference route
-  tests; api-server typecheck clean. **Next:** slice 3 — the registry UI (submit / browse / admin approval queue /
-  release toggle) + a reference-designs viewer, gated on the `registry` module.
+- **Slice 2 ✅ (published reference designs — so people can build their own).** The reference designs are **plain
+  JSON files committed in the repo** under **`reference-designs/`** (primitives / screens / forms / reports /
+  dashboards) — deliberately *outside the running system*, so anyone can read, copy and adapt them (add one by
+  dropping in a `.json` file, nothing to compile). Each file is a self-contained design (`title` / `summary` /
+  `notes` / `example`) whose `example` is a *complete registry submission* with a real payload (grounded in the
+  actual `PrimitiveDef` / `OrgScreenDef` / `FormDef` formats). Server `lib/registry-reference` is only a thin,
+  cached **loader** (resolves the repo root via the `pnpm-workspace.yaml` marker, reads the files, `[]` when
+  absent); `routes/registry` serves them at `GET /registry/reference` + `/reference/:slug` (viewer+, ordered
+  before `/:id`). The published guarantee is enforced against the FILES: a test reads every `.json` on disk and
+  holds it to the real `sanitizeRegistrySubmit`, and the screen/form examples to the real `validateScreenDefs` /
+  `validateForms`, so a reference can never drift into a shape the product would reject. `reference-designs/README.md`
+  + `docs/REFERENCE-DESIGNS.md` are the human companions.
+- **Slice 3 ✅ (registry UI + reference viewer — completes 3.5).** SPA `lib/registry` hooks (`useRegistry` /
+  `useRegistryItem` / `useReferenceDesigns` / `useCommunityStatus` + submit / review / release / retract / delete)
+  and `pages/Registry` — a `/registry` surface: the visible-items list, an **admin review queue** (approve/reject
+  drafts), **release-to-community** + **retract** toggles with a community-connection indicator, a **reference-designs
+  panel** that loads the published files and **prefills the submit form** from any design in one click, and a
+  paste-JSON submit form with a client-side validity guard. Admin actions are role-gated (`roleAtLeast(admin)`);
+  non-admins see approved items + their own. Wired as an admin-group nav item gated on the **`registry`** module +
+  pmo/admin visibility (nav-order + admin-shelf drift guards + `nav.registry` i18n + `/registry` route). 6 page
+  tests (list, review queue, release control, non-admin gating, JSON guard, prefill, empty state); nav/i18n guards +
+  all three packages typecheck clean.
 
 ---
 

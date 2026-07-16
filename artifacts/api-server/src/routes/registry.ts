@@ -9,7 +9,7 @@ import {
   registryItemMeta, listRegistryItems, getRegistryItem, putRegistryItem, deleteRegistryItem, RegistryError,
   type RegistryItem, type RegistryItemMeta,
 } from "../lib/registry";
-import { REGISTRY_REFERENCE_DESIGNS, referenceDesign } from "../lib/registry-reference";
+import { loadReferenceDesigns, referenceDesign } from "../lib/registry-reference";
 
 /**
  * ORG REGISTRY routes (org-wide store of approved bespoke items), behind the default-off `registry` module.
@@ -39,9 +39,10 @@ router.get("/registry/community/status", requireRole("viewer"), (_req, res) => {
 });
 
 // GET /api/registry/reference — the published reference designs (annotated, copy-pasteable examples) so
-// anyone can learn the canonical shape and build their own primitives / JSON defs (viewer+).
+// anyone can learn the canonical shape and build their own primitives / JSON defs (viewer+). These are read
+// from the repo's `reference-designs/` JSON files — the files are the source of truth, not code.
 router.get("/registry/reference", requireRole("viewer"), (_req, res) => {
-  res.json(REGISTRY_REFERENCE_DESIGNS);
+  res.json(loadReferenceDesigns());
 });
 
 // GET /api/registry/reference/:slug — one reference design by slug (viewer+).

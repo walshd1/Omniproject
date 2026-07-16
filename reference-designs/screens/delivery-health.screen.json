@@ -1,0 +1,27 @@
+{
+  "title": "A screen definition",
+  "summary": "Compose a screen from panels — stored org-wide, merged over the built-in catalogue, rendered by the generic builder.",
+  "notes": [
+    "`id` targets a built-in screen to override, or names a new one. `label` is the screen title.",
+    "`panels` is an ordered array; each panel needs a unique `id` and a `kind` (a registered panel renderer).",
+    "Anything beyond id/kind on a panel (e.g. `source`, `config`, `title`) is passed through untouched to the renderer.",
+    "An unknown panel kind degrades to a labelled placeholder rather than breaking the screen — defs are forward-compatible."
+  ],
+  "example": {
+    "kind": "screen",
+    "name": "Delivery health screen",
+    "publisher": "Acme PMO",
+    "version": "1.0.0",
+    "description": "A one-glance delivery-health screen: a KPI strip over a risk register.",
+    "tags": ["screen", "delivery"],
+    "payload": {
+      "id": "delivery-health",
+      "label": "Delivery health",
+      "route": "/delivery-health",
+      "panels": [
+        { "id": "kpis", "kind": "metrics", "title": "Health at a glance", "source": { "metric": "healthStatus" } },
+        { "id": "risks", "kind": "register", "title": "Open risks", "source": { "register": "risk", "status": "open" } }
+      ]
+    }
+  }
+}

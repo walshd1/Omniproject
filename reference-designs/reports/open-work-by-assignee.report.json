@@ -1,0 +1,25 @@
+{
+  "title": "A custom report",
+  "summary": "Define a report as a declarative query plus a visualisation — no code, curated for reuse.",
+  "notes": [
+    "`id`/`label` identify the report; `description` explains what it answers.",
+    "`query` is the declarative data request the report engine runs (entity + grouping + measure).",
+    "`viz` names a primitive id (see the primitive reference) and maps query columns onto its inputs.",
+    "Because it references a primitive rather than embedding a chart, the report inherits any primitive improvements automatically."
+  ],
+  "example": {
+    "kind": "report",
+    "name": "Open work by assignee",
+    "publisher": "Acme PMO",
+    "version": "1.0.0",
+    "description": "Count of open work items grouped by assignee, drawn as a bar chart.",
+    "tags": ["report", "workload"],
+    "payload": {
+      "id": "open-work-by-assignee",
+      "label": "Open work by assignee",
+      "description": "How open work is distributed across the team.",
+      "query": { "entity": "issue", "filter": { "status": "open" }, "groupBy": "assignee", "measure": "count" },
+      "viz": { "primitive": "bar", "map": { "data": "$rows", "series": [{ "key": "count", "label": "Open items" }] } }
+    }
+  }
+}
