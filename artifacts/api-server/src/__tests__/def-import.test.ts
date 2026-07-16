@@ -25,7 +25,16 @@ const GOOD_FORM = {
 };
 
 test("DEF_KINDS is the expected closed set", () => {
-  assert.deepEqual([...DEF_KINDS], ["primitive", "screen", "form", "report", "dashboard", "jsonDef"]);
+  assert.deepEqual([...DEF_KINDS], ["primitive", "screen", "form", "report", "dashboard", "businessRule", "theme", "font", "jsonDef"]);
+});
+
+test("business rules, colour themes and fonts go through the importer too", () => {
+  assert.equal(validateDef("businessRule", { id: "no-weekend-work", when: "x", then: "y" }).ok, true);
+  assert.equal(validateDef("businessRule", { when: "no id" }).ok, false);
+  assert.equal(validateDef("theme", { id: "brand", colors: { primary: "#1d4ed8", bg: "#fff" } }).ok, true);
+  assert.equal(validateDef("theme", { id: "brand", colors: { primary: 123 } }).ok, false, "non-string colour rejected");
+  assert.equal(validateDef("font", { id: "heading", family: "Inter" }).ok, true);
+  assert.equal(validateDef("font", { id: "heading" }).ok, false, "a font needs a family");
 });
 
 test("validateDef uses the real per-kind validators", () => {
