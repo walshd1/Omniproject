@@ -240,6 +240,14 @@ export const FEATURE_MODULES: readonly FeatureModule[] = [
     reason: "storage", // holds curated registry items in the encrypted-JSON store; review/release admin-gated
   },
   {
+    id: "studio",
+    label: "AI primitive studio",
+    description: "Turn a description into a candidate primitive (chart/graphic) definition with an LLM, validated against the app's schema, then submit it to the registry.",
+    load: () => import("../routes/studio"),
+    defaultOff: true,
+    reason: "cost", // calls an AI provider; further gated by the ai-authoring capability + contributor role
+  },
+  {
     // Admin bulk-action runner: apply one canonical broker write (create/update project) to many
     // projects at once, declaratively. Has a backend route (POST /api/admin/bulk), so it loads
     // lazily; OFF until an admin opts in — it fans out project-level writes (high blast radius), so

@@ -743,7 +743,7 @@ authoring, and the drift guards — no feature bypasses the golden rules.
 - **Slices.** (1) reference handoff + `<UseNative>` button; (2) sandboxed Live-Embed preview;
   (3) OAuth + content import (metadata/thumbnail via `safeFetch`).
 
-### X.2 AI primitive-authoring studio (companion skill)  🚧 In progress (slice 1 of 4)
+### X.2 AI primitive-authoring studio (companion skill)  🚧 In progress (slices 1–2 of 4)
 - **Rationale.** Primitives + JSON defs are the app's building blocks, but authoring one means knowing the
   shape. A **companion AI skill** takes a plain description (later: a description + a picture), **builds** a
   primitive JSON bundle, **tests** it against the real schema, **renders** it back, and **iterates** on the
@@ -761,9 +761,20 @@ authoring, and the drift guards — no feature bypasses the golden rules.
   skill runs on any generated/pasted bundle before it may be stored. A **drift guard** in the SPA
   (`charts/catalogue.drift.test`) asserts the shipped `PRIMITIVE_CATALOGUE` (the runtime rendering side) only
   ever uses these sets, so the validator can't diverge from what actually renders. 5 catalogue + 2 drift tests;
-  backend-catalogue + SPA typecheck clean. **Next:** slice 2 — the server skill (AI generate → validate →
-  return feedback); slice 3 — the companion studio UI (describe → preview → iterate → submit); slice 4 — image
-  input (extend the `aiChat` vision chokepoint).
+  backend-catalogue + SPA typecheck clean.
+- **Slice 2 ✅ (the server skill — AI generate → validate → feedback).** `lib/primitive-studio`: the "skill" —
+  `primitiveStudioSystemPrompt` (the exact schema + closed sets + a NEVER-emit-code contract), `buildPrimitiveMessages`
+  (carries the previous payload + feedback for iteration), `parsePrimitiveReply` (defensive `extractJson`, identity
+  fields defaulted not trusted), and `generatePrimitiveBundle(input, complete)` — an **injectable** orchestrator that
+  generates then runs the slice-1 `validatePrimitiveDef` and returns `{ submission, valid, errors, def }` (never throws
+  on an invalid primitive; only a non-JSON reply raises `PrimitiveStudioParseError`). `routes/studio` — `POST
+  /studio/primitive` (generate+validate) + `GET /studio/status`, behind the default-off **`studio`** feature module,
+  governed like every AI surface: the active `provider:*` capability + the new **`ai-authoring`** capability (both
+  off by default) + `requireRole(contributor)`. Follows "AI proposes, human disposes" — it only generates + tests;
+  the write goes through the existing registry submit path. 6 pure (injected `complete`) + 4 route (governance gate,
+  400, RBAC) tests; feature/capability/governance suites green; api-server typecheck clean. **Next:** slice 3 — the
+  companion studio UI (describe → preview via `ArtifactRenderer` → iterate → submit); slice 4 — image input (extend
+  the `aiChat` vision chokepoint).
 
 ---
 
