@@ -37,6 +37,7 @@ export * from "./goal-catalogue";
 export * from "./invoice-catalogue";
 export * from "./marketplace-catalogue";
 export * from "./registry-catalogue";
+export * from "./primitive-schema";
 export * from "./widget-catalogue";
 export * from "./component-library";
 export * from "./screen-catalogue";
