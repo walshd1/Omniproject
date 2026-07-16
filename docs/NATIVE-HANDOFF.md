@@ -25,6 +25,27 @@ data-seam control instead of creating a new one:
 
 It is a new **connector capability**, not a new security boundary.
 
+## Positioning — the objection-killer
+
+This is the commercial point, not just a feature. Every *"but your system doesn't do X"* in an
+eval gets one answer: *"our native X is improving — and if you already run Miro / Notion /
+Smartsheet / MS Project / Power BI, you keep using it, and it flows back through the broker."* It
+flips OmniProject's thinness from a weakness into the strategy: **we never have to win on feature
+parity — we defer to whatever the customer already owns and absorb its output.** It's the stateless
+thesis extended from *data* to *tools*. It also de-risks half of Phase 2 (whiteboards, docs,
+proofing don't need best-in-class parity — "good enough inline + hand off to the real tool" clears
+the bar).
+
+**Be honest about the two levels** (don't over-promise in a demo):
+
+- **Reference-level — universal.** Any artifact, any vendor: hand off, and a link/reference comes
+  back through the broker, provenanced + audited. Always true (Slice 1).
+- **Content-level — per-connector.** Pulling the artifact's *contents* back (items, doc body,
+  thumbnail) needs that vendor's API + OAuth connector — real, but vendor-by-vendor (Slices 2–3).
+
+Sales-safe phrasing: *"anything your SaaS produces, you can reference, govern and keep in context
+here — and for the connectors we've built the deep bridge for, we pull the content itself."*
+
 ## Generalised — every SaaS backend, every artifact kind
 
 This is cross-cutting, not whiteboard-specific. A connector advertises the native surfaces it
