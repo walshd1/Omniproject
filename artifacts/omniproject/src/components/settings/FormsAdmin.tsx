@@ -16,7 +16,7 @@ import { EditableRowTable } from "./EditableRowTable";
  * shipped TEMPLATE (the shared FORMS catalogue) and modify it, or build one from scratch; the org's forms are
  * stored in the encrypted config store and each submission creates a work item through the broker.
  */
-const FIELD_TYPES: FormFieldType[] = ["text", "textarea", "number", "date", "select", "checkbox"];
+const FIELD_TYPES: FormFieldType[] = ["text", "textarea", "number", "date", "select", "checkbox", "email", "url"];
 
 function uniqueId(base: string, taken: Set<string>): string {
   let id = base, n = 2;

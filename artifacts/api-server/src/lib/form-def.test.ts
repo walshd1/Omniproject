@@ -68,3 +68,31 @@ test("issueWriteFromSubmission falls back to the form label as title when titleF
   const w = issueWriteFromSubmission(def, validateSubmission(def, { summary: "hi", priority: "Low" }));
   assert.equal(w["title"], "Work request");
 });
+
+test("validateForms clamps a field maxLength to the absolute ceiling and rejects a bad one", () => {
+  const def = validateForms([{ id: "f", label: "F", fields: [{ key: "a", label: "A", type: "text", maxLength: 999999 }], target: { kind: "issue" } }])[0]!;
+  assert.equal(def.fields[0]!.maxLength, 10_000); // clamped to ABSOLUTE_MAX_LEN
+  assert.throws(() => validateForms([{ id: "f", label: "F", fields: [{ key: "a", label: "A", type: "text", maxLength: -1 }], target: { kind: "issue" } }]), FormDefError);
+});
+
+test("validateSubmission enforces length caps (own maxLength, else the default)", () => {
+  const def = validateForms([{ id: "f", label: "F", fields: [
+    { key: "short", label: "Short", type: "text", maxLength: 5 },
+    { key: "big", label: "Big", type: "textarea" },
+  ], target: { kind: "issue", projectId: "p1" } }])[0]!;
+  assert.throws(() => validateSubmission(def, { short: "toolong" }), FormDefError); // > 5
+  assert.throws(() => validateSubmission(def, { big: "x".repeat(2001) }), FormDefError); // > DEFAULT_MAX_LEN (2000)
+  assert.doesNotThrow(() => validateSubmission(def, { short: "ok", big: "x".repeat(2000) }));
+});
+
+test("validateSubmission validates email + url formats", () => {
+  const def = validateForms([{ id: "f", label: "F", fields: [
+    { key: "email", label: "Email", type: "email" },
+    { key: "link", label: "Link", type: "url" },
+  ], target: { kind: "issue", projectId: "p1" } }])[0]!;
+  assert.throws(() => validateSubmission(def, { email: "notanemail" }), FormDefError);
+  assert.throws(() => validateSubmission(def, { link: "javascript:alert(1)" }), FormDefError); // non-http scheme refused
+  assert.throws(() => validateSubmission(def, { link: "not a url" }), FormDefError);
+  const clean = validateSubmission(def, { email: "a@b.com", link: "https://ok.example" });
+  assert.deepEqual(clean, { email: "a@b.com", link: "https://ok.example" });
+});

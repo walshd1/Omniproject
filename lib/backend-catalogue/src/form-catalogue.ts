@@ -10,8 +10,8 @@
  */
 import { matchesMethodology } from "./methodology-match";
 
-/** The supported field input types. */
-export type FormFieldType = "text" | "textarea" | "number" | "date" | "select" | "checkbox";
+/** The supported field input types. `email`/`url` are text fields with format validation. */
+export type FormFieldType = "text" | "textarea" | "number" | "date" | "select" | "checkbox" | "email" | "url";
 
 /** One field on a form. `options` is required for `select`. */
 export interface FormFieldDef {
@@ -22,6 +22,8 @@ export interface FormFieldDef {
   options?: string[];
   placeholder?: string;
   help?: string;
+  /** Max characters for a text-ish field (text/textarea/email/url). Bounded and defaulted server-side. */
+  maxLength?: number;
 }
 
 /**
@@ -63,11 +65,11 @@ export const FORMS: FormDefinition[] = [
     submitLabel: "Submit request",
     methodologies: ["*"],
     fields: [
-      { key: "summary", label: "Summary", type: "text", required: true, placeholder: "Short title for the request" },
-      { key: "details", label: "What do you need?", type: "textarea", required: true },
-      { key: "priority", label: "Priority", type: "select", options: ["Low", "Medium", "High", "Critical"], required: true },
+      { key: "summary", label: "Summary", type: "text", required: true, placeholder: "Short title for the request", maxLength: 200 },
+      { key: "details", label: "What do you need?", type: "textarea", required: true, maxLength: 4000 },
+      { key: "priority", label: "Priority", type: "select", options: ["low", "medium", "high", "urgent"], required: true },
       { key: "neededBy", label: "Needed by", type: "date" },
-      { key: "requestedBy", label: "Requested by", type: "text" },
+      { key: "requestedBy", label: "Requested by", type: "text", maxLength: 120 },
     ],
     target: { kind: "issue", titleFrom: "summary", status: "triage", labels: ["intake"], map: { priority: "priority", dueDate: "neededBy" } },
   },
@@ -78,10 +80,10 @@ export const FORMS: FormDefinition[] = [
     submitLabel: "Raise change",
     methodologies: ["prince2", "waterfall", "governance"],
     fields: [
-      { key: "summary", label: "Change summary", type: "text", required: true },
-      { key: "rationale", label: "Rationale / business case", type: "textarea", required: true },
-      { key: "impact", label: "Impact", type: "select", options: ["Low", "Medium", "High"], required: true },
-      { key: "urgency", label: "Urgency", type: "select", options: ["Low", "Medium", "High"], required: true },
+      { key: "summary", label: "Change summary", type: "text", required: true, maxLength: 200 },
+      { key: "rationale", label: "Rationale / business case", type: "textarea", required: true, maxLength: 4000 },
+      { key: "impact", label: "Impact", type: "select", options: ["low", "medium", "high"], required: true },
+      { key: "urgency", label: "Urgency", type: "select", options: ["low", "medium", "high"], required: true },
     ],
     target: { kind: "issue", titleFrom: "summary", status: "triage", labels: ["change-request"], map: { impact: "impact", urgency: "urgency" } },
   },

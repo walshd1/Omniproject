@@ -14,6 +14,8 @@ after(() => h?.close());
 afterEach(async () => {
   const { updateSettings } = await import("../lib/settings");
   updateSettings({ forms: [] });
+  const { setRuleModes } = await import("../lib/ruleset");
+  setRuleModes({ "read-only": "off", "no-deletes": "off", "require-assignee": "off", "require-description": "off", "due-after-start": "off" });
   const { resetDemoBrokerState } = await import("../broker/demo");
   resetDemoBrokerState();
 });
@@ -61,6 +63,14 @@ test("forms: submitting an unknown or disabled form is 404", async () => {
   await req("/forms", { method: "PUT", body: { forms: [{ ...FORM, enabled: false }] } });
   assert.equal((await req("/forms/intake/submit", { method: "POST", body: { values: { summary: "x", priority: "Low" } } })).status, 404);
   assert.equal((await req("/forms/ghost/submit", { method: "POST", body: { values: {} } })).status, 404);
+});
+
+test("forms: submission obeys the business ruleset (read-only mode blocks it 422)", async () => {
+  const { setRuleModes } = await import("../lib/ruleset");
+  await req("/forms", { method: "PUT", body: { forms: [FORM] } });
+  setRuleModes({ "read-only": "hard" });
+  const r = await req("/forms/intake/submit", { method: "POST", body: { values: { summary: "x", priority: "Low" } } });
+  assert.equal(r.status, 422);
 });
 
 test("forms: an untargeted template refuses submission (400)", async () => {

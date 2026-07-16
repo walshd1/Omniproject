@@ -51,9 +51,14 @@ export function FormPanel({ panel }: { panel: Panel }) {
     const next: Record<string, string> = {};
     for (const f of def.fields) {
       const v = get(f);
+      const s = typeof v === "string" ? v : "";
       const empty = v === undefined || v === null || (typeof v === "string" && v.trim() === "");
-      if (f.required && f.type !== "checkbox" && empty) next[f.key] = `${f.label} is required`;
-      else if (f.type === "number" && !empty && !Number.isFinite(Number(v))) next[f.key] = `${f.label} must be a number`;
+      if (f.required && f.type !== "checkbox" && empty) { next[f.key] = `${f.label} is required`; continue; }
+      if (empty) continue;
+      if (f.type === "number" && !Number.isFinite(Number(v))) next[f.key] = `${f.label} must be a number`;
+      else if (f.type === "email" && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s)) next[f.key] = `${f.label} must be a valid email`;
+      else if (f.type === "url" && !/^https?:\/\/.+/i.test(s)) next[f.key] = `${f.label} must be a valid http(s) URL`;
+      else if (f.maxLength && s.length > f.maxLength) next[f.key] = `${f.label} must be at most ${f.maxLength} characters`;
     }
     setErrors(next);
     return Object.keys(next).length === 0;
@@ -127,10 +132,11 @@ export function FormPanel({ panel }: { panel: Panel }) {
                   />
                 ) : (
                   <Input
-                    type={f.type === "number" ? "number" : f.type === "date" ? "date" : "text"}
+                    type={f.type === "number" ? "number" : f.type === "date" ? "date" : f.type === "email" ? "email" : f.type === "url" ? "url" : "text"}
                     data-testid={`form-field-${f.key}`}
                     value={String(get(f) ?? "")}
                     placeholder={f.placeholder ?? ""}
+                    {...(f.maxLength ? { maxLength: f.maxLength } : {})}
                     onChange={(e) => set(f.key, e.target.value)}
                   />
                 )}

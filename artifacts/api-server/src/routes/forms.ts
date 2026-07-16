@@ -1,10 +1,11 @@
 import { Router } from "express";
 import { getSettings } from "../lib/settings";
 import { settingsCollectionRouter } from "../lib/settings-collection-router";
-import { requireAnyRole, requireRole } from "../lib/rbac";
+import { requireAnyRole, requireRole, roleForReq } from "../lib/rbac";
 import { getBroker, contextFromReq, withBrokerErrors } from "../broker";
 import type { IssueWrite } from "../broker/types";
 import { guardProjectScope } from "../lib/project-scope";
+import { evaluateRuleset } from "../lib/ruleset";
 import { FormDefError, validateSubmission, issueWriteFromSubmission } from "../lib/form-def";
 
 /**
@@ -47,8 +48,17 @@ router.post("/forms/:formId/submit", requireRole("contributor"), async (req, res
     throw err;
   }
 
+  // Same business ruleset the interactive issue grid runs (read-only / require-description / … ). A form
+  // submission is just another create_issue write, so it must obey the deployment's rules, not bypass them.
+  const verdict = evaluateRuleset({ action: "create_issue", write: true, role: roleForReq(req), projectId: targetProjectId, payload: issueWrite });
+  if (!verdict.allow) {
+    res.status(422).json({ error: verdict.blocked!.message, rule: verdict.blocked!.id });
+    return;
+  }
+
   await withBrokerErrors(req, res, "form submission failed", async () => {
     if (!(await guardProjectScope(req, res, targetProjectId))) return;
+    if (verdict.warnings.length) res.setHeader("X-OmniProject-Rule-Warnings", verdict.warnings.map((w) => w.id).join(","));
     const issue = await getBroker().writeIssue(contextFromReq(req), "create", issueWrite as unknown as IssueWrite);
     res.status(201).json({ ok: true, issue });
   }, { projectId: def.target.projectId });

@@ -14,7 +14,12 @@ export class FormDefError extends Error {
   constructor(message: string) { super(message); this.name = "FormDefError"; }
 }
 
-const FIELD_TYPES = new Set<string>(["text", "textarea", "number", "date", "select", "checkbox"]);
+const FIELD_TYPES = new Set<string>(["text", "textarea", "number", "date", "select", "checkbox", "email", "url"]);
+/** Hard ceiling on any text-ish field even when a def sets a larger (or no) maxLength — defence in depth
+ *  beneath the global 256kb body limit, so a single field can't carry an unbounded blob into an issue. */
+const ABSOLUTE_MAX_LEN = 10_000;
+const DEFAULT_MAX_LEN = 2_000;
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 // The canonical form shapes live in the shared catalogue (single source of truth for both apps). Alias them
 // to the server's historical names so the rest of the server keeps its imports.
@@ -55,13 +60,18 @@ export function validateForms(value: unknown): FormDef[] {
       if (fieldKeys.has(key)) throw new FormDefError(`form "${id}" has a duplicate field key "${key}"`);
       fieldKeys.add(key);
       if (!fLabel) throw new FormDefError(`form "${id}" field "${key}" needs a label`);
-      if (!FIELD_TYPES.has(type)) throw new FormDefError(`form "${id}" field "${key}" type must be one of text, textarea, number, date, select, checkbox`);
+      if (!FIELD_TYPES.has(type)) throw new FormDefError(`form "${id}" field "${key}" type must be one of text, textarea, number, date, select, checkbox, email, url`);
       const field: FormField = { key, label: fLabel, type: type as FormFieldType };
       if (f["required"] === true) field.required = true;
       if (type === "select") {
         const options = Array.isArray(f["options"]) ? (f["options"] as unknown[]).map(str).filter(Boolean) : [];
         if (options.length === 0) throw new FormDefError(`form "${id}" select field "${key}" needs options`);
         field.options = options;
+      }
+      if (f["maxLength"] != null) {
+        const ml = Number(f["maxLength"]);
+        if (!Number.isInteger(ml) || ml <= 0) throw new FormDefError(`form "${id}" field "${key}" maxLength must be a positive integer`);
+        field.maxLength = Math.min(ml, ABSOLUTE_MAX_LEN);
       }
       if (str(f["placeholder"])) field.placeholder = str(f["placeholder"]);
       if (str(f["help"])) field.help = str(f["help"]);
@@ -135,13 +145,38 @@ export function validateSubmission(def: FormDef, values: unknown): Record<string
         clean[field.key] = s;
         break;
       }
+      case "email": {
+        const s = str(v);
+        capLength(field, s);
+        if (!EMAIL_RE.test(s)) throw new FormDefError(`"${field.label}" must be a valid email address`);
+        clean[field.key] = s;
+        break;
+      }
+      case "url": {
+        const s = str(v);
+        capLength(field, s);
+        // Only http(s) — never javascript:/data:/file: (blocked before this value can reach a link or egress).
+        let ok = false;
+        try { const u = new URL(s); ok = u.protocol === "http:" || u.protocol === "https:"; } catch { ok = false; }
+        if (!ok) throw new FormDefError(`"${field.label}" must be a valid http(s) URL`);
+        clean[field.key] = s;
+        break;
+      }
       default: {
-        // text / textarea / date — kept as a trimmed string.
-        clean[field.key] = str(v);
+        // text / textarea / date — kept as a trimmed string, length-capped.
+        const s = str(v);
+        capLength(field, s);
+        clean[field.key] = s;
       }
     }
   }
   return clean;
+}
+
+/** Enforce a text field's length: its own maxLength (already clamped to ABSOLUTE_MAX_LEN) or the default. */
+function capLength(field: FormFieldDef, s: string): void {
+  const limit = field.maxLength ?? DEFAULT_MAX_LEN;
+  if (s.length > limit) throw new FormDefError(`"${field.label}" must be at most ${limit} characters`);
 }
 
 /**

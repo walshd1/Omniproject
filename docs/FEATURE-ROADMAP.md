@@ -55,7 +55,21 @@ already exist, so they close the most competitive distance for the least build.
   `FormsAdmin` builder (new / from-template / structured field + target editor) → routed
   `Intake` screen. Server: `lib/form-def.ts` (validation + submission→IssueWrite),
   `routes/forms.ts` (defs GET/PUT admin-PMO + scope-guarded `/forms/:id/submit`).
-  Tests: shared catalogue (3), form-def (8), forms route (6), FormPanel (4), FormsAdmin (3).
+  Tests: shared catalogue (3), form-def (12), forms route (7), FormPanel (4), FormsAdmin (3).
+- **Field primitives (have).** text, textarea, number, date, select, checkbox, email, url —
+  all with server-side validation. **Backlog (add as needed):** multi-select, radio,
+  currency/money, user/assignee picker, project/entity picker, section/heading (layout),
+  hidden/prefilled (e.g. requestedBy = current user), datetime/time, rating/scale, and
+  conditional (show-if) logic. See "Form primitive backlog" below.
+- **Input sanitisation & validation (in place).** Global 256 kb body limit +
+  proto-pollution key stripping on all JSON; def validation blocks dangerous keys, whitelists
+  field types, requires select options, and only maps to an issue-field allow-list;
+  submission validation is whitelist-by-def (unknown submitted keys dropped), enforces
+  required, coerces number/checkbox, checks select membership + email/url format, and caps
+  every text field (own `maxLength`, else a 2 000-char default, hard ceiling 10 000);
+  submit is `contributor`+ and project-scope-guarded, authoring is admin/PMO; the created
+  issue now runs the **same business ruleset** as the interactive grid (read-only /
+  require-description / … → 422). All writes flow through the broker sanitizer + audit.
 
 ### 1.2 User-facing automation recipes  ⬜ Todo
 - **Rationale.** A friendly "when X, do Y" builder. The powerful JSON **workflow engine +
@@ -66,7 +80,23 @@ already exist, so they close the most competitive distance for the least build.
   existing workflow-engine JSON and run through the existing runner (no new engine);
   (c) a recipe library stored in org config; (d) dry-run/preview before enable; (e) runs
   are audited and honour existing RBAC/approval gates.
-- **Architecture leverage.** `workflow.ts` interpreter + `workflow-run.ts` effects;
+- **HARD CONSTRAINT — RBAC-gated authoring + execution.** A user may only automate what
+  they are themselves permitted to edit. This is non-negotiable and must hold at BOTH ends:
+  - **Authoring:** the recipe builder only offers actions/collections the author currently
+    has edit rights to. An action the author can't perform by hand (e.g. editing RACI when
+    the RACI collection edit-policy requires PMO, or writing a project outside their scope)
+    is not selectable, and a saved recipe that references one is rejected server-side.
+  - **Execution:** the recipe runs with the AUTHOR's effective permissions, scoped by the
+    same `requireCollectionEdit` / project-scope / ruleset checks the interactive edit
+    path uses — **never widened**. A later drop in the author's permissions (offboarding,
+    role change) disables or re-scopes the recipe; it must not become a privilege-retention
+    backdoor. Autonomous execution binds to an explicit grant (the existing
+    autonomous-guard model), and privileged effects still pass approval chains.
+  This mirrors the workflow engine's existing invariant ("effects are injected, RBAC-scoped
+  by the caller, never widened") — the recipe UI must not become a way around it.
+- **Architecture leverage.** `workflow.ts` interpreter + `workflow-run.ts` effects (already
+  RBAC-scoped by caller); `requireCollectionEdit` / `collection-edit-policy` for the
+  per-collection gate; `autonomous-guard` + `autonomous-grant` for scheduled/agent runs;
   scheduled-job/recurrence for time triggers; settings collection for recipe defs.
 
 ### 1.3 Project & portfolio template gallery  ⬜ Todo
@@ -145,6 +175,27 @@ already exist, so they close the most competitive distance for the least build.
 
 ---
 
+## Form primitive backlog
+
+Ordered by value for a PPM/intake context. Each is a new `FormFieldType` in the shared
+catalogue + a branch in `validateSubmission` (server) and `FormPanel`/`FormsAdmin` (client).
+
+1. **user / assignee picker** → maps to `assignee`; pick a real member, not a free string.
+2. **multi-select** → maps to `labels` (array); checkboxes or a multi-select control.
+3. **radio** → single choice with visible options (select UX variant).
+4. **currency / money** → maps to `budget` (+ currency); numeric with a currency code.
+5. **project / entity picker** → choose the target/related project at submit time.
+6. **section / heading** → layout-only, non-input; groups long forms.
+7. **hidden / prefilled** → e.g. `requestedBy` = current user, `source` = "intake form"
+   (server-stamped, never trusted from the client).
+8. **datetime / time** → finer than `date` for scheduling intake.
+9. **rating / scale** → 1–5 impact/severity capture.
+10. **conditional (show-if)** → show a field only when another has a given value (logic, not
+    just a primitive) — the largest lift; do last.
+
+File attachments are intentionally **not** a primitive: the platform stores no files at rest,
+so an attachment field would be a URL reference (`url` type) pointing at the system of record.
+
 ## Status legend
 
 - ⬜ **Todo** — not started.
@@ -157,4 +208,8 @@ already exist, so they close the most competitive distance for the least build.
   started.
 - _2026-07-16_ — Phase 1.1 (Intake forms) shipped, built on the screen/report pipeline
   (shared template catalogue → org-override store → composition kind → generic panel →
-  visual admin builder → routed screen). **Next up: Phase 1.2 (Automation recipes).**
+  visual admin builder → routed screen).
+- _2026-07-16_ — Forms hardening: added email/url primitives + per-field length caps
+  (default 2 000, ceiling 10 000), and routed form-created issues through the same business
+  ruleset as the grid. Documented the form primitive backlog and, for 1.2, the hard
+  RBAC-gating constraint (automate only what you may edit). **Next up: Phase 1.2.**
