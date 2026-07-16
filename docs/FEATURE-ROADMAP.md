@@ -398,7 +398,7 @@ authoring, and the drift guards — no feature bypasses the golden rules.
   passkey-signed, chain-gated review decision — the creative-review markup competitors have, on OmniProject's
   own governance rails.
 
-### 2.5 Native mobile + offline  🚧 In progress (slice 1)
+### 2.5 Native mobile + offline  🚧 In progress (slices 1–2)
 - **Competitors.** All. **Gap.** PWA caches app-shell only; no offline data, no native apps.
 - **Acceptance.** Offline-capable data cache for my-work/tasks with sync-on-reconnect;
   installable; push notifications; (stretch) native shells.
@@ -418,7 +418,18 @@ authoring, and the drift guards — no feature bypasses the golden rules.
   use-install-prompt` captures `beforeinstallprompt`, suppresses the native infobar, and surfaces our own
   **Install** button (replayable once; clears on `appinstalled`; stays hidden on iOS/Safari, which has no
   such event). i18n `header.install` (4 locales). Client-only, **no zero-at-rest impact**. Pure + hook tests.
-  **Next:** the encrypted-ephemeral offline cache (slice 2), then push notifications (slice 3).
+- **Slice 2 ✅ (encrypted, ephemeral, opt-in offline data cache).** `lib/offline-cache` — the on-device store
+  for the **my-work/tasks read models only** (`isCacheableKey` allow-list): every entry is **AES-256-GCM**
+  ciphertext (random IV) under a **non-extractable** WebCrypto key held in IndexedDB (raw bytes never
+  readable by script). The key is **session-scoped** — bound to the signed-in `sub`, so opening as a
+  different user **wipes + re-mints** (no cross-user read on a shared device). Entries **TTL** (24h) and the
+  whole store is **wiped on logout** (`lib/auth`) and when the toggle flips off. `lib/use-offline-cache` — a
+  per-user, off-by-default toggle (gated by a new default-off `offlineCache` feature module) + a
+  hydrate-on-open (seed the query cache where empty, so my-work/tasks render offline) + a subscriber that
+  writes allow-listed results back. An **Offline access** card in Performance settings with the
+  encrypted-ephemeral explainer. **Zero-at-rest preserved**: nothing plaintext at rest, narrow scope, nothing
+  survives the session. Crypto round-trip / wrong-key / tampered-GCM / allow-list / TTL / guarded-no-op tests;
+  toggle + settings-card tests. **Next:** push notifications (slice 3).
 
 ---
 
@@ -681,3 +692,9 @@ so an attachment field would be a URL reference (`url` type) pointing at the sys
   reflects all three) and `lib/use-install-prompt` (capture `beforeinstallprompt` → our own Install button,
   replay-once, clears on `appinstalled`). i18n `header.install`. Client-only, no zero-at-rest impact. The
   offline DATA cache (encrypted + ephemeral + opt-in per the golden-rule decision) is slice 2; push slice 3.
+- _2026-07-16_ — Phase 2.5 slice 2 (encrypted offline data cache) shipped: `lib/offline-cache` caches ONLY
+  the my-work/tasks read models on-device, AES-256-GCM'd under a non-extractable, session-`sub`-scoped
+  WebCrypto key in IndexedDB (wipes + re-mints for a different user), TTL'd (24h), wiped on logout + toggle-
+  off. `lib/use-offline-cache` — off-by-default per-user toggle behind a new `offlineCache` module + hydrate-
+  on-open + allow-listed write-back subscriber; an Offline-access settings card. Zero-at-rest preserved
+  (encrypted, narrow, ephemeral). Crypto/allow-list/TTL/guarded-no-op + toggle/settings tests. Next: push.

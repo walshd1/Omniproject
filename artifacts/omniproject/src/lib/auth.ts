@@ -154,6 +154,8 @@ export function clearClientSessionData(): void {
  *  server cookie; the full-page redirect drops the in-memory React Query cache. */
 export async function logout(): Promise<void> {
   clearClientSessionData();
+  // Purge the encrypted offline cache (my-work/tasks) so nothing survives the session on a shared device.
+  await import("./offline-cache").then((m) => m.clearOfflineCache()).catch(() => {});
   await fetch("/api/auth/logout", { method: "POST", credentials: "same-origin" }).catch(() => {});
   window.location.href = "/login";
 }
