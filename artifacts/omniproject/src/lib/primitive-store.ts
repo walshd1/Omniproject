@@ -1,6 +1,6 @@
 import { PANEL_RENDERERS } from "../components/screen/registry";
 import { PRIMITIVE_LIBRARY } from "../definitions/primitives";
-import { componentLibrary, FORM_FIELD_TYPES, DOC_BLOCK_TYPES, CANVAS_ELEMENT_TYPES, ANNOTATION_TYPES, KEY_RESULT_KINDS } from "@workspace/backend-catalogue";
+import { componentLibrary, FORM_FIELD_TYPES, DOC_BLOCK_TYPES, CANVAS_ELEMENT_TYPES, ANNOTATION_TYPES, KEY_RESULT_KINDS, INVOICE_LINE_KINDS } from "@workspace/backend-catalogue";
 
 /**
  * THE single shared primitive store — one catalogue over every renderable building block in the product,
@@ -19,9 +19,10 @@ import { componentLibrary, FORM_FIELD_TYPES, DOC_BLOCK_TYPES, CANVAS_ELEMENT_TYP
  *  - `canvas`    whiteboard elements (sticky/shape/text/connector/frame) — from CANVAS_ELEMENT_TYPES.
  *  - `annotation` proof review markers (pin/box/highlight) — from ANNOTATION_TYPES.
  *  - `keyResult` goal measures (number/percent/currency/milestone) — from KEY_RESULT_KINDS.
+ *  - `invoiceLine` invoice charges (labour/expense/fixed/discount) — from INVOICE_LINE_KINDS.
  */
-export type PrimitiveFamily = "panel" | "viz" | "field" | "component" | "block" | "canvas" | "annotation" | "keyResult";
-export type PlacementSurface = "screen" | "report" | "dashboard" | "content" | "form" | "export" | "canvas" | "proof" | "goal";
+export type PrimitiveFamily = "panel" | "viz" | "field" | "component" | "block" | "canvas" | "annotation" | "keyResult" | "invoiceLine";
+export type PlacementSurface = "screen" | "report" | "dashboard" | "content" | "form" | "export" | "canvas" | "proof" | "goal" | "invoice";
 
 export interface Primitive {
   /** Unique WITHIN its family (a `table` panel and a `table` viz are different primitives). */
@@ -118,6 +119,14 @@ const KEY_RESULT_META: Record<string, { category: string; tags: string[] }> = {
   milestone: { category: "binary", tags: ["deliverable"] },
 };
 
+/** `invoiceLine` family — subfolder + tags per invoice charge primitive. */
+const INVOICE_LINE_META: Record<string, { category: string; tags: string[] }> = {
+  labour: { category: "charge", tags: ["billable", "hours"] },
+  expense: { category: "charge", tags: ["passthrough"] },
+  fixed: { category: "charge", tags: ["fee"] },
+  discount: { category: "adjustment", tags: ["reduction"] },
+};
+
 /** `viz` family — cross-cutting tags per data-visualisation primitive (subfolder is its chart category). */
 const VIZ_TAGS: Record<string, string[]> = {
   bar: ["comparison"], line: ["timeseries", "trend"], area: ["timeseries", "trend"],
@@ -188,6 +197,14 @@ function keyResultPrimitives(): Primitive[] {
   });
 }
 
+/** `invoiceLine` family — the invoice charge primitives. Lines live on an invoice (the `invoice` surface). */
+function invoiceLinePrimitives(): Primitive[] {
+  return INVOICE_LINE_KINDS.map((id) => {
+    const meta = INVOICE_LINE_META[id] ?? { category: "other", tags: [] };
+    return { id, sourceId: id, family: "invoiceLine", label: titleCase(id), category: meta.category, tags: meta.tags, placeableIn: ["invoice"] };
+  });
+}
+
 /** `component` family — hosted reports + widgets, already placement-tagged by the shared library. */
 function componentPrimitives(): Primitive[] {
   return componentLibrary().map((c) => ({
@@ -210,6 +227,7 @@ export const PRIMITIVES: Primitive[] = [
   ...canvasPrimitives(),
   ...annotationPrimitives(),
   ...keyResultPrimitives(),
+  ...invoiceLinePrimitives(),
   ...componentPrimitives(),
 ];
 

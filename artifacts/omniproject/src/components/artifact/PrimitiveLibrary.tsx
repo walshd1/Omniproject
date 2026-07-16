@@ -18,6 +18,7 @@ const FAMILY_LABEL: Record<PrimitiveFamily, string> = {
   canvas: "Whiteboard elements",
   annotation: "Proof markers",
   keyResult: "Goal key results",
+  invoiceLine: "Invoice lines",
   component: "Reports & widgets",
 };
 

@@ -216,6 +216,14 @@ export const FEATURE_MODULES: readonly FeatureModule[] = [
     reason: "cost", // ephemeral per-user timer state in the shared-state KV
   },
   {
+    id: "invoicing",
+    label: "Invoicing",
+    description: "Generate client-facing invoices with typed line items, derived totals and a status flow.",
+    load: () => import("../routes/invoices"),
+    defaultOff: true,
+    reason: "storage", // holds invoice data in the encrypted-JSON store
+  },
+  {
     // Admin bulk-action runner: apply one canonical broker write (create/update project) to many
     // projects at once, declaratively. Has a backend route (POST /api/admin/bulk), so it loads
     // lazily; OFF until an admin opts in — it fans out project-level writes (high blast radius), so
