@@ -9,7 +9,7 @@ import {
   artifactStoreEnabled, makeScopedId, parseScopedId, scopeFromParsed, isStorageTarget, type StorageTarget,
 } from "../lib/artifact-store";
 import {
-  sanitizeDef, validateDef, newStoredDef, storedDefMeta,
+  sanitizeDef, sanitizeDefUpdate, validateDef, newStoredDef, updateStoredDef, storedDefMeta,
   listDefs, getDef, putDef, deleteDef, DefError, DEF_KINDS,
   type DefKind, type StoredDef, type StoredDefMeta,
 } from "../lib/def-import";
@@ -116,6 +116,28 @@ router.post("/defs", requireRole("contributor"), (req, res) => {
     res.status(201).json(row);
   });
 });
+
+// PUT /api/defs/:id — edit an existing def in place (re-validated by its kind; write-gated by the policy at
+// the def's own scope). The kind is fixed; the name + payload are replaced; rowVersion bumps.
+router.put("/defs/:id", requireRole("contributor"), (req, res) =>
+  withBrokerErrors(req, res, "update_def failed", async () => {
+    const id = String(req.params["id"]);
+    const parsed = parseScopedId(id);
+    if (!parsed) { res.status(404).json({ error: "Not found" }); return; }
+    if (!(await authorizeDefWrite(req, res, parsed.storage, parsed.projectId))) return;
+    if (!artifactStoreEnabled()) { res.status(404).json({ error: "Not found" }); return; }
+    const ctx = contextFromReq(req);
+    const scope = scopeFromParsed(parsed, ctx.sub);
+    const existing = scope ? getDef(scope, id) : null;
+    if (!existing || !scope) { res.status(404).json({ error: "Not found" }); return; }
+    let upd;
+    try { upd = sanitizeDefUpdate(existing.kind, req.body); }
+    catch (e) { if (e instanceof DefError) { res.status(400).json({ error: e.message }); return; } throw e; }
+    const row = updateStoredDef(existing, upd, new Date().toISOString());
+    putDef(scope, row);
+    res.json(row);
+  }),
+);
 
 // DELETE /api/defs/:id — remove a stored def (contributor+, subject to the target gate).
 router.delete("/defs/:id", requireRole("contributor"), (req, res) =>

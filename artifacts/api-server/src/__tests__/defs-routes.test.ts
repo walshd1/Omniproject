@@ -87,6 +87,23 @@ test("user-scope import round-trips and is sealed at rest", async () => {
   assert.equal((await req(`/defs/${encodeURIComponent(def.id)}`, { method: "DELETE" })).status, 204);
 });
 
+test("edit in place: PUT re-validates, bumps rowVersion, and keeps the kind", async () => {
+  const created = await (await req("/defs", { method: "POST", body: { kind: "primitive", storage: "user", name: "Editable", payload: PRIMITIVE } })).json() as { id: string; rowVersion: number };
+  const gid = encodeURIComponent(created.id);
+  // A valid edit (rename + new label) succeeds and bumps the version.
+  const edited = await req(`/defs/${gid}`, { method: "PUT", body: { name: "Renamed", payload: { ...PRIMITIVE, label: "Renamed columns" } } });
+  assert.equal(edited.status, 200);
+  const row = (await edited.json()) as { name: string; rowVersion: number; kind: string; payload: { label: string } };
+  assert.equal(row.name, "Renamed");
+  assert.equal(row.kind, "primitive");
+  assert.equal(row.rowVersion, created.rowVersion + 1);
+  assert.equal(row.payload.label, "Renamed columns");
+  // An invalid edit is 400 (re-validated by the real schema).
+  assert.equal((await req(`/defs/${gid}`, { method: "PUT", body: { payload: { id: "Bad Id", params: [] } } })).status, 400);
+  // Editing a missing def is 404.
+  assert.equal((await req(`/defs/${encodeURIComponent("user~does-not-exist")}`, { method: "PUT", body: { payload: PRIMITIVE } })).status, 404);
+});
+
 test("a bad payload is 400; a bad storage target is 400", async () => {
   assert.equal((await req("/defs", { method: "POST", body: { kind: "primitive", storage: "user", name: "x", payload: { id: "Bad Id", params: [] } } })).status, 400);
   assert.equal((await req("/defs", { method: "POST", body: { kind: "primitive", storage: "sidecar", name: "x", payload: PRIMITIVE } })).status, 400);

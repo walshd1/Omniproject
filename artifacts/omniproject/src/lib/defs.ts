@@ -24,6 +24,17 @@ export interface ImportRequest {
 }
 
 export const defsKey = ["defs"] as const;
+export const defKey = (id: string) => ["def", id] as const;
+
+/** One stored def with its payload (for the editor). */
+export function useDef(id: string | undefined) {
+  return useQuery({
+    queryKey: defKey(id ?? ""),
+    queryFn: () => getJson<StoredDef>(`/api/defs/${encodeURIComponent(id!)}`),
+    enabled: !!id,
+    staleTime: 5_000,
+  });
+}
 
 /** The stored defs the caller can reach (payload omitted). */
 export function useDefs(kind?: DefKind, projectId?: string) {
@@ -56,6 +67,16 @@ export function useImportDef() {
   const invalidate = useInvalidate();
   return useMutation({
     mutationFn: (input: ImportRequest) => sendJson<StoredDef>("/api/defs", input, "POST"),
+    onSuccess: invalidate,
+  });
+}
+
+/** Edit an existing def in place (the kind is fixed server-side). */
+export function useUpdateDef() {
+  const invalidate = useInvalidate();
+  return useMutation({
+    mutationFn: ({ id, name, payload }: { id: string; name?: string; payload: unknown }) =>
+      sendJson<StoredDef>(`/api/defs/${encodeURIComponent(id)}`, { ...(name ? { name } : {}), payload }, "PUT"),
     onSuccess: invalidate,
   });
 }

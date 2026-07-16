@@ -832,7 +832,7 @@ authoring, and the drift guards — no feature bypasses the golden rules.
   encrypted stores.** (Future: generalise the Studio's AI generation beyond primitives — the importer + the
   Definitions page already accept screen/form/report/dashboard/jsonDef today.)
 
-### X.4 Definition editing, configurable permissions, and universal JSON coverage  🚧 In progress (slice 1 of 3)
+### X.4 Definition editing, configurable permissions, and universal JSON coverage  🚧 In progress (slices 1–2 of 3)
 - **Goal.** Round out the importer into a full lifecycle: an **editor** (read + edit existing defs, not just
   create), an **admin-configurable permission model** per scope, and coverage of **everything** a user or admin
   can write in JSON — business rules, colour themes, fonts — through the same one validated path.
@@ -849,9 +849,17 @@ authoring, and the drift guards — no feature bypasses the golden rules.
   `GET /defs/policy` (viewer+ — the UI shows what each scope needs) + `PUT /defs/policy` (**admin** — altering the
   permission model). 4 policy-route tests (defaults; manager-blocked-but-pmo/admin-allowed at org; only-admin-can-
   change; admin relaxes org→manager and a manager may then write) + the existing importer suite updated for the
-  stricter org default. api-server + guards + typecheck clean. **Next:** slice 2 — the editor (a `PUT /defs/:id`
-  update path + an edit-in-place UI, RBAC-gated by the same policy); slice 3 — add `businessRule` / `theme`
-  (colours) / `font` def kinds so all user/admin-writable JSON flows through the importer.
+  stricter org default. api-server + guards + typecheck clean.
+- **Slice 2 ✅ (the editor — edit existing defs in place).** Server `lib/def-import` gains `sanitizeDefUpdate`
+  (re-validate the payload against the def's **fixed** kind; name optional) + `updateStoredDef` (payload/name
+  replaced, rowVersion bumped); `routes/defs` adds `PUT /defs/:id` — load the scoped def, **write-gate through
+  the same `authorizeDefWrite` policy** at the def's own scope, re-validate, persist (404 for a missing def, 400
+  for an invalid edit). SPA `lib/defs` gains `useDef` (load one with payload) + `useUpdateDef`; `pages/Definitions`
+  gains an **edit-in-place panel** — an Edit button on each row loads the def, seeds a JSON editor + name field,
+  Validate (dry-run) → Save changes (PUT), Cancel. 1 route test (re-validate + rowVersion bump + kind kept +
+  invalid-400 + missing-404) + 1 page test (opens the editor seeded with the payload); api-server + SPA typecheck
+  clean. **Next:** slice 3 — add `businessRule` / `theme` (colours) / `font` def kinds so all user/admin-writable
+  JSON flows through the importer.
 
 The mental model: each entry in the store is a **class** — its config are properties (a field's
 `options`, `maxLength`; a panel's `source`), it produces a typed **value**, and it carries

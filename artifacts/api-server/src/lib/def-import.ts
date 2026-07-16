@@ -143,6 +143,30 @@ export interface StoredDefMeta {
 
 const actorLabel = (ctx: ActorContext): string | null => ctx.email ?? ctx.name ?? ctx.sub ?? null;
 
+/** Validate an EDIT to an existing def: the kind is fixed (can't change on edit), the payload is re-validated,
+ *  and the name is optional (kept when omitted). Throws {@link DefError} (→ 400). */
+export function sanitizeDefUpdate(kind: DefKind, raw: unknown): { name?: string; payload: unknown; value: unknown } {
+  const obj = (raw ?? {}) as Record<string, unknown>;
+  const payload = obj["payload"];
+  if (payload === undefined || payload === null || typeof payload !== "object") throw new DefError("payload must be a JSON object");
+  if (JSON.stringify(payload).length > DEF_LIMITS.maxPayloadBytes) throw new DefError("the payload is too large");
+  const check = validateDef(kind, payload);
+  if (!check.ok) throw new DefError(`invalid ${kind}: ${check.errors.join("; ")}`);
+  const name = cleanName(obj["name"]);
+  return { ...(name ? { name } : {}), payload, value: check.value };
+}
+
+/** Apply a validated edit to an existing def — payload replaced, name updated when given, rowVersion bumped. */
+export function updateStoredDef(existing: StoredDef, input: { name?: string; payload: unknown }, now: string): StoredDef {
+  return {
+    ...existing,
+    name: input.name ?? existing.name,
+    payload: input.payload,
+    updatedAt: now,
+    rowVersion: (existing.rowVersion ?? 1) + 1,
+  };
+}
+
 /** Build the row for a newly stored def (identity + timestamps stamped server-side). */
 export function newStoredDef(id: string, input: SanitizedDef, ctx: ActorContext, now: string): StoredDef {
   return {
