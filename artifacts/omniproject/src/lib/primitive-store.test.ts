@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { PRIMITIVES, primitiveStore, primitivesByFamily, primitivesFor, getPrimitive, primitiveTree, categoriesFor, allTags, primitivesByTag } from "./primitive-store";
 import { PANEL_RENDERERS } from "../components/screen/registry";
 import { PRIMITIVE_LIBRARY } from "../definitions/primitives";
-import { FORM_FIELD_TYPES, DOC_BLOCK_TYPES, CANVAS_ELEMENT_TYPES, ANNOTATION_TYPES, KEY_RESULT_KINDS, componentLibrary } from "@workspace/backend-catalogue";
+import { FORM_FIELD_TYPES, DOC_BLOCK_TYPES, CANVAS_ELEMENT_TYPES, ANNOTATION_TYPES, KEY_RESULT_KINDS, INVOICE_LINE_KINDS, componentLibrary } from "@workspace/backend-catalogue";
 
 /**
  * Drift guard for THE single primitive store. It binds each family back to its authoritative registry, so
@@ -67,6 +67,16 @@ describe("primitive-store (single shared store)", () => {
     expect(primitivesFor("goal").some((p) => p.family === "keyResult")).toBe(true);
   });
 
+  it("the invoiceLine family exactly matches the shared invoice line kinds", () => {
+    const store = primitivesByFamily("invoiceLine").map((p) => p.id).sort();
+    expect(store).toEqual([...INVOICE_LINE_KINDS].sort());
+  });
+
+  it("invoiceLine primitives are placeable only on the invoice surface", () => {
+    expect(primitivesByFamily("invoiceLine").every((p) => p.placeableIn.includes("invoice"))).toBe(true);
+    expect(primitivesFor("invoice").some((p) => p.family === "invoiceLine")).toBe(true);
+  });
+
   it("the component family exactly matches the shared component library", () => {
     const store = primitivesByFamily("component").map((p) => p.id).sort();
     const lib = componentLibrary().map((c) => c.id).sort();
@@ -74,7 +84,7 @@ describe("primitive-store (single shared store)", () => {
   });
 
   it("ids are unique within each family", () => {
-    for (const family of ["panel", "viz", "field", "block", "canvas", "annotation", "keyResult", "component"] as const) {
+    for (const family of ["panel", "viz", "field", "block", "canvas", "annotation", "keyResult", "invoiceLine", "component"] as const) {
       const ids = primitivesByFamily(family).map((p) => p.id);
       expect(new Set(ids).size, `family ${family}`).toBe(ids.length);
     }

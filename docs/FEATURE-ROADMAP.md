@@ -603,7 +603,7 @@ authoring, and the drift guards — no feature bypasses the golden rules.
   render values via the catalogue formatter. 2 catalogue tests + drift-guard + server attainment/sanitise
   tests; both packages typecheck clean.
 
-### 3.3 Live time tracking + invoicing  🚧 In progress (slice 1)
+### 3.3 Live time tracking + invoicing  🚧 In progress (slices 1–2)
 - **Competitors.** Harvest/Toggl, Workfront. **Have.** Timesheets (submit/approve) +
   income/invoicing reports. **Missing.** Start/stop timers, invoice generation.
 - **Leverage.** timesheet lib, income/invoicing reports, financials.
@@ -618,6 +618,17 @@ authoring, and the drift guards — no feature bypasses the golden rules.
   `useStartTimer`/`useStopTimer`) + `TimerWidget` in the app topbar (ticks locally between server polls; idle
   start-form ↔ running elapsed + stop; feature-gated). 4 pure + 3 route tests + 2 widget + formatElapsed
   tests. **Next:** book the stopped entry into the timesheet (slice 2), the invoice object (3), generation (4).
+- **Slice 2 ✅ (invoice object + `invoiceLine` primitive family).** A first-class generated INVOICE on the
+  sealed storage-target store, primitive-aligned like goals. New `backend-catalogue/invoice-catalogue`:
+  `INVOICE_LINE_KINDS` (labour / expense / fixed / discount), `INVOICE_STATUSES` (draft → issued → paid →
+  void), and the pure money methods `invoiceLineAmount` (qty × price; a **discount is always ≤ 0**) + `round2`
+  + `formatMoney`. `primitive-store` gains the **`invoiceLine` family** placeable on a new **`invoice`
+  surface**, drift-guarded. Server `lib/invoice` — the model + single sanitiser: a line's `amount` and the
+  invoice `subtotal`/`taxAmount`/`total` are **derived server-side** (never client-trusted); project/org
+  storage only (an invoice is never personal); self-describing ids. `routes/invoices` — CRUD, **manager+**
+  throughout (financial docs), only a **draft** may be edited (409 otherwise), behind the new default-off
+  **`invoicing`** module. 3 catalogue + 3 pure + 3 route tests + drift guard; all three packages typecheck
+  clean. **Next:** invoice generation from billable timesheet hours × rate card + status flow + UI (slice 3).
 
 ### 3.4 Third-party app / plugin marketplace  ⬜ Todo
 - **Competitors.** Jira/Monday/Asana marketplaces. **Have.** 41 connectors + MCP + broker
