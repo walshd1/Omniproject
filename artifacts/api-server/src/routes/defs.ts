@@ -4,6 +4,7 @@ import { contextFromReq, withBrokerErrors } from "../broker";
 import { requireRole } from "../lib/rbac";
 import { assertProjectScope } from "../lib/project-scope";
 import { authorizeStorageTarget } from "../lib/storage-target-authz";
+import { authorizeDefWrite, getDefScopePolicy, setDefScopePolicy, DEF_GATES } from "../lib/def-policy";
 import {
   artifactStoreEnabled, makeScopedId, parseScopedId, scopeFromParsed, isStorageTarget, type StorageTarget,
 } from "../lib/artifact-store";
@@ -38,6 +39,24 @@ router.post("/defs/validate", requireRole("contributor"), (req, res) => {
   }
   const result = validateDef(body.kind as DefKind, body.payload);
   res.json({ valid: result.ok, errors: result.errors });
+});
+
+// GET /api/defs/policy — the per-scope write policy (viewer+ may read it; the UI shows what each scope needs).
+router.get("/defs/policy", requireRole("viewer"), (_req, res) => {
+  res.json({ policy: getDefScopePolicy(), gates: DEF_GATES });
+});
+
+// PUT /api/defs/policy — change who may write at each scope (admin only — altering the permission model).
+router.put("/defs/policy", requireRole("admin"), (req, res) => {
+  if (!artifactStoreEnabled()) { res.status(501).json({ error: "no encrypted-JSON store is configured on this deployment" }); return; }
+  const body = (req.body ?? {}) as Record<string, unknown>;
+  for (const scope of ["user", "project", "org"] as const) {
+    if (body[scope] !== undefined && !(DEF_GATES as readonly string[]).includes(String(body[scope]))) {
+      res.status(400).json({ error: `${scope} gate must be one of ${DEF_GATES.join(", ")}` });
+      return;
+    }
+  }
+  res.json({ policy: setDefScopePolicy(body) });
 });
 
 // GET /api/defs?kind=&projectId= — the stored defs the caller can reach (payload omitted), aggregated across
@@ -86,7 +105,7 @@ router.post("/defs", requireRole("contributor"), (req, res) => {
   catch (e) { if (e instanceof DefError) { res.status(400).json({ error: e.message }); return; } throw e; }
 
   return withBrokerErrors(req, res, "def import failed", async () => {
-    if (!(await authorizeTarget(req, res, storage, projectId, "write"))) return;
+    if (!(await authorizeDefWrite(req, res, storage, projectId))) return;
     if (!artifactStoreEnabled()) { res.status(501).json({ error: "no encrypted-JSON store is configured on this deployment" }); return; }
     const ctx = contextFromReq(req);
     const id = makeScopedId(storage, crypto.randomUUID(), projectId);
@@ -104,7 +123,7 @@ router.delete("/defs/:id", requireRole("contributor"), (req, res) =>
     const id = String(req.params["id"]);
     const parsed = parseScopedId(id);
     if (!parsed) { res.status(204).end(); return; }
-    if (!(await authorizeTarget(req, res, parsed.storage, parsed.projectId, "write"))) return;
+    if (!(await authorizeDefWrite(req, res, parsed.storage, parsed.projectId))) return;
     if (!artifactStoreEnabled()) { res.status(204).end(); return; }
     const ctx = contextFromReq(req);
     const scope = scopeFromParsed(parsed, ctx.sub);

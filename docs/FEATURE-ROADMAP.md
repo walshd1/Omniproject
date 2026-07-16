@@ -832,9 +832,26 @@ authoring, and the drift guards — no feature bypasses the golden rules.
   encrypted stores.** (Future: generalise the Studio's AI generation beyond primitives — the importer + the
   Definitions page already accept screen/form/report/dashboard/jsonDef today.)
 
----
-
-## Primitives as objects / methods / classes
+### X.4 Definition editing, configurable permissions, and universal JSON coverage  🚧 In progress (slice 1 of 3)
+- **Goal.** Round out the importer into a full lifecycle: an **editor** (read + edit existing defs, not just
+  create), an **admin-configurable permission model** per scope, and coverage of **everything** a user or admin
+  can write in JSON — business rules, colour themes, fonts — through the same one validated path.
+- **Permission defaults (admin-configurable).** Who may WRITE at each scope: `user` → any author
+  (`contributor`); `project` → a PM (`manager`, which PMO/admin also clear); `org` → `pmoOrAdmin` (either
+  governance authority — a plain manager is NOT enough). Reads stay at the scoped viewer+ visibility. An admin
+  can raise or relax any scope's gate.
+- **Slice 1 ✅ (the configurable scope policy).** `lib/def-policy`: `DefScopePolicy { user, project, org }` over
+  the gate set `contributor | manager | pmoOrAdmin | admin`, with the defaults above; `satisfiesDefGate` maps a
+  gate to the RBAC check (`pmoOrAdmin` = the pmo **or** admin authority, which — like every authority — needs
+  strong-auth proof); `getDefScopePolicy` / `setDefScopePolicy` persist the policy as **org config in the sealed
+  store** (dogfooding the importer's own storage); `authorizeDefWrite` is the shared write gate (per-scope gate +
+  project scope for `project`). `routes/defs` now gates every write (POST + DELETE) through it, and exposes
+  `GET /defs/policy` (viewer+ — the UI shows what each scope needs) + `PUT /defs/policy` (**admin** — altering the
+  permission model). 4 policy-route tests (defaults; manager-blocked-but-pmo/admin-allowed at org; only-admin-can-
+  change; admin relaxes org→manager and a manager may then write) + the existing importer suite updated for the
+  stricter org default. api-server + guards + typecheck clean. **Next:** slice 2 — the editor (a `PUT /defs/:id`
+  update path + an edit-in-place UI, RBAC-gated by the same policy); slice 3 — add `businessRule` / `theme`
+  (colours) / `font` def kinds so all user/admin-writable JSON flows through the importer.
 
 The mental model: each entry in the store is a **class** — its config are properties (a field's
 `options`, `maxLength`; a panel's `source`), it produces a typed **value**, and it carries
