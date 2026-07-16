@@ -208,6 +208,14 @@ export const FEATURE_MODULES: readonly FeatureModule[] = [
     reason: "storage", // holds goal + key-result data in the encrypted-JSON store
   },
   {
+    id: "timeTracking",
+    label: "Live time tracking",
+    description: "A start/stop timer that books elapsed time into a timesheet entry; billing-ready.",
+    load: () => import("../routes/timer"),
+    defaultOff: true,
+    reason: "cost", // ephemeral per-user timer state in the shared-state KV
+  },
+  {
     // Admin bulk-action runner: apply one canonical broker write (create/update project) to many
     // projects at once, declaratively. Has a backend route (POST /api/admin/bulk), so it loads
     // lazily; OFF until an admin opts in — it fans out project-level writes (high blast radius), so

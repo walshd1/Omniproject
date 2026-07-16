@@ -21,6 +21,7 @@ import { usePublicSetupStatus } from "../../lib/setup";
 import { useT } from "../../lib/i18n";
 import { useOnline, connectivityState } from "../../lib/connectivity";
 import { useInstallPrompt } from "../../lib/use-install-prompt";
+import { TimerWidget } from "../TimerWidget";
 import { useOfflineCacheSync } from "../../lib/use-offline-cache";
 import { useBranding } from "../../lib/branding";
 import { LanguageSwitcher } from "../LanguageSwitcher";
@@ -280,6 +281,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
           </div>
 
           <div className="flex items-center gap-4">
+            <TimerWidget />
             {canInstall && (
               <button type="button" data-testid="pwa-install" onClick={() => void promptInstall()}
                 className="flex items-center gap-1.5 border border-border px-2 py-1 bg-card text-xs font-bold tracking-widest hover:bg-muted"

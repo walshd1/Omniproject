@@ -603,10 +603,21 @@ authoring, and the drift guards — no feature bypasses the golden rules.
   render values via the catalogue formatter. 2 catalogue tests + drift-guard + server attainment/sanitise
   tests; both packages typecheck clean.
 
-### 3.3 Live time tracking + invoicing  ⬜ Todo
+### 3.3 Live time tracking + invoicing  🚧 In progress (slice 1)
 - **Competitors.** Harvest/Toggl, Workfront. **Have.** Timesheets (submit/approve) +
   income/invoicing reports. **Missing.** Start/stop timers, invoice generation.
 - **Leverage.** timesheet lib, income/invoicing reports, financials.
+- **Design.** A running timer is EPHEMERAL per-user state on the shared-state KV seam (not the durable store);
+  an INVOICE is OmniProject-held ⇒ the sealed artifact-store + primitive pattern (like goals), with line
+  pricing resolved through the existing rate-card engine. Behind default-off modules.
+- **Slice 1 ✅ (running timer).** `lib/timer` — a per-user clock in the shared-state KV (`timer:running:<sub>`,
+  TTL-bounded 24h so a forgotten clock can't run forever): pure `sanitizeTimerStart` (needs a projectId),
+  `elapsedHours` (2dp, never negative on skew), `timerToEntry` (materialise a day-grained timesheet entry on
+  stop). `routes/timer` — GET (current + live elapsed) / POST start / POST stop, contributor+, behind the new
+  default-off **`timeTracking`** module. Client `lib/live-timer` hooks (`useTimer` polls while running,
+  `useStartTimer`/`useStopTimer`) + `TimerWidget` in the app topbar (ticks locally between server polls; idle
+  start-form ↔ running elapsed + stop; feature-gated). 4 pure + 3 route tests + 2 widget + formatElapsed
+  tests. **Next:** book the stopped entry into the timesheet (slice 2), the invoice object (3), generation (4).
 
 ### 3.4 Third-party app / plugin marketplace  ⬜ Todo
 - **Competitors.** Jira/Monday/Asana marketplaces. **Have.** 41 connectors + MCP + broker
