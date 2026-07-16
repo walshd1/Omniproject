@@ -41,11 +41,13 @@ export function ScreenPage({ id, methodology, params }: { id: string; methodolog
     );
   }
 
-  // Thread route params (projectId / programmeId / …) onto every panel's config so a hosted component
-  // receives them. The JSON stays param-free; the router supplies the live value.
-  const screen: ScreenDef = params
-    ? { ...def, panels: def.panels.map((p) => ({ ...p, config: { ...(p.config ?? {}), ...params } })) }
-    : def;
+  // Thread the screen id (so a panel can scope its saved views) and route params (projectId / programmeId /
+  // … so a hosted component receives them) onto every panel's config. The JSON stays param-free; these are
+  // supplied live at render. `__screenId` is namespaced so it never collides with a data field.
+  const screen: ScreenDef = {
+    ...def,
+    panels: def.panels.map((p) => ({ ...p, config: { ...(p.config ?? {}), __screenId: id, ...(params ?? {}) } })),
+  };
 
   // A methodology-tagged screen (e.g. the Kanban board) renders with ITS OWN methodology by default — so
   // its content is filtered and its canonical layout applies without a caller having to pass one. An

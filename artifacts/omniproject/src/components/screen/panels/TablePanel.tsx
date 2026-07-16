@@ -5,6 +5,7 @@ import type { Panel } from "../../../lib/screen";
 import { resolveDrillTo } from "../../../lib/drill-to";
 import type { DrillTo } from "@workspace/backend-catalogue";
 import { PanelControls } from "../PanelControls";
+import { PanelSavedViews } from "../PanelSavedViews";
 import { applyControls, defaultControlsState, type ControlsConfig, type ControlsState } from "../../../lib/panel-controls";
 
 /**
@@ -64,6 +65,9 @@ export function TablePanel({ panel }: { panel: Panel }) {
         </CardHeader>
       )}
       <CardContent className="overflow-x-auto">
+        {controls && ctrl && typeof c["__screenId"] === "string" && (
+          <PanelSavedViews screen={c["__screenId"] as string} panel={panel.id} state={ctrl} onApply={setCtrl} />
+        )}
         {controls && ctrl && <PanelControls config={controls} rows={rawObjectRows} state={ctrl} onChange={setCtrl} />}
         <table className="w-full text-sm">
           <thead>

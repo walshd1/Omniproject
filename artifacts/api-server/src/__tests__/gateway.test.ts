@@ -973,6 +973,7 @@ const SAMPLE_SETTINGS = {
   raci: [],
   stakeholders: [],
   collectionEditRoles: {},
+  panelViews: [],
 };
 
 test("redactSettingsForRead: masks webhook signing secrets (never leaked over GET)", async () => {

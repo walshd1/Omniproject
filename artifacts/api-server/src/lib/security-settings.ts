@@ -119,6 +119,11 @@ export const CHOICE_SETTINGS: readonly string[] = [
   // PresentationConfig (all presentation)
   "branding", "labelOverrides", "priorityLabels", "screenLayouts", "hiddenFields",
   "savedViews", "dashboards", "customReports", "reportOverrides", "reports", "resourceAllocations", "budgetPlans", "methodologyComposition", "contentPages",
+  // Editable-screens config — org-authored screen defs/content + on-screen registers. All presentation:
+  // screen definitions, the on/off list, per-collection edit policy, the saved pivot views, and the RACI /
+  // stakeholder register content. None is a fail-closed security control (edit access is content
+  // authorization, tuned freely by admins), so each is a choice, not a sign-off-gated security setting.
+  "screenDefs", "disabledScreens", "collectionEditRoles", "panelViews", "raci", "stakeholders",
   // UserConfig
   "userPrefs",
   // PlatformConfig

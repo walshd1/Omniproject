@@ -507,6 +507,11 @@ export interface PresentationConfig {
    *  The default is user-editable; an admin/PMO raises the bar or locks a collection read-only. Enforced
    *  server-side (lib/collection-edit-policy) and mirrored by the SPA's edit controls. */
   collectionEditRoles: Record<string, string>;
+  /** Org-saved PANEL VIEWS — a named period/pivot preset (group + aggregation + filters) a user has saved
+   *  off a table/chart panel's control bar, scoped to a `screen`+`panel`, so a filtered view can be recalled
+   *  later. Shared, customer-level presentation config (rides the config-bundle snapshot); never project
+   *  data. Writes follow the collection edit-policy (default user-editable). See routes/panel-views. */
+  panelViews: PanelView[];
   /**
    * Methodology composition — the PMO/admin's curated set of visible artifact / output / ruleset ids,
    * assembled from one-click methodology presets and refined per item (so "some Scrum + some PRINCE2" is
@@ -600,6 +605,22 @@ export interface SavedView {
   groupBy?: string;
   /** Optional presentation styling for the rendered view (title/font/colours/background). */
   style?: ArtifactStyle;
+}
+
+/**
+ * A saved PANEL VIEW — a named pivot/period preset a user has captured off a table/chart panel's control
+ * bar. `screen`+`panel` scope it to the panel it was saved from; `state` is the exact control state
+ * (group dimension, aggregation, per-field filter selections) to re-apply. Shared, customer-level config.
+ */
+export interface PanelView {
+  id: string;
+  label: string;
+  /** The screen id the source panel lives on. */
+  screen: string;
+  /** The panel id within that screen. */
+  panel: string;
+  /** The control state to re-apply: group dimension, aggregation, and per-field filter selections. */
+  state: { groupBy: string; agg: string; filters: Record<string, string[]> };
 }
 
 /**
@@ -1171,6 +1192,7 @@ const FIELD_DESCRIPTORS: { [K in keyof SettingsState]: FieldDescriptor<K> } = {
       return out;
     },
   },
+  panelViews: { seed: () => [], validate: shapeChecked(validatePanelViews) },
   raci: { seed: () => [], validate: normalisedBy((v) => validateRaci(v), RaciError) },
   stakeholders: { seed: () => [], validate: normalisedBy((v) => validateStakeholders(v), StakeholderError) },
   methodologyComposition: {
@@ -1569,6 +1591,36 @@ function validateSavedViews(value: unknown): void {
       }
     }
     validateArtifactStyle((view as Record<string, unknown>)["style"], `saved view "${String(id)}"`);
+  }
+}
+
+/**
+ * Shape-validate saved PANEL VIEWS. Each needs a string id/label and a scoping screen+panel id, plus a
+ * `state` object whose `groupBy`/`agg` are strings and whose `filters` map field → an array of string
+ * values. Hardened because these are shared, customer-level config that ride the config bundle; a malformed
+ * or hostile entry must 400, never persist a shape a renderer could choke on.
+ */
+function validatePanelViews(value: unknown): void {
+  if (!Array.isArray(value)) throw new SettingsValidationError("panelViews must be an array");
+  const ids = new Set<string>();
+  for (const view of value) {
+    if (!view || typeof view !== "object") throw new SettingsValidationError("each panel view must be an object");
+    const { id, label, screen, panel, state } = view as Record<string, unknown>;
+    if (typeof id !== "string" || !id) throw new SettingsValidationError("each panel view needs a string id");
+    if (ids.has(id)) throw new SettingsValidationError(`duplicate panel view id "${id}"`);
+    ids.add(id);
+    if (typeof label !== "string" || !label) throw new SettingsValidationError("each panel view needs a label");
+    if (typeof screen !== "string" || !screen) throw new SettingsValidationError("each panel view needs a screen id");
+    if (typeof panel !== "string" || !panel) throw new SettingsValidationError("each panel view needs a panel id");
+    if (!state || typeof state !== "object") throw new SettingsValidationError("each panel view needs a state object");
+    const { groupBy, agg, filters } = state as Record<string, unknown>;
+    if (typeof groupBy !== "string") throw new SettingsValidationError("panel view state.groupBy must be a string");
+    if (typeof agg !== "string") throw new SettingsValidationError("panel view state.agg must be a string");
+    if (!filters || typeof filters !== "object" || Array.isArray(filters)) throw new SettingsValidationError("panel view state.filters must be an object");
+    for (const [field, vals] of Object.entries(filters as Record<string, unknown>)) {
+      if (isForbiddenKey(field)) throw new SettingsValidationError("panel view filter field is not allowed");
+      if (!Array.isArray(vals) || vals.some((v) => typeof v !== "string")) throw new SettingsValidationError(`panel view filter "${field}" must be an array of strings`);
+    }
   }
 }
 
