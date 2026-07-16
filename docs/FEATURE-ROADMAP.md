@@ -743,7 +743,7 @@ authoring, and the drift guards — no feature bypasses the golden rules.
 - **Slices.** (1) reference handoff + `<UseNative>` button; (2) sandboxed Live-Embed preview;
   (3) OAuth + content import (metadata/thumbnail via `safeFetch`).
 
-### X.2 AI primitive-authoring studio (companion skill)  🚧 In progress (slices 1–2 of 4)
+### X.2 AI primitive-authoring studio (companion skill)  🚧 In progress (slices 1–3 of 4)
 - **Rationale.** Primitives + JSON defs are the app's building blocks, but authoring one means knowing the
   shape. A **companion AI skill** takes a plain description (later: a description + a picture), **builds** a
   primitive JSON bundle, **tests** it against the real schema, **renders** it back, and **iterates** on the
@@ -772,9 +772,15 @@ authoring, and the drift guards — no feature bypasses the golden rules.
   governed like every AI surface: the active `provider:*` capability + the new **`ai-authoring`** capability (both
   off by default) + `requireRole(contributor)`. Follows "AI proposes, human disposes" — it only generates + tests;
   the write goes through the existing registry submit path. 6 pure (injected `complete`) + 4 route (governance gate,
-  400, RBAC) tests; feature/capability/governance suites green; api-server typecheck clean. **Next:** slice 3 — the
-  companion studio UI (describe → preview via `ArtifactRenderer` → iterate → submit); slice 4 — image input (extend
-  the `aiChat` vision chokepoint).
+  400, RBAC) tests; feature/capability/governance suites green; api-server typecheck clean.
+- **Slice 3 ✅ (the companion studio UI).** SPA `lib/studio` (`useStudioStatus` / `useGeneratePrimitive`) + `pages/Studio`
+  — the `/studio` surface: **describe** a chart/graphic → **generate** → a **verdict** (valid ✓ or the exact validation
+  errors) + a **live preview** (a sample `ChartView` for the primitive's chart type, else a params summary) + the bundle
+  JSON → **refine** with feedback and regenerate (feeding the previous payload back) → **submit to the registry** (reuses
+  `useSubmitRegistryItem`; the button is enabled only when the primitive is valid). Wired as a primary-group nav item
+  gated on the **`studio`** module (`/studio` route + `nav.studio` i18n + nav-order guard). 3 page tests (unavailable
+  warning, valid→preview→submit-enabled, invalid→errors→submit-disabled); full SPA suite + typecheck clean. **Next:**
+  slice 4 — image input (extend the `aiChat` vision chokepoint so a picture + description can seed a primitive).
 
 ---
 

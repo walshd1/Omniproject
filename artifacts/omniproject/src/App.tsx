@@ -43,6 +43,7 @@ const Goals = lazy(() => import("./pages/Goals").then((m) => ({ default: m.Goals
 const Invoices = lazy(() => import("./pages/Invoices").then((m) => ({ default: m.Invoices })));
 const Marketplace = lazy(() => import("./pages/Marketplace").then((m) => ({ default: m.Marketplace })));
 const Registry = lazy(() => import("./pages/Registry").then((m) => ({ default: m.Registry })));
+const Studio = lazy(() => import("./pages/Studio").then((m) => ({ default: m.Studio })));
 const ScreenPage = lazy(() => import("./pages/ScreenPage").then((m) => ({ default: m.ScreenPage })));
 const Settings = lazy(() => import("./pages/Settings").then((m) => ({ default: m.Settings })));
 const Configurator = lazy(() => import("./pages/Configurator").then((m) => ({ default: m.Configurator })));
@@ -123,6 +124,9 @@ function Router() {
       </Route>
       <Route path="/registry">
         <AppLayout><Registry /></AppLayout>
+      </Route>
+      <Route path="/studio">
+        <AppLayout><Studio /></AppLayout>
       </Route>
       <Route path="/programmes">
         <AppLayout><ScreenPage id="programmes" /></AppLayout>
