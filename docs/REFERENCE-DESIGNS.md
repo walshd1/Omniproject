@@ -13,10 +13,13 @@ would reject.
 
 ## Where to get them
 
-- **API:** `GET /api/registry/reference` returns every reference design; `GET
+- **Source of truth:** the plain JSON files in [`reference-designs/`](../reference-designs/)
+  at the repo root — **outside the running system**, so you can read, copy and adapt them
+  without touching code. Add a new one by dropping a `.json` file into the right subfolder;
+  there is nothing to compile.
+- **API (convenience):** `GET /api/registry/reference` returns every design; `GET
   /api/registry/reference/:slug` returns one. (Viewer+; the `registry` feature module must
-  be enabled.)
-- **Source of truth:** `artifacts/api-server/src/lib/registry-reference.ts`.
+  be enabled.) The endpoint simply *loads the files above* — it is not a second copy.
 
 Each design has: a `slug`, a `title`, the registry `kind` it teaches, a `summary`, an
 array of teaching `notes`, and an `example` — a **complete registry submission**. To use
@@ -56,7 +59,7 @@ designs below show a real, valid payload for each.
 
 ## Published references
 
-### 1. A visualisation primitive (`primitive-viz-chart`)
+### 1. A visualisation primitive (`reference-designs/primitives/grouped-column.primitive.json`)
 
 Add a new chart type as pure JSON. It appears in the builder palette and in reports with
 **no code change** — the renderer already exists; you are only describing which inputs it
@@ -67,7 +70,7 @@ Key fields: a unique kebab-case `id`, a `category` (palette group), an optional
 each `key`/`label`/`type`/`required`/`description`; `type: "rows"` takes tabular data,
 `"series"` picks which keys to plot).
 
-### 2. A screen definition (`jsondef-screen`)
+### 2. A screen definition (`reference-designs/screens/delivery-health.screen.json`)
 
 Compose a screen from panels. Stored org-wide, merged over the built-in catalogue (org id
 wins), rendered by the generic builder.
@@ -78,7 +81,7 @@ renderer); anything else on a panel (`source`, `config`, `title`) passes through
 renderer. An unknown panel kind degrades to a labelled placeholder, so defs are
 forward-compatible.
 
-### 3. An intake form (`jsondef-form`)
+### 3. An intake form (`reference-designs/forms/change-request.form.json`)
 
 Author a request/intake form; each submission becomes a work item through the broker.
 
@@ -88,14 +91,14 @@ field maps to `title`; `description`/`labels` may be shared, every other target 
 Choice types need `options`. `target.kind` is `issue`; `target.projectId` is bound by an
 admin before the form accepts submissions.
 
-### 4. A custom report (`report-custom`)
+### 4. A custom report (`reference-designs/reports/open-work-by-assignee.report.json`)
 
 Define a report as a declarative `query` (entity + grouping + measure) plus a `viz` that
 names a **primitive** id and maps query columns onto its inputs. Because it references a
 primitive rather than embedding a chart, the report inherits primitive improvements
 automatically.
 
-### 5. A dashboard (`dashboard-grid`)
+### 5. A dashboard (`reference-designs/dashboards/portfolio-overview.dashboard.json`)
 
 Lay out a dashboard as a grid of `widgets`; each has a unique `id`, a `kind`
 (metric/report/chart), a `source`, and a grid `layout` (x/y/w/h). Widgets reference other

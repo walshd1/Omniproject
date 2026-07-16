@@ -41,6 +41,7 @@ const EN: Dict = {
   "nav.resourcePlanning": "Resource planning",
   "nav.explore": "Explore",
   "nav.marketplace": "Marketplace",
+  "nav.registry": "Registry",
   "nav.settings": "Settings",
   "nav.configurator": "Configurator",
   "nav.advanced": "Advanced",

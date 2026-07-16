@@ -1,0 +1,32 @@
+{
+  "title": "A visualisation primitive (drop-in chart)",
+  "summary": "Add a new chart type as pure JSON — it appears in the builder palette and reports with no code change.",
+  "notes": [
+    "`id` is the stable primitive id (kebab-case). It must be unique across the primitive library.",
+    "`category` groups the primitive in the palette (e.g. \"comparison\", \"trend\", \"composition\").",
+    "`chartType` names the ChartView spec this draws through, when it is a dispatchable chart.",
+    "`params` are the authoring inputs; each has key/label/type/required/description. `type: \"rows\"` takes tabular data; `\"series\"` picks which keys to plot.",
+    "Everything is declarative — the renderer already exists; you are only describing which inputs it takes."
+  ],
+  "example": {
+    "kind": "primitive",
+    "name": "Grouped column chart",
+    "publisher": "Acme Analytics",
+    "version": "1.0.0",
+    "description": "A grouped column chart primitive for comparing a few series across categories.",
+    "tags": ["chart", "comparison"],
+    "payload": {
+      "id": "grouped-column",
+      "label": "Grouped columns",
+      "category": "comparison",
+      "description": "Compare several series across a small set of categories.",
+      "chartType": "bar",
+      "params": [
+        { "key": "data", "label": "Rows", "type": "rows", "required": true, "description": "One object per category; keys are the plotted fields." },
+        { "key": "series", "label": "Series", "type": "series", "required": true, "description": "Which row keys to plot and their labels." },
+        { "key": "palette", "label": "Palette", "type": "palette", "required": false, "description": "Ordered hex colours; series take them in turn." },
+        { "key": "height", "label": "Height", "type": "number", "required": false, "description": "Pixel height, or a percent string for responsive containers." }
+      ]
+    }
+  }
+}
