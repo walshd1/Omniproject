@@ -218,7 +218,7 @@ export class DemoBroker implements Broker {
     if (scope.level === "all") return SAMPLE_PROJECTS;
     const registry = getSettings().programmeRegistry;
     return SAMPLE_PROJECTS.filter((p) =>
-      inScope(scope, { programmeId: (p["programmeId"] as string | null | undefined) ?? null, programmeIds: programmeIdsOf(p, registry) }),
+      inScope(scope, { id: p.id, programmeId: (p["programmeId"] as string | null | undefined) ?? null, programmeIds: programmeIdsOf(p, registry) }),
     );
   }
 

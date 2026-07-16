@@ -16,6 +16,7 @@ import settingsRouter from "./settings";
 import clientErrorsRouter from "./client-errors";
 import programmesRouter from "./programmes";
 import portfolioRouter from "./portfolio";
+import portalRouter from "./portal";
 import capabilitiesRouter from "./capabilities";
 import brokerLogRouter from "./broker-log";
 import setupRouter from "./setup";
@@ -82,7 +83,7 @@ import resourceAllocationsRouter from "./resource-allocations";
 import budgetPlansRouter from "./budget-plans";
 import scimRouter from "./scim";
 import breakGlassRouter from "./break-glass";
-import { isDeprovisioned } from "../lib/rbac";
+import { isDeprovisioned, requireRole } from "../lib/rbac";
 import { hasValidApiToken } from "../lib/api-token";
 import { apiLimiter, loginLimiter } from "../lib/rate-limit";
 import { auditMiddleware } from "./audit-middleware";
@@ -169,6 +170,15 @@ router.use(labelsRouter);
 // devMode:false in production (dev mode is hard-gated off there).
 router.use(devModeRouter);
 router.use(meRouter);
+
+// Client-facing guest portal — invites (manager+) and the guest's own curated project status (guest+).
+// Self-gates on GUEST_PORTAL_ENABLED. Mounted BEFORE the viewer-floor gate below so a guest can reach it.
+router.use(requireAuth, portalRouter);
+// HARD FLOOR: a GUEST principal (below viewer) may reach ONLY the portal above and the public /auth, /me,
+// branding endpoints (registered earlier). Everything below is the app proper — stop a guest here so it
+// can never fall through to a portfolio/admin router, not even a scope-filtered read. Viewer+ and read-only
+// API tokens pass unchanged; unauthenticated callers still hit each protected router's own requireAuth.
+router.use(requireRole("viewer"));
 
 // Protected routes: require an authenticated session (or read-only API token).
 router.use(requireAuth, licenseRouter);

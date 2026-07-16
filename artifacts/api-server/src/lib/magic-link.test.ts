@@ -2,6 +2,7 @@ import { test, afterEach } from "node:test";
 import assert from "node:assert/strict";
 import {
   magicLinkEnabled, isValidEmail, mintMagicToken, verifyMagicToken, consumeMagicToken,
+  mintGuestToken, guestPortalEnabled,
 } from "./magic-link";
 import { sharedKv, __resetSharedStateForTest } from "./shared-state";
 
@@ -53,4 +54,25 @@ test("a step-up token round-trips its purpose; a default token is a login token"
   assert.equal(stepUp?.purpose, "stepup");
   const login = verifyMagicToken(mintMagicToken("a@b.co", NOW), NOW + 1000);
   assert.equal(login?.purpose, "login"); // absent purpose defaults to a normal sign-in
+});
+
+test("a guest token round-trips its confined project + tier (sealed, tamper-evident)", () => {
+  const token = mintGuestToken("client@x.io", { projectId: "proj-001", tier: "read" }, NOW);
+  const v = verifyMagicToken(token, NOW + 1000);
+  assert.equal(v?.purpose, "guest");
+  assert.deepEqual(v?.guest, { projectId: "proj-001", tier: "read" });
+});
+
+test("guestPortalEnabled tracks GUEST_PORTAL_ENABLED, independent of SSO", () => {
+  const prev = process.env["GUEST_PORTAL_ENABLED"];
+  try {
+    delete process.env["GUEST_PORTAL_ENABLED"];
+    assert.equal(guestPortalEnabled(), false);
+    process.env["GUEST_PORTAL_ENABLED"] = "true";
+    // Even with an IdP configured (magic-link sign-in off), the guest portal stays available.
+    process.env["OIDC_ISSUER_URL"] = "https://idp.example";
+    assert.equal(guestPortalEnabled(), true);
+  } finally {
+    if (prev === undefined) delete process.env["GUEST_PORTAL_ENABLED"]; else process.env["GUEST_PORTAL_ENABLED"] = prev;
+  }
 });

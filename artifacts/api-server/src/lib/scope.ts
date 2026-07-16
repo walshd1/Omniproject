@@ -11,12 +11,14 @@ import type { Grants } from "./rbac";
  *                    "basic" (no-IdP) deployment `programmes` is empty and the backend maps
  *                    `sub → owned programmes` from its own records instead.
  *   - `user`       — a standard user: only resources they own or are a member of.
+ *   - `project`    — a GUEST principal (client-facing portal): exactly ONE project, nothing else.
+ *                    The narrowest scope; a guest can't even see the rest of its programme.
  *
  * This module is PURE (no request/IO) so it is the shared contract: the gateway resolves +
  * forwards it, an in-repo backend (or an external n8n one) enforces it with the same helpers.
  */
 
-export type ScopeLevel = "user" | "programme" | "all";
+export type ScopeLevel = "user" | "programme" | "project" | "all";
 
 export interface Scope {
   level: ScopeLevel;
@@ -24,6 +26,8 @@ export interface Scope {
   sub?: string | undefined;
   /** The programmes this principal may act within (used for programme-level checks). */
   programmes?: string[] | undefined;
+  /** The single project a `project`-level (guest) principal is confined to. */
+  projectId?: string | undefined;
 }
 
 /** The group-name prefix that marks programme ownership in an IdP/SCIM group — e.g.
@@ -59,6 +63,9 @@ export function resolveScope(grants: Grants, opts: { sub?: string | undefined; g
  *  whatever it has; a non-`all` scope treats an unattributable resource as OUT of scope
  *  (fail-closed) rather than leaking it. */
 export interface ScopedResource {
+  /** The resource's own id — used by `project`-level (guest) scope, which is confined to one project id.
+   *  Project rows already carry this, so a project-list filter matches with no extra plumbing. */
+  id?: string | number | null | undefined;
   /** Legacy backend-owned programme field — retained for transition. */
   programmeId?: string | null | undefined;
   /** The GUID-registry programme membership (every programme id the resource belongs to). This is the
@@ -71,6 +78,9 @@ export interface ScopedResource {
 /** Does `scope` permit access to resource `r`? Fail-closed for non-`all` scopes. */
 export function inScope(scope: Scope, r: ScopedResource): boolean {
   if (scope.level === "all") return true;
+  // A guest (project-level) sees EXACTLY its one project — matched by the resource's own id. Fail closed
+  // when the id is absent (an unattributable row is never leaked to a guest).
+  if (scope.level === "project") return r.id != null && String(r.id) === scope.projectId;
   if (scope.level === "programme") {
     // Membership is GUID-registry-based (programmeIds); the legacy programmeId is unioned in for a
     // clean transition. A manager sees a project iff any of its programmes is one they own.
@@ -98,6 +108,8 @@ export function inScope(scope: Scope, r: ScopedResource): boolean {
  */
 export function scopeAllowsVisibleProject(scope: Scope, r: ScopedResource): boolean {
   if (scope.level === "programme") return inScope(scope, r);
+  // A guest is confined to its one project — the seam allows exactly that id and nothing else.
+  if (scope.level === "project") return inScope(scope, r);
   return true;
 }
 

@@ -46,12 +46,17 @@ import { matchApiToken } from "./api-token";
  * Demo sessions hold every grant so the app is fully usable without an IdP.
  */
 
-export const ROLES = ["viewer", "contributor", "manager", "pmo", "admin"] as const;
+export const ROLES = ["guest", "viewer", "contributor", "manager", "pmo", "admin"] as const;
 export type Role = (typeof ROLES)[number];
 
-/** The linear base ladder (everyday hierarchy). */
-const BASE_RANK = { viewer: 0, contributor: 1, manager: 2 } as const;
+/** The linear base ladder (everyday hierarchy). `guest` is the FLOOR — below viewer — so a guest
+ *  fails every `requireRole("viewer")` gate automatically (locked out of the whole app), and is only
+ *  admitted by routes that explicitly gate at `requireRole("guest")` (the client-facing portal). It is
+ *  never assigned from IdP claims — only minted on a scoped guest session (see `grantsForReq`). */
+const BASE_RANK = { guest: 0, viewer: 1, contributor: 2, manager: 3 } as const;
 type BaseRole = keyof typeof BASE_RANK;
+/** The claim-mappable base rungs (everything except the synthetic, invite-only `guest`). */
+type ClaimBaseRole = Exclude<BaseRole, "guest">;
 
 /** The orthogonal authorities that sit above `manager` (each implies manager base). */
 export const AUTHORITIES = ["pmo", "admin"] as const;
@@ -79,14 +84,17 @@ function envRoles(key: string): Set<string> {
   return set;
 }
 
-/** The env var carrying each role's IdP group list. */
-const ENV_KEY: Record<Role, string> = {
+/** The env var carrying each role's IdP group list. `guest` is invite-only (never claim-mapped), so
+ *  it has no entry — the type excludes it. */
+const ENV_KEY: Record<Exclude<Role, "guest">, string> = {
   admin: "OIDC_ADMIN_ROLES",
   pmo: "OIDC_PMO_ROLES",
   manager: "OIDC_MANAGER_ROLES",
   contributor: "OIDC_CONTRIBUTOR_ROLES",
   viewer: "OIDC_VIEWER_ROLES",
 };
+/** The roles that can be assigned from an IdP claim (everything except invite-only `guest`). */
+const CLAIM_ROLES = ROLES.filter((r): r is Exclude<Role, "guest"> => r !== "guest");
 
 /**
  * Admin-editable OVERRIDE of the claim→role mapping. The env (`OIDC_*_ROLES`) is
@@ -97,14 +105,14 @@ const ENV_KEY: Record<Role, string> = {
  */
 const roleMapOverride: Partial<Record<Role, Set<string>>> = {};
 
-/** Effective group set for a role: the admin override if set, else the env list. */
-function rolesFor(role: Role): Set<string> {
+/** Effective group set for a claim-mappable role: the admin override if set, else the env list. */
+function rolesFor(role: Exclude<Role, "guest">): Set<string> {
   return roleMapOverride[role] ?? envRoles(ENV_KEY[role]);
 }
 
-/** The effective claim→role mapping + where each role's list comes from. */
+/** The effective claim→role mapping + where each role's list comes from (excludes invite-only guest). */
 export function getRoleMap(): { role: Role; claims: string[]; source: "env" | "override" }[] {
-  return ROLES.map((role) => ({
+  return CLAIM_ROLES.map((role) => ({
     role,
     claims: [...rolesFor(role)],
     source: roleMapOverride[role] ? "override" : "env",
@@ -255,7 +263,7 @@ export function grantsFromClaims(claimRoles: string[], opts: { isDemo: boolean; 
   if (opts.isDemo) return { base: "manager", authorities: new Set(AUTHORITIES) };
 
   const claims = new Set(claimRoles.map((r) => r.toLowerCase()));
-  const hit = (role: Role) => [...claims].some((c) => rolesFor(role).has(c));
+  const hit = (role: Exclude<Role, "guest">) => [...claims].some((c) => rolesFor(role).has(c));
 
   // Authorities are independent flags (union of whatever the claims match)…
   const claimedAuthorities = new Set<Authority>(AUTHORITIES.filter(hit));
@@ -267,7 +275,7 @@ export function grantsFromClaims(claimRoles: string[], opts: { isDemo: boolean; 
   // `manager` (even when withheld above — the claim itself still proves at least
   // manager-level trust); otherwise fall back to the configured default.
   let base: BaseRole | null = null;
-  for (const r of ["manager", "contributor", "viewer"] as BaseRole[]) {
+  for (const r of ["manager", "contributor", "viewer"] as ClaimBaseRole[]) {
     if (hit(r)) { base = r; break; }
   }
   if (!base) base = claimedAuthorities.size > 0 ? "manager" : defaultBaseRole();
@@ -307,6 +315,9 @@ export function grantsForReq(req: Request): Grants {
   // No session → read-only API tokens (and unauthenticated callers) are viewers.
   if (!sd) return { base: "viewer", authorities: new Set<Authority>() };
   const { session, decision } = sd;
+  // A GUEST session is the invite-only floor: base `guest`, no authorities, regardless of any claims.
+  // (A guest cookie carries no IdP roles anyway; this makes the intent explicit and unbypassable.)
+  if (session.guest) return { base: "guest", authorities: new Set<Authority>() };
   const isDemo = isDemoAuth();
   // A SCIM-provisioned user's group memberships are merged in as extra role claims, so the
   // IdP's group→role assignment flows through without re-issuing OIDC claims.
@@ -331,6 +342,8 @@ export function scopeForReq(req: Request): Scope {
     return { level: "user" };
   }
   const { session, decision } = sd;
+  // A guest is confined to exactly its one invited project — the narrowest scope.
+  if (session.guest) return { level: "project", projectId: session.guest.projectId };
   const claims = decision.known ? [...(session.roles ?? []), ...decision.roleClaims] : (session.roles ?? []);
   const grants = grantsFromClaims(claims, { isDemo: isDemoAuth(), strongAuth: hasStrongAuth(session) });
   return resolveScope(grants, { sub: session.sub, groups: claims });
@@ -355,6 +368,7 @@ export function grantsForRole(role: Role): Grants {
   if (role === "pmo") return { base: "manager", authorities: new Set<Authority>(["pmo"]) };
   if (role === "manager") return { base: "manager", authorities: new Set<Authority>() };
   if (role === "contributor") return { base: "contributor", authorities: new Set<Authority>() };
+  if (role === "guest") return { base: "guest", authorities: new Set<Authority>() };
   return { base: "viewer", authorities: new Set<Authority>() };
 }
 

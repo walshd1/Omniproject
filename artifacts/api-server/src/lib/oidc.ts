@@ -60,6 +60,20 @@ export interface SessionUser {
   /** Authentication Context Class Reference from the ID token — an alternative (IdP-specific)
    *  way of asserting authentication strength, checked alongside amr. */
   acr?: string | undefined;
+  /** A GUEST principal's confinement (client-facing portal): the single project it may see and the
+   *  tier of access. Present ONLY on guest sessions minted via a scoped magic-link invite — never
+   *  from an IdP. Its presence is what drops the principal to the `guest` role + `project` scope. */
+  guest?: GuestClaim | undefined;
+}
+
+/** The access tier a guest holds within its one project. `read` = view the status portal only;
+ *  `comment` = additionally leave comments (a later slice may widen what comment reaches). */
+export type GuestTier = "read" | "comment";
+
+/** The confinement carried on a guest session (and inside its sealed invite token). */
+export interface GuestClaim {
+  projectId: string;
+  tier: GuestTier;
 }
 
 /**

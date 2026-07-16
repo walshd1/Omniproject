@@ -59,7 +59,7 @@ export class BuiltinBroker implements Broker {
     if (scope.level === "all") return projects;
     const registry = getSettings().programmeRegistry;
     return projects.filter((p) =>
-      inScope(scope, { programmeId: ((p as Row)["programmeId"] as string | null | undefined) ?? null, programmeIds: programmeIdsOf(p as Row, registry) }),
+      inScope(scope, { id: (p as Row)["id"] as string, programmeId: ((p as Row)["programmeId"] as string | null | undefined) ?? null, programmeIds: programmeIdsOf(p as Row, registry) }),
     );
   }
 
