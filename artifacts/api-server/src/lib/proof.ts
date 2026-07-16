@@ -162,7 +162,8 @@ export function parseProofId(id: string): { storage: ProofStorage; projectId?: s
 export const proofScope = (parsed: { storage: ProofStorage; projectId?: string }, sub: string | undefined): ArtifactScope | null =>
   scopeFromParsed(parsed as { storage: StorageTarget; projectId?: string }, sub);
 
-const actorLabel = (ctx: ActorContext): string | null => ctx.email ?? ctx.name ?? ctx.sub ?? null;
+/** A proof actor's label (email > name > sub) for the audit `decidedBy`/`updatedBy`. */
+export const actorLabel = (ctx: ActorContext): string | null => ctx.email ?? ctx.name ?? ctx.sub ?? null;
 
 /** Build the row for a NEW proof from a sanitised write. The owner is stamped from ctx (never the client);
  *  the proof starts at version 1 with a `pending` decision. */
@@ -209,17 +210,23 @@ export function mergeJsonProofRow(existing: Proof, input: SanitizedProofWrite, c
 /** Whether a string is a settable review decision (approved / rejected / changes-requested). */
 export const isReviewDecision = (v: unknown): v is ProofDecision => typeof v === "string" && REVIEW_DECISION_SET.has(v);
 
-/** Record a review decision on a proof, BOUND to its current version, stamping the reviewer + time. */
-export function applyDecision(existing: Proof, decision: ProofDecision, ctx: ActorContext, now: string): Proof {
+/** Record a review decision on a proof, BOUND to its current version, stamping the given reviewer label +
+ *  time. The label form (rather than a ctx) lets an approval executor apply a decision detached from a req. */
+export function applyDecisionByLabel(existing: Proof, decision: ProofDecision, by: string | null, now: string): Proof {
   return {
     ...existing,
     decision,
     decisionVersion: existing.version ?? 1,
-    decidedBy: actorLabel(ctx),
+    decidedBy: by,
     decidedAt: now,
     updatedAt: now,
-    updatedBy: actorLabel(ctx),
+    updatedBy: by,
   };
+}
+
+/** Record a review decision from a request context (the direct, unbound path). */
+export function applyDecision(existing: Proof, decision: ProofDecision, ctx: ActorContext, now: string): Proof {
+  return applyDecisionByLabel(existing, decision, actorLabel(ctx), now);
 }
 
 /** The metadata view of a proof (deliverable + annotations dropped) — the list projection. */

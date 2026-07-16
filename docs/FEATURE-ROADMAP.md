@@ -346,7 +346,7 @@ authoring, and the drift guards — no feature bypasses the golden rules.
 - **2.3 complete.** Whiteboards now have a native primitive-built canvas, storage targets, SVG/PNG export,
   sticky → work item, and multi-user live cursors — the inline "good enough" canvas the roadmap called for.
 
-### 2.4 Proofing / deliverable review & annotation  🚧 In progress (slices 1–3)
+### 2.4 Proofing / deliverable review & annotation  ✅ Done (slices 1–4)
 - **Competitors.** Adobe Workfront, Wrike, Smartsheet. **Gap.** No creative review markup.
 - **Acceptance.** Attach a deliverable (image/PDF), pin annotations, threaded review,
   approve/reject decision bound to a version; ties into approval chains.
@@ -380,8 +380,23 @@ authoring, and the drift guards — no feature bypasses the golden rules.
   discussion thread, `proof:<id>`). Same room-scope treatment as wiki doc comments (org-content; a caller
   needs the proof id, and the proof read is already access-controlled). Gated on the existing `comments`
   module; read for any authed user, post contributor+ (the seam's own RBAC). Overlay `onSelect` +
-  general/per-annotation thread switch tests. **Next:** binding the approve/reject decision into the
-  **approval chain + passkey sign-off** (the governance leverage — an auditable, non-repudiable sign-off).
+  general/per-annotation thread switch tests.
+- **Slice 4 ✅ (approval-chain + passkey binding), completing 2.4.** The approve/reject decision is now a
+  first-class, **auditable + non-repudiable** governance act, not a soft field. When an admin binds
+  `proof.decision` to an approval chain (settings `approvalBindings`), `POST /proofs/:id/decision` **holds**
+  the decision (202) and raises a proposal via the shared `proposeIfBound` gate — the exact workflow-run
+  pattern (`lib/proof-approval.ts`: a single `proof.decision` action + an executor that stamps the held
+  decision when the chain reaches `approved`). The decision is only applied after a **different** approver
+  (separation of duties, enforced by the engine) signs it off with a **passkey** over the proposal's content
+  hash (`{ proofId, decision, version, scope }`), reusing the whole challenge/verify machinery unchanged. The
+  version is snapshotted at propose time, so a **stale sign-off can never land on newer artwork** (a new
+  deliverable re-opens the review → the executor NO-OPs). Unbound (default) ⇒ applied directly, as before.
+  Client shows a "sent for sign-off" state on a held decision. Executor unit tests (apply / stale-version
+  no-op / deleted-proof no-op) + a full end-to-end route test (bind → hold 202 → enrol → challenge → signed
+  approve → applied, attributed to the reviewer, version-bound) + an SoD-refusal test.
+- **2.4 complete.** Proofing now has the annotation data model, the overlay UI, threaded review, and a
+  passkey-signed, chain-gated review decision — the creative-review markup competitors have, on OmniProject's
+  own governance rails.
 
 ### 2.5 Native mobile + offline  ⬜ Todo
 - **Competitors.** All. **Gap.** PWA caches app-shell only; no offline data, no native apps.
@@ -638,3 +653,10 @@ so an attachment field would be a URL reference (`url` type) pointing at the sys
   renders a CommentsPanel keyed by the `proof:<id>#<annotationId>` room (general discussion under `proof:<id>`
   when nothing is selected). Gated on the `comments` module; same org-content room posture as wiki doc
   comments. Overlay onSelect + thread-switch tests. Next: approval-chain + passkey binding of the decision.
+- _2026-07-16_ — Phase 2.4 slice 4 (approval-chain + passkey binding) shipped, **completing 2.4**: a proof
+  approve/reject decision, when an admin binds `proof.decision` to a chain, is HELD (202) and only stamped
+  after a different approver signs it off with a passkey over the proposal's content hash — the workflow-run
+  pattern via `proposeIfBound` + a registered executor (`lib/proof-approval.ts`). Version-snapshotted so a
+  stale sign-off can't land on newer artwork; separation-of-duties enforced by the engine. Unbound ⇒ direct
+  (default). Executor unit tests + a full end-to-end passkey round-trip route test + SoD refusal. **2.4
+  (proofing) is complete.**
