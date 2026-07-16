@@ -1,7 +1,7 @@
 import { useState } from "react";
-import { Sparkles, Check, AlertTriangle, Send, RefreshCw, Wand2 } from "lucide-react";
+import { Sparkles, Check, AlertTriangle, Send, RefreshCw, Wand2, ImagePlus, X } from "lucide-react";
 import { ChartView, type ChartViewSpec } from "../components/charts/ChartView";
-import { useStudioStatus, useGeneratePrimitive, type PrimitiveStudioResult } from "../lib/studio";
+import { useStudioStatus, useGeneratePrimitive, type PrimitiveStudioResult, type StudioImage } from "../lib/studio";
 import { useSubmitRegistryItem } from "../lib/registry";
 import type { PrimitiveDefShape } from "@workspace/backend-catalogue";
 import { useToast } from "@/hooks/use-toast";
@@ -74,12 +74,27 @@ export function Studio() {
   const { toast } = useToast();
   const [description, setDescription] = useState("");
   const [feedback, setFeedback] = useState("");
+  const [image, setImage] = useState<StudioImage | null>(null);
   const [result, setResult] = useState<PrimitiveStudioResult | null>(null);
 
+  const onPickImage = (file: File | undefined) => {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const url = String(reader.result); // data:<mime>;base64,<data>
+      const comma = url.indexOf(",");
+      const mimeMatch = /^data:([^;]+);base64$/.exec(url.slice(0, comma));
+      if (comma > 0 && mimeMatch) setImage({ mime: mimeMatch[1]!, dataBase64: url.slice(comma + 1) });
+    };
+    reader.readAsDataURL(file);
+  };
+
   const run = (iterate: boolean) => {
-    const input = iterate && result
-      ? { description, feedback, previous: result.submission.payload }
-      : { description };
+    const input = {
+      description,
+      ...(iterate && result ? { feedback, previous: result.submission.payload } : {}),
+      ...(image ? { image } : {}),
+    };
     generate.mutate(input, {
       onSuccess: (r) => { setResult(r); setFeedback(""); },
       onError: () => toast({ title: "GENERATION FAILED", description: "The AI couldn't produce a primitive — try rewording your description." }),
@@ -116,9 +131,22 @@ export function Studio() {
           placeholder="e.g. A grouped column chart comparing planned vs actual spend across a handful of categories"
           className="w-full border border-border bg-background px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
         />
-        <button type="button" onClick={() => run(false)} disabled={!description.trim() || generate.isPending} data-testid="studio-generate" className="inline-flex items-center gap-1.5 border border-primary bg-primary text-primary-foreground px-3 py-1.5 text-xs font-black uppercase tracking-widest disabled:opacity-40">
-          <Sparkles className="w-3.5 h-3.5" />{generate.isPending ? "Generating…" : "Generate"}
-        </button>
+        <div className="flex items-center gap-2 flex-wrap">
+          <button type="button" onClick={() => run(false)} disabled={!description.trim() || generate.isPending} data-testid="studio-generate" className="inline-flex items-center gap-1.5 border border-primary bg-primary text-primary-foreground px-3 py-1.5 text-xs font-black uppercase tracking-widest disabled:opacity-40">
+            <Sparkles className="w-3.5 h-3.5" />{generate.isPending ? "Generating…" : "Generate"}
+          </button>
+          <label className="inline-flex items-center gap-1.5 border border-border px-3 py-1.5 text-xs font-black uppercase tracking-widest hover:bg-muted/40 cursor-pointer" data-testid="studio-image-pick">
+            <ImagePlus className="w-3.5 h-3.5" />{image ? "Change image" : "Add image"}
+            <input type="file" accept="image/png,image/jpeg,image/webp,image/gif" className="hidden" data-testid="studio-image-input" onChange={(e) => onPickImage(e.target.files?.[0])} />
+          </label>
+          {image && (
+            <span className="inline-flex items-center gap-1.5" data-testid="studio-image-chip">
+              <img src={`data:${image.mime};base64,${image.dataBase64}`} alt="reference" className="h-8 w-8 object-cover border border-border" />
+              <button type="button" onClick={() => setImage(null)} aria-label="Remove image" data-testid="studio-image-remove" className="text-muted-foreground hover:text-red-600"><X className="w-4 h-4" /></button>
+            </span>
+          )}
+        </div>
+        <p className="text-[10px] text-muted-foreground">Optional: attach a sketch or screenshot and the AI will match it (needs a vision-capable provider).</p>
       </div>
 
       {result && (

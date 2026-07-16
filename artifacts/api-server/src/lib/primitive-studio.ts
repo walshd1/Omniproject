@@ -10,6 +10,7 @@
  * testable with a canned `complete` — no network, no provider.
  */
 import { extractJson } from "./nl-action";
+import type { ChatMessage, ChatImage } from "./ai";
 import {
   PRIMITIVE_CATEGORIES, PRIMITIVE_PARAM_TYPES, CHART_VIEW_TYPES,
   validatePrimitiveDef, type PrimitiveDefShape,
@@ -23,13 +24,16 @@ export class PrimitiveStudioParseError extends Error {
   }
 }
 
-/** What the caller asks for: a description, plus (for iteration) the previous bundle + their feedback. */
+/** What the caller asks for: a description, plus (for iteration) the previous bundle + their feedback, and
+ *  optionally a reference image the primitive should be based on (vision-capable providers only). */
 export interface PrimitiveStudioInput {
   description: string;
   /** The user's refinement request for the previous attempt (drives an iteration). */
   feedback?: string;
   /** The previous attempt's payload, so the model refines rather than starting over. */
   previous?: Record<string, unknown>;
+  /** A reference picture (a sketch / screenshot of the chart the user wants). */
+  image?: ChatImage;
 }
 
 /** A registry submission the studio proposes (kind is always `primitive`). */
@@ -87,9 +91,11 @@ export function primitiveStudioSystemPrompt(): string {
   ].join("\n");
 }
 
-/** Build the messages for one generate/iterate request. */
-export function buildPrimitiveMessages(input: PrimitiveStudioInput): { role: "system" | "user" | "assistant"; content: string }[] {
+/** Build the messages for one generate/iterate request. Attaches the reference image to the user turn when
+ *  one is supplied (vision-capable providers read it; text-only providers ignore it). */
+export function buildPrimitiveMessages(input: PrimitiveStudioInput): ChatMessage[] {
   const user: string[] = [`Build a primitive for: ${input.description.trim()}`];
+  if (input.image) user.push("", "Base the primitive on the attached reference image (match its chart type and the fields it plots).");
   if (input.previous && input.feedback) {
     user.push("", "Here is the previous attempt's payload:", JSON.stringify(input.previous), "", `Revise it to address this feedback: ${input.feedback.trim()}`);
   } else if (input.feedback) {
@@ -97,7 +103,7 @@ export function buildPrimitiveMessages(input: PrimitiveStudioInput): { role: "sy
   }
   return [
     { role: "system", content: primitiveStudioSystemPrompt() },
-    { role: "user", content: user.join("\n") },
+    { role: "user", content: user.join("\n"), ...(input.image ? { images: [input.image] } : {}) },
   ];
 }
 
@@ -130,7 +136,7 @@ export function parsePrimitiveReply(content: string): PrimitiveSubmission {
  */
 export async function generatePrimitiveBundle(
   input: PrimitiveStudioInput,
-  complete: (messages: { role: "system" | "user" | "assistant"; content: string }[]) => Promise<string>,
+  complete: (messages: ChatMessage[]) => Promise<string>,
 ): Promise<PrimitiveStudioResult> {
   const content = await complete(buildPrimitiveMessages(input));
   const submission = parsePrimitiveReply(content);
