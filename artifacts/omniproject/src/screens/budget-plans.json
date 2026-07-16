@@ -26,7 +26,15 @@
       "kind": "table",
       "title": "Budget by project",
       "span": 6,
-      "source": { "url": "/api/budget-plans/rows?groupBy=projectId&metric=sum:amount" }
+      "source": { "url": "/api/budget-plans/rows?groupBy=projectId&metric=sum:amount" },
+      "config": {
+        "drillTo": {
+          "target": "grid",
+          "projectIdField": "projectId",
+          "label": "Project work items",
+          "predicateFrom": [{ "field": "projectId", "op": "eq", "fromField": "projectId" }]
+        }
+      }
     },
     {
       "id": "budget-all-periods",

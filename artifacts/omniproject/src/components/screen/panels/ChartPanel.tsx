@@ -1,7 +1,10 @@
+import { useLocation } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { Panel } from "../../../lib/screen";
 import { ChartView } from "../../charts/ChartView";
 import type { ChartRow, ChartSeries } from "../../charts/primitives";
+import { resolveDrillTo } from "../../../lib/drill-to";
+import type { DrillTo } from "@workspace/backend-catalogue";
 
 /**
  * Chart panel — draws a bar / line / area / pie chart straight from OBJECT-ROWS (the `{ rows: [{...}] }`
@@ -40,6 +43,18 @@ export function ChartPanel({ panel }: { panel: Panel }) {
   const { xKey, series } = resolveFields(rows, c);
   const stacked = c["stacked"] === true;
   const legend = c["legend"] !== false;
+  const drillTo = (c["drillTo"] && typeof c["drillTo"] === "object" ? (c["drillTo"] as DrillTo) : null);
+  const [, navigate] = useLocation();
+
+  // Map a category label back to its SOURCE row so a click on that bar/slice can drill against the full row.
+  const rowByCategory = new Map(rows.map((r) => [String(r[xKey] ?? ""), r]));
+  const onDatum = drillTo
+    ? (datum: { name?: string | number }) => {
+        const src = rowByCategory.get(String(datum?.name ?? ""));
+        const d = src ? resolveDrillTo(drillTo, src) : null;
+        if (d) navigate(d.href);
+      }
+    : undefined;
 
   const body = (() => {
     if (rows.length === 0 || series.length === 0) {
@@ -48,16 +63,25 @@ export function ChartPanel({ panel }: { panel: Panel }) {
     if (chartType === "pie") {
       const key = series[0]!.key;
       const data = rows.map((r) => ({ name: String(r[xKey] ?? ""), value: num(r[key]) }));
-      return <ChartView type="pie" data={data} legend={legend} />;
+      return <ChartView type="pie" data={data} legend={legend} {...(onDatum ? { onDatumClick: onDatum } : {})} />;
     }
+    if (chartType === "line" || chartType === "area") {
+      const data: ChartRow[] = rows.map((r) => {
+        const row: ChartRow = { [xKey]: String(r[xKey] ?? "") };
+        for (const s of series) row[s.key] = num(r[s.key]);
+        return row;
+      });
+      return chartType === "line"
+        ? <ChartView type="line" data={data} series={series} legend={legend} xKey={xKey} />
+        : <ChartView type="area" data={data} series={series} stacked={stacked} legend={legend} xKey={xKey} />;
+    }
+    // Bar: the shared bar primitive keys the category axis on `name`, so map the x field to `name`.
     const data: ChartRow[] = rows.map((r) => {
-      const row: ChartRow = { [xKey]: String(r[xKey] ?? "") };
+      const row: ChartRow = { name: String(r[xKey] ?? "") };
       for (const s of series) row[s.key] = num(r[s.key]);
       return row;
     });
-    if (chartType === "line") return <ChartView type="line" data={data} series={series} legend={legend} xKey={xKey} />;
-    if (chartType === "area") return <ChartView type="area" data={data} series={series} stacked={stacked} legend={legend} xKey={xKey} />;
-    return <ChartView type="bar" data={data} series={series} stacked={stacked} legend={legend} />;
+    return <ChartView type="bar" data={data} series={series} stacked={stacked} legend={legend} {...(onDatum ? { onDatumClick: onDatum } : {})} />;
   })();
 
   return (

@@ -42,7 +42,15 @@
       "kind": "table",
       "title": "Hours by project",
       "span": 6,
-      "source": { "url": "/api/resource-allocations/rows?groupBy=projectId&metric=sum:hours" }
+      "source": { "url": "/api/resource-allocations/rows?groupBy=projectId&metric=sum:hours" },
+      "config": {
+        "drillTo": {
+          "target": "grid",
+          "projectIdField": "projectId",
+          "label": "Project work items",
+          "predicateFrom": [{ "field": "projectId", "op": "eq", "fromField": "projectId" }]
+        }
+      }
     },
     {
       "id": "all-bookings",
