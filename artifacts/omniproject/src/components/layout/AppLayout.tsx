@@ -21,6 +21,7 @@ import { usePublicSetupStatus } from "../../lib/setup";
 import { useT } from "../../lib/i18n";
 import { useOnline, connectivityState } from "../../lib/connectivity";
 import { useInstallPrompt } from "../../lib/use-install-prompt";
+import { useOfflineCacheSync } from "../../lib/use-offline-cache";
 import { useBranding } from "../../lib/branding";
 import { LanguageSwitcher } from "../LanguageSwitcher";
 import { ThemeScope } from "../../lib/theme-scope";
@@ -64,6 +65,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
   const conn = connectivityState(online, health.data?.status === "ok");
   const connected = conn === "connected";
   const { canInstall, promptInstall } = useInstallPrompt();
+  useOfflineCacheSync(); // hydrate + persist the my-work/tasks read models when the offline cache is opted in
 
   // Fall back to the first project when none is explicitly active, so the global
   // Cmd+K "New Issue" dialog always has a target project.

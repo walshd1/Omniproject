@@ -201,6 +201,18 @@ export const FEATURE_MODULES: readonly FeatureModule[] = [
     reason: "safety", // fans out project-level writes — high blast radius, opt-in only
   },
   {
+    // UI-only: makes the per-user ENCRYPTED OFFLINE CACHE toggle AVAILABLE (off by default per user). When
+    // on, the my-work/tasks read models are cached in IndexedDB, AES-256-GCM encrypted with a session-scoped
+    // NON-EXTRACTABLE WebCrypto key, TTL'd, and wiped on logout — so the app opens with my work while offline
+    // without weakening zero-at-rest (nothing plaintext at rest, nothing survives the session). Nothing to
+    // mount — the SPA gates it via useFeatures; an operator can forbid on-device data org-wide by disabling it.
+    id: "offlineCache",
+    label: "Offline cache (my work)",
+    description: "Cache your my-work/tasks read models on-device (encrypted, ephemeral) so they open offline.",
+    defaultOff: true,
+    reason: "storage", // holds encrypted read-model data on the device (opt-in, wiped on logout)
+  },
+  {
     // UI-only: makes the per-user PREDICTIVE (speculative) prefetch toggle AVAILABLE (off by default
     // per user). Deterministic prefetch-on-intent (hover/focus) is always on and ungated; this only
     // governs the heavier "warm data you haven't asked for" tier, which multiplies broker calls — so
