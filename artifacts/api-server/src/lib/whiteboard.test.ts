@@ -1,6 +1,10 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { sanitizeWhiteboardWrite, sanitizeWhiteboardScene, sanitizeCanvasElement, WhiteboardError } from "./whiteboard";
+import {
+  sanitizeWhiteboardWrite, sanitizeWhiteboardScene, sanitizeCanvasElement, WhiteboardError,
+  makeWhiteboardId, parseWhiteboardId, whiteboardScope, newJsonBoardRow, mergeJsonBoardRow, boardMeta,
+} from "./whiteboard";
+import type { ActorContext, Whiteboard } from "../broker/types";
 import { CANVAS_LIMITS } from "@workspace/backend-catalogue";
 
 /** The whiteboard sanitiser — typed canvas-element primitives, per-type field allow-listing, bounds. */
@@ -80,4 +84,56 @@ test("an oversized scene is rejected (total size, after per-element caps)", () =
   // Each element's text is capped, but enough max-size elements still blow the total-scene budget.
   const many = Array.from({ length: 1000 }, (_, i) => ({ id: `t${i}`, type: "text", text: "x".repeat(CANVAS_LIMITS.maxText) }));
   assert.throws(() => sanitizeWhiteboardScene({ elements: many }), WhiteboardError);
+});
+
+// ── Storage-target model: self-describing ids, scope resolution, JSON row building ──────────────────────────
+
+test("storage defaults to the private user area; a project target needs a projectId", () => {
+  assert.equal(sanitizeWhiteboardWrite({ name: "N", scene: { elements: [] } }).storage, "user");
+  assert.equal(sanitizeWhiteboardWrite({ name: "N", storage: "org", scene: { elements: [] } }).storage, "org");
+  // unknown target falls back to the safe default
+  assert.equal(sanitizeWhiteboardWrite({ name: "N", storage: "s3", scene: { elements: [] } }).storage, "user");
+  assert.throws(() => sanitizeWhiteboardWrite({ name: "N", storage: "project", scene: { elements: [] } }), WhiteboardError);
+});
+
+test("ids are self-describing and round-trip through parse", () => {
+  assert.equal(makeWhiteboardId("user", "abc"), "user~abc");
+  assert.equal(makeWhiteboardId("org", "abc"), "org~abc");
+  assert.equal(makeWhiteboardId("project", "uuid", "proj-1"), "project~proj-1~uuid");
+  assert.deepEqual(parseWhiteboardId("user~abc"), { storage: "user", localId: "abc" });
+  assert.deepEqual(parseWhiteboardId("org~abc"), { storage: "org", localId: "abc" });
+  assert.deepEqual(parseWhiteboardId("project~proj-1~uuid"), { storage: "project", projectId: "proj-1", localId: "uuid" });
+  assert.equal(parseWhiteboardId("garbage"), null, "no delimiter → not a board id");
+  assert.equal(parseWhiteboardId("bogus~x"), null, "unknown storage word → rejected");
+});
+
+test("a user scope ALWAYS uses the caller's own sub (never the id) — cross-user is structurally impossible", () => {
+  const parsed = parseWhiteboardId("user~someoneElsesBoard")!;
+  assert.deepEqual(whiteboardScope(parsed, "me"), { kind: "user", sub: "me" });
+  assert.deepEqual(whiteboardScope(parseWhiteboardId("org~x")!, "me"), { kind: "org" });
+  assert.deepEqual(whiteboardScope(parseWhiteboardId("project~p~x")!, "me"), { kind: "project", projectId: "p" });
+});
+
+test("newJsonBoardRow stamps the owner from ctx (never the client) and records storage + timestamp", () => {
+  const ctx: ActorContext = { sub: "owner-1", email: "o@x.io" };
+  const input = sanitizeWhiteboardWrite({ name: "Mine", storage: "user", scene: { elements: [] } });
+  const row = newJsonBoardRow("user~id1", input, ctx, "2026-01-01T00:00:00.000Z");
+  assert.equal(row.ownerSub, "owner-1");
+  assert.equal(row.storage, "user");
+  assert.equal(row.updatedBy, "o@x.io");
+  assert.equal(row.updatedAt, "2026-01-01T00:00:00.000Z");
+  // an update preserves id + owner + storage, refreshing only the mutable fields
+  const merged = mergeJsonBoardRow(row, sanitizeWhiteboardWrite({ name: "Renamed", storage: "user", scene: { elements: [] } }), { sub: "someone-else" }, "2026-02-02T00:00:00.000Z");
+  assert.equal(merged.id, "user~id1");
+  assert.equal(merged.ownerSub, "owner-1", "a write cannot re-own a board");
+  assert.equal(merged.name, "Renamed");
+  assert.equal(merged.updatedAt, "2026-02-02T00:00:00.000Z");
+});
+
+test("boardMeta drops the scene body", () => {
+  const board: Whiteboard = { id: "org~1", name: "B", storage: "org", scene: { elements: [{ id: "e", type: "sticky", x: 0, y: 0 }] }, updatedAt: "t" };
+  const meta = boardMeta(board);
+  assert.equal("scene" in meta, false, "the list projection has no scene");
+  assert.equal(meta.id, "org~1");
+  assert.equal(meta.storage, "org");
 });

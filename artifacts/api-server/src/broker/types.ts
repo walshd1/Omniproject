@@ -296,8 +296,12 @@ export interface Whiteboard extends Row {
   /** The board's creator (a user `sub`) — the owner for a personal board. Set server-side, never trusted
    *  from the client. */
   ownerSub?: string | null;
-  /** Org-wide vs personal. A `user` board is visible/editable only to its `ownerSub`. Defaults to `org`. */
+  /** Org-wide vs personal. A `user` board is visible/editable only to its `ownerSub`. Defaults to `org`.
+   *  (Used by the sidecar store; the encrypted-JSON stores encode location in `storage`/the id instead.) */
   visibility?: WhiteboardVisibility;
+  /** Where the board lives: user / project / org (encrypted-JSON areas) or sidecar (the built-in SoR). The
+   *  id also encodes this; the field is a convenience for the client. */
+  storage?: "user" | "project" | "org" | "sidecar";
   scene: WhiteboardScene;
   updatedAt: string;
   updatedBy?: string | null;
@@ -316,6 +320,7 @@ export interface WhiteboardMeta {
   projectId?: string | null;
   ownerSub?: string | null;
   visibility?: WhiteboardVisibility;
+  storage?: "user" | "project" | "org" | "sidecar";
   updatedAt: string;
   updatedBy?: string | null;
 }
