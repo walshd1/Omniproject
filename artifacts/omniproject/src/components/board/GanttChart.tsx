@@ -14,7 +14,7 @@ import { canStoreField } from "../../lib/capabilities-fields";
 import { rescheduledDates } from "../../lib/reschedule";
 import { DAY_MS, dayToShortDate } from "../../lib/date-utils";
 import { loadEdges } from "../../lib/dependencies";
-import { DEFAULT_WORKING_CALENDAR } from "../../lib/working-calendar";
+import { useSchedulingSettings } from "../../lib/scheduling-settings";
 import { computeCascade } from "../../lib/cascade-reschedule";
 import { useToast } from "@/hooks/use-toast";
 import { IssueDialog } from "../IssueDialog";
@@ -37,6 +37,7 @@ export function GanttChart({ projectId }: { projectId: string }) {
   const queryClient = useQueryClient();
   const updateIssue = useUpdateIssue();
   const { toast } = useToast();
+  const { hoursPerDay, calendar } = useSchedulingSettings();
   const [editing, setEditing] = useState<Issue | null>(null);
   // Opt-in: when on, dragging a bar cascades its dependents (via the scheduling
   // engine) and writes each moved item back too. Off = the default single-bar move.
@@ -256,7 +257,7 @@ export function GanttChart({ projectId }: { projectId: string }) {
                           if (cascade) {
                             const currentStartById: Record<string, number> = {};
                             for (const l of lanes) currentStartById[l.issue.id] = l.startDay;
-                            const shifts = computeCascade(DEFAULT_WORKING_CALENDAR, issues ?? [], loadEdges(), projectId, currentStartById, issue.id, deltaDays);
+                            const shifts = computeCascade(calendar, issues ?? [], loadEdges(), projectId, currentStartById, issue.id, deltaDays, hoursPerDay);
                             void commitCascade(shifts);
                           } else {
                             commitReschedule(issue, deltaDays);

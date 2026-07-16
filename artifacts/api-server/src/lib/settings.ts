@@ -554,6 +554,22 @@ export interface UserConfig {
 }
 
 /** Platform-level odds and ends: deployment profile, error telemetry opt-in, skills planning. */
+/**
+ * Working-time policy for the (client-side, projected) scheduling engine — the organisation's definition of
+ * a working day/week, so estimate→duration and the auto-scheduler count real working time. Config only: the
+ * schedule itself is always computed live in the browser, never persisted (see the SPA scheduling libs).
+ */
+export interface SchedulingConfig {
+  /** Hours in a working day, used to convert an estimate to a duration (default 8). */
+  hoursPerDay: number;
+  /** Working weekdays, 0 = Sun … 6 = Sat (default Mon–Fri = [1,2,3,4,5]). */
+  workingWeekdays: number[];
+  /** ISO dates (YYYY-MM-DD) that are non-working holidays (default none). */
+  holidays: string[];
+}
+
+export const DEFAULT_SCHEDULING: SchedulingConfig = { hoursPerDay: 8, workingWeekdays: [1, 2, 3, 4, 5], holidays: [] };
+
 export interface PlatformConfig {
   /** Deployment context chosen in the setup wizard (relaxes enterprise couplings by choice). */
   deploymentProfile?: DeploymentProfile;
@@ -566,6 +582,8 @@ export interface PlatformConfig {
   errorTelemetry: boolean;
   /** Skills matrix + demand for the skills-capacity report (planning config, admin/PMO edited). */
   skillsPlanning: SkillsPlanningSettings;
+  /** Working-time policy for the scheduling engine (hours/day, working week, holidays). */
+  scheduling: SchedulingConfig;
 }
 
 /**
@@ -1133,6 +1151,7 @@ const FIELD_DESCRIPTORS: { [K in keyof SettingsState]: FieldDescriptor<K> } = {
   historyRetention: { seed: () => ({ ...DEFAULT_HISTORY_RETENTION }), validate: shapeChecked(validateHistoryRetention) },
   digestDelivery: { seed: () => digestDeliveryFromEnv(), validate: shapeChecked(validateDigestDelivery) },
   skillsPlanning: { seed: () => ({ matrix: [], demand: [] }), validate: shapeChecked(validateSkillsPlanning) },
+  scheduling: { seed: () => ({ ...DEFAULT_SCHEDULING }), validate: shapeChecked(validateScheduling) },
   fieldOverrides: { seed: () => ({ fields: {}, entities: {} }), validate: shapeChecked(validateFieldOverrides) },
   screenLayouts: {
     seed: () => ({}),
@@ -1778,6 +1797,32 @@ function validateSkillsPlanning(value: unknown): void {
       if (typeof req?.["id"] !== "string" || typeof req?.["skill"] !== "string") throw new SettingsValidationError("each demand row needs id + skill");
       if (typeof req["hoursNeeded"] !== "number" || !Number.isFinite(req["hoursNeeded"]) || req["hoursNeeded"] < 0) throw new SettingsValidationError("demand hoursNeeded must be a non-negative number");
       if (req["minProficiency"] !== undefined && (typeof req["minProficiency"] !== "number" || req["minProficiency"] < 1 || req["minProficiency"] > 5)) throw new SettingsValidationError("demand minProficiency must be 1–5");
+    }
+  }
+}
+
+/** Validate the scheduling working-time config: hours/day in (0,24], working weekdays a set of 0–6, and
+ *  holidays a list of ISO dates. A working week with no working day is rejected (it would make the
+ *  scheduler's day arithmetic non-terminating). Config, so kept light. */
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+function validateScheduling(value: unknown): void {
+  if (!value || typeof value !== "object") throw new SettingsValidationError("scheduling must be an object");
+  const { hoursPerDay, workingWeekdays, holidays } = value as Record<string, unknown>;
+  if (hoursPerDay !== undefined) {
+    if (typeof hoursPerDay !== "number" || !Number.isFinite(hoursPerDay) || hoursPerDay <= 0 || hoursPerDay > 24) {
+      throw new SettingsValidationError("scheduling.hoursPerDay must be a number in (0, 24]");
+    }
+  }
+  if (workingWeekdays !== undefined) {
+    if (!Array.isArray(workingWeekdays) || workingWeekdays.length === 0) throw new SettingsValidationError("scheduling.workingWeekdays must be a non-empty array");
+    for (const d of workingWeekdays) {
+      if (typeof d !== "number" || !Number.isInteger(d) || d < 0 || d > 6) throw new SettingsValidationError("scheduling.workingWeekdays entries must be integers 0–6");
+    }
+  }
+  if (holidays !== undefined) {
+    if (!Array.isArray(holidays)) throw new SettingsValidationError("scheduling.holidays must be an array");
+    for (const h of holidays) {
+      if (typeof h !== "string" || !ISO_DATE.test(h)) throw new SettingsValidationError("scheduling.holidays entries must be YYYY-MM-DD strings");
     }
   }
 }

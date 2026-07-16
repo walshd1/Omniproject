@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { useGetProjectIssues, getGetProjectIssuesQueryKey } from "@workspace/api-client-react";
-import { DEFAULT_WORKING_CALENDAR } from "../../lib/working-calendar";
+import { useSchedulingSettings } from "../../lib/scheduling-settings";
 import { DAY_MS, dayToShortDate } from "../../lib/date-utils";
 import { computeProjectForecast, type ForecastIssue, type ForecastRow } from "../../lib/project-forecast";
 import { loadEdges } from "../../lib/dependencies";
@@ -20,13 +20,14 @@ export function AutoScheduleForecast({ projectId }: { projectId: string }) {
     query: { queryKey: getGetProjectIssuesQueryKey(projectId) },
   });
   const edges = useMemo(() => loadEdges(), []);
+  const { hoursPerDay, calendar } = useSchedulingSettings();
 
   const { forecast, titleOf } = useMemo(() => {
     const list = (issues ?? []) as ForecastIssue[];
     const nowDay = Math.floor(Date.now() / DAY_MS);
-    const fc = computeProjectForecast(DEFAULT_WORKING_CALENDAR, list, edges, projectId, nowDay);
+    const fc = computeProjectForecast(calendar, list, edges, projectId, nowDay, {}, hoursPerDay);
     return { forecast: fc, titleOf: new Map(fc.rows.map((r) => [r.id, r.title])) };
-  }, [issues, edges, projectId]);
+  }, [issues, edges, projectId, calendar, hoursPerDay]);
 
   const { result, rows } = forecast;
 
@@ -75,8 +76,8 @@ export function AutoScheduleForecast({ projectId }: { projectId: string }) {
           )}
 
           <div role="note" className="text-[11px] text-muted-foreground">
-            Projected earliest-start dates on a Mon–Fri working calendar. A <em>projection only</em> — nothing is
-            written back. Edit the real dates to commit a plan.
+            Projected earliest-start dates on your organisation's working calendar. A <em>projection only</em> —
+            nothing is written back. Edit the real dates to commit a plan.
           </div>
 
           <ReportTable

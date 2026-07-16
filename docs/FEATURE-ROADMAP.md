@@ -520,6 +520,15 @@ authoring, and the drift guards — no feature bypasses the golden rules.
   backend can store the schedule dates. 6 cascade unit tests (push-later, no-pull-earlier, dependent-only,
   no-deps, zero-drag, knock-on-isolation) + 3 component tests (toggle gating ×2, cascade-writes-both). **3.1
   complete: working calendars, task constraints, lead/lag, and drag-a-bar-and-cascade all shipped.**
+- **Follow-up 7a ✅ (configurable working-time — plumbing).** Hours-per-day + the working week/holidays are no
+  longer hardcoded (was `HOURS_PER_DAY = 8` in two places, Mon–Fri fixed). New **org setting** `scheduling`
+  (`hoursPerDay` ∈ (0,24], `workingWeekdays` 0–6, `holidays` ISO dates) in `lib/settings` — seeded to 8h /
+  Mon–Fri, validated (empty week rejected), read through the existing `/api/settings` slice. Client
+  `lib/scheduling-settings` (`useSchedulingSettings` + pure `resolveSchedulingSettings`) resolves it to a
+  `{ hoursPerDay, WorkingCalendar }` with safe defaults; threaded through `schedule-adapter` /
+  `project-forecast` / `cascade-reschedule` (trailing optional param, defaults 8) and consumed by the forecast
+  report, the board Gantt cascade, and Critical Path. 5 server validator tests + 3 resolver tests; existing
+  suites green (defaults preserve behaviour). **Next:** the admin settings card to edit it (7b).
 
 ### 3.2 Goals / OKRs as a managed cadence  ⬜ Todo
 - **Competitors.** Asana Goals, Viva Goals, ClickUp. **Have.** Strategy cascade + PI board
