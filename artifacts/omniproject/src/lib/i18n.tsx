@@ -40,6 +40,7 @@ const EN: Dict = {
   "nav.resources": "Resources",
   "nav.resourcePlanning": "Resource planning",
   "nav.explore": "Explore",
+  "nav.studio": "Studio",
   "nav.marketplace": "Marketplace",
   "nav.registry": "Registry",
   "nav.settings": "Settings",
