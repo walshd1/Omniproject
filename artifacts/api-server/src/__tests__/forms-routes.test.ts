@@ -73,6 +73,33 @@ test("forms: submission obeys the business ruleset (read-only mode blocks it 422
   assert.equal(r.status, 422);
 });
 
+test("forms: authoring can only map onto vendor-advertised writable fields", async () => {
+  const prev = process.env["CAPABILITIES"];
+  process.env["CAPABILITIES"] = "issues"; // financials/scheduling OFF → budget/dueDate not storable
+  try {
+    const mapsBudget = { ...FORM, target: { ...FORM.target, map: { priority: "priority", budget: "priority" } } };
+    const bad = await req("/forms", { method: "PUT", body: { forms: [mapsBudget] } });
+    assert.equal(bad.status, 400); // budget isn't advertised writable → rejected at authoring
+    // Mapping only issues-domain fields (priority) is fine.
+    const ok = await req("/forms", { method: "PUT", body: { forms: [FORM] } });
+    assert.equal(ok.status, 200);
+  } finally { if (prev === undefined) delete process.env["CAPABILITIES"]; else process.env["CAPABILITIES"] = prev; }
+});
+
+test("forms: submit defensively drops a field the backend no longer advertises", async () => {
+  const { updateSettings } = await import("../lib/settings");
+  // Author with full caps (budget mapping allowed), then submit under a restricted backend.
+  updateSettings({ forms: [{ ...FORM, fields: [...FORM.fields, { key: "cost", label: "Cost", type: "number" }], target: { ...FORM.target, map: { priority: "priority", budget: "cost" } } }] });
+  const prev = process.env["CAPABILITIES"];
+  process.env["CAPABILITIES"] = "issues"; // financials now OFF
+  try {
+    const r = await req("/forms/intake/submit", { method: "POST", body: { values: { summary: "x", priority: "Low", cost: 500 } } });
+    assert.equal(r.status, 201);
+    const body = (await r.json()) as { issue: Record<string, unknown> };
+    assert.equal(body.issue["budget"], undefined); // dropped — not advertised storable
+  } finally { if (prev === undefined) delete process.env["CAPABILITIES"]; else process.env["CAPABILITIES"] = prev; }
+});
+
 test("forms: an untargeted template refuses submission (400)", async () => {
   await req("/forms", { method: "PUT", body: { forms: [{ ...FORM, target: { kind: "issue", titleFrom: "summary" } }] } });
   const r = await req("/forms/intake/submit", { method: "POST", body: { values: { summary: "x", priority: "Low" } } });

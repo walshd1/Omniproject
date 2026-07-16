@@ -6,7 +6,39 @@ import { getBroker, contextFromReq, withBrokerErrors } from "../broker";
 import type { IssueWrite } from "../broker/types";
 import { guardProjectScope } from "../lib/project-scope";
 import { evaluateRuleset } from "../lib/ruleset";
-import { FormDefError, validateSubmission, issueWriteFromSubmission } from "../lib/form-def";
+import { resolveCapabilities, type Capabilities } from "../lib/capabilities";
+import { FormDefError, validateForms, validateSubmission, issueWriteFromSubmission, filterIssueWriteToWritable, unwritableMapFields } from "../lib/form-def";
+import type { RequestHandler } from "express";
+
+/** The set of issue fields the connected backend ADVERTISES as storable (`FieldSupport.store`). A form may
+ *  only write these — the same capability plane that gates the interactive grid's editable fields. */
+function writableIssueFields(caps: Capabilities): Set<string> {
+  return new Set(Object.entries(caps.fields).filter(([, s]) => s.store).map(([k]) => k));
+}
+
+/**
+ * Authoring guard for PUT /forms: a form may only MAP onto issue fields the connected backend advertises as
+ * writable. Reject a save that maps to an unsupported field, naming it — so "form edits only allow fields
+ * mapped onto vendor-advertised capabilities" holds at authoring time, not just defensively at submit.
+ */
+const gateFormTargets: RequestHandler = async (req, res, next) => {
+  let forms;
+  try {
+    forms = validateForms((req.body as { forms?: unknown } | undefined)?.forms);
+  } catch {
+    next(); // shape errors are the settings validator's job (→ 400 there); we only gate capabilities here.
+    return;
+  }
+  const writable = writableIssueFields(await resolveCapabilities(req));
+  for (const f of forms) {
+    const bad = unwritableMapFields(f, writable);
+    if (bad.length > 0) {
+      res.status(400).json({ error: `Form "${f.id}" maps to issue field(s) the connected backend can't store: ${bad.join(", ")}. Remove the mapping or connect a backend that advertises them.` });
+      return;
+    }
+  }
+  next();
+};
 
 /**
  * Intake / request FORMS. Two surfaces:
@@ -59,17 +91,22 @@ router.post("/forms/:formId/submit", requireRole("contributor"), async (req, res
   await withBrokerErrors(req, res, "form submission failed", async () => {
     if (!(await guardProjectScope(req, res, targetProjectId))) return;
     if (verdict.warnings.length) res.setHeader("X-OmniProject-Rule-Warnings", verdict.warnings.map((w) => w.id).join(","));
-    const issue = await getBroker().writeIssue(contextFromReq(req), "create", issueWrite as unknown as IssueWrite);
+    // Defence in depth: only write fields the backend still advertises as storable (it may have changed
+    // since the form was authored). Never surface an unsupported field into the write.
+    const writable = writableIssueFields(await resolveCapabilities(req));
+    const { issue: writeInput } = filterIssueWriteToWritable(issueWrite, writable);
+    const issue = await getBroker().writeIssue(contextFromReq(req), "create", writeInput as unknown as IssueWrite);
     res.status(201).json({ ok: true, issue });
   }, { projectId: def.target.projectId });
 });
 
-// The form definitions store — read open (the SPA renders forms), write gated to admin/PMO.
+// The form definitions store — read open (the SPA renders forms), write gated to admin/PMO AND to the
+// vendor-advertised writable fields (a form can only map onto fields the backend can store).
 router.use(settingsCollectionRouter({
   path: "/forms",
   settingsKey: "forms",
   versionLabel: "forms updated",
-  writeGuards: [requireAnyRole("admin", "pmo")],
+  writeGuards: [requireAnyRole("admin", "pmo"), gateFormTargets],
 }));
 
 export default router;

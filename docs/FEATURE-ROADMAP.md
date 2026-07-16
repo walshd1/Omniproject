@@ -70,6 +70,12 @@ already exist, so they close the most competitive distance for the least build.
   submit is `contributor`+ and project-scope-guarded, authoring is admin/PMO; the created
   issue now runs the **same business ruleset** as the interactive grid (read-only /
   require-description / … → 422). All writes flow through the broker sanitizer + audit.
+- **Capability gating (vendor-advertised fields only).** A form may only map onto issue
+  fields the connected backend ADVERTISES as storable (`FieldSupport.store`) — the same
+  capability plane that gates the interactive grid's editable fields. Enforced at BOTH ends:
+  authoring (PUT /forms rejects a map to an unsupported field, naming it) and submit
+  (defensively drops any field the backend no longer advertises, in case capabilities
+  changed since authoring). Core fields (projectId/title) are always kept.
 
 ### 1.2 User-facing automation recipes  ⬜ Todo
 - **Rationale.** A friendly "when X, do Y" builder. The powerful JSON **workflow engine +
@@ -212,4 +218,7 @@ so an attachment field would be a URL reference (`url` type) pointing at the sys
 - _2026-07-16_ — Forms hardening: added email/url primitives + per-field length caps
   (default 2 000, ceiling 10 000), and routed form-created issues through the same business
   ruleset as the grid. Documented the form primitive backlog and, for 1.2, the hard
-  RBAC-gating constraint (automate only what you may edit). **Next up: Phase 1.2.**
+  RBAC-gating constraint (automate only what you may edit).
+- _2026-07-16_ — Forms capability gating: a form can only map onto issue fields the
+  connected backend advertises as storable, enforced at authoring and submit. **Next up:
+  Phase 1.2 (automation recipes).**

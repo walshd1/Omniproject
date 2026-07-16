@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { validateForms, validateSubmission, issueWriteFromSubmission, FormDefError, type FormDef } from "./form-def";
+import { validateForms, validateSubmission, issueWriteFromSubmission, filterIssueWriteToWritable, unwritableMapFields, FormDefError, type FormDef } from "./form-def";
 
 /**
  * Intake form defs — the shape validator, per-submission validation/coercion, and the submission→IssueWrite
@@ -95,4 +95,19 @@ test("validateSubmission validates email + url formats", () => {
   assert.throws(() => validateSubmission(def, { link: "not a url" }), FormDefError);
   const clean = validateSubmission(def, { email: "a@b.com", link: "https://ok.example" });
   assert.deepEqual(clean, { email: "a@b.com", link: "https://ok.example" });
+});
+
+test("unwritableMapFields flags map targets the backend can't store (core fields exempt)", () => {
+  const def = validateForms([{ id: "f", label: "F", fields: [
+    { key: "s", label: "S", type: "text" }, { key: "b", label: "B", type: "number" },
+  ], target: { kind: "issue", projectId: "p1", titleFrom: "s", map: { title: "s", budget: "b", storyPoints: "b" } } }])[0]!;
+  const writable = new Set(["storyPoints"]); // backend advertises storyPoints, NOT budget
+  assert.deepEqual(unwritableMapFields(def, writable), ["budget"]); // title is core (exempt); storyPoints writable
+});
+
+test("filterIssueWriteToWritable keeps core + advertised fields, drops the rest", () => {
+  const issueWrite = { projectId: "p1", title: "T", description: "d", status: "triage", budget: 100, storyPoints: 3 };
+  const { issue, dropped } = filterIssueWriteToWritable(issueWrite, new Set(["description", "status", "storyPoints"]));
+  assert.deepEqual(issue, { projectId: "p1", title: "T", description: "d", status: "triage", storyPoints: 3 });
+  assert.deepEqual(dropped, ["budget"]); // financials not advertised → dropped
 });

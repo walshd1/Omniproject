@@ -210,3 +210,36 @@ export function issueWriteFromSubmission(def: FormDef, clean: Record<string, unk
   void labelFor; // (kept for future per-field descriptions)
   return out;
 }
+
+/**
+ * CORE issue fields a create always carries — never capability-gated (a create is meaningless without a
+ * project + title, and the backend rejects if it truly can't store them).
+ */
+export const CORE_ISSUE_FIELDS = new Set<string>(["projectId", "title"]);
+
+/**
+ * A form may only write issue fields the connected backend ADVERTISES as storable (`FieldSupport.store`).
+ * `writable` is that advertised, storable-field set (resolved per-request from the backend capabilities).
+ * These pure helpers keep form-def.ts free of any request/broker import so they stay unit-testable.
+ */
+
+/** The target.map issue-field keys a form maps to that AREN'T vendor-advertised writable — for authoring
+ *  rejection ("you can't map to X; the backend doesn't support writing it"). */
+export function unwritableMapFields(def: FormDef, writable: ReadonlySet<string>): string[] {
+  return Object.keys(def.target.map ?? {}).filter((k) => !CORE_ISSUE_FIELDS.has(k) && !writable.has(k));
+}
+
+/** Defensive submit-time filter: drop any composed issue field the backend doesn't advertise as storable
+ *  (the connected backend may have changed since the form was authored). Core fields are always kept. */
+export function filterIssueWriteToWritable(
+  issueWrite: Record<string, unknown>,
+  writable: ReadonlySet<string>,
+): { issue: Record<string, unknown>; dropped: string[] } {
+  const issue: Record<string, unknown> = {};
+  const dropped: string[] = [];
+  for (const [k, v] of Object.entries(issueWrite)) {
+    if (CORE_ISSUE_FIELDS.has(k) || writable.has(k)) issue[k] = v;
+    else dropped.push(k);
+  }
+  return { issue, dropped };
+}
