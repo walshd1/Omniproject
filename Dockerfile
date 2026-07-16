@@ -17,7 +17,7 @@
 # means every build silently pulls whatever the tag currently resolves to — not reproducible,
 # and a compromised/tampered upstream tag would go unnoticed. Refresh the digest deliberately
 # (e.g. `docker buildx imagetools inspect node:26-bookworm-slim`) alongside a real version bump.
-FROM node:26-bookworm-slim@sha256:e999d087492c7227c85adc70574cf9d3cce774c3e6d7b8dfe473ee6b142c8f2c AS builder
+FROM node:26-bookworm-slim@sha256:2d49d876e96237d76de412761cf05dbfe5aee325cc4406a4d41d5824c5bb8beb AS builder
 
 # Node no longer bundles corepack, so install the pinned pnpm directly via npm.
 RUN npm install -g pnpm@11.8.0
@@ -38,7 +38,7 @@ RUN PORT=3000 BASE_PATH=/ pnpm --filter @workspace/omniproject run build \
  && pnpm --filter @workspace/api-server run build
 
 # ── Runtime ───────────────────────────────────────────────────────────────────
-FROM node:26-bookworm-slim@sha256:e999d087492c7227c85adc70574cf9d3cce774c3e6d7b8dfe473ee6b142c8f2c AS runtime
+FROM node:26-bookworm-slim@sha256:2d49d876e96237d76de412761cf05dbfe5aee325cc4406a4d41d5824c5bb8beb AS runtime
 
 ENV NODE_ENV=production
 ENV PORT=3000
