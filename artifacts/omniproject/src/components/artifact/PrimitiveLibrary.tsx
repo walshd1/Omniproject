@@ -16,6 +16,7 @@ const FAMILY_LABEL: Record<PrimitiveFamily, string> = {
   field: "Form fields",
   block: "Document blocks",
   canvas: "Whiteboard elements",
+  annotation: "Proof markers",
   component: "Reports & widgets",
 };
 

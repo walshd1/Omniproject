@@ -1,6 +1,6 @@
 import { PANEL_RENDERERS } from "../components/screen/registry";
 import { PRIMITIVE_LIBRARY } from "../definitions/primitives";
-import { componentLibrary, FORM_FIELD_TYPES, DOC_BLOCK_TYPES, CANVAS_ELEMENT_TYPES } from "@workspace/backend-catalogue";
+import { componentLibrary, FORM_FIELD_TYPES, DOC_BLOCK_TYPES, CANVAS_ELEMENT_TYPES, ANNOTATION_TYPES } from "@workspace/backend-catalogue";
 
 /**
  * THE single shared primitive store — one catalogue over every renderable building block in the product,
@@ -17,9 +17,10 @@ import { componentLibrary, FORM_FIELD_TYPES, DOC_BLOCK_TYPES, CANVAS_ELEMENT_TYP
  *  - `component` hosted reports + dashboard widgets — from the shared component library.
  *  - `block`     document/wiki content blocks (heading/paragraph/checklist/…) — from DOC_BLOCK_TYPES.
  *  - `canvas`    whiteboard elements (sticky/shape/text/connector/frame) — from CANVAS_ELEMENT_TYPES.
+ *  - `annotation` proof review markers (pin/box/highlight) — from ANNOTATION_TYPES.
  */
-export type PrimitiveFamily = "panel" | "viz" | "field" | "component" | "block" | "canvas";
-export type PlacementSurface = "screen" | "report" | "dashboard" | "content" | "form" | "export" | "canvas";
+export type PrimitiveFamily = "panel" | "viz" | "field" | "component" | "block" | "canvas" | "annotation";
+export type PlacementSurface = "screen" | "report" | "dashboard" | "content" | "form" | "export" | "canvas" | "proof";
 
 export interface Primitive {
   /** Unique WITHIN its family (a `table` panel and a `table` viz are different primitives). */
@@ -101,6 +102,13 @@ const CANVAS_META: Record<string, { category: string; tags: string[] }> = {
   draw: { category: "freehand", tags: ["pen"] },
 };
 
+/** `annotation` family — subfolder + tags per proof-review marker primitive. */
+const ANNOTATION_META: Record<string, { category: string; tags: string[] }> = {
+  pin: { category: "marker", tags: ["point"] },
+  box: { category: "region", tags: ["area"] },
+  highlight: { category: "region", tags: ["area", "emphasis"] },
+};
+
 /** `viz` family — cross-cutting tags per data-visualisation primitive (subfolder is its chart category). */
 const VIZ_TAGS: Record<string, string[]> = {
   bar: ["comparison"], line: ["timeseries", "trend"], area: ["timeseries", "trend"],
@@ -155,6 +163,14 @@ function canvasPrimitives(): Primitive[] {
   });
 }
 
+/** `annotation` family — the proof-review markers. Annotations live on a proof (the `proof` surface). */
+function annotationPrimitives(): Primitive[] {
+  return ANNOTATION_TYPES.map((id) => {
+    const meta = ANNOTATION_META[id] ?? { category: "other", tags: [] };
+    return { id, sourceId: id, family: "annotation", label: titleCase(id), category: meta.category, tags: meta.tags, placeableIn: ["proof"] };
+  });
+}
+
 /** `component` family — hosted reports + widgets, already placement-tagged by the shared library. */
 function componentPrimitives(): Primitive[] {
   return componentLibrary().map((c) => ({
@@ -175,6 +191,7 @@ export const PRIMITIVES: Primitive[] = [
   ...fieldPrimitives(),
   ...blockPrimitives(),
   ...canvasPrimitives(),
+  ...annotationPrimitives(),
   ...componentPrimitives(),
 ];
 

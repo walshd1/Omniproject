@@ -74,6 +74,14 @@ const CLASSIFICATION: Record<string, ScopeClass> = {
   // no project boundary. Transient cursor fan-out (nothing stored); identity is stamped server-side.
   "GET /whiteboards/rooms/:roomId/stream": "project-scope",
   "POST /whiteboards/rooms/:roomId": "project-scope",
+  // Proof ids are SELF-DESCRIBING (`<target>~…`) — same storage-target model as whiteboards/wiki: a `user~…`
+  // id is structurally isolated (scope uses the caller's own sub), `project~…` is guardProjectScope-checked
+  // (stricter than org-content), `org~…` is the org-content posture (read viewer+, write/delete/decision
+  // manager+). No sidecar variant. The decision route is contributor+ with the same per-target gate.
+  "GET /proofs/:id": "org-content",
+  "PUT /proofs/:id": "org-content",
+  "DELETE /proofs/:id": "org-content",
+  "POST /proofs/:id/decision": "org-content",
 
   // ── Task-scoped: assertTaskScope on the caller-supplied taskId ──
   "GET /tasks/:taskId": "task-scope",
@@ -201,7 +209,7 @@ function collectRoutes(router: IRouter): string[] {
  *  code isn't mounted in the test env (so a per-resource route in a disabled module can't escape the ratchet). */
 async function perResourceRoutes(): Promise<Set<string>> {
   const assembled = (await import("../routes/index")).default as IRouter;
-  const featureMods = ["presence", "comments", "collab", "whiteboard", "odata", "integrations"];
+  const featureMods = ["presence", "comments", "collab", "whiteboard", "proofs", "odata", "integrations"];
   const routes = new Set<string>(collectRoutes(assembled));
   for (const name of featureMods) {
     const mod = (await import(`../routes/${name}`)).default as IRouter;

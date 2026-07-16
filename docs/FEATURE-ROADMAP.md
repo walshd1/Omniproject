@@ -346,11 +346,26 @@ authoring, and the drift guards — no feature bypasses the golden rules.
 - **2.3 complete.** Whiteboards now have a native primitive-built canvas, storage targets, SVG/PNG export,
   sticky → work item, and multi-user live cursors — the inline "good enough" canvas the roadmap called for.
 
-### 2.4 Proofing / deliverable review & annotation  ⬜ Todo
+### 2.4 Proofing / deliverable review & annotation  🚧 In progress (slice 1)
 - **Competitors.** Adobe Workfront, Wrike, Smartsheet. **Gap.** No creative review markup.
 - **Acceptance.** Attach a deliverable (image/PDF), pin annotations, threaded review,
   approve/reject decision bound to a version; ties into approval chains.
 - **Leverage.** Approval-chain + passkey sign-off; comments; attachments as references.
+- **Slice 1 ✅ (foundation — proof model + storage-target routes + hooks).** A proof is a **JSON definition**
+  built of primitives, mirroring wiki/whiteboard: a new **`annotation` primitive family** (`ANNOTATION_TYPES`
+  in backend-catalogue → the shared primitive store, drift-guarded): **pin / box / highlight**, placed on the
+  new `proof` surface. A proof **references** a deliverable (image/PDF) rather than inlining it
+  (attachments-as-references, **zero-at-rest**) and carries the annotations + a review **decision bound to a
+  version**. Saved to a **storage target** the author picks — their private / a project's / the org-wide
+  **encrypted-JSON** area (AES-256-GCM sealed), reusing the shared scoped-id + `authorizeStorageTarget`
+  primitives (no sidecar — a proof is always OmniProject-held overlay metadata). Behind a default-off
+  `proofing` feature module: `/api/proofs/*` CRUD (read viewer+, author contributor+, org writes manager+) +
+  `POST /proofs/:id/decision` (approve/reject/changes-requested, **stamped server-side**, bound to the
+  version; replacing the deliverable bumps the version and **re-opens** the decision). One **sanitising choke
+  point** (`sanitizeProofWrite`): safe-scheme-only deliverable url, coordinates clamped to normalised 0..1,
+  per-type annotation field allow-listing, size caps. Client hooks. Drift guard + catalogue + sanitiser +
+  route (sealed-at-rest, user isolation, org gating, decision/version) tests. **Next:** the annotation UI
+  (overlay the deliverable, pin/drag annotations) and threaded review + approval-chain binding.
 
 ### 2.5 Native mobile + offline  ⬜ Todo
 - **Competitors.** All. **Gap.** PWA caches app-shell only; no offline data, no native apps.
@@ -587,3 +602,11 @@ so an attachment field would be a URL reference (`url` type) pointing at the sys
   spoofing); short TTL fades a silent leave; project-board rooms are `guardProjectScope`-checked. viewer+,
   gated on the existing `presence` toggle, degrades to a no-op without `EventSource`. **2.3 (whiteboards) is
   now complete** — native canvas, storage targets, export, sticky→item, live cursors.
+- _2026-07-16_ — Phase 2.4 slice 1 (proofing foundation) shipped: a proof is a JSON definition built of a new
+  `annotation` primitive family (pin/box/highlight, on the `proof` surface) that REFERENCES an image/PDF
+  deliverable (never inlined — zero-at-rest) and carries a review decision bound to a version. Saved to a
+  storage target (private/project/org encrypted-JSON, sealed) via the shared scoped-id + authz primitives; no
+  sidecar. Behind a default-off `proofing` module: `/api/proofs/*` CRUD + `POST /proofs/:id/decision`
+  (server-stamped, version-bound; a new deliverable re-opens it). One sanitiser choke point (safe-scheme url,
+  0..1 coord clamp, per-type allow-list). Client hooks + drift-guard/catalogue/sanitiser/route tests. Next:
+  the annotation UI + threaded review + approval-chain binding.
