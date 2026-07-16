@@ -27,6 +27,7 @@ export * from "./persona-catalogue";
 export * from "./methodology-rulesets";
 export * from "./drill-to";
 export * from "./report-catalogue";
+export * from "./form-catalogue";
 export * from "./widget-catalogue";
 export * from "./component-library";
 export * from "./screen-catalogue";

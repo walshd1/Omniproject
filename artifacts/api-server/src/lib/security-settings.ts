@@ -123,7 +123,7 @@ export const CHOICE_SETTINGS: readonly string[] = [
   // screen definitions, the on/off list, per-collection edit policy, the saved pivot views, and the RACI /
   // stakeholder register content. None is a fail-closed security control (edit access is content
   // authorization, tuned freely by admins), so each is a choice, not a sign-off-gated security setting.
-  "screenDefs", "disabledScreens", "collectionEditRoles", "panelViews", "raci", "stakeholders",
+  "screenDefs", "disabledScreens", "collectionEditRoles", "panelViews", "raci", "stakeholders", "forms",
   // UserConfig
   "userPrefs",
   // PlatformConfig

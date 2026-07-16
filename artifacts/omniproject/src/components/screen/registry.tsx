@@ -11,6 +11,7 @@ import { ChartPanel } from "./panels/ChartPanel";
 import { ComponentPanel } from "./panels/ComponentPanel";
 import { WidgetPanel } from "./panels/WidgetPanel";
 import { RegisterPanel } from "./panels/RegisterPanel";
+import { FormPanel } from "./panels/FormPanel";
 
 /**
  * Panel-renderer registry — maps a panel `kind` to the ONE component that renders
@@ -40,6 +41,8 @@ export const PANEL_RENDERERS: Partial<Record<PanelKind, PanelComponent>> = {
   component: ComponentPanel,
   // Hosts any dashboard widget (self-contained, reads its own data) by type. See components/dashboard.
   widget: WidgetPanel,
+  // An intake/request FORM authored in org config; a submission creates a work item via the broker.
+  form: FormPanel,
 };
 
 /** Whether a renderer exists for a panel kind (else it degrades to a placeholder). */

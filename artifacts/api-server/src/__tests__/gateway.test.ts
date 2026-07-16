@@ -974,6 +974,7 @@ const SAMPLE_SETTINGS = {
   stakeholders: [],
   collectionEditRoles: {},
   panelViews: [],
+  forms: [],
 };
 
 test("redactSettingsForRead: masks webhook signing secrets (never leaked over GET)", async () => {

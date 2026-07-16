@@ -28,6 +28,7 @@ import { validateBudgetPlans, BudgetPlanError, type BudgetPlan } from "./budget-
 import { validateScreenDefs, ScreenDefError, type OrgScreenDef } from "./screen-def";
 import { validateRaci, RaciError, type RaciEntry } from "./raci";
 import { validateStakeholders, StakeholderError, type Stakeholder } from "./stakeholder";
+import { validateForms, FormDefError, type FormDef } from "./form-def";
 import { reportCatalogue, type ReportDefinition } from "@workspace/backend-catalogue";
 import { validateCustomFields, validateCustomFieldSources, CustomFieldError, type CustomField } from "./custom-fields";
 import { sanitizeBranding } from "./branding";
@@ -494,6 +495,9 @@ export interface PresentationConfig {
   /** Stakeholder register — flat (name, role, influence, interest, engagement) rows; the Stakeholders
    *  screen renders them. */
   stakeholders: Stakeholder[];
+  /** Intake / request FORMS — admin/PMO-authored forms (typed fields + a target project); the `form` panel
+   *  renders them and each submission becomes a work item through the broker. See routes/forms. */
+  forms: FormDef[];
   /** Org-authored SCREEN DEFINITIONS — a PMO's built-from-scratch or modified screens, stored in the
    *  (encrypted) deployment config to OVERRIDE a shipped default (matched by id) or add net-new screens;
    *  also the delivery vehicle for a new-methodology JSON bundle. The SPA merges these over its built-in
@@ -1193,6 +1197,7 @@ const FIELD_DESCRIPTORS: { [K in keyof SettingsState]: FieldDescriptor<K> } = {
     },
   },
   panelViews: { seed: () => [], validate: shapeChecked(validatePanelViews) },
+  forms: { seed: () => [], validate: normalisedBy((v) => validateForms(v), FormDefError) },
   raci: { seed: () => [], validate: normalisedBy((v) => validateRaci(v), RaciError) },
   stakeholders: { seed: () => [], validate: normalisedBy((v) => validateStakeholders(v), StakeholderError) },
   methodologyComposition: {

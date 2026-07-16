@@ -37,7 +37,7 @@ Monday/Asana/ClickUp/Wrike own.
 These three reuse the JSON-screen + panel registry + broker seam + workflow engine that
 already exist, so they close the most competitive distance for the least build.
 
-### 1.1 Intake / request forms  🚧 In progress
+### 1.1 Intake / request forms  ✅ Done
 - **Rationale.** End-user forms that capture a request → create work. The single clearest
   miss vs every competitor (a *DemandIntake report* is not a form).
 - **Competitors.** Asana, Monday, Smartsheet, Wrike, Jira Service Management.
@@ -46,9 +46,16 @@ already exist, so they close the most competitive distance for the least build.
   validates client-side; (c) submit creates an issue through the broker with mapped fields
   + an intake marker (status/label), RBAC- and scope-guarded; (d) malformed defs/submits
   return typed 400s, never 500; (e) a routed **Intake** screen ships by default.
-- **Architecture leverage.** New `form` panel kind; `forms` settings collection (like
-  `screenDefs`); submission → `broker.writeIssue(create)` (same path as
+- **Architecture leverage.** New `form` panel kind; `forms` settings collection; a `form`
+  methodology-composition kind; submission → `broker.writeIssue(create)` (same path as
   `POST /projects/:id/issues`).
+- **Delivered.** Built exactly like screens/reports: shared **form template catalogue**
+  (`@workspace/backend-catalogue` `FORMS`) → org-overridable `forms` config store →
+  `form` composition kind (methodology-tagged) → generic `FormPanel` renderer → visual
+  `FormsAdmin` builder (new / from-template / structured field + target editor) → routed
+  `Intake` screen. Server: `lib/form-def.ts` (validation + submission→IssueWrite),
+  `routes/forms.ts` (defs GET/PUT admin-PMO + scope-guarded `/forms/:id/submit`).
+  Tests: shared catalogue (3), form-def (8), forms route (6), FormPanel (4), FormsAdmin (3).
 
 ### 1.2 User-facing automation recipes  ⬜ Todo
 - **Rationale.** A friendly "when X, do Y" builder. The powerful JSON **workflow engine +
@@ -148,3 +155,6 @@ already exist, so they close the most competitive distance for the least build.
 
 - _2026-07-16_ — Roadmap created from competitive gap analysis. Phase 1.1 (Intake forms)
   started.
+- _2026-07-16_ — Phase 1.1 (Intake forms) shipped, built on the screen/report pipeline
+  (shared template catalogue → org-override store → composition kind → generic panel →
+  visual admin builder → routed screen). **Next up: Phase 1.2 (Automation recipes).**

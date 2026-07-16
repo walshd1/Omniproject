@@ -19,6 +19,7 @@ import burndown from "../screens/burndown.json";
 import gantt from "../screens/gantt.json";
 import prince2 from "../screens/prince2.json";
 import raid from "../screens/raid.json";
+import intake from "../screens/intake.json";
 // Project-scoped sub-screens (match backend screen ids → no `route`, so they don't double-register as
 // composition items; their routes are wired explicitly in App with the :projectId param).
 import projectGantt from "../screens/project-gantt.json";
@@ -84,6 +85,7 @@ const ENTRIES: ScreenCatalogueEntry[] = [
   gantt as ScreenCatalogueEntry,
   prince2 as ScreenCatalogueEntry,
   raid as ScreenCatalogueEntry,
+  intake as ScreenCatalogueEntry,
   projectGantt as ScreenCatalogueEntry,
   riskRegister as ScreenCatalogueEntry,
   raciMatrix as ScreenCatalogueEntry,

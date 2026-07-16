@@ -7,7 +7,7 @@ import { getScreenDef, screenDefs, canonicalLayoutFor, routedScreens, screenComp
  * and panels with a known kind, a unique id and a valid (1–12) span. A malformed screen JSON fails here
  * rather than rendering a broken canvas.
  */
-const KNOWN_KINDS = new Set(["metric", "text", "table", "list", "view", "board", "chart", "timeline", "register", "graph", "map", "component"]);
+const KNOWN_KINDS = new Set(["metric", "text", "table", "list", "view", "board", "chart", "timeline", "register", "graph", "map", "component", "widget", "form"]);
 
 describe("screen catalogue", () => {
   it("exposes at least the budget-plans screen by id", () => {
