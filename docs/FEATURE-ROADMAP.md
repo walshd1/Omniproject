@@ -94,8 +94,14 @@ already exist, so they close the most competitive distance for the least build.
   compile to the existing workflow engine — no new engine. Inform (notify) recipes run via the existing
   read+notify effect surface; **mutating recipes are gated to the autonomous-grant path** (the workflow runner
   refuses silent mutations). RBAC gate enforced: a viewer can author an inform recipe but not a work-item
-  write. **Next slice:** live trigger binding (schedule/event → runner) + the grant-bound execution of
-  mutating recipes.
+  write.
+- **Slice 2 shipped (execution):** `POST /automations/:id/run` — RBAC re-checked at run time, conditions
+  evaluated against the trigger subject (`matchesConditions`, eq/ne/in/gt/lt/truthy), then the compiled
+  action-only workflow runs through the caller-scoped effect surface. Inform recipes fire; mutating recipes
+  return 202 (held for a grant). A "Test run" button in the builder. `compileRecipe` now compiles actions
+  only (conditions are a runner-side pre-gate, the correct model for an external trigger subject).
+- **Next slice:** live trigger binding (schedule → scheduled-job; event → the broker event/notify bus) so
+  recipes fire automatically, and the grant-bound execution of mutating recipes.
 - **Rationale.** A friendly "when X, do Y" builder. The powerful JSON **workflow engine +
   broker templates** already exist but are admin/developer-facing — this is the missing
   on-ramp.

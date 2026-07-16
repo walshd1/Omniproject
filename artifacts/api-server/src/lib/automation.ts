@@ -112,35 +112,61 @@ export function actionProjectId(recipe: AutomationRecipe, action: AutomationActi
 }
 
 /**
- * Compile a recipe to the existing workflow-engine JSON. Actions become `action` steps; conditions wrap them
- * in a `condition` step keyed on a synthetic `subject` result the runner seeds with the triggering entity.
- * Returns a validated {@link WorkflowDef} (so a malformed compile is caught by the engine's own validator).
+ * Compile a recipe's ACTIONS to the existing workflow-engine JSON (one `action` step each). Conditions are
+ * NOT compiled into the workflow — a recipe condition is a predicate on the TRIGGERING ENTITY (external to
+ * the workflow), so the runner evaluates it up front via {@link matchesConditions} and only runs the
+ * compiled workflow when it matches. Returns a validated {@link WorkflowDef} (bounds-checked by the ONE
+ * engine validator).
  */
 export function compileRecipe(recipe: AutomationRecipe): WorkflowDef {
-  const actionSteps: WorkflowStep[] = recipe.actions.map((a, i) => {
+  const steps: WorkflowStep[] = recipe.actions.map((a, i) => {
     const def = getActionDef(a.kind)!;
-    return { id: `action-${i}`, kind: "action", action: def.effect, params: { ...a.params, __recipeAction: a.kind } };
+    return { id: `action-${i}`, kind: "action", action: def.effect, params: compileParams(recipe, a) };
   });
-
-  // Conditions gate the actions: all must pass. We model "all pass" as nested condition steps.
-  let steps: WorkflowStep[] = actionSteps;
-  const conditions = recipe.conditions ?? [];
-  for (let i = conditions.length - 1; i >= 0; i--) {
-    const c = conditions[i]!;
-    steps = [{
-      id: `cond-${i}`,
-      kind: "condition",
-      // The runner seeds `subject` with the triggering entity; the engine's StepTest checks existence/equality.
-      test: c.op === "truthy" ? { result: "subject", exists: true } : { result: "subject", equals: undefined },
-      then: steps,
-      else: [],
-    }];
-    // Note: fine-grained field comparison happens in the runner's predicate (the engine test is coarse); this
-    // keeps the compiled shape valid while the runner applies the real condition before seeding `subject`.
-  }
-
   const def = { id: `recipe:${recipe.id}`, scope: recipe.scope, steps };
-  return validateWorkflow(def); // structural + bounds check via the ONE engine validator
+  return validateWorkflow(def);
+}
+
+/** Map a recipe action's authoring params to the effect surface's expected shape (e.g. notify's title/body). */
+function compileParams(recipe: AutomationRecipe, a: AutomationAction): Record<string, unknown> {
+  const p = a.params ?? {};
+  if (a.kind === "notify") {
+    return {
+      title: str2(p["title"]) || recipe.label,
+      body: str2(p["body"]) || str2(p["message"]),
+      ...(str2(p["email"]) ? { email: str2(p["email"]) } : str2(p["to"]).includes("@") ? { email: str2(p["to"]) } : {}),
+      ...(str2(p["sub"]) ? { sub: str2(p["sub"]) } : {}),
+      __recipeAction: a.kind,
+    };
+  }
+  return { ...p, __recipeAction: a.kind };
+}
+
+const str2 = (v: unknown): string => (v == null ? "" : String(v));
+
+/**
+ * Evaluate a recipe's conditions against the triggering entity (`subject`) — ALL must pass. The same small
+ * operator set the report predicate engine uses (eq/ne/in/gt/lt/truthy). No conditions ⇒ always matches.
+ * Pure, so the runner can gate execution on it without touching the engine.
+ */
+export function matchesConditions(recipe: AutomationRecipe, subject: Record<string, unknown>): boolean {
+  for (const c of recipe.conditions ?? []) {
+    const actual = subject[c.field];
+    const a = str2(actual);
+    const want = c.value ?? "";
+    let pass: boolean;
+    switch (c.op) {
+      case "eq": pass = a === want; break;
+      case "ne": pass = a !== want; break;
+      case "in": pass = want.split(",").map((s) => s.trim()).includes(a); break;
+      case "gt": pass = Number(actual) > Number(want); break;
+      case "lt": pass = Number(actual) < Number(want); break;
+      case "truthy": pass = actual != null && a !== "" && actual !== false; break;
+      default: pass = false;
+    }
+    if (!pass) return false;
+  }
+  return true;
 }
 
 export { recipeMutates, AUTOMATION_ACTIONS };

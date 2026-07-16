@@ -1,10 +1,14 @@
 import { Router, type Request, type RequestHandler } from "express";
 import { getActionDef, recipeMutates, type AutomationRecipe } from "@workspace/backend-catalogue";
+import { getSettings } from "../lib/settings";
 import { settingsCollectionRouter } from "../lib/settings-collection-router";
-import { validateAutomations, compileRecipe, recipeRequirements, actionProjectId, AutomationError } from "../lib/automation";
+import { validateAutomations, compileRecipe, matchesConditions, recipeRequirements, actionProjectId, AutomationError } from "../lib/automation";
 import { grantsForReq, grantsSatisfy } from "../lib/rbac";
 import { assertProjectScope } from "../lib/project-scope";
 import { editPolicyFor } from "../lib/collection-edit-policy";
+import { runWorkflow } from "../lib/workflow";
+import { scopedEffects } from "../lib/workflow-run";
+import { actorForAudit } from "../lib/audit";
 
 /**
  * Automation RECIPES — the user-facing "when X, do Y" builder (Phase 1.2). Recipes are stored as data and
@@ -76,6 +80,36 @@ router.post("/automations/preview", async (req, res) => {
     canAuthor: denial === null,
     ...(denial ? { reason: denial } : {}),
   });
+});
+
+/**
+ * Run a stored recipe now against a `subject` (the triggering entity, or a manual test payload). The RBAC
+ * gate is re-checked at run time (not just authoring), conditions are evaluated against the subject, and only
+ * then do the actions run — through the existing read+notify effect surface, scoped to the caller.
+ *
+ * MUTATING recipes are NOT executed here: the workflow runner refuses silent mutations, so a mutating recipe
+ * returns 202 (needs an autonomous grant — that path lands in the next slice). Inform recipes run fully.
+ */
+router.post("/automations/:id/run", async (req, res) => {
+  const id = String((req.params as { id?: unknown }).id ?? "");
+  const recipe = (getSettings().automations ?? []).find((r) => r.id === id);
+  if (!recipe || recipe.enabled === false) { res.status(404).json({ error: "Automation not found" }); return; }
+
+  const denial = await authorDenial(req, recipe);
+  if (denial) { res.status(403).json({ error: denial }); return; }
+
+  const subject = ((req.body as { subject?: unknown } | undefined)?.subject ?? {}) as Record<string, unknown>;
+  if (!matchesConditions(recipe, subject)) { res.json({ matched: false, ran: false }); return; }
+
+  if (recipeMutates(recipe)) {
+    // The runner never silently mutates; a mutating recipe must run under an autonomous grant (next slice).
+    res.status(202).json({ matched: true, ran: false, pending: "grant", message: "This recipe mutates and needs an autonomous grant to run." });
+    return;
+  }
+
+  const owner = actorForAudit(req)?.sub ?? "automation";
+  const ctx = await runWorkflow(compileRecipe(recipe), scopedEffects(req, owner));
+  res.json({ matched: true, ran: true, results: ctx.results });
 });
 
 // The recipe store — read open (the SPA lists them), write gated to what the author may edit.

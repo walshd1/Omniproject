@@ -37,3 +37,17 @@ export function useSaveAutomations() {
 export function previewAutomation(recipe: Automation): Promise<AutomationPreview> {
   return sendJson<AutomationPreview>("/api/automations/preview", { recipe }, "POST", "Preview failed");
 }
+
+export interface AutomationRun {
+  matched: boolean;
+  ran: boolean;
+  pending?: string;
+  message?: string;
+  results?: Record<string, unknown>;
+}
+
+/** Run a stored recipe now against a `subject` (a test entity). Inform recipes fire; mutating recipes are
+ *  held for an autonomous grant (202). */
+export function runAutomation(id: string, subject: Record<string, unknown> = {}): Promise<AutomationRun> {
+  return sendJson<AutomationRun>(`/api/automations/${encodeURIComponent(id)}/run`, { subject }, "POST", "Run failed");
+}

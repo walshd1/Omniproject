@@ -72,3 +72,27 @@ test("automations: preview of a bad recipe → 400", async () => {
   const r = await req("/automations/preview", { method: "POST", body: { recipe: { id: "x", label: "", scope: { kind: "org" }, trigger: { kind: "issue.created" }, actions: [] } } });
   assert.equal(r.status, 400);
 });
+
+test("automations: run an inform recipe — conditions gate it, then it fires", async () => {
+  const { updateSettings } = await import("../lib/settings");
+  updateSettings({ automations: [INFORM] });
+  // Subject doesn't match the condition (priority eq high) → not run.
+  const miss = (await (await req("/automations/r1/run", { method: "POST", body: { subject: { priority: "low" } } })).json()) as { matched: boolean; ran: boolean };
+  assert.deepEqual(miss, { matched: false, ran: false });
+  // Matching subject → the notify action runs.
+  const hit = (await (await req("/automations/r1/run", { method: "POST", body: { subject: { priority: "high" } } })).json()) as { matched: boolean; ran: boolean; results: Record<string, unknown> };
+  assert.equal(hit.matched, true);
+  assert.equal(hit.ran, true);
+  assert.deepEqual(hit.results["action-0"], { sent: true });
+});
+
+test("automations: running a mutating recipe is held for a grant (202)", async () => {
+  const { updateSettings } = await import("../lib/settings");
+  updateSettings({ automations: [MUTATING] });
+  const r = await req("/automations/r2/run", { method: "POST", body: { subject: {} } });
+  assert.equal(r.status, 202); // mutating ⇒ needs an autonomous grant; not silently run
+});
+
+test("automations: running an unknown recipe → 404", async () => {
+  assert.equal((await req("/automations/ghost/run", { method: "POST", body: { subject: {} } })).status, 404);
+});

@@ -6,7 +6,7 @@ import { AUTOMATION_TRIGGERS, AUTOMATION_ACTIONS, type AutomationCondition, type
 import { useAuth, isPmoOrAdmin } from "../../lib/auth";
 import { useDraftAdmin } from "../../hooks/use-draft-admin";
 import { useToast } from "@/hooks/use-toast";
-import { useAutomations, useSaveAutomations, previewAutomation, type Automation, type AutomationPreview } from "../../lib/automations";
+import { useAutomations, useSaveAutomations, previewAutomation, runAutomation, type Automation, type AutomationPreview, type AutomationRun } from "../../lib/automations";
 import { AdminSection } from "./AdminSection";
 import { EditableRowTable } from "./EditableRowTable";
 
@@ -33,6 +33,7 @@ export function AutomationsAdmin() {
   const { toast } = useToast();
   const { draft, setDraft, dirty, reset } = useDraftAdmin<Automation[], Automation[]>(server, structuredClone);
   const [preview, setPreview] = useState<Record<string, AutomationPreview>>({});
+  const [runResult, setRunResult] = useState<Record<string, AutomationRun>>({});
 
   if (!isPmoOrAdmin(auth?.role)) return null;
 
@@ -59,6 +60,16 @@ export function AutomationsAdmin() {
       setPreview((prev) => ({ ...prev, [r.id]: p }));
     } catch (e) {
       toast({ title: "PREVIEW FAILED", description: e instanceof Error ? e.message : "Try again.", variant: "destructive" });
+    }
+  };
+
+  // Test-run a SAVED recipe (unconditionally — an empty test subject; conditions still gate on the server).
+  const doTestRun = async (r: Automation) => {
+    try {
+      const out = await runAutomation(r.id, {});
+      setRunResult((prev) => ({ ...prev, [r.id]: out }));
+    } catch (e) {
+      toast({ title: "RUN FAILED", description: e instanceof Error ? e.message : "Save the recipe first, then run.", variant: "destructive" });
     }
   };
 
@@ -154,6 +165,14 @@ export function AutomationsAdmin() {
                 <span className="text-xs" data-testid={`automation-preview-result-${r.id}`}>
                   {p.canAuthor ? "✓ you can run this" : `✗ ${p.reason ?? "not permitted"}`}
                   {p.mutates && " · mutating (needs an autonomous grant)"}
+                </span>
+              )}
+              {!dirty && (
+                <Button type="button" variant="ghost" size="sm" onClick={() => void doTestRun(r)} data-testid={`automation-run-${r.id}`}>Test run</Button>
+              )}
+              {runResult[r.id] && (
+                <span className="text-xs text-muted-foreground" data-testid={`automation-run-result-${r.id}`}>
+                  {runResult[r.id]!.ran ? "ran ✓" : runResult[r.id]!.pending === "grant" ? "held — needs a grant" : "no match (conditions not met)"}
                 </span>
               )}
             </div>
