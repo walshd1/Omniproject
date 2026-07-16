@@ -292,7 +292,20 @@ authoring, and the drift guards — no feature bypasses the golden rules.
   delete across BOTH the demo and built-in brokers — a personal board is `not_found` to a non-owner (no
   leak). Capability-gated on the store: a store that can't persist (the SQL sidecar) leaves the methods
   undefined → routes 501. This is the correct reading of **zero-at-rest**: the sidecar IS the system of
-  record; the stateless overlay still stores nothing. **Slice 3 (next):** live cursors + sticky → work
+  record; the stateless overlay still stores nothing.
+- **Slice 3b ✅ (storage-target model — the canonical "user-held artifact" pattern).** A board is now saved
+  to a **storage target the author chooses**, not the broker by default: their **private** encrypted-JSON
+  area, a **project's shared** area, the **org-wide shared** area, or the **sidecar** SoR (when loaded). The
+  three JSON areas are one **AES-256-GCM sealed** file per (type, scope) under `OMNI_CONFIG_DIR` — a new
+  reusable `lib/artifact-store` (`listArtifacts`/`getArtifact`/`putArtifact`/`deleteArtifact` over `user` /
+  `project` / `org` scopes), so **zero-at-rest holds honestly** (nothing plaintext on disk; disabled when no
+  config dir). Board ids are **self-describing** (`<target>~…~<localId>`) so a later read/write routes to the
+  right store with no lookup; a `user` scope **always** uses the caller's own sub, so one user's id can never
+  address another's area (structurally isolated — proven by an isolation test). Per-target RBAC: read viewer+,
+  author contributor+, delete contributor+, with an **org write/delete additionally requiring manager+**;
+  project targets are `guardProjectScope`-gated. `GET /whiteboards` **aggregates** metadata across every
+  accessible store. The page's create control now picks Personal / Org-wide / Built-in store. **This is the
+  pattern to roll across the board (wiki pages next).** **Slice 3 (remaining):** live cursors + sticky → work
   item + export.
 
 ### 2.4 Proofing / deliverable review & annotation  ⬜ Todo
@@ -504,3 +517,10 @@ so an attachment field would be a URL reference (`url` type) pointing at the sys
 - _2026-07-16_ — Phase 2.2 slice 2 (portal UI + invite) shipped, **completing 2.2** (comment tier deferred):
   a bare `/portal` status page, an AppLayout guest redirect (a guest only ever sees the portal), a manager
   `GuestInvitePanel` in Settings, client hooks, e2e manifest + smoke, unit tests.
+- _2026-07-16_ — Phase 2.3 slice 3b (whiteboard storage-target model) shipped: a board saves to a target the
+  author picks — their private / a project's / the org-wide **encrypted-JSON** area (one AES-256-GCM sealed
+  file per (type, scope) under `OMNI_CONFIG_DIR`, via a new reusable `lib/artifact-store`) or the **sidecar**
+  SoR. Ids are **self-describing** (`<target>~…~<localId>`) so reads route with no lookup; a `user` scope
+  always uses the caller's own sub (cross-user is structurally impossible). Per-target RBAC (org write/delete
+  = manager+, project = `guardProjectScope`); `GET /whiteboards` aggregates across accessible stores. **The
+  canonical pattern for user-held artifacts — wiki pages adopt it next.**

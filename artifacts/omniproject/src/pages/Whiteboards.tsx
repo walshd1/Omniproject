@@ -6,17 +6,24 @@ import { useAuth, roleAtLeast } from "../lib/auth";
 import type { CanvasElement } from "@workspace/backend-catalogue";
 import {
   useWhiteboards, useWhiteboard, useCreateWhiteboard, useSaveWhiteboard, useDeleteWhiteboard,
-  type WhiteboardVisibility,
+  type WhiteboardStorage,
 } from "../lib/whiteboard";
 import { CanvasEditor } from "../components/whiteboard/CanvasEditor";
 
 /**
- * Whiteboards — the visual-canvas page (roadmap 2.3 slice 2). Browse boards, open one into the native SVG
- * editor (built of our `canvas` primitives), and save through the broker seam (zero-at-rest). Authoring under
- * the existing RBAC ladder: read for viewer+, create/edit for contributor+, delete for manager+. When the
- * connected backend has no whiteboard capability the API answers 501 and this page shows an unsupported
- * notice.
+ * Whiteboards — the visual-canvas page (roadmap 2.3). Browse boards, open one into the native SVG editor
+ * (built of our `canvas` primitives), and save to a chosen STORAGE TARGET (all AES-256-GCM sealed at rest):
+ *   - Personal — the author's private encrypted-JSON area (only they see it),
+ *   - Org-wide — the shared encrypted-JSON area (writing needs manager+),
+ *   - Built-in store — the sidecar system-of-record, when it's loaded.
+ * The returned id is self-describing, so a later read/write routes to the right store. Authoring under the
+ * RBAC ladder: read for viewer+, create/edit/delete for contributor+ (an org write additionally needs
+ * manager+). A short human label per target keeps the choice legible.
  */
+/** The label shown on a board's storage badge / in a toast. */
+const STORAGE_LABEL: Record<WhiteboardStorage, string> = {
+  user: "Personal", project: "Project", org: "Org-wide", sidecar: "Built-in store",
+};
 export function Whiteboards() {
   const { data: auth } = useAuth();
   const { toast } = useToast();
@@ -37,7 +44,7 @@ export function Whiteboards() {
   // Working copy of the open board's scene; seeded when a board loads, saved on demand.
   const [elements, setElements] = useState<CanvasElement[]>([]);
   const [dirty, setDirty] = useState(false);
-  const [newVisibility, setNewVisibility] = useState<WhiteboardVisibility>("org");
+  const [newStorage, setNewStorage] = useState<WhiteboardStorage>("user");
   useEffect(() => {
     if (boardQ.data) { setElements(boardQ.data.scene.elements ?? []); setDirty(false); }
   }, [boardQ.data]);
@@ -45,16 +52,17 @@ export function Whiteboards() {
   const onChange = (next: CanvasElement[]) => { setElements(next); setDirty(true); };
 
   const onCreate = () => create.mutate(
-    { name: "Untitled board", scene: { elements: [] }, visibility: newVisibility },
+    { name: "Untitled board", scene: { elements: [] }, storage: newStorage },
     {
-      onSuccess: (b) => { setBoardId(b.id); toast({ title: "WHITEBOARD CREATED", description: newVisibility === "user" ? "Personal (only you)" : "Shared with your org" }); },
+      onSuccess: (b) => { setBoardId(b.id); toast({ title: "WHITEBOARD CREATED", description: `Saved to ${STORAGE_LABEL[newStorage]}` }); },
       onError: (e) => toast({ title: "COULD NOT CREATE", description: e instanceof Error ? e.message : "Try again.", variant: "destructive" }),
     },
   );
   const onSave = () => {
     if (!boardQ.data) return;
     save.mutate(
-      { name: boardQ.data.name, scene: { elements }, visibility: boardQ.data.visibility ?? "org" },
+      // The storage target is fixed by the board's self-describing id, so the server ignores it on update.
+      { name: boardQ.data.name, scene: { elements } },
       {
         onSuccess: () => { setDirty(false); toast({ title: "WHITEBOARD SAVED" }); },
         onError: (e) => toast({ title: "COULD NOT SAVE", description: e instanceof Error ? e.message : "Try again.", variant: "destructive" }),
@@ -94,10 +102,11 @@ export function Whiteboards() {
             </ul>
             {canAuthor && (
               <div className="flex items-center gap-1">
-                <select aria-label="New board visibility" data-testid="whiteboard-visibility" value={newVisibility} onChange={(e) => setNewVisibility(e.target.value as WhiteboardVisibility)}
+                <select aria-label="New board storage target" data-testid="whiteboard-storage" value={newStorage} onChange={(e) => setNewStorage(e.target.value as WhiteboardStorage)}
                   className="h-8 border border-border bg-background text-xs px-1">
-                  <option value="org">Shared</option>
                   <option value="user">Personal</option>
+                  {canDelete && <option value="org">Org-wide</option>}
+                  <option value="sidecar">Built-in store</option>
                 </select>
                 <Button type="button" variant="outline" size="sm" data-testid="whiteboard-new" disabled={create.isPending} onClick={onCreate}>
                   <Plus className="h-3 w-3 mr-1" />New
@@ -111,12 +120,14 @@ export function Whiteboards() {
               <div className="space-y-2">
                 <header className="flex flex-wrap items-center gap-2">
                   <h2 className="text-lg font-bold min-w-0">{boardQ.data.name}</h2>
-                  <span className="text-[10px] uppercase tracking-widest px-1.5 py-0.5 rounded border border-border text-muted-foreground flex-1-none" data-testid="whiteboard-visibility-badge">
-                    {boardQ.data.visibility === "user" ? "Personal" : "Shared"}
+                  <span className="text-[10px] uppercase tracking-widest px-1.5 py-0.5 rounded border border-border text-muted-foreground flex-1-none" data-testid="whiteboard-storage-badge">
+                    {STORAGE_LABEL[boardQ.data.storage ?? "user"]}
                   </span>
                   <span className="flex-1" />
                   {canAuthor && <Button type="button" size="sm" data-testid="whiteboard-save" disabled={!dirty || save.isPending} onClick={onSave}><Save className="h-3 w-3 mr-1" />{save.isPending ? "Saving…" : "Save"}</Button>}
-                  {canDelete && <Button type="button" variant="ghost" size="sm" data-testid="whiteboard-delete" disabled={del.isPending} onClick={onDelete}><Trash2 className="h-3 w-3 mr-1" />Delete</Button>}
+                  {/* Delete is contributor+ for personal/project/sidecar boards; an org-wide board additionally needs manager+. */}
+                  {canAuthor && (boardQ.data.storage !== "org" || canDelete) &&
+                    <Button type="button" variant="ghost" size="sm" data-testid="whiteboard-delete" disabled={del.isPending} onClick={onDelete}><Trash2 className="h-3 w-3 mr-1" />Delete</Button>}
                 </header>
                 <CanvasEditor elements={elements} onChange={onChange} readOnly={!canAuthor} />
               </div>

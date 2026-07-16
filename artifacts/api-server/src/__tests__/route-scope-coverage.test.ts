@@ -128,9 +128,15 @@ const CLASSIFICATION: Record<string, ScopeClass> = {
   // revision within the doc's own history, not per-tenant data.
   "GET /wiki/docs/:id/versions": "org-content",
   "GET /wiki/docs/:id/versions/:versionId": "org-content",
-  // Whiteboard id names an org-wide shared canvas (same posture as a wiki doc): read viewer+, write
-  // contributor+, delete manager+; the scene lives in the backend through the broker seam. No per-tenant
-  // partition for the id to breach.
+  // A whiteboard id is SELF-DESCRIBING (`<target>~…~<localId>`): it names a store, not a bare tenant id.
+  //  - `user~…`    the caller's PRIVATE area — the scope always uses the CALLER's own sub, so one user's id
+  //                can never address another's area (structurally isolated, no lateral vector).
+  //  - `project~…` a project's shared area — guarded by guardProjectScope on the encoded projectId (so this
+  //                variant is in fact project-scoped, stricter than org-content).
+  //  - `org~…`     the org-wide shared area — read viewer+, write/delete manager+ (the org-content posture).
+  //  - `sidecar~…` the built-in SoR, reached through the broker seam.
+  // Classified org-content: the open-read variant (org) has no partition to breach, and the user/project
+  // variants add STRICTER guards on top — never weaker.
   "GET /whiteboards/:id": "org-content",
   "PUT /whiteboards/:id": "org-content",
   "DELETE /whiteboards/:id": "org-content",

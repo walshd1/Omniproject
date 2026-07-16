@@ -4,19 +4,28 @@ import { getJson, sendJson } from "./api";
 
 /**
  * Whiteboard / visual-canvas client hooks over `/api/whiteboards/*` (roadmap 2.3). A board's scene is a list
- * of typed `canvas`-family primitives (sticky/shape/text/connector/frame) stored in the backend through the
- * broker seam (zero-at-rest), bounded + sanitised per-type server-side; these hooks read/write it. The native
- * canvas editor (built of those primitives) is a later slice — this is the data layer it builds on. Live
- * cursors reuse the collab relay under the room `board:<id>`.
+ * of typed `canvas`-family primitives (sticky/shape/text/connector/frame) stored in an encrypted-JSON area
+ * (or the sidecar SoR), bounded + sanitised per-type server-side; these hooks read/write it. The author picks
+ * a STORAGE TARGET on create — their private area, a project's shared area, the org-wide area, or the sidecar
+ * — and the returned id is self-describing so every later read/write routes to the right store. Live cursors
+ * reuse the collab relay under the room `board:<id>`.
  */
 
 export type { CanvasElement } from "@workspace/backend-catalogue";
 export interface WhiteboardScene { elements: CanvasElement[]; appState?: Record<string, unknown> }
-/** Org-wide (shared) vs personal (owner-only) — the sidecar SoR persists + enforces this. */
+/** Org-wide (shared) vs personal (owner-only) — retained for the sidecar SoR's own model. */
 export type WhiteboardVisibility = "org" | "user";
-export interface WhiteboardMeta { id: string; name: string; projectId?: string | null; ownerSub?: string | null; visibility?: WhiteboardVisibility; updatedAt: string; updatedBy?: string | null }
+/**
+ * Where a board is saved — the author's CHOICE (permission-gated server-side):
+ *   - `user`     their PRIVATE encrypted-JSON area (default; only they see it).
+ *   - `project`  a project's shared encrypted-JSON area (needs project access).
+ *   - `org`      the org-wide shared encrypted-JSON area (writing needs manager+).
+ *   - `sidecar`  the built-in system-of-record, when it's loaded.
+ */
+export type WhiteboardStorage = "user" | "project" | "org" | "sidecar";
+export interface WhiteboardMeta { id: string; name: string; projectId?: string | null; ownerSub?: string | null; visibility?: WhiteboardVisibility; storage?: WhiteboardStorage; updatedAt: string; updatedBy?: string | null }
 export interface Whiteboard extends WhiteboardMeta { scene: WhiteboardScene }
-export interface WhiteboardInput { name: string; scene: WhiteboardScene; projectId?: string | null; visibility?: WhiteboardVisibility }
+export interface WhiteboardInput { name: string; scene: WhiteboardScene; storage?: WhiteboardStorage; projectId?: string | null; visibility?: WhiteboardVisibility }
 
 /** The shared-surface room id a board uses for presence + live cursors (matches the server convention). */
 export const whiteboardRoomId = (boardId: string) => `board:${boardId}`;
@@ -58,7 +67,7 @@ export function useSaveWhiteboard(id: string) {
   });
 }
 
-/** Delete a board (manager+ server-side). */
+/** Delete a board (contributor+ server-side; the org target additionally needs manager+). */
 export function useDeleteWhiteboard() {
   const qc = useQueryClient();
   return useMutation({
