@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { forwardRef, useImperativeHandle, useMemo, useRef, useState } from "react";
 import rough from "roughjs";
 import { MousePointer2, StickyNote, Square, Type, Spline, Pen, Frame, Trash2 } from "lucide-react";
 import type { CanvasElement, CanvasElementType, ShapeKind, StickyColor } from "@workspace/backend-catalogue";
@@ -26,13 +26,17 @@ const TOOLS: { tool: Tool; icon: typeof MousePointer2; label: string }[] = [
   { tool: "frame", icon: Frame, label: "Frame" },
 ];
 
-export function CanvasEditor({ elements, onChange, readOnly = false }: {
+/** Imperative handle: lets the page reach the live `<svg>` (for export) without owning the editor's state. */
+export interface CanvasEditorHandle { getSvg: () => SVGSVGElement | null }
+
+export const CanvasEditor = forwardRef<CanvasEditorHandle, {
   elements: CanvasElement[];
   onChange: (next: CanvasElement[]) => void;
   readOnly?: boolean;
-}) {
+}>(function CanvasEditor({ elements, onChange, readOnly = false }, ref) {
   const gen = useMemo(() => rough.generator(), []);
   const svgRef = useRef<SVGSVGElement>(null);
+  useImperativeHandle(ref, () => ({ getSvg: () => svgRef.current }), []);
   const [tool, setTool] = useState<Tool>("select");
   const [color, setColor] = useState<StickyColor>("yellow");
   const [shape, setShape] = useState<ShapeKind>("rectangle");
@@ -189,4 +193,4 @@ export function CanvasEditor({ elements, onChange, readOnly = false }: {
       </div>
     </div>
   );
-}
+});

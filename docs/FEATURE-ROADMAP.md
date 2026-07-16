@@ -318,8 +318,15 @@ authoring, and the drift guards — no feature bypasses the golden rules.
   author contributor+, delete contributor+, with an **org write/delete additionally requiring manager+**;
   project targets are `guardProjectScope`-gated. `GET /whiteboards` **aggregates** metadata across every
   accessible store. The page's create control now picks Personal / Org-wide / Built-in store. **This is the
-  pattern to roll across the board (wiki pages next).** **Slice 3 (remaining):** live cursors + sticky → work
-  item + export.
+  pattern to roll across the board (wiki pages next).**
+- **Slice 3c ✅ (export — SVG + PNG).** A board exports to a **portable file, entirely client-side** (nothing
+  uploaded, so no residency concern): a **standalone SVG** (vector, cropped to the scene bounds with an opaque
+  white background) or a **rasterised PNG** (2× via an offscreen canvas). Built by cloning the live `<svg>`,
+  so the export captures exactly what's on screen — roughjs hand-drawn paths and perfect-freehand strokes and
+  all — rather than re-deriving the drawing. The scene-bounds maths is pure + unit-tested; the editor exposes
+  its `<svg>` through a small imperative ref so the page's Export controls reach it without owning editor
+  state. Export is offered to **anyone who can see the board (incl. viewers)**. **Slice 3 (remaining):** live
+  cursors + sticky → work item.
 
 ### 2.4 Proofing / deliverable review & annotation  ⬜ Todo
 - **Competitors.** Adobe Workfront, Wrike, Smartsheet. **Gap.** No creative review markup.
@@ -545,3 +552,8 @@ so an attachment field would be a URL reference (`url` type) pointing at the sys
   restore still work), **backlinks** across every accessible store, and space grouping (broker ∪ `General`
   fallback ∪ synthesised). Self-describing ids, `user` scope always the caller's own sub, per-target RBAC. The
   wiki no longer needs a broker at all.
+- _2026-07-16_ — Phase 2.3 slice 3c (whiteboard export) shipped: a board exports to a **standalone SVG**
+  (vector, cropped to the scene with a white background) or a **rasterised PNG** (2×), entirely client-side —
+  nothing uploaded. Built by cloning the live `<svg>` so the export matches the screen exactly (roughjs +
+  freehand included); pure scene-bounds maths (`lib/whiteboard-export`, unit-tested); the editor exposes its
+  `<svg>` via an imperative ref. Offered to anyone who can see the board (incl. viewers).

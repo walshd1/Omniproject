@@ -46,6 +46,14 @@ describe("Whiteboards page", () => {
     expect(screen.queryByTestId("whiteboard-new")).not.toBeInTheDocument();
   });
 
+  it("offers SVG + PNG export once a board is open (even to a viewer — export is client-side)", async () => {
+    mockFetch();
+    renderWithProviders(<Whiteboards />, { client: seed("viewer") });
+    fireEvent.click(await screen.findByTestId("board-link-wb1"));
+    expect(await screen.findByTestId("whiteboard-export-svg")).toBeInTheDocument();
+    expect(screen.getByTestId("whiteboard-export-png")).toBeInTheDocument();
+  });
+
   it("lets a contributor start a new board", async () => {
     mockFetch();
     renderWithProviders(<Whiteboards />, { client: seed("contributor") });
