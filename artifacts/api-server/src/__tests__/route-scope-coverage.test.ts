@@ -128,6 +128,12 @@ const CLASSIFICATION: Record<string, ScopeClass> = {
   // revision within the doc's own history, not per-tenant data.
   "GET /wiki/docs/:id/versions": "org-content",
   "GET /wiki/docs/:id/versions/:versionId": "org-content",
+  // Whiteboard id names an org-wide shared canvas (same posture as a wiki doc): read viewer+, write
+  // contributor+, delete manager+; the scene lives in the backend through the broker seam. No per-tenant
+  // partition for the id to breach.
+  "GET /whiteboards/:id": "org-content",
+  "PUT /whiteboards/:id": "org-content",
+  "DELETE /whiteboards/:id": "org-content",
 
   // ── Own-resource / approver: in-handler RBAC + state machine ──
   "POST /timesheets/:id/action": "self-or-approver",
@@ -177,7 +183,7 @@ function collectRoutes(router: IRouter): string[] {
  *  code isn't mounted in the test env (so a per-resource route in a disabled module can't escape the ratchet). */
 async function perResourceRoutes(): Promise<Set<string>> {
   const assembled = (await import("../routes/index")).default as IRouter;
-  const featureMods = ["presence", "comments", "collab", "odata", "integrations"];
+  const featureMods = ["presence", "comments", "collab", "whiteboard", "odata", "integrations"];
   const routes = new Set<string>(collectRoutes(assembled));
   for (const name of featureMods) {
     const mod = (await import(`../routes/${name}`)).default as IRouter;

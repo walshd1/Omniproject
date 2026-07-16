@@ -47,6 +47,14 @@ const WRITE_CLASSIFIERS = {
     const fields = Object.keys(input).filter((k) => k !== "id" && k !== "spaceId");
     return { action: `${op}_wiki_doc`, projectId: null, fields, now };
   },
+  // writeWhiteboard(ctx, op, input) authors a visual canvas — a genuine mutation. Same shape as the wiki:
+  // a per-op action grant (`${op}_whiteboard`), not project-scoped (projectId null), fail-closed.
+  writeWhiteboard: (args, now): WriteRequest => {
+    const op = str(args[1]) ?? "update";
+    const input = rec(args[2]);
+    const fields = Object.keys(input).filter((k) => k !== "id");
+    return { action: `${op}_whiteboard`, projectId: null, fields, now };
+  },
   // storeCredential(ctx, {backend,name,value}) delegates a vendor secret into the broker vault — a
   // genuine mutation. The secret VALUE is never put in the request (grants scope by action/project,
   // not by content); an autonomous actor with no store_credential grant is denied, fail-closed.

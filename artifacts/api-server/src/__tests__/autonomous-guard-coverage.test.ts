@@ -30,6 +30,8 @@ const KNOWN_NON_MUTATING = new Set([
   "projectHistory", "projectMembers", "projectSummary", "replay", "resourceCapacity", "verify", "verifyConnection",
   // Wiki reads (bodies fetched from the backend through the seam; writeWikiDoc is the guarded mutation).
   "getWikiDoc", "listWikiDocs", "listWikiSpaces", "listWikiDocVersions", "getWikiDocVersion",
+  // Whiteboard reads (writeWhiteboard is the guarded mutation).
+  "getWhiteboard", "listWhiteboards",
 ]);
 
 /** Extract the method names declared on `export interface Broker { … }` from types.ts (methods only —

@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { PRIMITIVES, primitiveStore, primitivesByFamily, primitivesFor, getPrimitive, primitiveTree, categoriesFor, allTags, primitivesByTag } from "./primitive-store";
 import { PANEL_RENDERERS } from "../components/screen/registry";
 import { PRIMITIVE_LIBRARY } from "../definitions/primitives";
-import { FORM_FIELD_TYPES, DOC_BLOCK_TYPES, componentLibrary } from "@workspace/backend-catalogue";
+import { FORM_FIELD_TYPES, DOC_BLOCK_TYPES, CANVAS_ELEMENT_TYPES, componentLibrary } from "@workspace/backend-catalogue";
 
 /**
  * Drift guard for THE single primitive store. It binds each family back to its authoritative registry, so
@@ -37,6 +37,16 @@ describe("primitive-store (single shared store)", () => {
     expect(primitivesFor("content").some((p) => p.family === "block")).toBe(true);
   });
 
+  it("the canvas family exactly matches the shared canvas element types", () => {
+    const store = primitivesByFamily("canvas").map((p) => p.id).sort();
+    expect(store).toEqual([...CANVAS_ELEMENT_TYPES].sort());
+  });
+
+  it("canvas primitives are placeable only on the canvas surface", () => {
+    expect(primitivesByFamily("canvas").every((p) => p.placeableIn.includes("canvas"))).toBe(true);
+    expect(primitivesFor("canvas").some((p) => p.family === "canvas")).toBe(true);
+  });
+
   it("the component family exactly matches the shared component library", () => {
     const store = primitivesByFamily("component").map((p) => p.id).sort();
     const lib = componentLibrary().map((c) => c.id).sort();
@@ -44,7 +54,7 @@ describe("primitive-store (single shared store)", () => {
   });
 
   it("ids are unique within each family", () => {
-    for (const family of ["panel", "viz", "field", "block", "component"] as const) {
+    for (const family of ["panel", "viz", "field", "block", "canvas", "component"] as const) {
       const ids = primitivesByFamily(family).map((p) => p.id);
       expect(new Set(ids).size, `family ${family}`).toBe(ids.length);
     }

@@ -15,7 +15,7 @@
 
 import type { SessionBind } from "../lib/session-key";
 import type { Scope } from "../lib/scope";
-import type { DocBlock } from "@workspace/backend-catalogue";
+import type { DocBlock, CanvasElement } from "@workspace/backend-catalogue";
 
 /** Loosely-typed record — the normalised row shape the broker exchanges. */
 export type Row = Record<string, unknown>;
@@ -270,6 +270,42 @@ export interface WikiDocVersionMeta {
   at: string;
   author?: string | null;
   title: string;
+}
+
+/**
+ * A WHITEBOARD — a freeform visual canvas (roadmap 2.3). The drawing is an opaque scene of vector
+ * elements; like a wiki page it is authored in OmniProject but STORED through the broker (zero-at-rest),
+ * so it inherits the data seam's residency + audit. `scene` is a bounded, sanitised JSON payload (no
+ * embedded image data, links restricted to safe schemes) — never executed, just persisted + rendered.
+ */
+export interface WhiteboardScene {
+  /** The canvas elements — typed `canvas`-family primitives (sticky/shape/text/connector/frame), validated
+   *  per-type at the gateway. Built of shared primitives, not an opaque third-party scene blob. */
+  elements: CanvasElement[];
+  /** A minimal, sanitised view state (e.g. background colour) — never a full editor appState. */
+  appState?: Record<string, unknown>;
+}
+export interface Whiteboard extends Row {
+  id: string;
+  name: string;
+  /** Optional owning project (a board raised against a project); null for an org-level board. */
+  projectId?: string | null;
+  scene: WhiteboardScene;
+  updatedAt: string;
+  updatedBy?: string | null;
+}
+export interface WhiteboardWrite {
+  name: string;
+  projectId?: string | null | undefined;
+  scene: WhiteboardScene;
+}
+/** A board's metadata (no scene body) — the list view. */
+export interface WhiteboardMeta {
+  id: string;
+  name: string;
+  projectId?: string | null;
+  updatedAt: string;
+  updatedBy?: string | null;
 }
 
 /** A child issue/note raised against a task (the work-item). */
@@ -563,6 +599,15 @@ export interface Broker {
   listWikiDocVersions?(ctx: ActorContext, docId: string): Promise<WikiDocVersionMeta[]>;
   /** One saved revision with its blocks (for preview / diff / restore), or null. */
   getWikiDocVersion?(ctx: ActorContext, docId: string, versionId: string): Promise<WikiDocVersion | null>;
+
+  // ── Whiteboards / visual canvas — OPTIONAL (the routes answer 501 when absent). Scenes live here, in
+  //    the system of record — zero-at-rest, like the wiki.
+  /** The whiteboards, optionally scoped to one project (scene bodies omitted in the list). */
+  listWhiteboards?(ctx: ActorContext, opts?: { projectId?: string }): Promise<Whiteboard[]>;
+  /** One whiteboard by id (with its scene), or null. */
+  getWhiteboard?(ctx: ActorContext, id: string): Promise<Whiteboard | null>;
+  /** Create / update / delete a whiteboard (contributor+, capability-gated). Returns the board (null on delete). */
+  writeWhiteboard?(ctx: ActorContext, op: "create" | "update" | "delete", input: WhiteboardWrite & { id?: string }): Promise<Whiteboard | null>;
 
   // Read-model long tail (explicit methods — no action strings leak upward)
   listActivity(ctx: ActorContext): Promise<Row[]>;

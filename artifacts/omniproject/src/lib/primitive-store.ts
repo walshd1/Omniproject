@@ -1,6 +1,6 @@
 import { PANEL_RENDERERS } from "../components/screen/registry";
 import { PRIMITIVE_LIBRARY } from "../definitions/primitives";
-import { componentLibrary, FORM_FIELD_TYPES, DOC_BLOCK_TYPES } from "@workspace/backend-catalogue";
+import { componentLibrary, FORM_FIELD_TYPES, DOC_BLOCK_TYPES, CANVAS_ELEMENT_TYPES } from "@workspace/backend-catalogue";
 
 /**
  * THE single shared primitive store — one catalogue over every renderable building block in the product,
@@ -16,9 +16,10 @@ import { componentLibrary, FORM_FIELD_TYPES, DOC_BLOCK_TYPES } from "@workspace/
  *  - `field`     form input controls (text/select/email/…) — from FORM_FIELD_TYPES.
  *  - `component` hosted reports + dashboard widgets — from the shared component library.
  *  - `block`     document/wiki content blocks (heading/paragraph/checklist/…) — from DOC_BLOCK_TYPES.
+ *  - `canvas`    whiteboard elements (sticky/shape/text/connector/frame) — from CANVAS_ELEMENT_TYPES.
  */
-export type PrimitiveFamily = "panel" | "viz" | "field" | "component" | "block";
-export type PlacementSurface = "screen" | "report" | "dashboard" | "content" | "form" | "export";
+export type PrimitiveFamily = "panel" | "viz" | "field" | "component" | "block" | "canvas";
+export type PlacementSurface = "screen" | "report" | "dashboard" | "content" | "form" | "export" | "canvas";
 
 export interface Primitive {
   /** Unique WITHIN its family (a `table` panel and a `table` viz are different primitives). */
@@ -90,6 +91,15 @@ const BLOCK_META: Record<string, { category: string; tags: string[] }> = {
   embed: { category: "media", tags: ["reference", "external"] },
 };
 
+/** `canvas` family — subfolder + tags per whiteboard element primitive. */
+const CANVAS_META: Record<string, { category: string; tags: string[] }> = {
+  sticky: { category: "note", tags: ["annotate"] },
+  shape: { category: "shape", tags: ["geometry"] },
+  text: { category: "note", tags: [] },
+  connector: { category: "relation", tags: ["link", "flow"] },
+  frame: { category: "structure", tags: ["group"] },
+};
+
 /** `viz` family — cross-cutting tags per data-visualisation primitive (subfolder is its chart category). */
 const VIZ_TAGS: Record<string, string[]> = {
   bar: ["comparison"], line: ["timeseries", "trend"], area: ["timeseries", "trend"],
@@ -136,6 +146,14 @@ function blockPrimitives(): Primitive[] {
   });
 }
 
+/** `canvas` family — the whiteboard element primitives. Elements live on a canvas (the `canvas` surface). */
+function canvasPrimitives(): Primitive[] {
+  return CANVAS_ELEMENT_TYPES.map((id) => {
+    const meta = CANVAS_META[id] ?? { category: "other", tags: [] };
+    return { id, sourceId: id, family: "canvas", label: titleCase(id), category: meta.category, tags: meta.tags, placeableIn: ["canvas"] };
+  });
+}
+
 /** `component` family — hosted reports + widgets, already placement-tagged by the shared library. */
 function componentPrimitives(): Primitive[] {
   return componentLibrary().map((c) => ({
@@ -155,6 +173,7 @@ export const PRIMITIVES: Primitive[] = [
   ...vizPrimitives(),
   ...fieldPrimitives(),
   ...blockPrimitives(),
+  ...canvasPrimitives(),
   ...componentPrimitives(),
 ];
 
