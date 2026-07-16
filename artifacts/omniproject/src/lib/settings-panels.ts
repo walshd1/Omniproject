@@ -11,7 +11,7 @@ export const SETTINGS_PANEL_KEYS = [
   "premium", "securityKeys", "nlCommand", "healthWatch", "copilot", "portfolioInsights", "estimateAssistant",
   "rebalancePanel", "provenanceDashboard", "deploymentProfile", "featureModules", "featureGovernance",
   "rateCard", "scopeUplift", "rateGrid", "identityMap", "costRules", "budgetPlans", "resourceAllocations",
-  "raci", "stakeholders", "forms", "automations", "screens", "customReports", "customBackend",
+  "raci", "stakeholders", "forms", "automations", "templates", "screens", "customReports", "customBackend",
   "contentPages", "priorityWeights", "federatedPeers", "governanceRules", "fieldVisibility",
   "governanceDashboard", "governance", "aiProviders", "actionCatalogue", "a11y", "calendarPush", "labels",
   "priorityLabels", "viewBuilder", "methodologyComposer", "performance", "usageLimits",

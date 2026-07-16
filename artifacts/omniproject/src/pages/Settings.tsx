@@ -57,6 +57,7 @@ import { RaciAdmin } from "../components/settings/RaciAdmin";
 import { StakeholdersAdmin } from "../components/settings/StakeholdersAdmin";
 import { FormsAdmin } from "../components/settings/FormsAdmin";
 import { AutomationsAdmin } from "../components/settings/AutomationsAdmin";
+import { TemplatesAdmin } from "../components/settings/TemplatesAdmin";
 import { CustomBackendAdmin } from "../components/settings/CustomBackendAdmin";
 import { ContentPagesAdmin } from "../components/settings/ContentPagesAdmin";
 import { FederatedPeersAdmin } from "../components/settings/FederatedPeersAdmin";
@@ -144,6 +145,7 @@ const ADMIN_PANELS: AdminPanel[] = [
   { key: "stakeholders", Component: StakeholdersAdmin },
   { key: "forms", Component: FormsAdmin },
   { key: "automations", Component: AutomationsAdmin },
+  { key: "templates", Component: TemplatesAdmin },
   { key: "screens", Component: ScreensAdmin },
   { key: "customReports", Component: CustomReportsAdmin },
   { key: "customBackend", Component: CustomBackendAdmin },

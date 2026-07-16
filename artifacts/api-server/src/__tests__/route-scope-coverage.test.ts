@@ -110,6 +110,9 @@ const CLASSIFICATION: Record<string, ScopeClass> = {
   // running it re-checks the caller's RBAC (authorDenial) + evaluates conditions + runs caller-scoped, and a
   // mutating recipe is refused (202) pending a grant — so the id is not a lateral-movement vector.
   "POST /automations/:id/run": "global-config",
+  // Template id names an org-global config object (the `templates` collection), NOT tenant data; instantiate
+  // is manager+ gated and creates a NEW project via the scope-checked broker, so the id is not a lateral vector.
+  "POST /templates/:id/instantiate": "global-config",
 
   // ── Own-resource / approver: in-handler RBAC + state machine ──
   "POST /timesheets/:id/action": "self-or-approver",

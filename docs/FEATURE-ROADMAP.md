@@ -137,7 +137,7 @@ already exist, so they close the most competitive distance for the least build.
   per-collection gate; `autonomous-guard` + `autonomous-grant` for scheduled/agent runs;
   scheduled-job/recurrence for time triggers; settings collection for recipe defs.
 
-### 1.3 Project & portfolio template gallery  ⬜ Todo
+### 1.3 Project & portfolio template gallery  ✅ Done (slice 1)
 - **Rationale.** "Spin up a project/portfolio from a template." Everyone has it; OmniProject
   has methodology presets + screen-def bundles but no end-user template gallery.
 - **Competitors.** All of them.
@@ -147,6 +147,15 @@ already exist, so they close the most competitive distance for the least build.
   audited.
 - **Architecture leverage.** `config-bundle`/`config-snapshot` plumbing; `screenDefs`
   merge; methodology composition presets.
+- **Delivered (slice 1).** Built like forms: shared `template-catalogue` (shipped starters:
+  scrum-starter, prince2-starter) → org-overridable `templates` config store → admin **gallery**
+  (`TemplatesAdmin`: add-from-catalogue, curate, instantiate). Server: `lib/project-template.ts`
+  (validation + pure instantiation plan), `routes/templates.ts` (defs GET/PUT admin-PMO +
+  `POST /templates/:id/instantiate` — manager+, creates the project + seeds its work items through
+  the broker, audited). New `:id` route classified in the route-scope ratchet.
+  Tests: shared catalogue (2), lib (3), route (4), TemplatesAdmin (3). **Follow-up:** capture a
+  LIVE project's screen-defs + config bundle into a template (currently authored/curated), and
+  apply a template's methodology/composition on instantiate.
 
 ---
 

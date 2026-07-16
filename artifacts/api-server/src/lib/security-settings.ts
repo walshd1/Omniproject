@@ -126,7 +126,7 @@ export const CHOICE_SETTINGS: readonly string[] = [
   "screenDefs", "disabledScreens", "collectionEditRoles", "panelViews", "raci", "stakeholders", "forms",
   // Automation recipes — authored config; the security of what they DO is enforced at authoring + run time
   // (RBAC gate + the workflow runner's no-silent-mutation invariant), not at the edit gate.
-  "automations",
+  "automations", "templates",
   // UserConfig
   "userPrefs",
   // PlatformConfig
