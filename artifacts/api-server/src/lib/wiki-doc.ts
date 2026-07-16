@@ -9,7 +9,7 @@
  */
 import type { Request } from "express";
 import { getBroker, contextFromReq } from "../broker";
-import type { WikiSpace, WikiDoc, WikiDocWrite } from "../broker/types";
+import type { WikiSpace, WikiDoc, WikiDocWrite, WikiDocVersion, WikiDocVersionMeta } from "../broker/types";
 import {
   DOC_BLOCK_TYPES, WIKI_LIMITS, CALLOUT_TONES, docWikiLinks, slugifyDocTitle,
   type DocBlock, type DocBlockType, type DocListItem, type CalloutTone,
@@ -192,4 +192,17 @@ export const writeWikiDoc = (req: Request, op: "create" | "update" | "delete", i
   const b = getBroker();
   if (!b.writeWikiDoc) throw new Error("this backend does not support a wiki");
   return b.writeWikiDoc(contextFromReq(req), op, input);
+};
+
+/** Whether the active broker retains document revisions (the version-history capability). */
+export const brokerHasWikiVersions = (): boolean => !!getBroker().listWikiDocVersions;
+/** A document's saved revisions, newest first (metadata only) — empty when unsupported. */
+export const listWikiDocVersions = (req: Request, docId: string): Promise<WikiDocVersionMeta[]> => {
+  const b = getBroker();
+  return b.listWikiDocVersions ? b.listWikiDocVersions(contextFromReq(req), docId) : Promise.resolve([]);
+};
+/** One saved revision with its blocks (for preview / diff / restore), or null. */
+export const getWikiDocVersion = (req: Request, docId: string, versionId: string): Promise<WikiDocVersion | null> => {
+  const b = getBroker();
+  return b.getWikiDocVersion ? b.getWikiDocVersion(contextFromReq(req), docId, versionId) : Promise.resolve(null);
 };

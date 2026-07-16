@@ -12,11 +12,13 @@ const DOCS = [
 ];
 const DOC = { id: "d1", spaceId: "space-a", slug: "d1", title: "Doc One", updatedAt: "", blocks: [{ id: "b", type: "paragraph", text: "hello world" }], backlinks: [] };
 
+const VERSIONS = [{ versionId: "v1", docId: "d1", at: "2026-07-01T00:00:00.000Z", author: "a@x", title: "Doc One" }];
 function mockWikiFetch() {
   return vi.spyOn(globalThis, "fetch").mockImplementation((input: RequestInfo | URL) => {
     const url = String(input);
     let body: unknown = {};
     if (url.endsWith("/api/wiki/spaces")) body = SPACES;
+    else if (url.includes("/api/wiki/docs/d1/versions")) body = VERSIONS;
     else if (url.includes("/api/wiki/docs/d1")) body = DOC;
     else if (url.includes("/api/wiki/docs")) body = DOCS;
     return Promise.resolve(new Response(JSON.stringify(body), { status: 200 }));
@@ -66,6 +68,16 @@ describe("Wiki page", () => {
     // Child is one level deeper than its parent (indentation carried on data-depth).
     expect(parent).toHaveAttribute("data-depth", "0");
     expect(child).toHaveAttribute("data-depth", "1");
+  });
+
+  it("toggles the version-history panel on the open document", async () => {
+    mockWikiFetch();
+    renderWithProviders(<Wiki />, { client: seed("viewer") });
+    fireEvent.click(await screen.findByTestId("doc-link-d1"));
+    await screen.findByText("hello world");
+    fireEvent.click(screen.getByTestId("wiki-history-toggle"));
+    expect(await screen.findByTestId("doc-history")).toBeInTheDocument();
+    expect(await screen.findByTestId("history-version-v1")).toBeInTheDocument();
   });
 
   it("mounts the comments thread on the open document (doc:<id> room)", async () => {

@@ -30,6 +30,8 @@ import {
   type WikiSpace,
   type WikiDoc,
   type WikiDocWrite,
+  type WikiDocVersion,
+  type WikiDocVersionMeta,
   type Summary,
   type HistoryPoint,
   type HistoryState,
@@ -100,6 +102,33 @@ function seedWikiDocs(): WikiDoc[] {
   ];
 }
 let SAMPLE_WIKI_DOCS: WikiDoc[] = seedWikiDocs();
+/** Per-document revision history (newest last), captured on every write. Demo-only + RAM-only, bounded so a
+ *  long-lived dev session can't grow it without limit. A real backend would keep these in its store. */
+let SAMPLE_WIKI_VERSIONS: Record<string, WikiDocVersion[]> = seedWikiVersions();
+let wikiVersionCounter = 100;
+/** The maximum revisions retained per document (oldest trimmed) — mirrors config-store's bounded ring. */
+const MAX_WIKI_VERSIONS = 50;
+/** Seed one baseline revision per seeded doc, so the demo history is non-empty from boot. */
+function seedWikiVersions(): Record<string, WikiDocVersion[]> {
+  const out: Record<string, WikiDocVersion[]> = {};
+  for (const d of seedWikiDocs()) {
+    out[d.id] = [{
+      versionId: `wv-${d.id}-1`, docId: d.id, at: d.updatedAt, author: d.updatedBy ?? null,
+      title: d.title, blocks: d.blocks.map((b) => ({ ...b })),
+    }];
+  }
+  return out;
+}
+/** Append a revision snapshot for a document and trim the ring. Snapshots are deep-copied so later edits to
+ *  the live doc can't mutate a stored version. */
+function captureWikiVersion(doc: WikiDoc, author: string, at: string): void {
+  const list = SAMPLE_WIKI_VERSIONS[doc.id] ?? (SAMPLE_WIKI_VERSIONS[doc.id] = []);
+  list.push({
+    versionId: `wv-${++wikiVersionCounter}`, docId: doc.id, at, author,
+    title: doc.title, blocks: doc.blocks.map((b) => ({ ...b })),
+  });
+  if (list.length > MAX_WIKI_VERSIONS) list.splice(0, list.length - MAX_WIKI_VERSIONS);
+}
 /** In-memory child issues/notes per task (demo only). */
 const SAMPLE_TASK_ITEMS: Record<string, TaskItem[]> = {};
 /** Demo GTD tasks — actionable next-actions across the portfolio, distinct from issues. */
@@ -118,11 +147,13 @@ export function resetDemoBrokerState(): void {
   resetDemoDataToSeed();
   for (const k of Object.keys(SAMPLE_TASK_ITEMS)) delete SAMPLE_TASK_ITEMS[k];
   SAMPLE_WIKI_DOCS = seedWikiDocs();
+  SAMPLE_WIKI_VERSIONS = seedWikiVersions();
   issueCounter = 100;
   raidCounter = 100;
   projectCounter = 100;
   taskItemCounter = 100;
   wikiDocCounter = 100;
+  wikiVersionCounter = 100;
 }
 
 // Scheduled once per process (guarded below), not per DemoBroker instance —
@@ -468,6 +499,7 @@ export class DemoBroker implements Broker {
       const before = SAMPLE_WIKI_DOCS.length;
       SAMPLE_WIKI_DOCS = SAMPLE_WIKI_DOCS.filter((d) => d.id !== input.id);
       if (SAMPLE_WIKI_DOCS.length === before) throw new BrokerError("not_found", "Document not found");
+      if (input.id) delete SAMPLE_WIKI_VERSIONS[input.id]; // a deleted doc's history goes with it
       persistDemoState();
       return null;
     }
@@ -482,6 +514,7 @@ export class DemoBroker implements Broker {
       if (input.slug) doc.slug = input.slug;
       doc.updatedAt = now;
       doc.updatedBy = who;
+      captureWikiVersion(doc, who, now); // snapshot this saved revision into the doc's history
       persistDemoState();
       return { ...doc, blocks: doc.blocks.map((b) => ({ ...b })) };
     }
@@ -496,8 +529,20 @@ export class DemoBroker implements Broker {
       updatedBy: who,
     };
     SAMPLE_WIKI_DOCS.push(created);
+    captureWikiVersion(created, who, now); // the initial revision
     persistDemoState();
     return { ...created, blocks: created.blocks.map((b) => ({ ...b })) };
+  }
+
+  async listWikiDocVersions(_ctx: ActorContext, docId: string): Promise<WikiDocVersionMeta[]> {
+    const list = SAMPLE_WIKI_VERSIONS[docId] ?? [];
+    // Newest first; metadata only (no block bodies) for the history list.
+    return list.map((v) => ({ versionId: v.versionId, docId: v.docId, at: v.at, author: v.author ?? null, title: v.title })).reverse();
+  }
+
+  async getWikiDocVersion(_ctx: ActorContext, docId: string, versionId: string): Promise<WikiDocVersion | null> {
+    const v = (SAMPLE_WIKI_VERSIONS[docId] ?? []).find((x) => x.versionId === versionId);
+    return v ? { ...v, blocks: v.blocks.map((b) => ({ ...b })) } : null;
   }
 
   async listActivity(): Promise<Row[]> {

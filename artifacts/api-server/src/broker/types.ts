@@ -250,6 +250,28 @@ export interface WikiDocWrite {
   blocks: DocBlock[];
 }
 
+/**
+ * A saved REVISION of a wiki document — a point-in-time snapshot captured by the system of record on each
+ * write, so a page's history is auditable and any prior state can be restored (by re-saving its content
+ * through the normal update path). `versionId` is unique within the document's history.
+ */
+export interface WikiDocVersion extends Row {
+  versionId: string;
+  docId: string;
+  at: string;               // ISO 8601 — when this revision was saved
+  author?: string | null;   // who saved it
+  title: string;
+  blocks: DocBlock[];
+}
+/** A revision's metadata (no block body) — the history list view. */
+export interface WikiDocVersionMeta {
+  versionId: string;
+  docId: string;
+  at: string;
+  author?: string | null;
+  title: string;
+}
+
 /** A child issue/note raised against a task (the work-item). */
 export interface TaskItem extends Row {
   id: string;
@@ -536,6 +558,11 @@ export interface Broker {
   getWikiDoc?(ctx: ActorContext, id: string): Promise<WikiDoc | null>;
   /** Create / update / delete a document (contributor+, capability-gated). Returns the doc (null on delete). */
   writeWikiDoc?(ctx: ActorContext, op: "create" | "update" | "delete", input: WikiDocWrite & { id?: string }): Promise<WikiDoc | null>;
+  /** A document's saved revisions, newest first (metadata only) — the version history. Optional: a backend
+   *  that doesn't retain revisions omits it and the history route answers 501. */
+  listWikiDocVersions?(ctx: ActorContext, docId: string): Promise<WikiDocVersionMeta[]>;
+  /** One saved revision with its blocks (for preview / diff / restore), or null. */
+  getWikiDocVersion?(ctx: ActorContext, docId: string, versionId: string): Promise<WikiDocVersion | null>;
 
   // Read-model long tail (explicit methods — no action strings leak upward)
   listActivity(ctx: ActorContext): Promise<Row[]>;

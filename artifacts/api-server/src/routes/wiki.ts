@@ -3,6 +3,7 @@ import { withBrokerErrors } from "../broker";
 import { requireRole } from "../lib/rbac";
 import {
   brokerHasWiki, listWikiSpaces, listWikiDocs, getWikiDoc, writeWikiDoc,
+  brokerHasWikiVersions, listWikiDocVersions, getWikiDocVersion,
   sanitizeWikiDocWrite, resolveBacklinks, WikiError,
 } from "../lib/wiki-doc";
 
@@ -51,6 +52,27 @@ router.get("/wiki/docs/:id", requireRole("viewer"), (req, res) =>
     // Backlinks are computed from the corpus' block text (server-side), so a doc always shows who links to it.
     const corpus = await listAllDocsWithBodies(req);
     res.json({ ...doc, backlinks: resolveBacklinks(doc, corpus) });
+  }),
+);
+
+// GET /api/wiki/docs/:id/versions — the document's saved revisions, newest first (viewer+). 501 when the
+// backend doesn't retain revisions (the doc CRUD may still work without history).
+router.get("/wiki/docs/:id/versions", requireRole("viewer"), (req, res) =>
+  withBrokerErrors(req, res, "list_wiki_doc_versions failed", async () => {
+    if (!requireWiki(res)) return;
+    if (!brokerHasWikiVersions()) { res.status(501).json({ error: "this backend does not retain document history" }); return; }
+    res.json(await listWikiDocVersions(req, String(req.params["id"])));
+  }),
+);
+
+// GET /api/wiki/docs/:id/versions/:versionId — one revision with its blocks, for preview / diff / restore (viewer+).
+router.get("/wiki/docs/:id/versions/:versionId", requireRole("viewer"), (req, res) =>
+  withBrokerErrors(req, res, "get_wiki_doc_version failed", async () => {
+    if (!requireWiki(res)) return;
+    if (!brokerHasWikiVersions()) { res.status(501).json({ error: "this backend does not retain document history" }); return; }
+    const version = await getWikiDocVersion(req, String(req.params["id"]), String(req.params["versionId"]));
+    if (!version) { res.status(404).json({ error: "Version not found" }); return; }
+    res.json(version);
   }),
 );
 
