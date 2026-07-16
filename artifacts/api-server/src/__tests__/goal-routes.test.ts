@@ -96,6 +96,24 @@ test("a check-in updates key results, appends history, and recomputes progress",
   assert.equal(metas.find((m) => m.id === created.id)!.checkInCount, 1);
 });
 
+test("linking a work item is idempotent and removable by key", async () => {
+  const created = await (await req("/goals", { method: "POST", body: { title: "Linkable", keyResults: [] } })).json() as { id: string };
+  const gid = encodeURIComponent(created.id);
+  const linkBody = { system: "jira", projectRef: "OMNI", itemRef: "OMNI-7", label: "Epic" };
+  const r1 = await req(`/goals/${gid}/links`, { method: "POST", body: linkBody });
+  assert.equal(r1.status, 201);
+  const g1 = (await r1.json()) as { links: Array<{ key: string; itemRef: string }> };
+  assert.equal(g1.links.length, 1);
+  const key = g1.links[0]!.key;
+  // Re-linking the same item leaves a single link (idempotent).
+  const g2 = await (await req(`/goals/${gid}/links`, { method: "POST", body: linkBody })).json() as { links: unknown[] };
+  assert.equal(g2.links.length, 1);
+  // Unlink by key.
+  const r3 = await req(`/goals/${gid}/links/${encodeURIComponent(key)}`, { method: "DELETE" });
+  assert.equal(r3.status, 200);
+  assert.equal(((await r3.json()) as { links: unknown[] }).links.length, 0);
+});
+
 test("list returns metadata (no key results); a viewer may read the endpoint", async () => {
   await req("/goals", { method: "POST", body: { title: "Listable", keyResults: [{ label: "x", target: 1, current: 1 }] } });
   const r = await req("/goals"); // as the owner (ADMIN)

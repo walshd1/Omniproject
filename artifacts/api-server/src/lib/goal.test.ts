@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   keyResultAttainment, goalProgress, sanitizeGoalWrite, sanitizeKeyResults,
   sanitizeCheckInWrite, applyCheckIn, GOAL_LIMITS,
+  sanitizeGoalLink, addGoalLink, removeGoalLink, goalLinkKey,
   makeGoalId, parseGoalId, newGoalRow, mergeGoalRow, goalMeta, GoalError, type KeyResult,
 } from "./goal";
 import type { ActorContext } from "../broker/types";
@@ -96,4 +97,30 @@ test("applyCheckIn: updates KR values, recomputes progress, sets status, appends
   // History is bounded to the last maxCheckIns.
   for (let i = 0; i < GOAL_LIMITS.maxCheckIns + 5; i++) row = applyCheckIn(row, sanitizeCheckInWrite({ krValues: { "kr-1": i } }), `x-${i}`, ctx, "2026-02-01T00:00:00Z");
   assert.equal(row.checkins.length, GOAL_LIMITS.maxCheckIns);
+});
+
+test("goal links: sanitise, idempotent add, keyed remove", () => {
+  const now = "2026-01-01T00:00:00Z";
+  assert.throws(() => sanitizeGoalLink({ system: "jira" }, now), (e) => e instanceof GoalError); // missing refs
+  const link = sanitizeGoalLink({ system: "jira", projectRef: "OMNI", itemRef: "OMNI-42", label: "Ship it" }, now);
+  assert.equal(link.key, goalLinkKey("jira", "OMNI", "OMNI-42"));
+  assert.equal(link.label, "Ship it");
+
+  const w = sanitizeGoalWrite({ title: "G", keyResults: [] });
+  let row = newGoalRow(makeGoalId("user", "g"), w, ctx, now);
+  row = addGoalLink(row, link, ctx, now);
+  assert.equal(row.links.length, 1);
+  assert.equal(row.version, 2);
+  assert.equal(goalMeta(row).linkCount, 1);
+
+  // Re-linking the same item is a no-op (idempotent — same key, no version bump).
+  const same = addGoalLink(row, sanitizeGoalLink({ system: "jira", projectRef: "OMNI", itemRef: "OMNI-42" }, now), ctx, now);
+  assert.equal(same.links.length, 1);
+  assert.equal(same.version, 2);
+
+  const removed = removeGoalLink(row, link.key, ctx, now);
+  assert.equal(removed.links.length, 0);
+  assert.equal(removed.version, 3);
+  // Removing an unknown key is a no-op (no version bump).
+  assert.equal(removeGoalLink(row, "nope", ctx, now).version, row.version);
 });
