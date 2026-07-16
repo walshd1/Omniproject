@@ -182,7 +182,7 @@ PDF overlay) enters as a **primitive** in the shared store, so it inherits capab
 authoring, and the drift guards — no feature bypasses the golden rules.
 
 
-### 2.1 Collaborative docs / wiki / knowledge base  🚧 In progress (slice 1)
+### 2.1 Collaborative docs / wiki / knowledge base  🚧 In progress (slices 1–2)
 - **Competitors.** Notion, ClickUp, Confluence, Wrike. **Gap.** "Content pages" is a CMS
   library, not real-time rich-text co-editing / linked wiki.
 - **Acceptance.** Rich-text documents with links/embeds, per-space organisation, presence
@@ -199,8 +199,13 @@ authoring, and the drift guards — no feature bypasses the golden rules.
   bodies stored as block JSON (no HTML sink), rendered as escaped React text. `[[wiki-links]]`
   + server-resolved **backlinks**. Read-only `DocRenderer` + client hooks. Presence room
   `doc:<id>` and comments thread `doc:<id>` reuse the existing seams (no new realtime surface).
-- **Slice 2+ (next).** Authoring UI + page tree/spaces nav; **Yjs** CRDT co-edit (binds via
-  `y-prosemirror`, awareness = live cursors) over our SSE; version-diff history.
+- **Slice 2 ✅ (authoring UI).** A `/wiki` page: spaces nav + doc list, read a document (rendered
+  from its primitive blocks + server-resolved backlinks), and a **block-based `DocEditor`** whose
+  insertable palette is drawn from the shared primitive store's `block` family (documents built of
+  primitives). Create/edit/delete under the existing RBAC ladder (author contributor+, delete
+  manager+); 501 → "unsupported" notice. Nav entry + route-coverage manifest + unit/e2e tests.
+- **Slice 3+ (next).** **Yjs** CRDT co-edit (binds via `y-prosemirror`, awareness = live cursors)
+  over our SSE; live presence on a doc; version-diff history; a page tree (parentId nesting).
 
 ### 2.2 Guest / external collaboration & client portals  ⬜ Todo
 - **Competitors.** Monday, Wrike, Smartsheet. **Gap.** Enterprise-IdP/SCIM only; no
