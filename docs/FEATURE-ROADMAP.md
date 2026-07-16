@@ -529,6 +529,14 @@ authoring, and the drift guards — no feature bypasses the golden rules.
   `project-forecast` / `cascade-reschedule` (trailing optional param, defaults 8) and consumed by the forecast
   report, the board Gantt cascade, and Critical Path. 5 server validator tests + 3 resolver tests; existing
   suites green (defaults preserve behaviour). **Next:** the admin settings card to edit it (7b).
+- **Follow-up 7b ✅ (working-time admin UI).** `components/settings/SchedulingSettingsAdmin` — a **Working time
+  (scheduling)** card in Settings: an hours-per-day number input, a Mon→Sun working-week toggle row, and a
+  holiday-date add/remove list. Saves the `scheduling` block via `PATCH /api/settings` and invalidates BOTH
+  the engine's `["settings"]` slice and the generated settings key so every forecast / Gantt cascade / critical
+  path re-plans immediately; Save is disabled until valid (hours ∈ (0,24], ≥1 working day). Registered as the
+  `scheduling` admin panel (palette-jumpable). Also fixed a **pre-existing panel drift** (an earlier slice's
+  `guestInvite` panel was missing from `SETTINGS_PANEL_KEYS`). 3 component tests (seed, save-PATCH, validation
+  gate) + the panel drift-guard now green. **Working-time is now fully user-configurable.**
 
 ### 3.2 Goals / OKRs as a managed cadence  ⬜ Todo
 - **Competitors.** Asana Goals, Viva Goals, ClickUp. **Have.** Strategy cascade + PI board

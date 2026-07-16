@@ -39,6 +39,7 @@ import { PriorityLabelsAdmin } from "../components/settings/PriorityLabelsAdmin"
 import { ViewBuilder } from "../components/settings/ViewBuilder";
 import { MethodologyComposer } from "../components/settings/MethodologyComposer";
 import { PerformanceSettings } from "../components/settings/PerformanceSettings";
+import { SchedulingSettingsAdmin } from "../components/settings/SchedulingSettingsAdmin";
 import { UsageLimitsAdmin } from "../components/settings/UsageLimitsAdmin";
 import { GovernanceAdmin } from "../components/settings/GovernanceAdmin";
 import { ActionCatalogue } from "../components/settings/ActionCatalogue";
@@ -167,6 +168,7 @@ const ADMIN_PANELS: AdminPanel[] = [
   { key: "viewBuilder", Component: ViewBuilder, wrap: "section" },
   { key: "methodologyComposer", Component: MethodologyComposer, wrap: "section" },
   { key: "performance", Component: PerformanceSettings },
+  { key: "scheduling", Component: SchedulingSettingsAdmin },
   { key: "usageLimits", Component: UsageLimitsAdmin },
 ];
 
