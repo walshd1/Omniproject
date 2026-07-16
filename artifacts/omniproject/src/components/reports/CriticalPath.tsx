@@ -4,6 +4,7 @@ import { useMemo } from "react";
 import { useGetProjectIssues, getGetProjectIssuesQueryKey, type Issue } from "@workspace/api-client-react";
 import { criticalPath, type CpmEdge, type CpmNode } from "../../lib/critical-path";
 import { loadEdges, type DependencyEdge } from "../../lib/dependencies";
+import { useSchedulingSettings } from "../../lib/scheduling-settings";
 import { DataState } from "../DataState";
 import { PathChain } from "../charts/PathChain";
 
@@ -16,17 +17,19 @@ import { PathChain } from "../charts/PathChain";
  */
 
 const DAY_MS = 86_400_000;
-const HOURS_PER_DAY = 8;
+const DEFAULT_HOURS_PER_DAY = 8;
 
-/** Activity duration in working days: a start→due span if both exist, else estimate/8, else 0 (a milestone). */
-export function durationDays(issue: Pick<Issue, "startDate" | "dueDate" | "estimateHours">): number {
+/** Activity duration in working days: a start→due span if both exist, else estimate ÷ hours-per-day, else 0
+ *  (a milestone). Hours-per-day is org-configurable (defaults to 8). */
+export function durationDays(issue: Pick<Issue, "startDate" | "dueDate" | "estimateHours">, hoursPerDay: number = DEFAULT_HOURS_PER_DAY): number {
   const s = issue.startDate ? Date.parse(issue.startDate) : NaN;
   const d = issue.dueDate ? Date.parse(issue.dueDate) : NaN;
   if (!Number.isNaN(s) && !Number.isNaN(d) && d >= s) {
     return Math.max(1, Math.round((d - s) / DAY_MS) + 1);
   }
   const est = issue.estimateHours ?? 0;
-  if (est > 0) return Math.max(1, Math.round(est / HOURS_PER_DAY));
+  const perDay = hoursPerDay > 0 ? hoursPerDay : DEFAULT_HOURS_PER_DAY;
+  if (est > 0) return Math.max(1, Math.round(est / perDay));
   return 0;
 }
 
@@ -52,15 +55,16 @@ export function CriticalPath({ projectId, edges }: { projectId: string; edges?: 
     query: { queryKey: getGetProjectIssuesQueryKey(projectId) },
   });
   const allEdges = useMemo(() => edges ?? loadEdges(), [edges]);
+  const { hoursPerDay } = useSchedulingSettings();
 
   const { nodes, cpmEdges, titleOf } = useMemo(() => {
     const list = issues ?? [];
     const ids = new Set(list.map((i) => i.id));
-    const ns: CpmNode[] = list.map((i) => ({ id: i.id, duration: durationDays(i) }));
+    const ns: CpmNode[] = list.map((i) => ({ id: i.id, duration: durationDays(i, hoursPerDay) }));
     const titles: Record<string, string> = {};
     for (const i of list) titles[i.id] = i.title;
     return { nodes: ns, cpmEdges: toCpmEdges(allEdges, projectId, ids), titleOf: titles };
-  }, [issues, allEdges, projectId]);
+  }, [issues, allEdges, projectId, hoursPerDay]);
 
   const result = useMemo(() => criticalPath(nodes, cpmEdges), [nodes, cpmEdges]);
 
@@ -125,7 +129,7 @@ export function CriticalPath({ projectId, edges }: { projectId: string; edges?: 
           />
 
           <p className="text-[11px] text-muted-foreground">
-            Durations are derived (start→due span, else estimate ÷ {HOURS_PER_DAY}h/day); precedence comes from your
+            Durations are derived (start→due span, else estimate ÷ {hoursPerDay}h/day); precedence comes from your
             {" "}<strong>blocks / depends-on</strong> links. Critical activities (zero float) set the finish date — nothing is stored.
           </p>
         </div>

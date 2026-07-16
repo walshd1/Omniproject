@@ -16,7 +16,8 @@ import { type DependencyEdge } from "./dependencies";
  * richer typed edges + lag can layer on later without changing this seam's shape.
  */
 
-const HOURS_PER_DAY = 8;
+/** Default hours in a working day when no org config is supplied. */
+export const DEFAULT_HOURS_PER_DAY = 8;
 
 /** The minimal issue shape the scheduler needs. */
 export type ScheduleIssue = Pick<Issue, "id" | "startDate" | "dueDate" | "estimateHours">;
@@ -30,14 +31,15 @@ export interface ScheduleTaskOptions {
  * Working-day duration for an issue: the inclusive start→due working-day span if both dates exist, else
  * estimate ÷ 8h, else 0 (a milestone). Mirrors `CriticalPath.durationDays` but counts working days only.
  */
-export function issueDurationWorkingDays(cal: WorkingCalendar, issue: ScheduleIssue): number {
+export function issueDurationWorkingDays(cal: WorkingCalendar, issue: ScheduleIssue, hoursPerDay: number = DEFAULT_HOURS_PER_DAY): number {
   const s = issue.startDate ? isoToDay(String(issue.startDate)) : NaN;
   const d = issue.dueDate ? isoToDay(String(issue.dueDate)) : NaN;
   if (Number.isFinite(s) && Number.isFinite(d) && d >= s) {
     return Math.max(1, workingDaysBetween(cal, s, d + 1)); // half-open [s, d+1) = inclusive [s, d]
   }
   const est = issue.estimateHours ?? 0;
-  if (est > 0) return Math.max(1, Math.round(est / HOURS_PER_DAY));
+  const perDay = hoursPerDay > 0 ? hoursPerDay : DEFAULT_HOURS_PER_DAY;
+  if (est > 0) return Math.max(1, Math.round(est / perDay));
   return 0;
 }
 
@@ -49,13 +51,14 @@ export function issuesToScheduleTasks(
   cal: WorkingCalendar,
   issues: readonly ScheduleIssue[],
   opts: ScheduleTaskOptions = {},
+  hoursPerDay: number = DEFAULT_HOURS_PER_DAY,
 ): ScheduleTask[] {
   return issues.map((issue) => {
     const start = issue.startDate ? isoToDay(String(issue.startDate)) : NaN;
     const constraint = opts.constraints?.[issue.id];
     return {
       id: issue.id,
-      durationWorkingDays: issueDurationWorkingDays(cal, issue),
+      durationWorkingDays: issueDurationWorkingDays(cal, issue, hoursPerDay),
       ...(Number.isFinite(start) ? { earliestStartDay: nextWorkingDay(cal, start) } : {}),
       ...(constraint ? { constraint } : {}),
     };

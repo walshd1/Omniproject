@@ -32,6 +32,7 @@ export function computeCascade(
   currentStartById: Readonly<Record<string, number>>,
   draggedId: string,
   deltaDays: number,
+  hoursPerDay?: number,
 ): Map<string, number> {
   const out = new Map<string, number>();
   if (deltaDays === 0) return out;
@@ -40,7 +41,7 @@ export function computeCascade(
   const dependencies = dependencyEdgesToTyped(edges, projectId, ids);
 
   // Anchor every task at its current position so the pass only ever pushes work later, never earlier.
-  const base = issuesToScheduleTasks(cal, issues).map((t) => ({
+  const base = issuesToScheduleTasks(cal, issues, {}, hoursPerDay).map((t) => ({
     ...t,
     earliestStartDay: currentStartById[t.id] ?? t.earliestStartDay ?? 0,
   }));

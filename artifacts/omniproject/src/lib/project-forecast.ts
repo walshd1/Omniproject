@@ -43,9 +43,10 @@ export function computeProjectForecast(
   projectId: string,
   nowDay: number,
   opts: ScheduleTaskOptions = {},
+  hoursPerDay?: number,
 ): ProjectForecast {
   const ids = new Set(issues.map((i) => i.id));
-  const tasks = issuesToScheduleTasks(cal, issues, opts);
+  const tasks = issuesToScheduleTasks(cal, issues, opts, hoursPerDay);
   const dependencies = dependencyEdgesToTyped(edges, projectId, ids);
   const projectStartDay = resolveProjectStartDay(tasks, nowDay);
   const result = autoSchedule(cal, { tasks, dependencies, projectStartDay });
