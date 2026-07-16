@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { PenTool, Plus, Trash2, Save, Download } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth, roleAtLeast } from "../lib/auth";
+import { useListProjects, useCreateIssue } from "@workspace/api-client-react";
 import type { CanvasElement } from "@workspace/backend-catalogue";
 import {
   useWhiteboards, useWhiteboard, useCreateWhiteboard, useSaveWhiteboard, useDeleteWhiteboard,
@@ -13,8 +14,9 @@ import { sceneBounds, toExportSvg, svgToPngBlob, downloadBlob, exportFileStem } 
 
 /**
  * Whiteboards — the visual-canvas page (roadmap 2.3). Browse boards, open one into the native SVG editor
- * (built of our `canvas` primitives), export it as SVG/PNG (client-side, nothing uploaded), and save to a
- * chosen STORAGE TARGET (all AES-256-GCM sealed at rest):
+ * (built of our `canvas` primitives), turn a sticky into a work item (broker `createIssue` in a chosen
+ * project), export it as SVG/PNG (client-side, nothing uploaded), and save to a chosen STORAGE TARGET (all
+ * AES-256-GCM sealed at rest):
  *   - Personal — the author's private encrypted-JSON area (only they see it),
  *   - Org-wide — the shared encrypted-JSON area (writing needs manager+),
  *   - Built-in store — the sidecar system-of-record, when it's loaded.
@@ -52,6 +54,17 @@ export function Whiteboards() {
     if (boardQ.data) { setElements(boardQ.data.scene.elements ?? []); setDirty(false); }
   }, [boardQ.data]);
 
+  // Sticky → work item: the target project for a conversion. Defaults to the board's own project (a
+  // project-stored board), else the first visible project. contributor+ (issue creation) only.
+  const projectsData = useListProjects().data;
+  const projects = Array.isArray(projectsData) ? projectsData : [];
+  const createIssue = useCreateIssue();
+  const [convertProject, setConvertProject] = useState<string>("");
+  useEffect(() => {
+    const boardProject = boardQ.data?.projectId ?? "";
+    setConvertProject((cur) => cur || boardProject || projects[0]?.id || "");
+  }, [boardQ.data, projects]);
+
   const onChange = (next: CanvasElement[]) => { setElements(next); setDirty(true); };
 
   const onCreate = () => create.mutate(
@@ -78,6 +91,24 @@ export function Whiteboards() {
       onSuccess: () => { setBoardId(""); setElements([]); toast({ title: "WHITEBOARD DELETED" }); },
       onError: (e) => toast({ title: "COULD NOT DELETE", description: e instanceof Error ? e.message : "Try again.", variant: "destructive" }),
     });
+  };
+  // Sticky → work item: create an issue in the chosen project from the sticky's text, then link the sticky
+  // back to that project's board (an absolute URL, so the write-side sanitiser keeps it).
+  const onConvertSticky = (el: CanvasElement) => {
+    const title = (el.text ?? "").trim();
+    if (!title) return;
+    if (!convertProject) { toast({ title: "PICK A PROJECT", description: "Choose a project for the new work item.", variant: "destructive" }); return; }
+    createIssue.mutate(
+      { projectId: convertProject, data: { title } },
+      {
+        onSuccess: () => {
+          const link = `${window.location.origin}/projects/${convertProject}`;
+          onChange(elements.map((e) => (e.id === el.id ? { ...e, link } : e)));
+          toast({ title: "WORK ITEM CREATED", description: `${title} — save the board to keep the link` });
+        },
+        onError: (e) => toast({ title: "COULD NOT CREATE", description: e instanceof Error ? e.message : "Try again.", variant: "destructive" }),
+      },
+    );
   };
   // Export the open board — SVG (vector) or PNG (raster). Purely client-side (nothing leaves the browser).
   const onExport = async (format: "svg" | "png") => {
@@ -143,6 +174,13 @@ export function Whiteboards() {
                     {STORAGE_LABEL[boardQ.data.storage ?? "user"]}
                   </span>
                   <span className="flex-1" />
+                  {/* Target project for a sticky → work-item conversion (contributor+ authoring only). */}
+                  {canAuthor && projects.length > 0 && (
+                    <select aria-label="Convert-to-item project" data-testid="whiteboard-convert-project" value={convertProject}
+                      onChange={(e) => setConvertProject(e.target.value)} className="h-8 border border-border bg-background text-xs px-1 max-w-[10rem]">
+                      {projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                    </select>
+                  )}
                   {/* Export is available to anyone who can see the board (incl. viewers) — it's purely client-side. */}
                   <Button type="button" variant="outline" size="sm" data-testid="whiteboard-export-svg" onClick={() => onExport("svg")}><Download className="h-3 w-3 mr-1" />SVG</Button>
                   <Button type="button" variant="outline" size="sm" data-testid="whiteboard-export-png" onClick={() => onExport("png")}><Download className="h-3 w-3 mr-1" />PNG</Button>
@@ -151,7 +189,8 @@ export function Whiteboards() {
                   {canAuthor && (boardQ.data.storage !== "org" || canDelete) &&
                     <Button type="button" variant="ghost" size="sm" data-testid="whiteboard-delete" disabled={del.isPending} onClick={onDelete}><Trash2 className="h-3 w-3 mr-1" />Delete</Button>}
                 </header>
-                <CanvasEditor ref={editorRef} elements={elements} onChange={onChange} readOnly={!canAuthor} />
+                <CanvasEditor ref={editorRef} elements={elements} onChange={onChange} readOnly={!canAuthor}
+                  onConvertSticky={canAuthor ? onConvertSticky : undefined} converting={createIssue.isPending} />
               </div>
             ) : (
               <p className="text-sm text-muted-foreground" data-testid="whiteboards-no-selection">Select a whiteboard to open, or create one.</p>

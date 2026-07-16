@@ -37,4 +37,21 @@ describe("CanvasEditor", () => {
     fireEvent.click(screen.getByTestId("canvas-delete"));
     expect(onChange.mock.calls.at(-1)![0]).toEqual([]);
   });
+
+  it("offers 'Create work item' on a selected sticky and calls back with it", () => {
+    const els: CanvasElement[] = [{ id: "s1", type: "sticky", x: 10, y: 10, w: 120, h: 80, text: "Cutover" }];
+    const onConvertSticky = vi.fn<(el: CanvasElement) => void>();
+    render(<CanvasEditor elements={els} onChange={() => {}} onConvertSticky={onConvertSticky} />);
+    fireEvent.pointerDown(screen.getByTestId("canvas-surface"), { clientX: 20, clientY: 20, pointerId: 1 });
+    fireEvent.click(screen.getByTestId("canvas-to-issue"));
+    expect(onConvertSticky).toHaveBeenCalledTimes(1);
+    expect(onConvertSticky.mock.calls[0]![0]).toMatchObject({ id: "s1", text: "Cutover" });
+  });
+
+  it("disables 'Create work item' for a sticky with no text", () => {
+    const els: CanvasElement[] = [{ id: "s1", type: "sticky", x: 10, y: 10, w: 120, h: 80, text: "" }];
+    render(<CanvasEditor elements={els} onChange={() => {}} onConvertSticky={() => {}} />);
+    fireEvent.pointerDown(screen.getByTestId("canvas-surface"), { clientX: 20, clientY: 20, pointerId: 1 });
+    expect(screen.getByTestId("canvas-to-issue")).toBeDisabled();
+  });
 });

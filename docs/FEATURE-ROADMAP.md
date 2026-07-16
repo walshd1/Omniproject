@@ -325,8 +325,14 @@ authoring, and the drift guards — no feature bypasses the golden rules.
   so the export captures exactly what's on screen — roughjs hand-drawn paths and perfect-freehand strokes and
   all — rather than re-deriving the drawing. The scene-bounds maths is pure + unit-tested; the editor exposes
   its `<svg>` through a small imperative ref so the page's Export controls reach it without owning editor
-  state. Export is offered to **anyone who can see the board (incl. viewers)**. **Slice 3 (remaining):** live
-  cursors + sticky → work item.
+  state. Export is offered to **anyone who can see the board (incl. viewers)**.
+- **Slice 3d ✅ (sticky → work item).** A selected sticky offers a **"Create work item"** action that mints a
+  real issue from its text through the existing broker seam (`createIssue`) into a **chosen project** (a
+  header picker, defaulting to the board's own project for a project-stored board, else the first visible
+  project). On success the sticky is **linked back** to that project's board (an absolute URL, so the
+  write-side sanitiser keeps it — save the board to persist the link). contributor+ (issue authoring); the
+  editor stays dumb (it just calls back), the page owns project selection + creation. **Slice 3 (remaining):**
+  multi-user live cursors.
 
 ### 2.4 Proofing / deliverable review & annotation  ⬜ Todo
 - **Competitors.** Adobe Workfront, Wrike, Smartsheet. **Gap.** No creative review markup.
@@ -557,3 +563,8 @@ so an attachment field would be a URL reference (`url` type) pointing at the sys
   nothing uploaded. Built by cloning the live `<svg>` so the export matches the screen exactly (roughjs +
   freehand included); pure scene-bounds maths (`lib/whiteboard-export`, unit-tested); the editor exposes its
   `<svg>` via an imperative ref. Offered to anyone who can see the board (incl. viewers).
+- _2026-07-16_ — Phase 2.3 slice 3d (sticky → work item) shipped: a selected sticky mints a real issue from
+  its text through the broker seam (`createIssue`) into a chosen project (header picker, defaulting to the
+  board's own project), then links the sticky back to that project's board (absolute URL → survives the
+  sanitiser). contributor+; the editor calls back, the page owns project selection. Only live cursors remain
+  for 2.3.
