@@ -9,7 +9,6 @@ import {
   registryItemMeta, listRegistryItems, getRegistryItem, putRegistryItem, deleteRegistryItem, RegistryError,
   type RegistryItem, type RegistryItemMeta,
 } from "../lib/registry";
-import { loadReferenceDesigns, referenceDesign } from "../lib/registry-reference";
 
 /**
  * ORG REGISTRY routes (org-wide store of approved bespoke items), behind the default-off `registry` module.
@@ -17,6 +16,9 @@ import { loadReferenceDesigns, referenceDesign } from "../lib/registry-reference
  * calls the community-marketplace seam — a no-op until a real online marketplace is connected). Read is
  * viewer+, but a non-admin only sees APPROVED items + their OWN submissions (admins see the whole queue).
  * Items are pure-JSON building blocks — no executable code.
+ *
+ * NB: the repo's `reference-designs/` are commented SKELETONS for admins/devs to copy & adapt — never loaded
+ * or served by the app. There is deliberately no reference endpoint here.
  */
 const router = Router();
 
@@ -36,20 +38,6 @@ function visibleTo(req: Parameters<typeof contextFromReq>[0], items: RegistryIte
 router.get("/registry/community/status", requireRole("viewer"), (_req, res) => {
   const cm = getCommunityMarketplace();
   res.json({ connected: cm.configured(), name: cm.name() });
-});
-
-// GET /api/registry/reference — the published reference designs (annotated, copy-pasteable examples) so
-// anyone can learn the canonical shape and build their own primitives / JSON defs (viewer+). These are read
-// from the repo's `reference-designs/` JSON files — the files are the source of truth, not code.
-router.get("/registry/reference", requireRole("viewer"), (_req, res) => {
-  res.json(loadReferenceDesigns());
-});
-
-// GET /api/registry/reference/:slug — one reference design by slug (viewer+).
-router.get("/registry/reference/:slug", requireRole("viewer"), (req, res) => {
-  const design = referenceDesign(String(req.params["slug"]));
-  if (!design) { res.status(404).json({ error: "Reference design not found" }); return; }
-  res.json(design);
 });
 
 // GET /api/registry?kind=&status=&visibility= — the visible items (payload omitted) (viewer+).

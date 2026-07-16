@@ -27,17 +27,10 @@ export interface RegistryItem extends RegistryItemMeta {
   releasedAt: string | null; communityRef: string | null; rowVersion: number;
 }
 
-/** A published reference design (an annotated, copy-pasteable example) — mirrors the server shape. */
-export interface ReferenceDesign {
-  slug: string; title: string; kind: RegistryItemKind; summary: string; notes: string[];
-  example: { kind: RegistryItemKind; name: string; publisher: string; version: string; description: string; tags: string[]; payload: Record<string, unknown> };
-}
-
 export interface CommunityStatus { connected: boolean; name: string | null }
 
 export const registryKey = ["registry"] as const;
 export const registryItemKey = (id: string) => ["registry-item", id] as const;
-export const referenceDesignsKey = ["registry-reference"] as const;
 export const communityStatusKey = ["registry-community-status"] as const;
 
 /** The visible registry items (payload omitted). Non-admins see approved + their own. */
@@ -48,11 +41,6 @@ export function useRegistry() {
 /** One registry item with its payload. */
 export function useRegistryItem(id: string | undefined) {
   return useQuery({ queryKey: registryItemKey(id ?? ""), queryFn: () => getJson<RegistryItem>(`/api/registry/${encodeURIComponent(id!)}`), enabled: !!id, staleTime: 10_000 });
-}
-
-/** The published reference designs (viewer+). */
-export function useReferenceDesigns() {
-  return useQuery({ queryKey: referenceDesignsKey, queryFn: () => getJson<ReferenceDesign[]>("/api/registry/reference"), staleTime: 300_000 });
 }
 
 /** Whether a community marketplace is connected. */

@@ -1,0 +1,46 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// REFERENCE SKELETON — a visualisation PRIMITIVE (a drop-in chart)
+//
+// This file is a commented SKELETON for admins & devs to copy and adapt. It is
+// NEVER loaded by the app — it just sits in the repo as documentation. To use it:
+//   1. Copy this file, strip the comments, and fill in the placeholders.
+//   2. POST the result to /api/registry (or paste it into the Registry submit form).
+//   3. An admin approves it; it then appears in the builder palette and reports.
+//
+// A primitive is PURE JSON — no executable code. The renderer already exists; you
+// are only describing which inputs your chart takes. Mirrors the `PrimitiveDef`
+// shape in artifacts/omniproject/src/components/charts/catalogue.ts.
+// ─────────────────────────────────────────────────────────────────────────────
+{
+  // The registry submission envelope (same for every kind) ---------------------
+  "kind": "primitive",              // one of the REGISTRY_ITEM_KINDS
+  "name": "<Human name>",           // e.g. "Grouped column chart"
+  "publisher": "<Your team/org>",   // e.g. "Acme Analytics"
+  "version": "1.0.0",               // semver; bump when you change the payload
+  "description": "<One line: what it shows and when to reach for it>",
+  "tags": ["chart", "<category>"],  // free-text search labels (optional)
+
+  // The building block itself --------------------------------------------------
+  "payload": {
+    "id": "<kebab-case-id>",        // stable, unique across the primitive library
+    "label": "<Palette label>",     // shown in the builder palette
+    "category": "comparison",       // palette group: comparison | trend | composition | …
+    "description": "<Longer help text for the palette>",
+
+    // The ChartView spec this draws through, when it's a dispatchable chart.
+    // Omit if your primitive is not a standard chart type.
+    "chartType": "bar",             // bar | line | area | pie | …
+
+    // The authoring inputs. Each has key/label/type/required/description.
+    //   type: "rows"    → tabular data (one object per row)
+    //   type: "series"  → which row keys to plot, and their labels
+    //   type: "palette" → ordered hex colours
+    //   type: "number" | "string" | "boolean" | "enum" (enum adds "options": [...])
+    "params": [
+      { "key": "data",    "label": "Rows",    "type": "rows",    "required": true,  "description": "One object per category; keys are the plotted fields." },
+      { "key": "series",  "label": "Series",  "type": "series",  "required": true,  "description": "Which row keys to plot and their labels." },
+      { "key": "palette", "label": "Palette", "type": "palette", "required": false, "description": "Ordered hex colours; series take them in turn." },
+      { "key": "height",  "label": "Height",  "type": "number",  "required": false, "description": "Pixel height, or a percent string for responsive containers." }
+    ]
+  }
+}

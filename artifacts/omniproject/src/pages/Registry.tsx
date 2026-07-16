@@ -1,19 +1,20 @@
 import { useState } from "react";
-import { Package, Trash2, Check, X, Globe, Undo2, BookOpen } from "lucide-react";
+import { Package, Trash2, Check, X, Globe, Undo2 } from "lucide-react";
 import { DataState } from "../components/DataState";
 import { useAuth, roleAtLeast } from "../lib/auth";
 import {
-  useRegistry, useReferenceDesigns, useCommunityStatus,
+  useRegistry, useCommunityStatus,
   useSubmitRegistryItem, useReviewRegistryItem, useReleaseRegistryItem, useRetractRegistryItem, useDeleteRegistryItem,
-  registryItemKindLabel, type RegistryItemMeta, type ReferenceDesign,
+  registryItemKindLabel, type RegistryItemMeta,
 } from "../lib/registry";
 import { useToast } from "@/hooks/use-toast";
 
 /**
  * Org registry (roadmap 3.5). An org-wide store of approved, pure-JSON building blocks. Anyone (contributor+)
  * submits an item; an admin reviews (approve/reject) and may optionally release an approved item to the
- * community. A reference-designs panel teaches the canonical shapes and prefills the submit form. Read is
- * viewer+ (non-admins see approved items + their own). Behind the default-off `registry` module.
+ * community. Read is viewer+ (non-admins see approved items + their own). Behind the default-off `registry`
+ * module. Reference SKELETONS for authoring live in the repo's `reference-designs/` directory — copy & adapt
+ * them; they are never loaded by the app.
  */
 
 const STATUS_TONE: Record<RegistryItemMeta["approvalStatus"], string> = {
@@ -26,33 +27,10 @@ function StatusBadge({ status }: { status: RegistryItemMeta["approvalStatus"] })
   return <span className={`text-[10px] font-bold uppercase tracking-widest border px-1.5 py-0.5 ${STATUS_TONE[status]}`}>{status}</span>;
 }
 
-function ReferencePanel({ onUse }: { onUse: (design: ReferenceDesign) => void }) {
-  const { data: designs, isLoading, isError, error, refetch } = useReferenceDesigns();
-  return (
-    <div className="bg-card border border-border p-4 space-y-2" data-testid="reference-panel">
-      <div className="flex items-center gap-2"><BookOpen className="w-4 h-4" /><h2 className="text-sm font-black uppercase tracking-widest">Reference designs</h2></div>
-      <p className="text-xs text-muted-foreground">Copy-pasteable examples of each buildable kind — start from one to author your own.</p>
-      <DataState isLoading={isLoading} isError={isError} error={error} onRetry={() => refetch()} className="min-h-16">
-        <ul className="space-y-1.5" data-testid="reference-list">
-          {(designs ?? []).map((d) => (
-            <li key={d.slug} className="border border-border p-2 flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                <div className="flex items-center gap-2"><span className="font-semibold text-sm truncate">{d.title}</span><span className="text-[10px] text-muted-foreground uppercase tracking-widest">{registryItemKindLabel(d.kind)}</span></div>
-                <p className="text-xs text-muted-foreground">{d.summary}</p>
-              </div>
-              <button type="button" onClick={() => onUse(d)} data-testid={`reference-use-${d.slug}`} className="shrink-0 border border-border px-2 py-1 text-xs font-black uppercase tracking-widest hover:bg-muted/40">Use</button>
-            </li>
-          ))}
-        </ul>
-      </DataState>
-    </div>
-  );
-}
-
-function SubmitForm({ initial, onDone }: { initial: string; onDone: () => void }) {
+function SubmitForm({ onDone }: { onDone: () => void }) {
   const submit = useSubmitRegistryItem();
   const { toast } = useToast();
-  const [text, setText] = useState(initial);
+  const [text, setText] = useState("");
   const [error, setError] = useState<string | null>(null);
 
   const send = () => {
@@ -129,9 +107,6 @@ export function Registry() {
   const { data: items, isLoading, isError, error, refetch } = useRegistry();
   const { data: community } = useCommunityStatus();
   const [submitting, setSubmitting] = useState(false);
-  const [prefill, setPrefill] = useState("");
-
-  const useDesign = (d: ReferenceDesign) => { setPrefill(JSON.stringify(d.example, null, 2)); setSubmitting(true); };
 
   const list = items ?? [];
   const pending = list.filter((i) => i.approvalStatus === "draft");
@@ -147,13 +122,15 @@ export function Registry() {
         </div>
         <div className="flex items-center gap-2">
           <span data-testid="community-status" className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">{community?.connected ? `Community: ${community.name}` : "Community: not connected"}</span>
-          <button type="button" onClick={() => { setPrefill(""); setSubmitting((v) => !v); }} data-testid="registry-new" className="inline-flex items-center gap-1.5 border border-primary bg-primary text-primary-foreground px-3 py-1.5 text-xs font-black uppercase tracking-widest">Submit item</button>
+          <button type="button" onClick={() => setSubmitting((v) => !v)} data-testid="registry-new" className="inline-flex items-center gap-1.5 border border-primary bg-primary text-primary-foreground px-3 py-1.5 text-xs font-black uppercase tracking-widest">Submit item</button>
         </div>
       </div>
 
-      {submitting && <SubmitForm initial={prefill} onDone={() => setSubmitting(false)} />}
+      {submitting && <SubmitForm onDone={() => setSubmitting(false)} />}
 
-      <ReferencePanel onUse={useDesign} />
+      <p className="text-xs text-muted-foreground" data-testid="reference-hint">
+        New to authoring? Copy and adapt a commented skeleton from the repo's <code>reference-designs/</code> directory.
+      </p>
 
       <DataState isLoading={isLoading} isError={isError} error={error} onRetry={() => refetch()} className="min-h-40">
         {isAdmin && pending.length > 0 && (
@@ -164,7 +141,7 @@ export function Registry() {
         )}
         <div className="space-y-2" data-testid="registry-list">
           {list.length === 0 && !submitting && (
-            <p className="text-sm text-muted-foreground">No registry items yet. Submit one — start from a reference design above.</p>
+            <p className="text-sm text-muted-foreground">No registry items yet. Submit one — start from a skeleton in the repo's <code>reference-designs/</code> directory.</p>
           )}
           {rest.map((it) => <ItemRow key={it.id} item={it} isAdmin={isAdmin} />)}
         </div>
