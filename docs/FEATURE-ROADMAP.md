@@ -85,7 +85,16 @@ already exist, so they close the most competitive distance for the least build.
   a field, or the builder doesn't map it, the field can't be used. The admin builder's
   "maps to" picker only offers capability-writable targets.
 
-### 1.2 User-facing automation recipes  ⬜ Todo
+### 1.2 User-facing automation recipes  🚧 In progress
+- **Slice 1 shipped (backend + builder):** shared `automation-catalogue` (trigger + action primitives, each
+  action declaring its permission requirement); `lib/automation.ts` (validate, compile-to-workflow,
+  requirement set — pure); `automations` settings collection; `routes/automations.ts` (RBAC authoring guard +
+  `/preview` dry-run); `AutomationsAdmin` builder (trigger → conditions → actions + live preview). Recipes
+  compile to the existing workflow engine — no new engine. Inform (notify) recipes run via the existing
+  read+notify effect surface; **mutating recipes are gated to the autonomous-grant path** (the workflow runner
+  refuses silent mutations). RBAC gate enforced: a viewer can author an inform recipe but not a work-item
+  write. **Next slice:** live trigger binding (schedule/event → runner) + the grant-bound execution of
+  mutating recipes.
 - **Rationale.** A friendly "when X, do Y" builder. The powerful JSON **workflow engine +
   broker templates** already exist but are admin/developer-facing — this is the missing
   on-ramp.
