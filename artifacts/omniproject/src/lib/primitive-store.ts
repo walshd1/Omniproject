@@ -98,6 +98,7 @@ const CANVAS_META: Record<string, { category: string; tags: string[] }> = {
   text: { category: "note", tags: [] },
   connector: { category: "relation", tags: ["link", "flow"] },
   frame: { category: "structure", tags: ["group"] },
+  draw: { category: "freehand", tags: ["pen"] },
 };
 
 /** `viz` family — cross-cutting tags per data-visualisation primitive (subfolder is its chart category). */

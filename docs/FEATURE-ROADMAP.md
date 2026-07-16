@@ -255,7 +255,7 @@ authoring, and the drift guards — no feature bypasses the golden rules.
   posts a scoped invite. Client hooks (`usePortalStatus`/`useInviteGuest`), e2e route-manifest + smoke,
   unit tests. The **comment tier** (a guest leaving comments on its project) is deferred to a later slice.
 
-### 2.3 Whiteboards / visual canvas  🚧 In progress (slice 1)
+### 2.3 Whiteboards / visual canvas  🚧 In progress (slices 1–2)
 - **Competitors.** Miro/Mural, ClickUp, Monday. **Gap.** No infinite canvas.
 - **Acceptance.** Freeform canvas (sticky notes, shapes, connectors, freehand), multi-user
   live cursors, convert a sticky → work item; export.
@@ -274,10 +274,15 @@ authoring, and the drift guards — no feature bypasses the golden rules.
   allow-listing** (a smuggled field/inline image/script link can't ride along), coordinate clamping, safe-
   scheme links only, unknown-type elements dropped. Drift guards updated (autonomous-guard classifier +
   read allow-list, route-scope classification, primitive-store family binding). Client hooks. Tests.
-- **Slice 2 (next).** A **native canvas editor built of the `canvas` primitives** (plain SVG — no heavy
-  dependency for the MVP; optional MIT techniques/libs from Excalidraw's ecosystem — roughjs/perfect-
-  freehand — may be adopted with attribution for the sketchy look / pen strokes, or Excalidraw offered as
-  the "use native" handoff per X.1). **Slice 3:** live cursors (collab relay) + sticky → work item.
+- **Slice 2 ✅ (native SVG canvas editor).** A `/whiteboards` page + a **native SVG editor built of the
+  `canvas` primitives** — reimplementing the standard pointer-driven interaction model (pick a tool →
+  pointer-down creates/selects, move drags/draws, up commits) in our own code, using the same MIT libs
+  Excalidraw is built on: **roughjs** for the hand-drawn shape look (deterministic per element id) and
+  **perfect-freehand** for pen strokes. Tools: select/move, sticky (+colour), shape (+kind), text,
+  connector, pen, frame; an inspector edits/deletes the selected element. Added a `draw` primitive for
+  freehand. Saves through the seam (contributor+); nav entry (feature-gated), route + e2e manifest + smoke.
+  The canvas libs are a 31 kB lazy chunk (vs. ~1 MB for Excalidraw). Pure geometry/reducers + editor +
+  page tests. **Slice 3 (next):** live cursors (collab relay) + sticky → work item + export.
 
 ### 2.4 Proofing / deliverable review & annotation  ⬜ Todo
 - **Competitors.** Adobe Workfront, Wrike, Smartsheet. **Gap.** No creative review markup.

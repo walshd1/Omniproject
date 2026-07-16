@@ -19,11 +19,11 @@
  * rectangle/ellipse/diamond (optionally labelled); `text` — free-standing text; `connector` — a line/arrow
  * between two points or elements; `frame` — a labelled grouping container.
  */
-export type CanvasElementType = "sticky" | "shape" | "text" | "connector" | "frame";
+export type CanvasElementType = "sticky" | "shape" | "text" | "connector" | "frame" | "draw";
 
 /** The canvas element primitives, as a value — the single list the palette, validator and primitive store
  *  (`canvas` family) all draw from, so the family can't drift from the CanvasElementType union. */
-export const CANVAS_ELEMENT_TYPES: readonly CanvasElementType[] = ["sticky", "shape", "text", "connector", "frame"];
+export const CANVAS_ELEMENT_TYPES: readonly CanvasElementType[] = ["sticky", "shape", "text", "connector", "frame", "draw"];
 
 /** The element types that carry a width/height box (sticky/shape/frame). */
 export const BOXED_CANVAS_TYPES: readonly CanvasElementType[] = ["sticky", "shape", "frame"];
@@ -67,6 +67,10 @@ export interface CanvasElement {
   /** Optional connector endpoints bound to element ids (so the line follows them). */
   from?: string;
   to?: string;
+  /** Freehand path points for a `draw` element — `[x, y]` pairs relative to `x`/`y` (the stroke origin). */
+  points?: number[][];
+  /** Stroke width (draw) / border weight. */
+  strokeWidth?: number;
   /** Optional external reference (safe scheme only) — the content lives elsewhere (zero-at-rest). */
   link?: string;
 }
@@ -76,6 +80,8 @@ export const CANVAS_LIMITS = {
   maxName: 120,
   maxElements: 5000,
   maxText: 5000,
+  /** Max points in a single freehand stroke (bounds a pen `draw` element). */
+  maxDrawPoints: 2000,
   /** Cap on the serialised scene so a client can't push an unbounded blob into the store. */
   maxSceneBytes: 3_000_000,
 } as const;

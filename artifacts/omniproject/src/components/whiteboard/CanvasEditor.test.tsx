@@ -1,0 +1,40 @@
+import { describe, it, expect, vi } from "vitest";
+import { render, screen, fireEvent } from "@testing-library/react";
+import type { CanvasElement } from "@workspace/backend-catalogue";
+import { CanvasEditor } from "./CanvasEditor";
+
+/** The native canvas editor: tool selection, pointer-create, and the selected-element inspector. */
+describe("CanvasEditor", () => {
+  it("renders a toolbar with a tool per canvas primitive", () => {
+    render(<CanvasEditor elements={[]} onChange={() => {}} />);
+    for (const t of ["select", "sticky", "shape", "text", "connector", "pen", "frame"]) {
+      expect(screen.getByTestId(`canvas-tool-${t}`)).toBeInTheDocument();
+    }
+  });
+
+  it("creates a sticky on pointer-down when the sticky tool is active", () => {
+    const onChange = vi.fn<(next: CanvasElement[]) => void>();
+    render(<CanvasEditor elements={[]} onChange={onChange} />);
+    fireEvent.click(screen.getByTestId("canvas-tool-sticky"));
+    fireEvent.pointerDown(screen.getByTestId("canvas-surface"), { clientX: 40, clientY: 30, pointerId: 1 });
+    expect(onChange).toHaveBeenCalledTimes(1);
+    const added = onChange.mock.calls[0]![0];
+    expect(added).toHaveLength(1);
+    expect(added[0]).toMatchObject({ type: "sticky", color: "yellow" });
+  });
+
+  it("shows an inspector for a selected element and can edit its text + delete it", () => {
+    const els: CanvasElement[] = [{ id: "s1", type: "sticky", x: 10, y: 10, w: 120, h: 80, text: "hi" }];
+    const onChange = vi.fn<(next: CanvasElement[]) => void>();
+    render(<CanvasEditor elements={els} onChange={onChange} />);
+    // Select tool is default; pointer-down over the sticky (bounds 10..130 x, 10..90 y) selects it.
+    fireEvent.pointerDown(screen.getByTestId("canvas-surface"), { clientX: 20, clientY: 20, pointerId: 1 });
+    const text = screen.getByTestId("canvas-text") as HTMLInputElement;
+    expect(text.value).toBe("hi");
+    fireEvent.change(text, { target: { value: "cutover" } });
+    expect(onChange.mock.calls.at(-1)![0][0]).toMatchObject({ id: "s1", text: "cutover" });
+
+    fireEvent.click(screen.getByTestId("canvas-delete"));
+    expect(onChange.mock.calls.at(-1)![0]).toEqual([]);
+  });
+});
