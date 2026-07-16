@@ -55,6 +55,16 @@ describe("Wiki page", () => {
     expect(screen.getByTestId("block-palette")).toBeInTheDocument();
   });
 
+  it("mounts the comments thread on the open document (doc:<id> room)", async () => {
+    mockWikiFetch();
+    renderWithProviders(<Wiki />, { client: seed("viewer") });
+    fireEvent.click(await screen.findByTestId("doc-link-d1"));
+    await screen.findByText("hello world");
+    // The shared comments seam is wired in, keyed by the doc room (empty state when there are none).
+    expect(await screen.findByTestId("comments")).toBeInTheDocument();
+    expect(screen.getByText(/No comments yet/)).toBeInTheDocument();
+  });
+
   it("shows an unsupported notice when the backend has no wiki (501)", async () => {
     vi.spyOn(globalThis, "fetch").mockImplementation(() => Promise.resolve(new Response(JSON.stringify({ error: "unsupported" }), { status: 501 })));
     renderWithProviders(<Wiki />, { client: seed("viewer") });
