@@ -39,9 +39,19 @@
     {
       "id": "budget-all-periods",
       "kind": "table",
-      "title": "All planned periods",
+      "title": "Pivot planned budget",
       "span": 12,
-      "source": { "url": "/api/budget-plans/rows" }
+      "source": { "url": "/api/budget-plans/rows" },
+      "config": {
+        "controls": {
+          "groupBy": ["projectId", "currency", "year"],
+          "metricField": "amount",
+          "metricLabel": "Planned budget",
+          "aggs": ["sum", "avg", "count"],
+          "filters": ["currency", "projectId"],
+          "period": { "field": "period", "buckets": ["year", "quarter", "month"] }
+        }
+      }
     }
   ]
 }

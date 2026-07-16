@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useLocation } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { Panel } from "../../../lib/screen";
@@ -5,6 +6,8 @@ import { ChartView } from "../../charts/ChartView";
 import type { ChartRow, ChartSeries } from "../../charts/primitives";
 import { resolveDrillTo } from "../../../lib/drill-to";
 import type { DrillTo } from "@workspace/backend-catalogue";
+import { PanelControls } from "../PanelControls";
+import { applyControls, defaultControlsState, type ControlsConfig, type ControlsState } from "../../../lib/panel-controls";
 
 /**
  * Chart panel — draws a bar / line / area / pie chart straight from OBJECT-ROWS (the `{ rows: [{...}] }`
@@ -38,9 +41,18 @@ function resolveFields(rows: Array<Record<string, unknown>>, c: Record<string, u
 
 export function ChartPanel({ panel }: { panel: Panel }) {
   const c = panel.config ?? {};
-  const rows = (Array.isArray(c["rows"]) ? (c["rows"] as unknown[]) : []).filter((r) => r && typeof r === "object" && !Array.isArray(r)) as Array<Record<string, unknown>>;
+  const rawRows = (Array.isArray(c["rows"]) ? (c["rows"] as unknown[]) : []).filter((r) => r && typeof r === "object" && !Array.isArray(r)) as Array<Record<string, unknown>>;
   const chartType = (["bar", "line", "area", "pie"].includes(String(c["chartType"])) ? c["chartType"] : "bar") as ChartType;
-  const { xKey, series } = resolveFields(rows, c);
+
+  // Optional controls: pivot the raw rows on the fly — the chosen group becomes x, the metric the series.
+  const controls = (c["controls"] && typeof c["controls"] === "object" ? (c["controls"] as ControlsConfig) : null);
+  const [ctrl, setCtrl] = useState<ControlsState | null>(() => (controls ? defaultControlsState(controls) : null));
+  const ctrlResult = controls && ctrl ? applyControls(rawRows, controls, ctrl) : null;
+
+  const rows = ctrlResult ? ctrlResult.rows : rawRows;
+  const inferred = resolveFields(rows, c);
+  const xKey = ctrlResult ? ctrlResult.groupByField : inferred.xKey;
+  const series: ChartSeries[] = ctrlResult ? [{ key: ctrlResult.metricKey, label: ctrlResult.metricLabel }] : inferred.series;
   const stacked = c["stacked"] === true;
   const legend = c["legend"] !== false;
   const drillTo = (c["drillTo"] && typeof c["drillTo"] === "object" ? (c["drillTo"] as DrillTo) : null);
@@ -91,7 +103,10 @@ export function ChartPanel({ panel }: { panel: Panel }) {
           <CardTitle className="text-xs uppercase tracking-wider text-muted-foreground">{panel.title}</CardTitle>
         </CardHeader>
       )}
-      <CardContent>{body}</CardContent>
+      <CardContent>
+        {controls && ctrl && <PanelControls config={controls} rows={rawRows} state={ctrl} onChange={setCtrl} />}
+        {body}
+      </CardContent>
     </Card>
   );
 }

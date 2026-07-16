@@ -4,6 +4,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { Panel } from "../../../lib/screen";
 import { resolveDrillTo } from "../../../lib/drill-to";
 import type { DrillTo } from "@workspace/backend-catalogue";
+import { PanelControls } from "../PanelControls";
+import { applyControls, defaultControlsState, type ControlsConfig, type ControlsState } from "../../../lib/panel-controls";
 
 /**
  * Table panel - a simple grid. Two accepted row shapes:
@@ -37,7 +39,15 @@ function normaliseTable(c: Record<string, unknown>): { columns: string[]; rows: 
 
 export function TablePanel({ panel }: { panel: Panel }) {
   const c = panel.config ?? {};
-  const { columns, rows, records } = normaliseTable(c);
+  const controls = (c["controls"] && typeof c["controls"] === "object" ? (c["controls"] as ControlsConfig) : null);
+  const [ctrl, setCtrl] = useState<ControlsState | null>(() => (controls ? defaultControlsState(controls) : null));
+
+  // With controls on, pivot the raw object rows on the fly; the group + metric become the table's columns.
+  const rawObjectRows = (Array.isArray(c["rows"]) ? (c["rows"] as unknown[]) : []).filter((r) => r && typeof r === "object" && !Array.isArray(r)) as Array<Record<string, unknown>>;
+  const ctrlResult = controls && ctrl ? applyControls(rawObjectRows, controls, ctrl) : null;
+  const effectiveConfig: Record<string, unknown> = ctrlResult ? { ...c, rows: ctrlResult.rows, columns: [ctrlResult.groupByField, ctrlResult.metricKey] } : c;
+
+  const { columns, rows, records } = normaliseTable(effectiveConfig);
   const maxRows = typeof c["maxRows"] === "number" && (c["maxRows"] as number) > 0 ? (c["maxRows"] as number) : DEFAULT_MAX_ROWS;
   const drillTo = (c["drillTo"] && typeof c["drillTo"] === "object" ? (c["drillTo"] as DrillTo) : null);
   const [, navigate] = useLocation();
@@ -54,6 +64,7 @@ export function TablePanel({ panel }: { panel: Panel }) {
         </CardHeader>
       )}
       <CardContent className="overflow-x-auto">
+        {controls && ctrl && <PanelControls config={controls} rows={rawObjectRows} state={ctrl} onChange={setCtrl} />}
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-border text-left text-xs uppercase tracking-wider text-muted-foreground">
