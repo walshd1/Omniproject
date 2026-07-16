@@ -30,7 +30,7 @@ function cookie(session: object): string {
   const mac = crypto.createHmac("sha256", SECRET).update(value).digest("base64").replace(/=+$/, "");
   return `omni_session=${encodeURIComponent("s:" + value + "." + mac)}`;
 }
-const ADMIN = cookie({ sub: "a", name: "Ada", email: "ada@x.io", roles: ["omni-admins"] });
+const ADMIN = cookie({ sub: "a", name: "Ada", email: "ada@x.io", roles: ["omni-admins"], amr: ["hwk"] });
 const CONTRIBUTOR = cookie({ sub: "c", name: "Cee", email: "cee@x.io", roles: ["omni-contributors"] });
 const VIEWER = cookie({ sub: "v", name: "Vic", email: "vic@x.io", roles: ["omni-viewers"] });
 
@@ -92,7 +92,7 @@ test("a bad payload is 400; a bad storage target is 400", async () => {
   assert.equal((await req("/defs", { method: "POST", body: { kind: "primitive", storage: "sidecar", name: "x", payload: PRIMITIVE } })).status, 400);
 });
 
-test("org target: a contributor can't write it, a manager+ can", async () => {
+test("org target: a contributor can't write it, a pmo/admin can (default org gate)", async () => {
   const prev = { iss: process.env["OIDC_ISSUER_URL"], c: process.env["OIDC_CONTRIBUTOR_ROLES"], v: process.env["OIDC_VIEWER_ROLES"], a: process.env["OIDC_ADMIN_ROLES"] };
   process.env["OIDC_ISSUER_URL"] = "https://idp.example";
   process.env["OIDC_CONTRIBUTOR_ROLES"] = "omni-contributors";
