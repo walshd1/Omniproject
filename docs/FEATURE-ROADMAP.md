@@ -451,7 +451,7 @@ authoring, and the drift guards — no feature bypasses the golden rules.
 
 ## Phase 3 — deepen what exists only partially
 
-### 3.1 Full interactive scheduling engine  🚧 In progress (slices 1–2)
+### 3.1 Full interactive scheduling engine  🚧 In progress (slices 1–3)
 - **Competitors.** MS Project, Smartsheet, Planview. **Have.** Gantt + CPM + baselines +
   Monte-Carlo. **Missing.** Auto-scheduling: working calendars, task constraints
   (SNET/FNLT), lead/lag, drag-a-bar-and-cascade-dependencies.
@@ -477,6 +477,17 @@ authoring, and the drift guards — no feature bypasses the golden rules.
   `constraintViolation` reports a breached deadline / must-date. All offsets skip non-working time via the
   slice-1 calendar; still pure + projected (no persistence). 14 anchored unit tests. **Next:** the multi-task
   forward-pass auto-scheduler that topologically composes these (slice 3), then drag-a-bar-cascade (slice 4).
+- **Slice 3 ✅ (forward-pass auto-scheduler).** `lib/auto-schedule` — `autoSchedule(cal, {tasks, dependencies,
+  projectStartDay})` walks the graph in Kahn topological order and places every task at its **earliest
+  working-day start**: the latest of its floor (`earliestStartDay` ?? project start) and every incoming
+  dependency's implied start (slice-2 `earliestStartFromDependency`), then its constraint is applied
+  (`applyConstraint`) and its finish follows from the working-day duration on the calendar. Each `ScheduledTask`
+  carries `driverId` (which predecessor set the start, or null when the floor/constraint did) and
+  `violatesConstraint`; the result rolls up `projectStartDay`/`projectFinishDay`, a `violations` list, and a
+  `hasCycle` flag. The multi-task generalisation of `schedule-scenario.computeSchedule` — adds calendars,
+  FS/SS/FF/SF + lead/lag, and constraints. Cyclic edges are ignored + flagged (trapped nodes still placed);
+  self-loops / dangling edges dropped. Pure + projected. 9 unit tests (FS chain + lag, SS/lag, SNET override,
+  FNLT breach, floor, cycle, edge hygiene, empty). **Next:** drag-a-bar-cascade Gantt integration (slice 4).
 
 ### 3.2 Goals / OKRs as a managed cadence  ⬜ Todo
 - **Competitors.** Asana Goals, Viva Goals, ClickUp. **Have.** Strategy cascade + PI board
