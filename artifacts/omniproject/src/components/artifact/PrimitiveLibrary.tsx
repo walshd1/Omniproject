@@ -19,6 +19,7 @@ const FAMILY_LABEL: Record<PrimitiveFamily, string> = {
   annotation: "Proof markers",
   keyResult: "Goal key results",
   invoiceLine: "Invoice lines",
+  extensionContribution: "Extension contributions",
   component: "Reports & widgets",
 };
 

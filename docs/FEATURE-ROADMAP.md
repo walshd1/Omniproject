@@ -640,10 +640,26 @@ authoring, and the drift guards — no feature bypasses the golden rules.
   start/stop timer + first-class invoices (typed line primitives, derived totals, lifecycle). Auto-generating
   invoice lines from billable timesheet actuals × the rate-card engine is a natural follow-up.**
 
-### 3.4 Third-party app / plugin marketplace  ⬜ Todo
+### 3.4 Third-party app / plugin marketplace  🚧 In progress (slice 1)
 - **Competitors.** Jira/Monday/Asana marketplaces. **Have.** 41 connectors + MCP + broker
   seam. **Missing.** UI-extension ecosystem (installable panels/screens/reports).
 - **Leverage.** Panel registry, screen-def bundles, MCP, config-bundle delivery.
+- **Design.** An installed EXTENSION is a JSON manifest of typed **contribution primitives** — all pure-JSON
+  config the app already renders (a custom report / content page / dashboard / screen), **no executable code**
+  — so installing one is a governance decision, not a deploy. Org-wide config in the sealed store; **optional,
+  default-off** (nothing to show until an admin installs something — there are no built-in plugins). Primitive-
+  aligned like goals/invoices.
+- **Slice 1 ✅ (extension model + `extensionContribution` primitive family + install routes).** New
+  `backend-catalogue/marketplace-catalogue`: `EXTENSION_CONTRIBUTION_KINDS` (report / contentPage / dashboard /
+  screen), `EXTENSION_STATUSES` (installed / disabled), `contributionKindLabel`. `primitive-store` gains the
+  **`extensionContribution` family** placeable on a new **`marketplace` surface**, drift-guarded. Server
+  `lib/extension` — the model + single sanitiser: an extension manifest (name/publisher/version + ≥1 typed
+  contribution, each a bounded pure-JSON `def`), stored **org-scoped** in the sealed store; `activeContributions(kind)`
+  is the read hook that surfaces installed (not-disabled) extensions' parts. `routes/marketplace` — list/get
+  (manager+) + install/status/uninstall (**admin** — a governance action), behind the new default-off
+  **`marketplace`** module. 2 catalogue + 2 pure (incl. store round-trip + active/disabled) + 3 route tests +
+  drift guard; all three packages typecheck clean. **Next:** the marketplace UI + surfacing contributions into
+  the report/content catalogues (slice 2).
 
 ---
 

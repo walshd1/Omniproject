@@ -35,6 +35,7 @@ export * from "./canvas-catalogue";
 export * from "./proof-catalogue";
 export * from "./goal-catalogue";
 export * from "./invoice-catalogue";
+export * from "./marketplace-catalogue";
 export * from "./widget-catalogue";
 export * from "./component-library";
 export * from "./screen-catalogue";
