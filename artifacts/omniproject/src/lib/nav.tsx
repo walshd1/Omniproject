@@ -18,7 +18,7 @@
  * from but genuinely shouldn't be browsing (e.g. the Configurator, which reads live
  * broker/backend state a plain contributor has no reason to poke at even read-only).
  */
-import { Layers, Briefcase, BarChart3, FlaskConical, Settings as SettingsIcon, PlugZap, Boxes, Users, Inbox, LayoutDashboard, FileText, BookOpen, PenTool, Stamp, Target, Receipt, ListChecks, Wallet, Columns3, type LucideIcon } from "lucide-react";
+import { Layers, Briefcase, BarChart3, FlaskConical, Settings as SettingsIcon, PlugZap, Boxes, Users, Inbox, LayoutDashboard, FileText, BookOpen, PenTool, Stamp, Target, Receipt, Blocks, ListChecks, Wallet, Columns3, type LucideIcon } from "lucide-react";
 import { useGetCapabilities } from "@workspace/api-client-react";
 import { canSurfaceEntity } from "./capabilities-fields";
 import { useFeatures, featureEnabled } from "./features";
@@ -71,6 +71,7 @@ export const NAV_ITEMS: NavItem[] = [
   { href: "/resources", i18nKey: "nav.resources", label: "Resources", icon: Users, match: (l) => l.startsWith("/resources"), requiresEntity: "member", group: "primary" },
   { href: "/resource-planning", i18nKey: "nav.resourcePlanning", label: "Resource planning", icon: Users, match: (l) => l.startsWith("/resource-planning"), group: "primary" },
   { href: "/explore", i18nKey: "nav.explore", label: "Explore", icon: FlaskConical, chord: "G+E", match: (l) => l.startsWith("/explore"), group: "admin" },
+  { href: "/marketplace", i18nKey: "nav.marketplace", label: "Marketplace", icon: Blocks, match: (l) => l.startsWith("/marketplace"), requiresFeature: "marketplace", group: "admin", visibleToRoles: isPmoOrAdmin },
   { href: "/settings", i18nKey: "nav.settings", label: "Settings", icon: SettingsIcon, chord: "G+S", match: (l) => l.startsWith("/settings"), group: "admin" },
   { href: "/configurator", i18nKey: "nav.configurator", label: "Configurator", icon: PlugZap, chord: "G+C", match: (l) => l.startsWith("/configurator") || l.startsWith("/setup"), group: "admin", visibleToRoles: isPmoOrAdmin },
 ];
