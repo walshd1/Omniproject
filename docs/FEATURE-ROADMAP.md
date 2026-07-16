@@ -451,11 +451,23 @@ authoring, and the drift guards — no feature bypasses the golden rules.
 
 ## Phase 3 — deepen what exists only partially
 
-### 3.1 Full interactive scheduling engine  ⬜ Todo
+### 3.1 Full interactive scheduling engine  🚧 In progress (slice 1)
 - **Competitors.** MS Project, Smartsheet, Planview. **Have.** Gantt + CPM + baselines +
   Monte-Carlo. **Missing.** Auto-scheduling: working calendars, task constraints
   (SNET/FNLT), lead/lag, drag-a-bar-and-cascade-dependencies.
 - **Leverage.** `critical-path.ts`, GanttChart, dependencies lib, baseline.
+- **Design.** Stays true to the stateless-overlay thesis: the scheduler is a **pure, client-side,
+  projected** computation layer (like `critical-path.ts` / `schedule-scenario.ts`) — no server-side plan
+  state, no new backend fields required; every figure is a projection, dates only write back through the
+  existing issue-update seam when the user explicitly commits a drag.
+- **Slice 1 ✅ (working-calendar engine).** `lib/working-calendar` — a pure model of which whole-day indices
+  are **working time** (`workingWeekdays` default Mon–Fri, `holidays`, and `workingExceptions` that force a
+  day working and win over weekend/holiday) plus calendar-aware arithmetic: `isWorkingDay`, `nextWorkingDay`/
+  `prevWorkingDay`, `addWorkingDays` (skips non-working days, snaps + steps, bidirectional), `workingDaysBetween`
+  (half-open, sign-symmetric), and `workingFinish` (last working day a duration occupies). Day indices match
+  the shared `DAY_MS` bucketing (day 0 = 1970-01-01 Thu); weekday derived in **UTC** to match `startOfDay`.
+  `makeWorkingCalendar` accepts holidays/exceptions as ISO strings or day indices and rejects an empty week.
+  13 anchored unit tests. **Next:** task constraints (SNET/FNLT) + lead/lag on the dependency model (slice 2).
 
 ### 3.2 Goals / OKRs as a managed cadence  ⬜ Todo
 - **Competitors.** Asana Goals, Viva Goals, ClickUp. **Have.** Strategy cascade + PI board
