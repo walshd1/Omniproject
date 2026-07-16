@@ -44,11 +44,14 @@ describe("screen catalogue", () => {
     expect(urls.every((u) => u.startsWith("/api/budget-plans/rows"))).toBe(true);
   });
 
-  it("resource-allocations binds its panels to the rows endpoint", () => {
+  it("resource-allocations binds its SOURCE panels to the rows endpoint (editable register aside)", () => {
     const res = getScreenDef("resource-allocations")!;
     expect(res).toBeTruthy();
-    const urls = res.panels.map((p) => p.source?.url ?? "");
-    expect(urls.every((u) => u.startsWith("/api/resource-allocations/rows"))).toBe(true);
+    const sourceUrls = res.panels.map((p) => p.source?.url).filter((u): u is string => typeof u === "string");
+    expect(sourceUrls.length).toBeGreaterThan(0);
+    expect(sourceUrls.every((u) => u.startsWith("/api/resource-allocations/rows"))).toBe(true);
+    // …and it now carries an editable register panel bound to the collection endpoint.
+    expect(res.panels.some((p) => p.kind === "register")).toBe(true);
   });
 
   it("routed catalogue screens are exposed as methodology composition items", () => {

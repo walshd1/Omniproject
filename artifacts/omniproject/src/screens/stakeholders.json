@@ -1,1 +1,26 @@
-{ "id": "stakeholders", "label": "Stakeholders", "panels": [ { "id": "stakeholder-table", "kind": "table", "title": "Stakeholder register", "span": 12, "source": { "url": "/api/stakeholders/rows" } } ] }
+{
+  "id": "stakeholders",
+  "label": "Stakeholders",
+  "hint": "Complete and update the stakeholder register below. Managers can edit; everyone can view.",
+  "panels": [
+    {
+      "id": "stakeholder-register",
+      "kind": "register",
+      "title": "Stakeholder register",
+      "span": 12,
+      "config": {
+        "collection": "stakeholders",
+        "endpoint": "/api/stakeholders",
+        "idPrefix": "stk",
+        "addLabel": "Add stakeholder",
+        "columns": [
+          { "field": "name", "label": "Name", "type": "text" },
+          { "field": "role", "label": "Role", "type": "text" },
+          { "field": "influence", "label": "Influence", "type": "select", "options": ["low", "medium", "high"] },
+          { "field": "interest", "label": "Interest", "type": "select", "options": ["low", "medium", "high"] },
+          { "field": "engagement", "label": "Engagement", "type": "text" }
+        ]
+      }
+    }
+  ]
+}

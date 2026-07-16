@@ -1,1 +1,24 @@
-{ "id": "raci-matrix", "label": "RACI matrix", "panels": [ { "id": "raci-table", "kind": "table", "title": "RACI", "span": 12, "source": { "url": "/api/raci/rows" } } ] }
+{
+  "id": "raci-matrix",
+  "label": "RACI matrix",
+  "hint": "Complete and update the RACI assignments below. Managers can edit; everyone can view.",
+  "panels": [
+    {
+      "id": "raci-register",
+      "kind": "register",
+      "title": "RACI",
+      "span": 12,
+      "config": {
+        "collection": "raci",
+        "endpoint": "/api/raci",
+        "idPrefix": "raci",
+        "addLabel": "Add RACI entry",
+        "columns": [
+          { "field": "task", "label": "Task", "type": "text" },
+          { "field": "role", "label": "Role", "type": "text" },
+          { "field": "responsibility", "label": "R/A/C/I", "type": "select", "options": ["R", "A", "C", "I"] }
+        ]
+      }
+    }
+  ]
+}

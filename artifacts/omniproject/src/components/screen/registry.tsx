@@ -10,6 +10,7 @@ import { MapPanel } from "./panels/MapPanel";
 import { ChartPanel } from "./panels/ChartPanel";
 import { ComponentPanel } from "./panels/ComponentPanel";
 import { WidgetPanel } from "./panels/WidgetPanel";
+import { RegisterPanel } from "./panels/RegisterPanel";
 
 /**
  * Panel-renderer registry — maps a panel `kind` to the ONE component that renders
@@ -24,6 +25,9 @@ export const PANEL_RENDERERS: Partial<Record<PanelKind, PanelComponent>> = {
   text: TextPanel,
   table: TablePanel,
   list: ListPanel,
+  // An EDITABLE data grid (manager+ can add/edit/delete + Save) over a settings collection — RACI,
+  // stakeholders, budget lines, allocations authored ON the screen. Viewers see it read-only.
+  register: RegisterPanel,
   // The bridge to the existing methodology views (board/Gantt/scrum/…) as panels.
   view: ViewPanel,
   // Charts (bar/line/area/pie) drawn from object-rows through the shared ChartView renderer.

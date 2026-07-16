@@ -4,6 +4,25 @@
   "hint": "Planned resource bookings by person, project and period. Edit the bookings in Settings → Resource allocations.",
   "panels": [
     {
+      "id": "allocations-register",
+      "kind": "register",
+      "title": "Bookings",
+      "span": 12,
+      "config": {
+        "collection": "resourceAllocations",
+        "endpoint": "/api/resource-allocations",
+        "idPrefix": "alloc",
+        "addLabel": "Add booking",
+        "columns": [
+          { "field": "resource", "label": "Resource", "type": "text" },
+          { "field": "projectId", "label": "Project", "type": "text" },
+          { "field": "hours", "label": "Hours", "type": "number" },
+          { "field": "periodStart", "label": "Start", "type": "date" },
+          { "field": "periodEnd", "label": "End", "type": "date" }
+        ]
+      }
+    },
+    {
       "id": "hours-by-resource-chart",
       "kind": "chart",
       "title": "Booked hours by resource",
