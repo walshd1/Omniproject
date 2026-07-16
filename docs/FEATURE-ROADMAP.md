@@ -538,7 +538,7 @@ authoring, and the drift guards — no feature bypasses the golden rules.
   `guestInvite` panel was missing from `SETTINGS_PANEL_KEYS`). 3 component tests (seed, save-PATCH, validation
   gate) + the panel drift-guard now green. **Working-time is now fully user-configurable.**
 
-### 3.2 Goals / OKRs as a managed cadence  🚧 In progress (slices 1–4)
+### 3.2 Goals / OKRs as a managed cadence  ✅ Done (slices 1–5)
 - **Competitors.** Asana Goals, Viva Goals, ClickUp. **Have.** Strategy cascade + PI board
   as *reports*. **Missing.** First-class goal objects with check-ins, progress updates,
   goal↔work linking on a cadence.
@@ -581,6 +581,16 @@ authoring, and the drift guards — no feature bypasses the golden rules.
   missed — exactly mirroring the task reminder sweep. Pure selection (`dueGoalCheckins`, `advanceGoalCadence`,
   `goalCheckinNotification`) + injected runner. 5 pure tests (seed/advance, due-selection, roll-forward,
   sweep-nudges-owner) + 1 route test (seed + sweep + pmo gate). **Next:** the Goals UI (slice 5).
+- **Slice 5 ✅ (Goals UI — completes 3.2).** `lib/goals` — React Query hooks over `/api/goals/*` (list / get
+  / create / update / **check-in** / **link** / unlink / delete) + shared types & status tones. `pages/Goals`
+  — the authoring surface: a goal list with derived-progress bars + status badges + next-check-in, a create
+  form (objective, description, dynamic key results, cadence, private/org storage), and a detail panel to
+  **check in** (edit each key result's current value + a note + status → one call updates KRs, recomputes
+  progress, rolls the cadence), manage **linked work** (add/remove by system/project/item ref), and view the
+  **check-in history**. Wired as a `/goals` route + a primary nav item gated on the **`goals`** feature module
+  (nav-order drift guard + `nav.goals` in 4 locales updated). 3 page tests (list, empty, create-toggle);
+  nav/i18n guards green; typecheck clean. **3.2 complete: first-class goals with key results, check-ins,
+  goal↔work linking, and a managed check-in cadence — all as a sealed, projected overlay.**
 
 ### 3.3 Live time tracking + invoicing  ⬜ Todo
 - **Competitors.** Harvest/Toggl, Workfront. **Have.** Timesheets (submit/approve) +

@@ -39,6 +39,7 @@ const Wiki = lazy(() => import("./pages/Wiki").then((m) => ({ default: m.Wiki })
 const Portal = lazy(() => import("./pages/Portal").then((m) => ({ default: m.Portal })));
 const Whiteboards = lazy(() => import("./pages/Whiteboards").then((m) => ({ default: m.Whiteboards })));
 const Proofs = lazy(() => import("./pages/Proofs").then((m) => ({ default: m.Proofs })));
+const Goals = lazy(() => import("./pages/Goals").then((m) => ({ default: m.Goals })));
 const ScreenPage = lazy(() => import("./pages/ScreenPage").then((m) => ({ default: m.ScreenPage })));
 const Settings = lazy(() => import("./pages/Settings").then((m) => ({ default: m.Settings })));
 const Configurator = lazy(() => import("./pages/Configurator").then((m) => ({ default: m.Configurator })));
@@ -107,6 +108,9 @@ function Router() {
       </Route>
       <Route path="/proofs">
         <AppLayout><Proofs /></AppLayout>
+      </Route>
+      <Route path="/goals">
+        <AppLayout><Goals /></AppLayout>
       </Route>
       <Route path="/programmes">
         <AppLayout><ScreenPage id="programmes" /></AppLayout>
