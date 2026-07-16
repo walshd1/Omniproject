@@ -1,10 +1,11 @@
-import { AlertTriangle, ShieldCheck } from "lucide-react";
+import { AlertTriangle, ShieldCheck, Bell } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { useFeatures, featureEnabled } from "../../lib/features";
 import { usePredictivePrefetchSetting } from "../../lib/prefetch";
 import { useOfflineCacheSetting } from "../../lib/use-offline-cache";
+import { usePushNotifications } from "../../lib/use-push";
 
 /**
  * Performance settings. Deterministic prefetch-on-intent (hover/focus) is always on and needs no
@@ -19,12 +20,50 @@ export function PerformanceSettings() {
   const offlineEnabled = useOfflineCacheSetting((s) => s.enabled);
   const setOfflineEnabled = useOfflineCacheSetting((s) => s.setEnabled);
 
+  const push = usePushNotifications();
+
   const predictiveOn = featureEnabled(features, "predictivePrefetch");
   const offlineOn = featureEnabled(features, "offlineCache");
-  if (!predictiveOn && !offlineOn) return null;
+  if (!predictiveOn && !offlineOn && !push.available) return null;
 
   return (
     <div className="space-y-4">
+      {push.available && (
+        <Card data-testid="push-settings">
+          <CardHeader><CardTitle>Notifications on this device</CardTitle></CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <Label htmlFor="push-notifications">Send me push notifications</Label>
+                <p className="text-xs text-muted-foreground">
+                  Get alerts on this device — approvals, mentions, incidents — even when OmniProject is closed.
+                </p>
+              </div>
+              <Switch
+                id="push-notifications"
+                data-testid="push-toggle"
+                checked={push.state === "on"}
+                disabled={push.state === "busy" || push.state === "denied"}
+                onCheckedChange={push.toggle}
+                aria-describedby="push-note"
+              />
+            </div>
+            <div id="push-note" role="note" className="flex gap-3 border border-border bg-muted/40 p-3 text-xs text-foreground">
+              <Bell className="h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
+              <div className="space-y-1">
+                {push.state === "denied" ? (
+                  <p><strong>Notifications are blocked</strong> for OmniProject in this browser. Re-enable them in your browser's site settings, then turn this on.</p>
+                ) : (
+                  <ul className="list-disc space-y-1 pl-4">
+                    <li>Only <strong>your own</strong> notifications are delivered — this device, encrypted in transit by the push service.</li>
+                    <li>Registered per browser and <strong>off by default</strong>; turn it off any time and this device stops receiving them.</li>
+                  </ul>
+                )}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
       {offlineOn && (
         <Card data-testid="offline-cache-settings">
           <CardHeader><CardTitle>Offline access</CardTitle></CardHeader>

@@ -178,6 +178,17 @@ export const FEATURE_MODULES: readonly FeatureModule[] = [
     reason: "cost",
   },
   {
+    // Browser Web Push: deliver personal notifications to a user's device even when the PWA is closed, on
+    // top of the in-app SSE + external channels. Has a backend route (subscribe/unsubscribe/vapid-key), so it
+    // loads lazily; OFF until opted in AND VAPID keys are configured (VAPID_PUBLIC_KEY/PRIVATE_KEY/SUBJECT).
+    id: "pushNotifications",
+    label: "Push notifications",
+    description: "Send personal notifications to a user's device via browser push (works when the app is closed).",
+    load: () => import("../routes/push"),
+    defaultOff: true,
+    reason: "cost", // holds per-device subscriptions + sends outbound to push services
+  },
+  {
     // Proofing / deliverable review: a proof references an image/PDF (never inlined — zero-at-rest) and
     // carries annotation primitives + a review decision, held in the encrypted-JSON store. Has a backend
     // route, so it loads lazily; OFF until opted in.
