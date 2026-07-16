@@ -26,6 +26,9 @@ export interface Proof extends ProofMeta {
   decidedAt?: string | null;
 }
 export interface ProofInput { name: string; deliverable: Deliverable; annotations: Annotation[]; storage?: ProofStorage; projectId?: string | null }
+/** A decision HELD for a passkey-signed sign-off (202) — the proof isn't stamped until the chain approves. */
+export interface ProofDecisionHeld { pending: { proposalId: string; action: string }; message?: string }
+export const isProofDecisionHeld = (r: Proof | ProofDecisionHeld): r is ProofDecisionHeld => "pending" in r;
 
 /** The shared-surface room id a proof uses for presence + review comments (matches the server convention).
  *  Pass an annotationId for a THREAD PINNED TO THAT ANNOTATION; omit it for the proof's general discussion. */
@@ -69,12 +72,13 @@ export function useSaveProof(id: string) {
   });
 }
 
-/** Record an approve / reject / changes-requested decision, bound to the current version (server-stamped). */
+/** Record an approve / reject / changes-requested decision, bound to the current version. Returns the
+ *  updated proof, OR — when a chain gates proof decisions — a {@link ProofDecisionHeld} pending sign-off. */
 export function useDecideProof(id: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (decision: Exclude<ProofDecision, "pending">) =>
-      sendJson<Proof>(`/api/proofs/${encodeURIComponent(id)}/decision`, { decision }, "POST", "Failed to record decision"),
+      sendJson<Proof | ProofDecisionHeld>(`/api/proofs/${encodeURIComponent(id)}/decision`, { decision }, "POST", "Failed to record decision"),
     onSuccess: () => { qc.invalidateQueries({ queryKey: proofKey(id) }); qc.invalidateQueries({ queryKey: ["proofs"] }); },
   });
 }

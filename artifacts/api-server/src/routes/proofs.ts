@@ -5,14 +5,16 @@ import type { Proof, ProofMeta } from "../broker/types";
 import { requireRole } from "../lib/rbac";
 import { assertProjectScope } from "../lib/project-scope";
 import { authorizeStorageTarget } from "../lib/storage-target-authz";
+import { proposeIfBound } from "../lib/approval-gate";
 import {
   artifactStoreEnabled, listArtifacts, getArtifact, putArtifact, deleteArtifact,
 } from "../lib/artifact-store";
 import {
   PROOF_ARTIFACT, sanitizeProofWrite, makeProofId, parseProofId, proofScope,
-  newJsonProofRow, mergeJsonProofRow, applyDecision, isReviewDecision, proofMeta, ProofError,
+  newJsonProofRow, mergeJsonProofRow, applyDecision, actorLabel, isReviewDecision, proofMeta, ProofError,
   type ProofStorage,
 } from "../lib/proof";
+import { PROOF_DECISION_ACTION, type ProofDecisionParams } from "../lib/proof-approval";
 
 /**
  * PROOFING / deliverable review (roadmap 2.4). A proof references a deliverable (image/PDF, never inlined —
@@ -104,7 +106,9 @@ router.put("/proofs/:id", requireRole("contributor"), (req, res) => {
 
 // POST /api/proofs/:id/decision — record an approve/reject/changes-requested decision, bound to the version.
 // contributor+ floor; an org proof additionally needs manager+ (the storage-target gate). Identity + version
-// are stamped server-side. (The approval-chain + passkey binding is a later slice.)
+// are stamped server-side. When an admin has bound `proof.decision` to an approval chain, the decision is
+// HELD for a passkey-signed sign-off (202) and only stamped onto the proof after the chain approves —
+// auditable + non-repudiable. Unbound (default) ⇒ applied directly.
 router.post("/proofs/:id/decision", requireRole("contributor"), (req, res) => {
   const decision = (req.body ?? {})["decision"];
   if (!isReviewDecision(decision)) { res.status(400).json({ error: "decision must be approved, rejected or changes-requested" }); return; }
@@ -118,6 +122,16 @@ router.post("/proofs/:id/decision", requireRole("contributor"), (req, res) => {
     const scope = proofScope(parsed, ctx.sub);
     const existing = scope ? getArtifact<Proof>(PROOF_ARTIFACT, scope, id) : null;
     if (!scope || !existing) { res.status(404).json({ error: "Proof not found" }); return; }
+    // Bound to a chain? Raise a proposal, hold the decision (the executor stamps it on approval).
+    const params: ProofDecisionParams = { proofId: id, scope, decision, version: existing.version ?? 1, by: actorLabel(ctx) };
+    const proposalId = await proposeIfBound(PROOF_DECISION_ACTION, params, ctx.sub ?? "");
+    if (proposalId) {
+      res.status(202).json({
+        pending: { proposalId, action: PROOF_DECISION_ACTION },
+        message: "This proof decision needs a signed sign-off before it takes effect. See /api/approvals/inbox.",
+      });
+      return;
+    }
     const row = applyDecision(existing, decision, ctx, new Date().toISOString());
     putArtifact(PROOF_ARTIFACT, scope, row);
     res.json(row);

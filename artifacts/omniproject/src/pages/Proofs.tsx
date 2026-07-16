@@ -8,7 +8,7 @@ import { useFeatures, featureEnabled } from "../lib/features";
 import type { Annotation, DeliverableKind, ProofDecision } from "@workspace/backend-catalogue";
 import {
   useProofs, useProof, useCreateProof, useSaveProof, useDeleteProof, useDecideProof,
-  proofRoomId, type ProofStorage,
+  proofRoomId, isProofDecisionHeld, type ProofStorage,
 } from "../lib/proofs";
 import { AnnotationOverlay } from "../components/proof/AnnotationOverlay";
 import { CommentsPanel } from "../components/issue-dialog/CommentsPanel";
@@ -98,7 +98,9 @@ export function Proofs() {
     });
   };
   const onDecide = (decision: Exclude<ProofDecision, "pending">) => decide.mutate(decision, {
-    onSuccess: (p) => toast({ title: "DECISION RECORDED", description: `${DECISION_LABEL[p.decision]} · v${p.decisionVersion ?? p.version}` }),
+    onSuccess: (r) => isProofDecisionHeld(r)
+      ? toast({ title: "SENT FOR SIGN-OFF", description: "This decision needs a signed approval before it takes effect — see the approvals inbox." })
+      : toast({ title: "DECISION RECORDED", description: `${DECISION_LABEL[r.decision]} · v${r.decisionVersion ?? r.version}` }),
     onError: (e) => toast({ title: "COULD NOT DECIDE", description: e instanceof Error ? e.message : "Try again.", variant: "destructive" }),
   });
 
