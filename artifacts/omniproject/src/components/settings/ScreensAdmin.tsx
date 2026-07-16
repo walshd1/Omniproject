@@ -7,8 +7,25 @@ import { useToast } from "@/hooks/use-toast";
 import { useResolvedScreens, useOrgScreenDefs, useSaveOrgScreenDefs, type OrgScreenDef } from "../../lib/org-screens";
 import { screenIsCore } from "../../lib/screen-catalogue";
 import { useDisabledScreens, useSaveDisabledScreens, isScreenDisabled } from "../../lib/screen-state";
+import { useCollectionEditRoles, useSaveCollectionEditRoles, type EditPolicy } from "../../lib/collection-edit-roles";
 import { AdminSection } from "./AdminSection";
 import { ScreenEditor } from "./ScreenEditor";
+
+/** The settings collection a screen's editable register writes to (if it has one), for the edit-access control. */
+function registerCollectionOf(screen: { panels: Array<{ kind: string; config?: Record<string, unknown> }> }): string | undefined {
+  const reg = screen.panels.find((p) => p.kind === "register");
+  const collection = reg?.config?.["collection"];
+  return typeof collection === "string" ? collection : undefined;
+}
+
+const EDIT_POLICIES: { value: EditPolicy | "default"; label: string }[] = [
+  { value: "default", label: "Default (user-editable)" },
+  { value: "contributor", label: "Contributor+" },
+  { value: "manager", label: "Manager+" },
+  { value: "pmo", label: "PMO+" },
+  { value: "admin", label: "Admin only" },
+  { value: "readonly", label: "Read-only" },
+];
 
 /**
  * Screens (admin/PMO) — the control panel for every screen in the app. For each screen an admin can:
@@ -25,6 +42,8 @@ export function ScreensAdmin() {
   const saveDefs = useSaveOrgScreenDefs();
   const { data: disabled } = useDisabledScreens();
   const saveDisabled = useSaveDisabledScreens();
+  const { data: editRoles } = useCollectionEditRoles();
+  const saveEditRoles = useSaveCollectionEditRoles();
   const { toast } = useToast();
 
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -33,7 +52,17 @@ export function ScreensAdmin() {
 
   const org = orgDefs ?? [];
   const off = disabled ?? [];
+  const roles = editRoles ?? {};
   const isOverridden = (id: string) => org.some((s) => s.id === id);
+
+  const setEditAccess = (collection: string, value: EditPolicy | "default") => {
+    const next = { ...roles };
+    if (value === "default") delete next[collection]; else next[collection] = value;
+    saveEditRoles.mutate(next, {
+      onSuccess: () => toast({ title: "EDIT ACCESS UPDATED", description: `${collection}: ${value}` }),
+      onError: (e) => toast({ title: "COULD NOT SAVE", description: e instanceof Error ? e.message : "Try again.", variant: "destructive" }),
+    });
+  };
 
   const toggleOff = (id: string, next: boolean) => {
     const list = next ? [...new Set([...off, id])] : off.filter((x) => x !== id);
@@ -90,6 +119,24 @@ export function ScreensAdmin() {
                       <Switch checked={!screenOff} onCheckedChange={(on) => toggleOff(s.id, !on)} aria-label={`Toggle ${s.label}`} data-testid={`screen-toggle-${s.id}`} />
                     </label>
                   )}
+                  {(() => {
+                    const collection = registerCollectionOf(s);
+                    if (!collection) return null;
+                    return (
+                      <label className="flex items-center gap-1 text-[10px] uppercase tracking-wide text-muted-foreground" title="Who may edit this screen's data">
+                        Edit
+                        <select
+                          aria-label={`Edit access for ${s.label}`}
+                          data-testid={`screen-edit-access-${s.id}`}
+                          value={roles[collection] ?? "default"}
+                          onChange={(e) => setEditAccess(collection, e.target.value as EditPolicy | "default")}
+                          className="h-7 border border-foreground bg-background px-1 text-xs"
+                        >
+                          {EDIT_POLICIES.map((p) => <option key={p.value} value={p.value}>{p.label}</option>)}
+                        </select>
+                      </label>
+                    );
+                  })()}
                   {isOverridden(s.id) && !editing && (
                     <Button type="button" variant="destructive" size="sm" onClick={() => resetOverride(s.id)} data-testid={`screen-reset-${s.id}`}>Reset</Button>
                   )}

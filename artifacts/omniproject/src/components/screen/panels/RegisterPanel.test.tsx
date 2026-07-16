@@ -18,20 +18,36 @@ const panel: Panel = {
   },
 };
 
-function seed(role: string, raci: unknown[]): QueryClient {
+function seed(role: string, raci: unknown[], collectionEditRoles: Record<string, string> = {}): QueryClient {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity }, mutations: { retry: false } } });
   qc.setQueryData(["auth", "me"], { authenticated: true, role, user: { sub: "u1" } });
-  qc.setQueryData(settingsQueryKey, { raci });
+  qc.setQueryData(settingsQueryKey, { raci, collectionEditRoles });
   return qc;
 }
 afterEach(() => vi.restoreAllMocks());
 
 describe("RegisterPanel (editable data on the screen)", () => {
+  it("is user-editable by default: a contributor can edit", () => {
+    renderWithProviders(<RegisterPanel panel={panel} />, { client: seed("contributor", []) });
+    expect(screen.getByTestId("register-add")).toBeTruthy();
+  });
+
   it("viewers see the register read-only (no add/save)", () => {
     renderWithProviders(<RegisterPanel panel={panel} />, { client: seed("viewer", [{ id: "r1", task: "Deploy", role: "Ops", responsibility: "A" }]) });
     expect(screen.getByTestId("register-readonly-body").textContent).toContain("Deploy");
     expect(screen.queryByTestId("register-add")).toBeNull();
     expect(screen.queryByTestId("register-save")).toBeNull();
+  });
+
+  it("respects a raised policy: with raci→pmo, a manager is read-only", () => {
+    renderWithProviders(<RegisterPanel panel={panel} />, { client: seed("manager", [], { raci: "pmo" }) });
+    expect(screen.queryByTestId("register-add")).toBeNull();
+  });
+
+  it("respects a read-only policy: even an admin can't edit", () => {
+    renderWithProviders(<RegisterPanel panel={panel} />, { client: seed("admin", [], { raci: "readonly" }) });
+    expect(screen.queryByTestId("register-add")).toBeNull();
+    expect(screen.getByTestId("register-readonly-body")).toBeTruthy();
   });
 
   it("a manager can add + edit a row and Save PUTs it to the collection endpoint", async () => {

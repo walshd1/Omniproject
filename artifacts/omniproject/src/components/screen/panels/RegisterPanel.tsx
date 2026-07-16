@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import type { Panel } from "../../../lib/screen";
-import { useAuth, roleAtLeast } from "../../../lib/auth";
+import { useAuth, roleAtLeast, type Role } from "../../../lib/auth";
 import { useSettingsSlice, settingsQueryKey } from "../../../lib/settings-query";
 import { useDraftAdmin } from "../../../hooks/use-draft-admin";
 import { sendJson } from "../../../lib/api";
@@ -41,7 +41,15 @@ export function RegisterPanel({ panel }: { panel: Panel }) {
   const columns: Column[] = Array.isArray(c["columns"]) ? (c["columns"] as Column[]) : [];
 
   const { data: auth } = useAuth();
-  const canEdit = roleAtLeast(auth?.role, "manager") && !!endpoint;
+  // Edit policy: default USER-EDITABLE (contributor+); an admin/PMO can raise the bar per collection or set
+  // it read-only via collectionEditRoles. A panel may set its own `defaultEditRole` fallback in JSON.
+  const { data: policy } = useSettingsSlice((s) => {
+    const map = (s["collectionEditRoles"] ?? {}) as Record<string, string>;
+    return typeof map[collection] === "string" ? map[collection] : undefined;
+  });
+  const fallbackRole = (str(c["defaultEditRole"]) || "contributor") as Role;
+  const effective = policy ?? fallbackRole;
+  const canEdit = !!endpoint && effective !== "readonly" && roleAtLeast(auth?.role, effective as Role);
   const { data: serverRows } = useSettingsSlice((s) => (Array.isArray(s[collection]) ? (s[collection] as Row[]) : []));
   const { draft, setDraft, dirty, reset } = useDraftAdmin<Row[], Row[]>(serverRows, structuredClone);
   const qc = useQueryClient();

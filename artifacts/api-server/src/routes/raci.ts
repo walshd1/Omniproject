@@ -1,7 +1,7 @@
 import { Router } from "express";
-import { requireRole } from "../lib/rbac";
 import { getSettings } from "../lib/settings";
 import { settingsCollectionRouter } from "../lib/settings-collection-router";
+import { requireCollectionEdit } from "../lib/collection-edit-policy";
 import { raciRows } from "../lib/raci";
 import { rollup, parseRollupQuery } from "../lib/rollup";
 
@@ -22,7 +22,8 @@ router.use(settingsCollectionRouter({
   path: "/raci",
   settingsKey: "raci",
   versionLabel: "raci updated",
-  writeGuards: [requireRole("manager")],
+  // Default user-editable (contributor+); an admin/PMO can raise or lock it via collectionEditRoles.
+  writeGuards: [requireCollectionEdit("raci", "contributor")],
 }));
 
 export default router;

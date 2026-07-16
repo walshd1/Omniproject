@@ -60,6 +60,20 @@ describe("ScreensAdmin", () => {
     expect(kanban.id).toBe("kanban"); // pinned — the editor can't retarget the override
   });
 
+  it("sets per-screen edit access for a register-bearing screen (PUTs collection-edit-roles)", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("{}", { status: 200 }));
+    renderWithProviders(<ScreensAdmin />, { client: seed("admin") });
+    // raci-matrix hosts a register on collection "raci" → its edit-access dropdown is shown.
+    fireEvent.change(screen.getByTestId("screen-edit-access-raci-matrix"), { target: { value: "manager" } });
+    const put = await waitFor(() => {
+      const c = fetchMock.mock.calls.find(([u, i]) => u === "/api/collection-edit-roles" && (i as RequestInit)?.method === "PUT");
+      expect(c).toBeTruthy();
+      return c!;
+    });
+    const body = JSON.parse((put[1] as RequestInit).body as string) as { collectionEditRoles: Record<string, string> };
+    expect(body.collectionEditRoles.raci).toBe("manager");
+  });
+
   it("a core screen shows the Core badge and no on/off toggle", () => {
     renderWithProviders(<ScreensAdmin />, { client: seed("admin") });
     expect(screen.getByTestId("screen-core-home")).toBeInTheDocument();

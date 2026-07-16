@@ -503,6 +503,10 @@ export interface PresentationConfig {
    *  builder (an off screen shows a "turned off" state, never a crash). Overriding vs disabling are the
    *  two admin controls on the Screens admin panel. See routes/disabled-screens. */
   disabledScreens: string[];
+  /** Per-collection EDIT policy for on-screen editable content (collectionKey → a role, or "readonly").
+   *  The default is user-editable; an admin/PMO raises the bar or locks a collection read-only. Enforced
+   *  server-side (lib/collection-edit-policy) and mirrored by the SPA's edit controls. */
+  collectionEditRoles: Record<string, string>;
   /**
    * Methodology composition — the PMO/admin's curated set of visible artifact / output / ruleset ids,
    * assembled from one-click methodology presets and refined per item (so "some Scrum + some PRINCE2" is
@@ -1153,6 +1157,20 @@ const FIELD_DESCRIPTORS: { [K in keyof SettingsState]: FieldDescriptor<K> } = {
   budgetPlans: { seed: () => [], validate: normalisedBy((v) => validateBudgetPlans(v), BudgetPlanError) },
   screenDefs: { seed: () => [], validate: normalisedBy((v) => validateScreenDefs(v), ScreenDefError) },
   disabledScreens: { seed: () => [], validate: stringArrayField("disabledScreens") },
+  collectionEditRoles: {
+    seed: () => ({}),
+    validate: (value) => {
+      if (typeof value !== "object" || value == null || Array.isArray(value)) throw new SettingsValidationError("collectionEditRoles must be an object");
+      const allowed = new Set(["viewer", "contributor", "manager", "pmo", "admin", "readonly"]);
+      const out: Record<string, string> = {};
+      for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+        if (isForbiddenKey(k)) continue;
+        if (typeof v !== "string" || !allowed.has(v)) throw new SettingsValidationError(`collectionEditRoles["${k}"] must be one of viewer, contributor, manager, pmo, admin, readonly`);
+        out[k] = v;
+      }
+      return out;
+    },
+  },
   raci: { seed: () => [], validate: normalisedBy((v) => validateRaci(v), RaciError) },
   stakeholders: { seed: () => [], validate: normalisedBy((v) => validateStakeholders(v), StakeholderError) },
   methodologyComposition: {

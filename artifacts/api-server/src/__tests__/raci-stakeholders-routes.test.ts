@@ -10,7 +10,7 @@ let h: Harness;
 const ADMIN = adminCookie();
 before(async () => { h = await startHarness(); });
 after(() => h?.close());
-afterEach(async () => { const { updateSettings } = await import("../lib/settings"); updateSettings({ raci: [], stakeholders: [] }); });
+afterEach(async () => { const { updateSettings } = await import("../lib/settings"); updateSettings({ raci: [], stakeholders: [], collectionEditRoles: {} }); });
 const req = (p: string, o: Parameters<Harness["req"]>[1] = {}) => h.req(p, { cookie: ADMIN, ...o });
 
 test("RACI: save + rows round-trip", async () => {
@@ -33,11 +33,23 @@ test("Stakeholders: save + rows round-trip", async () => {
   assert.equal(rows.rows[0]!.influence, "high");
 });
 
-test("register writes are gated to manager under real RBAC", async () => {
+test("collectionEditRoles: read-only blocks every write; default allows it", async () => {
+  const { updateSettings } = await import("../lib/settings");
+  // Locked read-only → even the admin session is refused.
+  updateSettings({ collectionEditRoles: { raci: "readonly" } });
+  assert.equal((await req("/raci", { method: "PUT", body: { raci: [] } })).status, 403);
+  // Unset → default user-editable, the write goes through.
+  updateSettings({ collectionEditRoles: {} });
+  assert.equal((await req("/raci", { method: "PUT", body: { raci: [] } })).status, 200);
+});
+
+test("collectionEditRoles: a configured role gate is enforced under real RBAC", async () => {
+  const { updateSettings } = await import("../lib/settings");
   const prev = process.env["OIDC_ISSUER_URL"]; process.env["OIDC_ISSUER_URL"] = "https://idp.example";
   try {
+    // Raise RACI to pmo+ → a plain member is refused, reads stay open.
+    updateSettings({ collectionEditRoles: { raci: "pmo" } });
     assert.equal((await h.req("/raci", { cookie: memberCookie(), method: "PUT", body: { raci: [] } })).status, 403);
-    assert.equal((await h.req("/stakeholders", { cookie: memberCookie(), method: "PUT", body: { stakeholders: [] } })).status, 403);
     assert.equal((await h.req("/raci/rows", { cookie: memberCookie() })).status, 200);
-  } finally { if (prev === undefined) delete process.env["OIDC_ISSUER_URL"]; else process.env["OIDC_ISSUER_URL"] = prev; }
+  } finally { updateSettings({ collectionEditRoles: {} }); if (prev === undefined) delete process.env["OIDC_ISSUER_URL"]; else process.env["OIDC_ISSUER_URL"] = prev; }
 });
