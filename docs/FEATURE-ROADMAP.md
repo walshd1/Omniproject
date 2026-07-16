@@ -182,7 +182,7 @@ PDF overlay) enters as a **primitive** in the shared store, so it inherits capab
 authoring, and the drift guards — no feature bypasses the golden rules.
 
 
-### 2.1 Collaborative docs / wiki / knowledge base  🚧 In progress (slices 1–2)
+### 2.1 Collaborative docs / wiki / knowledge base  ✅ Done (slices 1–6)
 - **Competitors.** Notion, ClickUp, Confluence, Wrike. **Gap.** "Content pages" is a CMS
   library, not real-time rich-text co-editing / linked wiki.
 - **Acceptance.** Rich-text documents with links/embeds, per-space organisation, presence
@@ -219,8 +219,16 @@ authoring, and the drift guards — no feature bypasses the golden rules.
   **block diff** (`diffDocBlocks`, aligned by block id — no text-diff dependency, bodies stay block
   JSON) of "what changed since this revision", and a **Restore** that re-saves through the ordinary
   update path — same sanitiser + RBAC gate, and itself a new revision (no special restore power).
-- **Slice 6+ (next).** **Yjs** CRDT co-edit (binds via `y-prosemirror`, awareness = live cursors)
-  over our SSE — the one remaining real-time piece.
+- **Slice 6 ✅ (real-time co-edit).** **Yjs** CRDT co-editing on the *existing block model* (not a
+  ProseMirror swap — keeps the block primitives + sanitiser): `DocBlock[]` maps to a `Y.Array` of
+  `Y.Map`s, block-granular merge. The server is a **dumb SSE relay** (`/api/collab/rooms/:roomId`,
+  contributor+, room-scope-guarded) that never parses or stores the payload — the durable doc still
+  saves through the broker seam (zero-at-rest); the CRDT stream is transient, like presence. A tiny
+  join-sync handshake (state-vector exchange) uses only `yjs` core — no `y-prosemirror`/`y-protocols`.
+  Deterministic seeding (fixed client id) means two people opening a page at once never duplicate its
+  blocks. Behind the default-off `wikiCoEdit` flag; the editor degrades to plain local state when off.
+- **2.1 complete.** Wiki now has documents-of-primitives, authoring, presence+comments, a page tree,
+  version history + diff, and real-time co-edit — all zero-at-rest through the broker seam.
 
 ### 2.2 Guest / external collaboration & client portals  ⬜ Todo
 - **Competitors.** Monday, Wrike, Smartsheet. **Gap.** Enterprise-IdP/SCIM only; no
@@ -433,3 +441,8 @@ so an attachment field would be a URL reference (`url` type) pointing at the sys
   snapshot per write (bounded ring); two optional broker reads (`listWikiDocVersions`/`getWikiDocVersion`,
   501 when unsupported) feed a viewer+ History panel with a pure structural block diff (`diffDocBlocks`)
   and a Restore that re-saves via the normal update path (same sanitiser + RBAC, itself a new revision).
+- _2026-07-16_ — Phase 2.1 slice 6 (real-time co-edit) shipped, **completing 2.1**: Yjs CRDT on the
+  existing block model (`DocBlock[]` ↔ `Y.Array`/`Y.Map`, block-granular merge, deterministic idempotent
+  seeding), a dumb contributor+ SSE relay (`/api/collab/rooms/:roomId`, room-scope-guarded, never stores
+  the opaque payload — durable doc still saves through the broker seam), a state-vector join-sync using
+  only `yjs` core (no y-prosemirror), behind the default-off `wikiCoEdit` flag. New dep: `yjs` (client).

@@ -1,11 +1,12 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { ArrowUp, ArrowDown, Trash2, Plus } from "lucide-react";
+import { ArrowUp, ArrowDown, Trash2, Plus, Radio } from "lucide-react";
 import { CALLOUT_TONES, type DocBlock, type DocBlockType, type CalloutTone } from "@workspace/backend-catalogue";
 import { primitivesByFamily } from "../../lib/primitive-store";
 import { descendantIds, type WikiDoc, type WikiDocInput, type WikiDocSummary } from "../../lib/wiki";
+import { useCollabBlocks } from "../../lib/collab";
 
 /**
  * DocEditor — the block-based authoring surface for a wiki document (roadmap 2.1 slice 2). The palette of
@@ -33,17 +34,26 @@ function blankBlock(type: DocBlockType): DocBlock {
   }
 }
 
-export function DocEditor({ doc, spaceId, docs = [], onSave, onCancel, saving }: {
+export function DocEditor({ doc, spaceId, docs = [], coEditRoomId = null, coEdit = false, onSave, onCancel, saving }: {
   doc?: WikiDoc;
   spaceId: string;
   /** Sibling docs in this space, for the "parent page" picker (page tree). */
   docs?: WikiDocSummary[];
+  /** The co-edit room (e.g. `doc:<id>`) for real-time collaboration; null disables it. */
+  coEditRoomId?: string | null;
+  /** Whether the wikiCoEdit feature is enabled. */
+  coEdit?: boolean;
   onSave: (input: WikiDocInput) => void;
   onCancel: () => void;
   saving?: boolean;
 }) {
   const [title, setTitle] = useState(doc?.title ?? "");
-  const [blocks, setBlocks] = useState<DocBlock[]>(doc?.blocks?.length ? doc.blocks.map((b) => ({ ...b })) : [blankBlock("paragraph")]);
+  const initialBlocks = useMemo<DocBlock[]>(
+    () => (doc?.blocks?.length ? doc.blocks.map((b) => ({ ...b })) : [blankBlock("paragraph")]),
+    [doc],
+  );
+  // Blocks are backed by the shared Yjs doc when co-edit is on for this room; otherwise plain local state.
+  const { blocks, setBlocks, live } = useCollabBlocks(coEditRoomId, initialBlocks, coEdit);
   const [parentId, setParentId] = useState<string>(doc?.parentId ?? "");
   // The insertable block palette comes from the primitive store's `block` family (not a hard-coded list).
   const palette = primitivesByFamily("block");
@@ -67,6 +77,11 @@ export function DocEditor({ doc, spaceId, docs = [], onSave, onCancel, saving }:
 
   return (
     <div className="space-y-3" data-testid="doc-editor">
+      {live && (
+        <p className="flex items-center gap-1 text-[10px] uppercase tracking-widest font-bold text-green-600 dark:text-green-400" data-testid="doc-coedit-live">
+          <Radio className="h-3 w-3 animate-pulse" />Live co-editing — changes sync in real time
+        </p>
+      )}
       <Input aria-label="Document title" data-testid="doc-title" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Document title" className="text-lg font-bold" />
 
       {parentOptions.length > 0 && (
