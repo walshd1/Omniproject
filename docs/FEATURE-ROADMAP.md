@@ -346,7 +346,7 @@ authoring, and the drift guards — no feature bypasses the golden rules.
 - **2.3 complete.** Whiteboards now have a native primitive-built canvas, storage targets, SVG/PNG export,
   sticky → work item, and multi-user live cursors — the inline "good enough" canvas the roadmap called for.
 
-### 2.4 Proofing / deliverable review & annotation  🚧 In progress (slice 1)
+### 2.4 Proofing / deliverable review & annotation  🚧 In progress (slices 1–2)
 - **Competitors.** Adobe Workfront, Wrike, Smartsheet. **Gap.** No creative review markup.
 - **Acceptance.** Attach a deliverable (image/PDF), pin annotations, threaded review,
   approve/reject decision bound to a version; ties into approval chains.
@@ -364,8 +364,17 @@ authoring, and the drift guards — no feature bypasses the golden rules.
   version; replacing the deliverable bumps the version and **re-opens** the decision). One **sanitising choke
   point** (`sanitizeProofWrite`): safe-scheme-only deliverable url, coordinates clamped to normalised 0..1,
   per-type annotation field allow-listing, size caps. Client hooks. Drift guard + catalogue + sanitiser +
-  route (sealed-at-rest, user isolation, org gating, decision/version) tests. **Next:** the annotation UI
-  (overlay the deliverable, pin/drag annotations) and threaded review + approval-chain binding.
+  route (sealed-at-rest, user isolation, org gating, decision/version) tests.
+- **Slice 2 ✅ (annotation UI).** A `/proofs` page + an **`AnnotationOverlay`** that renders the deliverable
+  (image inline, PDF via `<object>` with a link fallback) and overlays the `annotation` primitives
+  (pin/box/highlight) at **normalised coordinates** (they survive any render scale). Tools: select / pin /
+  box / highlight — click to place, drag to move, an inspector edits the note + a resolved toggle + delete.
+  The page browses proofs (with a per-proof decision badge), a create form (name + deliverable url + kind +
+  storage target), Save, Delete, and a **review decision bar** (Approve / Request changes / Reject → the
+  server-stamped, version-bound decision route). Authoring is contributor+ (a viewer sees the markers,
+  read-only); an org proof's write/delete/decision needs manager+. Nav entry (feature-gated on `proofing`) +
+  route + e2e manifest + i18n. Pure geometry (`lib/proof-geometry`) + overlay + page tests. **Next:** threaded
+  review (a comment thread per annotation) and approval-chain + passkey binding of the decision.
 
 ### 2.5 Native mobile + offline  ⬜ Todo
 - **Competitors.** All. **Gap.** PWA caches app-shell only; no offline data, no native apps.
@@ -610,3 +619,10 @@ so an attachment field would be a URL reference (`url` type) pointing at the sys
   (server-stamped, version-bound; a new deliverable re-opens it). One sanitiser choke point (safe-scheme url,
   0..1 coord clamp, per-type allow-list). Client hooks + drift-guard/catalogue/sanitiser/route tests. Next:
   the annotation UI + threaded review + approval-chain binding.
+- _2026-07-16_ — Phase 2.4 slice 2 (annotation UI) shipped: a `/proofs` page + an `AnnotationOverlay` that
+  renders the deliverable (image inline / PDF via `<object>`) and overlays pin/box/highlight annotations at
+  normalised coords (place on click, drag to move, inspector edits note + resolved + delete). The page browses
+  proofs with a decision badge, a create form (name + url + kind + storage), Save/Delete, and a review
+  decision bar (Approve / Request changes / Reject → the server-stamped version-bound decision route).
+  contributor+ authoring (viewer read-only); org proofs manager+. Nav (feature-gated) + route + e2e + i18n;
+  pure `lib/proof-geometry` + overlay + page tests. Next: threaded review + approval-chain binding.
