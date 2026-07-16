@@ -4,14 +4,21 @@ import { contextFromReq, withBrokerErrors } from "../broker";
 import { requireRole } from "../lib/rbac";
 import { assertProjectScope } from "../lib/project-scope";
 import { authorizeStorageTarget } from "../lib/storage-target-authz";
+import crypto2 from "node:crypto";
 import {
-  artifactStoreEnabled, listArtifacts, getArtifact, putArtifact, deleteArtifact,
+  artifactStoreEnabled, listArtifacts, getArtifact, putArtifact, deleteArtifact, listAllArtifactCollections,
 } from "../lib/artifact-store";
+import { getNotifyBus } from "../lib/notify-bus";
+import { sharedKv } from "../lib/shared-state";
 import {
   GOAL_ARTIFACT, sanitizeGoalWrite, sanitizeCheckInWrite, applyCheckIn,
   sanitizeGoalLink, addGoalLink, removeGoalLink, makeGoalId, parseGoalId, goalScope,
-  newGoalRow, mergeGoalRow, goalMeta, GoalError, type Goal, type GoalMeta, type GoalStorage,
+  newGoalRow, mergeGoalRow, goalMeta, runGoalCheckinSweep, GoalError,
+  type Goal, type GoalMeta, type GoalStorage,
 } from "../lib/goal";
+
+/** Dedupe TTL for a fired check-in reminder — long enough that a period's nudge fires once. */
+const CHECKIN_TTL_MS = 90 * 24 * 60 * 60 * 1000;
 
 /**
  * GOALS / OKRs (roadmap 3.2). A goal is a first-class OBJECTIVE with measurable KEY RESULTS; its progress is
@@ -163,6 +170,34 @@ router.delete("/goals/:id/links/:key", requireRole("contributor"), (req, res) =>
     res.json(row);
   });
 });
+
+// POST /api/goals/checkins/sweep — deliver any DUE check-in reminders in-app (pmo+, cron/routine-driven).
+// Nudges each goal whose `nextCheckInAt` has passed once (deduped via shared-state), notifying the owner,
+// and rolls the cadence forward so it recurs. Portfolio-wide, so it needs a pmo/admin caller.
+router.post("/goals/checkins/sweep", requireRole("pmo"), (req, res) =>
+  withBrokerErrors(req, res, "goal check-in sweep failed", async () => {
+    if (!artifactStoreEnabled()) { res.json({ nudged: 0, goalIds: [] }); return; }
+    // Enumerate every goal across all scopes, remembering each one's scope so we can persist the roll-forward.
+    const collections = listAllArtifactCollections<Goal>(GOAL_ARTIFACT);
+    const scopeById = new Map<string, (typeof collections)[number]["scope"]>();
+    const goals: Goal[] = [];
+    for (const c of collections) for (const g of c.items) { goals.push(g); scopeById.set(g.id, c.scope); }
+    const bus = getNotifyBus();
+    const result = await runGoalCheckinSweep({
+      goals,
+      nowMs: Date.now(),
+      nowISO: new Date().toISOString(),
+      isFired: async (key) => !!(await sharedKv.get(key)),
+      markFired: async (key) => { await sharedKv.set(key, "1", { ttlMs: CHECKIN_TTL_MS }); },
+      notify: (n, target) => void bus.publish({
+        notification: { id: `goal-${crypto2.randomUUID()}`, kind: n.kind, title: n.title, body: n.body, read: false, timestamp: Date.now() },
+        ...(target.sub ? { target } : {}),
+      }),
+      reschedule: (goal) => { const scope = scopeById.get(goal.id); if (scope) putArtifact(GOAL_ARTIFACT, scope, goal); },
+    });
+    res.json(result);
+  }),
+);
 
 // DELETE /api/goals/:id — remove a goal (contributor+; an org goal additionally needs manager+).
 router.delete("/goals/:id", requireRole("contributor"), (req, res) =>

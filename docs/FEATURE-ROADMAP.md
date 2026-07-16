@@ -538,7 +538,7 @@ authoring, and the drift guards — no feature bypasses the golden rules.
   `guestInvite` panel was missing from `SETTINGS_PANEL_KEYS`). 3 component tests (seed, save-PATCH, validation
   gate) + the panel drift-guard now green. **Working-time is now fully user-configurable.**
 
-### 3.2 Goals / OKRs as a managed cadence  🚧 In progress (slices 1–3)
+### 3.2 Goals / OKRs as a managed cadence  🚧 In progress (slices 1–4)
 - **Competitors.** Asana Goals, Viva Goals, ClickUp. **Have.** Strategy cascade + PI board
   as *reports*. **Missing.** First-class goal objects with check-ins, progress updates,
   goal↔work linking on a cadence.
@@ -571,6 +571,16 @@ authoring, and the drift guards — no feature bypasses the golden rules.
   `sanitizeGoalLink` validates the triple; `addGoalLink`/`removeGoalLink` are pure and bump the version only
   on a real change. `GoalMeta` gains `linkCount`. 1 pure test + 1 route test. **Next:** the recurring check-in
   cadence via the reminder sweep (slice 4), then the UI (slice 5).
+- **Slice 4 ✅ (check-in cadence — managed reminders).** A goal can carry a `cadence` (recurrence rule) and a
+  derived `nextCheckInAt`; `newGoalRow` seeds it via `recurrence.nextOccurrence`, `mergeGoalRow` reseeds when
+  the cadence changes, and `applyCheckIn` rolls it forward on each check-in. A **portfolio-wide sweep**
+  (`POST /api/goals/checkins/sweep`, **pmo+**, cron/routine-driven) enumerates every goal across all scopes
+  (new `artifact-store.listAllArtifactCollections` scans the sealed type dir), and `runGoalCheckinSweep`
+  mark-then-notifies the OWNER of each due goal via the **notify bus** (deduped through `sharedKv` with a
+  fire-key that embeds the due date) and **rolls the cadence forward** so it recurs even if a check-in is
+  missed — exactly mirroring the task reminder sweep. Pure selection (`dueGoalCheckins`, `advanceGoalCadence`,
+  `goalCheckinNotification`) + injected runner. 5 pure tests (seed/advance, due-selection, roll-forward,
+  sweep-nudges-owner) + 1 route test (seed + sweep + pmo gate). **Next:** the Goals UI (slice 5).
 
 ### 3.3 Live time tracking + invoicing  ⬜ Todo
 - **Competitors.** Harvest/Toggl, Workfront. **Have.** Timesheets (submit/approve) +
