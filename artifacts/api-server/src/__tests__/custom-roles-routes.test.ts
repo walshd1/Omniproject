@@ -31,6 +31,8 @@ function cookie(session: object): string {
 }
 const ADMIN = cookie({ sub: "a", email: "ada@x.io", roles: ["omni-admins"], amr: ["hwk"] });
 const MANAGER = cookie({ sub: "m", email: "mia@x.io", roles: ["omni-managers"] });
+// A user whose ONLY IdP group is "finance" — unmapped to any fixed role, so it resolves via a custom role.
+const FINANCE = cookie({ sub: "f", email: "fin@x.io", roles: ["finance"] });
 
 before(async () => {
   const { default: app } = await import("../app");
@@ -62,7 +64,7 @@ test("PUT persists a valid config; a bad config is 400", async () => {
   const capId = cap.capabilities[0]!.id;
   const good = {
     permissionSets: [{ id: "pack", label: "Pack", capabilities: [capId] }],
-    customRoles: [{ id: "finance-analyst", label: "Finance Analyst", baseRole: "contributor", permissionSetIds: ["pack"], groups: ["finance"] }],
+    customRoles: [{ id: "finance-analyst", label: "Finance Analyst", baseRole: "manager", permissionSetIds: ["pack"], groups: ["finance"] }],
   };
   const put = await req("/admin/custom-roles", { method: "PUT", body: good, cookie: ADMIN });
   assert.equal(put.status, 200);
@@ -77,4 +79,11 @@ test("PUT persists a valid config; a bad config is 400", async () => {
 test("a manager cannot read or write custom roles (admin-only)", async () => {
   assert.equal((await req("/admin/custom-roles", { cookie: MANAGER })).status, 403);
   assert.equal((await req("/admin/custom-roles", { method: "PUT", body: {}, cookie: MANAGER })).status, 403);
+});
+
+test("resolution: a finance-group user is lifted to the custom role's base (manager)", async () => {
+  // The prior test persisted finance-analyst (base manager, groups ["finance"]). A finance-only user has no
+  // fixed-role claim, so this role comes ENTIRELY from the custom role resolving to its base.
+  const me = (await req("/auth/me", { cookie: FINANCE }).then((x) => x.json())) as { role: string };
+  assert.equal(me.role, "manager");
 });

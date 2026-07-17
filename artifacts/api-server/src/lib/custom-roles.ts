@@ -9,7 +9,7 @@
  * PURE: validation + normalisation here (`sanitizeCustomRolesConfig`); the route persists via `artifact-store`.
  */
 import { getArtifact, putArtifact, artifactStoreEnabled, type ArtifactScope } from "./artifact-store";
-import { ROLES, type Role } from "./rbac";
+import { ROLES, grantsForRole, unionGrants, registerCustomRoleGrants, type Role, type Grants } from "./rbac";
 import { getCapability } from "./capability-governance";
 
 /** A named bundle of governance capability ids. */
@@ -152,3 +152,18 @@ export function customRolesForClaims(claims: string[], config: CustomRolesConfig
   const claimSet = new Set(claims.map((c) => c.toLowerCase()));
   return config.customRoles.filter((r) => r.groups.some((g) => claimSet.has(g)));
 }
+
+/**
+ * The union grants of every custom role a claim set matches — each capped at its FIXED base role, so this can
+ * never exceed a grant an admin could assign directly via the role-map. Authorities (pmo/admin) are still
+ * withheld without strong auth, exactly like a direct claim. This is the resolver `rbac.grantsForReq` folds in.
+ */
+export function customRoleGrants(claims: string[], strongAuth: boolean): Grants {
+  let grants: Grants = grantsForRole("viewer"); // floor; unioned upward per matched role
+  for (const role of customRolesForClaims(claims)) grants = unionGrants(grants, grantsForRole(role.baseRole));
+  return strongAuth ? grants : { base: grants.base, authorities: new Set() };
+}
+
+// Register the resolver so rbac can fold custom roles into grantsForReq without importing this module
+// (avoids a load-time circular import). Loaded at startup via the custom-roles route mount.
+registerCustomRoleGrants(customRoleGrants);

@@ -895,7 +895,7 @@ authoring, and the drift guards — no feature bypasses the golden rules.
   capability governance (permission sets), the group → role mapping, per-collection edit-roles, and the
   definition-importer scope policy — is now all reachable from the admin Settings UI.**
 
-### X.6 Admin-defined custom roles + permission sets  🚧 In progress (slice 1 of 3)
+### X.6 Admin-defined custom roles + permission sets  🚧 In progress (slices 1–2 of 3)
 - **Goal.** Let an org name its own roles ("Finance Analyst", "Delivery Lead") and permission bundles — while
   keeping the RBAC boundary statically verifiable. **A custom role is always GROUNDED in one of the 6 fixed base
   roles** (its hard grant ceiling), so it can never confer more than that base — which an admin could already
@@ -910,9 +910,19 @@ authoring, and the drift guards — no feature bypasses the golden rules.
   slice). `routes/custom-roles` — `GET`/`PUT /admin/custom-roles` (admin-only, mounted as a core admin route
   like `role-map`), returning the base-role + capability pickers the editor needs. 8 tests (validator rejects bad
   base / built-in collision / unknown capability / dangling ref / guest base; resolution helpers; route CRUD +
-  admin-only RBAC + persistence); guards + gateway + typecheck clean. **Next:** slice 2 — resolve an IdP group →
-  custom role → its base-role grants in `grantsForReq` (safe: never exceeds base; step-up on the CRUD once live);
-  slice 3 — the admin UI to define permission sets + custom roles + assign groups.
+  admin-only RBAC + persistence); guards + gateway + typecheck clean.
+- **Slice 2 ✅ (resolution — group → custom role → base grants, enforced).** `rbac` gains a `unionGrants` helper
+  (higher base + union of authorities) and a **registration seam** (`registerCustomRoleGrants`) so it never
+  imports `custom-roles` (avoiding a load-time circular import). `grantsForReq` now folds the matched custom
+  roles' grants into the fixed-claim grants — each custom role capped at its base role via `grantsForRole`, and
+  **authorities (pmo/admin) still withheld without strong auth**, exactly like a direct claim; demo sessions
+  (all-grants) are untouched. `lib/custom-roles` registers `customRoleGrants` at load (via the route mount at
+  startup). Net: an IdP group mapped only to a custom role now resolves through EVERY existing `requireRole` /
+  `hasRole` gate — with a hard ceiling of the base role an admin could already assign directly. New resolution
+  test (a `finance`-group user with no fixed-role claim is lifted to the custom role's base of `manager`); the
+  full RBAC suite (enforcement + strong-auth + SSO parity + gateway = 156 tests) stays green; typecheck clean.
+  **Next:** slice 3 — the admin UI to define permission sets + custom roles + assign groups (with step-up on the
+  save, matching the role-map).
 
 The mental model: each entry in the store is a **class** — its config are properties (a field's
 `options`, `maxLength`; a panel's `source`), it produces a typed **value**, and it carries
