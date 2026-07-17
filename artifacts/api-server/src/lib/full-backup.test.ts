@@ -1,9 +1,15 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { buildFullBackup, splitFullBackup, FULL_BACKUP_SCHEMA } from "./full-backup";
+import {
+  buildFullBackup, splitFullBackup, FULL_BACKUP_SCHEMA,
+  buildSealedFullBackup, isSealedFullBackup, openSealedFullBackup, applyExtraStores, SEALED_BACKUP_SCHEMA, SealedBackupError,
+} from "./full-backup";
 import type { SettingsState } from "./settings";
 
 /** Full backup (roadmap X.14) — the one-file composition of the settings snapshot + the def-store export. */
+
+/** A settings object carrying a SECRET (a webhook signing secret) so the plaintext-vs-sealed split is testable. */
+const withSecret = { branding: { productName: "X" }, webhooks: [{ id: "w", url: "https://hook.example", secret: "s3cr3t", active: true }] } as unknown as SettingsState;
 
 test("buildFullBackup composes both halves under the full-backup schema", () => {
   const settings = { branding: { productName: "X" } } as unknown as SettingsState;
@@ -24,4 +30,125 @@ test("splitFullBackup returns the two halves for a valid envelope", () => {
 test("splitFullBackup throws on a wrong or missing schema", () => {
   assert.throws(() => splitFullBackup({ schema: "nope" }), /schema/i);
   assert.throws(() => splitFullBackup(null), /object/i);
+});
+
+test("PLAINTEXT backup withholds secrets; SEALED backup carries them and round-trips under the deployment key", () => {
+  // Plaintext: the webhook secret is NOT in the settings snapshot.
+  const plain = buildFullBackup(withSecret, "2026-07-17T00:00:00.000Z");
+  assert.equal("webhooks" in (plain.settings.settings as Record<string, unknown>), false, "plaintext backup must not carry secret-bearing keys");
+
+  // Sealed: an encrypted envelope, ciphertext only — no plaintext secret visible on the wire.
+  const sealed = buildSealedFullBackup(withSecret, "2026-07-17T00:00:00.000Z");
+  assert.equal(sealed.schema, SEALED_BACKUP_SCHEMA);
+  assert.ok(isSealedFullBackup(sealed));
+  assert.ok(typeof sealed.keyFingerprint === "string" && sealed.keyFingerprint.length > 0);
+  assert.equal(JSON.stringify(sealed).includes("s3cr3t"), false, "the sealed envelope must not leak the secret in clear");
+
+  // Open with this deployment's key: the complete state comes back, secret included.
+  const { settings } = openSealedFullBackup(sealed);
+  const snap = settings as { settings: Record<string, unknown> };
+  const webhooks = snap.settings["webhooks"] as { secret: string }[];
+  assert.equal(webhooks[0]!.secret, "s3cr3t", "the sealed backup carries the secret so a full restore is complete");
+});
+
+test("the extra sensitive stores (ai-providers + rate-card) ride ONLY the sealed backup, and round-trip", async () => {
+  const providers = await import("./ai-providers");
+  const rateCard = await import("./rate-card-store");
+  providers.__resetProviders();
+  providers.upsertProvider({ id: "openai-main", kind: "openai", label: "OpenAI", model: "gpt-4o" });
+  providers.setCapabilityProviders("chat", ["openai-main"]);
+  rateCard.setProjectTypes([{ id: "fixed", label: "Fixed price" }]);
+  rateCard.setCentralUplift({ margin: 0.2, overhead: 0.1 });
+
+  // PLAINTEXT backup carries NO extra stores (they're sensitive: pay data + egress endpoints).
+  const plain = buildFullBackup({ branding: null } as unknown as SettingsState, "2026-07-17T00:00:00.000Z", false);
+  assert.equal(plain.stores, undefined, "plaintext backup must not carry ai-providers / rate-card");
+
+  // SEALED backup carries them; a wipe + restore brings them back.
+  const sealed = buildSealedFullBackup({ branding: null } as unknown as SettingsState, "2026-07-17T00:00:00.000Z");
+  const { stores } = openSealedFullBackup(sealed);
+  const s = stores as { aiProviders: { providers: { id: string }[]; mapping: Record<string, string[]> }; rateCard: { projectTypes: unknown[]; uplift: { central: { margin: number } } } };
+  assert.ok(s.aiProviders.providers.some((p) => p.id === "openai-main"), "the authored provider rides the sealed backup");
+  assert.deepEqual(s.aiProviders.mapping["chat"], ["openai-main"]);
+  assert.equal((s.rateCard.projectTypes[0] as { id: string }).id, "fixed");
+  assert.equal(s.rateCard.uplift.central.margin, 0.2);
+
+  // Wipe then apply the extra stores from the decrypted bundle — state comes back.
+  providers.__resetProviders();
+  rateCard.__resetRateCardCache();
+  applyExtraStores(stores);
+  assert.equal(providers.getProvider("openai-main")?.model, "gpt-4o");
+  assert.deepEqual(providers.getCapabilityProviders("chat"), ["openai-main"]);
+  assert.equal(rateCard.getProjectTypes()[0]?.id, "fixed");
+  assert.equal(rateCard.getUpliftConfig().central.margin, 0.2);
+});
+
+test("the audit-chain head rides the sealed backup, and restore is ADVANCE-ONLY (never rewinds the position)", async () => {
+  const audit = await import("./audit-chain");
+  const settings = { branding: null } as unknown as SettingsState;
+
+  // Advance the chain to a known head, then take a sealed backup carrying it.
+  audit.__resetAuditChain();
+  audit.sealAuditEvent({ category: "admin", action: "a" } as never);
+  audit.sealAuditEvent({ category: "admin", action: "b" } as never); // head now at seq 2
+  const atSeq2 = audit.exportAuditChain();
+  assert.equal(atSeq2.seq, 2);
+  const sealed = buildSealedFullBackup(settings, "2026-07-17T00:00:00.000Z");
+  assert.equal((sealed.schema && openSealedFullBackup(sealed).stores as { auditChain: { seq: number } }).auditChain.seq, 2);
+
+  // Fresh instance (genesis): restoring advances the chain to seq 2 — continuity preserved.
+  audit.__resetAuditChain();
+  assert.equal(applyExtraStores(openSealedFullBackup(sealed).stores).auditChain?.applied, true);
+  assert.equal(audit.exportAuditChain().seq, 2);
+
+  // Live instance already AHEAD (seq 5): restoring the older backup must NOT rewind it.
+  audit.__resetAuditChain();
+  for (let i = 0; i < 5; i++) audit.sealAuditEvent({ category: "admin", action: `e${i}` } as never);
+  assert.equal(audit.exportAuditChain().seq, 5);
+  const res = applyExtraStores(openSealedFullBackup(sealed).stores).auditChain;
+  assert.equal(res?.applied, false);
+  assert.match(res?.reason ?? "", /never rewinds|older/);
+  assert.equal(audit.exportAuditChain().seq, 5, "the live audit position was preserved");
+});
+
+test("the audit EVIDENCE log rides the sealed backup and round-trips; a tampered log is refused", async () => {
+  const audit = await import("./audit-chain");
+  const settings = { branding: null } as unknown as SettingsState;
+
+  audit.__resetAuditChain();
+  audit.sealAuditEvent({ ts: "2026-07-17T00:00:00.000Z", category: "admin", action: "grant-role" } as never);
+  audit.sealAuditEvent({ ts: "2026-07-17T00:01:00.000Z", category: "admin", action: "change-policy" } as never);
+
+  // Plaintext carries no evidence log; the sealed backup carries the events.
+  const plain = buildFullBackup(settings, "2026-07-17T00:02:00.000Z", false);
+  assert.equal(plain.stores, undefined);
+  const sealed = buildSealedFullBackup(settings, "2026-07-17T00:02:00.000Z");
+  const exported = (openSealedFullBackup(sealed).stores as { auditLog: unknown[] }).auditLog;
+  assert.equal(exported.length, 2, "both audit events ride the sealed backup");
+
+  // Fresh instance: restore brings the evidence back, chain intact, head at the tip.
+  audit.__resetAuditChain();
+  const applied = applyExtraStores(openSealedFullBackup(sealed).stores).auditLog;
+  assert.equal(applied?.applied, true);
+  assert.equal(applied?.count, 2);
+  const back = audit.exportAuditLog();
+  assert.equal(back.length, 2);
+  assert.equal(audit.verifyAuditChain(back).ok, true, "the restored evidence is a valid chain");
+  assert.equal(audit.exportAuditChain().seq, 2, "the head moved to the evidence tip");
+
+  // A TAMPERED log (an event body altered so its seal no longer verifies) is refused, not written.
+  audit.__resetAuditChain();
+  const tampered = JSON.parse(JSON.stringify(exported)) as { action: string }[];
+  tampered[1]!.action = "change-policy-EVIL";
+  const bad = applyExtraStores({ auditLog: tampered }).auditLog;
+  assert.equal(bad?.applied, false);
+  assert.match(bad?.reason ?? "", /chain invalid|hash mismatch|altered/);
+  assert.equal(audit.exportAuditLog().length, 0, "nothing was written from the tampered log");
+});
+
+test("openSealedFullBackup rejects a non-sealed envelope and a corrupted token", () => {
+  assert.throws(() => openSealedFullBackup({ schema: "omniproject/full-backup" }), SealedBackupError);
+  const sealed = buildSealedFullBackup(withSecret, "2026-07-17T00:00:00.000Z");
+  const tampered = { ...sealed, sealed: sealed.sealed.slice(0, -4) + "AAAA" }; // break the AES-GCM tag
+  assert.throws(() => openSealedFullBackup(tampered), SealedBackupError);
 });

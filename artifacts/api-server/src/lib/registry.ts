@@ -177,6 +177,19 @@ export function registryItemMeta(it: RegistryItem): RegistryItemMeta {
   };
 }
 
+/** True when a stored registry ROW is safe to reimport from a backup: a string id, a valid item kind, a name,
+ *  and a pure-JSON payload object. The def-store import calls this so a tampered/injected item is dropped, not
+ *  written — the same "importer re-validates" rule the def rows follow. */
+export function isImportableRegistryItem(raw: unknown): boolean {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return false;
+  const r = raw as Record<string, unknown>;
+  if (typeof r["id"] !== "string" || !r["id"]) return false;
+  if (!isItemKind(r["kind"])) return false;
+  if (typeof r["name"] !== "string" || !r["name"]) return false;
+  if (r["payload"] === undefined || r["payload"] === null || typeof r["payload"] !== "object") return false;
+  return true;
+}
+
 // ── Org store ────────────────────────────────────────────────────────────────────────────────────────────
 export const listRegistryItems = (): RegistryItem[] => listArtifacts<RegistryItem>(REGISTRY_ARTIFACT, REGISTRY_SCOPE);
 export const getRegistryItem = (id: string): RegistryItem | null => getArtifact<RegistryItem>(REGISTRY_ARTIFACT, REGISTRY_SCOPE, id);

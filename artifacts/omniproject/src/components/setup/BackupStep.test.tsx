@@ -239,6 +239,26 @@ describe("BackupStep", () => {
     expect(queryByRole("alertdialog")).not.toBeInTheDocument();
   });
 
+  it("downloads the ENCRYPTED backup from the ?encrypted=1 endpoint", async () => {
+    const fetchFn = vi.fn().mockResolvedValue({ ok: true, status: 200, blob: () => Promise.resolve(new Blob(["{}"])) });
+    globalThis.fetch = fetchFn as unknown as typeof fetch;
+    vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
+    vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:x");
+    vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => {});
+    const user = userEvent.setup();
+    const { getByRole } = renderWithProviders(<BackupStep isAdmin status={status} />);
+    await user.click(getByRole("button", { name: /Download encrypted backup/ }));
+    await waitFor(() => expect(fetchFn).toHaveBeenCalledWith("/api/setup/full-backup?encrypted=1", expect.anything()));
+  });
+
+  it("accepts a SEALED backup file for restore (encrypted schema)", async () => {
+    const sealed = JSON.stringify({ schema: "omniproject/full-backup-sealed", version: 1, createdAt: "t", keyFingerprint: "fp", sealed: "c2.1.abc" });
+    const user = userEvent.setup();
+    const { container, findByRole } = renderWithProviders(<BackupStep isAdmin status={status} />);
+    await user.upload(fullFileInput(container), snapshotFile(sealed, "sealed.json"));
+    expect(await findByRole("alertdialog")).toHaveTextContent(/Restore the FULL backup/);
+  });
+
   it("does not download when the export needs a fresh step-up (403 step_up_required)", async () => {
     const fetchFn = vi.fn().mockResolvedValue({ ok: false, status: 403, json: () => Promise.resolve({ error: "recent re-authentication required", code: "step_up_required" }) });
     globalThis.fetch = fetchFn as unknown as typeof fetch;

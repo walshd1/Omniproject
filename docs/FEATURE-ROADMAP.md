@@ -1359,6 +1359,19 @@ authoring, and the drift guards — no feature bypasses the golden rules.
   drain-only with migration bridges. The React renderers stay engine. The remaining settings-config overlays
   (`disabledScreens`, `reportOverrides`, `collectionEditRoles`) are small policy the engine applies on top, not
   definitions.
+- **user-adjustable prefs MOVED into each user's own vault ✅ (directive "all user-adjustable settings state
+  should be stored in the appropriate JSON vault … so export/backup/restore can genuinely work").** `userPrefs`
+  (per-user UI/accessibility: font scale/family, colours, contrast, motion, switch-scan, density, scoped
+  overrides) was the ONE genuinely user-adjustable settings surface — written by any authed user via
+  `PUT /api/me/prefs` — yet it lived in the ORG-wide settings blob keyed by `sub`. `lib/user-prefs` now reads/
+  writes the caller's OWN scoped AES-256-GCM vault (`user-<sub>.json`, type `user-prefs`) when the artifact
+  store is configured, with the legacy `settings.userPrefs[sub]` map kept as a READ bridge (a pre-migration
+  pref still resolves; the next save moves it in) and as the fallback when no store is configured. Reads are
+  re-sanitised on the way out, so a pref that entered the vault via a restored/tampered BACKUP (the def-store
+  import re-encrypts config blobs but has no per-kind validator for them) is still normalised. `user-prefs` is
+  added to the def-store export's `EXPORT_TYPES`, so a full backup now genuinely round-trips a person's setup
+  across a migration. Tests: user-prefs 17/17 (legacy fallback path), def-store-export 6/6 (+ new prefs
+  ride-the-backup round-trip), config-snapshot/full-backup green; api-server typechecks clean.
 
 ### X.13 `programmeManager` RBAC role — scoped rung, step-up to lock  🚧 In progress
 - **Directive (2026-07-17).** A **programme manager** is a permission level in RBAC, assignable by admin/PMO —
@@ -1395,7 +1408,8 @@ authoring, and the drift guards — no feature bypasses the golden rules.
   it never included the **encrypted def stores** (imported defs, selection bindings + locks, the def-write
   policy, custom RBAC roles). An admin backing up today silently lost every def, binding, and lock.
 - **Slice 1 ✅ (def-store export/import lib + routes).** `lib/def-store-export`: `buildDefStoreExport(now)`
-  walks the customer-authored artifact types (`def`, `def-binding`, `def-policy`, `custom-roles`) via
+  walks the customer-authored artifact types (`def`, `def-binding`, `def-policy`, `custom-roles`, and — since
+  the X.10 user-prefs move — `user-prefs`) via
   `listAllArtifactCollections`, **excluding the system scope** (our catalogues re-seed from code, so they never
   travel in a customer backup), into a portable plaintext bundle. `applyDefStoreExport(bundle)` is the ONLY
   writer back in (the X.10 choke-point rule): it **re-validates every def by its per-kind validator** (a
@@ -1430,8 +1444,77 @@ authoring, and the drift guards — no feature bypasses the golden rules.
   **all their settings AND defs** in one file to back up or move to a new instance; (2) after a **full code
   replacement + redeploy** the org reimports from that file — **security maintained throughout** (no key or
   secret travels; import is admin + step-up + audited, re-validates every def, refuses the system scope, and
-  re-encrypts under the new instance's own key). **Optional future polish:** widen the settings snapshot to all
-  CHOICE settings for maximal config completeness.
+  re-encrypts under the new instance's own key).
+- **Slice 4 ✅ (settings-snapshot COMPLETENESS — "keep your JSON safe, that's your total config").** The
+  snapshot inverted from a hand-maintained **17-key allow-list** (which silently lost priority weights,
+  scheduling, skills, field routing, currency, automations, templates, governance/approval config, the
+  RACI/stakeholder/allocation/budget registers …) to **every classified settings key minus an explicit
+  secret-bearing deny-list** (`config-snapshot`: `ALL_SETTINGS_KEYS` = the whole `SettingsState` key set,
+  `SNAPSHOT_KEYS` = that minus `EXCLUDED_KEYS`). A **drift guard** asserts `captured ∪ excluded == every
+  settings key`, so a new knob travels by default and can never be silently dropped. The **config-purity guard**
+  was scoped to **brokered SoR data only** (it skips the app-authored register/policy subtrees whose field
+  names collide with entity words), so the in-app registers travel as part of the org's state per the directive
+  ("include register content").
+- **Slice 5 ✅ (ENCRYPTED complete-state backup — "secrets can travel because the backup is encrypted; keep the
+  encrypted JSON + your keys = the whole system").** `GET /api/setup/full-backup?encrypted=1` builds the
+  **COMPLETE** backup (every setting **including secrets** + the whole def store) and **seals it under THIS
+  deployment's own config key** (AES-256-GCM via `config-crypto.sealConfig`) — `lib/full-backup`
+  `buildSealedFullBackup` → `{schema:"omniproject/full-backup-sealed", keyFingerprint, sealed}`. Only ciphertext
+  leaves; the key never does. `POST /api/setup/full-restore` **auto-detects** the sealed envelope, decrypts it
+  with this instance's key (`openSealedFullBackup`; a wrong/rotated key → a clear 400, never a silent wipe), and
+  applies the settings half with `allowSecrets:true` — legitimate because the **AES-GCM tag has authenticated**
+  the bundle came from this deployment's own key. The **plaintext** full backup stays secret-free (safe as clear
+  text). The user's chosen key model ("Deployment's own key"): restoring elsewhere needs the same key material
+  (`SESSION_SECRET`/`CONFIG_KEY_RAW`/KMS) — the "private keys" the operator keeps. SPA `BackupStep` gains a
+  **Download encrypted backup** button beside the plaintext one; restore accepts both schemas. Tests: full-backup
+  lib 5/5 (plaintext withholds secrets, sealed carries + round-trips them, tamper/​non-sealed rejected),
+  export routes 7/7 (sealed export gate + ciphertext + decrypt-restore + wrong-key 400), config-snapshot 3/3
+  (drift guard, secret never restored from plaintext), config-purity green, BackupStep 24/24. Both packages
+  typecheck clean.
+- **Slice 6 ✅ (TOTAL config — every config store outside `SettingsState` now travels too).** A coverage audit
+  ("verify the whole settings surface is covered") proved `SettingsState` is 100% captured (65/65 live keys, via
+  a runtime check + the `security-settings` drift guard tying `CLASSIFIED_KEYS` to the live object), then swept
+  every OTHER sealed store. Four held adjustable config outside settings; per the directive ("yes, as JSON
+  files") all now ride the backup:
+  - **`extension` + `registry-item`** (org-wide plugin/registry config, pure-JSON, no secrets) → added to the
+    def-store export's `EXPORT_TYPES`, so they travel in BOTH plaintext and sealed backups. Import RE-VALIDATES:
+    `isImportableExtension` re-runs `sanitizeContribution` on every contribution, `isImportableRegistryItem`
+    checks kind + JSON payload — a tampered/injected row is dropped, not written (new `CONFIG_VALIDATORS` map in
+    def-store-export).
+  - **`ai-providers`** (provider entities + capability mapping; API keys stay in the vault) and **`rate-card`**
+    (rate card + hashed identity map + project types + uplift + cost rules) → a new `stores` section on the full
+    backup, carried **ONLY in the ENCRYPTED (sealed) backup** because both touch sensitive/egress surfaces (pay
+    data, provider endpoints). `exportAiProviders`/`importAiProviders` re-validate each provider (id + known kind)
+    and mapping entry (drops forbidden/unknown ids); `exportRateCard`/`importRateCard` round-trip the whole sealed
+    state through the store's own on-disk coercion + the one `persist` choke point (so a restore is undoable).
+  - **`audit-chain`** (the tamper-evident chain HEAD `{seq, lastHash}`) → sealed `stores` section, sealed-only.
+    Carrying the head lets a migrated instance CONTINUE the same chain (same key material ⇒ the seals still
+    verify across the boundary) instead of resetting to genesis. Restore is **ADVANCE-ONLY**: it never REWINDS
+    the audit position (that would let issued seqs be reused / the chain fork) — a fresh target advances to the
+    backup's head; restoring an older backup onto a live instance keeps the live (higher) head.
+  - **audit EVIDENCE log** (directive: "loss/transfer must not lose the chain of evidence"). The head alone
+    proves continuity but carries no evidence, and audit events streamed only to the external SIEM. So — the
+    user chose it — the sealed EVENTS are now retained AT REST too: an AES-256-GCM `SealedFile` in `audit-chain`
+    (RAM-only without a config dir, same posture as every sealed store), bounded by `historyRetention.retentionDays`
+    (+ a hard count cap), debounced writes, flushed on backup-export and graceful shutdown. Carried in the
+    ENCRYPTED backup, so encrypted-backup + keys reconstitute the whole chain AND its events, no SIEM required.
+    Restore RE-VERIFIES the chain (`verifyAuditChain`) — a tampered log is refused, never written — and is
+    ADVANCE-ONLY (keeps the live evidence if it's newer), moving the head to the restored tip. **DSAR made
+    honest:** `dsar` no longer claims audit is "not retained in the gateway" — it reports the sealed local log,
+    a content-free count of retained events naming the subject, the retention window, and the erasure-exempt /
+    legal-hold basis for audit records.
+  - **Retention/disposal SURFACED (admin control).** `auditLogStatus()` (retained count, window, span, durable
+    vs RAM-only, cap) + `disposeAuditLog()` (prune-to-window now) power `GET /api/security/audit/log` +
+    `POST /api/security/audit/log/dispose` (admin + step-up + audited), and the same active disposal is folded
+    into `POST /history/dispose` so ONE run enforces both retention windows (now runs even with no brokered
+    history source). SPA: an **Audit evidence log** card in the Security admin (`SecurityKeys`) shows the status
+    (sealed-at-rest vs in-memory badge) + a step-up-gated **Dispose now**. Tests: security routes +2, history
+    routes green, SecurityKeys 13/13. Both packages typecheck clean.
+  - Deliberately still OUT (data/secrets/runtime-state, not config): `vault-store` (secrets, may be external),
+    `security-state` (revocations/kill-switch), `scim` (IdP-driven), wiki/proof content (systems of record),
+    `push-subscription` (per-device). Tests: def-store-export 7/7 (+ extension/registry ride + tamper-drop),
+    full-backup 7/7 (+ ai-providers/rate-card sealed-only round-trip + audit-chain advance-only), store + route
+    + guardrail suites green. Both packages typecheck clean.
 
 ### X.9 Library audit — permissive (MIT/BSD/Apache-2.0) code that clears our five gates
 - **The gate (standing rule).** Add third-party code only where it (1) doesn't break our rules

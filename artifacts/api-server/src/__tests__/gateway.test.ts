@@ -1039,8 +1039,8 @@ test("buildSnapshot: carries the portable presentation config (curation, views, 
   });
   assert.deepEqual(snap.settings.disabledFeatures, ["odata"]);
   assert.deepEqual(snap.settings.hiddenFields, ["dueDate"]);
-  assert.equal(snap.settings.savedViews[0]!.name, "Triage");
-  assert.equal(snap.settings.dashboards[0]!.widgets[0]!.type, "portfolioHealth");
+  assert.equal(snap.settings.savedViews![0]!.name, "Triage");
+  assert.equal(snap.settings.dashboards![0]!.widgets[0]!.type, "portfolioHealth");
   // …and they round-trip back into a settings patch with no warnings.
   const { patch, warnings } = applySnapshot(snap);
   assert.deepEqual(patch["dashboards"], snap.settings.dashboards);

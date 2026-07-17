@@ -19,6 +19,7 @@ const SNAPSHOT_SCHEMA = "omniproject/config-snapshot";
 const DEF_STORE_SCHEMA = "omniproject/def-store-export";
 
 const FULL_BACKUP_SCHEMA = "omniproject/full-backup";
+const SEALED_BACKUP_SCHEMA = "omniproject/full-backup-sealed";
 
 /** Client-side shape guard for an uploaded def-store export (mirrors the gateway's applyDefStoreExport). */
 function validateDefStore(parsed: unknown): string | null {
@@ -29,10 +30,12 @@ function validateDefStore(parsed: unknown): string | null {
   return null;
 }
 
-/** Client-side shape guard for an uploaded FULL backup (settings + defs in one file). */
+/** Client-side shape guard for an uploaded FULL backup (settings + defs in one file). Accepts BOTH the
+ *  plaintext and the sealed (encrypted) envelopes — the gateway decrypts the sealed one under its own key. */
 function validateFullBackup(parsed: unknown): string | null {
   if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return "Backup must be a JSON object.";
-  if ((parsed as { schema?: unknown }).schema !== FULL_BACKUP_SCHEMA) return `Not an OmniProject full backup (expected schema "${FULL_BACKUP_SCHEMA}").`;
+  const schema = (parsed as { schema?: unknown }).schema;
+  if (schema !== FULL_BACKUP_SCHEMA && schema !== SEALED_BACKUP_SCHEMA) return `Not an OmniProject full backup (expected schema "${FULL_BACKUP_SCHEMA}" or "${SEALED_BACKUP_SCHEMA}").`;
   return null;
 }
 
@@ -151,8 +154,8 @@ export function BackupStep({
     }
   };
 
-  const onFullExport = () => {
-    downloadFullBackup().catch((e) => {
+  const onFullExport = (encrypted = false) => {
+    downloadFullBackup(encrypted).catch((e) => {
       if (e instanceof Error && e.message === "step_up_required") stepUpHint();
       else toast({ title: "Couldn't download", description: "You may need admin access.", variant: "destructive" });
     });
@@ -248,13 +251,27 @@ export function BackupStep({
           <p className="text-[11px] uppercase tracking-widest font-bold flex items-center gap-1"><Database className="w-3 h-3" /> Full backup (settings + defs)</p>
           <p className="text-xs text-muted-foreground">
             One file with <b>everything</b> — your settings AND your definitions — to move the whole org to a new
-            instance or keep after replacing the code. No secrets or keys ride along; a fresh <b>step-up</b> is
-            required, and restore re-validates + re-encrypts under this instance's key.
+            instance or keep after replacing the code. A fresh <b>step-up</b> is required, and restore re-validates
+            + re-encrypts under this instance's key.
+          </p>
+          <p className="text-xs text-muted-foreground">
+            <b>Encrypted</b> is the complete state: as well as settings + defs it carries your <b>secrets</b>
+            (webhook signing keys, peer tokens, …) and the sensitive stores kept out of clear text — the
+            <b> rate card</b>, <b>AI-provider</b> config and the <b>audit-chain position</b> — all sealed under
+            this deployment's own key (API keys stay in the vault). Restoring it on another instance needs the same key material — keep
+            the encrypted file <i>and</i> your keys and you have the whole system. The plain
+            <b> Download full backup</b> leaves secrets and those sensitive stores out (safe to store as clear text).
           </p>
           <div className="flex flex-wrap gap-2 items-center">
             <button
-              onClick={onFullExport}
+              onClick={() => onFullExport(true)}
               className="px-4 py-2 text-xs font-black uppercase tracking-widest border-2 border-primary text-primary hover:bg-primary hover:text-primary-foreground flex items-center gap-2"
+            >
+              <ShieldAlert className="w-3.5 h-3.5" /> Download encrypted backup
+            </button>
+            <button
+              onClick={() => onFullExport(false)}
+              className="px-4 py-2 text-xs font-black uppercase tracking-widest border border-primary text-primary hover:bg-primary hover:text-primary-foreground flex items-center gap-2"
             >
               <Save className="w-3.5 h-3.5" /> Download full backup
             </button>
@@ -330,8 +347,10 @@ export function BackupStep({
             <AlertDialogDescription>
               This restores <b>both</b> your settings AND your definitions from
               <span className="font-mono break-all"> {pendingFull?.fileName}</span>, replacing the live config and
-              re-importing every def store (re-validated + re-encrypted under this instance's key). Secrets in your
-              environment are unaffected; shipped system defs are untouched. Needs a fresh step-up.
+              re-importing every def store (re-validated + re-encrypted under this instance's key). An
+              <b> encrypted</b> backup also restores its sealed secrets (and needs this deployment's key to open);
+              a plain backup leaves stored secrets as-is. Environment secrets and shipped system defs are untouched.
+              Needs a fresh step-up.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

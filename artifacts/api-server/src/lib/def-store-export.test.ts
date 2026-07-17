@@ -12,6 +12,9 @@ process.env["OMNI_CONFIG_DIR"] = CONFIG_DIR;
 const { putDef, listDefs, seedSystemDef, listSystemDefs } = await import("./def-import");
 const { setScopeBinding, getScopeBindings } = await import("./def-binding");
 const { putArtifact, listArtifacts } = await import("./artifact-store");
+const { setUserPrefs, getUserPrefs } = await import("./user-prefs");
+const { putExtension } = await import("./extension");
+const { putRegistryItem } = await import("./registry");
 const { buildDefStoreExport, applyDefStoreExport, DEF_STORE_EXPORT_SCHEMA } = await import("./def-store-export");
 
 const now = "2026-07-17T00:00:00.000Z";
@@ -88,4 +91,48 @@ test("import RE-VALIDATES defs: a tampered/invalid payload is dropped, not writt
 
 test("import rejects an unrecognised schema", () => {
   assert.throws(() => applyDefStoreExport({ schema: "not-ours", collections: [] }), /schema/i);
+});
+
+test("org extensions + registry items ride the backup; import RE-VALIDATES (a tampered row is dropped)", () => {
+  putExtension({ id: "ext1", name: "Charts", publisher: "acme", version: "1.0.0", description: null, status: "installed",
+    contributions: [{ id: "c1", kind: "report", name: "Rep", def: { id: "r", title: "R", sections: [] } }],
+    installedAt: now, installedBy: "a", updatedAt: now, rowVersion: 1 });
+  putRegistryItem({ id: "reg1", kind: "report", name: "Shared report", publisher: "acme", version: "1.0.0", description: null,
+    tags: [], payload: { id: "r2", title: "R2", sections: [] }, approvalStatus: "approved", visibility: "internal",
+    submittedBy: "a", submittedAt: now, reviewedBy: "a", reviewedAt: now, reviewNote: null, releasedAt: null,
+    communityRef: null, updatedAt: now, rowVersion: 1 });
+
+  const bundle = buildDefStoreExport(now);
+  assert.ok(bundle.collections.some((c) => c.type === "extension"), "extensions ride the backup");
+  assert.ok(bundle.collections.some((c) => c.type === "registry-item"), "registry items ride the backup");
+
+  // Tamper: inject an extension whose contribution has no valid def — import must drop it.
+  const extCol = bundle.collections.find((c) => c.type === "extension")!;
+  extCol.items.push({ id: "evil", name: "Bad", contributions: [{ kind: "report", name: "x" /* no def */ }] } as never);
+
+  fs.rmSync(path.join(CONFIG_DIR, "artifacts"), { recursive: true, force: true });
+  const report = applyDefStoreExport(bundle);
+  const exts = listArtifacts<{ id: string }>("extension", { kind: "org" }).map((e) => e.id);
+  assert.ok(exts.includes("ext1"), "the valid extension came back");
+  assert.ok(!exts.includes("evil"), "the tampered extension was dropped on import");
+  assert.equal(listArtifacts<{ id: string }>("registry-item", { kind: "org" })[0]?.id, "reg1");
+  assert.ok(report.written.some((w) => w.type === "extension") && report.written.some((w) => w.type === "registry-item"));
+});
+
+test("per-user prefs ride the backup and round-trip into a fresh store (setup follows the person)", () => {
+  // With the store enabled, a save lands in the user's OWN vault, not the settings blob.
+  setUserPrefs("u-prefs", { fontScale: 1.25, highContrast: true, backgroundColor: "#0b1020" });
+  const bundle = buildDefStoreExport(now);
+  const prefsCol = bundle.collections.find((c) => c.type === "user-prefs" && c.scope.kind === "user");
+  assert.ok(prefsCol, "a user-prefs collection is captured in the backup");
+  assert.equal(prefsCol.items[0]?.id, "prefs");
+
+  // Migrate: wipe the store, reimport the bundle — the person's setup comes back intact.
+  fs.rmSync(path.join(CONFIG_DIR, "artifacts"), { recursive: true, force: true });
+  const report = applyDefStoreExport(bundle);
+  assert.ok(report.written.some((w) => w.type === "user-prefs"));
+  const restored = getUserPrefs("u-prefs");
+  assert.equal(restored.fontScale, 1.25);
+  assert.equal(restored.highContrast, true);
+  assert.equal(restored.backgroundColor, "#0b1020");
 });

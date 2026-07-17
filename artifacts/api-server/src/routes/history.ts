@@ -12,6 +12,7 @@ import { qualifiedId } from "../broker/identity";
 import { selfHostGovernanceId } from "../selfhost";
 import { buildTrend, resolveCadence, retentionSourceFor, TREND_METRICS, type TrendGrain, type TrendMetric } from "../history";
 import { disposeExpired, eraseEntityHistory, LegalHoldError, RetentionUnsupportedError } from "../history/lifecycle";
+import { disposeAuditLog } from "../lib/audit-chain";
 
 /**
  * Time-travel replay — read recorded portfolio states back from the operator's
@@ -222,18 +223,22 @@ router.put("/history/retention", requireAnyRole("admin", "pmo"), (req, res) => {
  * issues the policy command.
  */
 router.post("/history/dispose", requireRole("admin"), requireStepUp, async (req, res) => {
+  // The local sealed audit EVIDENCE log has its own retention window (historyRetention.retentionDays); enforce
+  // it here too so a single "run disposal" applies it actively — independent of the brokered history source.
+  const auditLog = disposeAuditLog();
   const source = retentionSourceFor({});
   if (!source) {
-    res.status(409).json({ error: "no retention source configured — nothing to dispose" });
+    recordRequestAudit(req, { category: "admin", action: "history.dispose", write: true, result: "success", meta: { auditLog, historySource: false } });
+    res.json({ disposed: 0, snapshots: 0, journal: 0, auditLog, note: "no brokered history retention source configured — enforced the audit-log window only" });
     return;
   }
   try {
     const result = await disposeExpired(source, Date.now());
     recordRequestAudit(req, {
       category: "admin", action: "history.dispose", write: true,
-      result: "success", meta: { disposed: result.disposed, cutoff: result.cutoff, snapshots: result.snapshots, journal: result.journal },
+      result: "success", meta: { disposed: result.disposed, cutoff: result.cutoff, snapshots: result.snapshots, journal: result.journal, auditLog },
     });
-    res.json(result);
+    res.json({ ...result, auditLog });
   } catch (err) {
     if (err instanceof RetentionUnsupportedError) { res.status(501).json({ error: err.message }); return; }
     req.log.error({ err }, "history disposal failed");
