@@ -87,6 +87,20 @@ test("user-scope import round-trips and is sealed at rest", async () => {
   assert.equal((await req(`/defs/${encodeURIComponent(def.id)}`, { method: "DELETE" })).status, 204);
 });
 
+test("resolve surfaces the SYSTEM defaults (read-only system~ ids) beneath the caller's own defs", async () => {
+  const { seedSystemDef } = await import("../lib/def-import");
+  // The product's own seeder installs a shipped default into the read-only system store (not the user importer).
+  seedSystemDef("dashboard", "Default Exec", { id: "default-exec", name: "Default Exec", widgets: [{ id: "w1", type: "portfolioHealth" }] }, "2026-01-01T00:00:00Z");
+  const resolved = (await req("/defs/resolved/dashboard").then((x) => x.json())) as Array<{ id: string; kind: string; createdBy: string | null; payload: { id: string } }>;
+  const sys = resolved.find((r) => r.id === "system~default-exec")!;
+  assert.ok(sys, "the system default is surfaced through resolve");
+  assert.equal(sys.kind, "dashboard");
+  assert.equal(sys.createdBy, "system");
+  assert.equal(sys.payload.id, "default-exec");
+  // The importer can never WRITE the system scope — a shipped default stays read-only (customising it forks).
+  assert.equal((await req("/defs", { method: "POST", body: { kind: "dashboard", storage: "system", name: "x", payload: { id: "x", name: "x", widgets: [] } } })).status, 400);
+});
+
 test("resolve-by-kind returns full payloads for renderers (X.10 seam), filtered by kind", async () => {
   // Seed a couple of dashboard defs in the caller's own scope.
   const a = await (await req("/defs", { method: "POST", body: { kind: "dashboard", storage: "user", name: "Exec", payload: { id: "exec", name: "Exec", widgets: [{ id: "w1", type: "portfolioHealth" }] } } })).json() as { id: string };

@@ -13,7 +13,7 @@
  * the sealed write via `artifact-store`.
  */
 import type { ActorContext } from "../broker/types";
-import { listArtifacts, getArtifact, putArtifact, deleteArtifact, type ArtifactScope } from "./artifact-store";
+import { listArtifacts, getArtifact, putArtifact, deleteArtifact, SYSTEM_SCOPE, type ArtifactScope } from "./artifact-store";
 import { validateScreenDefs } from "./screen-def";
 import { validateForms } from "./form-def";
 import { validatePrimitiveDef } from "@workspace/backend-catalogue";
@@ -222,3 +222,28 @@ export const listDefs = (scope: ArtifactScope): StoredDef[] => listArtifacts<Sto
 export const getDef = (scope: ArtifactScope, id: string): StoredDef | null => getArtifact<StoredDef>(DEF_ARTIFACT, scope, id);
 export const putDef = (scope: ArtifactScope, a: StoredDef): void => putArtifact(DEF_ARTIFACT, scope, a);
 export const deleteDef = (scope: ArtifactScope, id: string): boolean => deleteArtifact(DEF_ARTIFACT, scope, id);
+
+// ── System (shipped defaults) store ──────────────────────────────────────────────────────────────────────
+// The system scope is one encrypted blob of OUR shipped defaults (default screens/reports/rulesets/dashboards/…).
+// It is READ-ONLY to users — not a StorageTarget, so the importer/editor never writes it. Only the product's own
+// seeder populates it; renderers read it as the default layer beneath a customer's own defs.
+
+/** A system def id: `system~<localId>`. Used only by the defaults seeder, never the user importer. */
+export const makeSystemDefId = (localId: string): string => `system~${localId}`;
+
+/** The shipped-default defs (read-only). */
+export const listSystemDefs = (): StoredDef[] => listArtifacts<StoredDef>(DEF_ARTIFACT, SYSTEM_SCOPE);
+
+/** Seed one shipped default into the read-only system store. PRIVILEGED — the product's own defaults installer,
+ *  NOT reachable through the user importer (which only ever targets the customer scopes user/project/org). */
+export function seedSystemDef(kind: DefKind, name: string, payload: unknown, now: string): StoredDef {
+  const check = validateDef(kind, payload);
+  if (!check.ok) throw new DefError(`invalid system ${kind}: ${check.errors.join("; ")}`);
+  const localId = typeof (payload as { id?: unknown })?.id === "string" ? String((payload as { id: string }).id) : cleanName(name) || "default";
+  const row: StoredDef = {
+    id: makeSystemDefId(localId), kind, name: cleanName(name) || localId, payload,
+    createdBy: "system", createdAt: now, updatedAt: now, rowVersion: 1,
+  };
+  putArtifact(DEF_ARTIFACT, SYSTEM_SCOPE, row);
+  return row;
+}

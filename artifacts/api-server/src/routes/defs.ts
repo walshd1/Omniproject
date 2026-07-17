@@ -10,7 +10,7 @@ import {
 } from "../lib/artifact-store";
 import {
   sanitizeDef, sanitizeDefUpdate, validateDef, newStoredDef, updateStoredDef, storedDefMeta,
-  listDefs, getDef, putDef, deleteDef, DefError, DEF_KINDS,
+  listDefs, listSystemDefs, getDef, putDef, deleteDef, DefError, DEF_KINDS,
   type DefKind, type StoredDef, type StoredDefMeta,
 } from "../lib/def-import";
 
@@ -90,6 +90,8 @@ router.get("/defs/resolved/:kind", requireRole("viewer"), (req, res) =>
     const projectId = typeof req.query["projectId"] === "string" ? req.query["projectId"] : undefined;
     const ctx = contextFromReq(req);
     const rows: StoredDef[] = [];
+    // The shipped DEFAULTS layer (read-only `system~…` ids), beneath the caller's own defs.
+    for (const a of listSystemDefs()) rows.push(a);
     if (ctx.sub) for (const a of listDefs({ kind: "user", sub: ctx.sub })) rows.push(a);
     for (const a of listDefs({ kind: "org" })) rows.push(a);
     if (projectId && (await assertProjectScope(req, projectId)).ok) {
