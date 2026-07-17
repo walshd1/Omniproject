@@ -1195,7 +1195,20 @@ authoring, and the drift guards — no feature bypasses the golden rules.
   slot, ctx)` → `{defId|null, locked, lockedBy?, source}` with the narrowing + lock rules above, and `canRebind`
   (may a principal at this level change the slot — a user is blocked by any lock, a project only by an org lock).
   5 tests (default fallback; user>project>org; org lock absolute; project lock pins users but org can still
-  override; per-slot isolation); typecheck clean. **Next:** slice 2 — the `defBindings` store + routes.
+  override; per-slot isolation); typecheck clean.
+- **Slice 2 ✅ (the binding store + routes — scoping is enforced).** Bindings persist **per-scope in the sealed
+  artifact store** (`def-binding` type, like def-policy/custom-roles): `getScopeBindings`/`setScopeBinding` +
+  `loadBindingConfig(ctx)` (assembles org + ONLY the caller's project + ONLY the caller's user layers).
+  `routes/def-bindings` (mounted inside the `defImporter` module, **before** `/defs/:id` so `/defs/bindings`
+  isn't shadowed): `GET /api/defs/bindings?projectId=` (viewer+, returns the org + caller's project + caller's
+  user maps) and `PUT /api/defs/bindings` (contributor+). **Scoping is the point** — a `user` binding is the
+  caller's own pick; a `project` binding needs **manager + that project's scope** (`assertProjectScope`), so a
+  PM's change is physically confined to that project's sealed file and can't leak org-wide or to another
+  project; an `org` binding needs **pmo/admin**. A write is refused **409** when a higher scope has locked the
+  slot (`canRebind`). 5 route tests (user self-pick; org select+lock → user 409; a project binding is confined
+  to that project, invisible to another; clear removes it; RBAC — contributor blocked at project/org, manager
+  blocked at org); both packages typecheck clean. **Next:** slice 3 — wire the render seam (`useScreenDef`) to
+  resolve the winning def per scope (a PM's screen actually loads); then slice 4 (the select/lock UI).
 
 ### X.9 Library audit — permissive (MIT/BSD/Apache-2.0) code that clears our five gates
 - **The gate (standing rule).** Add third-party code only where it (1) doesn't break our rules
