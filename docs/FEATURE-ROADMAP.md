@@ -1687,7 +1687,13 @@ explicit, not forgotten. Every item is ⬜ Todo unless noted.
   artifact-specific: generic `{projectId}` source-URL templating (`lib/panel-source.resolveSourceUrl`) so any
   JSON panel can bind a project-scoped endpoint — reusable everywhere, not SAP. (An earlier bespoke `sapCost`
   panel component was reverted: artifacts are JSON, never TypeScript.) Tests: panel-source 4/4, cost-rows route,
-  BoundPanel/ScreenRenderer green. **Next:** the sidecar-backed WBS store for non-ERP customers (SAP-light path 3).
+  BoundPanel/ScreenRenderer green. **Slice 3 🚧 (the mapping layer — "looks like SAP, stored in OpenProject").**
+  `lib/wbs-mapping`: a PURE projector `applyWbsMapping(rows, mapping, projectId)` + `sanitizeWbsMapping`, mapping
+  the screen's SEMANTIC fields to any backend's real field names (same idiom as `fieldOverrides`/`column-mapper`).
+  Proven: OpenProject-shaped work packages → the IDENTICAL `WbsElement`/`WbsFinancials` read model the SAP
+  fixtures produce (money-as-strings parsed, available computed, level from the parent chain); a third backend's
+  headers give the same output. 4 tests. **Next wiring:** store the mapping as a def through the importer + a
+  broker read that applies it over a generic backend's records, and the read/write **sidecar** target (path 3).
 - ✳ **Broader broker catalogue** — Oracle/NetSuite/Workday/MS Project/Smartsheet/monday/Asana/Azure DevOps read+write seams.
 - ✳ **iPaaS / webhook-out / OData feed** (OData read already exists — extend), **bi-directional sync policies**, **field-mapping studio** (partly exists).
 - ⚠ **Data warehouse / lakehouse export** — legitimate, but any retained extract needs the sidecar SoR + explicit retention, not core.

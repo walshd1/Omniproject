@@ -33,6 +33,19 @@ This is the wedge stated plainly: **the SAP-grade *cost-structure experience*, a
 SAP as the deepest-fidelity source when present and the sidecar/other backends covering the rest — SAP keeps
 the ledger; we bring the screens. The demo broker's fixtures already stand in for path 2/3 in tests.
 
+### The mapping layer (looks like SAP, stored in OpenProject/…)
+
+The screen speaks in SEMANTIC fields (`wbs`, `name`, `budget`, `actual`, …). A **WBS field mapping**
+(`lib/wbs-mapping`, admin-authored, same idiom as `fieldOverrides`/`column-mapper`) maps each semantic field
+to a chosen backend's real field name — e.g. OpenProject `wpId`→`wbs`, `costBudget`→`budget`,
+`parentWp`→`parentId`. `applyWbsMapping(rows, mapping, projectId)` is PURE: it projects any backend's records
+into the exact `WbsElement`/`WbsFinancials` read model the screen consumes (money-as-strings parsed,
+`available = budget − actual − commitment`, WBS level derived from the parent chain). So the SAME JSON screen
+renders — and, for a read/write backend or the sidecar, round-trips — whether the data lives in SAP,
+OpenProject, another system, or our sidecar. Proven in tests with OpenProject-shaped rows → the identical
+model the SAP fixtures produce. **Next wiring:** store the mapping as a def through the importer, and a broker
+read that applies it over a generic backend's records + the read/write sidecar target.
+
 ## Non-goals (what SAP keeps)
 
 - ❄ **The ledger.** Actual postings, settlement, revenue recognition, capitalization — SAP's, never ours.
