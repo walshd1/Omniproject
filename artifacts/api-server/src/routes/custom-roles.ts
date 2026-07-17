@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { requireRole, ROLES } from "../lib/rbac";
+import { requireStepUp } from "../lib/step-up";
 import { recordRequestAudit } from "../lib/audit";
 import { artifactStoreEnabled } from "../lib/artifact-store";
 import { listCapabilities } from "../lib/capability-governance";
@@ -26,8 +27,9 @@ router.get("/admin/custom-roles", requireRole("admin"), (_req, res) => {
   });
 });
 
-// PUT /api/admin/custom-roles — replace the whole config (validated + referential-integrity-checked).
-router.put("/admin/custom-roles", requireRole("admin"), (req, res) => {
+// PUT /api/admin/custom-roles — replace the whole config (validated + referential-integrity-checked). Step-up
+// gated: custom roles now resolve into real grants, so changing them is as consequential as a role-map edit.
+router.put("/admin/custom-roles", requireRole("admin"), requireStepUp, (req, res) => {
   if (!artifactStoreEnabled()) { res.status(501).json({ error: "no encrypted-JSON store is configured on this deployment" }); return; }
   let config;
   try { config = setCustomRolesConfig(req.body); }

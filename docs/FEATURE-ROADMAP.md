@@ -895,7 +895,7 @@ authoring, and the drift guards — no feature bypasses the golden rules.
   capability governance (permission sets), the group → role mapping, per-collection edit-roles, and the
   definition-importer scope policy — is now all reachable from the admin Settings UI.**
 
-### X.6 Admin-defined custom roles + permission sets  🚧 In progress (slices 1–2 of 3)
+### X.6 Admin-defined custom roles + permission sets  ✅ Done (slices 1–3)
 - **Goal.** Let an org name its own roles ("Finance Analyst", "Delivery Lead") and permission bundles — while
   keeping the RBAC boundary statically verifiable. **A custom role is always GROUNDED in one of the 6 fixed base
   roles** (its hard grant ceiling), so it can never confer more than that base — which an admin could already
@@ -921,8 +921,16 @@ authoring, and the drift guards — no feature bypasses the golden rules.
   `hasRole` gate — with a hard ceiling of the base role an admin could already assign directly. New resolution
   test (a `finance`-group user with no fixed-role claim is lifted to the custom role's base of `manager`); the
   full RBAC suite (enforcement + strong-auth + SSO parity + gateway = 156 tests) stays green; typecheck clean.
-  **Next:** slice 3 — the admin UI to define permission sets + custom roles + assign groups (with step-up on the
-  save, matching the role-map).
+- **Slice 3 ✅ (the admin UI — completes X.6).** The `PUT /admin/custom-roles` route is now **step-up gated**
+  (matching the role-map — custom roles resolve into real grants). SPA `lib/custom-roles` (`useCustomRoles` +
+  `saveCustomRoles`) + `components/settings/CustomRolesAdmin` — a new **`customRoles` Settings panel**: a
+  permission-sets editor (id + label + capability checkboxes, add/remove) and a custom-roles editor (id + label +
+  base-role select + permission-set checkboxes + the IdP groups textarea, add/remove), saved behind `withStepUp`.
+  Server validation stays authoritative (referential integrity, no built-in collisions). Registered in
+  `ADMIN_PANELS` + `SETTINGS_PANEL_KEYS` (drift-guarded). 4 component tests (renders config, add set/role, remove
+  role, non-admin empty); settings drift guard + SPA typecheck clean. **X.6 complete: admins can define their own
+  permission sets (capability bundles) and custom roles — each grounded in a fixed base role so the RBAC ceiling
+  stays statically verifiable — assign IdP groups to them, and the mapping resolves through every existing gate.**
 
 The mental model: each entry in the store is a **class** — its config are properties (a field's
 `options`, `maxLength`; a panel's `source`), it produces a typed **value**, and it carries
