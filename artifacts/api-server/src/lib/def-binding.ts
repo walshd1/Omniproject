@@ -25,6 +25,8 @@ export interface DefBinding {
 export interface DefBindingConfig {
   /** slot → binding (org-wide default selection / lock). */
   org?: Record<string, DefBinding>;
+  /** programmeId → slot → binding (sits between org and project). */
+  programme?: Record<string, Record<string, DefBinding>>;
   /** projectId → slot → binding. */
   project?: Record<string, Record<string, DefBinding>>;
   /** sub → slot → binding (self-selection). */
@@ -36,20 +38,25 @@ export interface ResolvedBinding {
   defId: string | null;
   /** A higher scope pinned this slot; lower scopes can't change it. */
   locked: boolean;
-  lockedBy?: "org" | "project";
-  source: "org" | "project" | "user" | "default";
+  lockedBy?: "org" | "programme" | "project";
+  source: "org" | "programme" | "project" | "user" | "default";
 }
 
 /**
- * Resolve the effective binding for `slot` given the caller's scope. Order:
+ * Resolve the effective binding for `slot` given the caller's scope. The chain is
+ * user → project → programme → org → system-default. Locks narrow from the top:
  *   1. an ORG lock wins absolutely;
- *   2. else a PROJECT lock wins for that project;
- *   3. else most-specific-unlocked wins: user → project → org;
- *   4. else no binding → the system default.
+ *   2. else a PROGRAMME lock wins for that programme's projects;
+ *   3. else a PROJECT lock wins for that project's users;
+ *   4. else most-specific-unlocked wins: user → project → programme → org;
+ *   5. else no binding → the system default (`defId: null`).
  */
-export function resolveDefBinding(config: DefBindingConfig, slot: string, ctx: { projectId?: string; sub?: string }): ResolvedBinding {
+export function resolveDefBinding(config: DefBindingConfig, slot: string, ctx: { projectId?: string; programmeId?: string; sub?: string }): ResolvedBinding {
   const orgB = config.org?.[slot];
   if (orgB?.locked) return { defId: orgB.defId, locked: true, lockedBy: "org", source: "org" };
+
+  const progB = ctx.programmeId ? config.programme?.[ctx.programmeId]?.[slot] : undefined;
+  if (progB?.locked) return { defId: progB.defId, locked: true, lockedBy: "programme", source: "programme" };
 
   const projB = ctx.projectId ? config.project?.[ctx.projectId]?.[slot] : undefined;
   if (projB?.locked) return { defId: projB.defId, locked: true, lockedBy: "project", source: "project" };
@@ -57,18 +64,23 @@ export function resolveDefBinding(config: DefBindingConfig, slot: string, ctx: {
   const userB = ctx.sub ? config.user?.[ctx.sub]?.[slot] : undefined;
   if (userB) return { defId: userB.defId, locked: false, source: "user" };
   if (projB) return { defId: projB.defId, locked: false, source: "project" };
+  if (progB) return { defId: progB.defId, locked: false, source: "programme" };
   if (orgB) return { defId: orgB.defId, locked: false, source: "org" };
   return { defId: null, locked: false, source: "default" };
 }
 
 /**
  * Whether a principal at `level` may CHANGE the selection for `slot` — i.e. no higher scope has locked it.
- * A `user` is blocked by any lock (org or project); a `project` is blocked only by an ORG lock.
+ * A `user` is blocked by ANY lock; a `project` is blocked by an org or programme lock; a `programme` is
+ * blocked only by an ORG lock.
  */
-export function canRebind(config: DefBindingConfig, slot: string, level: "project" | "user", ctx: { projectId?: string; sub?: string }): boolean {
+export function canRebind(config: DefBindingConfig, slot: string, level: "programme" | "project" | "user", ctx: { projectId?: string; programmeId?: string; sub?: string }): boolean {
   const r = resolveDefBinding(config, slot, ctx);
   if (!r.locked) return true;
-  return level === "project" ? r.lockedBy !== "org" : false;
+  if (level === "user") return false;
+  if (level === "programme") return r.lockedBy !== "org";
+  // project: an org OR a programme lock blocks it.
+  return r.lockedBy !== "org" && r.lockedBy !== "programme";
 }
 
 // ── Storage ──────────────────────────────────────────────────────────────────────────────────────────────
@@ -93,9 +105,11 @@ export function setScopeBinding(scope: ArtifactScope, slot: string, binding: Def
   return next;
 }
 
-/** Assemble the resolution config for a caller — the org layer + ONLY their project + ONLY their user layer. */
-export function loadBindingConfig(ctx: { projectId?: string; sub?: string }): DefBindingConfig {
+/** Assemble the resolution config for a caller — org + ONLY their programme + ONLY their project + ONLY their
+ *  user layers. `programmeId` is the caller's project's programme, when it belongs to one. */
+export function loadBindingConfig(ctx: { projectId?: string; programmeId?: string; sub?: string }): DefBindingConfig {
   const config: DefBindingConfig = { org: getScopeBindings({ kind: "org" }) };
+  if (ctx.programmeId) config.programme = { [ctx.programmeId]: getScopeBindings({ kind: "programme", programmeId: ctx.programmeId }) };
   if (ctx.projectId) config.project = { [ctx.projectId]: getScopeBindings({ kind: "project", projectId: ctx.projectId }) };
   if (ctx.sub) config.user = { [ctx.sub]: getScopeBindings({ kind: "user", sub: ctx.sub }) };
   return config;

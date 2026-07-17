@@ -1207,8 +1207,21 @@ authoring, and the drift guards — no feature bypasses the golden rules.
   project; an `org` binding needs **pmo/admin**. A write is refused **409** when a higher scope has locked the
   slot (`canRebind`). 5 route tests (user self-pick; org select+lock → user 409; a project binding is confined
   to that project, invisible to another; clear removes it; RBAC — contributor blocked at project/org, manager
-  blocked at org); both packages typecheck clean. **Next:** slice 3 — wire the render seam (`useScreenDef`) to
-  resolve the winning def per scope (a PM's screen actually loads); then slice 4 (the select/lock UI).
+  blocked at org); both packages typecheck clean.
+- **Slice 2b ✅ (the PROGRAMME tier).** Added `programme` between project and org, per the chain
+  **user → project → programme → org → system**. `artifact-store` gains a `programme` `ArtifactScope` (one
+  sealed `programme-<id>.json` blob; filename round-trip). `def-binding` gains the programme layer: the resolver
+  now narrows org-lock → **programme-lock** → project-lock, then unlocked most-specific-wins user → project →
+  **programme** → org → default; `canRebind` — a project is now blocked by an org OR a **programme** lock, a
+  programme only by an org lock; `loadBindingConfig` assembles the caller's programme layer (from their project's
+  programme, when it belongs to one). 2 new resolver tests (programme precedence between project and org; a
+  programme lock pins its projects but the org can still override); typecheck clean. **Next:** wire the route +
+  resolve-seam to derive the caller's programme (registry-driven) and accept programme bindings; the importer
+  `programme` write path + def-policy gate; then slice 3 (render seam) + slice 4 (UI).
+- **Finding — forms are NOT migrated.** Verified: forms still run on the parallel settings writer
+  (`PUT /api/forms`, settingsKey `forms`, admin/PMO; SPA `useSaveForms`), and no renderer reads form defs from
+  `/api/defs/resolved`. Only **dashboards** are fully converged (X.10 3a–3c); **forms, reports, screens** still
+  use their settings-bundle writers — each needs the same author-via-importer → migrate → retire pattern.
 
 ### X.9 Library audit — permissive (MIT/BSD/Apache-2.0) code that clears our five gates
 - **The gate (standing rule).** Add third-party code only where it (1) doesn't break our rules
