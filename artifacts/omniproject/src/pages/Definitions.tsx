@@ -21,9 +21,9 @@ const KIND_LABEL: Record<DefKind, string> = {
   primitive: "Primitive", screen: "Screen", form: "Form", report: "Report", dashboard: "Dashboard",
   businessRule: "Business rule", methodology: "Methodology", theme: "Theme (colours)", font: "Font", jsonDef: "JSON def",
 };
-const STORAGE_LABEL: Record<DefStorage, string> = { user: "My private area", project: "Project", org: "Org-wide" };
+const STORAGE_LABEL: Record<DefStorage, string> = { user: "My private area", project: "Project", programme: "Programme", org: "Org-wide" };
 
-const STORAGE_OPTION_LABEL: Record<DefStorage, string> = { user: "My private area", project: "Project", org: "Org-wide" };
+const STORAGE_OPTION_LABEL: Record<DefStorage, string> = { user: "My private area", project: "Project", programme: "Programme", org: "Org-wide" };
 
 function ImportPanel() {
   const validate = useValidateDef();
@@ -37,6 +37,7 @@ function ImportPanel() {
   const [kind, setKind] = useState<DefKind>("primitive");
   const [storage, setStorage] = useState<DefStorage>("user");
   const [projectId, setProjectId] = useState("");
+  const [programmeId, setProgrammeId] = useState("");
   const [name, setName] = useState("");
   const [text, setText] = useState("");
   const [errors, setErrors] = useState<string[] | null>(null);
@@ -65,7 +66,11 @@ function ImportPanel() {
     const payload = parsePayload();
     if (payload === undefined) return;
     importDef.mutate(
-      { kind, storage, ...(storage === "project" && projectId ? { projectId } : {}), name, payload },
+      {
+        kind, storage, name, payload,
+        ...(storage === "project" && projectId ? { projectId } : {}),
+        ...(storage === "programme" && programmeId ? { programmeId } : {}),
+      },
       {
         onSuccess: (d) => { toast({ title: "SAVED", description: `${d.name} → ${STORAGE_LABEL[storage]}` }); setText(""); setName(""); setOk(false); setErrors(null); },
         onError: () => setErrors(["The import was rejected — validate it, check the storage target, and your permissions."]),
@@ -94,6 +99,12 @@ function ImportPanel() {
           <label className="text-xs space-y-1">
             <span className="block font-bold uppercase tracking-widest text-muted-foreground">Project id</span>
             <input data-testid="def-project" value={projectId} onChange={(e) => setProjectId(e.target.value)} className="border border-border bg-background px-2 py-1.5 text-sm" />
+          </label>
+        )}
+        {storage === "programme" && (
+          <label className="text-xs space-y-1">
+            <span className="block font-bold uppercase tracking-widest text-muted-foreground">Programme id</span>
+            <input data-testid="def-programme" value={programmeId} onChange={(e) => setProgrammeId(e.target.value)} className="border border-border bg-background px-2 py-1.5 text-sm" />
           </label>
         )}
         <label className="text-xs space-y-1 flex-1 min-w-40">

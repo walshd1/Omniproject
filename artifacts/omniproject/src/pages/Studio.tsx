@@ -103,7 +103,7 @@ export function Studio() {
     });
   };
 
-  const STORAGE_LABEL: Record<DefStorage, string> = { user: "my private area", project: "a project", org: "org-wide" };
+  const STORAGE_LABEL: Record<DefStorage, string> = { user: "my private area", project: "a project", programme: "a programme", org: "org-wide" };
   const save = () => {
     if (!result) return;
     importDef.mutate(

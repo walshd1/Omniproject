@@ -1266,6 +1266,19 @@ authoring, and the drift guards — no feature bypasses the golden rules.
   pins the winner for a lower scope) + 4 SPA helper tests. Both packages typecheck clean; def-bindings routes
   10/10, SPA defs 4/4 green. **Next (rollout):** point each screen/dashboard renderer at `useActiveDefs` +
   `pickActiveDef` for its slot (large, per-surface — the seam is ready; the 24-screen rewiring is incremental).
+- **Slice 4 ✅ (select/lock UI + SPA programme authoring parity).** Two client pieces so the tier is usable:
+  (a) **programme authoring parity** — the SPA def-policy mirror gains the `programme` scope + `programmeManager`
+  gate (`canWriteDefScope`/`writableDefScopes`), `DefStorage`/`ImportRequest` gain `programme`/`programmeId`, the
+  Definitions importer offers a Programme target with a programme-id field, and the admin `DefPolicyAdmin` panel
+  gains the programme row; (b) **the select/lock control** — `lib/def-bindings` (`useDefBindings`,
+  `useSetBinding`) + `<DefBindingControl slot kind projectId? programmeId?>` shows the server-resolved winner
+  (source + lock badge), offers only the scopes the caller's role clears (user always; project=manager;
+  programme=programmeManager; org=pmo/admin), and PUTs the selection — a lock is offered only above `user`, and a
+  step-up refusal is surfaced (not swallowed). `useResolvedDefs` now takes `programmeId` so programme defs appear
+  as candidates. Tests: def-policy mirror 3, DefBindingControl 4 (winner shown; contributor gets 1 scope + no
+  lock; PUT body correct; step-up refusal surfaced), + Definitions/DefPolicyAdmin updated. Both packages
+  typecheck clean. **Deferred (rollout):** embedding `<DefBindingControl>` into each screen's chrome is the same
+  per-surface rollout as slice 3's renderer rewiring.
 - **Finding — forms are NOT migrated.** Verified: forms still run on the parallel settings writer
   (`PUT /api/forms`, settingsKey `forms`, admin/PMO; SPA `useSaveForms`), and no renderer reads form defs from
   `/api/defs/resolved`. Only **dashboards** are fully converged (X.10 3a–3c); **forms, reports, screens** still

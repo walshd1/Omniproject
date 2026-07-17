@@ -14,8 +14,8 @@ function seed(role: Role = "admin", state?: DefPolicyState): QueryClient {
   return qc;
 }
 const STATE: DefPolicyState = {
-  policy: { user: "contributor", project: "manager", org: "pmoOrAdmin" },
-  gates: ["contributor", "manager", "pmoOrAdmin", "admin"],
+  policy: { user: "contributor", project: "manager", programme: "programmeManager", org: "pmoOrAdmin" },
+  gates: ["contributor", "manager", "programmeManager", "pmoOrAdmin", "admin"],
 };
 
 describe("DefPolicyAdmin", () => {

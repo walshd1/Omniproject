@@ -28,7 +28,7 @@ function seed(opts: { enabled?: boolean; dashboards?: Dashboard[]; imported?: Da
   } as unknown as Capabilities);
   qc.setQueryData(dashboardsQueryKey, opts.dashboards ?? []);
   // The importer-authored (X.10) dashboards the resolve-by-kind seam returns.
-  qc.setQueryData(["defs", "resolved", "dashboard", null], (opts.imported ?? []).map((d, i) => ({
+  qc.setQueryData(["defs", "resolved", "dashboard", null, null], (opts.imported ?? []).map((d, i) => ({
     id: `user~imp-${i}`, kind: "dashboard", name: d.name, payload: d,
     createdBy: null, createdAt: "", updatedAt: "", rowVersion: 1,
   })));

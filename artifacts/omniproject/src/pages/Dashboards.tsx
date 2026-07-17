@@ -342,8 +342,10 @@ export function Dashboards() {
             {draftIsDef && !isDefId(draft.id) && (
               <select aria-label="Storage target" data-testid="dashboard-storage" value={draftStorage} onChange={(e) => setDraftStorage(e.target.value as DefStorage)}
                 className="border-2 border-foreground bg-background px-2 py-1 text-xs">
-                {(writableScopes.length ? writableScopes : (["user"] as DefStorage[])).map((s) => (
-                  <option key={s} value={s}>{{ user: "Personal", project: "Project", org: "Org-wide" }[s]}</option>
+                {/* Dashboards author to user/project/org here; programme-scoped defs go through the general
+                    importer (Definitions), which pairs the programme target with a programme-id picker. */}
+                {((writableScopes.filter((s) => s !== "programme")).length ? writableScopes.filter((s) => s !== "programme") : (["user"] as DefStorage[])).map((s) => (
+                  <option key={s} value={s}>{{ user: "Personal", project: "Project", programme: "Programme", org: "Org-wide" }[s]}</option>
                 ))}
               </select>
             )}

@@ -16,15 +16,17 @@ import { useToast } from "@/hooks/use-toast";
 const GATE_LABEL: Record<DefGate, string> = {
   contributor: "Any contributor",
   manager: "Manager (PM) or above",
+  programmeManager: "Programme manager or above",
   pmoOrAdmin: "PMO or admin",
   admin: "Admin only",
 };
 const SCOPE_LABEL: Record<keyof DefScopePolicy, string> = {
   user: "My private area (per-user)",
   project: "Project-wide",
+  programme: "Programme-wide",
   org: "Org-wide",
 };
-const SCOPES: (keyof DefScopePolicy)[] = ["user", "project", "org"];
+const SCOPES: (keyof DefScopePolicy)[] = ["user", "project", "programme", "org"];
 
 export function DefPolicyAdmin() {
   const { data: auth } = useAuth();
