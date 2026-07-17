@@ -5,7 +5,7 @@ import os from "node:os";
 import path from "node:path";
 process.env["OMNI_CONFIG_DIR"] = fs.mkdtempSync(path.join(os.tmpdir(), "mapping-routes-"));
 import { startHarness, adminCookie, type Harness } from "./_harness";
-import { seedSystemDef } from "../lib/def-import";
+import { seedSystemDef, putDef, type StoredDef } from "../lib/def-import";
 
 /**
  * The GENERIC mapping surface (roadmap §4.6, "across the board") — the SAME (broker, backend) addressing +
@@ -95,6 +95,18 @@ test("a UI field inherits its backend's validation: enum options are surfaced an
   assert.equal(bad.status, 400);
   const ok = await h.req(`/projects/${PID}/mapping/cust/C-1`, { method: "PUT", cookie: ADMIN, body: { fields: { Tier: tier.options![0] } } });
   assert.equal(ok.status, 200);
+});
+
+test("the live superset is a union: an org custom field (authored to org JSON) appears alongside backend fields", async () => {
+  // Author an org custom field DEF directly into the org store (the importer's validator ran in unit tests).
+  const row: StoredDef = { id: "org~cf-region", kind: "customField", name: "Region", payload: { key: "region", label: "Region", type: "string", maxLength: 64 }, createdBy: null, createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z", rowVersion: 1 };
+  putDef({ kind: "org" }, row);
+  const sup = (await (await h.req(`/fields/superset`, { cookie: ADMIN })).json()) as { fields: { canonicalKey: string; system: string; maxLength?: number; canonical: boolean }[] };
+  const region = sup.fields.find((f) => f.canonicalKey === "region")!;
+  assert.ok(region, "the org custom field is in the live superset");
+  assert.equal(region.system, "sidecar");   // homed in the sidecar (advertised through the built-in broker)
+  assert.equal(region.maxLength, 64);        // its declared constraint travels
+  assert.equal(region.canonical, false);     // it's an org extension, not a shipped canonical field
 });
 
 test("a UI field inherits its backend's REGEX (email shape) — enforced on write", async () => {

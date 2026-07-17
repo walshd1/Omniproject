@@ -17,11 +17,12 @@ import { listArtifacts, getArtifact, putArtifact, deleteArtifact, replaceArtifac
 import { validateScreenDefs } from "./screen-def";
 import { validateForms } from "./form-def";
 import { sanitizeMapping } from "./mapping";
+import { validateCustomFieldDef } from "./custom-fields";
 import { validatePrimitiveDef } from "@workspace/backend-catalogue";
 
 /** A user-definable JSON kind the importer accepts. */
-export type DefKind = "primitive" | "screen" | "form" | "report" | "dashboard" | "businessRule" | "methodology" | "mapping" | "theme" | "font" | "jsonDef";
-export const DEF_KINDS: readonly DefKind[] = ["primitive", "screen", "form", "report", "dashboard", "businessRule", "methodology", "mapping", "theme", "font", "jsonDef"];
+export type DefKind = "primitive" | "screen" | "form" | "report" | "dashboard" | "businessRule" | "methodology" | "mapping" | "customField" | "theme" | "font" | "jsonDef";
+export const DEF_KINDS: readonly DefKind[] = ["primitive", "screen", "form", "report", "dashboard", "businessRule", "methodology", "mapping", "customField", "theme", "font", "jsonDef"];
 
 /** The artifact-store type key: one sealed collection per scope holds every stored def. */
 export const DEF_ARTIFACT = "def";
@@ -80,6 +81,7 @@ export function validateDef(kind: DefKind, payload: unknown): DefValidation {
     case "businessRule": return structural(payload, ["id"]);
     case "methodology": return structural(payload, ["id", "label"]);
     case "mapping": return fromThrowing(() => sanitizeMapping(payload));
+    case "customField": return fromThrowing(() => validateCustomFieldDef(payload));
     case "theme": return validateTheme(payload);
     case "font": return structural(payload, ["id", "family"]);
     case "jsonDef": return structural(payload, []);

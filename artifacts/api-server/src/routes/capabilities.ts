@@ -74,7 +74,8 @@ router.get("/fields/manifest", requireRole("manager"), async (req, res) => {
 // Manager+ (same schema-detail exposure as the manifest).
 router.get("/fields/superset", requireRole("manager"), async (req, res) => {
   try {
-    res.json({ fields: await resolveLiveSuperset(req) });
+    const programmeId = typeof req.query["programmeId"] === "string" ? req.query["programmeId"] : undefined;
+    res.json({ fields: await resolveLiveSuperset(req, programmeId ? { programmeId } : {}) });
   } catch (err) {
     req.log.error({ err }, "live superset resolution failed");
     res.status(502).json({ error: "Could not resolve the live superset" });

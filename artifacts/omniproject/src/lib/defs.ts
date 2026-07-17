@@ -9,8 +9,8 @@ import { getJson, sendJson } from "./api";
  * default-off `defImporter` module.
  */
 
-export type DefKind = "primitive" | "screen" | "form" | "report" | "dashboard" | "businessRule" | "methodology" | "mapping" | "theme" | "font" | "jsonDef";
-export const DEF_KINDS: readonly DefKind[] = ["primitive", "screen", "form", "report", "dashboard", "businessRule", "methodology", "mapping", "theme", "font", "jsonDef"];
+export type DefKind = "primitive" | "screen" | "form" | "report" | "dashboard" | "businessRule" | "methodology" | "mapping" | "customField" | "theme" | "font" | "jsonDef";
+export const DEF_KINDS: readonly DefKind[] = ["primitive", "screen", "form", "report", "dashboard", "businessRule", "methodology", "mapping", "customField", "theme", "font", "jsonDef"];
 export type DefStorage = "user" | "project" | "programme" | "org";
 
 export interface StoredDefMeta {
