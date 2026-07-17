@@ -5,6 +5,7 @@ import {
   useExtensions, useInstallExtension, useSetExtensionStatus, useUninstallExtension,
   contributionKindLabel, type ExtensionMeta,
 } from "../lib/marketplace";
+import { safeParseJson } from "../lib/safe-json";
 import { useToast } from "@/hooks/use-toast";
 
 /**
@@ -27,7 +28,7 @@ function InstallForm({ onDone }: { onDone: () => void }) {
 
   const submit = () => {
     let manifest: unknown;
-    try { manifest = JSON.parse(text); } catch { setError("That isn't valid JSON."); return; }
+    try { manifest = safeParseJson(text); } catch { setError("That isn't valid JSON."); return; }
     setError(null);
     install.mutate(manifest, {
       onSuccess: (e) => { toast({ title: "EXTENSION INSTALLED", description: `${e.name} by ${e.publisher}` }); onDone(); },

@@ -7,6 +7,7 @@ import {
 } from "../lib/defs";
 import { useDefPolicy, writableDefScopes } from "../lib/def-policy";
 import { useAuth } from "../lib/auth";
+import { safeParseJson } from "../lib/safe-json";
 import { useToast } from "@/hooks/use-toast";
 
 /**
@@ -50,7 +51,7 @@ function ImportPanel() {
   }, [writable, storage]);
 
   const parsePayload = (): unknown | undefined => {
-    try { const p = JSON.parse(text); setParseError(null); return p; }
+    try { const p = safeParseJson(text); setParseError(null); return p; }
     catch { setParseError("That isn't valid JSON."); return undefined; }
   };
 
@@ -153,7 +154,7 @@ function EditPanel({ id, onDone }: { id: string; onDone: () => void }) {
   const displayName = name ?? def?.name ?? "";
 
   const parsePayload = (): unknown | undefined => {
-    try { const p = JSON.parse(body); setParseError(null); return p; } catch { setParseError("That isn't valid JSON."); return undefined; }
+    try { const p = safeParseJson(body); setParseError(null); return p; } catch { setParseError("That isn't valid JSON."); return undefined; }
   };
   const runValidate = () => {
     if (!def) return;

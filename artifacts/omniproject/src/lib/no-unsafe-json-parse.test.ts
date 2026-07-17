@@ -30,6 +30,8 @@ const ALLOWLIST: Record<string, { count: number; reason: string }> = {
   "lib/live-events.ts": { count: 1, reason: "shared SSE live-event stream from own gateway, fanned out to listeners (not merged)" },
   "lib/presence.ts": { count: 1, reason: "SSE presence stream from own gateway, peers list is display-only" },
   "lib/collab.ts": { count: 1, reason: "SSE co-edit relay frame from own gateway; parse is try/caught and the payload is an opaque base64 Yjs update fed to Y.applyUpdate (CRDT merge, never executed)" },
+  "lib/whiteboard-cursors.ts": { count: 1, reason: "SSE cursor frame from own gateway; destructured to primitive from/label/color/msg and rendered as a cursor, never merged" },
+  "lib/offline-cache.ts": { count: 1, reason: "decrypted own offline cache — AES-GCM auth tag establishes integrity before parse (decrypt throws → null on tamper); read back as my-work/tasks data, not merged" },
 };
 
 /** Recursively list every non-test .ts/.tsx under src/, excluding safe-json.ts itself. */
