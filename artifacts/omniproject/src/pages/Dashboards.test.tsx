@@ -16,7 +16,7 @@ function project(over: Partial<Project> = {}): Project {
   };
 }
 
-function seed(opts: { enabled?: boolean; dashboards?: Dashboard[]; projects?: Project[]; surfaceProgramme?: boolean } = {}): QueryClient {
+function seed(opts: { enabled?: boolean; dashboards?: Dashboard[]; imported?: Dashboard[]; projects?: Project[]; surfaceProgramme?: boolean } = {}): QueryClient {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity }, mutations: { retry: false } } });
   qc.setQueryData(featuresQueryKey(), [
     { id: "dashboards", kind: "module", label: "Custom dashboards", description: "", enabled: opts.enabled ?? true, loaded: true, needsRestart: false },
@@ -26,6 +26,11 @@ function seed(opts: { enabled?: boolean; dashboards?: Dashboard[]; projects?: Pr
     entities: { programme: { surface: opts.surfaceProgramme ?? true, store: opts.surfaceProgramme ?? true } },
   } as unknown as Capabilities);
   qc.setQueryData(dashboardsQueryKey, opts.dashboards ?? []);
+  // The importer-authored (X.10) dashboards the resolve-by-kind seam returns.
+  qc.setQueryData(["defs", "resolved", "dashboard", null], (opts.imported ?? []).map((d, i) => ({
+    id: `user~imp-${i}`, kind: "dashboard", name: d.name, payload: d,
+    createdBy: null, createdAt: "", updatedAt: "", rowVersion: 1,
+  })));
   qc.setQueryData(getListProjectsQueryKey(), opts.projects ?? []);
   return qc;
 }
@@ -56,6 +61,17 @@ describe("Dashboards", () => {
     expect(screen.getByTestId("dashboard-grid")).toBeInTheDocument();
     expect(screen.getByText("Projects")).toBeInTheDocument();
     expect(screen.getByText("Status breakdown")).toBeInTheDocument();
+  });
+
+  it("renders an importer-authored dashboard read-only, with no Edit affordance (X.10)", () => {
+    const imported: Dashboard = { id: "exec", name: "Imported Exec", widgets: [{ id: "w1", type: "projectCount", span: 1 }] };
+    renderWithProviders(<Dashboards />, { client: seed({ dashboards: [], imported: [imported], projects: [project()] }) });
+    // It's selectable (the picker shows it under the read-only group) and renders its widgets…
+    expect(screen.getByRole("option", { name: "Imported Exec" })).toBeInTheDocument();
+    expect(screen.getByTestId("dashboard-grid")).toBeInTheDocument();
+    // …but it's read-only: the imported badge shows and there's no Edit button.
+    expect(screen.getByTestId("dashboard-imported-badge")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^edit$/i })).toBeNull();
   });
 
   it("renders a placeholder for an unknown widget type", () => {

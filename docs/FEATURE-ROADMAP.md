@@ -1038,6 +1038,16 @@ authoring, and the drift guards — no feature bypasses the golden rules.
   typed **`useResolvedDefs<T>(kind, projectId?)`** hook — the seam every renderer consumes next. 1 route test
   (full payloads, kind-filtered, viewer-readable, unknown-kind 400); both packages typecheck clean. **Next:**
   slice 2 — dashboards render importer `dashboard` defs (a real dashboard validator + overlay on `Dashboards`).
+- **Slice 2 ✅ (dashboards render importer defs).** `def-import` gains a **real `dashboard` validator** (id +
+  name + a `widgets[]` of `{id,type}` — the actual `Dashboard` shape, unknown widget types tolerated), replacing
+  the trivial `structural(["id"])`, so a stored dashboard can genuinely render. `pages/Dashboards` reads
+  `useResolvedDefs<Dashboard>("dashboard")` and **overlays** the importer-authored dashboards into the picker
+  under a **"Imported (read-only)"** group: they select + render like any dashboard but are **view-only** —
+  edited in the definition editor, never joining the settings-bundle CRUD set (so a Save can't migrate them),
+  keyed by their scoped store id and shape-guarded against a malformed payload. First renderer consuming the
+  X.10 seam. 1 def-import validator test (real shape + rejections), the resolve seam test seeds a real dashboard,
+  1 page test (importer dashboard renders read-only, no Edit); both packages typecheck clean. **Next:** slice 3 —
+  reports render importer `report` defs.
 
 ### X.9 Library audit — permissive (MIT/BSD/Apache-2.0) code that clears our five gates
 - **The gate (standing rule).** Add third-party code only where it (1) doesn't break our rules

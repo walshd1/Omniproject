@@ -75,12 +75,30 @@ export function validateDef(kind: DefKind, payload: unknown): DefValidation {
     case "screen": return fromThrowing(() => validateScreenDefs([payload])[0]);
     case "form": return fromThrowing(() => validateForms([payload])[0]);
     case "report": return structural(payload, ["id"]);
-    case "dashboard": return structural(payload, ["id"]);
+    case "dashboard": return validateDashboardDef(payload);
     case "businessRule": return structural(payload, ["id"]);
     case "theme": return validateTheme(payload);
     case "font": return structural(payload, ["id", "family"]);
     case "jsonDef": return structural(payload, []);
   }
+}
+
+/** A dashboard def: `id` + `name` + a `widgets` array, each widget an `{ id, type }` (span/title optional) —
+ *  the real `Dashboard` shape, so a stored dashboard can actually render (X.10). Unknown widget `type`s are
+ *  tolerated (the renderer placeholders them), matching the live dashboards' forward-compatibility. */
+function validateDashboardDef(payload: unknown): DefValidation {
+  const base = structural(payload, ["id", "name"]);
+  if (!base.ok) return base;
+  const widgets = (payload as Record<string, unknown>)["widgets"];
+  if (!Array.isArray(widgets)) return { ok: false, errors: ["widgets must be an array"] };
+  const errors: string[] = [];
+  widgets.forEach((w, i) => {
+    if (!w || typeof w !== "object" || Array.isArray(w)) { errors.push(`widgets[${i}] must be an object`); return; }
+    const o = w as Record<string, unknown>;
+    if (typeof o["id"] !== "string" || !o["id"].trim()) errors.push(`widgets[${i}].id is required`);
+    if (typeof o["type"] !== "string" || !o["type"].trim()) errors.push(`widgets[${i}].type is required`);
+  });
+  return errors.length ? { ok: false, errors } : { ok: true, errors: [], value: payload };
 }
 
 /** A colour theme: an id + a `colors` map of string colour values (checked so a theme can't smuggle a
