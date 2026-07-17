@@ -1283,6 +1283,21 @@ authoring, and the drift guards — no feature bypasses the golden rules.
   (`PUT /api/forms`, settingsKey `forms`, admin/PMO; SPA `useSaveForms`), and no renderer reads form defs from
   `/api/defs/resolved`. Only **dashboards** are fully converged (X.10 3a–3c); **forms, reports, screens** still
   use their settings-bundle writers — each needs the same author-via-importer → migrate → retire pattern.
+- **FORMS ✅ converged (X.10 forms; user directive "engine and artifacts separate").** Form DEFINITIONS are now
+  ARTIFACTS in the encrypted def store; the ENGINE (renderer + submission route) stays code and reads them.
+  Backend: `lib/form-store` (`resolveFormDefs`/`findFormDef`) aggregates form defs across scopes (legacy
+  `settings.forms` bridge < org < project < user), and the submission route (`POST /forms/:id/submit`) resolves
+  from it instead of settings. The form→writable-field **capability gate moved onto the importer write path** via
+  a new per-kind hook seam `lib/def-write-hooks` (runs in `POST`/`PUT /api/defs` for kind `form`), so the rule
+  holds at the ONE choke point; the submit path keeps its defensive re-check. `PUT /api/forms` is retired to
+  **drain-only** (410 on a non-empty write, `[]` allowed) exactly like dashboards; `GET /api/forms/resolved`
+  serves the submittable union. SPA: `useForms` reads the resolved endpoint, `FormPanel` renders from it, and
+  `FormsAdmin` became a **per-def upsert** (edit org form defs through the importer: POST new / PUT changed /
+  DELETE removed) with a one-shot **migrate legacy forms** button; `useSaveForms` retired. (Fixed a render loop:
+  the derived def arrays are `useMemo`'d so `useDraftAdmin` doesn't re-sync every render.) Tests: forms routes
+  10/10 (importer-authored submit, drain 410, legacy bridge, capability gate on the importer, defensive
+  submit-drop), FormsAdmin 5/5, FormPanel 4/4; both packages typecheck clean. **Still on settings writers:
+  screens + reports** (next).
 
 ### X.13 `programmeManager` RBAC role — scoped rung, step-up to lock  🚧 In progress
 - **Directive (2026-07-17).** A **programme manager** is a permission level in RBAC, assignable by admin/PMO —

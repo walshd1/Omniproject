@@ -6,6 +6,7 @@ import { inScope } from "../lib/scope";
 import { assertProjectScope, guardProgrammeScope } from "../lib/project-scope";
 import { authorizeStorageTarget } from "../lib/storage-target-authz";
 import { authorizeDefWrite, getDefScopePolicy, setDefScopePolicy, DEF_GATES } from "../lib/def-policy";
+import { runDefWriteHook } from "../lib/def-write-hooks";
 import {
   artifactStoreEnabled, makeScopedId, parseScopedId, scopeFromParsed, isStorageTarget,
   type ScopedTarget,
@@ -157,6 +158,7 @@ router.post("/defs", requireRole("contributor"), (req, res) => {
 
   return withBrokerErrors(req, res, "def import failed", async () => {
     if (!(await authorizeDefWrite(req, res, storage, { projectId, programmeId }))) return;
+    if (!(await runDefWriteHook(req, res, input.kind, input.payload))) return;
     if (!artifactStoreEnabled()) { res.status(501).json({ error: "no encrypted-JSON store is configured on this deployment" }); return; }
     const ctx = contextFromReq(req);
     const ownerId = storage === "programme" ? programmeId : projectId;
@@ -185,6 +187,7 @@ router.put("/defs/:id", requireRole("contributor"), (req, res) =>
     let upd;
     try { upd = sanitizeDefUpdate(existing.kind, req.body); }
     catch (e) { if (e instanceof DefError) { res.status(400).json({ error: e.message }); return; } throw e; }
+    if (!(await runDefWriteHook(req, res, existing.kind, upd.payload))) return;
     const row = updateStoredDef(existing, upd, new Date().toISOString());
     putDef(scope, row);
     res.json(row);
