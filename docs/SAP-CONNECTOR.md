@@ -16,6 +16,23 @@ event-based revenue recognition) is a genuine moat we can't and shouldn't replic
 being the modern, brokered, config-portable layer that reaches into SAP and everything else. This
 connector is the credibility piece that makes that real.
 
+## "SAP-light" for everyone — not just SAP customers
+
+The read models here (`listWbsElements`, `getWbsFinancials`, …) are **broker methods**, not SAP-specific code.
+So the *same* project→WBS→financials capability — a cost-structured view of a project — can be offered to
+**any** customer, three ways, all behind the one seam:
+
+1. **SAP** — the ERP connector fronts real S/4HANA data (this doc's main path).
+2. **Their backend of choice** — the broker adapter maps whatever they run (Jira/OpenProject/Azure DevOps/…)
+   into the WBS/financials read model where the data allows (e.g., epics→WBS, cost fields→financials).
+3. **The sidecar store** — for customers with no ERP and no cost data in their tracker, OmniProject's own
+   **sidecar SoR** holds an authored/imported WBS + financials (the same JSON-scoped, zero-at-rest sidecar
+   pattern the wiki/whiteboard/proofs already use). They author it, or import a CSV/XLSX; we render it.
+
+This is the wedge stated plainly: **the SAP-grade *cost-structure experience*, available to everyone**, with
+SAP as the deepest-fidelity source when present and the sidecar/other backends covering the rest — SAP keeps
+the ledger; we bring the screens. The demo broker's fixtures already stand in for path 2/3 in tests.
+
 ## Non-goals (what SAP keeps)
 
 - ❄ **The ledger.** Actual postings, settlement, revenue recognition, capitalization — SAP's, never ours.
@@ -75,6 +92,16 @@ Every one returns **content-shaped read models** (typed, minimal, display-orient
 payloads. The mapping from SAP fields → our read models lives in the adapter, unit-tested against a
 **demo SAP adapter** (a fixture backend, mirroring `broker/demo.ts`) so the pipeline is testable with
 no SAP tenant.
+
+### Screens are ARTIFACTS — pure JSON, never TypeScript
+
+A "copy of a SAP screen" is an **artifact**: a JSON screen def rendered by the **generic engine**, with no
+bespoke component. `screens/sap-project-cost.json` places a generic `table` panel bound (via `source.url`) to
+a **rows read model** — `GET /projects/:id/wbs/cost-rows` returns `{ rows: [{ wbs, name, status, budget,
+actual, committed, available }] }`, the WBS+financials join. The only supporting ENGINE code (reusable by any
+artifact, not SAP-specific) is generic `{projectId}` source-URL templating (`lib/panel-source`), so a JSON
+panel can bind a project-scoped endpoint. Rule of thumb: **new SAP capability = new JSON + (occasionally) a
+generic engine primitive that serves everyone — never a per-artifact TypeScript renderer.**
 
 ## Allowed writes (narrow, API-permitted, never the ledger)
 

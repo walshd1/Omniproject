@@ -10,6 +10,7 @@ import {
   SAMPLE_PROJECTS, SAMPLE_ISSUES, SAMPLE_RAID, SAMPLE_CAPACITY, SAMPLE_FINANCIALS,
   SAMPLE_PORTFOLIO, DEMO_FX, sampleActivity, sampleNotifications, persistDemoState,
   resetDemoDataToSeed, shouldAutoResetDemo, demoResetIntervalMinutes,
+  SAMPLE_WBS, SAMPLE_WBS_FINANCIALS,
 } from "./demo-data";
 import {
   BrokerError,
@@ -24,6 +25,8 @@ import {
   type TaskItemWrite,
   type Task,
   type TaskWrite,
+  type WbsElement,
+  type WbsFinancials,
   type TaskComment,
   type TaskCommentWrite,
   type TaskAttachment,
@@ -410,6 +413,17 @@ export class DemoBroker implements Broker {
     (SAMPLE_TASK_ITEMS[taskId] ??= []).push(item);
     persistDemoState();
     return item;
+  }
+
+  // ── SAP / ERP read models (docs/SAP-CONNECTOR.md §4.6) — fixtures so the connector pipeline is testable
+  //    with no SAP tenant. READ-ONLY; the demo broker stands in for an ERP front. ──────────────────────
+  async listWbsElements(_ctx: ActorContext, projectId: string): Promise<WbsElement[]> {
+    return (SAMPLE_WBS[projectId] ?? []).map((w) => ({ ...w }));
+  }
+
+  async getWbsFinancials(_ctx: ActorContext, wbsId: string): Promise<WbsFinancials | null> {
+    const f = SAMPLE_WBS_FINANCIALS[wbsId];
+    return f ? { ...f } : null;
   }
 
   // ── Tasks (GTD actionable next-actions) ──────────────────────────────────────

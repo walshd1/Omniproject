@@ -14,6 +14,7 @@ import projectGantt from "./screens/project-gantt.json";
 import projects from "./screens/projects.json";
 import raciMatrix from "./screens/raci-matrix.json";
 import raid from "./screens/raid.json";
+import sapProjectCost from "./screens/sap-project-cost.json";
 import reports from "./screens/reports.json";
 import resourceAllocations from "./screens/resource-allocations.json";
 import riskRegister from "./screens/risk-register.json";
@@ -45,7 +46,7 @@ export interface RawScreenDef {
 export const SCREEN_DEF_CATALOGUE: RawScreenDef[] = [
   budgetPlans, resourceAllocations, home, myWork, tasks, reports, programmes, programmeDetail,
   projects, projectDetail, explore, kanban, scrum, sprints, userStories, burndown, gantt, prince2,
-  raid, intake, projectGantt, riskRegister, raciMatrix, stakeholders,
+  raid, intake, projectGantt, riskRegister, raciMatrix, stakeholders, sapProjectCost,
 ] as unknown as RawScreenDef[];
 
 /** The shipped screen defs (a fresh array each call, so a caller can't mutate the catalogue). */

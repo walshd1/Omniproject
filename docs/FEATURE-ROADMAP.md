@@ -1672,7 +1672,22 @@ explicit, not forgotten. Every item is ⬜ Todo unless noted.
 - ✳ **Dependency graph + critical-path across teams**, **capacity-based sprint/PI forecasting**.
 
 ### 4.6 Enterprise integration & data
-- ✳ **First-class SAP connector** (S/4HANA / PS / PPM read models) — the credibility connector; brokered, not stored.
+- 🚧 **First-class SAP connector** (S/4HANA / PS / PPM read models) — the credibility connector; brokered, not
+  stored. **Slice 1 ✅ (the read adapter + read models).** Broker gains OPTIONAL `listWbsElements` +
+  `getWbsFinancials` (docs/SAP-CONNECTOR.md); read-model types `WbsElement` + `WbsFinancials` (available =
+  budget − actual − commitment). Demo broker implements them from fixtures so the pipeline is testable with no
+  SAP tenant. Routes `GET /projects/:id/wbs` + `/wbs/:wbsId/financials` — project-scope-gated, degrade to 501
+  when a backend doesn't front an ERP, 404 on unknown WBS. 5 route tests + typecheck clean. **"SAP-light for
+  everyone":** because these are broker methods, the same cost-structure experience is offered THREE ways —
+  SAP, their **backend of choice** (mapped through the broker), or the **sidecar store** (authored/imported
+  WBS+financials, zero-at-rest, the wiki/whiteboard sidecar pattern). SAP keeps the ledger; we bring the
+  screens. **Slice 2 ✅ (the "copy of a SAP screen" as PURE JSON — no bespoke code).** The artifact is a JSON
+  screen def (`screens/sap-project-cost.json`) using the GENERIC `table` panel bound to a rows read model
+  (`GET /projects/:id/wbs/cost-rows` → `{ rows }`, the WBS+financials join). The only new code is ENGINE, not
+  artifact-specific: generic `{projectId}` source-URL templating (`lib/panel-source.resolveSourceUrl`) so any
+  JSON panel can bind a project-scoped endpoint — reusable everywhere, not SAP. (An earlier bespoke `sapCost`
+  panel component was reverted: artifacts are JSON, never TypeScript.) Tests: panel-source 4/4, cost-rows route,
+  BoundPanel/ScreenRenderer green. **Next:** the sidecar-backed WBS store for non-ERP customers (SAP-light path 3).
 - ✳ **Broader broker catalogue** — Oracle/NetSuite/Workday/MS Project/Smartsheet/monday/Asana/Azure DevOps read+write seams.
 - ✳ **iPaaS / webhook-out / OData feed** (OData read already exists — extend), **bi-directional sync policies**, **field-mapping studio** (partly exists).
 - ⚠ **Data warehouse / lakehouse export** — legitimate, but any retained extract needs the sidecar SoR + explicit retention, not core.

@@ -448,6 +448,56 @@ router.get("/projects/:projectId/financials", analyticsLimiter, async (req, res)
   }, { projectId });
 });
 
+// ── SAP / ERP read models (docs/SAP-CONNECTOR.md §4.6) — the WBS cost-structure tree + per-WBS financial
+//    roll-up a "copy of a SAP screen" renders. READ-ONLY, brokered from the system of record (zero-at-rest);
+//    a backend that doesn't front an ERP omits the broker method and these answer 501.
+router.get("/projects/:projectId/wbs", async (req, res) => {
+  const params = parseRouteParams(GetProjectSummaryParams, req, res, "Invalid project id");
+  if (!params) return;
+  const { projectId } = params;
+  await withBrokerErrors(req, res, "list_wbs failed", async () => {
+    if (!(await guardProjectScope(req, res, projectId))) return;
+    const broker = getBroker();
+    if (!broker.listWbsElements) { res.status(501).json({ error: "this backend does not expose an ERP project structure" }); return; }
+    res.json(await broker.listWbsElements(contextFromReq(req), projectId));
+  }, { projectId });
+});
+
+// The WBS cost tree JOINED with each element's financials, shaped as `{ rows }` so the GENERIC table panel
+// renders it from a JSON screen def (no bespoke component). This is what a "copy of a SAP screen" binds to.
+router.get("/projects/:projectId/wbs/cost-rows", async (req, res) => {
+  const params = parseRouteParams(GetProjectSummaryParams, req, res, "Invalid project id");
+  if (!params) return;
+  const { projectId } = params;
+  await withBrokerErrors(req, res, "wbs_cost_rows failed", async () => {
+    if (!(await guardProjectScope(req, res, projectId))) return;
+    const broker = getBroker();
+    if (!broker.listWbsElements) { res.status(501).json({ error: "this backend does not expose an ERP project structure" }); return; }
+    const ctx = contextFromReq(req);
+    const wbs = await broker.listWbsElements(ctx, projectId);
+    const rows = await Promise.all(wbs.map(async (w) => {
+      const f = broker.getWbsFinancials ? await broker.getWbsFinancials(ctx, w.id) : null;
+      return { wbs: w.id, name: w.name, status: w.status ?? "", budget: f?.budget ?? null, actual: f?.actual ?? null, committed: f?.commitment ?? null, available: f?.available ?? null };
+    }));
+    res.json({ rows });
+  }, { projectId });
+});
+
+router.get("/projects/:projectId/wbs/:wbsId/financials", async (req, res) => {
+  const params = parseRouteParams(GetProjectSummaryParams, req, res, "Invalid project id");
+  if (!params) return;
+  const { projectId } = params;
+  const wbsId = String(req.params["wbsId"] ?? "");
+  await withBrokerErrors(req, res, "get_wbs_financials failed", async () => {
+    if (!(await guardProjectScope(req, res, projectId))) return;
+    const broker = getBroker();
+    if (!broker.getWbsFinancials) { res.status(501).json({ error: "this backend does not expose ERP financials" }); return; }
+    const fin = await broker.getWbsFinancials(contextFromReq(req), wbsId);
+    if (!fin) { res.status(404).json({ error: "no financials for that WBS element" }); return; }
+    res.json(fin);
+  }, { projectId });
+});
+
 // ── History + baseline (sourced from the system of record via the broker) ─────
 
 router.get("/projects/:projectId/history", analyticsLimiter, async (req, res) => {
