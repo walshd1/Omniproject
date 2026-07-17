@@ -1,9 +1,10 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  sanitizeMapping, mergeMappings, resolveMappingTargets, mappingFromFieldRoutes, mappingHome, MappingError, type Mapping,
+  sanitizeMapping, mergeMappings, resolveMappingTargets, mappingFromFieldRoutes, mappingHome,
+  projectMappingRows, planMappingWrite, MappingError, type Mapping,
 } from "./mapping";
-import { BUILTIN_BROKER, SIDECAR_BACKEND } from "./field-target";
+import { BUILTIN_BROKER, SIDECAR_BACKEND, targetKey } from "./field-target";
 
 /**
  * The first-class Mapping object (§4.6): a generic semanticKey → (broker, backend, field) binding, scope-merged
@@ -65,4 +66,35 @@ test("mappingFromFieldRoutes subsumes legacy org routing: uiElement → { broker
   );
   assert.equal(m.id, "wbs");
   assert.deepEqual(m.fields["budget"], { broker: "n8n", backend: "sap", field: "ACDOCA_BUDGET" });
+});
+
+test("projectMappingRows projects any surface's rows (id + semantic values) from a bare home bucket", () => {
+  const m = sanitizeMapping({ id: "risk", fields: { id: "rid", title: "subject", severity: "sev" } });
+  const rows = projectMappingRows([{ rid: "R-1", subject: "Data loss", sev: "high" }], m);
+  assert.deepEqual(rows, [{ id: "R-1", title: "Data loss", severity: "high" }]);
+});
+
+test("projectMappingRows joins a non-home bucket by id (a field sourced from another backend)", () => {
+  const m = sanitizeMapping({
+    id: "risk", broker: "n8n", backend: "jira",
+    // owner routes to the built-in sidecar (broker AND backend named — "sidecar" alone would inherit the jira home).
+    fields: { id: "key", title: "summary", owner: { broker: BUILTIN_BROKER, backend: SIDECAR_BACKEND, field: "assignedTo" } },
+    joinField: "key",
+  });
+  const buckets = {
+    [targetKey({ broker: "n8n", backend: "jira" })]: [{ key: "R-1", summary: "Outage" }],
+    [targetKey({ broker: BUILTIN_BROKER, backend: SIDECAR_BACKEND })]: [{ key: "R-1", assignedTo: "Dana" }],
+  };
+  assert.deepEqual(projectMappingRows(buckets, m), [{ id: "R-1", title: "Outage", owner: "Dana" }]);
+});
+
+test("planMappingWrite splits a generic write: sidecar written, external reported, id skipped", () => {
+  const m = sanitizeMapping({
+    id: "risk", broker: "n8n", backend: "jira",
+    fields: { id: "key", title: "summary", owner: { broker: BUILTIN_BROKER, backend: SIDECAR_BACKEND, field: "assignedTo" } },
+  });
+  const plan = planMappingWrite(m, { id: "R-1", title: "Outage", owner: "Dana" });
+  assert.deepEqual(plan.sidecar, { assignedTo: "Dana" });   // sidecar-routed
+  assert.equal(plan.external.length, 1);                     // title → the Jira home (external)
+  assert.equal(plan.external[0]!.key, "title");
 });

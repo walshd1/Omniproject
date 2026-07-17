@@ -81,6 +81,15 @@ save, field-by-field merge after); external-targeted fields are returned as `ext
 adapters are the remaining slice, so those are reported, never silently dropped. contributor+, project-scope
 gated, audited.
 
+**Across the board (built).** The mapping model isn't WBS-only. A generic surface exposes the SAME addressing +
+sidecar for ANY slot: `GET /projects/:id/mapping/:slot` (the resolved mapping), `GET …/mapping/:slot/rows`
+(sidecar rows projected through it, `{ rows }`), `PUT …/mapping/:slot/:rowId` (write split by target). So a
+form / report / custom screen JSON binds a mapped, sidecar-backed table with **no bespoke code** — it just
+points `source.url` at `/api/projects/{projectId}/mapping/{slot}/rows` (the generic `{projectId}` templating
+already carries it). `lib/mapping` grows the generic `projectMappingRows` + `planMappingWrite`; `lib/mapping-
+sidecar` is the per-slot sealed row store; `lib/mapping-resolve` is the scope layering WBS and every generic
+slot share. WBS keeps its own richer endpoints (financial roll-ups); it's now one instance of the general model.
+
 **Remaining:** the external broker read/write adapters themselves (reaching a genuinely different
 SAP/OpenProject instance per `(broker, backend)` address). The routing decision + the sidecar leg are done;
 per-platform adapter instances bound to each endpoint are the last mile (see `broker/registry.ts`).

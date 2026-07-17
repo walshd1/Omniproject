@@ -38,6 +38,9 @@ import { targetKey, BUILTIN_HOME } from "../lib/field-target";
 import { getSidecarWbs, hasSidecarWbs, upsertSidecarWbsRow } from "../lib/wbs-sidecar";
 import { planWbsWrite } from "../lib/wbs-write";
 import { artifactStoreEnabled } from "../lib/artifact-store";
+import { resolveMapping } from "../lib/mapping-resolve";
+import { projectMappingRows, planMappingWrite } from "../lib/mapping";
+import { getSidecarRows, upsertSidecarRow } from "../lib/mapping-sidecar";
 import { poolMap } from "../lib/concurrency-pool";
 import {
   type Row,
@@ -575,6 +578,72 @@ router.get("/projects/:projectId/wbs/:wbsId/financials", async (req, res) => {
     const fin = await broker.getWbsFinancials(contextFromReq(req), wbsId);
     if (!fin) { res.status(404).json({ error: "no financials for that WBS element" }); return; }
     res.json(fin);
+  }, { projectId });
+});
+
+// ── Generic mapping surface (roadmap §4.6, "across the board") — the SAME (broker, backend) addressing +
+//    sidecar the WBS cost screen uses, exposed for ANY slot so a form / report / custom screen JSON can bind a
+//    mapped, sidecar-backed table with no bespoke code. WBS keeps its own richer endpoints (financial roll-ups).
+
+// GET /projects/:projectId/mapping/:slot — the effective generic mapping for a slot (admin UI: "where each field
+// comes from"). 404 when no scope authored that slot.
+router.get("/projects/:projectId/mapping/:slot", async (req, res) => {
+  const params = parseRouteParams(GetProjectSummaryParams, req, res, "Invalid project id");
+  if (!params) return;
+  const { projectId } = params;
+  const slot = String(req.params["slot"] ?? "");
+  await withBrokerErrors(req, res, "get_mapping failed", async () => {
+    if (!(await guardProjectScope(req, res, projectId))) return;
+    const ctx = contextFromReq(req);
+    const mapping = resolveMapping({ projectId, ...(ctx.sub ? { sub: ctx.sub } : {}) }, slot);
+    if (!mapping) { res.status(404).json({ error: `no mapping for slot "${slot}"` }); return; }
+    res.json(mapping);
+  }, { projectId });
+});
+
+// GET /projects/:projectId/mapping/:slot/rows — the sidecar rows for a slot projected through the resolved
+// mapping into `{ rows }` (the generic table shape). Empty rows when nothing authored; 404 when no mapping.
+router.get("/projects/:projectId/mapping/:slot/rows", async (req, res) => {
+  const params = parseRouteParams(GetProjectSummaryParams, req, res, "Invalid project id");
+  if (!params) return;
+  const { projectId } = params;
+  const slot = String(req.params["slot"] ?? "");
+  await withBrokerErrors(req, res, "mapping_rows failed", async () => {
+    if (!(await guardProjectScope(req, res, projectId))) return;
+    const ctx = contextFromReq(req);
+    const mapping = resolveMapping({ projectId, ...(ctx.sub ? { sub: ctx.sub } : {}) }, slot);
+    if (!mapping) { res.status(404).json({ error: `no mapping for slot "${slot}"` }); return; }
+    res.json({ rows: projectMappingRows(getSidecarRows(projectId, slot), mapping) });
+  }, { projectId });
+});
+
+// PUT /projects/:projectId/mapping/:slot/:rowId — write semantic field values for a row through the mapping:
+// sidecar-targeted fields written to our sealed store, external-targeted fields reported (no adapter yet).
+router.put("/projects/:projectId/mapping/:slot/:rowId", requireRole("contributor"), async (req, res) => {
+  const params = parseRouteParams(GetProjectSummaryParams, req, res, "Invalid project id");
+  if (!params) return;
+  const { projectId } = params;
+  const slot = String(req.params["slot"] ?? "");
+  const rowId = String(req.params["rowId"] ?? "");
+  await withBrokerErrors(req, res, "mapping_write failed", async () => {
+    if (!(await guardProjectScope(req, res, projectId))) return;
+    if (!rowId) { res.status(400).json({ error: "a row id is required" }); return; }
+    if (!artifactStoreEnabled()) { res.status(501).json({ error: "no encrypted-JSON store is configured on this deployment" }); return; }
+    const body = (req.body ?? {}) as { fields?: unknown };
+    const values = body.fields && typeof body.fields === "object" && !Array.isArray(body.fields) ? (body.fields as Record<string, unknown>) : null;
+    if (!values) { res.status(400).json({ error: "fields must be an object of semanticKey → value" }); return; }
+    const ctx = contextFromReq(req);
+    const mapping = resolveMapping({ projectId, ...(ctx.sub ? { sub: ctx.sub } : {}) }, slot);
+    if (!mapping) { res.status(404).json({ error: `no mapping for slot "${slot}"` }); return; }
+    const plan = planMappingWrite(mapping, values);
+    upsertSidecarRow(projectId, slot, plan.sidecarIdField, rowId, plan.sidecar);
+    recordAudit({ ts: new Date().toISOString(), category: "admin", action: `mapping_write:${slot}:${rowId}`, projectId, result: "success", status: 200 });
+    res.json({
+      rowId,
+      written: Object.keys(plan.sidecar),
+      external: plan.external.map((e) => ({ key: e.key, broker: e.target.broker, backend: e.target.backend })),
+      unmapped: plan.unmapped,
+    });
   }, { projectId });
 });
 

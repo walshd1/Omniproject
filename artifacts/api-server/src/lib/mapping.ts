@@ -1,6 +1,7 @@
 import { isForbiddenKey } from "./safe-json";
 import {
-  resolveFieldTarget, sanitizeFieldRef, sanitizeHomeId, BUILTIN_HOME,
+  resolveFieldTarget, sanitizeFieldRef, sanitizeHomeId, targetKey, sameHome,
+  BUILTIN_BROKER, SIDECAR_BACKEND, BUILTIN_HOME,
   type FieldRef, type FieldTarget, type BrokerBackend,
 } from "./field-target";
 import type { FieldRoute } from "./field-routing";
@@ -134,4 +135,90 @@ export function mappingFromFieldRoutes(routes: readonly FieldRoute[], slot: stri
     fields[r.uiElement] = { broker: r.broker, backend: r.vendor, field: r.sourceField };
   }
   return { id: slot, fields };
+}
+
+// ── Generic projection + write planning (the "across the board" seam) ────────────────────────────────────────
+// Any surface — a screen table, a form, a report — projects its rows through a mapping the SAME way WBS does:
+// structure comes from the home bucket, each field is read from ITS (broker, backend) bucket joined by the row
+// id. These are the generic primitives the generic `/mapping/:slot/rows` + write routes stand on.
+
+type Src = Record<string, unknown>;
+const asStr = (v: unknown): string => (typeof v === "string" ? v : typeof v === "number" ? String(v) : "");
+
+/** Which semantic key is the row id (default `"id"`). */
+export const mappingIdKey = (m: Mapping): string => (m.fields["id"] ? "id" : Object.keys(m.fields)[0] ?? "id");
+
+/**
+ * Project records (per-`(broker,backend)` bucket, keyed by {@link targetKey}) into rows of semantic values via a
+ * mapping. The home bucket supplies the row set + its id; each field is read from its own bucket, joined by the
+ * id (the join column in non-home buckets is `joinField`, defaulting to the id field's native name). Each output
+ * row is `{ [idKey]: id, …semanticValues }` — exactly what a generic table panel binds to. A bare `Src[]` is the
+ * home bucket (the common single-backend case).
+ */
+export function projectMappingRows(sources: Src[] | Record<string, Src[]>, m: Mapping): Record<string, unknown>[] {
+  const home = mappingHome(m);
+  const homeKey = targetKey(home);
+  const buckets: Record<string, Src[]> = Array.isArray(sources) ? { [homeKey]: sources } : sources;
+  const rowsOf = (key: string): Src[] => (buckets[key] ?? []).filter((r) => r && typeof r === "object");
+  const idKey = mappingIdKey(m);
+  const idTarget = resolveFieldTarget(m.fields[idKey] ?? idKey, home);
+  const joinField = m.joinField || idTarget.field;
+
+  // Index every non-home bucket by its join id.
+  const nonHomeIndex = new Map<string, Map<string, Src>>();
+  for (const [key, rows] of Object.entries(buckets)) {
+    if (key === homeKey) continue;
+    const byId = new Map<string, Src>();
+    for (const r of rows) { if (r && typeof r === "object") { const jid = asStr(r[joinField]); if (jid) byId.set(jid, r); } }
+    nonHomeIndex.set(key, byId);
+  }
+
+  const out: Record<string, unknown>[] = [];
+  for (const r of rowsOf(homeKey)) {
+    const id = asStr(r[idTarget.field]);
+    if (!id) continue;
+    const row: Record<string, unknown> = { [idKey]: id };
+    for (const [key, ref] of Object.entries(m.fields)) {
+      if (key === idKey) continue;
+      const t = resolveFieldTarget(ref, home);
+      const src = sameHome(t, home) ? r : nonHomeIndex.get(targetKey(t))?.get(id);
+      row[key] = src ? src[t.field] : undefined;
+    }
+    out.push(row);
+  }
+  return out;
+}
+
+export interface MappingWritePlan {
+  /** The join id field to key the sidecar row on. */
+  sidecarIdField: string;
+  /** Native field name → value for the sidecar-routed fields. */
+  sidecar: Record<string, unknown>;
+  /** Fields routed to an external (broker, backend) with no write adapter yet — reported, not dropped. */
+  external: { key: string; target: FieldTarget; value: unknown }[];
+  /** Semantic keys with no mapping (ignored) — surfaced so the caller can warn. */
+  unmapped: string[];
+}
+
+const isSidecarTarget = (t: FieldTarget): boolean => t.broker === BUILTIN_BROKER && t.backend === SIDECAR_BACKEND;
+
+/**
+ * Plan a generic write of `values` (semanticKey → value) under mapping `m`: split each provided field to the
+ * sidecar (written locally) or `external` (routed elsewhere, no adapter yet). The id key is the row key, not a
+ * writable field. Mirrors the WBS write planner, generalised to any slot.
+ */
+export function planMappingWrite(m: Mapping, values: Record<string, unknown>): MappingWritePlan {
+  const home = mappingHome(m);
+  const idKey = mappingIdKey(m);
+  const idTarget = resolveFieldTarget(m.fields[idKey] ?? idKey, home);
+  const plan: MappingWritePlan = { sidecarIdField: m.joinField || idTarget.field, sidecar: {}, external: [], unmapped: [] };
+  for (const [key, value] of Object.entries(values)) {
+    if (key === idKey) continue;
+    const ref = m.fields[key];
+    if (ref === undefined) { plan.unmapped.push(key); continue; }
+    const t = resolveFieldTarget(ref, home);
+    if (isSidecarTarget(t)) plan.sidecar[t.field] = value;
+    else plan.external.push({ key, target: t, value });
+  }
+  return plan;
 }

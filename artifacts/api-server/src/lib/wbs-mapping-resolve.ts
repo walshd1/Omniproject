@@ -1,6 +1,5 @@
-import { getSettings } from "./settings";
-import { listDefs, listSystemDefs, type StoredDef } from "./def-import";
-import { sanitizeMapping, mergeMappings, mappingFromFieldRoutes, type Mapping } from "./mapping";
+import { mergeMappings, type Mapping } from "./mapping";
+import { storedMappingLayers, type MappingCtx } from "./mapping-resolve";
 import { WbsMappingError, type WbsFieldMapping } from "./wbs-mapping";
 import type { FieldRef } from "./field-target";
 
@@ -68,39 +67,20 @@ export function mappingToWbs(m: Mapping): WbsFieldMapping {
   return out;
 }
 
-/** The `mapping` defs at a scope whose slot matches, re-sanitised (a payload that fails validation is skipped —
- *  it passed on write, so this only guards against a corrupted store). */
-function mappingDefsForSlot(rows: StoredDef[], slot: string): Mapping[] {
-  const out: Mapping[] = [];
-  for (const r of rows) {
-    if (r.kind !== "mapping") continue;
-    let m: Mapping;
-    try { m = sanitizeMapping(r.payload); } catch { continue; }
-    if (m.id === slot) out.push(m);
-  }
-  return out;
-}
-
 /** The caller's resolution context — which programme/project/user layers to consult. */
-export interface WbsMappingCtx { projectId?: string; programmeId?: string; sub?: string }
+export type WbsMappingCtx = MappingCtx;
 
 /**
  * Resolve the effective WBS mapping for a caller + slot. Layers, base → nearest:
  *   core (shipped) < system-store mapping defs < org legacy `fieldRouting` (subsumed) <
  *   org < programme < project < user mapping defs
- * merged per-field, then adapted to a {@link WbsFieldMapping}. Only the caller's own programme/project/user
- * scopes are consulted. Throws {@link WbsMappingError} if nothing supplies a valid id/name.
+ * merged per-field (via the shared {@link storedMappingLayers}), then adapted to a {@link WbsFieldMapping}. Only
+ * the caller's own programme/project/user scopes are consulted. Throws {@link WbsMappingError} if nothing
+ * supplies a valid id/name.
  */
 export function resolveWbsMapping(ctx: WbsMappingCtx, slot: string = DEFAULT_WBS_SLOT): WbsFieldMapping {
   const layers: Mapping[] = [];
   if (slot === DEFAULT_WBS_SLOT) layers.push(CORE_WBS_MAPPING);
-  layers.push(...mappingDefsForSlot(listSystemDefs(), slot));
-  const routes = getSettings().fieldRouting;
-  if (Array.isArray(routes) && routes.length) layers.push(mappingFromFieldRoutes(routes, slot));
-  layers.push(...mappingDefsForSlot(listDefs({ kind: "org" }), slot));
-  if (ctx.programmeId) layers.push(...mappingDefsForSlot(listDefs({ kind: "programme", programmeId: ctx.programmeId }), slot));
-  if (ctx.projectId) layers.push(...mappingDefsForSlot(listDefs({ kind: "project", projectId: ctx.projectId }), slot));
-  if (ctx.sub) layers.push(...mappingDefsForSlot(listDefs({ kind: "user", sub: ctx.sub }), slot));
-  if (!layers.length) throw new WbsMappingError(`no WBS mapping for slot "${slot}"`);
+  layers.push(...storedMappingLayers(ctx, slot));
   return mappingToWbs(mergeMappings(layers));
 }
