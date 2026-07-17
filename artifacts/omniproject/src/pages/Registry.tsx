@@ -7,6 +7,7 @@ import {
   useSubmitRegistryItem, useReviewRegistryItem, useReleaseRegistryItem, useRetractRegistryItem, useDeleteRegistryItem,
   registryItemKindLabel, type RegistryItemMeta,
 } from "../lib/registry";
+import { safeParseJson } from "../lib/safe-json";
 import { useToast } from "@/hooks/use-toast";
 
 /**
@@ -35,7 +36,7 @@ function SubmitForm({ onDone }: { onDone: () => void }) {
 
   const send = () => {
     let submission: unknown;
-    try { submission = JSON.parse(text); } catch { setError("That isn't valid JSON."); return; }
+    try { submission = safeParseJson(text); } catch { setError("That isn't valid JSON."); return; }
     setError(null);
     submit.mutate(submission, {
       onSuccess: (it) => { toast({ title: "SUBMITTED FOR REVIEW", description: `${it.name} · ${registryItemKindLabel(it.kind)}` }); onDone(); },
