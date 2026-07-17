@@ -15,6 +15,7 @@ const openProjectRows = [
   { wpId: "WP-1.1", subject: "Core", parentWp: "WP-1", statusName: "In progress", costBudget: "300000", costSpent: "205000", committed: "30000", cur: "GBP" },
 ];
 const openProjectMapping: WbsFieldMapping = {
+  broker: "n8n", backend: "openproject", // the WBS lives in OpenProject — the mapping declares its home
   id: "wpId", name: "subject", parentId: "parentWp", status: "statusName",
   budget: "costBudget", actual: "costSpent", commitment: "committed", currency: "cur",
 };
@@ -39,7 +40,7 @@ test("maps OpenProject work packages into the SAME semantic WBS read model the S
 test("a different backend's field names produce the identical read model (backend-agnostic)", () => {
   // A sidecar sheet with yet other headers → same output shape as OpenProject/SAP.
   const rows = [{ code: "A", title: "Root", budgetGBP: 1000, spentGBP: 400, poGBP: 100 }];
-  const mapping: WbsFieldMapping = { id: "code", name: "title", budget: "budgetGBP", actual: "spentGBP", commitment: "poGBP", currencyDefault: "GBP" };
+  const mapping: WbsFieldMapping = { broker: BUILTIN_BROKER, backend: SIDECAR_BACKEND, id: "code", name: "title", budget: "budgetGBP", actual: "spentGBP", commitment: "poGBP", currencyDefault: "GBP" };
   const { wbs, financials } = applyWbsMapping(rows, mapping, "proj-x");
   assert.equal(wbs[0]!.id, "A");
   assert.equal(financials["A"]!.currency, "GBP");       // fell back to currencyDefault
@@ -48,7 +49,7 @@ test("a different backend's field names produce the identical read model (backen
 
 test("unmapped facets stay empty/zero — nothing is invented", () => {
   const rows = [{ k: "1", n: "Only structure" }];
-  const { wbs, financials } = applyWbsMapping(rows, { id: "k", name: "n" }, "p");
+  const { wbs, financials } = applyWbsMapping(rows, { broker: BUILTIN_BROKER, backend: SIDECAR_BACKEND, id: "k", name: "n" }, "p");
   assert.equal(wbs[0]!.status, undefined);
   assert.equal(financials["1"]!.budget, 0);
   assert.equal(financials["1"]!.available, 0);

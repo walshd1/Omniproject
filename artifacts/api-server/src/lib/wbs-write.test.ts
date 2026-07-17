@@ -9,11 +9,20 @@ import { BUILTIN_BROKER, SIDECAR_BACKEND } from "./field-target";
  * locally, external handed back (no adapter yet, never dropped).
  */
 
-test("an all-in-one mapping (no home) routes every field to the sidecar", () => {
-  const m: WbsFieldMapping = { id: "id", name: "name", budget: "budget", actual: "actual" };
+test("an all-in-one mapping (built-in + sidecar home, declared) routes every field to the sidecar", () => {
+  const m: WbsFieldMapping = { broker: BUILTIN_BROKER, backend: SIDECAR_BACKEND, id: "id", name: "name", budget: "budget", actual: "actual" };
   const plan = planWbsWrite(m, { name: "Platform", budget: 1000, actual: 400 });
   assert.equal(plan.sidecarIdField, "id");
   assert.deepEqual(plan.sidecar, { name: "Platform", budget: 1000, actual: 400 });
+  assert.equal(plan.external.length, 0);
+  assert.deepEqual(plan.homeless, []);
+});
+
+test("a homeless field (no home declared) is surfaced, never written", () => {
+  const m: WbsFieldMapping = { id: "id", name: "name", budget: "budget" }; // no home → budget is homeless
+  const plan = planWbsWrite(m, { budget: 1000 });
+  assert.deepEqual(plan.homeless, ["budget"]);
+  assert.deepEqual(plan.sidecar, {});
   assert.equal(plan.external.length, 0);
 });
 

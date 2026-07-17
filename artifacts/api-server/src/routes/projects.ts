@@ -33,13 +33,12 @@ import { randomUUID } from "node:crypto";
 import { aggregateResourcePool } from "../lib/resource-pool";
 import { guardProjectScope } from "../lib/project-scope";
 import { resolveWbsMapping } from "../lib/wbs-mapping-resolve";
-import { applyWbsMapping, mappingHome, WbsMappingError } from "../lib/wbs-mapping";
-import { targetKey, BUILTIN_HOME } from "../lib/field-target";
+import { applyWbsMapping, WbsMappingError } from "../lib/wbs-mapping";
 import { getSidecarWbs, hasSidecarWbs, upsertSidecarWbsRow } from "../lib/wbs-sidecar";
 import { planWbsWrite } from "../lib/wbs-write";
 import { artifactStoreEnabled } from "../lib/artifact-store";
 import { resolveMapping } from "../lib/mapping-resolve";
-import { projectMappingRows, planMappingWrite } from "../lib/mapping";
+import { projectMappingRows, planMappingWrite, resolveMappingTargets } from "../lib/mapping";
 import { getSidecarRows, upsertSidecarRow } from "../lib/mapping-sidecar";
 import { poolMap } from "../lib/concurrency-pool";
 import {
@@ -485,14 +484,11 @@ router.get("/projects/:projectId/wbs/cost-rows", async (req, res) => {
     if (!(await guardProjectScope(req, res, projectId))) return;
     const ctx = contextFromReq(req);
 
-    // Sidecar-backed (our zero-at-rest store): resolve the mapping and project the sealed rows through it.
+    // Sidecar-backed (our zero-at-rest store): resolve the mapping and project the sealed rows through it. The
+    // sealed rows ARE the mapping's home bucket (the shipped core declares the built-in + sidecar home).
     if (hasSidecarWbs(projectId)) {
       const mapping = resolveWbsMapping({ projectId, ...(ctx.sub ? { sub: ctx.sub } : {}) });
-      const sidecarRows = getSidecarWbs(projectId);
-      // Home + sidecar buckets both draw from the sealed rows (external buckets have no adapter yet — empty).
-      const buckets: Record<string, typeof sidecarRows> = { [targetKey(mappingHome(mapping))]: sidecarRows };
-      buckets[targetKey(BUILTIN_HOME)] = sidecarRows;
-      const { wbs, financials } = applyWbsMapping(buckets, mapping, projectId);
+      const { wbs, financials } = applyWbsMapping(getSidecarWbs(projectId), mapping, projectId);
       const rows = wbs.map((w) => {
         const f = financials[w.id];
         return { wbs: w.id, name: w.name, status: w.status ?? "", budget: f?.budget ?? null, actual: f?.actual ?? null, committed: f?.commitment ?? null, available: f?.available ?? null };
@@ -561,6 +557,7 @@ router.put("/projects/:projectId/wbs/:wbsId", requireRole("contributor"), async 
       wbsId,
       written: Object.keys(plan.sidecar),
       external: plan.external.map((e) => ({ key: e.key, broker: e.target.broker, backend: e.target.backend })),
+      homeless: plan.homeless,
       unmapped: plan.unmapped,
     });
   }, { projectId });
@@ -597,7 +594,8 @@ router.get("/projects/:projectId/mapping/:slot", async (req, res) => {
     const ctx = contextFromReq(req);
     const mapping = resolveMapping({ projectId, ...(ctx.sub ? { sub: ctx.sub } : {}) }, slot);
     if (!mapping) { res.status(404).json({ error: `no mapping for slot "${slot}"` }); return; }
-    res.json(mapping);
+    // Surface homeless fields alongside the mapping so the admin sees which fields still need a home.
+    res.json({ ...mapping, homeless: resolveMappingTargets(mapping).homeless });
   }, { projectId });
 });
 
@@ -642,6 +640,7 @@ router.put("/projects/:projectId/mapping/:slot/:rowId", requireRole("contributor
       rowId,
       written: Object.keys(plan.sidecar),
       external: plan.external.map((e) => ({ key: e.key, broker: e.target.broker, backend: e.target.backend })),
+      homeless: plan.homeless,
       unmapped: plan.unmapped,
     });
   }, { projectId });

@@ -48,10 +48,14 @@ model the SAP fixtures produce.
 **Per-field (broker, backend) addressing (built).** Every field resolves to **exactly one broker and exactly
 one backend** via the shared `lib/field-target` spine (`FieldTarget = { broker, backend, field }`) — the same
 composite identity `field-routing`'s `FieldRoute` carries, lifted into a reusable primitive. N backends reached
-through N brokers; each field names its single home. A field with **no declared home falls back to the built-in
-broker + the sidecar backend** — which *is* the basic self-hosted all-in-one deployment (no external broker,
-everything at home in our sidecar). Wire real brokers in and you route individual fields out; anything you don't
-route stays home. In the WBS mapping this means: the mapping declares a home (`broker`/`backend`) where the WBS
+through N brokers; each field names its single home (1:1:1 — one field, one broker, one backend). A field with
+**no home is HOMELESS — a decision surfaced to the admin, never a silent default.** The admin resolves each
+homeless field one of three ways: map it to another external backend that has a field for it, point it at our
+built-in broker + sidecar backend (the basic self-hosted all-in-one home — a *declared* choice), or remove the
+field. The shipped core mappings declare the built-in + sidecar home explicitly, so the all-in-one experience
+works out of the box; nothing is ever assumed on the admin's behalf. Homeless fields are surfaced by
+`GET …/mapping/:slot` (a `homeless[]` list) and reported by the write routes (written nowhere). In the WBS
+mapping this means: the mapping declares a home (`broker`/`backend`) where the WBS
 *structure* lives, each cost figure inherits it or routes elsewhere (`{ backend: "sap", field: … }`), and the
 route projects per-`(broker,backend)` record buckets joined by the WBS id (`joinField` names the join column in
 non-home sources). "Structure in OpenProject, budget from SAP, the rest in our sidecar" is one mapping — proven

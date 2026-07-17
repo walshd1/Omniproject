@@ -1,7 +1,7 @@
 import { mergeMappings, type Mapping } from "./mapping";
 import { storedMappingLayers, type MappingCtx } from "./mapping-resolve";
 import { WbsMappingError, type WbsFieldMapping } from "./wbs-mapping";
-import type { FieldRef } from "./field-target";
+import { BUILTIN_BROKER, SIDECAR_BACKEND, type FieldRef } from "./field-target";
 
 /**
  * WBS mapping resolution (roadmap §4.6) — the WBS cost screen's view over the first-class {@link Mapping}
@@ -27,6 +27,9 @@ export const DEFAULT_WBS_SLOT = "wbs";
  */
 export const CORE_WBS_MAPPING: Mapping = {
   id: DEFAULT_WBS_SLOT,
+  // The all-in-one home, DECLARED (not silently assumed): out of the box the WBS lives in our built-in broker +
+  // sidecar. An admin overrides the home (or individual fields) to point at SAP/OpenProject/… at any scope.
+  broker: BUILTIN_BROKER, backend: SIDECAR_BACKEND,
   fields: {
     id: "id", name: "name", parentId: "parentId", status: "status", responsible: "responsible",
     budget: "budget", actual: "actual", commitment: "commitment", wip: "wip", planned: "planned",

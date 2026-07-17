@@ -2,7 +2,7 @@ import { isForbiddenKey } from "./safe-json";
 import type { WbsElement, WbsFinancials } from "../broker/types";
 import {
   resolveFieldTarget, sanitizeFieldRef, sanitizeHomeId, targetKey, sameHome,
-  BUILTIN_HOME, type FieldRef, type BrokerBackend,
+  type FieldRef, type FieldTarget, type BrokerBackend,
 } from "./field-target";
 
 /**
@@ -68,9 +68,13 @@ function num(v: unknown): number {
   return 0;
 }
 
-/** The mapping's home (broker, backend) — its declared default, else the built-in fallback. */
-export function mappingHome(m: WbsFieldMapping): BrokerBackend {
-  return { broker: m.broker ?? BUILTIN_HOME.broker, backend: m.backend ?? BUILTIN_HOME.backend };
+/** The mapping's DECLARED home (broker and/or backend) — no implicit fallback; a structure/field that can't
+ *  inherit a full home is homeless (an admin decision), never silently the sidecar. */
+export function mappingHome(m: WbsFieldMapping): Partial<BrokerBackend> {
+  const home: Partial<BrokerBackend> = {};
+  if (m.broker !== undefined) home.broker = m.broker;
+  if (m.backend !== undefined) home.backend = m.backend;
+  return home;
 }
 
 /** Depth of a WBS element in the parent chain (root = 1); guards against cycles. */
@@ -91,16 +95,20 @@ function levelOf(id: string, parentOf: Map<string, string | null>): number {
  */
 export function applyWbsMapping(sources: WbsSources, m: WbsFieldMapping, projectId: string): { wbs: WbsElement[]; financials: Record<string, WbsFinancials> } {
   const home = mappingHome(m);
-  const homeKey = targetKey(home);
-  const buckets: Record<string, Src[]> = Array.isArray(sources) ? { [homeKey]: sources } : sources;
+  // The WBS STRUCTURE lives at the id field's resolved home. A homeless structure (no declared home) reads
+  // nothing — the admin must give the mapping a home; it's surfaced, never silently the sidecar.
+  const idTarget = resolveFieldTarget(m.id, home);
+  if (!idTarget) return { wbs: [], financials: {} };
+  const structureKey = targetKey(idTarget);
+  const buckets: Record<string, Src[]> = Array.isArray(sources) ? { [structureKey]: sources } : sources;
   const rowsOf = (key: string): Src[] => (buckets[key] ?? []).filter((r) => r && typeof r === "object");
 
-  const homeRows = rowsOf(homeKey);
-  // Index every NON-home bucket by the join id it carries, so a field routed elsewhere finds its element's row.
-  const joinField = m.joinField || m.id;
+  const homeRows = rowsOf(structureKey);
+  // Index every NON-structure bucket by the join id it carries, so a field routed elsewhere finds its element's row.
+  const joinField = m.joinField || idTarget.field;
   const nonHomeIndex = new Map<string, Map<string, Src>>();
   for (const [key, rows] of Object.entries(buckets)) {
-    if (key === homeKey) continue;
+    if (key === structureKey) continue;
     const byId = new Map<string, Src>();
     for (const r of rows) {
       if (!r || typeof r !== "object") continue;
@@ -127,11 +135,13 @@ export function applyWbsMapping(sources: WbsSources, m: WbsFieldMapping, project
     if (m.responsible) el.responsible = str(r[m.responsible]) || null;
     wbs.push(el);
 
-    /** Read a financial field from whichever (broker, backend) bucket its ref names, joined by this id. */
+    /** Read a financial field from whichever (broker, backend) bucket its ref names, joined by this id. A
+     *  homeless field (no home) reads nothing — it's surfaced separately, never invented. */
     const read = (ref: FieldRef | undefined): unknown => {
       if (ref === undefined) return undefined;
-      const t = resolveFieldTarget(ref, home);
-      const row = sameHome(t, home) ? r : nonHomeIndex.get(targetKey(t))?.get(id);
+      const t: FieldTarget | null = resolveFieldTarget(ref, home);
+      if (!t) return undefined;
+      const row = sameHome(t, idTarget) ? r : nonHomeIndex.get(targetKey(t))?.get(id);
       return row ? row[t.field] : undefined;
     };
 

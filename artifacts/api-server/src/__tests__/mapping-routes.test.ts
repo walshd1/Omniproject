@@ -18,8 +18,11 @@ const ADMIN = adminCookie();
 
 before(async () => {
   h = await startHarness();
-  // Author a shipped "risk" mapping into the system store (stands in for an org-authored mapping def).
-  seedSystemDef("mapping", "Risk register mapping", { id: "risk", fields: { id: "id", title: "title", severity: "severity" } }, "2026-01-01T00:00:00.000Z");
+  // Author a shipped "risk" mapping into the system store (stands in for an org-authored mapping def). It
+  // DECLARES the all-in-one home (built-in broker + sidecar backend) — the admin's explicit choice.
+  seedSystemDef("mapping", "Risk register mapping", { id: "risk", broker: "builtin", backend: "sidecar", fields: { id: "id", title: "title", severity: "severity" } }, "2026-01-01T00:00:00.000Z");
+  // A mapping with NO declared home — its fields are homeless until an admin gives them one.
+  seedSystemDef("mapping", "Homeless-fields mapping", { id: "gap", fields: { id: "id", note: "note" } }, "2026-01-01T00:00:00.000Z");
 });
 after(() => { h?.close(); fs.rmSync(process.env["OMNI_CONFIG_DIR"]!, { recursive: true, force: true }); });
 
@@ -53,6 +56,19 @@ test("write → read round-trip: author rows through the mapping into the sideca
   assert.ok(row, "the authored row is served from the sidecar");
   assert.equal(row.title, "Data loss");
   assert.equal(row.severity, "high");
+});
+
+test("homeless fields are surfaced to the admin, never silently written", async () => {
+  // GET surfaces them so the admin can decide (map to a backend, use the sidecar, or remove the field).
+  const g = await h.req(`/projects/${PID}/mapping/gap`, { cookie: ADMIN });
+  assert.equal(g.status, 200);
+  const m = (await g.json()) as { homeless: string[] };
+  assert.deepEqual([...m.homeless].sort(), ["id", "note"]);   // the whole mapping has no home — every field is homeless
+  // A write reports the homeless field and writes nothing.
+  const put = await h.req(`/projects/${PID}/mapping/gap/G-1`, { method: "PUT", cookie: ADMIN, body: { fields: { note: "hi" } } });
+  const w = (await put.json()) as { written: string[]; homeless: string[] };
+  assert.deepEqual(w.written, []);
+  assert.deepEqual(w.homeless, ["note"]);
 });
 
 test("empty rows (no 404) when a mapping exists but nothing is authored yet", async () => {

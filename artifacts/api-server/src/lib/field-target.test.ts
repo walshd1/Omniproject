@@ -1,18 +1,26 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  resolveFieldTarget, sanitizeFieldRef, sanitizeHomeId, targetKey, sameHome,
+  resolveFieldTarget, sanitizeFieldRef, sanitizeHomeId, targetKey, sameHome, homeIsComplete,
   BUILTIN_BROKER, SIDECAR_BACKEND, BUILTIN_HOME, FieldTargetError,
 } from "./field-target";
 
 /**
  * Field-target addressing (§4.6): every field resolves to EXACTLY ONE (broker, backend). A field with no home
- * falls back to the built-in broker + sidecar backend — the all-in-one self-hosted default.
+ * is HOMELESS (null) — surfaced to the admin as a decision, never silently defaulted to the sidecar.
  */
 
-test("a bare field name inherits the built-in broker + sidecar backend (the all-in-one fallback)", () => {
-  const t = resolveFieldTarget("budget");
-  assert.deepEqual(t, { broker: BUILTIN_BROKER, backend: SIDECAR_BACKEND, field: "budget" });
+test("a bare field name with no home is HOMELESS (null) — not silently the sidecar", () => {
+  assert.equal(resolveFieldTarget("budget"), null);
+  assert.equal(resolveFieldTarget({ broker: "n8n", field: "b" }), null); // backend still missing → homeless
+  assert.equal(resolveFieldTarget({ backend: "sap", field: "b" }), null); // broker still missing → homeless
+});
+
+test("the built-in + sidecar home is available when DECLARED (the all-in-one choice), not assumed", () => {
+  assert.deepEqual(resolveFieldTarget("budget", BUILTIN_HOME), { broker: BUILTIN_BROKER, backend: SIDECAR_BACKEND, field: "budget" });
+  assert.deepEqual(resolveFieldTarget({ broker: BUILTIN_BROKER, backend: SIDECAR_BACKEND, field: "b" }), { broker: BUILTIN_BROKER, backend: SIDECAR_BACKEND, field: "b" });
+  assert.ok(homeIsComplete(BUILTIN_HOME));
+  assert.ok(!homeIsComplete({ backend: "sidecar" }));
 });
 
 test("a bare field name inherits the mapping's declared home when one is given", () => {

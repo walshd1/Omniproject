@@ -1,7 +1,7 @@
 import { isForbiddenKey } from "./safe-json";
 import {
   resolveFieldTarget, sanitizeFieldRef, sanitizeHomeId, targetKey, sameHome,
-  BUILTIN_BROKER, SIDECAR_BACKEND, BUILTIN_HOME,
+  BUILTIN_BROKER, SIDECAR_BACKEND,
   type FieldRef, type FieldTarget, type BrokerBackend,
 } from "./field-target";
 import type { FieldRoute } from "./field-routing";
@@ -37,18 +37,32 @@ export interface Mapping {
   defaults?: Record<string, string>;
 }
 
-/** The mapping's home (broker, backend) — its declared default, else the built-in fallback. */
-export function mappingHome(m: Pick<Mapping, "broker" | "backend">): BrokerBackend {
-  return { broker: m.broker ?? BUILTIN_HOME.broker, backend: m.backend ?? BUILTIN_HOME.backend };
+/** The mapping's DECLARED home (broker and/or backend). Absent halves stay absent — there is no implicit
+ *  built-in fallback; a field that can't inherit a full home is homeless (an admin decision). */
+export function mappingHome(m: Pick<Mapping, "broker" | "backend">): Partial<BrokerBackend> {
+  const home: Partial<BrokerBackend> = {};
+  if (m.broker !== undefined) home.broker = m.broker;
+  if (m.backend !== undefined) home.backend = m.backend;
+  return home;
 }
 
-/** Resolve every field to a full {@link FieldTarget}, inheriting the mapping's home. */
-export function resolveMappingTargets(m: Mapping): Record<string, FieldTarget> {
+/** Resolve every field to a {@link FieldTarget}, inheriting the mapping's declared home. Fields that can't
+ *  resolve to a full (broker, backend) are returned as `homeless` — the admin must give each a home (an external
+ *  backend or our sidecar) or remove it. */
+export function resolveMappingTargets(m: Mapping): { targets: Record<string, FieldTarget>; homeless: string[] } {
   const home = mappingHome(m);
-  const out: Record<string, FieldTarget> = {};
-  for (const [key, ref] of Object.entries(m.fields)) out[key] = resolveFieldTarget(ref, home);
-  return out;
+  const targets: Record<string, FieldTarget> = {};
+  const homeless: string[] = [];
+  for (const [key, ref] of Object.entries(m.fields)) {
+    const t = resolveFieldTarget(ref, home);
+    if (t) targets[key] = t; else homeless.push(key);
+  }
+  return { targets, homeless };
 }
+
+/** The native field name a ref carries (independent of its home) — for keying rows even when homeless. */
+const refFieldName = (ref: FieldRef | undefined, fallback: string): string =>
+  ref === undefined ? fallback : typeof ref === "string" ? ref : ref.field;
 
 export class MappingError extends Error {
   constructor(message: string) { super(message); this.name = "MappingError"; }
@@ -157,31 +171,33 @@ export const mappingIdKey = (m: Mapping): string => (m.fields["id"] ? "id" : Obj
  */
 export function projectMappingRows(sources: Src[] | Record<string, Src[]>, m: Mapping): Record<string, unknown>[] {
   const home = mappingHome(m);
-  const homeKey = targetKey(home);
-  const buckets: Record<string, Src[]> = Array.isArray(sources) ? { [homeKey]: sources } : sources;
-  const rowsOf = (key: string): Src[] => (buckets[key] ?? []).filter((r) => r && typeof r === "object");
   const idKey = mappingIdKey(m);
   const idTarget = resolveFieldTarget(m.fields[idKey] ?? idKey, home);
+  if (!idTarget) return []; // homeless structure — nothing to read; surfaced via resolveMappingTargets
+  const structureKey = targetKey(idTarget);
+  const buckets: Record<string, Src[]> = Array.isArray(sources) ? { [structureKey]: sources } : sources;
+  const rowsOf = (key: string): Src[] => (buckets[key] ?? []).filter((r) => r && typeof r === "object");
   const joinField = m.joinField || idTarget.field;
 
-  // Index every non-home bucket by its join id.
+  // Index every non-structure bucket by its join id.
   const nonHomeIndex = new Map<string, Map<string, Src>>();
   for (const [key, rows] of Object.entries(buckets)) {
-    if (key === homeKey) continue;
+    if (key === structureKey) continue;
     const byId = new Map<string, Src>();
     for (const r of rows) { if (r && typeof r === "object") { const jid = asStr(r[joinField]); if (jid) byId.set(jid, r); } }
     nonHomeIndex.set(key, byId);
   }
 
   const out: Record<string, unknown>[] = [];
-  for (const r of rowsOf(homeKey)) {
+  for (const r of rowsOf(structureKey)) {
     const id = asStr(r[idTarget.field]);
     if (!id) continue;
     const row: Record<string, unknown> = { [idKey]: id };
     for (const [key, ref] of Object.entries(m.fields)) {
       if (key === idKey) continue;
       const t = resolveFieldTarget(ref, home);
-      const src = sameHome(t, home) ? r : nonHomeIndex.get(targetKey(t))?.get(id);
+      if (!t) { row[key] = undefined; continue; }   // homeless field → no source, surfaced separately
+      const src = sameHome(t, idTarget) ? r : nonHomeIndex.get(targetKey(t))?.get(id);
       row[key] = src ? src[t.field] : undefined;
     }
     out.push(row);
@@ -196,6 +212,9 @@ export interface MappingWritePlan {
   sidecar: Record<string, unknown>;
   /** Fields routed to an external (broker, backend) with no write adapter yet — reported, not dropped. */
   external: { key: string; target: FieldTarget; value: unknown }[];
+  /** Fields the mapping declares but that resolve to NO home — the admin must give each a home or remove it.
+   *  Never written anywhere. */
+  homeless: string[];
   /** Semantic keys with no mapping (ignored) — surfaced so the caller can warn. */
   unmapped: string[];
 }
@@ -204,19 +223,20 @@ const isSidecarTarget = (t: FieldTarget): boolean => t.broker === BUILTIN_BROKER
 
 /**
  * Plan a generic write of `values` (semanticKey → value) under mapping `m`: split each provided field to the
- * sidecar (written locally) or `external` (routed elsewhere, no adapter yet). The id key is the row key, not a
- * writable field. Mirrors the WBS write planner, generalised to any slot.
+ * sidecar (written locally), `external` (routed elsewhere, no adapter yet), or `homeless` (no home — never
+ * written, surfaced for the admin to decide). The id key is the row key, not a writable field.
  */
 export function planMappingWrite(m: Mapping, values: Record<string, unknown>): MappingWritePlan {
   const home = mappingHome(m);
   const idKey = mappingIdKey(m);
-  const idTarget = resolveFieldTarget(m.fields[idKey] ?? idKey, home);
-  const plan: MappingWritePlan = { sidecarIdField: m.joinField || idTarget.field, sidecar: {}, external: [], unmapped: [] };
+  const idField = refFieldName(m.fields[idKey], idKey);
+  const plan: MappingWritePlan = { sidecarIdField: m.joinField || idField, sidecar: {}, external: [], homeless: [], unmapped: [] };
   for (const [key, value] of Object.entries(values)) {
     if (key === idKey) continue;
     const ref = m.fields[key];
     if (ref === undefined) { plan.unmapped.push(key); continue; }
     const t = resolveFieldTarget(ref, home);
+    if (!t) { plan.homeless.push(key); continue; }
     if (isSidecarTarget(t)) plan.sidecar[t.field] = value;
     else plan.external.push({ key, target: t, value });
   }

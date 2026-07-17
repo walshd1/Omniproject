@@ -1,4 +1,4 @@
-import { resolveFieldTarget, BUILTIN_BROKER, SIDECAR_BACKEND, type FieldTarget } from "./field-target";
+import { resolveFieldTarget, BUILTIN_BROKER, SIDECAR_BACKEND, type FieldTarget, type FieldRef } from "./field-target";
 import { mappingHome, type WbsFieldMapping } from "./wbs-mapping";
 
 /**
@@ -10,19 +10,12 @@ import { mappingHome, type WbsFieldMapping } from "./wbs-mapping";
  * applies the sidecar part and audits the rest.
  */
 
-/** The native field name a semantic key maps to at the mapping's home, or its own (broker, backend). */
-function targetForKey(m: WbsFieldMapping, key: string): FieldTarget | undefined {
-  const home = mappingHome(m);
-  if (key === "id") return { ...home, field: m.id };
-  if (key === "name") return { ...home, field: m.name };
-  if (key === "parentId" || key === "status" || key === "responsible") {
-    const f = m[key];
-    return f ? { ...home, field: f } : undefined;
-  }
-  if (key === "budget" || key === "actual" || key === "commitment" || key === "wip" || key === "planned" || key === "currency") {
-    const ref = m[key];
-    return ref !== undefined ? resolveFieldTarget(ref, home) : undefined;
-  }
+/** Whether a semantic key is one this mapping can carry (structure or financial). */
+function keyRef(m: WbsFieldMapping, key: string): FieldRef | undefined {
+  if (key === "id") return m.id;
+  if (key === "name") return m.name;
+  if (key === "parentId" || key === "status" || key === "responsible") return m[key];
+  if (key === "budget" || key === "actual" || key === "commitment" || key === "wip" || key === "planned" || key === "currency") return m[key];
   return undefined;
 }
 
@@ -35,21 +28,27 @@ export interface WbsWritePlan {
   sidecar: Record<string, unknown>;
   /** Fields routed to an external (broker, backend) that has no write adapter yet — reported, not dropped. */
   external: { key: string; target: FieldTarget; value: unknown }[];
+  /** Fields the mapping carries but that resolve to NO home — the admin must give each a home or remove it.
+   *  Never written. */
+  homeless: string[];
   /** Semantic keys with no mapping (ignored) — surfaced so the caller can warn. */
   unmapped: string[];
 }
 
 /**
  * Plan the write of `semanticValues` (semanticKey → value) under mapping `m`. Splits each provided field to the
- * sidecar (written locally) or `external` (routed elsewhere, no adapter yet). The WBS id is the row key applied
- * by the store (`sidecarIdField`), not a writable field, so a sidecar-backed WBS is created from a first save.
+ * sidecar (written locally), `external` (routed elsewhere, no adapter yet), or `homeless` (no home — never
+ * written, surfaced for the admin to decide). The WBS id is the row key (`sidecarIdField`), not a writable field.
  */
 export function planWbsWrite(m: WbsFieldMapping, semanticValues: Record<string, unknown>): WbsWritePlan {
-  const plan: WbsWritePlan = { sidecarIdField: m.joinField || m.id, sidecar: {}, external: [], unmapped: [] };
+  const home = mappingHome(m);
+  const plan: WbsWritePlan = { sidecarIdField: m.joinField || m.id, sidecar: {}, external: [], homeless: [], unmapped: [] };
   for (const [key, value] of Object.entries(semanticValues)) {
     if (key === "id") continue; // the id is the row key, handled by the store, not a writable field
-    const target = targetForKey(m, key);
-    if (!target) { plan.unmapped.push(key); continue; }
+    const ref = keyRef(m, key);
+    if (ref === undefined) { plan.unmapped.push(key); continue; }
+    const target = resolveFieldTarget(ref, home);
+    if (!target) { plan.homeless.push(key); continue; }
     if (isSidecar(target)) plan.sidecar[target.field] = value;
     else plan.external.push({ key, target, value });
   }

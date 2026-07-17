@@ -38,11 +38,18 @@ test("sanitizeMapping rejects a missing/unsafe slot, unsafe field keys, and unsa
   assert.throws(() => sanitizeMapping({ id: "wbs", fields: { budget: { backend: "__proto__", field: "x" } } }), MappingError);
 });
 
-test("resolveMappingTargets fills the home per field; a bare name inherits the built-in fallback when no home", () => {
-  const m = sanitizeMapping({ id: "wbs", fields: { budget: "b", actual: { backend: "sap", field: "a" } } });
+test("resolveMappingTargets resolves against the declared home and surfaces homeless fields (no silent default)", () => {
+  // No home declared: a bare name is HOMELESS; a field naming only a backend is still homeless (broker missing).
+  const homeless = resolveMappingTargets(sanitizeMapping({ id: "wbs", fields: { budget: "b", actual: { backend: "sap", field: "a" } } }));
+  assert.deepEqual(homeless.targets, {});
+  assert.deepEqual([...homeless.homeless].sort(), ["actual", "budget"]);
+
+  // With a declared home: bare names inherit it; a field can still route elsewhere (broker inherited from home).
+  const m = sanitizeMapping({ id: "wbs", broker: BUILTIN_BROKER, backend: SIDECAR_BACKEND, fields: { budget: "b", actual: { backend: "sap", field: "a" } } });
   const t = resolveMappingTargets(m);
-  assert.deepEqual(t["budget"], { broker: BUILTIN_BROKER, backend: SIDECAR_BACKEND, field: "b" });
-  assert.deepEqual(t["actual"], { broker: BUILTIN_BROKER, backend: "sap", field: "a" }); // broker inherited
+  assert.deepEqual(t.homeless, []);
+  assert.deepEqual(t.targets["budget"], { broker: BUILTIN_BROKER, backend: SIDECAR_BACKEND, field: "b" });
+  assert.deepEqual(t.targets["actual"], { broker: BUILTIN_BROKER, backend: "sap", field: "a" }); // broker inherited
 });
 
 test("mergeMappings overrides per field, nearest wins; home + defaults merge too", () => {
@@ -69,9 +76,14 @@ test("mappingFromFieldRoutes subsumes legacy org routing: uiElement → { broker
 });
 
 test("projectMappingRows projects any surface's rows (id + semantic values) from a bare home bucket", () => {
-  const m = sanitizeMapping({ id: "risk", fields: { id: "rid", title: "subject", severity: "sev" } });
+  const m = sanitizeMapping({ id: "risk", broker: BUILTIN_BROKER, backend: SIDECAR_BACKEND, fields: { id: "rid", title: "subject", severity: "sev" } });
   const rows = projectMappingRows([{ rid: "R-1", subject: "Data loss", sev: "high" }], m);
   assert.deepEqual(rows, [{ id: "R-1", title: "Data loss", severity: "high" }]);
+});
+
+test("projectMappingRows returns nothing when the structure is homeless (no declared home)", () => {
+  const m = sanitizeMapping({ id: "risk", fields: { id: "rid", title: "subject" } });
+  assert.deepEqual(projectMappingRows([{ rid: "R-1", subject: "x" }], m), []);
 });
 
 test("projectMappingRows joins a non-home bucket by id (a field sourced from another backend)", () => {
