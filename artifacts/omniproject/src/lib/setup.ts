@@ -251,6 +251,41 @@ export async function restoreSnapshot(snapshot: unknown): Promise<RestoreResult>
   return data;
 }
 
+/** Download the DEF-STORE export (imported defs, selection bindings/locks, def-policy, custom roles) — the
+ *  backup the settings snapshot never covered. Needs a fresh step-up server-side; a 403 with
+ *  code:"step_up_required" is surfaced verbatim so the caller can prompt a re-auth and retry. */
+export async function downloadDefsExport(): Promise<void> {
+  const res = await fetch("/api/setup/defs-export", { credentials: "same-origin" });
+  if (!res.ok) {
+    const body = (await res.json().catch(() => ({}))) as { error?: string; code?: string };
+    throw new Error(body.code === "step_up_required" ? "step_up_required" : (body.error || `defs export failed: ${res.status}`));
+  }
+  const blob = await res.blob();
+  triggerBlobDownload(blob, `omniproject-defs-export-${new Date().toISOString().slice(0, 10)}.json`);
+}
+
+export interface DefsImportResult {
+  imported: boolean;
+  written?: { type: string; count: number }[];
+  warnings?: string[];
+  skipped?: number;
+  error?: string;
+}
+
+/** Reimport a def-store export bundle into THIS instance (re-validated + re-encrypted server-side). Needs a
+ *  fresh step-up; a step-up requirement is surfaced as Error("step_up_required") for the caller to handle. */
+export async function importDefsBundle(bundle: unknown): Promise<DefsImportResult> {
+  const res = await fetch("/api/setup/defs-import", {
+    method: "POST",
+    credentials: "same-origin",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(bundle),
+  });
+  const data = (await res.json().catch(() => ({}))) as DefsImportResult & { code?: string };
+  if (!res.ok) throw new Error(data.code === "step_up_required" ? "step_up_required" : (data.error || `defs import failed: ${res.status}`));
+  return data;
+}
+
 export interface ConfigVersion {
   id: string;
   env: string;

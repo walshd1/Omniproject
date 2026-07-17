@@ -1331,9 +1331,17 @@ authoring, and the drift guards — no feature bypasses the golden rules.
   So a bundle survives a full code replacement + redeploy and reimports cleanly. 5 lib tests (capture excludes
   system; wipe→reimport round-trip = migration; system scope refused; invalid def dropped; foreign schema
   rejected) + 3 route tests (export needs admin+step-up; export→reimport round-trip; import gate + schema
-  reject). API typecheck clean; setup + snapshot + def suites 43/43 green. **Next:** a combined "full backup"
-  bundle (settings snapshot + def-store in one file) + the SPA admin Backup panel to trigger both; optionally
-  widen the settings snapshot to all CHOICE settings for a truly complete config backup.
+  reject). API typecheck clean; setup + snapshot + def suites 43/43 green.
+- **Slice 2 ✅ (the SPA Backup panel).** The setup wizard's Backup & restore step (`BackupStep`) gains a
+  **Definitions backup** section beside the settings snapshot: **Download defs backup** (`downloadDefsExport`)
+  and **Restore defs from file** (schema-checked upload → confirm dialog → `importDefsBundle`). A 403
+  `step_up_required` from either route is surfaced as a "re-authenticate (step-up)" hint rather than swallowed;
+  the upload is `safeParseJson`-hardened + schema-validated client-side before it can reach the gateway; and the
+  panel states plainly that shipped system defs are never exported (they re-seed from code). 5 new component
+  tests (actions render; valid def-store file opens the confirm dialog; wrong schema rejected; confirm POSTs
+  `defs-import`; a step-up 403 downloads nothing). Both packages typecheck clean; BackupStep 19/19 green.
+  **Next (optional):** a single combined "full backup" file (settings + defs) and widening the settings snapshot
+  to all CHOICE settings for a truly complete config backup.
 
 ### X.9 Library audit — permissive (MIT/BSD/Apache-2.0) code that clears our five gates
 - **The gate (standing rule).** Add third-party code only where it (1) doesn't break our rules

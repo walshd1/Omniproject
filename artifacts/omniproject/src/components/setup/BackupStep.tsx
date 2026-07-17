@@ -1,7 +1,7 @@
 import { useRef, useState } from "react";
-import { Download, Save, Upload } from "lucide-react";
+import { Download, Save, Upload, Database, ShieldAlert } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { downloadSnapshot, restoreSnapshot, type SetupStatus } from "../../lib/setup";
+import { downloadSnapshot, restoreSnapshot, downloadDefsExport, importDefsBundle, type SetupStatus } from "../../lib/setup";
 import { Step, download, useRefreshAndSettings } from "./shared";
 import { safeParseJson } from "../../lib/safe-json";
 import {
@@ -16,6 +16,16 @@ import {
 } from "@/components/ui/alert-dialog";
 
 const SNAPSHOT_SCHEMA = "omniproject/config-snapshot";
+const DEF_STORE_SCHEMA = "omniproject/def-store-export";
+
+/** Client-side shape guard for an uploaded def-store export (mirrors the gateway's applyDefStoreExport). */
+function validateDefStore(parsed: unknown): string | null {
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return "Backup must be a JSON object.";
+  const b = parsed as { schema?: unknown; collections?: unknown };
+  if (b.schema !== DEF_STORE_SCHEMA) return `Not an OmniProject def-store backup (expected schema "${DEF_STORE_SCHEMA}").`;
+  if (!Array.isArray(b.collections)) return "Backup is missing its collections array.";
+  return null;
+}
 
 /**
  * Client-side structural guard for an uploaded snapshot, mirroring the gateway's
@@ -49,6 +59,15 @@ export function BackupStep({
   // Hold a validated snapshot pending confirmation; restore is destructive
   // (overwrites the live gateway config) so it only runs after the user accepts.
   const [pending, setPending] = useState<{ snapshot: unknown; fileName: string } | null>(null);
+  // A validated def-store bundle pending confirmation (reimport re-writes the encrypted def stores).
+  const [pendingDefs, setPendingDefs] = useState<{ bundle: unknown; fileName: string } | null>(null);
+  const defsInputRef = useRef<HTMLInputElement>(null);
+
+  const stepUpHint = () => toast({
+    title: "Re-authentication needed",
+    description: "Backing up or restoring the def stores requires a fresh step-up. Re-verify from the security prompt, then try again.",
+    variant: "destructive",
+  });
 
   // Stage 1: read + parse + structurally validate the file. Guards JSON.parse so
   // a malformed/wrong file gives a clear message and never reaches the gateway.
@@ -87,6 +106,39 @@ export function BackupStep({
     }
   };
 
+  const onDefsExport = () => {
+    downloadDefsExport().catch((e) => {
+      if (e instanceof Error && e.message === "step_up_required") stepUpHint();
+      else toast({ title: "Couldn't download", description: "You may need admin access.", variant: "destructive" });
+    });
+  };
+
+  const onSelectDefsFile = async (file: File | undefined) => {
+    if (!file) return;
+    let parsed: unknown;
+    try { parsed = safeParseJson(await file.text()); }
+    catch { toast({ title: "Couldn't restore", description: "That file isn't valid JSON.", variant: "destructive" }); return; }
+    const shapeError = validateDefStore(parsed);
+    if (shapeError) { toast({ title: "Couldn't restore", description: shapeError, variant: "destructive" }); return; }
+    setPendingDefs({ bundle: parsed, fileName: file.name });
+  };
+
+  const confirmDefsImport = async () => {
+    if (!pendingDefs) return;
+    const bundle = pendingDefs.bundle;
+    setPendingDefs(null);
+    try {
+      const result = await importDefsBundle(bundle);
+      refreshAndSettings();
+      const dropped = result.skipped ? ` (${result.skipped} item(s) skipped)` : "";
+      toast({ title: "Defs restored", description: `${result.written?.length ?? 0} collection(s) reimported${dropped}.` });
+      if (result.warnings?.length) console.warn("Defs import warnings:", result.warnings);
+    } catch (e) {
+      if (e instanceof Error && e.message === "step_up_required") stepUpHint();
+      else toast({ title: "Couldn't restore", description: e instanceof Error ? e.message : "That doesn't look like a valid def-store backup.", variant: "destructive" });
+    }
+  };
+
   return (
     /* Step 6 — backup & restore */
     <Step n={6} title="Backup & restore">
@@ -114,6 +166,37 @@ export function BackupStep({
         </label>
       </div>
       {!isAdmin && <p className="text-xs text-amber-500">Backup & restore require the admin role.</p>}
+
+      {isAdmin && (
+        <div className="border-t border-border pt-3 space-y-2">
+          <p className="text-[11px] uppercase tracking-widest font-bold flex items-center gap-1"><Database className="w-3 h-3" /> Definitions backup</p>
+          <p className="text-xs text-muted-foreground">
+            Back up everything you've authored into the encrypted stores — imported screens/reports/dashboards and
+            other defs, which one is <b>in use</b> at each scope (+ locks), the def-write policy, and custom roles.
+            Move it to a new instance or keep it for after an upgrade. The encryption key never leaves; a fresh
+            <b> step-up</b> is required, and a reimport re-validates every def before re-encrypting it here.
+          </p>
+          <div className="flex flex-wrap gap-2 items-center">
+            <button
+              onClick={onDefsExport}
+              className="px-4 py-2 text-xs font-black uppercase tracking-widest border border-primary text-primary hover:bg-primary hover:text-primary-foreground flex items-center gap-2"
+            >
+              <Save className="w-3.5 h-3.5" /> Download defs backup
+            </button>
+            <label className="px-4 py-2 text-xs font-black uppercase tracking-widest border border-border flex items-center gap-2 cursor-pointer hover:border-primary">
+              <Upload className="w-3.5 h-3.5" /> Restore defs from file
+              <input
+                ref={defsInputRef}
+                type="file"
+                accept="application/json,.json"
+                className="hidden"
+                onChange={(e) => { onSelectDefsFile(e.target.files?.[0]); e.target.value = ""; }}
+              />
+            </label>
+          </div>
+          <p className="text-[11px] text-muted-foreground flex items-center gap-1"><ShieldAlert className="w-3 h-3" /> Our shipped catalogue (system) defs are never exported — they re-seed from the code.</p>
+        </div>
+      )}
 
       {isAdmin && status?.dev?.statefulDemo && (
         <div className="border-t border-border pt-3 space-y-2">
@@ -144,6 +227,24 @@ export function BackupStep({
           <AlertDialogFooter>
             <AlertDialogCancel onClick={() => fileInputRef.current && (fileInputRef.current.value = "")}>Cancel</AlertDialogCancel>
             <AlertDialogAction onClick={confirmRestore} className="bg-red-500 text-background hover:bg-red-600">Restore config</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={!!pendingDefs} onOpenChange={(o) => { if (!o) setPendingDefs(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Restore definitions from backup?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This reimports the encrypted def stores (imported defs, selection bindings + locks, the def-write
+              policy and custom roles) from <span className="font-mono break-all">{pendingDefs?.fileName}</span>,
+              replacing each scope's current contents. Every def is re-validated and re-encrypted under this
+              instance's key. Our shipped system defs are untouched. Needs a fresh step-up.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => defsInputRef.current && (defsInputRef.current.value = "")}>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDefsImport} className="bg-red-500 text-background hover:bg-red-600">Restore definitions</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
