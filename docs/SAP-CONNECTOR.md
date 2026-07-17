@@ -57,12 +57,19 @@ route projects per-`(broker,backend)` record buckets joined by the WBS id (`join
 non-home sources). "Structure in OpenProject, budget from SAP, the rest in our sidecar" is one mapping — proven
 in tests.
 
-**Scope-overridable mapping (built).** The mapping resolves like screens/reports/def-bindings
-(`lib/wbs-mapping-resolve`): a shipped **core** layer (`CORE_WBS_MAPPINGS`, our bundled JSON) beneath, then
-`org → programme → project → user` overrides from the sealed store, **merged per-field, nearest wins** — a
-project can retarget just `budget` while inheriting the rest. Each override is validated through the same
-sanitiser the importer uses and physically lives in its own scope file, so a PM's change is confined to their
-project by construction. `resolveWbsMapping(ctx, slot)` returns the effective whole mapping.
+**First-class Mapping object (built).** A mapping is now a first-class def (`kind: "mapping"`, `lib/mapping`)
+authored through the ONE importer (`POST/PUT /api/defs`), sealed + scope-resolved exactly like screens/reports.
+It's generic — `fields: { semanticKey → FieldTarget }` — so it routes *any* surface's fields, not just WBS, and
+it **subsumes** the org's legacy `fieldRouting` (`mappingFromFieldRoutes` folds it in as the lowest customer
+layer, so nothing is lost). The shipped **core** mapping is seeded into the system store as a `mapping` def
+("core mappings in JSON in the system store").
+
+**Scope-overridable resolution (built).** `resolveWbsMapping(ctx, slot)` resolves like screens/def-bindings:
+core (shipped) → org `fieldRouting` (subsumed) → `org → programme → project → user` mapping defs, **merged
+per-field, nearest wins** — a project retargets just `budget` and inherits the rest. Each override is validated
+through the importer's sanitiser and lives in its own sealed scope file, so a PM's change is confined to their
+project by construction. `GET /projects/:id/wbs/mapping` returns the effective mapping (the admin UI reads it to
+show "where each field comes from").
 
 **Next wiring:** a broker read that returns a generic backend's RAW WBS records (so the resolved mapping does
 its projection in the route, replacing the demo's pre-shaped fixtures), the read/write **sidecar WBS target**

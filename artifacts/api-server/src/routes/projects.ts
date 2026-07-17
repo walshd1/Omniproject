@@ -32,6 +32,8 @@ import { checkFieldValues, resolveFieldType } from "../lib/field-validation";
 import { randomUUID } from "node:crypto";
 import { aggregateResourcePool } from "../lib/resource-pool";
 import { guardProjectScope } from "../lib/project-scope";
+import { resolveWbsMapping } from "../lib/wbs-mapping-resolve";
+import { WbsMappingError } from "../lib/wbs-mapping";
 import { poolMap } from "../lib/concurrency-pool";
 import {
   type Row,
@@ -480,6 +482,26 @@ router.get("/projects/:projectId/wbs/cost-rows", async (req, res) => {
       return { wbs: w.id, name: w.name, status: w.status ?? "", budget: f?.budget ?? null, actual: f?.actual ?? null, committed: f?.commitment ?? null, available: f?.available ?? null };
     }));
     res.json({ rows });
+  }, { projectId });
+});
+
+// The EFFECTIVE WBS field mapping for this caller + project — the first-class Mapping resolved across
+// system(core) → org fieldRouting → org → programme → project → user (nearest wins), adapted to the WBS view.
+// This is what tells the cost screen which (broker, backend, field) feeds each semantic column; the admin UI
+// reads it to show "where each field comes from", and it's the mapping the (slice B) dispatch will apply.
+router.get("/projects/:projectId/wbs/mapping", async (req, res) => {
+  const params = parseRouteParams(GetProjectSummaryParams, req, res, "Invalid project id");
+  if (!params) return;
+  const { projectId } = params;
+  await withBrokerErrors(req, res, "wbs_mapping failed", async () => {
+    if (!(await guardProjectScope(req, res, projectId))) return;
+    const ctx = contextFromReq(req);
+    try {
+      res.json(resolveWbsMapping({ projectId, ...(ctx.sub ? { sub: ctx.sub } : {}) }));
+    } catch (e) {
+      if (e instanceof WbsMappingError) { res.status(404).json({ error: e.message }); return; }
+      throw e;
+    }
   }, { projectId });
 });
 

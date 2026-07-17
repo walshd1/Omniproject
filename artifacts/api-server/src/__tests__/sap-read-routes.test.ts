@@ -45,6 +45,17 @@ test("cost-rows: the WBS+financials join shaped as { rows } for the generic tabl
   assert.equal(root.available, root.budget! - (312000 + 52000));
 });
 
+test("the effective WBS mapping resolves from the shipped core (system store) for a project", async () => {
+  const r = await req("/projects/proj-001/wbs/mapping");
+  assert.equal(r.status, 200);
+  const m = (await r.json()) as { id: string; name: string; currencyDefault?: string; budget?: unknown };
+  // The seeded core mapping: structure keys are home field names, currency default GBP.
+  assert.equal(m.id, "id");
+  assert.equal(m.name, "name");
+  assert.equal(m.currencyDefault, "GBP");
+  assert.equal(m.budget, "budget");
+});
+
 test("an unknown WBS element's financials are 404 (not a silent empty)", async () => {
   assert.equal((await req("/projects/proj-001/wbs/NOPE/financials")).status, 404);
 });

@@ -54,6 +54,7 @@ const CLASSIFICATION: Record<string, ScopeClass> = {
   "GET /projects/:projectId/staff-cost": "project-scope",
   "GET /projects/:projectId/wbs": "project-scope",
   "GET /projects/:projectId/wbs/cost-rows": "project-scope",
+  "GET /projects/:projectId/wbs/mapping": "project-scope",
   "GET /projects/:projectId/wbs/:wbsId/financials": "project-scope",
   "GET /projects/:projectId/issues/:issueId/items": "project-scope",
   "PATCH /projects/:projectId": "project-scope",

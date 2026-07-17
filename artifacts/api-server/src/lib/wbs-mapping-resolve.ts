@@ -1,125 +1,106 @@
-import { getArtifact, putArtifact, type ArtifactScope } from "./artifact-store";
-import { sanitizeWbsMapping, WbsMappingError, type WbsFieldMapping } from "./wbs-mapping";
+import { getSettings } from "./settings";
+import { listDefs, listSystemDefs, type StoredDef } from "./def-import";
+import { sanitizeMapping, mergeMappings, mappingFromFieldRoutes, type Mapping } from "./mapping";
+import { WbsMappingError, type WbsFieldMapping } from "./wbs-mapping";
+import type { FieldRef } from "./field-target";
 
 /**
- * SCOPE-OVERRIDABLE WBS MAPPINGS (roadmap §4.6) — "we could provide some core mappings in JSON in the system
- * store and allow users, PMs, programme managers and orgs to override in our already established pattern."
+ * WBS mapping resolution (roadmap §4.6) — the WBS cost screen's view over the first-class {@link Mapping}
+ * object. The mapping is now authored + stored like any other def (`kind: "mapping"`, slot `"wbs"`), resolved
+ * like screens/reports/def-bindings: a shipped CORE mapping beneath, then the org's legacy `fieldRouting`
+ * (subsumed via `mappingFromFieldRoutes`), then org → programme → project → user mapping defs — merged PER
+ * FIELD, nearest wins. The merged generic Mapping is then adapted to the {@link WbsFieldMapping} the WBS
+ * projector (`applyWbsMapping`) consumes.
  *
- * The WBS field mapping (which backend/sidecar field feeds each semantic cost-screen field) is resolved exactly
- * like screens / reports / def-bindings: a shipped CORE layer beneath, then org → programme → project → user
- * overrides, NEAREST WINS. The merge is PER FIELD (a shallow spread), so a project can override just `budget`'s
- * target while inheriting everything else from the org's or the core mapping — you don't restate the whole
- * mapping to change one field. The core layer ships from OUR source (`CORE_WBS_MAPPINGS`), like the system defs.
- *
- * A `slot` names WHICH mapping (default `"wbs"`), so an org can keep one house mapping for every project and a
- * single project can still diverge. Per-scope overrides live in the sealed artifact store — a `project` override
- * physically sits in THAT project's scope file, so a PM's change is confined to their project by construction.
- *
- * PURE resolution (merge + sanitize); storage helpers are thin wrappers over the sealed store.
+ * This is the "already established pattern": core mappings ship in the system store; users/PMs/programme
+ * managers/orgs override through the ONE importer at whatever scope they own, each override confined to its own
+ * sealed scope file. PURE resolution over the def store — no bespoke storage of its own.
  */
 
 /** The default mapping slot when a screen/route doesn't name one. */
 export const DEFAULT_WBS_SLOT = "wbs";
 
 /**
- * The shipped CORE mappings (the system layer) — JSON we bundle, overridable by every scope above. The default
- * `"wbs"` mapping assumes an ERP/broker that already speaks WBS field names (the SAP fixtures + demo broker do),
- * so out of the box the cost screen renders with no org configuration; a customer on OpenProject/Jira/sidecar
- * overrides the fields (and their targets) at whatever scope they choose.
+ * The shipped CORE WBS mapping (the system layer) — a generic {@link Mapping} we bundle, overridable by every
+ * scope above. With no home declared it resolves to the built-in broker + sidecar backend, so out of the box
+ * the cost screen renders from our all-in-one store with no configuration; a customer on SAP/OpenProject/Jira
+ * overrides the fields (and their broker/backend) at whatever scope they choose.
  */
-export const CORE_WBS_MAPPINGS: Record<string, WbsFieldMapping> = {
-  [DEFAULT_WBS_SLOT]: {
+export const CORE_WBS_MAPPING: Mapping = {
+  id: DEFAULT_WBS_SLOT,
+  fields: {
     id: "id", name: "name", parentId: "parentId", status: "status", responsible: "responsible",
     budget: "budget", actual: "actual", commitment: "commitment", wip: "wip", planned: "planned",
-    currency: "currency", currencyDefault: "GBP",
+    currency: "currency",
   },
+  defaults: { currency: "GBP" },
 };
 
-/** The layers consulted for a slot, base → nearest. Any layer may be a PARTIAL mapping (it overrides only the
- *  fields it names); the merged result must still be a valid whole mapping (id + name present). */
-export interface WbsMappingLayers {
-  /** The shipped core (defaults to `CORE_WBS_MAPPINGS[slot]`). */
-  core?: Partial<WbsFieldMapping>;
-  org?: Partial<WbsFieldMapping>;
-  programme?: Partial<WbsFieldMapping>;
-  project?: Partial<WbsFieldMapping>;
-  user?: Partial<WbsFieldMapping>;
-}
-
-/** The order layers are applied — later overrides earlier (nearest wins). */
-const LAYER_ORDER: (keyof WbsMappingLayers)[] = ["core", "org", "programme", "project", "user"];
+/** Extract the native field NAME from a ref for a home-only structure field (broker/backend ignored — structure
+ *  always reads from the home). */
+const fieldNameOf = (ref: FieldRef | undefined): string | undefined =>
+  ref === undefined ? undefined : typeof ref === "string" ? ref : ref.field;
 
 /**
- * Merge the layers for a slot (shallow, per-field, nearest wins) and validate the result through the same
- * sanitiser the importer uses. Throws {@link WbsMappingError} if the merged mapping is invalid (e.g. no scope
- * supplied a required `id`/`name`). A layer that is absent contributes nothing.
+ * Adapt a resolved generic {@link Mapping} to the {@link WbsFieldMapping} the WBS projector consumes: structure
+ * keys (id/name/parent/status/responsible) become home field names; financial keys stay {@link FieldRef}s (so
+ * each keeps its own broker/backend); `defaults.currency` becomes `currencyDefault`. Throws {@link
+ * WbsMappingError} if the merged mapping lacks the required id/name.
  */
-export function mergeWbsMapping(layers: WbsMappingLayers): WbsFieldMapping {
-  const merged: Record<string, unknown> = {};
-  for (const key of LAYER_ORDER) {
-    const layer = layers[key];
-    if (!layer || typeof layer !== "object") continue;
-    for (const [k, v] of Object.entries(layer)) {
-      if (v !== undefined) merged[k] = v; // a layer clears nothing; it only sets fields it names
-    }
+export function mappingToWbs(m: Mapping): WbsFieldMapping {
+  const id = fieldNameOf(m.fields["id"]);
+  const name = fieldNameOf(m.fields["name"]);
+  if (!id || !name) throw new WbsMappingError("resolved WBS mapping needs id + name fields");
+  const out: WbsFieldMapping = { id, name };
+  if (m.broker !== undefined) out.broker = m.broker;
+  if (m.backend !== undefined) out.backend = m.backend;
+  if (m.joinField !== undefined) out.joinField = m.joinField;
+  for (const k of ["parentId", "status", "responsible"] as const) {
+    const v = fieldNameOf(m.fields[k]);
+    if (v !== undefined) out[k] = v;
   }
-  return sanitizeWbsMapping(merged);
+  for (const k of ["budget", "actual", "commitment", "wip", "planned", "currency"] as const) {
+    const ref = m.fields[k];
+    if (ref !== undefined) out[k] = ref;
+  }
+  const currency = m.defaults?.["currency"];
+  if (currency) out.currencyDefault = currency;
+  return out;
 }
 
-// ── Storage ──────────────────────────────────────────────────────────────────────────────────────────────
-// One sealed map per scope: slot → partial mapping override. Mirrors def-binding's per-scope storage, so an
-// override is confined to the scope file it lives in.
-export const WBS_MAPPING_ARTIFACT = "wbs-mapping";
-const OVERRIDES_ID = "overrides";
-interface StoredWbsMappings { id: string; slots: Record<string, Partial<WbsFieldMapping>> }
-
-/** The slot→override map stored at one scope (empty when unset / store off). */
-export function getScopeWbsMappings(scope: ArtifactScope): Record<string, Partial<WbsFieldMapping>> {
-  return getArtifact<StoredWbsMappings>(WBS_MAPPING_ARTIFACT, scope, OVERRIDES_ID)?.slots ?? {};
-}
-
-/**
- * Set (or clear, with `mapping: null`) one slot's override at a scope; returns the new map. A non-null override
- * is validated through {@link sanitizeWbsMapping} FIRST (the choke point), so a stored override can never be a
- * shape the read path would reject.
- */
-export function setScopeWbsMapping(scope: ArtifactScope, slot: string, mapping: WbsFieldMapping | null): Record<string, Partial<WbsFieldMapping>> {
-  const next = { ...getScopeWbsMappings(scope) };
-  if (mapping === null) delete next[slot];
-  else next[slot] = sanitizeWbsMapping(mapping);
-  putArtifact<StoredWbsMappings>(WBS_MAPPING_ARTIFACT, scope, { id: OVERRIDES_ID, slots: next });
-  return next;
+/** The `mapping` defs at a scope whose slot matches, re-sanitised (a payload that fails validation is skipped —
+ *  it passed on write, so this only guards against a corrupted store). */
+function mappingDefsForSlot(rows: StoredDef[], slot: string): Mapping[] {
+  const out: Mapping[] = [];
+  for (const r of rows) {
+    if (r.kind !== "mapping") continue;
+    let m: Mapping;
+    try { m = sanitizeMapping(r.payload); } catch { continue; }
+    if (m.id === slot) out.push(m);
+  }
+  return out;
 }
 
 /** The caller's resolution context — which programme/project/user layers to consult. */
 export interface WbsMappingCtx { projectId?: string; programmeId?: string; sub?: string }
 
 /**
- * Resolve the effective WBS mapping for a caller + slot: the shipped core beneath, then org → (their) programme
- * → (their) project → (their) user overrides from the sealed store, merged per-field nearest-wins. Only the
- * caller's own programme/project/user scopes are consulted, so one caller can never see another's override.
- * Throws {@link WbsMappingError} if the slot has no core mapping and no scope supplies a valid whole mapping.
+ * Resolve the effective WBS mapping for a caller + slot. Layers, base → nearest:
+ *   core (shipped) < system-store mapping defs < org legacy `fieldRouting` (subsumed) <
+ *   org < programme < project < user mapping defs
+ * merged per-field, then adapted to a {@link WbsFieldMapping}. Only the caller's own programme/project/user
+ * scopes are consulted. Throws {@link WbsMappingError} if nothing supplies a valid id/name.
  */
 export function resolveWbsMapping(ctx: WbsMappingCtx, slot: string = DEFAULT_WBS_SLOT): WbsFieldMapping {
-  const layers: WbsMappingLayers = {};
-  const core = CORE_WBS_MAPPINGS[slot];
-  if (core) layers.core = core;
-  const org = getScopeWbsMappings({ kind: "org" })[slot];
-  if (org) layers.org = org;
-  if (ctx.programmeId) {
-    const p = getScopeWbsMappings({ kind: "programme", programmeId: ctx.programmeId })[slot];
-    if (p) layers.programme = p;
-  }
-  if (ctx.projectId) {
-    const p = getScopeWbsMappings({ kind: "project", projectId: ctx.projectId })[slot];
-    if (p) layers.project = p;
-  }
-  if (ctx.sub) {
-    const u = getScopeWbsMappings({ kind: "user", sub: ctx.sub })[slot];
-    if (u) layers.user = u;
-  }
-  if (!layers.core && !layers.org && !layers.programme && !layers.project && !layers.user) {
-    throw new WbsMappingError(`no WBS mapping for slot "${slot}"`);
-  }
-  return mergeWbsMapping(layers);
+  const layers: Mapping[] = [];
+  if (slot === DEFAULT_WBS_SLOT) layers.push(CORE_WBS_MAPPING);
+  layers.push(...mappingDefsForSlot(listSystemDefs(), slot));
+  const routes = getSettings().fieldRouting;
+  if (Array.isArray(routes) && routes.length) layers.push(mappingFromFieldRoutes(routes, slot));
+  layers.push(...mappingDefsForSlot(listDefs({ kind: "org" }), slot));
+  if (ctx.programmeId) layers.push(...mappingDefsForSlot(listDefs({ kind: "programme", programmeId: ctx.programmeId }), slot));
+  if (ctx.projectId) layers.push(...mappingDefsForSlot(listDefs({ kind: "project", projectId: ctx.projectId }), slot));
+  if (ctx.sub) layers.push(...mappingDefsForSlot(listDefs({ kind: "user", sub: ctx.sub }), slot));
+  if (!layers.length) throw new WbsMappingError(`no WBS mapping for slot "${slot}"`);
+  return mappingToWbs(mergeMappings(layers));
 }

@@ -25,7 +25,7 @@ const GOOD_FORM = {
 };
 
 test("DEF_KINDS is the expected closed set", () => {
-  assert.deepEqual([...DEF_KINDS], ["primitive", "screen", "form", "report", "dashboard", "businessRule", "methodology", "theme", "font", "jsonDef"]);
+  assert.deepEqual([...DEF_KINDS], ["primitive", "screen", "form", "report", "dashboard", "businessRule", "methodology", "mapping", "theme", "font", "jsonDef"]);
 });
 
 test("business rules, colour themes and fonts go through the importer too", () => {
