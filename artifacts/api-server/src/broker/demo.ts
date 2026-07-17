@@ -44,7 +44,12 @@ import {
   type CapabilityFlags,
   type VerifyReport,
   type Row,
+  type NativeSurface,
+  type NativeHandoff,
+  type NativeHandoffRequest,
+  type NativeImportRequest,
 } from "./types";
+import { buildVendorUrl } from "../lib/native-handoff";
 
 /**
  * Demo broker — the fake adapter. Serves canned sample data, needs no network
@@ -796,6 +801,37 @@ export class DemoBroker implements Broker {
     // Demo: acknowledge WITHOUT keeping the value (no vault) — a real broker (n8n)
     // writes it to its encrypted credential store and returns the real reference.
     return { stored: true, ref: `demo:${input.backend}/${input.name}` };
+  }
+
+  // ── Native handoff (companion-app bridge). The demo fronts an illustrative "demoboard" vendor so the
+  //    reference-level flow is exercisable end to end; a real connector advertises the vendors it actually
+  //    fronts. Handoff URLs are minted against the vendor's allowlisted host — never from user input.
+  async nativeSurfaces(_ctx: ActorContext): Promise<NativeSurface[]> {
+    return [
+      { kind: "whiteboard", vendor: "demoboard", label: "Open in DemoBoard", actions: ["open", "create", "embed"], importMode: "reference" },
+      { kind: "dashboard", vendor: "demoboard", label: "Open in DemoBoard", actions: ["open", "create"], importMode: "reference" },
+    ];
+  }
+
+  async nativeHandoff(_ctx: ActorContext, req: NativeHandoffRequest): Promise<NativeHandoff> {
+    const url = buildVendorUrl(req.vendor, req.kind, req.action, req.externalRef);
+    return { url, handoffId: `ho-${++taskAttachmentCounter}` };
+  }
+
+  async nativeImport(ctx: ActorContext, req: NativeImportRequest): Promise<TaskAttachment> {
+    // Reference mode: reconstruct the canonical (host-allowlisted) URL and attach it to the target — a link,
+    // nothing copied. A real connector with importMode "content" would additionally pull data via safeFetch.
+    const url = buildVendorUrl(req.vendor, req.kind, "open", req.externalRef);
+    return {
+      id: `ta-${++taskAttachmentCounter}`,
+      taskId: req.target.issueId ?? req.target.projectId,
+      filename: `${req.vendor}:${req.kind}`,
+      url,
+      contentType: "text/uri-list",
+      size: null,
+      addedBy: ctx.email ?? ctx.name ?? "demo@local",
+      addedAt: new Date().toISOString(),
+    };
   }
 
   async verify(): Promise<VerifyReport> {
