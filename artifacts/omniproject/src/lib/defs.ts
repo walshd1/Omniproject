@@ -11,7 +11,7 @@ import { getJson, sendJson } from "./api";
 
 export type DefKind = "primitive" | "screen" | "form" | "report" | "dashboard" | "businessRule" | "methodology" | "theme" | "font" | "jsonDef";
 export const DEF_KINDS: readonly DefKind[] = ["primitive", "screen", "form", "report", "dashboard", "businessRule", "methodology", "theme", "font", "jsonDef"];
-export type DefStorage = "user" | "project" | "org";
+export type DefStorage = "user" | "project" | "programme" | "org";
 
 export interface StoredDefMeta {
   id: string; kind: DefKind; name: string; storage: string;
@@ -20,7 +20,7 @@ export interface StoredDefMeta {
 export interface StoredDef extends StoredDefMeta { payload: unknown; rowVersion: number }
 
 export interface ImportRequest {
-  kind: DefKind; storage: DefStorage; projectId?: string; name: string; payload: unknown;
+  kind: DefKind; storage: DefStorage; projectId?: string; programmeId?: string; name: string; payload: unknown;
 }
 
 export const defsKey = ["defs"] as const;
@@ -51,14 +51,21 @@ export function useDefs(kind?: DefKind, projectId?: string) {
 
 /** The stored defs of ONE kind WITH their payloads, scope-aggregated — the read seam a renderer consumes to
  *  render user-authored defs from the unified importer store (roadmap X.10). Typed by the payload shape `T`. */
-export function useResolvedDefs<T = unknown>(kind: DefKind, projectId?: string) {
-  const suffix = projectId ? `?projectId=${encodeURIComponent(projectId)}` : "";
+export function useResolvedDefs<T = unknown>(kind: DefKind, projectId?: string, programmeId?: string) {
+  const qs = new URLSearchParams();
+  if (projectId) qs.set("projectId", projectId);
+  if (programmeId) qs.set("programmeId", programmeId);
+  const suffix = qs.toString();
   return useQuery({
-    queryKey: [...defsKey, "resolved", kind, projectId ?? null] as const,
-    queryFn: () => getJson<Array<StoredDef & { payload: T }>>(`/api/defs/resolved/${encodeURIComponent(kind)}${suffix}`),
+    queryKey: [...defsKey, "resolved", kind, projectId ?? null, programmeId ?? null] as const,
+    queryFn: () => getJson<Array<StoredDef & { payload: T }>>(`/api/defs/resolved/${encodeURIComponent(kind)}${suffix ? `?${suffix}` : ""}`),
     staleTime: 15_000,
   });
 }
+
+/** A stored selection for one slot (mirrors the server's `DefBinding`): the chosen def + whether the choice is
+ *  LOCKED so lower scopes can't override it. */
+export interface DefBinding { defId: string; locked?: boolean }
 
 /** The winning selection for one slot (mirrors the server's def-binding `ResolvedBinding`). `defId: null`
  *  means no binding — the renderer falls back to the shipped system default. `source`/`locked` drive the UI
