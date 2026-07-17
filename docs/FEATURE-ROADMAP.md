@@ -943,6 +943,13 @@ authoring, and the drift guards — no feature bypasses the golden rules.
   kill switch, and egress/residency controls all still apply. 1 capability test (a grant lifts an off capability;
   a mismatched grant doesn't) + `capabilitiesForClaims` test; AI/capability/governance/studio route suites green;
   typecheck clean.
+- **Slice 4 follow-up ✅ (swept the remaining enforcement gates).** For consistency, the other two per-request
+  capability gates now pass `granted` too: `routes/mcp` (the `mcp` capability) and `routes/broker-command` (the
+  `vendor:<id>` capability). Together with the `routes/ai` + `routes/studio` `enforceOr403` helper (which also
+  covers STT via `sttCapabilityId`), **every capability ENFORCEMENT call site is now permission-set-aware**. Left
+  untouched by design: `ai-containment`'s `effectiveState` read computes the deployment's AI exposure/containment
+  posture (an org-wide security floor, independent of the caller) — not a per-principal gate. mcp + broker-command
+  route suites green; typecheck clean.
 
 The mental model: each entry in the store is a **class** — its config are properties (a field's
 `options`, `maxLength`; a panel's `source`), it produces a typed **value**, and it carries
