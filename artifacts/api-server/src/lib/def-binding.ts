@@ -11,6 +11,8 @@
  * by id.
  */
 
+import { getArtifact, putArtifact, type ArtifactScope } from "./artifact-store";
+
 /** For a slot, the chosen def + whether the choice is locked to lower scopes. */
 export interface DefBinding {
   defId: string;
@@ -67,4 +69,34 @@ export function canRebind(config: DefBindingConfig, slot: string, level: "projec
   const r = resolveDefBinding(config, slot, ctx);
   if (!r.locked) return true;
   return level === "project" ? r.lockedBy !== "org" : false;
+}
+
+// ── Storage ──────────────────────────────────────────────────────────────────────────────────────────────
+// Bindings are stored PER SCOPE in the sealed artifact store (like def-policy / custom-roles): one map per
+// scope file. A `project` binding physically lives in THAT project's scope, so a PM's change is confined to
+// their project by construction — it can't leak org-wide or to another project.
+export const BINDING_ARTIFACT = "def-binding";
+const BINDINGS_ID = "bindings";
+interface StoredBindings { id: string; bindings: Record<string, DefBinding> }
+
+/** The slot→binding map stored at one scope (empty when unset / store off). */
+export function getScopeBindings(scope: ArtifactScope): Record<string, DefBinding> {
+  return getArtifact<StoredBindings>(BINDING_ARTIFACT, scope, BINDINGS_ID)?.bindings ?? {};
+}
+
+/** Set (or clear, with `binding: null`) one slot's binding at a scope; returns the new map. */
+export function setScopeBinding(scope: ArtifactScope, slot: string, binding: DefBinding | null): Record<string, DefBinding> {
+  const next = { ...getScopeBindings(scope) };
+  if (binding === null) delete next[slot];
+  else next[slot] = binding;
+  putArtifact<StoredBindings>(BINDING_ARTIFACT, scope, { id: BINDINGS_ID, bindings: next });
+  return next;
+}
+
+/** Assemble the resolution config for a caller — the org layer + ONLY their project + ONLY their user layer. */
+export function loadBindingConfig(ctx: { projectId?: string; sub?: string }): DefBindingConfig {
+  const config: DefBindingConfig = { org: getScopeBindings({ kind: "org" }) };
+  if (ctx.projectId) config.project = { [ctx.projectId]: getScopeBindings({ kind: "project", projectId: ctx.projectId }) };
+  if (ctx.sub) config.user = { [ctx.sub]: getScopeBindings({ kind: "user", sub: ctx.sub }) };
+  return config;
 }

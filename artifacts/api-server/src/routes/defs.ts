@@ -13,6 +13,7 @@ import {
   listDefs, listSystemDefs, getDef, putDef, deleteDef, DefError, DEF_KINDS,
   type DefKind, type StoredDef, type StoredDefMeta,
 } from "../lib/def-import";
+import defBindingsRouter from "./def-bindings";
 
 /**
  * THE DEFINITION IMPORTER routes (roadmap X.3), behind the default-off `defImporter` module. The single
@@ -100,6 +101,10 @@ router.get("/defs/resolved/:kind", requireRole("viewer"), (req, res) =>
     res.json(rows.filter((r) => r.kind === kind));
   }),
 );
+
+// Selection bindings (which def is IN USE at each scope + locks) share this module's plumbing (roadmap X.12).
+// Mounted BEFORE `/defs/:id` so `/defs/bindings` isn't shadowed by the `:id` param route.
+router.use(defBindingsRouter);
 
 // GET /api/defs/:id — one stored def with its payload (viewer+, subject to the target gate).
 router.get("/defs/:id", requireRole("viewer"), (req, res) =>
