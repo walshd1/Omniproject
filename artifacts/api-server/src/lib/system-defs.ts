@@ -1,4 +1,4 @@
-import { reportCatalogue, formCatalogue, dashboardPresetCatalogue, referenceRulesetCatalogue, methodologyCatalogue, type DashboardPreset } from "@workspace/backend-catalogue";
+import { reportCatalogue, formCatalogue, dashboardPresetCatalogue, referenceRulesetCatalogue, methodologyCatalogue, screenDefCatalogue, type DashboardPreset } from "@workspace/backend-catalogue";
 import { artifactStoreEnabled } from "./artifact-store";
 import { buildSystemDefRow, replaceSystemDefs, listSystemDefs, type StoredDef } from "./def-import";
 
@@ -12,8 +12,8 @@ import { buildSystemDefRow, replaceSystemDefs, listSystemDefs, type StoredDef } 
  *   - `seedSystemDefaultsIfEmpty()` — auto-install on first boot (empty system store). Updates are NOT automatic.
  *   - `applySystemDefaults()`       — the one-shot (re)apply the admin-gated approved-update route calls.
  *
- * Screens + primitives are NOT here yet: their shipped defaults live only in the SPA and must be relocated into
- * the shared package before the backend seeder can source them.
+ * SCREENS are now seeded here too (relocated into the shared package so the ENGINE and the screen ARTIFACTS
+ * are separate — X.11). Primitives follow in their own slice.
  */
 
 /** Deterministic stamp for shipped defaults (not per-boot), so the sealed set is stable across installs. */
@@ -37,6 +37,7 @@ export function buildSystemDefaultRows(): StoredDef[] {
   for (const b of referenceRulesetCatalogue()) rows.push(buildSystemDefRow("businessRule", b.label, b, SEED_AT));
   for (const m of methodologyCatalogue()) rows.push(buildSystemDefRow("methodology", m.label, m, SEED_AT));
   for (const p of dashboardPresetCatalogue()) rows.push(buildSystemDefRow("dashboard", p.name, presetToDashboardPayload(p), SEED_AT));
+  for (const s of screenDefCatalogue()) rows.push(buildSystemDefRow("screen", String(s.label), s, SEED_AT));
   return rows;
 }
 
