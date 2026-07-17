@@ -8,8 +8,9 @@
  *
  * PURE: validation + normalisation here (`sanitizeCustomRolesConfig`); the route persists via `artifact-store`.
  */
+import type { Request } from "express";
 import { getArtifact, putArtifact, artifactStoreEnabled, type ArtifactScope } from "./artifact-store";
-import { ROLES, grantsForRole, unionGrants, registerCustomRoleGrants, type Role, type Grants } from "./rbac";
+import { ROLES, grantsForRole, unionGrants, registerCustomRoleGrants, roleClaimsForReq, type Role, type Grants } from "./rbac";
 import { getCapability } from "./capability-governance";
 
 /** A named bundle of governance capability ids. */
@@ -151,6 +152,19 @@ export function capabilitiesForCustomRoles(ids: string[], config: CustomRolesCon
 export function customRolesForClaims(claims: string[], config: CustomRolesConfig = getCustomRolesConfig()): CustomRole[] {
   const claimSet = new Set(claims.map((c) => c.toLowerCase()));
   return config.customRoles.filter((r) => r.groups.some((g) => claimSet.has(g)));
+}
+
+/** The governance capabilities a set of IdP group claims grants (via the matched custom roles' permission
+ *  sets). This is what the capability gate consults so a permission set actually turns its capabilities on
+ *  for that role's members. */
+export function capabilitiesForClaims(claims: string[], config: CustomRolesConfig = getCustomRolesConfig()): string[] {
+  return capabilitiesForCustomRoles(customRolesForClaims(claims, config).map((r) => r.id), config);
+}
+
+/** The set of capabilities the request's principal is granted through its custom roles — passed to
+ *  `enforceCapability({ granted })` so a permission set lifts the gate for that caller. */
+export function grantedCapabilitiesForReq(req: Request): ReadonlySet<string> {
+  return new Set(capabilitiesForClaims(roleClaimsForReq(req)));
 }
 
 /**

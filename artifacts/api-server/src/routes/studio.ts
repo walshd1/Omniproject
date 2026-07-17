@@ -3,6 +3,7 @@ import { aiStatus, aiChat, AiError } from "../lib/ai";
 import { getSettings } from "../lib/settings";
 import { getSession } from "./auth";
 import { enforceCapability, CapabilityBlockedError, screenIdForRoute } from "../lib/capability-governance";
+import { grantedCapabilitiesForReq } from "../lib/custom-roles";
 import { roleForReq, requireRole } from "../lib/rbac";
 import { recordRequestAudit } from "../lib/audit";
 import { type AiGovContext } from "../lib/ai-governance";
@@ -46,7 +47,7 @@ function govCtx(req: Request): AiGovContext {
 }
 function enforceOr403(req: Request, res: Response, capabilityId: string, opts: { surface?: string | undefined; label: string }): boolean {
   try {
-    enforceCapability(capabilityId, { surface: opts.surface, actor: actorFromSession(req) });
+    enforceCapability(capabilityId, { surface: opts.surface, actor: actorFromSession(req), granted: grantedCapabilitiesForReq(req) });
     return true;
   } catch (err) {
     if (err instanceof CapabilityBlockedError) { res.status(403).json({ error: `${opts.label}: ${err.message}` }); return false; }

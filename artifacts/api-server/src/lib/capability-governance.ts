@@ -264,18 +264,22 @@ export class CapabilityBlockedError extends Error {
  * which AI/vendor/broker ran where and for whom. The call site uses the returned
  * {state, endpoint} to run correctly.
  */
-export function decideCapability(id: string, opts: { surface?: string | undefined; actor?: Actor | null } = {}): CapabilityDecision {
+export function decideCapability(id: string, opts: { surface?: string | undefined; actor?: Actor | null; granted?: ReadonlySet<string> } = {}): CapabilityDecision {
   const cap = getCapability(id);
   const surface = opts.surface ?? null;
   const state = effectiveState(id, opts.surface);
-  const allowed = state !== "off";
+  // A custom-role PERMISSION SET can grant a capability to the caller even when the org/surface state is off —
+  // an admin has deliberately bundled it into that role. The grant lifts the gate; the state (and thus any
+  // user-defined endpoint) is unchanged, so it never invents config that isn't there.
+  const grantedByRole = state === "off" && !!opts.granted && opts.granted.has(id);
+  const allowed = state !== "off" || grantedByRole;
   const endpoint = state === "user-defined" ? (getSettings().capabilityStates[id]?.endpoint ?? null) : null;
   recordCapabilityEvent({
     auditAction: allowed ? "capability.use" : "capability.blocked",
     logAction: allowed ? "use" : "blocked",
     id, kind: cap?.kind ?? null, surface, state, actor: opts.actor,
     result: allowed ? "success" : "error",
-    meta: { capability: id, kind: cap?.kind ?? null, surface, state },
+    meta: { capability: id, kind: cap?.kind ?? null, surface, state, ...(grantedByRole ? { grantedByPermissionSet: true } : {}) },
   });
   return { id, kind: cap?.kind ?? null, surface, state, allowed, endpoint };
 }
@@ -295,7 +299,7 @@ export function noteCapabilityConfigured(id: string, setting: CapabilitySetting,
  * Strong call-time gate: decide + log, and THROW CapabilityBlockedError when the
  * capability is off for this surface. Every governed call site routes through here.
  */
-export function enforceCapability(id: string, opts: { surface?: string | undefined; actor?: Actor | null } = {}): CapabilityDecision {
+export function enforceCapability(id: string, opts: { surface?: string | undefined; actor?: Actor | null; granted?: ReadonlySet<string> } = {}): CapabilityDecision {
   const decision = decideCapability(id, opts);
   if (!decision.allowed) throw new CapabilityBlockedError(id, decision.surface);
   return decision;

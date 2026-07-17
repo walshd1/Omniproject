@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  sanitizeCustomRolesConfig, capabilitiesForCustomRoles, customRolesForClaims,
+  sanitizeCustomRolesConfig, capabilitiesForCustomRoles, capabilitiesForClaims, customRolesForClaims,
   CUSTOM_ROLE_BASES, CustomRolesError, type CustomRolesConfig,
 } from "../lib/custom-roles";
 
@@ -51,4 +51,7 @@ test("resolution helpers: claims → custom roles → capabilities", () => {
   assert.deepEqual(capabilitiesForCustomRoles(["finance-analyst"], c), [CAP]);
   // A claim matching nothing resolves to no roles.
   assert.deepEqual(customRolesForClaims(["engineering"], c), []);
+  // claims → granted capabilities (what the capability gate consults).
+  assert.deepEqual(capabilitiesForClaims(["finance"], c), [CAP]);
+  assert.deepEqual(capabilitiesForClaims(["engineering"], c), []);
 });
