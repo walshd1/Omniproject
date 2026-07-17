@@ -82,3 +82,30 @@ test("import needs admin + step-up, and rejects a foreign schema", async () => {
   assert.equal(bad.status, 400);
   assert.match(((await bad.json()) as { error: string }).error, /schema/i);
 });
+
+test("FULL backup: one file carries settings + defs, and round-trips both", async () => {
+  // Gate: admin + fresh step-up.
+  assert.equal((await req("/setup/full-backup", { cookie: CONTRIB })).status, 403);
+  assert.equal((await req("/setup/full-backup", { cookie: ADMIN })).status, 403);
+  const backup = await req("/setup/full-backup", { cookie: ADMIN_STEPPED }).then((r) => r.json()) as { schema: string; settings: unknown; defStore: { collections: unknown[] } };
+  assert.equal(backup.schema, "omniproject/full-backup");
+  assert.ok(backup.settings && typeof backup.settings === "object");
+  assert.ok(backup.defStore.collections.length >= 1);
+  // Restore the whole thing.
+  const restore = await req("/setup/full-restore", { method: "POST", body: backup, cookie: ADMIN_STEPPED });
+  assert.equal(restore.status, 200);
+  const report = await restore.json() as { restored: boolean; settingsRestored: boolean; defStore: { written: unknown[] } | null };
+  assert.equal(report.restored, true);
+  assert.equal(report.settingsRestored, true);
+  assert.ok((report.defStore?.written.length ?? 0) >= 1);
+  // The org binding survived the full round-trip.
+  const bindings = await req("/defs/bindings").then((r) => r.json()) as { org: Record<string, { defId: string }> };
+  assert.equal(bindings.org["screens"]?.defId, "system~x");
+});
+
+test("full-restore rejects a foreign schema and needs step-up", async () => {
+  assert.equal((await req("/setup/full-restore", { method: "POST", body: { schema: "x" }, cookie: ADMIN })).status, 403);
+  const bad = await req("/setup/full-restore", { method: "POST", body: { schema: "nope" }, cookie: ADMIN_STEPPED });
+  assert.equal(bad.status, 400);
+  assert.match(((await bad.json()) as { error: string }).error, /schema/i);
+});

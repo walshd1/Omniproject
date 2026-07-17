@@ -210,6 +210,35 @@ describe("BackupStep", () => {
     expect(fetchFn).toHaveBeenCalledWith("/api/setup/defs-import", expect.objectContaining({ method: "POST" }));
   });
 
+  // ── Full backup (settings + defs) ──────────────────────────────────────────────────────────────────────
+  const fullFileInput = (container: HTMLElement) => container.querySelectorAll('input[type="file"]')[2] as HTMLInputElement;
+  const fullBundle = () => JSON.stringify({ schema: "omniproject/full-backup", version: 1, settings: { schema: "omniproject/config-snapshot", settings: {} }, defStore: { schema: "omniproject/def-store-export", collections: [] } });
+
+  it("renders the full-backup actions for an admin", () => {
+    const { getByRole, getByText } = renderWithProviders(<BackupStep isAdmin status={status} />);
+    expect(getByText(/Full backup \(settings \+ defs\)/)).toBeInTheDocument();
+    expect(getByRole("button", { name: /Download full backup/ })).toBeInTheDocument();
+  });
+
+  it("opens the full-restore confirm dialog and POSTs full-restore", async () => {
+    const fetchFn = vi.fn().mockResolvedValue({ ok: true, status: 200, json: () => Promise.resolve({ restored: true, settingsRestored: true, defStore: { written: [{}] } }) });
+    globalThis.fetch = fetchFn as unknown as typeof fetch;
+    const user = userEvent.setup();
+    const { container, findByRole, getByRole } = renderWithProviders(<BackupStep isAdmin status={status} />);
+    await user.upload(fullFileInput(container), snapshotFile(fullBundle(), "full.json"));
+    const dialog = await findByRole("alertdialog");
+    expect(dialog).toHaveTextContent(/Restore the FULL backup/);
+    await user.click(getByRole("button", { name: "Restore everything" }));
+    expect(fetchFn).toHaveBeenCalledWith("/api/setup/full-restore", expect.objectContaining({ method: "POST" }));
+  });
+
+  it("rejects a full-backup file with the wrong schema", async () => {
+    const user = userEvent.setup();
+    const { container, queryByRole } = renderWithProviders(<BackupStep isAdmin status={status} />);
+    await user.upload(fullFileInput(container), snapshotFile(JSON.stringify({ schema: "nope" })));
+    expect(queryByRole("alertdialog")).not.toBeInTheDocument();
+  });
+
   it("does not download when the export needs a fresh step-up (403 step_up_required)", async () => {
     const fetchFn = vi.fn().mockResolvedValue({ ok: false, status: 403, json: () => Promise.resolve({ error: "recent re-authentication required", code: "step_up_required" }) });
     globalThis.fetch = fetchFn as unknown as typeof fetch;
