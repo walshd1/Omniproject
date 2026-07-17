@@ -322,7 +322,12 @@ export function grantsForReq(req: Request): Grants {
   // A SCIM-provisioned user's group memberships are merged in as extra role claims, so the
   // IdP's group→role assignment flows through without re-issuing OIDC claims.
   const claims = decision.known ? [...(session.roles ?? []), ...decision.roleClaims] : (session.roles ?? []);
-  return grantsFromClaims(claims, { isDemo, strongAuth: hasStrongAuth(session) });
+  const strongAuth = hasStrongAuth(session);
+  const fixed = grantsFromClaims(claims, { isDemo, strongAuth });
+  // Demo already holds every grant; otherwise fold in any admin-defined custom roles the claims match (each
+  // capped at its fixed base role, so this only ever equals a grant the admin could assign directly).
+  if (isDemo || !customRoleGrants) return fixed;
+  return unionGrants(fixed, customRoleGrants(claims, strongAuth));
 }
 
 /**
@@ -371,6 +376,25 @@ export function grantsForRole(role: Role): Grants {
   if (role === "guest") return { base: "guest", authorities: new Set<Authority>() };
   return { base: "viewer", authorities: new Set<Authority>() };
 }
+
+/** Combine two grant sets: the HIGHER base rung + the UNION of authorities. */
+export function unionGrants(a: Grants, b: Grants): Grants {
+  return {
+    base: BASE_RANK[a.base] >= BASE_RANK[b.base] ? a.base : b.base,
+    authorities: new Set<Authority>([...a.authorities, ...b.authorities]),
+  };
+}
+
+/**
+ * Custom-role resolution SEAM. `lib/custom-roles` registers a resolver at load (claims → the union grants of
+ * the matched admin-defined custom roles, each capped at its fixed base role). Kept a seam so `rbac` never
+ * imports `custom-roles` — avoiding a load-time circular import — and so custom roles resolve to NOTHING when
+ * the store is empty (safe default). Because each custom role is grounded in a base role an admin could grant
+ * directly via the role-map, this can never confer a grant the admin couldn't already assign.
+ */
+export type CustomRoleGrantResolver = (claims: string[], strongAuth: boolean) => Grants;
+let customRoleGrants: CustomRoleGrantResolver | null = null;
+export function registerCustomRoleGrants(fn: CustomRoleGrantResolver | null): void { customRoleGrants = fn; }
 
 /**
  * Do these grants satisfy the gate `need`? (The request-free core of `hasRole`.)
