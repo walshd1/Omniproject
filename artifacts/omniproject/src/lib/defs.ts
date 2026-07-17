@@ -60,6 +60,46 @@ export function useResolvedDefs<T = unknown>(kind: DefKind, projectId?: string) 
   });
 }
 
+/** The winning selection for one slot (mirrors the server's def-binding `ResolvedBinding`). `defId: null`
+ *  means no binding — the renderer falls back to the shipped system default. `source`/`locked` drive the UI
+ *  (e.g. show a lock badge, or "org default"). */
+export interface ResolvedBinding {
+  defId: string | null;
+  locked: boolean;
+  lockedBy?: "org" | "programme" | "project";
+  source: "org" | "programme" | "project" | "user" | "default";
+}
+
+/** The ACTIVE (winning) selection per slot for the caller's scope (roadmap X.12 slice 3). Resolution — lock
+ *  precedence + most-specific-unlocked — is computed SERVER-SIDE, so the winner logic lives in one place; a
+ *  renderer maps its slot → the winning `defId`, then reads the payload from {@link useResolvedDefs}. Pass the
+ *  active project's id (and its programme id, if it belongs to one — the tier is opt-in) to consult those
+ *  layers. */
+export function useActiveDefs(projectId?: string, programmeId?: string) {
+  const qs = new URLSearchParams();
+  if (projectId) qs.set("projectId", projectId);
+  if (programmeId) qs.set("programmeId", programmeId);
+  const suffix = qs.toString();
+  return useQuery({
+    queryKey: [...defsKey, "active", projectId ?? null, programmeId ?? null] as const,
+    queryFn: () => getJson<Record<string, ResolvedBinding>>(`/api/defs/active${suffix ? `?${suffix}` : ""}`),
+    staleTime: 15_000,
+  });
+}
+
+/** Pick the winning def for `slot` from the resolved list + the active-binding map: the def whose id the
+ *  binding selected, or `null` when there's no binding / the selected id isn't visible (→ system default).
+ *  Pure, so a renderer can call it without another fetch. */
+export function pickActiveDef<T = unknown>(
+  resolved: ReadonlyArray<StoredDef & { payload: T }> | undefined,
+  active: Record<string, ResolvedBinding> | undefined,
+  slot: string,
+): (StoredDef & { payload: T }) | null {
+  const defId = active?.[slot]?.defId;
+  if (!defId || !Array.isArray(resolved)) return null;
+  return resolved.find((d) => d.id === defId) ?? null;
+}
+
 /** Dry-run: validate a payload by kind without writing. */
 export function useValidateDef() {
   return useMutation({

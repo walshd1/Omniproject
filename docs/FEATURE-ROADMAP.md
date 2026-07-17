@@ -1255,6 +1255,17 @@ authoring, and the drift guards — no feature bypasses the golden rules.
   programme, confined to owned programmes — beta 403 while pmo passes, programmeId required, and the written def
   is get/list/resolve-able only in scope). Full API + SPA typecheck clean; whiteboard/wiki/proof/invoice/goal
   101/101, def routes + policy + import + bindings 40/40 green.
+- **Slice 3 ✅ (the render seam — winner resolution).** `GET /api/defs/active?projectId=&programmeId=` returns
+  the WINNING selection per slot for the caller's scope — `{ slot: ResolvedBinding }` — with the lock-precedence
+  + most-specific-unlocked resolution computed **server-side** (`resolveDefBinding`), so the winner logic lives
+  in ONE place and can't drift into the client. The programme + project layers are consulted only when the
+  caller is in that scope (opt-in / fail-closed), exactly like `GET /defs/bindings`. SPA: `useActiveDefs(projectId?,
+  programmeId?)` fetches the map; `pickActiveDef(resolved, active, slot)` is a pure helper mapping a slot →
+  the winning def object from `useResolvedDefs` (or `null` → shipped system default), non-array-safe. 2 route
+  tests (a contributor's own pick wins for a slot while another user falls back to the org default; an org LOCK
+  pins the winner for a lower scope) + 4 SPA helper tests. Both packages typecheck clean; def-bindings routes
+  10/10, SPA defs 4/4 green. **Next (rollout):** point each screen/dashboard renderer at `useActiveDefs` +
+  `pickActiveDef` for its slot (large, per-surface — the seam is ready; the 24-screen rewiring is incremental).
 - **Finding — forms are NOT migrated.** Verified: forms still run on the parallel settings writer
   (`PUT /api/forms`, settingsKey `forms`, admin/PMO; SPA `useSaveForms`), and no renderer reads form defs from
   `/api/defs/resolved`. Only **dashboards** are fully converged (X.10 3a–3c); **forms, reports, screens** still

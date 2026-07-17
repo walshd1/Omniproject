@@ -7,7 +7,7 @@ import { stepUpFresh } from "../lib/step-up";
 import { getSession } from "./auth";
 import { recordRequestAudit } from "../lib/audit";
 import { artifactStoreEnabled } from "../lib/artifact-store";
-import { getScopeBindings, setScopeBinding, loadBindingConfig, canRebind, type DefBinding } from "../lib/def-binding";
+import { getScopeBindings, setScopeBinding, loadBindingConfig, canRebind, resolveDefBinding, type DefBinding, type DefBindingConfig, type ResolvedBinding } from "../lib/def-binding";
 
 /**
  * DEF SELECTION BINDINGS routes (roadmap X.12). Records "for slot S at scope T, use def D (optionally locked)".
@@ -35,6 +35,43 @@ router.get("/defs/bindings", requireRole("viewer"), (req, res) =>
       project: inProject ? getScopeBindings({ kind: "project", projectId: projectId! }) : {},
       user: ctx.sub ? getScopeBindings({ kind: "user", sub: ctx.sub }) : {},
     });
+  }),
+);
+
+// GET /api/defs/active?projectId=&programmeId= — the WINNING selection per slot for the caller's scope
+// (roadmap X.12 slice 3). Resolution (lock precedence + most-specific-unlocked) is computed SERVER-SIDE via
+// def-binding, so the winner logic lives in ONE place; a renderer maps its slot → the winning `defId`, then
+// loads the payload from `/defs/resolved`. The programme + project layers are consulted only when the caller
+// is in that scope (opt-in / fail-closed), exactly like GET /defs/bindings. Returns { slot: ResolvedBinding }.
+router.get("/defs/active", requireRole("viewer"), (req, res) =>
+  withBrokerErrors(req, res, "active_bindings failed", async () => {
+    if (!artifactStoreEnabled()) { res.json({}); return; }
+    const ctx = contextFromReq(req);
+    const projectId = typeof req.query["projectId"] === "string" ? req.query["projectId"] : undefined;
+    const programmeId = typeof req.query["programmeId"] === "string" ? req.query["programmeId"] : undefined;
+    const inProject = !!projectId && (await assertProjectScope(req, projectId)).ok;
+    const inProgramme = !!programmeId && inScope(scopeForReq(req), { programmeIds: [programmeId] });
+
+    // Assemble ONLY the layers the caller may see; a stray higher/foreign binding never leaks in.
+    const config: DefBindingConfig = { org: getScopeBindings({ kind: "org" }) };
+    if (inProgramme && programmeId) config.programme = { [programmeId]: getScopeBindings({ kind: "programme", programmeId }) };
+    if (inProject && projectId) config.project = { [projectId]: getScopeBindings({ kind: "project", projectId }) };
+    if (ctx.sub) config.user = { [ctx.sub]: getScopeBindings({ kind: "user", sub: ctx.sub }) };
+
+    // The resolution context gates which tiers `resolveDefBinding` consults (programme stays opt-in).
+    const rctx: { projectId?: string; programmeId?: string; sub?: string } = {};
+    if (inProject && projectId) rctx.projectId = projectId;
+    if (inProgramme && programmeId) rctx.programmeId = programmeId;
+    if (ctx.sub) rctx.sub = ctx.sub;
+
+    // Resolve every slot bound anywhere in the caller's visible config to its winner.
+    const slots = new Set<string>();
+    for (const m of [config.org, config.programme?.[programmeId ?? ""], config.project?.[projectId ?? ""], config.user?.[ctx.sub ?? ""]]) {
+      if (m) for (const k of Object.keys(m)) slots.add(k);
+    }
+    const out: Record<string, ResolvedBinding> = {};
+    for (const slot of slots) out[slot] = resolveDefBinding(config, slot, rctx);
+    res.json(out);
   }),
 );
 

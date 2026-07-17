@@ -56,6 +56,30 @@ test("a user selects their own def for a slot (their private pick); GET reflects
   assert.equal(got.user["projects"]?.defId, "user~mine");
 });
 
+test("GET /defs/active resolves the WINNING selection per slot for the caller's scope", async () => {
+  // Org default for slot "screens"; the contributor overrides it with their own pick.
+  await req("/defs/bindings", { method: "PUT", body: { scope: "org", slot: "screens", defId: "org~default" } });
+  await req("/defs/bindings", { method: "PUT", body: { scope: "user", slot: "screens", defId: "user~mine" }, cookie: CONTRIBUTOR });
+  // The contributor's active winner for "screens" is their own pick (most-specific-unlocked).
+  const mine = (await req("/defs/active", { cookie: CONTRIBUTOR }).then((x) => x.json())) as Record<string, { defId: string; source: string }>;
+  assert.equal(mine["screens"]?.defId, "user~mine");
+  assert.equal(mine["screens"]?.source, "user");
+  // A DIFFERENT user with no pick falls back to the org default.
+  const other = cookie({ sub: "z", roles: ["omni-contributors"] });
+  const theirs = (await req("/defs/active", { cookie: other }).then((x) => x.json())) as Record<string, { defId: string; source: string }>;
+  assert.equal(theirs["screens"]?.defId, "org~default");
+  assert.equal(theirs["screens"]?.source, "org");
+});
+
+test("GET /defs/active honours an org LOCK — the winner is pinned for a lower scope", async () => {
+  await req("/defs/bindings", { method: "PUT", body: { scope: "org", slot: "locktest", defId: "org~pinned", locked: true }, cookie: ADMIN_STEPPED });
+  await req("/defs/bindings", { method: "PUT", body: { scope: "user", slot: "locktest", defId: "user~x" }, cookie: CONTRIBUTOR }).catch(() => {});
+  const active = (await req("/defs/active", { cookie: CONTRIBUTOR }).then((x) => x.json())) as Record<string, { defId: string; locked: boolean; lockedBy?: string }>;
+  assert.equal(active["locktest"]?.defId, "org~pinned");
+  assert.equal(active["locktest"]?.locked, true);
+  assert.equal(active["locktest"]?.lockedBy, "org");
+});
+
 test("org (pmo/admin) selects + LOCKS a slot; a lower scope can no longer rebind it", async () => {
   // Setting the LOCK requires a fresh step-up (the mandate action); ADMIN_STEPPED carries one.
   assert.equal((await req("/defs/bindings", { method: "PUT", body: { scope: "org", slot: "methodology", defId: "system~scrum", locked: true }, cookie: ADMIN_STEPPED })).status, 200);
