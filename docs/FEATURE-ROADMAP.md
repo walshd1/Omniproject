@@ -1298,6 +1298,16 @@ authoring, and the drift guards — no feature bypasses the golden rules.
   10/10 (importer-authored submit, drain 410, legacy bridge, capability gate on the importer, defensive
   submit-drop), FormsAdmin 5/5, FormPanel 4/4; both packages typecheck clean. **Still on settings writers:
   screens + reports** (next).
+- **SCREEN catalogue relocated ✅ (X.11 "make screens … system JSON"; engine/artifact separation).** The 24
+  shipped panel-bearing screen defs (pure JSON) moved from the SPA (`src/screens/*.json`) into the shared
+  `@workspace/backend-catalogue` (`screen-def-catalogue` → `screenDefCatalogue()`), so there's ONE source of
+  truth the BACKEND seeds into the read-only `system` def store (`system-defs` now emits `screen` rows) AND the
+  SPA renders from (screen-catalogue.ts imports the catalogue; the ScreenRenderer + panel components — the
+  ENGINE — stay in the app). `resolveJsonModule` enabled in the base tsconfig so the package can import JSON.
+  All three packages typecheck clean; system-defs asserts a shipped `screen` default (Home), SPA
+  screen-catalogue 12/12. **Primitives:** user chose FULL relocation — the primitive definitions move into the
+  backend catalogue next (their own slice; the React renderers stay engine). Then the screens authoring/read
+  convergence onto the importer (retire the `screenDefs` settings writer), then reports.
 
 ### X.13 `programmeManager` RBAC role — scoped rung, step-up to lock  🚧 In progress
 - **Directive (2026-07-17).** A **programme manager** is a permission level in RBAC, assignable by admin/PMO —

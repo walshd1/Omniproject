@@ -26,9 +26,11 @@ test("seedSystemDefaultsIfEmpty installs the bundled defaults once; applySystemD
 
   const defs = listSystemDefs();
   const kinds = new Set(defs.map((d) => d.kind));
-  for (const k of ["report", "form", "businessRule", "methodology", "dashboard"] as const) {
+  for (const k of ["report", "form", "businessRule", "methodology", "dashboard", "screen"] as const) {
     assert.ok(kinds.has(k), `the system store has a ${k} default`);
   }
+  // The shipped panel-bearing screens are seeded (relocated into the shared catalogue — X.11).
+  assert.ok(defs.some((d) => d.kind === "screen" && (d.payload as { id?: unknown }).id === "home"), "the Home screen is a shipped system default");
   // Every shipped default is a read-only system row authored by "system".
   assert.ok(defs.every((d) => d.id.startsWith("system~") && d.createdBy === "system"));
   // The dashboard presets were adapted to the real Dashboard shape (each widget gets a synthesised id).
