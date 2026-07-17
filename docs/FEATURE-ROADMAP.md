@@ -1101,6 +1101,15 @@ authoring, and the drift guards — no feature bypasses the golden rules.
   `POST /api/defs` org + settings cleared to `[]`; non-admin sees no migrate button); SPA typecheck clean.
   **Next:** slice 3c — once drained, remove/har­den the `PUT /api/dashboards` route itself; then slice 4
   (reports), slice 5 (screens), colours/fonts + business rules, and the `PATCH /api/settings` lockdown.
+- **Slice 3c ✅ (retire the legacy dashboards writer).** `routes/dashboards` is no longer the generic settings
+  collection: it's now **read-only plus a single permitted write** — draining the slice to `[]` (the migration).
+  A `PUT /api/dashboards` carrying real dashboards is a **retired bypass → 410**, pointing the caller at the
+  importer; a non-array is likewise 410. So the parallel dashboard writer can never re-open. **Dashboards are now
+  fully converged** — authored/edited only through the importer/editor into the encrypted def store, drained out
+  of the settings bundle, and the old route hardened shut. 5 route tests (read; 410 on a real write + nothing
+  persisted; empty-drain accepted; non-array 410; pmo gate); features/integration suites green; typecheck clean.
+  **Next:** slice 4 (reports), slice 5 (screens), colours/fonts + business rules, then the `PATCH /api/settings`
+  lockdown so the super-writer can't reach a converged slice.
 
 ### X.9 Library audit — permissive (MIT/BSD/Apache-2.0) code that clears our five gates
 - **The gate (standing rule).** Add third-party code only where it (1) doesn't break our rules
