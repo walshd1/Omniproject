@@ -60,7 +60,7 @@ describe("Explore mode", () => {
   });
 
   it("shows the unsaved-work banner + download when exploration work exists", () => {
-    markExplorationDirty(); // staged before render → initial state reflects it
+    markExplorationDirty("snapshots"); // staged before render → initial state reflects it
     renderWithProviders(<Explore />, { client: authedClient() });
     expect(screen.getByTestId("explore-unsaved")).toBeInTheDocument();
     expect(screen.getByTestId("explore-download")).toBeInTheDocument();
@@ -69,7 +69,8 @@ describe("Explore mode", () => {
   it("downloads staged snapshots and dependency edges, then marks the session clean", () => {
     saveSnapshots([createSnapshot({}, "2024-01-01T00:00:00.000Z")]);
     saveEdges([edge]);
-    markExplorationDirty();
+    markExplorationDirty("snapshots");
+    markExplorationDirty("edges");
     const { click, restore } = mockBlobDownload();
     try {
       renderWithProviders(<Explore />, { client: authedClient() });
@@ -81,13 +82,14 @@ describe("Explore mode", () => {
     }
   });
 
-  it("still marks the session clean when the download button fires with nothing staged", () => {
-    // Dirty here comes from elsewhere in exploration (e.g. the replica workbench's own overlay
-    // state), not from snapshots/edges — downloadExploration() marks clean unconditionally.
-    markExplorationDirty();
+  it("DATA-LOSS REGRESSION: the download button does NOT clear a replica-overlay warning with nothing staged", () => {
+    // Dirty comes from the replica workbench's own overlay state, not snapshots/edges. The download button
+    // exports snapshots/edges only, so it must NOT silently clear the replica overlay's unsaved warning —
+    // otherwise the user leaves and loses it. The banner must stay up.
+    markExplorationDirty("replica");
     renderWithProviders(<Explore />, { client: authedClient() });
     fireEvent.click(screen.getByTestId("explore-download"));
-    expect(screen.queryByTestId("explore-unsaved")).not.toBeInTheDocument();
+    expect(screen.getByTestId("explore-unsaved")).toBeInTheDocument();
   });
 
   it("pops the exploration out into its own window", () => {
@@ -105,7 +107,7 @@ describe("Explore mode", () => {
   });
 
   it("warns before leaving the tab while there is undownloaded work", () => {
-    markExplorationDirty();
+    markExplorationDirty("snapshots");
     renderWithProviders(<Explore />, { client: authedClient() });
     const event = new Event("beforeunload", { cancelable: true }) as BeforeUnloadEvent;
     window.dispatchEvent(event);
@@ -115,7 +117,7 @@ describe("Explore mode", () => {
   it("reacts to a dirty-state change that happens after mount (e.g. from the replica workbench)", () => {
     renderWithProviders(<Explore />, { client: authedClient() });
     expect(screen.queryByTestId("explore-unsaved")).not.toBeInTheDocument();
-    act(() => markExplorationDirty());
+    act(() => markExplorationDirty("replica"));
     expect(screen.getByTestId("explore-unsaved")).toBeInTheDocument();
   });
 

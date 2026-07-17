@@ -219,7 +219,7 @@ export function exportReplica(replica: ExploreReplica): void {
     new Blob([JSON.stringify(replica)], { type: "application/json" }),
     `omniproject-replica-${replica.capturedAt.slice(0, 10)}.json`,
   );
-  // Downloading is "saving" the exploration — clear the unsaved-work warning, as exportSnapshots/
-  // exportEdges do (previously only replica export left the leave-warning stuck on after saving).
-  markExplorationClean();
+  // Downloading is "saving" the replica — clear only the REPLICA source's warning; any unsaved snapshots /
+  // edges / schedule-shifts keep theirs (a single global clear here silently lost those other sources).
+  markExplorationClean("replica");
 }
