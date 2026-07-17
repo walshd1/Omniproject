@@ -49,6 +49,17 @@ export function useDefs(kind?: DefKind, projectId?: string) {
   });
 }
 
+/** The stored defs of ONE kind WITH their payloads, scope-aggregated — the read seam a renderer consumes to
+ *  render user-authored defs from the unified importer store (roadmap X.10). Typed by the payload shape `T`. */
+export function useResolvedDefs<T = unknown>(kind: DefKind, projectId?: string) {
+  const suffix = projectId ? `?projectId=${encodeURIComponent(projectId)}` : "";
+  return useQuery({
+    queryKey: [...defsKey, "resolved", kind, projectId ?? null] as const,
+    queryFn: () => getJson<Array<StoredDef & { payload: T }>>(`/api/defs/resolved/${encodeURIComponent(kind)}${suffix}`),
+    staleTime: 15_000,
+  });
+}
+
 /** Dry-run: validate a payload by kind without writing. */
 export function useValidateDef() {
   return useMutation({
