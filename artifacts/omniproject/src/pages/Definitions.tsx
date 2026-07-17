@@ -1,10 +1,12 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Database, Trash2, Check, AlertTriangle, Save, ShieldCheck, Pencil } from "lucide-react";
 import { DataState } from "../components/DataState";
 import {
   useDefs, useDef, useValidateDef, useImportDef, useUpdateDef, useDeleteDef,
   DEF_KINDS, type DefKind, type DefStorage, type StoredDefMeta,
 } from "../lib/defs";
+import { useDefPolicy, writableDefScopes } from "../lib/def-policy";
+import { useAuth } from "../lib/auth";
 import { useToast } from "@/hooks/use-toast";
 
 /**
@@ -21,10 +23,17 @@ const KIND_LABEL: Record<DefKind, string> = {
 };
 const STORAGE_LABEL: Record<DefStorage, string> = { user: "My private area", project: "Project", org: "Org-wide" };
 
+const STORAGE_OPTION_LABEL: Record<DefStorage, string> = { user: "My private area", project: "Project", org: "Org-wide" };
+
 function ImportPanel() {
   const validate = useValidateDef();
   const importDef = useImportDef();
   const { toast } = useToast();
+  const { data: auth } = useAuth();
+  const { data: policy } = useDefPolicy();
+  // Only offer the storage targets THIS author can actually write (server stays authoritative). Everyone can
+  // reach the importer; the def-policy scopes what each can save where.
+  const writable = writableDefScopes(auth?.role, policy?.policy);
   const [kind, setKind] = useState<DefKind>("primitive");
   const [storage, setStorage] = useState<DefStorage>("user");
   const [projectId, setProjectId] = useState("");
@@ -33,6 +42,11 @@ function ImportPanel() {
   const [errors, setErrors] = useState<string[] | null>(null);
   const [ok, setOk] = useState(false);
   const [parseError, setParseError] = useState<string | null>(null);
+
+  // Keep the selected target within what this author can write (e.g. a contributor loses the org option).
+  useEffect(() => {
+    if (writable.length && !writable.includes(storage)) setStorage(writable[0]!);
+  }, [writable, storage]);
 
   const parsePayload = (): unknown | undefined => {
     try { const p = JSON.parse(text); setParseError(null); return p; }
@@ -71,9 +85,9 @@ function ImportPanel() {
         <label className="text-xs space-y-1">
           <span className="block font-bold uppercase tracking-widest text-muted-foreground">Store in</span>
           <select data-testid="def-storage" value={storage} onChange={(e) => setStorage(e.target.value as DefStorage)} className="border border-border bg-background px-2 py-1.5 text-sm">
-            <option value="user">My private area</option>
-            <option value="project">Project</option>
-            <option value="org">Org-wide</option>
+            {(writable.length ? writable : (["user"] as DefStorage[])).map((s) => (
+              <option key={s} value={s}>{STORAGE_OPTION_LABEL[s]}</option>
+            ))}
           </select>
         </label>
         {storage === "project" && (

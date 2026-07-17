@@ -6,9 +6,12 @@ import { defsKey, defKey, type StoredDefMeta } from "../lib/defs";
 import { Definitions } from "./Definitions";
 
 /** The Definitions (importer) page: list, JSON-parse guard, validate dry-run, and save gating. */
-function seed(items: StoredDefMeta[] = []): QueryClient {
+function seed(items: StoredDefMeta[] = [], role = "admin"): QueryClient {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity }, mutations: { retry: false } } });
   qc.setQueryData([...defsKey, null, null], items);
+  // The importer/editor is open to every author; the def-policy scopes what each may write where.
+  qc.setQueryData(["auth", "me"], { sub: "u1", role });
+  qc.setQueryData(["defs", "policy"], { policy: { user: "contributor", project: "manager", org: "pmoOrAdmin" }, gates: ["contributor", "manager", "pmoOrAdmin", "admin"] });
   return qc;
 }
 const meta = (over: Partial<StoredDefMeta> = {}): StoredDefMeta => ({
@@ -54,6 +57,13 @@ describe("Definitions page", () => {
     expect(screen.queryByTestId("def-project")).not.toBeInTheDocument();
     fireEvent.change(screen.getByTestId("def-storage"), { target: { value: "project" } });
     expect(screen.getByTestId("def-project")).toBeInTheDocument();
+  });
+
+  it("scopes the storage targets to what the author may write (a contributor gets only their private area)", () => {
+    renderWithProviders(<Definitions />, { client: seed([], "contributor") });
+    const options = [...(screen.getByTestId("def-storage") as HTMLSelectElement).options].map((o) => o.value);
+    // Default policy: user → contributor, project → manager, org → pmoOrAdmin. A contributor clears only `user`.
+    expect(options).toEqual(["user"]);
   });
 
   it("opens the editor for a row and seeds it with the def's payload", async () => {

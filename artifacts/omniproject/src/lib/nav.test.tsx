@@ -173,8 +173,8 @@ describe("useVisibleNavItems — role gating (hard gate)", () => {
 });
 
 describe("nav grouping — progressive disclosure", () => {
-  const ADMIN_HREFS = ["/explore", "/marketplace", "/registry", "/definitions", "/settings", "/configurator"];
-  const PRIMARY_HREFS = ["/", "/my-work", "/tasks", "/dashboards", "/content", "/wiki", "/whiteboards", "/proofs", "/goals", "/programmes", "/projects", "/budgets", "/invoices", "/reports", "/resources", "/resource-planning", "/studio"];
+  const ADMIN_HREFS = ["/explore", "/marketplace", "/registry", "/settings", "/configurator"];
+  const PRIMARY_HREFS = ["/", "/my-work", "/tasks", "/dashboards", "/content", "/wiki", "/whiteboards", "/proofs", "/goals", "/programmes", "/projects", "/budgets", "/invoices", "/reports", "/resources", "/resource-planning", "/studio", "/definitions"];
 
   it("classifies the everyday surfaces as primary and the governance/config surfaces as admin", () => {
     for (const item of NAV_ITEMS) {
@@ -251,6 +251,6 @@ describe("navShelvesForRole — visibility per role", () => {
 
   it("the admin shelf still carries all governance/config routes (deep-links stay reachable)", () => {
     const { admin } = navShelvesForRole(NAV_ITEMS, "viewer", false);
-    expect(admin.map((i) => i.href)).toEqual(["/explore", "/marketplace", "/registry", "/definitions", "/settings", "/configurator"]);
+    expect(admin.map((i) => i.href)).toEqual(["/explore", "/marketplace", "/registry", "/settings", "/configurator"]);
   });
 });
