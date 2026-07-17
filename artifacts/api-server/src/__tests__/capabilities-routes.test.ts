@@ -56,3 +56,14 @@ test("GET /fields/manifest reconciles the backend fields against the registry", 
   const body = (await r.json()) as Record<string, unknown>;
   assert.ok(body && typeof body === "object");
 });
+
+test("GET /fields/superset returns the live superset — each field carries origin + type + limits", async () => {
+  const r = await req("/fields/superset");
+  assert.equal(r.status, 200);
+  const body = (await r.json()) as { fields: { id: string; canonicalKey: string; system: string; nativeField: string; type: string; maxLength?: number }[] };
+  assert.ok(Array.isArray(body.fields) && body.fields.length > 0);
+  // Every entry names where it originated and what it holds.
+  assert.ok(body.fields.every((f) => f.system && f.nativeField && f.type));
+  // The demo backend advertised a maxLength on string fields — it survives into the superset.
+  assert.ok(body.fields.some((f) => typeof f.maxLength === "number"));
+});

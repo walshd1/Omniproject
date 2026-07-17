@@ -16,6 +16,8 @@ import {
 } from "./field-registry";
 import { isTimeTravelEnabled, getSettings } from "./settings";
 import { dataResidencyEnabled, allowedRegions } from "./data-residency";
+import { artifactStoreEnabled } from "./artifact-store";
+import { buildLiveSuperset, sidecarSupersetInput, type SupersetField, type SupersetInput } from "./superset";
 
 /**
  * Capability signal — which data domains the wired backend(s) can populate, so
@@ -353,4 +355,25 @@ export async function resolveFieldManifest(req: Request): Promise<FieldManifest>
     customFields: customFieldsFrom(enumerated),
     relationshipCandidates: inferRelationshipCandidates(enumerated, ENTITY_KEYS),
   };
+}
+
+/**
+ * The LIVE SUPERSET (roadmap §4.6): every field mappable RIGHT NOW — the union of the connected backend(s)'
+ * advertised fields PLUS the sidecar's full canonical vocabulary when the sidecar is on. Only live+linked fields
+ * appear (it's built from what's actually connected), duplicates are kept distinct per backend, and it
+ * grows/shrinks with the connected set. This is what the mapping picker binds to, so an admin can only map a UI
+ * element onto a field that a real, active backend can serve.
+ *
+ * Honest scope: `describeFields` runs against the ACTIVE broker (one concrete adapter today), so the non-sidecar
+ * half is the active backend's fields; per-kind adapters for other connected brokers are the remaining last mile
+ * (see broker/registry.ts). The sidecar half is fully live now.
+ */
+export async function resolveLiveSuperset(req: Request): Promise<SupersetField[]> {
+  const broker = getBroker();
+  const ctx = contextFromReq(req);
+  const enumerated = await probe(broker.describeFields?.(ctx), []);
+  const inputs: SupersetInput[] = [];
+  if (enumerated.length) inputs.push({ system: broker.kind, fields: enumerated });
+  if (artifactStoreEnabled()) inputs.push(sidecarSupersetInput()); // the sidecar exposes all its data types
+  return buildLiveSuperset(inputs);
 }

@@ -65,6 +65,13 @@ export interface FieldDescriptor {
   /** The canonical entity (table) this field belongs to; defaults to "issue" when omitted.
    *  Drives which table a field becomes a column on in the superset-native DB schema generator. */
   entity?: string;
+  // ── Data constraints (the "what can it hold" a UI field inherits from its home) ──────────────────────────
+  /** Max character length for string/text fields (absent ⇒ unbounded — e.g. the sidecar). */
+  maxLength?: number;
+  /** Decimal places for number/currency/percent fields. */
+  precision?: number;
+  /** Allowed values for `enum` fields. */
+  options?: string[];
 }
 
 /**

@@ -5,7 +5,7 @@
  * registry. Read-only; the gating logic itself lives in lib/capabilities.
  */
 import { Router, type Request, type Response, type NextFunction } from "express";
-import { resolveCapabilities, resolveFieldManifest } from "../lib/capabilities";
+import { resolveCapabilities, resolveFieldManifest, resolveLiveSuperset } from "../lib/capabilities";
 import { resolveAvailability } from "../lib/availability";
 import { requireRole, roleForReq } from "../lib/rbac";
 import { settingsCollectionRouter } from "../lib/settings-collection-router";
@@ -66,6 +66,18 @@ router.get("/fields/manifest", requireRole("manager"), async (req, res) => {
   } catch (err) {
     req.log.error({ err }, "field manifest resolution failed");
     res.status(502).json({ error: "Could not resolve field manifest" });
+  }
+});
+
+// GET /api/fields/superset — the LIVE superset the mapping picker binds to: every field mappable right now
+// (connected backends + the sidecar when on), duplicates kept distinct, each carrying origin + type + limits.
+// Manager+ (same schema-detail exposure as the manifest).
+router.get("/fields/superset", requireRole("manager"), async (req, res) => {
+  try {
+    res.json({ fields: await resolveLiveSuperset(req) });
+  } catch (err) {
+    req.log.error({ err }, "live superset resolution failed");
+    res.status(502).json({ error: "Could not resolve the live superset" });
   }
 });
 

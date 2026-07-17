@@ -760,10 +760,15 @@ export class DemoBroker implements Broker {
     const canonical = FIELD_REGISTRY.map((f) => ({
       key: f.key, label: f.label, type: f.type, surface: true, store: true,
       sourceSystem: system, sourceField: SAMPLE_NATIVE_FIELDS[f.key] ?? f.key,
+      // Illustrative advertised constraints (a real broker reports its own): text fields cap length, enums
+      // carry their options, so a linked UI field inherits the backend's own validation.
+      ...(f.type === "string" ? { maxLength: 255 } : {}),
+      ...(f.type === "text" ? { maxLength: 32000 } : {}),
+      ...(f.type === "currency" || f.type === "percent" ? { precision: 2 } : {}),
     }));
     const custom = [
-      { key: "customerTier", label: "Customer tier", type: "string", surface: true, store: false, sourceSystem: system, sourceField: "customfield_10200" },
-      { key: "riskScore", label: "Risk score", type: "number", surface: true, store: false, sourceSystem: system, sourceField: "customfield_10201" },
+      { key: "customerTier", label: "Customer tier", type: "enum", surface: true, store: false, sourceSystem: system, sourceField: "customfield_10200", options: ["bronze", "silver", "gold"], nullable: true },
+      { key: "riskScore", label: "Risk score", type: "number", surface: true, store: false, sourceSystem: system, sourceField: "customfield_10201", precision: 0 },
     ];
     return [...canonical, ...custom];
   }

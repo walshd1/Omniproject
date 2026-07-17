@@ -214,13 +214,30 @@ export const BROKER_CONTRACT_SCHEMA = {
         "sourceField": {
           "type": "string",
           "description": "The backend's NATIVE field name/id this canonical field maps from (e.g. \"duedate\", \"customfield_10016\") — supplied by the broker/workflow, so the overlay can say exactly which backend field a value came from."
+        },
+        "maxLength": {
+          "type": "number",
+          "description": "Max character length the backend accepts for this field."
+        },
+        "precision": {
+          "type": "number",
+          "description": "Decimal places for a numeric/currency/percent field."
+        },
+        "options": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Allowed values for an enum field."
+        },
+        "nullable": {
+          "type": "boolean",
+          "description": "Whether the backend accepts an empty value (the UI field is optional)."
         }
       },
       "required": [
         "key"
       ],
       "additionalProperties": false,
-      "description": "A field a backend reports it can expose, from API enumeration during wiring."
+      "description": "A field a backend reports it can expose, from API enumeration during wiring, with the data constraints a linked UI field inherits."
     },
     "FieldSupport": {
       "type": "object",
