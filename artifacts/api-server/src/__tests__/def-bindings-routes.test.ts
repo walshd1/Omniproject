@@ -29,6 +29,8 @@ function cookie(session: object): string {
   return `omni_session=${encodeURIComponent("s:" + value + "." + mac)}`;
 }
 const ADMIN = cookie({ sub: "a", name: "Ada", email: "ada@x.io", roles: ["omni-admins"], amr: ["hwk"] });
+// Same admin, but with a FRESH step-up stamped — required now to SET a lock (a lock mandates lower scopes).
+const ADMIN_STEPPED = cookie({ sub: "a", name: "Ada", email: "ada@x.io", roles: ["omni-admins"], amr: ["hwk"], stepUpAt: Date.now() });
 const MANAGER = cookie({ sub: "m", name: "Mo", email: "mo@x.io", roles: ["delivery-leads"] });
 const CONTRIBUTOR = cookie({ sub: "c", name: "Cee", email: "cee@x.io", roles: ["omni-contributors"] });
 
@@ -55,11 +57,63 @@ test("a user selects their own def for a slot (their private pick); GET reflects
 });
 
 test("org (pmo/admin) selects + LOCKS a slot; a lower scope can no longer rebind it", async () => {
-  assert.equal((await req("/defs/bindings", { method: "PUT", body: { scope: "org", slot: "methodology", defId: "system~scrum", locked: true } })).status, 200);
+  // Setting the LOCK requires a fresh step-up (the mandate action); ADMIN_STEPPED carries one.
+  assert.equal((await req("/defs/bindings", { method: "PUT", body: { scope: "org", slot: "methodology", defId: "system~scrum", locked: true }, cookie: ADMIN_STEPPED })).status, 200);
   const got = (await req("/defs/bindings").then((x) => x.json())) as { org: Record<string, { defId: string; locked?: boolean }> };
   assert.equal(got.org["methodology"]?.locked, true);
   // A user trying to pick their own methodology is refused — the org mandate wins (409).
   assert.equal((await req("/defs/bindings", { method: "PUT", body: { scope: "user", slot: "methodology", defId: "user~kanban" }, cookie: CONTRIBUTOR })).status, 409);
+});
+
+test("setting a LOCK needs a fresh step-up; a plain selection does not", async () => {
+  // A stale (no step-up) admin can SELECT an org def...
+  assert.equal((await req("/defs/bindings", { method: "PUT", body: { scope: "org", slot: "dash", defId: "system~a" }, cookie: ADMIN })).status, 200);
+  // ...but is refused when it tries to LOCK it (403), because a lock mandates lower scopes.
+  const denied = await req("/defs/bindings", { method: "PUT", body: { scope: "org", slot: "dash", defId: "system~a", locked: true }, cookie: ADMIN });
+  assert.equal(denied.status, 403);
+  assert.match(((await denied.json()) as { error: string }).error, /step-up/i);
+  // With a fresh step-up the same lock succeeds.
+  assert.equal((await req("/defs/bindings", { method: "PUT", body: { scope: "org", slot: "dash", defId: "system~a", locked: true }, cookie: ADMIN_STEPPED })).status, 200);
+});
+
+test("a programme binding lives in THAT programme's scope; GET reflects it with ?programmeId", async () => {
+  // Demo mode: the admin resolves to all-scope, so it clears the programmeManager gate and programme scope.
+  assert.equal((await req("/defs/bindings", { method: "PUT", body: { scope: "programme", slot: "screens", defId: "programme~x", programmeId: "prog-1" } })).status, 200);
+  const inProg = (await req("/defs/bindings?programmeId=prog-1").then((x) => x.json())) as { programme: Record<string, { defId: string }> };
+  assert.equal(inProg.programme["screens"]?.defId, "programme~x");
+  // Without the programmeId the tier is skipped entirely (it's opt-in) — the programme map is empty.
+  const noProg = (await req("/defs/bindings").then((x) => x.json())) as { programme: Record<string, unknown> };
+  assert.deepEqual(noProg.programme, {});
+});
+
+test("RBAC + scope: a programme binding needs programmeManager AND that programme's scope", async () => {
+  const prev = {
+    iss: process.env["OIDC_ISSUER_URL"], c: process.env["OIDC_CONTRIBUTOR_ROLES"],
+    pm: process.env["OIDC_PROGRAMME_MANAGER_ROLES"], pre: process.env["OIDC_PROGRAMME_GROUP_PREFIX"],
+  };
+  process.env["OIDC_ISSUER_URL"] = "https://idp.example";
+  process.env["OIDC_CONTRIBUTOR_ROLES"] = "omni-contributors";
+  process.env["OIDC_PROGRAMME_MANAGER_ROLES"] = "programme-leads";
+  process.env["OIDC_PROGRAMME_GROUP_PREFIX"] = "programme:";
+  // A programme lead who OWNS programme "alpha" (group programme:alpha), and one who owns only "beta".
+  const pmAlpha = cookie({ sub: "pa", roles: ["programme-leads", "programme:alpha"] });
+  const contributor = cookie({ sub: "cc", roles: ["omni-contributors"] });
+  try {
+    // A plain contributor lacks the programmeManager rung → 403.
+    assert.equal((await req("/defs/bindings", { method: "PUT", body: { scope: "programme", slot: "s", defId: "programme~x", programmeId: "alpha" }, cookie: contributor })).status, 403);
+    // The programme lead can bind their OWN programme.
+    assert.equal((await req("/defs/bindings", { method: "PUT", body: { scope: "programme", slot: "s", defId: "programme~x", programmeId: "alpha" }, cookie: pmAlpha })).status, 200);
+    // ...but not a programme they don't own — out of scope (403), so a lead's change can't leak sideways.
+    assert.equal((await req("/defs/bindings", { method: "PUT", body: { scope: "programme", slot: "s", defId: "programme~y", programmeId: "beta" }, cookie: pmAlpha })).status, 403);
+    // A programme lead can SELECT but not LOCK without a fresh step-up.
+    assert.equal((await req("/defs/bindings", { method: "PUT", body: { scope: "programme", slot: "s2", defId: "programme~z", programmeId: "alpha", locked: true }, cookie: pmAlpha })).status, 403);
+    const pmAlphaStepped = cookie({ sub: "pa", roles: ["programme-leads", "programme:alpha"], stepUpAt: Date.now() });
+    assert.equal((await req("/defs/bindings", { method: "PUT", body: { scope: "programme", slot: "s2", defId: "programme~z", programmeId: "alpha", locked: true }, cookie: pmAlphaStepped })).status, 200);
+  } finally {
+    for (const [k, v] of [["OIDC_ISSUER_URL", prev.iss], ["OIDC_CONTRIBUTOR_ROLES", prev.c], ["OIDC_PROGRAMME_MANAGER_ROLES", prev.pm], ["OIDC_PROGRAMME_GROUP_PREFIX", prev.pre]] as const) {
+      if (v === undefined) delete process.env[k]; else process.env[k] = v;
+    }
+  }
 });
 
 test("a project binding is confined to THAT project's scope (a PM's change can't leak to another project)", async () => {
