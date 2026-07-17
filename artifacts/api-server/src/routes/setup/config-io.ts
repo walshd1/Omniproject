@@ -17,6 +17,7 @@ import { configDirSummary } from "../../lib/config-dir";
 import { refreshConfigDir, configBackupInfo, clearConfigBackup } from "../../lib/config-refresh";
 import { buildConfigBundle } from "../../lib/config-bundle";
 import { buildSnapshot, applySnapshot } from "../../lib/config-snapshot";
+import { buildDefStoreExport, applyDefStoreExport, DefStoreImportError } from "../../lib/def-store-export";
 import { captureVersion } from "../../lib/config-store";
 import { isDevMode } from "../../lib/dev-mode";
 import { buildDebugBundleZip } from "../../lib/debug-bundle";
@@ -110,6 +111,36 @@ router.post("/setup/restore", requireRole("admin"), (req, res) => {
     res.json({ restored: true, warnings, settings });
   } catch (err) {
     res.status(400).json({ restored: false, error: err instanceof Error ? err.message : "Invalid snapshot" });
+  }
+});
+
+// GET /api/setup/defs-export — a portable JSON backup of EVERYTHING an admin authors into the encrypted
+// stores (imported defs, selection bindings + locks, the def-write policy, custom RBAC roles). The settings
+// snapshot never covered these. The deployment's encryption key never leaves — the bundle is decrypted
+// plaintext the operator secures. Admin + a fresh step-up (this decrypts every customer store at once), audited.
+router.get("/setup/defs-export", requireRole("admin"), requireStepUp, (req, res) => {
+  const bundle = buildDefStoreExport(new Date().toISOString());
+  const count = bundle.collections.reduce((n, c) => n + c.items.length, 0);
+  recordRequestAudit(req, { category: "admin", action: "defs.export", write: false, meta: { collections: bundle.collections.length, items: count } });
+  res
+    .type("application/json")
+    .set("Content-Disposition", `attachment; filename="omniproject-defs-export.json"`)
+    .send(JSON.stringify(bundle, null, 2));
+});
+
+// POST /api/setup/defs-import — reimport a def-store export into THIS instance (e.g. onto a fresh deployment
+// after a full code replacement). The ONLY writer back in: every def is re-validated by its per-kind validator,
+// the read-only system scope is refused, and each collection is re-encrypted under this instance's own key.
+// Admin + a fresh step-up (a bulk write to every customer store), audited with the per-collection report.
+router.post("/setup/defs-import", requireRole("admin"), requireStepUp, (req, res) => {
+  try {
+    const report = applyDefStoreExport(req.body);
+    captureVersion("reimported def-store export");
+    recordRequestAudit(req, { category: "admin", action: "defs.import", write: true, meta: { collections: report.written.length, skipped: report.skipped } });
+    res.json({ imported: true, ...report });
+  } catch (err) {
+    const msg = err instanceof DefStoreImportError ? err.message : (err instanceof Error ? err.message : "Invalid export bundle");
+    res.status(400).json({ imported: false, error: msg });
   }
 });
 

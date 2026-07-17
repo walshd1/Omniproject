@@ -1311,6 +1311,30 @@ authoring, and the drift guards — no feature bypasses the golden rules.
   slice 3 (wire the render seam to the winning def per scope) + slice 4 (select/lock UI); the SPA def-policy
   mirror (`writableDefScopes`) can surface `programme` as an authoring target for a programmeManager.
 
+### X.14 Def-store export / backup + full-instance migration  🚧 In progress
+- **Directive (2026-07-17).** Two goals: (a) an admin can safely take **all their settings AND defs** to back
+  them up or move to a new instance; (b) we can **replace the code entirely on GitHub** and the org can then
+  **reimport their data** — with security maintained throughout.
+- **Finding — the gap.** The portable snapshot (`config-snapshot`) captured a curated **settings subset only**;
+  it never included the **encrypted def stores** (imported defs, selection bindings + locks, the def-write
+  policy, custom RBAC roles). An admin backing up today silently lost every def, binding, and lock.
+- **Slice 1 ✅ (def-store export/import lib + routes).** `lib/def-store-export`: `buildDefStoreExport(now)`
+  walks the customer-authored artifact types (`def`, `def-binding`, `def-policy`, `custom-roles`) via
+  `listAllArtifactCollections`, **excluding the system scope** (our catalogues re-seed from code, so they never
+  travel in a customer backup), into a portable plaintext bundle. `applyDefStoreExport(bundle)` is the ONLY
+  writer back in (the X.10 choke-point rule): it **re-validates every def by its per-kind validator** (a
+  tampered/injected payload is dropped, not written), **refuses the read-only system scope**, requires config
+  blobs to be `{id}` objects, and **re-encrypts each collection under the TARGET instance's own key** via
+  `replaceArtifacts`. **Security end-to-end:** the encryption KEY never leaves — export is decrypted plaintext
+  the operator secures, import re-seals under the new instance's key; both routes are **admin + a fresh
+  step-up + audited** (`GET/POST /api/setup/defs-export|defs-import`, alongside the settings snapshot/restore).
+  So a bundle survives a full code replacement + redeploy and reimports cleanly. 5 lib tests (capture excludes
+  system; wipe→reimport round-trip = migration; system scope refused; invalid def dropped; foreign schema
+  rejected) + 3 route tests (export needs admin+step-up; export→reimport round-trip; import gate + schema
+  reject). API typecheck clean; setup + snapshot + def suites 43/43 green. **Next:** a combined "full backup"
+  bundle (settings snapshot + def-store in one file) + the SPA admin Backup panel to trigger both; optionally
+  widen the settings snapshot to all CHOICE settings for a truly complete config backup.
+
 ### X.9 Library audit — permissive (MIT/BSD/Apache-2.0) code that clears our five gates
 - **The gate (standing rule).** Add third-party code only where it (1) doesn't break our rules
   (stateless / broker-mediated / zero-at-rest), (2) is license-safe (MIT/BSD/Apache-2.0 — no

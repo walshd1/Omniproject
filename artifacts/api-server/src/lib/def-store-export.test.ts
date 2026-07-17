@@ -1,0 +1,91 @@
+import { test, before, after } from "node:test";
+import assert from "node:assert/strict";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+
+// Enable the encrypted artifact store on a temp config dir BEFORE importing anything that reads it.
+process.env["SESSION_SECRET"] = "test-session-secret-do-not-use-in-prod";
+const CONFIG_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "def-store-export-"));
+process.env["OMNI_CONFIG_DIR"] = CONFIG_DIR;
+
+const { putDef, listDefs, seedSystemDef, listSystemDefs } = await import("./def-import");
+const { setScopeBinding, getScopeBindings } = await import("./def-binding");
+const { putArtifact, listArtifacts } = await import("./artifact-store");
+const { buildDefStoreExport, applyDefStoreExport, DEF_STORE_EXPORT_SCHEMA } = await import("./def-store-export");
+
+const now = "2026-07-17T00:00:00.000Z";
+const PRIMITIVE = { id: "grouped-column", label: "Grouped columns", category: "chart", chartType: "bar",
+  description: "compare series", params: [{ key: "data", label: "Rows", type: "rows", required: true, description: "rows" }] };
+const orgDef = { id: "org~d1", kind: "primitive" as const, name: "Chart", createdBy: "a", createdAt: now, updatedAt: now, rowVersion: 1,
+  payload: PRIMITIVE };
+const userDef = { id: "user~d2", kind: "theme" as const, name: "Dark", createdBy: "u", createdAt: now, updatedAt: now, rowVersion: 1,
+  payload: { id: "dark", colors: { primary: "#000" } } };
+
+before(() => {
+  putDef({ kind: "org" }, orgDef);
+  putDef({ kind: "user", sub: "u1" }, userDef);
+  setScopeBinding({ kind: "org" }, "screens", { defId: "org~d1", locked: true });
+  putArtifact("def-policy", { kind: "org" }, { id: "policy", user: "contributor", project: "manager", programme: "programmeManager", org: "admin" });
+  // A SYSTEM def — must NOT appear in a customer export.
+  seedSystemDef("report", "System report", { id: "sr", title: "System report", sections: [] }, now);
+});
+after(() => fs.rmSync(CONFIG_DIR, { recursive: true, force: true }));
+
+test("buildDefStoreExport captures the customer-authored stores and EXCLUDES the system scope", () => {
+  const bundle = buildDefStoreExport(now);
+  assert.equal(bundle.schema, DEF_STORE_EXPORT_SCHEMA);
+  // The org + user defs are present.
+  const defCols = bundle.collections.filter((c) => c.type === "def");
+  const ids = defCols.flatMap((c) => c.items.map((i) => i.id));
+  assert.ok(ids.includes("org~d1") && ids.includes("user~d2"));
+  // No system-scope collection rode along, even though a system def exists.
+  assert.ok(listSystemDefs().length > 0, "a system def was seeded");
+  assert.ok(!bundle.collections.some((c) => c.scope.kind === "system"), "system scope must be excluded");
+  // The binding + policy collections are present too.
+  assert.ok(bundle.collections.some((c) => c.type === "def-binding"));
+  assert.ok(bundle.collections.some((c) => c.type === "def-policy"));
+});
+
+test("applyDefStoreExport re-writes the bundle into a FRESH store (round-trip = full migration)", () => {
+  const bundle = buildDefStoreExport(now);
+  // Simulate a new instance: wipe the artifacts dir, then reimport.
+  fs.rmSync(path.join(CONFIG_DIR, "artifacts"), { recursive: true, force: true });
+  assert.equal(listDefs({ kind: "org" }).length, 0, "store is empty after wipe");
+  const report = applyDefStoreExport(bundle);
+  // Everything came back.
+  assert.equal(listDefs({ kind: "org" })[0]?.id, "org~d1");
+  assert.equal(listDefs({ kind: "user", sub: "u1" })[0]?.id, "user~d2");
+  assert.equal(getScopeBindings({ kind: "org" })["screens"]?.defId, "org~d1");
+  assert.equal(getScopeBindings({ kind: "org" })["screens"]?.locked, true);
+  assert.ok(report.written.some((w) => w.type === "def" && w.scope.kind === "org"));
+});
+
+test("import REFUSES the read-only system scope (it re-seeds from code)", () => {
+  const tainted = {
+    schema: DEF_STORE_EXPORT_SCHEMA, version: 1, createdAt: now,
+    collections: [{ type: "def", scope: { kind: "system" }, items: [{ id: "system~evil", kind: "primitive", name: "x", payload: { id: "x", label: "x", category: "chart", params: [] } }] }],
+  };
+  const report = applyDefStoreExport(tainted);
+  assert.ok(report.warnings.some((w) => /system scope/i.test(w)));
+  assert.ok(report.skipped >= 1);
+});
+
+test("import RE-VALIDATES defs: a tampered/invalid payload is dropped, not written", () => {
+  const bundle = {
+    schema: DEF_STORE_EXPORT_SCHEMA, version: 1, createdAt: now,
+    collections: [{ type: "def", scope: { kind: "org" }, items: [
+      { id: "org~good", kind: "primitive", name: "Good", payload: PRIMITIVE },
+      { id: "org~bad", kind: "primitive", name: "Bad", payload: { not: "a valid primitive" } },
+    ] }],
+  };
+  const report = applyDefStoreExport(bundle);
+  const ids = listArtifacts<{ id: string }>("def", { kind: "org" }).map((d) => d.id);
+  assert.ok(ids.includes("org~good"));
+  assert.ok(!ids.includes("org~bad"), "the invalid def must be dropped");
+  assert.ok(report.skipped >= 1);
+});
+
+test("import rejects an unrecognised schema", () => {
+  assert.throws(() => applyDefStoreExport({ schema: "not-ours", collections: [] }), /schema/i);
+});
