@@ -895,6 +895,25 @@ authoring, and the drift guards — no feature bypasses the golden rules.
   capability governance (permission sets), the group → role mapping, per-collection edit-roles, and the
   definition-importer scope policy — is now all reachable from the admin Settings UI.**
 
+### X.6 Admin-defined custom roles + permission sets  🚧 In progress (slice 1 of 3)
+- **Goal.** Let an org name its own roles ("Finance Analyst", "Delivery Lead") and permission bundles — while
+  keeping the RBAC boundary statically verifiable. **A custom role is always GROUNDED in one of the 6 fixed base
+  roles** (its hard grant ceiling), so it can never confer more than that base — which an admin could already
+  grant via the role-map; this only labels + bundles it. A **permission set** is a named bundle of governance
+  **capability** ids a custom role includes.
+- **Slice 1 ✅ (model + storage + admin CRUD).** `lib/custom-roles`: `PermissionSet { id, label, capabilities[] }`
+  + `CustomRole { id, label, baseRole, permissionSetIds[], groups[] }` + `CustomRolesConfig`; `CUSTOM_ROLE_BASES`
+  (the fixed roles minus `guest`); `sanitizeCustomRolesConfig` — the choke point enforcing **referential
+  integrity** (kebab ids, no collision with a built-in role, `baseRole` ∈ the fixed set, every capability id real
+  via `getCapability`, every `permissionSetId` resolvable); `get`/`setCustomRolesConfig` persist org-wide in the
+  sealed store; `customRolesForClaims` / `capabilitiesForCustomRoles` are the resolution helpers (wired next
+  slice). `routes/custom-roles` — `GET`/`PUT /admin/custom-roles` (admin-only, mounted as a core admin route
+  like `role-map`), returning the base-role + capability pickers the editor needs. 8 tests (validator rejects bad
+  base / built-in collision / unknown capability / dangling ref / guest base; resolution helpers; route CRUD +
+  admin-only RBAC + persistence); guards + gateway + typecheck clean. **Next:** slice 2 — resolve an IdP group →
+  custom role → its base-role grants in `grantsForReq` (safe: never exceeds base; step-up on the CRUD once live);
+  slice 3 — the admin UI to define permission sets + custom roles + assign groups.
+
 The mental model: each entry in the store is a **class** — its config are properties (a field's
 `options`, `maxLength`; a panel's `source`), it produces a typed **value**, and it carries
 **methods** (validate, render, serialise-to-backend). An instance placed on a screen or form is
