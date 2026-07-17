@@ -1129,6 +1129,20 @@ authoring, and the drift guards — no feature bypasses the golden rules.
   (definitions now primary); the importer rejects every non-customer storage target. Both packages typecheck
   clean. **Next:** an explicit "Duplicate to my store" affordance wherever a built-in/shipped def is surfaced for
   editing (make the copy-on-fork a one-click action, not just an implicit re-author).
+- **Correction + Slice 2 ✅ (the SYSTEM store is a real encrypted blob of shipped defaults).** Clarified: "system
+  storage" is not code constants — it's **another encrypted JSON blob** (same sealing as the customer stores)
+  holding all OUR shipped defaults (default screens / reports / rulesets / dashboards / …), **read-only to users**.
+  Modelled it as a new **`system` `ArtifactScope`** (one sealed `system.json` per type) that is deliberately **NOT
+  a `StorageTarget`** — so the importer/editor can never write it; only the product's own seeder can. `def-import`
+  adds `makeSystemDefId` (`system~<localId>`), `listSystemDefs`, and the privileged **`seedSystemDef`** (validates
+  by kind, then seals into the system blob, `createdBy:"system"`). The **resolve-by-kind seam now returns the
+  system defaults** (read-only `system~…` ids) beneath the caller's own defs, so every renderer gets
+  *defaults ∪ customer overrides* from one read. The user importer still rejects a `system` write target (400), so
+  a shipped def can never be overwritten — customising forks to a customer store. 1 route test (a seeded system
+  default is surfaced via resolve with `createdBy:"system"`; the importer refuses to write `system`); artifact-store
+  scope handling extended (`system.json` read/write + filename round-trip); both packages typecheck clean. **Next:**
+  seed the actual shipped catalogues (screens/reports/rulesets/dashboards) into the system store, and the client
+  "Duplicate to my store" fork for a read-only `system~` def.
 
 ### X.9 Library audit — permissive (MIT/BSD/Apache-2.0) code that clears our five gates
 - **The gate (standing rule).** Add third-party code only where it (1) doesn't break our rules

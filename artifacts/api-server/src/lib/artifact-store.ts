@@ -22,7 +22,15 @@ import { safeParseJson } from "./safe-json";
 export type ArtifactScope =
   | { kind: "user"; sub: string }
   | { kind: "project"; projectId: string }
-  | { kind: "org" };
+  | { kind: "org" }
+  // The SYSTEM scope: one encrypted blob holding OUR shipped defaults (default screens/reports/rulesets and the
+  // other defs we ship). READ-ONLY to users — it is deliberately NOT a StorageTarget, so the importer/editor can
+  // never write it; only the product's own seeder populates it. Renderers read it as the default layer beneath a
+  // customer's own defs (which override by id).
+  | { kind: "system" };
+
+/** The single read-only system scope (shipped defaults). */
+export const SYSTEM_SCOPE: ArtifactScope = { kind: "system" };
 
 /**
  * A STORAGE TARGET — where a user-held artifact (a whiteboard, a wiki page) is saved. The first three map to
@@ -81,6 +89,7 @@ const safeToken = (s: string): string => s.replace(UNSAFE, "_").slice(0, 200) ||
 /** The scope's collection filename. */
 function scopeFileName(scope: ArtifactScope): string {
   if (scope.kind === "org") return "org.json";
+  if (scope.kind === "system") return "system.json";
   if (scope.kind === "user") return `user-${safeToken(scope.sub)}.json`;
   return `project-${safeToken(scope.projectId)}.json`;
 }
@@ -146,6 +155,7 @@ export function deleteArtifact(type: string, scope: ArtifactScope, id: string): 
  *  approximate — good enough to READ the collection back for a portfolio sweep, not to reconstruct the sub. */
 function scopeFromFileName(name: string): ArtifactScope | null {
   if (name === "org.json") return { kind: "org" };
+  if (name === "system.json") return { kind: "system" };
   const user = name.match(/^user-(.+)\.json$/);
   if (user) return { kind: "user", sub: user[1]! };
   const project = name.match(/^project-(.+)\.json$/);
