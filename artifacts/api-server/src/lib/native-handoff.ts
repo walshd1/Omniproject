@@ -111,3 +111,23 @@ export function buildVendorUrl(vendor: string, kind: NativeSurfaceKind, action: 
   const segment = externalRef ? `/${encodeURIComponent(externalRef)}` : `/${action === "create" ? "new" : "open"}`;
   return `https://${host}/omni/${encodeURIComponent(kind)}${segment}`;
 }
+
+/**
+ * Build the vendor's sandboxed **Live-Embed** URL (Tier-2 embed preview) — the same host invariant as
+ * {@link buildVendorUrl}: it is only ever built against the vendor's ALLOWLISTED real host, and a full
+ * `externalRef` URL is accepted only when its host matches. The SPA loads this into a sandboxed `<iframe>`
+ * (never our origin); a deployment must also allowlist the host in `CSP_FRAME_SRC` for it to render.
+ */
+export function buildEmbedUrl(vendor: string, kind: NativeSurfaceKind, externalRef?: string): string {
+  const host = vendorHost(vendor);
+  if (!host) throw new NativeHandoffError(`unknown or non-allowlisted vendor "${vendor}"`);
+  if (externalRef && /^https?:\/\//i.test(externalRef)) {
+    let parsed: URL;
+    try { parsed = new URL(externalRef); } catch { throw new NativeHandoffError("externalRef is not a valid URL"); }
+    if (parsed.protocol !== "https:") throw new NativeHandoffError("externalRef must be https");
+    if (parsed.host.toLowerCase() !== host) throw new NativeHandoffError(`externalRef host must be ${host}`);
+    return parsed.toString();
+  }
+  const segment = externalRef ? `/${encodeURIComponent(externalRef)}` : "";
+  return `https://${host}/omni/embed/${encodeURIComponent(kind)}${segment}`;
+}

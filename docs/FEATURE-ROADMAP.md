@@ -720,7 +720,7 @@ authoring, and the drift guards — no feature bypasses the golden rules.
 
 ## Cross-cutting
 
-### X.1 Native handoff (companion-app bridge)  🚧 In progress (slices 1a–1b of 4) — full design in `docs/NATIVE-HANDOFF.md`
+### X.1 Native handoff (companion-app bridge)  🚧 In progress (slices 1a–2 of 4) — full design in `docs/NATIVE-HANDOFF.md`
 - **Rationale.** Our inline artifacts (whiteboard, doc, sheet, board, gantt, dashboard) are "good
   enough"; a **"Use native"** button hands off to the specialist SaaS a connected backend already
   fronts (Miro, Notion, Smartsheet, MS Project, Power BI, …). The user works there under their own
@@ -763,8 +763,20 @@ authoring, and the drift guards — no feature bypasses the golden rules.
   the reference back as an attachment on the anchoring project/issue. Placed in the Whiteboards page header
   (`kind="whiteboard"`, anchored to the convert-target project). 4 component tests (renders nothing with no
   matching surface, one button per vendor, handoff→attach round-trip, no attach without a project context);
-  SPA typecheck clean. **Next:** slices 2–4 (sandboxed Live-Embed preview, OAuth + content import via
-  `safeFetch`, screenshot + AI-vision fallback).
+  SPA typecheck clean.
+- **Slice 2 ✅ (sandboxed Live-Embed preview — Tier 2).** For a surface that advertises the `embed` action, the
+  control offers an inline **PREVIEW**: `native-handoff.buildEmbedUrl` mints the vendor's Live-Embed URL against
+  the same **allowlisted host** invariant (a full `externalRef` is accepted only when its host matches),
+  `DemoBroker` returns it as `NativeHandoff.embedUrl` on the `embed` action, and `<UseNative>` loads it into a
+  **sandboxed `<iframe>`** (`sandbox="allow-scripts allow-same-origin allow-forms allow-popups"`,
+  `referrerPolicy=no-referrer`) isolated from our origin, with a close control. Defence-in-depth on the framing
+  boundary: CSP gains a strict **`frame-src 'none'` default** + an operator `CSP_FRAME_SRC` allowlist knob (which
+  **replaces** `'none'`, since appending a source to `'none'` is invalid CSP) — so a vendor embed only renders
+  where the deployment has explicitly allowlisted that host. 1 lib test (`buildEmbedUrl` host-allowlisted +
+  off-host/http rejected), 1 route test (embed handoff mints `embedUrl`), 2 CSP tests (default `frame-src 'none'`;
+  `CSP_FRAME_SRC` replaces), 2 component tests (sandboxed iframe with the minted src + sandbox attrs, closes; no
+  embed affordance without the `embed` action); both packages typecheck clean. **Next:** slices 3–4 (OAuth +
+  content import via `safeFetch`, screenshot + AI-vision fallback).
 
 ### X.2 AI primitive-authoring studio (companion skill)  ✅ Done (slices 1–4)
 - **Rationale.** Primitives + JSON defs are the app's building blocks, but authoring one means knowing the
@@ -973,6 +985,82 @@ authoring, and the drift guards — no feature bypasses the golden rules.
   untouched by design: `ai-containment`'s `effectiveState` read computes the deployment's AI exposure/containment
   posture (an org-wide security floor, independent of the caller) — not a per-principal gate. mcp + broker-command
   route suites green; typecheck clean.
+
+### X.7 The issue grid as a JSON-defined artifact  ⬜ Todo — designed
+- **Rationale.** The editable data grid (`components/grid/IssueGrid`) still hardcodes its column set
+  (`GRID_COLUMNS`, availability-gated; saved-views can narrow/reorder but only over those hardcoded
+  fields). Per the universal-coverage rule, the grid's **column catalogue/config should be JSON**,
+  org-authorable and RBAC-gated.
+- **Design (from the architecture scout).** The grid is a **distinct editable-data-grid feature** (the
+  `grid` module, mounted in `pages/ProjectDetail`), *not* a `TablePanel` — TablePanel is read-only and
+  lacks the inline-edit/bulk/availability/optimistic-write machinery, so it must **not** be collapsed
+  into a table-panel def. The **live** JSON-config mechanism in this codebase is the **settings-bundle
+  slice** pattern (`/api/dashboards`, `/api/screen-defs`, `/api/screen-layouts` — merged over built-ins),
+  *not* the `/api/defs` importer store (whose `screen`/`dashboard`/`report` kinds are validated but **not
+  consumed by any renderer** — a parallel, half-wired store). So the smallest correct path: a new
+  **`gridColumns` settings-bundle slice** (`GET/PUT /api/grid-columns`, mirroring `lib/org-screens.ts`)
+  merged over the `GRID_COLUMNS` default, keeping `visibleGridColumns` availability-gating at render.
+  Saved-views (`scope:"grid"`) stay the per-user narrowing layer on top.
+- **Constraint.** Stateless lens preserved: a grid-columns def lists which advertised fields to show/edit
+  and in what order — never issue data; columns still intersect with backend availability; writes still go
+  through the broker with the optimistic-concurrency token.
+
+### X.8 Dashboards as JSON-defined artifacts  ✅ Already JSON-defined (finding) — unification optional
+- **Finding (architecture scout).** Dashboards are **already fully JSON-defined and admin-editable** —
+  `Dashboard = { id, name, widgets: DashboardWidget[], refreshMs? }` persisted via `GET/PUT /api/dashboards`
+  (settings bundle), rendered by `pages/Dashboards` with full CRUD (add/remove/reorder widgets, span,
+  auto-refresh, presets, import/export). The placeable widget catalogue is JSON in
+  `@workspace/backend-catalogue` (`widget-catalogue`), drift-guarded against the `WIDGET_COMPONENTS` map;
+  each widget's *internal* rendering is React (a `metric`-like primitive), which is correct — the
+  **composition** is the JSON def. Screens can also embed any dashboard widget via `WidgetPanel`.
+- **The only gap** is consistency of STORE: dashboards use the settings-bundle slice, while the `dashboard`
+  kind in the `/api/defs` importer is **declared but unwired** (validated by `structural(["id"])`, rendered
+  nowhere) — the same state as the `screen`/`report` def kinds. So "dashboards should be JSON-defined" is
+  **already satisfied**; what's *not* done is routing them through the unified importer + scoped encrypted
+  stores (the "everything through one mechanism" vision). That unification (reconciling the two stores) is a
+  larger cross-cutting project — see X.10 — and is optional, not required for dashboards to be JSON-defined.
+
+### X.10 Unify the two JSON stores (importer/scoped-encrypted vs settings-bundle)  ⬜ Todo — open question
+- **Observation.** There are effectively **two JSON-config stores**: (1) the **settings-bundle slices**
+  (`/api/dashboards`, `/api/screen-defs`, `/api/screen-layouts`, `/api/grid-columns` [planned]) which are
+  *live* — merged over built-ins and actually rendered; and (2) the **def importer** (`/api/defs`) into
+  scoped AES-256-GCM stores (user/project/org), which is live for `primitive`/`form` but whose
+  `screen`/`dashboard`/`report` kinds are **validated-but-unconsumed**. The user's stated ideal is one
+  mechanism: *everything a user/admin writes to JSON flows through the importer into the scoped encrypted
+  stores.* Reaching that means making the renderers read from `/api/defs` (or bridging the settings slices
+  onto it) — a real migration with backward-compat + drift-guard implications. Flagged as an explicit
+  decision, not silently assumed.
+
+### X.9 Library audit — permissive (MIT/BSD/Apache-2.0) code that clears our five gates
+- **The gate (standing rule).** Add third-party code only where it (1) doesn't break our rules
+  (stateless / broker-mediated / zero-at-rest), (2) is license-safe (MIT/BSD/Apache-2.0 — no
+  MPL/EPL/GPL, no paid tiers), (3) is auditable, (4) is secure (no new attack surface; ideally less),
+  and (5) genuinely enhances what we have **or** is more secure/safe. Duplicating working hand-rolled
+  code fails gate 5 unless it's demonstrably safer.
+- **Audit verdict (2026-07-17).** A codebase audit checked the tempting candidates against real code:
+  - **DOMPurify (Apache-2.0)** — **SKIP.** No raw-HTML sink exists. The shipped SPA has zero
+    `dangerouslySetInnerHTML`/`innerHTML`; wiki renders structured `DocBlock[]` as escaped React text
+    nodes, embed/proof URLs are scheme-allowlisted server-side (`wiki-doc.sanitizeEmbedUrl`,
+    `proof.SAFE_URL_SCHEMES`), whiteboard SVG is clone-and-serialize *export only* (no import sink).
+    Nothing to sanitize — it would be dead weight, not safety.
+  - **rrule (BSD-3)** — **SKIP for now.** Recurrence is hand-rolled in `recurrence.ts` (~95 lines,
+    tested), covering `daily/weekly/monthly/yearly`, `every N unit`, weekdays, `FREQ=…;INTERVAL=…`, with
+    the fragile cases handled (UTC-midnight to dodge DST, month-end clamping, leap year). rrule only
+    wins if we need full RRULE (BYDAY lists, COUNT, UNTIL, nth-weekday) — no feature needs that yet.
+  - **@tanstack/react-virtual / react-table (MIT)** — **SKIP the dep; extended our own.** We already
+    have a tested, dependency-free `useVirtualRows`; applied it to the issue grid + governance audit
+    trail (2026-07-17) instead of importing a windowing lib.
+  - **React Flow (`@xyflow/react`, MIT)** — **DEFER (genuine future fit).** The natural renderer for
+    the `diagram` native-handoff kind + a future automation-recipe editor (1.2). Adopt when that surface
+    is built, not before.
+  - Already in-tree and leaned on rather than re-added: **`zod`** (v4, validation), **`yjs`** (CRDT
+    co-edit), **`re2js`** (linear-time regex / ReDoS-safe), **`jose`/`openid-client`** (OIDC).
+- **Excluded on license/cost (do not adopt):** BlockNote (MPL), elkjs (EPL), tldraw (non-MIT terms),
+  Bryntum/DHTMLX/Highcharts/AG-Grid/Handsontable (commercial), and the paid-tier traps where the free
+  tier is bait — MUI X Pro/Premium, Tiptap Pro, Schedule-X premium, SheetJS Pro, FullCalendar
+  resource/timeline plugins. If a permissive need arises: `papaparse` (CSV), `fuse.js`/`minisearch`
+  (client search), `graphology` (graph algos), `@dnd-kit` (kanban DnD), `visx` (charts) — all MIT,
+  evaluated per the five gates at adoption time.
 
 The mental model: each entry in the store is a **class** — its config are properties (a field's
 `options`, `maxLength`; a panel's `source`), it produces a typed **value**, and it carries
@@ -1205,3 +1293,9 @@ so an attachment field would be a URL reference (`url` type) pointing at the sys
   already covers the current grammar incl. DST/month-end), **skip @tanstack/react-virtual/table** (we
   extended our own hook instead). Grid + governance tests gained a `data-vrow` wiring assertion; SPA
   typecheck clean.
+- _2026-07-17_ — **X.1 native-handoff slice 2 (sandboxed Live-Embed preview)** shipped: `buildEmbedUrl`
+  (host-allowlisted, off-host rejected), `DemoBroker` returns `embedUrl` on the `embed` action, `<UseNative>`
+  previews it in a sandboxed `<iframe>`; CSP gains a strict `frame-src 'none'` default + operator `CSP_FRAME_SRC`
+  allowlist (replaces 'none'). Roadmap: added the **MIT/permissive library-audit verdict** (X.9) and the
+  **architecture findings** — grid to JSON-define via a `gridColumns` settings slice (X.7), **dashboards already
+  JSON-defined** via `/api/dashboards` (X.8), and the two-store unification as an open decision (X.10).

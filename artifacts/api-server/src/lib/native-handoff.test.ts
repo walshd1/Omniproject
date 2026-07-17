@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  NATIVE_SURFACE_KINDS, vendorHost, buildVendorUrl, sanitizeHandoffRequest, sanitizeImportRequest, NativeHandoffError,
+  NATIVE_SURFACE_KINDS, vendorHost, buildVendorUrl, buildEmbedUrl, sanitizeHandoffRequest, sanitizeImportRequest, NativeHandoffError,
 } from "./native-handoff";
 
 /**
@@ -26,6 +26,16 @@ test("buildVendorUrl builds against the allowlisted host only", () => {
   assert.throws(() => buildVendorUrl("miro", "whiteboard", "open", "https://evil.example/app"), NativeHandoffError);
   assert.throws(() => buildVendorUrl("miro", "whiteboard", "open", "http://miro.com/x"), /https/);
   assert.throws(() => buildVendorUrl("evil", "whiteboard", "open"), NativeHandoffError);
+});
+
+test("buildEmbedUrl builds the sandboxed embed URL against the allowlisted host only", () => {
+  assert.equal(buildEmbedUrl("miro", "whiteboard"), "https://miro.com/omni/embed/whiteboard");
+  assert.equal(buildEmbedUrl("miro", "whiteboard", "board-42"), "https://miro.com/omni/embed/whiteboard/board-42");
+  // A full externalRef URL is accepted ONLY when its host matches the vendor.
+  assert.equal(buildEmbedUrl("miro", "whiteboard", "https://miro.com/app/board/xyz"), "https://miro.com/app/board/xyz");
+  assert.throws(() => buildEmbedUrl("miro", "whiteboard", "https://evil.example/app"), NativeHandoffError);
+  assert.throws(() => buildEmbedUrl("miro", "whiteboard", "http://miro.com/x"), /https/);
+  assert.throws(() => buildEmbedUrl("evil", "whiteboard"), NativeHandoffError);
 });
 
 test("sanitizeHandoffRequest validates kind/vendor/action", () => {

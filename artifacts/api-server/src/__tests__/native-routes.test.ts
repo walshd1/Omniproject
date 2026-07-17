@@ -61,6 +61,13 @@ test("handoff mints a host-allowlisted vendor URL", async () => {
   assert.ok(h.handoffId);
 });
 
+test("an embed handoff also mints the sandboxed Live-Embed URL", async () => {
+  const r = await req("/native/handoff", { method: "POST", body: { kind: "whiteboard", vendor: "demoboard", action: "embed", externalRef: "board-9" } });
+  assert.equal(r.status, 200);
+  const h = (await r.json()) as { url: string; embedUrl?: string; handoffId: string };
+  assert.match(h.embedUrl ?? "", /^https:\/\/example\.com\/omni\/embed\/whiteboard\/board-9$/);
+});
+
 test("a bad / non-allowlisted vendor is 400", async () => {
   assert.equal((await req("/native/handoff", { method: "POST", body: { kind: "whiteboard", vendor: "evil", action: "open" } })).status, 400);
   assert.equal((await req("/native/handoff", { method: "POST", body: { kind: "nope", vendor: "demoboard", action: "open" } })).status, 400);

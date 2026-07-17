@@ -12,8 +12,9 @@ import { UseNative } from "./UseNative";
  */
 const WHITEBOARD: NativeSurface = {
   kind: "whiteboard", vendor: "demoboard", label: "Demoboard",
-  actions: ["open", "create"], importMode: "reference",
+  actions: ["open", "create", "embed"], importMode: "reference",
 };
+const NO_EMBED: NativeSurface = { ...WHITEBOARD, vendor: "plainvendor", label: "Plain", actions: ["open"] };
 
 function seeded(surfaces: NativeSurface[]): QueryClient {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity }, mutations: { retry: false } } });
@@ -57,6 +58,26 @@ describe("UseNative", () => {
     fireEvent.click(attach);
     await waitFor(() => expect(screen.queryByTestId("use-native-attach")).toBeNull());
     open.mockRestore();
+  });
+
+  it("previews an embed-capable surface inline in a sandboxed iframe, and closes it", async () => {
+    mockFetchRouter({
+      "/api/native/handoff": { ok: true, body: { url: "https://example.com/omni/whiteboard/open", embedUrl: "https://example.com/omni/embed/whiteboard", handoffId: "h1" } },
+    });
+    renderWithProviders(<UseNative kind="whiteboard" />, { client: seeded([WHITEBOARD]) });
+    // The embed affordance only shows for a surface that advertises the "embed" action.
+    fireEvent.click(screen.getByTestId("use-native-embed-demoboard"));
+    const frame = await screen.findByTestId("use-native-embed-frame");
+    expect(frame).toHaveAttribute("src", "https://example.com/omni/embed/whiteboard");
+    expect(frame).toHaveAttribute("sandbox", "allow-scripts allow-same-origin allow-forms allow-popups");
+    fireEvent.click(screen.getByTestId("use-native-embed-close"));
+    await waitFor(() => expect(screen.queryByTestId("use-native-embed-frame")).toBeNull());
+  });
+
+  it("offers no embed affordance for a surface without the embed action", () => {
+    renderWithProviders(<UseNative kind="whiteboard" />, { client: seeded([NO_EMBED]) });
+    expect(screen.getByTestId("use-native-plainvendor")).toBeInTheDocument();
+    expect(screen.queryByTestId("use-native-embed-plainvendor")).toBeNull();
   });
 
   it("offers no attach button without a project context to anchor to", async () => {

@@ -29,6 +29,9 @@ const DEFAULTS: Record<string, string> = {
   "base-uri": "'self'",
   "object-src": "'none'",
   "frame-ancestors": "'none'",
+  // No third-party framing by default. A deployment that turns on native-handoff EMBED (Tier-2) sets
+  // CSP_FRAME_SRC to the exact vendor embed hosts it uses (e.g. "https://miro.com https://app.powerbi.com").
+  "frame-src": "'none'",
   "form-action": "'self'",
   // Inline styles are needed by the SPA's styling; scripts stay same-origin only.
   "script-src": "'self'",
@@ -46,6 +49,7 @@ const EXTRA_ENV: Record<string, string> = {
   "connect-src": "CSP_CONNECT_SRC",
   "style-src": "CSP_STYLE_SRC",
   "script-src": "CSP_SCRIPT_SRC",
+  "frame-src": "CSP_FRAME_SRC",
 };
 
 /** Build the CSP policy string (env override wins; else the strict default + any extras).
@@ -56,7 +60,10 @@ export function contentSecurityPolicy(nonce?: string): string {
   const directives: Record<string, string> = { ...DEFAULTS };
   for (const [directive, envName] of Object.entries(EXTRA_ENV)) {
     const extra = process.env[envName]?.trim();
-    if (extra) directives[directive] = `${directives[directive]} ${extra}`.trim();
+    if (!extra) continue;
+    // A directive that defaults to 'none' (e.g. frame-src) must be REPLACED — appending a source to
+    // 'none' is invalid CSP. Otherwise the extra sources are appended to the existing allowlist.
+    directives[directive] = directives[directive] === "'none'" ? extra : `${directives[directive]} ${extra}`.trim();
   }
   if (nonce) directives["script-src"] = `${directives["script-src"]} 'nonce-${nonce}'`.trim();
   const reportUri = process.env["CSP_REPORT_URI"]?.trim();

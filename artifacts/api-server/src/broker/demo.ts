@@ -49,7 +49,7 @@ import {
   type NativeHandoffRequest,
   type NativeImportRequest,
 } from "./types";
-import { buildVendorUrl } from "../lib/native-handoff";
+import { buildVendorUrl, buildEmbedUrl } from "../lib/native-handoff";
 
 /**
  * Demo broker — the fake adapter. Serves canned sample data, needs no network
@@ -815,7 +815,9 @@ export class DemoBroker implements Broker {
 
   async nativeHandoff(_ctx: ActorContext, req: NativeHandoffRequest): Promise<NativeHandoff> {
     const url = buildVendorUrl(req.vendor, req.kind, req.action, req.externalRef);
-    return { url, handoffId: `ho-${++taskAttachmentCounter}` };
+    // Tier-2 embed: also mint the vendor's sandboxed Live-Embed URL (host-allowlisted) for an inline preview.
+    const embedUrl = req.action === "embed" ? buildEmbedUrl(req.vendor, req.kind, req.externalRef) : undefined;
+    return { url, ...(embedUrl ? { embedUrl } : {}), handoffId: `ho-${++taskAttachmentCounter}` };
   }
 
   async nativeImport(ctx: ActorContext, req: NativeImportRequest): Promise<TaskAttachment> {
