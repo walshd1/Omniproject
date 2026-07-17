@@ -171,4 +171,58 @@ describe("BackupStep", () => {
       click.mockRestore();
     }
   });
+
+  // ── Definitions backup (roadmap X.14) ──────────────────────────────────────────────────────────────────
+  const defsFileInput = (container: HTMLElement) => container.querySelectorAll('input[type="file"]')[1] as HTMLInputElement;
+  const defsBundle = (extra: object = {}) => JSON.stringify({ schema: "omniproject/def-store-export", version: 1, collections: [], ...extra });
+
+  it("renders the definitions-backup actions for an admin", () => {
+    const { getByRole, getByText } = renderWithProviders(<BackupStep isAdmin status={status} />);
+    expect(getByText(/Definitions backup/)).toBeInTheDocument();
+    expect(getByRole("button", { name: /Download defs backup/ })).toBeInTheDocument();
+    expect(getByText(/system.*never exported/i)).toBeInTheDocument();
+  });
+
+  it("opens the definitions confirm dialog for a valid def-store file", async () => {
+    const user = userEvent.setup();
+    const { container, findByRole } = renderWithProviders(<BackupStep isAdmin status={status} />);
+    await user.upload(defsFileInput(container), snapshotFile(defsBundle(), "defs.json"));
+    const dialog = await findByRole("alertdialog");
+    expect(dialog).toHaveTextContent(/Restore definitions from backup/);
+    expect(dialog).toHaveTextContent("defs.json");
+  });
+
+  it("rejects a def-store file with the wrong schema", async () => {
+    const user = userEvent.setup();
+    const { container, queryByRole } = renderWithProviders(<BackupStep isAdmin status={status} />);
+    await user.upload(defsFileInput(container), snapshotFile(JSON.stringify({ schema: "nope", collections: [] })));
+    expect(queryByRole("alertdialog")).not.toBeInTheDocument();
+  });
+
+  it("POSTs defs-import on confirmation", async () => {
+    const fetchFn = vi.fn().mockResolvedValue({ ok: true, status: 200, json: () => Promise.resolve({ imported: true, written: [{ type: "def", count: 1 }] }) });
+    globalThis.fetch = fetchFn as unknown as typeof fetch;
+    const user = userEvent.setup();
+    const { container, findByRole, getByRole } = renderWithProviders(<BackupStep isAdmin status={status} />);
+    await user.upload(defsFileInput(container), snapshotFile(defsBundle()));
+    await findByRole("alertdialog");
+    await user.click(getByRole("button", { name: "Restore definitions" }));
+    expect(fetchFn).toHaveBeenCalledWith("/api/setup/defs-import", expect.objectContaining({ method: "POST" }));
+  });
+
+  it("does not download when the export needs a fresh step-up (403 step_up_required)", async () => {
+    const fetchFn = vi.fn().mockResolvedValue({ ok: false, status: 403, json: () => Promise.resolve({ error: "recent re-authentication required", code: "step_up_required" }) });
+    globalThis.fetch = fetchFn as unknown as typeof fetch;
+    const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
+    try {
+      const user = userEvent.setup();
+      const { getByRole } = renderWithProviders(<BackupStep isAdmin status={status} />);
+      await user.click(getByRole("button", { name: /Download defs backup/ }));
+      // downloadDefsExport rejects with Error("step_up_required") → the .catch shows the step-up hint, no anchor click.
+      await waitFor(() => expect(fetchFn).toHaveBeenCalledWith("/api/setup/defs-export", expect.anything()));
+      expect(click).not.toHaveBeenCalled();
+    } finally {
+      click.mockRestore();
+    }
+  });
 });
