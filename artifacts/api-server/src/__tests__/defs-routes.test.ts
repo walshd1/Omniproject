@@ -87,6 +87,25 @@ test("user-scope import round-trips and is sealed at rest", async () => {
   assert.equal((await req(`/defs/${encodeURIComponent(def.id)}`, { method: "DELETE" })).status, 204);
 });
 
+test("resolve-by-kind returns full payloads for renderers (X.10 seam), filtered by kind", async () => {
+  // Seed a couple of dashboard defs in the caller's own scope.
+  const a = await (await req("/defs", { method: "POST", body: { kind: "dashboard", storage: "user", name: "Exec", payload: { id: "exec", name: "Exec", widgets: [{ id: "w1", type: "portfolioHealth" }] } } })).json() as { id: string };
+  await req("/defs", { method: "POST", body: { kind: "primitive", storage: "user", name: "Other", payload: PRIMITIVE } });
+
+  const resolved = (await req("/defs/resolved/dashboard").then((x) => x.json())) as Array<{ id: string; kind: string; payload: { id: string; widgets: unknown[] } }>;
+  const row = resolved.find((r) => r.id === a.id)!;
+  assert.equal(row.kind, "dashboard");
+  assert.equal(row.payload.id, "exec");                         // full payload, unlike the metadata list
+  assert.ok(Array.isArray(row.payload.widgets));
+  assert.ok(resolved.every((r) => r.kind === "dashboard"));     // the primitive def is not included
+
+  // A viewer can read the seam; an unknown kind is 400.
+  assert.equal((await req("/defs/resolved/dashboard", { cookie: VIEWER })).status, 200);
+  assert.equal((await req("/defs/resolved/nope")).status, 400);
+
+  await req(`/defs/${encodeURIComponent(a.id)}`, { method: "DELETE" });
+});
+
 test("edit in place: PUT re-validates, bumps rowVersion, and keeps the kind", async () => {
   const created = await (await req("/defs", { method: "POST", body: { kind: "primitive", storage: "user", name: "Editable", payload: PRIMITIVE } })).json() as { id: string; rowVersion: number };
   const gid = encodeURIComponent(created.id);

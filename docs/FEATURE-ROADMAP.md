@@ -1020,16 +1020,24 @@ authoring, and the drift guards — no feature bypasses the golden rules.
   stores (the "everything through one mechanism" vision). That unification (reconciling the two stores) is a
   larger cross-cutting project — see X.10 — and is optional, not required for dashboards to be JSON-defined.
 
-### X.10 Unify the two JSON stores (importer/scoped-encrypted vs settings-bundle)  ⬜ Todo — open question
-- **Observation.** There are effectively **two JSON-config stores**: (1) the **settings-bundle slices**
-  (`/api/dashboards`, `/api/screen-defs`, `/api/screen-layouts`, `/api/grid-columns` [planned]) which are
-  *live* — merged over built-ins and actually rendered; and (2) the **def importer** (`/api/defs`) into
-  scoped AES-256-GCM stores (user/project/org), which is live for `primitive`/`form` but whose
-  `screen`/`dashboard`/`report` kinds are **validated-but-unconsumed**. The user's stated ideal is one
-  mechanism: *everything a user/admin writes to JSON flows through the importer into the scoped encrypted
-  stores.* Reaching that means making the renderers read from `/api/defs` (or bridging the settings slices
-  onto it) — a real migration with backward-compat + drift-guard implications. Flagged as an explicit
-  decision, not silently assumed.
+### X.10 Unify the two JSON stores (everything through the importer)  🚧 In progress (slice 1 of ~5)
+- **Decision (2026-07-17).** Chosen direction: **unify on the importer** — route dashboards, screens, reports
+  (and the planned grid columns) through `/api/defs` into the scoped AES-256-GCM stores (user/project/org), so
+  *everything a user/admin writes to JSON flows through one validated choke point.* Today there are two stores:
+  the **settings-bundle slices** (`/api/dashboards`, `/api/screen-defs`, `/api/screen-layouts`) are live and
+  rendered; the **importer** (`/api/defs`) is live for `primitive`/`form` but its `screen`/`dashboard`/`report`
+  kinds are **validated-but-unconsumed**. Unification makes the renderers read from the importer.
+- **Slicing.** (1) the resolve-by-kind read seam; (2) dashboards render importer defs (overlay, real validator);
+  (3) reports; (4) screens; (5) migrate/bridge the settings slices + retire the parallel path. Each slice is
+  additive (built-ins/settings keep working) until the final cutover — no big-bang.
+- **Slice 1 ✅ (the resolve-by-kind read seam).** The importer's `GET /api/defs` returns metadata only; renderers
+  need full payloads. Added **`GET /api/defs/resolved/:kind`** (viewer+) returning the stored defs of one kind
+  **with their payloads**, aggregated across the caller's private area + the org area + the requested project
+  (when in scope) — the exact scope logic as the metadata list, so no new authz surface. Two path segments, so
+  it never collides with `/defs/:id`; empty when the store is off; unknown kind → 400. SPA `lib/defs` gains the
+  typed **`useResolvedDefs<T>(kind, projectId?)`** hook — the seam every renderer consumes next. 1 route test
+  (full payloads, kind-filtered, viewer-readable, unknown-kind 400); both packages typecheck clean. **Next:**
+  slice 2 — dashboards render importer `dashboard` defs (a real dashboard validator + overlay on `Dashboards`).
 
 ### X.9 Library audit — permissive (MIT/BSD/Apache-2.0) code that clears our five gates
 - **The gate (standing rule).** Add third-party code only where it (1) doesn't break our rules

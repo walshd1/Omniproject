@@ -77,6 +77,28 @@ router.get("/defs", requireRole("viewer"), (req, res) =>
   }),
 );
 
+// GET /api/defs/resolved/:kind — the stored defs of ONE kind WITH their payloads, aggregated across the
+// caller's private area + the org area + the requested project (when in scope). viewer+. This is the read
+// SEAM that renderers consume to render user-authored defs from the one importer store (roadmap X.10 — the
+// two-store unification). Scope-filtered exactly like the metadata list; only the payload is included here.
+// (Two path segments after /defs, so it never collides with the one-segment /defs/:id.)
+router.get("/defs/resolved/:kind", requireRole("viewer"), (req, res) =>
+  withBrokerErrors(req, res, "resolve_defs failed", async () => {
+    const kind = String(req.params["kind"]);
+    if (!(DEF_KINDS as readonly string[]).includes(kind)) { res.status(400).json({ error: `kind must be one of ${DEF_KINDS.join(", ")}` }); return; }
+    if (!artifactStoreEnabled()) { res.json([]); return; }
+    const projectId = typeof req.query["projectId"] === "string" ? req.query["projectId"] : undefined;
+    const ctx = contextFromReq(req);
+    const rows: StoredDef[] = [];
+    if (ctx.sub) for (const a of listDefs({ kind: "user", sub: ctx.sub })) rows.push(a);
+    for (const a of listDefs({ kind: "org" })) rows.push(a);
+    if (projectId && (await assertProjectScope(req, projectId)).ok) {
+      for (const a of listDefs({ kind: "project", projectId })) rows.push(a);
+    }
+    res.json(rows.filter((r) => r.kind === kind));
+  }),
+);
+
 // GET /api/defs/:id — one stored def with its payload (viewer+, subject to the target gate).
 router.get("/defs/:id", requireRole("viewer"), (req, res) =>
   withBrokerErrors(req, res, "get_def failed", async () => {
