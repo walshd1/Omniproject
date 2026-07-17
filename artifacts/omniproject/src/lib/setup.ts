@@ -287,15 +287,19 @@ export async function importDefsBundle(bundle: unknown): Promise<DefsImportResul
 }
 
 /** Download the FULL backup (settings snapshot + def-store export) as one file. Needs a fresh step-up;
- *  a step-up requirement surfaces as Error("step_up_required"). */
-export async function downloadFullBackup(): Promise<void> {
-  const res = await fetch("/api/setup/full-backup", { credentials: "same-origin" });
+ *  a step-up requirement surfaces as Error("step_up_required").
+ *  `encrypted` downloads the SEALED variant: the COMPLETE state (secrets included) sealed under this
+ *  deployment's own key — restoring it elsewhere needs the same key material. The default (plaintext) variant
+ *  leaves secrets out. */
+export async function downloadFullBackup(encrypted = false): Promise<void> {
+  const res = await fetch(`/api/setup/full-backup${encrypted ? "?encrypted=1" : ""}`, { credentials: "same-origin" });
   if (!res.ok) {
     const body = (await res.json().catch(() => ({}))) as { error?: string; code?: string };
     throw new Error(body.code === "step_up_required" ? "step_up_required" : (body.error || `full backup failed: ${res.status}`));
   }
   const blob = await res.blob();
-  triggerBlobDownload(blob, `omniproject-full-backup-${new Date().toISOString().slice(0, 10)}.json`);
+  const kind = encrypted ? "full-backup-sealed" : "full-backup";
+  triggerBlobDownload(blob, `omniproject-${kind}-${new Date().toISOString().slice(0, 10)}.json`);
 }
 
 export interface FullRestoreResult {

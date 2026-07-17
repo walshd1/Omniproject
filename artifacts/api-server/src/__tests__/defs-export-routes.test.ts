@@ -109,3 +109,37 @@ test("full-restore rejects a foreign schema and needs step-up", async () => {
   assert.equal(bad.status, 400);
   assert.match(((await bad.json()) as { error: string }).error, /schema/i);
 });
+
+test("SEALED full backup is an encrypted envelope that decrypts + restores under this deployment's key", async () => {
+  // Gate: admin + fresh step-up, same as the plaintext variant.
+  assert.equal((await req("/setup/full-backup?encrypted=1", { cookie: CONTRIB })).status, 403);
+  assert.equal((await req("/setup/full-backup?encrypted=1", { cookie: ADMIN })).status, 403);
+
+  const sealed = await req("/setup/full-backup?encrypted=1", { cookie: ADMIN_STEPPED });
+  assert.equal(sealed.status, 200);
+  const sealedBody = await sealed.json() as { schema: string; keyFingerprint: string; sealed: string };
+  assert.equal(sealedBody.schema, "omniproject/full-backup-sealed");
+  assert.ok(sealedBody.keyFingerprint.length > 0);
+  // The payload is ciphertext (a sealed config token), NOT readable JSON — the whole state is encrypted.
+  assert.match(sealedBody.sealed, /^c[12]\./);
+  assert.equal(sealedBody.sealed.includes("system~x"), false, "sealed payload must be ciphertext, not clear config");
+
+  // Restore the sealed backup: it decrypts under this deployment's key and applies BOTH halves.
+  const restore = await req("/setup/full-restore", { method: "POST", body: sealedBody, cookie: ADMIN_STEPPED });
+  assert.equal(restore.status, 200);
+  const report = await restore.json() as { restored: boolean; settingsRestored: boolean; defStore: { written: unknown[] } | null };
+  assert.equal(report.settingsRestored, true);
+  assert.ok((report.defStore?.written.length ?? 0) >= 1);
+  // The org binding survived the sealed round-trip.
+  const bindings = await req("/defs/bindings").then((r) => r.json()) as { org: Record<string, { defId: string }> };
+  assert.equal(bindings.org["screens"]?.defId, "system~x");
+});
+
+test("a sealed backup sealed under a DIFFERENT key cannot be restored (clear error, not a silent wipe)", async () => {
+  const sealedBody = await req("/setup/full-backup?encrypted=1", { cookie: ADMIN_STEPPED }).then((r) => r.json()) as { sealed: string };
+  // Corrupt the ciphertext so the AES-GCM tag no longer authenticates (stands in for a wrong/rotated key).
+  const tampered = { schema: "omniproject/full-backup-sealed", version: 1, createdAt: "t", keyFingerprint: "x", sealed: sealedBody.sealed.slice(0, -6) + "AAAAAA" };
+  const bad = await req("/setup/full-restore", { method: "POST", body: tampered, cookie: ADMIN_STEPPED });
+  assert.equal(bad.status, 400);
+  assert.match(((await bad.json()) as { error: string }).error, /decrypt|key/i);
+});

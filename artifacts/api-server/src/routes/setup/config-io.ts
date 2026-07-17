@@ -18,7 +18,7 @@ import { refreshConfigDir, configBackupInfo, clearConfigBackup } from "../../lib
 import { buildConfigBundle } from "../../lib/config-bundle";
 import { buildSnapshot, applySnapshot } from "../../lib/config-snapshot";
 import { buildDefStoreExport, applyDefStoreExport, DefStoreImportError } from "../../lib/def-store-export";
-import { buildFullBackup, splitFullBackup } from "../../lib/full-backup";
+import { buildFullBackup, splitFullBackup, buildSealedFullBackup, isSealedFullBackup, openSealedFullBackup, SealedBackupError } from "../../lib/full-backup";
 import { captureVersion } from "../../lib/config-store";
 import { isDevMode } from "../../lib/dev-mode";
 import { buildDebugBundleZip } from "../../lib/debug-bundle";
@@ -147,11 +147,25 @@ router.post("/setup/defs-import", requireRole("admin"), requireStepUp, (req, res
 
 // GET /api/setup/full-backup — ONE file with BOTH the settings snapshot AND the def-store export: the "take
 // all my settings and defs to a new instance" artifact. Admin + a fresh step-up (it decrypts every def store),
-// audited. No secrets/keys ride along.
+// audited.
+//   ?encrypted=1 → the SEALED variant: the COMPLETE state (secrets included) sealed under THIS deployment's
+//     own key. Only ciphertext leaves; restoring elsewhere needs the same key material ("keep the encrypted
+//     backup + your keys = the whole system state"). The default (plaintext) variant leaves secrets out.
 router.get("/setup/full-backup", requireRole("admin"), requireStepUp, (req, res) => {
-  const backup = buildFullBackup(getSettings(), new Date().toISOString());
+  const encrypted = req.query["encrypted"] === "1" || req.query["encrypted"] === "true";
+  const now = new Date().toISOString();
+  if (encrypted) {
+    const sealed = buildSealedFullBackup(getSettings(), now);
+    recordRequestAudit(req, { category: "admin", action: "full_backup.export", write: false, meta: { sealed: true, keyFingerprint: sealed.keyFingerprint } });
+    res
+      .type("application/json")
+      .set("Content-Disposition", `attachment; filename="omniproject-full-backup-sealed.json"`)
+      .send(JSON.stringify(sealed, null, 2));
+    return;
+  }
+  const backup = buildFullBackup(getSettings(), now);
   const defItems = backup.defStore.collections.reduce((n, c) => n + c.items.length, 0);
-  recordRequestAudit(req, { category: "admin", action: "full_backup.export", write: false, meta: { defCollections: backup.defStore.collections.length, defItems } });
+  recordRequestAudit(req, { category: "admin", action: "full_backup.export", write: false, meta: { sealed: false, defCollections: backup.defStore.collections.length, defItems } });
   res
     .type("application/json")
     .set("Content-Disposition", `attachment; filename="omniproject-full-backup.json"`)
@@ -162,14 +176,21 @@ router.get("/setup/full-backup", requireRole("admin"), requireStepUp, (req, res)
 // validator (settings → applySnapshot; defs → applyDefStoreExport, which re-validates + re-encrypts). Admin +
 // a fresh step-up, audited. Best-effort per half so a settings-only or defs-only bundle still applies what it has.
 router.post("/setup/full-restore", requireRole("admin"), requireStepUp, (req, res) => {
+  // A sealed backup is decrypted first (needs THIS deployment's key) and its secret-bearing settings ARE
+  // restored — the AES-GCM tag proved the bundle was sealed by this instance's own key. A plaintext backup
+  // applies only the non-secret keys.
+  const sealed = isSealedFullBackup(req.body);
   let halves;
-  try { halves = splitFullBackup(req.body); }
-  catch (err) { res.status(400).json({ restored: false, error: err instanceof Error ? err.message : "Invalid backup" }); return; }
+  try { halves = sealed ? openSealedFullBackup(req.body) : splitFullBackup(req.body); }
+  catch (err) {
+    const msg = err instanceof SealedBackupError ? err.message : (err instanceof Error ? err.message : "Invalid backup");
+    res.status(400).json({ restored: false, error: msg }); return;
+  }
   const warnings: string[] = [];
   let settingsRestored = false;
   if (halves.settings !== undefined) {
     try {
-      const { patch, warnings: w } = applySnapshot(halves.settings);
+      const { patch, warnings: w } = applySnapshot(halves.settings, { allowSecrets: sealed });
       updateSettings(patch);
       warnings.push(...w);
       settingsRestored = true;

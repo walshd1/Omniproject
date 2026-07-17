@@ -1444,8 +1444,33 @@ authoring, and the drift guards — no feature bypasses the golden rules.
   **all their settings AND defs** in one file to back up or move to a new instance; (2) after a **full code
   replacement + redeploy** the org reimports from that file — **security maintained throughout** (no key or
   secret travels; import is admin + step-up + audited, re-validates every def, refuses the system scope, and
-  re-encrypts under the new instance's own key). **Optional future polish:** widen the settings snapshot to all
-  CHOICE settings for maximal config completeness.
+  re-encrypts under the new instance's own key).
+- **Slice 4 ✅ (settings-snapshot COMPLETENESS — "keep your JSON safe, that's your total config").** The
+  snapshot inverted from a hand-maintained **17-key allow-list** (which silently lost priority weights,
+  scheduling, skills, field routing, currency, automations, templates, governance/approval config, the
+  RACI/stakeholder/allocation/budget registers …) to **every classified settings key minus an explicit
+  secret-bearing deny-list** (`config-snapshot`: `ALL_SETTINGS_KEYS` = the whole `SettingsState` key set,
+  `SNAPSHOT_KEYS` = that minus `EXCLUDED_KEYS`). A **drift guard** asserts `captured ∪ excluded == every
+  settings key`, so a new knob travels by default and can never be silently dropped. The **config-purity guard**
+  was scoped to **brokered SoR data only** (it skips the app-authored register/policy subtrees whose field
+  names collide with entity words), so the in-app registers travel as part of the org's state per the directive
+  ("include register content").
+- **Slice 5 ✅ (ENCRYPTED complete-state backup — "secrets can travel because the backup is encrypted; keep the
+  encrypted JSON + your keys = the whole system").** `GET /api/setup/full-backup?encrypted=1` builds the
+  **COMPLETE** backup (every setting **including secrets** + the whole def store) and **seals it under THIS
+  deployment's own config key** (AES-256-GCM via `config-crypto.sealConfig`) — `lib/full-backup`
+  `buildSealedFullBackup` → `{schema:"omniproject/full-backup-sealed", keyFingerprint, sealed}`. Only ciphertext
+  leaves; the key never does. `POST /api/setup/full-restore` **auto-detects** the sealed envelope, decrypts it
+  with this instance's key (`openSealedFullBackup`; a wrong/rotated key → a clear 400, never a silent wipe), and
+  applies the settings half with `allowSecrets:true` — legitimate because the **AES-GCM tag has authenticated**
+  the bundle came from this deployment's own key. The **plaintext** full backup stays secret-free (safe as clear
+  text). The user's chosen key model ("Deployment's own key"): restoring elsewhere needs the same key material
+  (`SESSION_SECRET`/`CONFIG_KEY_RAW`/KMS) — the "private keys" the operator keeps. SPA `BackupStep` gains a
+  **Download encrypted backup** button beside the plaintext one; restore accepts both schemas. Tests: full-backup
+  lib 5/5 (plaintext withholds secrets, sealed carries + round-trips them, tamper/​non-sealed rejected),
+  export routes 7/7 (sealed export gate + ciphertext + decrypt-restore + wrong-key 400), config-snapshot 3/3
+  (drift guard, secret never restored from plaintext), config-purity green, BackupStep 24/24. Both packages
+  typecheck clean.
 
 ### X.9 Library audit — permissive (MIT/BSD/Apache-2.0) code that clears our five gates
 - **The gate (standing rule).** Add third-party code only where it (1) doesn't break our rules
