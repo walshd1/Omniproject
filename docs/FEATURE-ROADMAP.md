@@ -1316,6 +1316,20 @@ authoring, and the drift guards — no feature bypasses the golden rules.
   `primitive` default (bar chart), backend primitive-schema 5/5, SPA charts/artifact/primitive-store 107/107.
   Builtin drop-in primitive JSONs stay SPA-side (methodology-pack glob), unaffected. **Next:** the screens +
   reports authoring/read convergence onto the importer (retire the `screenDefs`/`customReports` settings writers).
+- **SCREENS ✅ converged (X.10 screens; engine/artifacts separate).** Org screen OVERRIDES are now ARTIFACTS in
+  the def store, authored through the ONE importer (kind `screen`); the ENGINE (ScreenRenderer + panels) stays
+  code. Backend: `lib/screen-store` (`resolveScreenDefs`) unions the override set (legacy `settings.screenDefs`
+  bridge < org < project < user, EXCLUDING the `system` built-ins the SPA already carries); `GET
+  /api/screen-defs/resolved` serves it and `PUT /api/screen-defs` is retired to **drain-only** (410 on non-empty,
+  `[]` allowed). SPA: `useOrgScreenDefs` reads the resolved endpoint, so ALL resolution hooks
+  (`useResolvedScreens`/`useScreenDef`/`useRoutedScreens`) switch to the def store by that one change; the built-in
+  catalogue merge is unchanged. `ScreensAdmin` is a **per-def upsert** — Customise POSTs a new / PUTs an existing
+  org `screen` def (id pinned), Reset DELETEs it, plus a one-shot **migrate legacy overrides** button;
+  `useSaveOrgScreenDefs` retired (derived arrays `useMemo`'d — the render-loop lesson). The per-screen
+  `screenLayouts` / `disabledScreens` / `collectionEditRoles` overlays remain small settings-config (policy the
+  renderer applies on top, not definitions) — a later fold-in could move `screenLayouts` into the def. Tests:
+  screen-defs routes 6/6 (importer-authored resolve, drain 410, legacy bridge, malformed→400, pmo gate),
+  ScreensAdmin 7/7, App+ScreenPage 25/25; both packages typecheck clean. **Last remaining:** reports.
 
 ### X.13 `programmeManager` RBAC role — scoped rung, step-up to lock  🚧 In progress
 - **Directive (2026-07-17).** A **programme manager** is a permission level in RBAC, assignable by admin/PMO —
