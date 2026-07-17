@@ -720,7 +720,7 @@ authoring, and the drift guards — no feature bypasses the golden rules.
 
 ## Cross-cutting
 
-### X.1 Native handoff (companion-app bridge)  🚧 In progress (slice 1a of 4) — full design in `docs/NATIVE-HANDOFF.md`
+### X.1 Native handoff (companion-app bridge)  🚧 In progress (slices 1a–1b of 4) — full design in `docs/NATIVE-HANDOFF.md`
 - **Rationale.** Our inline artifacts (whiteboard, doc, sheet, board, gantt, dashboard) are "good
   enough"; a **"Use native"** button hands off to the specialist SaaS a connected backend already
   fronts (Miro, Notion, Smartsheet, MS Project, Power BI, …). The user works there under their own
@@ -753,9 +753,18 @@ authoring, and the drift guards — no feature bypasses the golden rules.
   /native/handoff` + `POST /native/import` (contributor+, 501 when the broker doesn't front it), audited —
   behind the new default-off **`nativeHandoff`** module. 6 lib + 5 route tests (surfaces, minted host-allowlisted
   URL, bad-vendor 400, reference attachment, RBAC); broker-conformance / contract / features / compat guards
-  green; typecheck clean. **Next:** slice 1b — the reusable capability-gated `<UseNative>` SPA control (reads
-  surfaces → per-vendor button → handoff opens the URL → import lands the reference), then slices 2–4 (embed,
-  content import, screenshot+AI fallback).
+  green; typecheck clean.
+- **Slice 1b ✅ (the `<UseNative>` SPA control).** `lib/native` client hooks (`useNativeSurfaces` over
+  `GET /api/native/surfaces`, `useNativeHandoff` / `useNativeImport`) + the reusable capability-gated
+  `<UseNative kind contextRef>` control (`components/native/UseNative`). Purely surface-driven: renders one
+  button per connected vendor that fronts this artifact `kind`, and **nothing at all** when the module is off
+  or nothing advertises the kind (safe to place anywhere). Clicking hands off — opens the minted,
+  host-allowlisted URL in the user's own browser (`window.open` `noopener,noreferrer`) — then offers to bring
+  the reference back as an attachment on the anchoring project/issue. Placed in the Whiteboards page header
+  (`kind="whiteboard"`, anchored to the convert-target project). 4 component tests (renders nothing with no
+  matching surface, one button per vendor, handoff→attach round-trip, no attach without a project context);
+  SPA typecheck clean. **Next:** slices 2–4 (sandboxed Live-Embed preview, OAuth + content import via
+  `safeFetch`, screenshot + AI-vision fallback).
 
 ### X.2 AI primitive-authoring studio (companion skill)  ✅ Done (slices 1–4)
 - **Rationale.** Primitives + JSON defs are the app's building blocks, but authoring one means knowing the

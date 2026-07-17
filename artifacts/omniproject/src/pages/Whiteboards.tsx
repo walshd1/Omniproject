@@ -13,6 +13,7 @@ import {
 import { useLiveCursors } from "../lib/whiteboard-cursors";
 import { CanvasEditor, type CanvasEditorHandle } from "../components/whiteboard/CanvasEditor";
 import { sceneBounds, toExportSvg, svgToPngBlob, downloadBlob, exportFileStem } from "../lib/whiteboard-export";
+import { UseNative } from "../components/native/UseNative";
 
 /**
  * Whiteboards — the visual-canvas page (roadmap 2.3). Browse boards, open one into the native SVG editor
@@ -139,6 +140,9 @@ export function Whiteboards() {
       <div className="flex items-center gap-2">
         <PenTool className="h-5 w-5" />
         <h1 className="text-xl font-black uppercase tracking-widest">Whiteboards</h1>
+        <div className="ml-auto">
+          <UseNative kind="whiteboard" {...(convertProject ? { contextRef: { projectId: convertProject } } : {})} />
+        </div>
       </div>
 
       {unsupported ? (
