@@ -22,6 +22,9 @@ import { safeParseJson } from "./safe-json";
 export type ArtifactScope =
   | { kind: "user"; sub: string }
   | { kind: "project"; projectId: string }
+  // PROGRAMME sits between project and org in the override chain (a project inherits its programme's defs when
+  // it belongs to one). Governance-owned (pmo / a programme's manager); one sealed blob per programme.
+  | { kind: "programme"; programmeId: string }
   | { kind: "org" }
   // The SYSTEM scope: one encrypted blob holding OUR shipped defaults (default screens/reports/rulesets and the
   // other defs we ship). READ-ONLY to users — it is deliberately NOT a StorageTarget, so the importer/editor can
@@ -91,6 +94,7 @@ function scopeFileName(scope: ArtifactScope): string {
   if (scope.kind === "org") return "org.json";
   if (scope.kind === "system") return "system.json";
   if (scope.kind === "user") return `user-${safeToken(scope.sub)}.json`;
+  if (scope.kind === "programme") return `programme-${safeToken(scope.programmeId)}.json`;
   return `project-${safeToken(scope.projectId)}.json`;
 }
 
@@ -165,6 +169,8 @@ function scopeFromFileName(name: string): ArtifactScope | null {
   if (name === "system.json") return { kind: "system" };
   const user = name.match(/^user-(.+)\.json$/);
   if (user) return { kind: "user", sub: user[1]! };
+  const programme = name.match(/^programme-(.+)\.json$/);
+  if (programme) return { kind: "programme", programmeId: programme[1]! };
   const project = name.match(/^project-(.+)\.json$/);
   if (project) return { kind: "project", projectId: project[1]! };
   return null;

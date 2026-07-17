@@ -53,6 +53,33 @@ test("a PROJECT lock pins it for that project's users, but the org can still ove
   assert.equal(canRebind(cfg, "projects", "project", { projectId: "p1" }), true);
 });
 
+test("programme sits between project and org: unlocked precedence user > project > programme > org", () => {
+  const cfg: DefBindingConfig = {
+    org: { screens: { defId: "org~o" } },
+    programme: { prog1: { screens: { defId: "programme~pr" } } },
+    project: { p1: { screens: { defId: "project~pj" } } },
+  };
+  const ctx = { projectId: "p1", programmeId: "prog1" };
+  assert.equal(resolveDefBinding(cfg, "screens", ctx).source, "project");            // most specific
+  assert.equal(resolveDefBinding({ ...cfg, project: {} }, "screens", ctx).source, "programme"); // no project → programme
+  assert.equal(resolveDefBinding({ org: { screens: { defId: "org~o" } } }, "screens", ctx).source, "org"); // only org
+});
+
+test("a PROGRAMME lock pins its projects (a project can't override), but the org still can", () => {
+  const cfg: DefBindingConfig = {
+    programme: { prog1: { screens: { defId: "programme~mandated", locked: true } } },
+    project: { p1: { screens: { defId: "project~pj" } } },
+  };
+  const ctx = { projectId: "p1", programmeId: "prog1" };
+  const r = resolveDefBinding(cfg, "screens", ctx);
+  assert.equal(r.source, "programme");
+  assert.equal(r.lockedBy, "programme");
+  // A project (and user) can't rebind under a programme lock; the programme itself still can.
+  assert.equal(canRebind(cfg, "screens", "project", ctx), false);
+  assert.equal(canRebind(cfg, "screens", "user", ctx), false);
+  assert.equal(canRebind(cfg, "screens", "programme", ctx), true);
+});
+
 test("bindings are per-slot — a lock on one slot doesn't touch another", () => {
   const cfg: DefBindingConfig = { org: { methodology: { defId: "org~scrum", locked: true } } };
   assert.equal(resolveDefBinding(cfg, "methodology", {}).locked, true);
