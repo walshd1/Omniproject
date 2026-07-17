@@ -1111,6 +1111,25 @@ authoring, and the drift guards — no feature bypasses the golden rules.
   **Next:** slice 4 (reports), slice 5 (screens), colours/fonts + business rules, then the `PATCH /api/settings`
   lockdown so the super-writer can't reach a converged slice.
 
+### X.11 Importer/editor access model — everyone, RBAC-scoped; shipped defs read-only  🚧 In progress
+- **Directive (2026-07-17).** (1) The importer AND editor are for **every author** — access to each *store* is
+  RBAC-scoped by the def-policy (own private area for any contributor; project = manager; org = pmo/admin), not
+  an admin-only surface. (2) **Shipped/pre-built defs are read-only**; any edit must be **saved under a new name
+  into a CUSTOMER store** (user/project/org) — never a system store.
+- **Slice 1 ✅ (open the surface + scope the pickers).** The `/definitions` importer/editor nav entry moved from
+  the **admin shelf (pmo/admin only)** to **primary, visible to contributor+** — so a regular author can reach it
+  and save to their private area (the page + route were never role-gated; only the nav hid it). `lib/def-policy`
+  gains `canWriteDefScope` / `writableDefScopes` (mirrors the server gate); the **storage-target pickers** in the
+  Definitions importer and the Dashboards builder now offer **only the scopes the caller can actually write** (a
+  contributor sees just "My private area"), with the server staying authoritative. **Shipped-def read-only is a
+  structural guarantee:** the importer only ever writes the customer scopes `user`/`project`/`org` — there is **no
+  system storage target** (`system`/`builtin`/`shipped`/`sidecar` are all rejected 400), so a pre-built def can
+  never be overwritten; customising one is necessarily a new def in a customer store (the same copy-on-fork the
+  dashboard presets already use). Tests: contributor sees only the private-area target; nav drift guards updated
+  (definitions now primary); the importer rejects every non-customer storage target. Both packages typecheck
+  clean. **Next:** an explicit "Duplicate to my store" affordance wherever a built-in/shipped def is surfaced for
+  editing (make the copy-on-fork a one-click action, not just an implicit re-author).
+
 ### X.9 Library audit — permissive (MIT/BSD/Apache-2.0) code that clears our five gates
 - **The gate (standing rule).** Add third-party code only where it (1) doesn't break our rules
   (stateless / broker-mediated / zero-at-rest), (2) is license-safe (MIT/BSD/Apache-2.0 — no

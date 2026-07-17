@@ -22,7 +22,7 @@ import { Layers, Briefcase, BarChart3, FlaskConical, Settings as SettingsIcon, P
 import { useGetCapabilities } from "@workspace/api-client-react";
 import { canSurfaceEntity } from "./capabilities-fields";
 import { useFeatures, featureEnabled } from "./features";
-import { useAuth, isPmoOrAdmin, type Role } from "./auth";
+import { useAuth, isPmoOrAdmin, roleAtLeast, type Role } from "./auth";
 import { useMethodologyComposition } from "./methodology-composition-api";
 import { visibleRoutedScreens, screenVisibleUnder, type ScreenCatalogueEntry } from "./screen-catalogue";
 import { useRoutedScreens } from "./org-screens";
@@ -74,7 +74,10 @@ export const NAV_ITEMS: NavItem[] = [
   { href: "/explore", i18nKey: "nav.explore", label: "Explore", icon: FlaskConical, chord: "G+E", match: (l) => l.startsWith("/explore"), group: "admin" },
   { href: "/marketplace", i18nKey: "nav.marketplace", label: "Marketplace", icon: Blocks, match: (l) => l.startsWith("/marketplace"), requiresFeature: "marketplace", group: "admin", visibleToRoles: isPmoOrAdmin },
   { href: "/registry", i18nKey: "nav.registry", label: "Registry", icon: Package, match: (l) => l.startsWith("/registry"), requiresFeature: "registry", group: "admin", visibleToRoles: isPmoOrAdmin },
-  { href: "/definitions", i18nKey: "nav.definitions", label: "Definitions", icon: Database, match: (l) => l.startsWith("/definitions"), requiresFeature: "defImporter", group: "admin", visibleToRoles: isPmoOrAdmin },
+  // The importer/editor is for EVERY author — access to each STORE is RBAC-scoped by the def-policy (own
+  // private area for any contributor; project = manager; org = pmo/admin), so the surface itself is visible to
+  // contributor+, not admin-only.
+  { href: "/definitions", i18nKey: "nav.definitions", label: "Definitions", icon: Database, match: (l) => l.startsWith("/definitions"), requiresFeature: "defImporter", group: "primary", visibleToRoles: (r) => roleAtLeast(r, "contributor") },
   { href: "/settings", i18nKey: "nav.settings", label: "Settings", icon: SettingsIcon, chord: "G+S", match: (l) => l.startsWith("/settings"), group: "admin" },
   { href: "/configurator", i18nKey: "nav.configurator", label: "Configurator", icon: PlugZap, chord: "G+C", match: (l) => l.startsWith("/configurator") || l.startsWith("/setup"), group: "admin", visibleToRoles: isPmoOrAdmin },
 ];

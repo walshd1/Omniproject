@@ -17,6 +17,7 @@ import {
 } from "../lib/dashboards";
 import { downloadDashboard, readDashboardFile } from "../lib/dashboard-file";
 import { useResolvedDefs, useImportDef, useUpdateDef, useDeleteDef, type DefStorage } from "../lib/defs";
+import { useDefPolicy, writableDefScopes } from "../lib/def-policy";
 import { primitivesFor } from "../lib/primitive-store";
 import { WidgetView } from "../components/dashboard/widgets";
 import { DataState } from "../components/DataState";
@@ -69,6 +70,9 @@ export function Dashboards() {
   // The working copy while editing (committed to the server on Save).
   const [draft, setDraft] = useState<Dashboard | null>(null);
   // Where a NEW def-backed dashboard is sealed (its scope fixes the write gate). Existing defs keep their scope.
+  // Only the scopes this author can write are offered (server stays authoritative via the def-policy).
+  const { data: defPolicy } = useDefPolicy();
+  const writableScopes = writableDefScopes(auth?.role, defPolicy?.policy);
   const [draftStorage, setDraftStorage] = useState<DefStorage>("user");
   const defWriteBusy = importDef.isPending || updateDef.isPending || deleteDef.isPending;
   const [importError, setImportError] = useState<string | null>(null);
@@ -141,7 +145,7 @@ export function Dashboards() {
   function startNew() {
     const dash: Dashboard = { id: crypto.randomUUID(), name: "New dashboard", widgets: [] };
     setDraft(dash);
-    setDraftStorage("user");
+    setDraftStorage(writableScopes[0] ?? "user");
     setActiveId(dash.id);
     setEditing(true);
   }
@@ -338,9 +342,9 @@ export function Dashboards() {
             {draftIsDef && !isDefId(draft.id) && (
               <select aria-label="Storage target" data-testid="dashboard-storage" value={draftStorage} onChange={(e) => setDraftStorage(e.target.value as DefStorage)}
                 className="border-2 border-foreground bg-background px-2 py-1 text-xs">
-                <option value="user">Personal</option>
-                <option value="project">Project</option>
-                <option value="org">Org-wide</option>
+                {(writableScopes.length ? writableScopes : (["user"] as DefStorage[])).map((s) => (
+                  <option key={s} value={s}>{{ user: "Personal", project: "Project", org: "Org-wide" }[s]}</option>
+                ))}
               </select>
             )}
             <select

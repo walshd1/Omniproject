@@ -128,6 +128,14 @@ test("a bad payload is 400; a bad storage target is 400", async () => {
   assert.equal((await req("/defs", { method: "POST", body: { kind: "primitive", storage: "sidecar", name: "x", payload: PRIMITIVE } })).status, 400);
 });
 
+test("the importer only writes CUSTOMER scopes — there is no system store to write (shipped defs stay read-only)", async () => {
+  // The only valid targets are user/project/org (customer scopes). A "system"/built-in target is rejected, so a
+  // shipped/pre-built def can never be overwritten — customising one must be a NEW def in a customer store.
+  for (const storage of ["system", "builtin", "shipped", "sidecar"]) {
+    assert.equal((await req("/defs", { method: "POST", body: { kind: "primitive", storage, name: "x", payload: PRIMITIVE } })).status, 400);
+  }
+});
+
 test("org target: a contributor can't write it, a pmo/admin can (default org gate)", async () => {
   const prev = { iss: process.env["OIDC_ISSUER_URL"], c: process.env["OIDC_CONTRIBUTOR_ROLES"], v: process.env["OIDC_VIEWER_ROLES"], a: process.env["OIDC_ADMIN_ROLES"] };
   process.env["OIDC_ISSUER_URL"] = "https://idp.example";
