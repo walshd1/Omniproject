@@ -895,7 +895,7 @@ authoring, and the drift guards — no feature bypasses the golden rules.
   capability governance (permission sets), the group → role mapping, per-collection edit-roles, and the
   definition-importer scope policy — is now all reachable from the admin Settings UI.**
 
-### X.6 Admin-defined custom roles + permission sets  ✅ Done (slices 1–3)
+### X.6 Admin-defined custom roles + permission sets  ✅ Done (slices 1–4)
 - **Goal.** Let an org name its own roles ("Finance Analyst", "Delivery Lead") and permission bundles — while
   keeping the RBAC boundary statically verifiable. **A custom role is always GROUNDED in one of the 6 fixed base
   roles** (its hard grant ceiling), so it can never confer more than that base — which an admin could already
@@ -931,6 +931,18 @@ authoring, and the drift guards — no feature bypasses the golden rules.
   role, non-admin empty); settings drift guard + SPA typecheck clean. **X.6 complete: admins can define their own
   permission sets (capability bundles) and custom roles — each grounded in a fixed base role so the RBAC ceiling
   stays statically verifiable — assign IdP groups to them, and the mapping resolves through every existing gate.**
+- **Slice 4 ✅ (permission sets enforce capabilities per-principal).** A permission set's capabilities now
+  actually turn on for a custom role's members. `capability-governance` — `decideCapability` / `enforceCapability`
+  take an optional `granted` set; when a capability's org/surface state is `off` but the caller's grant set
+  includes it, the gate is **lifted** (the stored state is unchanged — no invented config; audited with
+  `grantedByPermissionSet`). `rbac` exposes `roleClaimsForReq`; `custom-roles` adds `capabilitiesForClaims` +
+  `grantedCapabilitiesForReq(req)` (claims → matched custom roles → their permission sets' capabilities). The AI
+  surfaces (`routes/ai` + `routes/studio` `enforceOr403`) now pass `granted: grantedCapabilitiesForReq(req)`, so a
+  member of a custom role whose permission set includes an AI capability gets past that capability gate even when
+  it's off by default. Bounded + safe: the grant lifts ONLY the capability gate — the role/step-up gates, the AI
+  kill switch, and egress/residency controls all still apply. 1 capability test (a grant lifts an off capability;
+  a mismatched grant doesn't) + `capabilitiesForClaims` test; AI/capability/governance/studio route suites green;
+  typecheck clean.
 
 The mental model: each entry in the store is a **class** — its config are properties (a field's
 `options`, `maxLength`; a panel's `source`), it produces a typed **value**, and it carries

@@ -354,6 +354,17 @@ export function scopeForReq(req: Request): Scope {
   return resolveScope(grants, { sub: session.sub, groups: claims });
 }
 
+/** The merged role/group claims for a request (session roles + SCIM group claims), or [] for a guest / no
+ *  session. The same claim set `grantsForReq` resolves — exposed so custom-role capability grants can be
+ *  resolved from the request's groups. */
+export function roleClaimsForReq(req: Request): string[] {
+  const sd = sessionDecision(req);
+  if (!sd) return [];
+  const { session, decision } = sd;
+  if (session.guest) return [];
+  return decision.known ? [...(session.roles ?? []), ...decision.roleClaims] : (session.roles ?? []);
+}
+
 /** Is this request's principal DEPROVISIONED in the SCIM directory? (known + active=false.) */
 export function isDeprovisioned(req: Request): boolean {
   const sd = sessionDecision(req);
