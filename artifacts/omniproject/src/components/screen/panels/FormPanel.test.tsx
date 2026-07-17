@@ -2,14 +2,14 @@ import { describe, it, expect, vi, afterEach } from "vitest";
 import { screen, fireEvent, waitFor } from "@testing-library/react";
 import { QueryClient } from "@tanstack/react-query";
 import { renderWithProviders } from "../../../test/utils";
-import { settingsQueryKey } from "../../../lib/settings-query";
+import { formsResolvedKey } from "../../../lib/forms";
 import { FormPanel } from "./FormPanel";
 import type { Panel } from "../../../lib/screen";
 import type { FormDef } from "../../../lib/forms";
 
 /**
- * FormPanel renders an intake form resolved from the org `forms` config (a slice of /api/settings) and, on
- * submit, POSTs to /api/forms/:id/submit. Covers: the empty state for an unconfigured form, client-side
+ * FormPanel renders an intake form resolved from the def store (`GET /api/forms/resolved`, via `useForms`) and,
+ * on submit, POSTs to /api/forms/:id/submit. Covers: the empty state for an unconfigured form, client-side
  * required-field validation, and a successful submission.
  */
 const FORM: FormDef = {
@@ -23,7 +23,7 @@ const FORM: FormDef = {
 
 function seed(forms: FormDef[]): QueryClient {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity }, mutations: { retry: false } } });
-  qc.setQueryData(settingsQueryKey, { forms });
+  qc.setQueryData(formsResolvedKey, forms); // the resolved submittable set useForms() reads
   return qc;
 }
 

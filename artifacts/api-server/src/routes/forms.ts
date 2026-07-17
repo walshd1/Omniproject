@@ -1,14 +1,16 @@
 import { Router } from "express";
-import { getSettings } from "../lib/settings";
-import { settingsCollectionRouter } from "../lib/settings-collection-router";
-import { requireAnyRole, requireRole, roleForReq } from "../lib/rbac";
+import { getSettings, SettingsValidationError } from "../lib/settings";
+import { captureVersion } from "../lib/config-store";
+import { applySettingsGuarded } from "../lib/settings-guard";
+import { requireRole, roleForReq } from "../lib/rbac";
 import { getBroker, contextFromReq, withBrokerErrors } from "../broker";
+import { actorForAudit } from "../lib/audit";
 import type { IssueWrite } from "../broker/types";
 import { guardProjectScope } from "../lib/project-scope";
 import { evaluateRuleset } from "../lib/ruleset";
 import { resolveCapabilities, type Capabilities } from "../lib/capabilities";
-import { FormDefError, validateForms, validateSubmission, issueWriteFromSubmission, filterIssueWriteToWritable, unwritableMapFields } from "../lib/form-def";
-import type { RequestHandler } from "express";
+import { FormDefError, validateSubmission, issueWriteFromSubmission, filterIssueWriteToWritable } from "../lib/form-def";
+import { findFormDef, resolveFormDefs } from "../lib/form-store";
 
 /** The set of issue fields the connected backend ADVERTISES as storable (`FieldSupport.store`). A form may
  *  only write these — the same capability plane that gates the interactive grid's editable fields. */
@@ -17,39 +19,17 @@ function writableIssueFields(caps: Capabilities): Set<string> {
 }
 
 /**
- * Authoring guard for PUT /forms: a form may only MAP onto issue fields the connected backend advertises as
- * writable. Reject a save that maps to an unsupported field, naming it — so "form edits only allow fields
- * mapped onto vendor-advertised capabilities" holds at authoring time, not just defensively at submit.
- */
-const gateFormTargets: RequestHandler = async (req, res, next) => {
-  let forms;
-  try {
-    forms = validateForms((req.body as { forms?: unknown } | undefined)?.forms);
-  } catch {
-    next(); // shape errors are the settings validator's job (→ 400 there); we only gate capabilities here.
-    return;
-  }
-  const writable = writableIssueFields(await resolveCapabilities(req));
-  for (const f of forms) {
-    const bad = unwritableMapFields(f, writable);
-    if (bad.length > 0) {
-      res.status(400).json({ error: `Form "${f.id}" maps to issue field(s) the connected backend can't store: ${bad.join(", ")}. Remove the mapping or connect a backend that advertises them.` });
-      return;
-    }
-  }
-  next();
-};
-
-/**
  * Intake / request FORMS. Two surfaces:
- *   - the form DEFINITIONS store (GET open, PUT gated to admin/PMO — authoring a form that writes into a
- *     project is a governance act, like screen-defs); and
  *   - the SUBMISSION endpoint, which validates a filled-in form and creates a work item through the broker
  *     (the SAME write path as the issue grid), scope-guarded so a submission can't target a project outside
- *     the caller's scope.
+ *     the caller's scope; and
+ *   - the LEGACY definitions slice (`GET`/`PUT /forms`), now READ-ONLY save-wise: form defs are ARTIFACTS
+ *     authored through the importer (`POST`/`PUT /api/defs`, kind `form`), and the submission route reads them
+ *     from the def store via `findFormDef`. The old settings writer survives only to DRAIN to `[]` (the one-shot
+ *     migration), mirroring the dashboards convergence — so the parallel writer can never re-open as a bypass.
+ *     The form→writable-field capability gate now rides the importer write path (`lib/def-write-hooks`).
  *
- * This is the end-user "capture a request → it becomes work" surface every competitor ships and OmniProject
- * lacked. Nothing is stored here beyond the definitions — submissions land in the system of record via the
+ * Nothing is stored here beyond the (migrating) definitions — submissions land in the system of record via the
  * broker, keeping the stateless-overlay guarantee.
  */
 const router = Router();
@@ -57,7 +37,7 @@ const router = Router();
 /** Submit a filled-in form → create an issue in the form's target project. */
 router.post("/forms/:formId/submit", requireRole("contributor"), async (req, res) => {
   const formId = String((req.params as { formId?: unknown }).formId ?? "");
-  const def = (getSettings().forms ?? []).find((f) => f.id === formId);
+  const def = findFormDef(req, formId);
   if (!def || def.enabled === false) {
     res.status(404).json({ error: "Form not found" });
     return;
@@ -100,13 +80,41 @@ router.post("/forms/:formId/submit", requireRole("contributor"), async (req, res
   }, { projectId: def.target.projectId });
 });
 
-// The form definitions store — read open (the SPA renders forms), write gated to admin/PMO AND to the
-// vendor-advertised writable fields (a form can only map onto fields the backend can store).
-router.use(settingsCollectionRouter({
-  path: "/forms",
-  settingsKey: "forms",
-  versionLabel: "forms updated",
-  writeGuards: [requireAnyRole("admin", "pmo"), gateFormTargets],
-}));
+// The LEGACY form-definitions slice (roadmap X.10 forms convergence). Forms are now DEFINITIONS authored through
+// the importer (`POST`/`PUT /api/defs`, kind `form`); this survives READ-ONLY, plus one permitted write:
+// draining the slice to `[]` (the one-time migration in the forms admin). GET stays so the migration can read
+// the old list; a non-empty write is a retired bypass → 410 Gone, pointing at the importer.
+router.get("/forms", (_req, res) => {
+  res.json({ forms: getSettings().forms ?? [] });
+});
+
+// GET /api/forms/resolved — the RESOLVED submittable set (legacy settings bridge + org/project/user def-store
+// forms, def store winning). The renderer reads THIS (not the legacy slice), so a migrated form shows up and
+// an un-migrated one still does until the drain. Read-open, same as the legacy slice.
+router.get("/forms/resolved", (req, res) => {
+  res.json({ forms: resolveFormDefs(req) });
+});
+
+router.put("/forms", requireRole("pmo"), async (req, res) => {
+  const value = (req.body as Record<string, unknown> | undefined)?.["forms"];
+  if (!Array.isArray(value) || value.length > 0) {
+    res.status(410).json({
+      error: "Forms are now definitions — author them through the importer (POST /api/defs, kind \"form\"). The legacy settings store is read-only and accepts only an empty array to complete migration.",
+    });
+    return;
+  }
+  try {
+    const guarded = await applySettingsGuarded({ forms: [] }, actorForAudit(req)?.sub ?? "admin");
+    if (!guarded.applied) {
+      res.status(202).json({ pending: guarded.pending, message: "This change needs a signed sign-off before it applies. See /api/approvals/inbox." });
+      return;
+    }
+    captureVersion("forms drained (migrated to definitions)");
+    res.json({ forms: getSettings().forms });
+  } catch (err) {
+    if (err instanceof SettingsValidationError) { res.status(400).json({ error: err.message }); return; }
+    throw err;
+  }
+});
 
 export default router;
