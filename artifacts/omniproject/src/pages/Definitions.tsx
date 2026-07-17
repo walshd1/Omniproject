@@ -19,7 +19,7 @@ import { useToast } from "@/hooks/use-toast";
 
 const KIND_LABEL: Record<DefKind, string> = {
   primitive: "Primitive", screen: "Screen", form: "Form", report: "Report", dashboard: "Dashboard",
-  businessRule: "Business rule", theme: "Theme (colours)", font: "Font", jsonDef: "JSON def",
+  businessRule: "Business rule", methodology: "Methodology", theme: "Theme (colours)", font: "Font", jsonDef: "JSON def",
 };
 const STORAGE_LABEL: Record<DefStorage, string> = { user: "My private area", project: "Project", org: "Org-wide" };
 

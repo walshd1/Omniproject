@@ -25,7 +25,7 @@ const GOOD_FORM = {
 };
 
 test("DEF_KINDS is the expected closed set", () => {
-  assert.deepEqual([...DEF_KINDS], ["primitive", "screen", "form", "report", "dashboard", "businessRule", "theme", "font", "jsonDef"]);
+  assert.deepEqual([...DEF_KINDS], ["primitive", "screen", "form", "report", "dashboard", "businessRule", "methodology", "theme", "font", "jsonDef"]);
 });
 
 test("business rules, colour themes and fonts go through the importer too", () => {
@@ -54,6 +54,12 @@ test("report/jsonDef get a structural check", () => {
   assert.equal(validateDef("report", { label: "no id" }).ok, false);
   assert.equal(validateDef("jsonDef", { anything: true }).ok, true);
   assert.equal(validateDef("jsonDef", "not an object").ok, false);
+});
+
+test("methodology needs an id + label", () => {
+  assert.equal(validateDef("methodology", { id: "scrum", label: "Scrum" }).ok, true);
+  assert.equal(validateDef("methodology", { id: "scrum" }).ok, false);   // no label
+  assert.equal(validateDef("methodology", { label: "no id" }).ok, false);
 });
 
 test("dashboard validates against the real Dashboard shape (id + name + widgets[])", () => {

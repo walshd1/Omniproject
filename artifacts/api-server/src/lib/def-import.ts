@@ -19,8 +19,8 @@ import { validateForms } from "./form-def";
 import { validatePrimitiveDef } from "@workspace/backend-catalogue";
 
 /** A user-definable JSON kind the importer accepts. */
-export type DefKind = "primitive" | "screen" | "form" | "report" | "dashboard" | "businessRule" | "theme" | "font" | "jsonDef";
-export const DEF_KINDS: readonly DefKind[] = ["primitive", "screen", "form", "report", "dashboard", "businessRule", "theme", "font", "jsonDef"];
+export type DefKind = "primitive" | "screen" | "form" | "report" | "dashboard" | "businessRule" | "methodology" | "theme" | "font" | "jsonDef";
+export const DEF_KINDS: readonly DefKind[] = ["primitive", "screen", "form", "report", "dashboard", "businessRule", "methodology", "theme", "font", "jsonDef"];
 
 /** The artifact-store type key: one sealed collection per scope holds every stored def. */
 export const DEF_ARTIFACT = "def";
@@ -77,6 +77,7 @@ export function validateDef(kind: DefKind, payload: unknown): DefValidation {
     case "report": return structural(payload, ["id"]);
     case "dashboard": return validateDashboardDef(payload);
     case "businessRule": return structural(payload, ["id"]);
+    case "methodology": return structural(payload, ["id", "label"]);
     case "theme": return validateTheme(payload);
     case "font": return structural(payload, ["id", "family"]);
     case "jsonDef": return structural(payload, []);
