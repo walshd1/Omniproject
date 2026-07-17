@@ -4,7 +4,7 @@ import crypto from "node:crypto";
 import type { Request } from "express";
 
 import { versionConflict } from "../lib/concurrency";
-import { roleFromClaims, grantsFromClaims } from "../lib/rbac";
+import { roleFromClaims, grantsFromClaims, grantsSatisfy, grantsForRole } from "../lib/rbac";
 import { idempotencyKey } from "../broker/reference-broker/index";
 import { resolveCapabilities } from "../lib/capabilities";
 import { buildConfigExport, configEntries } from "../lib/config-export";
@@ -105,12 +105,12 @@ test("grants: pmo and admin are ORTHOGONAL authorities, joinable, each implying 
     // Pure admin: technical authority, NO governance — and manager-level base.
     const admin = grantsFromClaims(["tech"], { isDemo: false });
     assert.deepEqual([...admin.authorities].sort(), ["admin"]);
-    assert.equal(admin.base, "manager");
+    assert.equal(admin.base, "programmeManager");
 
     // Pure PMO: governance authority, NO technical.
     const pmo = grantsFromClaims(["gov"], { isDemo: false });
     assert.deepEqual([...pmo.authorities].sort(), ["pmo"]);
-    assert.equal(pmo.base, "manager");
+    assert.equal(pmo.base, "programmeManager");
 
     // The JOIN: holding both grants the union.
     const both = grantsFromClaims(["gov", "tech"], { isDemo: false });
@@ -128,10 +128,33 @@ test("grants: pmo and admin are ORTHOGONAL authorities, joinable, each implying 
   }
 });
 
+test("grants: programmeManager is a scoped rung above manager, below the authorities", () => {
+  process.env["OIDC_PROGRAMME_MANAGER_ROLES"] = "prog-leads";
+  process.env["OIDC_MANAGER_ROLES"] = "leads";
+  try {
+    const pm = grantsFromClaims(["prog-leads"], { isDemo: false });
+    assert.equal(pm.base, "programmeManager");
+    assert.equal(pm.authorities.size, 0);
+    // Clears manager + programmeManager gates; does NOT hold the pmo/admin authorities.
+    assert.equal(grantsSatisfy(pm, "manager"), true);
+    assert.equal(grantsSatisfy(pm, "programmeManager"), true);
+    assert.equal(grantsSatisfy(pm, "pmo"), false);
+    assert.equal(grantsSatisfy(pm, "admin"), false);
+    // A plain project manager does NOT clear a programmeManager gate.
+    assert.equal(grantsSatisfy(grantsFromClaims(["leads"], { isDemo: false }), "programmeManager"), false);
+    // pmo/admin sit ABOVE it (their implied base clears the programmeManager gate).
+    assert.equal(grantsSatisfy(grantsForRole("pmo"), "programmeManager"), true);
+    assert.equal(grantsSatisfy(grantsForRole("admin"), "programmeManager"), true);
+  } finally {
+    delete process.env["OIDC_PROGRAMME_MANAGER_ROLES"];
+    delete process.env["OIDC_MANAGER_ROLES"];
+  }
+});
+
 test("grants: demo holds every authority (out-of-box usable)", () => {
   const g = grantsFromClaims([], { isDemo: true });
   assert.deepEqual([...g.authorities].sort(), ["admin", "pmo"]);
-  assert.equal(g.base, "manager");
+  assert.equal(g.base, "programmeManager");
 });
 
 test("role-map override: an admin override replaces the env list for that role", async () => {

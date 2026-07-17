@@ -1223,6 +1223,26 @@ authoring, and the drift guards — no feature bypasses the golden rules.
   `/api/defs/resolved`. Only **dashboards** are fully converged (X.10 3a–3c); **forms, reports, screens** still
   use their settings-bundle writers — each needs the same author-via-importer → migrate → retire pattern.
 
+### X.13 `programmeManager` RBAC role — scoped rung, step-up to lock  🚧 In progress
+- **Directive (2026-07-17).** A **programme manager** is a permission level in RBAC, assignable by admin/PMO —
+  a manager whose reach is a whole programme (its projects), sitting above project `manager` and below PMO.
+  Chosen posture (user): a **scoped rung, no hardware key for everyday work; a programme-level LOCK needs a
+  step-up**.
+- **Slice 1 ✅ (the role).** Added **`programmeManager`** to `ROLES` at **base rank 4** (above `manager`, below
+  the authorities); `BASE_RANK`, `ENV_KEY` (`OIDC_PROGRAMME_MANAGER_ROLES`), and the claim ladder all include
+  it. The **authorities (pmo/admin) now imply `programmeManager` base** (they sit above it), computed as the
+  **higher** of the linear rung and the authority-implied rung — so a `[manager + pmo]` claim still clears a
+  `programmeManager` gate; demo holds it. `grantsForRole` + `scope.resolveScope` updated: a `programmeManager`
+  resolves to **programme scope** (their programmes, from the group claims), so the tier gate + the row-level
+  scope together bound them to their programmes. It's **assignable via the existing role-map** (it's one of the
+  fixed `ROLES`, so `getRoleMap`/`setRoleMap` include it — no new mechanism; the SPA `Role`/`roleAtLeast` mirror
+  updated). 1 new test (programmeManager clears manager/programmeManager, not pmo/admin; a plain manager doesn't
+  clear it; pmo/admin sit above it); the 5 RBAC assertions encoding the old "authorities imply manager base"
+  invariant updated; full RBAC suite (gateway 120 + properties + sso-parity + scope + strong-auth + custom-roles
+  + route gating = ~200 tests) green; both packages typecheck clean. **Next:** require step-up on a programme
+  binding LOCK; wire the def-bindings route to accept `programme` scope (programme-manager or pmo/admin +
+  programme scope); the programme importer write path + def-policy gate.
+
 ### X.9 Library audit — permissive (MIT/BSD/Apache-2.0) code that clears our five gates
 - **The gate (standing rule).** Add third-party code only where it (1) doesn't break our rules
   (stateless / broker-mediated / zero-at-rest), (2) is license-safe (MIT/BSD/Apache-2.0 — no

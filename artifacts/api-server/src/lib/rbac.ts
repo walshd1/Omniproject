@@ -46,14 +46,17 @@ import { matchApiToken } from "./api-token";
  * Demo sessions hold every grant so the app is fully usable without an IdP.
  */
 
-export const ROLES = ["guest", "viewer", "contributor", "manager", "pmo", "admin"] as const;
+export const ROLES = ["guest", "viewer", "contributor", "manager", "programmeManager", "pmo", "admin"] as const;
 export type Role = (typeof ROLES)[number];
 
 /** The linear base ladder (everyday hierarchy). `guest` is the FLOOR — below viewer — so a guest
  *  fails every `requireRole("viewer")` gate automatically (locked out of the whole app), and is only
  *  admitted by routes that explicitly gate at `requireRole("guest")` (the client-facing portal). It is
  *  never assigned from IdP claims — only minted on a scoped guest session (see `grantsForReq`). */
-const BASE_RANK = { guest: 0, viewer: 1, contributor: 2, manager: 3 } as const;
+// `programmeManager` is a SCOPED rung above project `manager` and below the authorities — a manager whose
+// reach is a whole programme (its projects), assigned by admin/PMO. Everyday work needs no step-up; only
+// setting a programme-level LOCK does. The authorities (pmo/admin) imply this rung's base, so they sit above it.
+const BASE_RANK = { guest: 0, viewer: 1, contributor: 2, manager: 3, programmeManager: 4 } as const;
 type BaseRole = keyof typeof BASE_RANK;
 /** The claim-mappable base rungs (everything except the synthetic, invite-only `guest`). */
 type ClaimBaseRole = Exclude<BaseRole, "guest">;
@@ -89,6 +92,7 @@ function envRoles(key: string): Set<string> {
 const ENV_KEY: Record<Exclude<Role, "guest">, string> = {
   admin: "OIDC_ADMIN_ROLES",
   pmo: "OIDC_PMO_ROLES",
+  programmeManager: "OIDC_PROGRAMME_MANAGER_ROLES",
   manager: "OIDC_MANAGER_ROLES",
   contributor: "OIDC_CONTRIBUTOR_ROLES",
   viewer: "OIDC_VIEWER_ROLES",
@@ -132,7 +136,7 @@ function cloneOverride(o: Partial<Record<Role, Set<string>>>): Partial<Record<Ro
 }
 
 /**
- * Set admin overrides for the claim→role mapping. ONLY the five known roles are
+ * Set admin overrides for the claim→role mapping. ONLY the known fixed roles are
  * accepted (unknown keys ignored), and each value must be an array of group
  * strings (normalised lower-case). There is no way to add a role or grant a
  * permission — only to decide which IdP groups land in an existing role.
@@ -260,7 +264,7 @@ export function grantsFromClaims(claimRoles: string[], opts: { isDemo: boolean; 
   // Demo (no IdP) holds every grant so the product is fully usable out of the box —
   // there's no real identity to phish in the first place, and this posture is already
   // surfaced/warned about elsewhere (deployment-profile's demoAuthSeverity).
-  if (opts.isDemo) return { base: "manager", authorities: new Set(AUTHORITIES) };
+  if (opts.isDemo) return { base: "programmeManager", authorities: new Set(AUTHORITIES) };
 
   const claims = new Set(claimRoles.map((r) => r.toLowerCase()));
   const hit = (role: Exclude<Role, "guest">) => [...claims].some((c) => rolesFor(role).has(c));
@@ -275,10 +279,15 @@ export function grantsFromClaims(claimRoles: string[], opts: { isDemo: boolean; 
   // `manager` (even when withheld above — the claim itself still proves at least
   // manager-level trust); otherwise fall back to the configured default.
   let base: BaseRole | null = null;
-  for (const r of ["manager", "contributor", "viewer"] as ClaimBaseRole[]) {
+  for (const r of ["programmeManager", "manager", "contributor", "viewer"] as ClaimBaseRole[]) {
     if (hit(r)) { base = r; break; }
   }
-  if (!base) base = claimedAuthorities.size > 0 ? "manager" : defaultBaseRole();
+  // A claimed authority implies `programmeManager` base (the claim proves programme-management-level trust,
+  // and the authorities sit ABOVE that rung) — even when the authority itself is withheld for want of strong
+  // auth. Take the HIGHER of the linear rung and the authority-implied rung, so e.g. a [manager + pmo] claim
+  // still clears a `programmeManager` gate.
+  if (claimedAuthorities.size > 0 && (!base || BASE_RANK[base] < BASE_RANK.programmeManager)) base = "programmeManager";
+  if (!base) base = defaultBaseRole();
   return { base, authorities };
 }
 
@@ -380,8 +389,9 @@ export function roleForReq(req: Request): Role {
 /** The canonical grants for a single named role (the inverse of `displayRole`) — so a
  *  non-request principal (an autonomous actor) can be assigned grants from one role. */
 export function grantsForRole(role: Role): Grants {
-  if (role === "admin") return { base: "manager", authorities: new Set<Authority>(["admin"]) };
-  if (role === "pmo") return { base: "manager", authorities: new Set<Authority>(["pmo"]) };
+  if (role === "admin") return { base: "programmeManager", authorities: new Set<Authority>(["admin"]) };
+  if (role === "pmo") return { base: "programmeManager", authorities: new Set<Authority>(["pmo"]) };
+  if (role === "programmeManager") return { base: "programmeManager", authorities: new Set<Authority>() };
   if (role === "manager") return { base: "manager", authorities: new Set<Authority>() };
   if (role === "contributor") return { base: "contributor", authorities: new Set<Authority>() };
   if (role === "guest") return { base: "guest", authorities: new Set<Authority>() };
