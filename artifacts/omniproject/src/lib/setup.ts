@@ -286,6 +286,39 @@ export async function importDefsBundle(bundle: unknown): Promise<DefsImportResul
   return data;
 }
 
+/** Download the FULL backup (settings snapshot + def-store export) as one file. Needs a fresh step-up;
+ *  a step-up requirement surfaces as Error("step_up_required"). */
+export async function downloadFullBackup(): Promise<void> {
+  const res = await fetch("/api/setup/full-backup", { credentials: "same-origin" });
+  if (!res.ok) {
+    const body = (await res.json().catch(() => ({}))) as { error?: string; code?: string };
+    throw new Error(body.code === "step_up_required" ? "step_up_required" : (body.error || `full backup failed: ${res.status}`));
+  }
+  const blob = await res.blob();
+  triggerBlobDownload(blob, `omniproject-full-backup-${new Date().toISOString().slice(0, 10)}.json`);
+}
+
+export interface FullRestoreResult {
+  restored: boolean;
+  settingsRestored?: boolean;
+  defStore?: { written?: unknown[]; skipped?: number } | null;
+  warnings?: string[];
+  error?: string;
+}
+
+/** Restore BOTH settings + defs from a full backup. Needs a fresh step-up. */
+export async function restoreFullBackup(backup: unknown): Promise<FullRestoreResult> {
+  const res = await fetch("/api/setup/full-restore", {
+    method: "POST",
+    credentials: "same-origin",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(backup),
+  });
+  const data = (await res.json().catch(() => ({}))) as FullRestoreResult & { code?: string };
+  if (!res.ok) throw new Error(data.code === "step_up_required" ? "step_up_required" : (data.error || `full restore failed: ${res.status}`));
+  return data;
+}
+
 export interface ConfigVersion {
   id: string;
   env: string;

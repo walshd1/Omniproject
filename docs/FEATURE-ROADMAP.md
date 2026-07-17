@@ -1340,8 +1340,22 @@ authoring, and the drift guards — no feature bypasses the golden rules.
   panel states plainly that shipped system defs are never exported (they re-seed from code). 5 new component
   tests (actions render; valid def-store file opens the confirm dialog; wrong schema rejected; confirm POSTs
   `defs-import`; a step-up 403 downloads nothing). Both packages typecheck clean; BackupStep 19/19 green.
-  **Next (optional):** a single combined "full backup" file (settings + defs) and widening the settings snapshot
-  to all CHOICE settings for a truly complete config backup.
+- **Slice 3 ✅ (the combined FULL backup — one file, settings + defs).** `lib/full-backup`: `buildFullBackup`
+  composes the settings snapshot + def-store export under one `omniproject/full-backup` envelope;
+  `splitFullBackup` validates the envelope and hands each half back to its own validator on restore.
+  `GET /api/setup/full-backup` + `POST /api/setup/full-restore` (admin + fresh step-up, audited) — restore is
+  best-effort per half (a settings-only or defs-only bundle still applies what it has), the def half runs the
+  full re-validate + re-encrypt path, and nothing is applied on a wrong schema. SPA: a **Full backup (settings +
+  defs)** section in `BackupStep` — one **Download full backup** + **Restore full backup** pair — is the
+  primary "move the whole org to a new instance" action (`downloadFullBackup`/`restoreFullBackup`, same step-up
+  handling). 3 lib + 2 route (full round-trip; schema+step-up gate) + 3 component tests. Both packages typecheck
+  clean; export routes 5/5, full-backup lib 3/3, BackupStep 22/22.
+- **✅ Requirement met (2026-07-17 directive).** Both goals are now delivered end to end: (1) an admin can take
+  **all their settings AND defs** in one file to back up or move to a new instance; (2) after a **full code
+  replacement + redeploy** the org reimports from that file — **security maintained throughout** (no key or
+  secret travels; import is admin + step-up + audited, re-validates every def, refuses the system scope, and
+  re-encrypts under the new instance's own key). **Optional future polish:** widen the settings snapshot to all
+  CHOICE settings for maximal config completeness.
 
 ### X.9 Library audit — permissive (MIT/BSD/Apache-2.0) code that clears our five gates
 - **The gate (standing rule).** Add third-party code only where it (1) doesn't break our rules

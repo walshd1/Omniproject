@@ -18,6 +18,7 @@ import { refreshConfigDir, configBackupInfo, clearConfigBackup } from "../../lib
 import { buildConfigBundle } from "../../lib/config-bundle";
 import { buildSnapshot, applySnapshot } from "../../lib/config-snapshot";
 import { buildDefStoreExport, applyDefStoreExport, DefStoreImportError } from "../../lib/def-store-export";
+import { buildFullBackup, splitFullBackup } from "../../lib/full-backup";
 import { captureVersion } from "../../lib/config-store";
 import { isDevMode } from "../../lib/dev-mode";
 import { buildDebugBundleZip } from "../../lib/debug-bundle";
@@ -142,6 +143,46 @@ router.post("/setup/defs-import", requireRole("admin"), requireStepUp, (req, res
     const msg = err instanceof DefStoreImportError ? err.message : (err instanceof Error ? err.message : "Invalid export bundle");
     res.status(400).json({ imported: false, error: msg });
   }
+});
+
+// GET /api/setup/full-backup — ONE file with BOTH the settings snapshot AND the def-store export: the "take
+// all my settings and defs to a new instance" artifact. Admin + a fresh step-up (it decrypts every def store),
+// audited. No secrets/keys ride along.
+router.get("/setup/full-backup", requireRole("admin"), requireStepUp, (req, res) => {
+  const backup = buildFullBackup(getSettings(), new Date().toISOString());
+  const defItems = backup.defStore.collections.reduce((n, c) => n + c.items.length, 0);
+  recordRequestAudit(req, { category: "admin", action: "full_backup.export", write: false, meta: { defCollections: backup.defStore.collections.length, defItems } });
+  res
+    .type("application/json")
+    .set("Content-Disposition", `attachment; filename="omniproject-full-backup.json"`)
+    .send(JSON.stringify(backup, null, 2));
+});
+
+// POST /api/setup/full-restore — restore BOTH halves from a full backup. Each half runs through its own
+// validator (settings → applySnapshot; defs → applyDefStoreExport, which re-validates + re-encrypts). Admin +
+// a fresh step-up, audited. Best-effort per half so a settings-only or defs-only bundle still applies what it has.
+router.post("/setup/full-restore", requireRole("admin"), requireStepUp, (req, res) => {
+  let halves;
+  try { halves = splitFullBackup(req.body); }
+  catch (err) { res.status(400).json({ restored: false, error: err instanceof Error ? err.message : "Invalid backup" }); return; }
+  const warnings: string[] = [];
+  let settingsRestored = false;
+  if (halves.settings !== undefined) {
+    try {
+      const { patch, warnings: w } = applySnapshot(halves.settings);
+      updateSettings(patch);
+      warnings.push(...w);
+      settingsRestored = true;
+    } catch (err) { warnings.push(`settings not restored: ${err instanceof Error ? err.message : "invalid snapshot"}`); }
+  }
+  let defReport: ReturnType<typeof applyDefStoreExport> | null = null;
+  if (halves.defStore !== undefined) {
+    try { defReport = applyDefStoreExport(halves.defStore); warnings.push(...defReport.warnings); }
+    catch (err) { warnings.push(`defs not restored: ${err instanceof DefStoreImportError ? err.message : (err instanceof Error ? err.message : "invalid export")}`); }
+  }
+  captureVersion("restored from full backup");
+  recordRequestAudit(req, { category: "admin", action: "full_backup.restore", write: true, meta: { settingsRestored, defCollections: defReport?.written.length ?? 0, defSkipped: defReport?.skipped ?? 0 } });
+  res.json({ restored: true, settingsRestored, defStore: defReport ?? null, warnings });
 });
 
 // GET /api/setup/debug-bundle — a reproducible ZIP of config + loaded vendors +
