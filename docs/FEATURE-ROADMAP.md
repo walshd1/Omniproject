@@ -1692,8 +1692,18 @@ explicit, not forgotten. Every item is ⬜ Todo unless noted.
   the screen's SEMANTIC fields to any backend's real field names (same idiom as `fieldOverrides`/`column-mapper`).
   Proven: OpenProject-shaped work packages → the IDENTICAL `WbsElement`/`WbsFinancials` read model the SAP
   fixtures produce (money-as-strings parsed, available computed, level from the parent chain); a third backend's
-  headers give the same output. 4 tests. **Next wiring:** store the mapping as a def through the importer + a
-  broker read that applies it over a generic backend's records, and the read/write **sidecar** target (path 3).
+  headers give the same output. 4 tests. **Slice 3 continued ✅ (the field-mapping / superset series A–E5).**
+  The mapping is now a FIRST-CLASS object: `lib/field-target` gives every field a `(broker, backend)` address
+  (1:1:1); `lib/mapping` is a generic `mapping` def kind authored through the importer, subsuming the legacy
+  `fieldRouting`; scope-resolved system→org→programme→project→user; homeless fields surfaced, never
+  silent-defaulted. The read/write **sidecar** target (path 3) is built (`lib/wbs-sidecar`, `lib/mapping-sidecar`)
+  with a generic `/projects/:id/mapping/:slot` read+write surface any screen/form/report can bind. The **live
+  superset** (`lib/superset` + `GET /api/fields/superset`) is the union of backend-advertised fields ∪ org/
+  programme `customField` defs; each field carries origin + type + length + regex; UI validation is DERIVED from
+  each field's home and enforced on write; a SPA picker (`/field-mapping`) authors the backend↔superset↔UI
+  triple. **Remaining (last mile, external):** the per-`(broker,backend)` read/write ADAPTERS that reach a
+  genuinely different live SAP/OpenProject instance — the routing decision + sidecar leg are done; per-platform
+  adapter instances bound to each endpoint are the remaining work (see §5 proof + `broker/registry.ts`).
 - ✳ **Broader broker catalogue** — Oracle/NetSuite/Workday/MS Project/Smartsheet/monday/Asana/Azure DevOps read+write seams.
 - ✳ **iPaaS / webhook-out / OData feed** (OData read already exists — extend), **bi-directional sync policies**, **field-mapping studio** (partly exists).
 - ⚠ **Data warehouse / lakehouse export** — legitimate, but any retained extract needs the sidecar SoR + explicit retention, not core.
@@ -1742,6 +1752,103 @@ explicit, not forgotten. Every item is ⬜ Todo unless noted.
 - ❄ Storing brokered project/issue data at rest to enable "faster" analytics — breaks zero-at-rest; use the broker + optional sidecar instead.
 - ❄ A bundled proprietary BI engine — broker to SAC/Power BI/Tableau (§4.7).
 - ❄ Re-selling "BYOK / data sovereignty" as a differentiator — the research showed SAP already offers BYOK/HYOK; keep it as hygiene, lead with zero-at-rest + portability instead.
+
+## Phase 5 — SOTA parity gaps (July 2026 review)
+
+Everything below is **possible but not yet done**, harvested from the point-in-time parity review
+(`docs/archive/reviews/SOTA-PARITY-2026-07.md`, five gap clusters + a proof cluster) and the remaining last
+mile of the field-mapping series. Items already covered in Phase 4 are cross-referenced, not repeated. Same
+disposition legend (✳ fits · 🔌 broker-dependent · ⚠ tension · ❄ won't-build). Every item is ⬜ Todo unless
+noted. **Inclusion is capture, not commitment** — several conflict with the zero-at-rest bet and carry a
+state-respecting path.
+
+**Priority read (the review's sequencing):** proof sweep (§5.6) → dependency-graph + sprint/epic entities
+(§5.5) → collaboration layer (§5.1) → automation recipes (§4.1.2/§5.3) → agentic execution + evals (§5.2) →
+multi-tenancy → managed offering (§5.4).
+
+### 5.1 Interactive collaboration UX (bar: Linear / Monday / Asana / Notion)
+- ✳ **Rich-text everywhere** — a Tiptap/ProseMirror/Slate editor for comments/descriptions with slash-commands,
+  inline mentions, embeds. Editor state is client-side; no at-rest conflict. (Comments are a plain `<textarea>` today.)
+- ✳ **Mention autocomplete** — client typeahead against project members (mentions are parsed server-side already; pure UI).
+- ⚠ **Real-time co-editing** — CRDT/OT co-editing + live cursors on text. State-respecting path: **ephemeral** Yjs
+  over the existing SSE/Redis bus, never persisted. (Presence today is avatars + advisory soft-locks.)
+- ✳ **Interactive Gantt dependency editing** — dependency arrows, link create/edit, bar-resize handles,
+  critical-path overlay ON the timeline. Blocked on the `dependsOn[]` contract entity (§5.5). Extends §4.10.
+- ✳ **Kanban swimlanes + WIP-limit enforcement** — swimlane grouping (assignee/epic/priority) + board-level
+  `wipLimit` enforcement (the methodology packs already declare the concept).
+- ⚠ **Binary attachments** — filename+URL references only today (zero-at-rest by design). State-respecting path:
+  **streaming pass-through upload to the backend's own blob store** through the broker (gateway as courier,
+  never buffered at rest) — an attachment is a superset field whose home is the backend's blob store.
+- ✳ **Global undo** — app-wide undo stack / `Cmd+Z` across recent mutations (per-action toast undo exists).
+- ✳ **Per-user notification preferences** — per-event/per-channel subscription, quiet hours, digest opt-in
+  (small per-user state; today one localStorage on/off + role/list digests). Extends §4.10.
+- ⚠ **Offline / local-first read cache** — a bounded, encrypted, session-scoped on-device read cache (full
+  local-first is off-thesis). Extends 2.5.
+
+### 5.2 AI — the capability half (bar: 2026 agentic)
+- ⚠→✳ **Supervised agentic execution mode** — a bounded execution mode over the existing rails (autonomous
+  principals, capability grants, kill-switch, audit chain): pre-approved action classes, per-run budgets,
+  step-by-step audit, instant revoke. A *policy* upgrade more than architecture. (Everything is propose-only today.)
+- ⚠ **Predictive / learned analytics** — risk scoring, delivery-date prediction, anomaly detection trained over
+  the **customer-owned** time-travel/logging store + snapshot exports (models are derived artifacts; data stays
+  theirs). Blocked until the time-travel plane is production-proven (§5.6). Deepens §4.4.
+- ⚠ **Retrieval quality (RAG)** — an **ephemeral, per-session, in-memory** embedding index over the read model
+  (copilot is snapshot-in-prompt today; 0 vector-index hits). Respects zero-at-rest.
+- ✳ **AI evaluation / benchmark suite** — a golden-question corpus per surface (copilot Q&A, NL→action,
+  estimation) with scored, regression-gated CI runs. Today these accuracies are candidly "unbenchmarked."
+
+### 5.3 In-product automation (bar: B1 / B4) — extends §1.2
+- ✳ **Durable scheduling** — external-cron-first (trigger endpoints exist) + an optional Redis-backed
+  delayed-job mode (retries/backoff/dead-letter) on the shared-state seam. Schedulers are in-process
+  `setInterval` today (lost on restart, per-replica).
+- ✳ **Consumer-facing domain-event stream** — a full event vocabulary (issue.updated, project.created, …) over
+  the outbound-webhook seam; the broker sees every write, so richer events are incremental. (3 event types today.)
+
+### 5.4 Platform plumbing (bar: modern SaaS)
+- ⚠ **Server-side / full-text search** — push search down to backends that support it (JQL, OpenProject
+  filters) via a broker `search` capability, or an ephemeral per-session in-memory index. Global search is a
+  client-side 8-project fan-out today; a persistent index is a copy (off-thesis).
+- ✳ **Multi-tenancy (implementation)** — designed end-to-end (`docs/archive/design/MULTI-TENANCY-DESIGN.md`),
+  not built; single-tenant today. Unlocks per-tenant rate plans/quotas + the pooled managed offering. Extends §4.11.
+- ✳ **Third-party plugin runtime + sandbox + versioned extension API** — the seven-planes catalogue is the
+  substrate; the missing layer is packaging/sandboxing/distribution (Forge/Monday-apps parity). Extends §4.11.
+- ✳ **Managed / hosted offering + one-click deploy** — self-host only today; at least one-click deploys, ideally
+  a hosted tier (gated on multi-tenancy). Extends §4.11.
+- ✳ **GraphQL (or equivalent typed query API)** — REST + OpenAPI + OData today; noted because every B1 benchmark
+  ships one (arguably optional given OData + generated clients).
+- ✳ **i18n breadth** — 15–30+ full locales (4 curated today; framework ready).
+- ✳ **Fleet-consistent runtime state** — move the per-replica RAM registries (session cap, settings store,
+  audit-chain head, presence rooms, **the 200-entry governance log — flagged compliance gap**) onto the existing
+  Redis/file-backed shared-state seam. Cross-refs TECH-DEBT §2.
+
+### 5.5 Domain-model entities in the contract (bar: B1 / B2)
+The single highest-leverage contract change — four concepts that are vocabulary strings today, not entities:
+- ✳ **Explicit dependency graph (`dependsOn[]`)** — readable/writable edges through the broker. **The review's
+  #2 priority:** one addition unlocks interactive Gantt links, network diagrams, true critical path on live
+  data, and cascade-reschedule. (Today: `blocked`/`blockedReason` flags + exploration hash-links only.)
+- ✳ **Sprints / iterations as entities** — open/close/carry-over, sprint goals, real velocity history (derived from labels/fields today).
+- ✳ **Epics / work-item hierarchy** — epic→story→subtask in the contract (`parentTaskId` on GTD tasks only today).
+- ✳ **Milestones & baselines as entities** — versioned baselines + variance-to-baseline over time (`baseline()` read exists; milestones are date fields).
+- ✳ **Per-entry worklog model** — time tracking is aggregate `loggedHours` + timesheets; no per-entry worklog.
+- 🔌 **Live FX feed** — the fallback rate table is `provenance: "sample"`; broker a live FX source (ENTERPRISE-READINESS roadmap #1).
+
+### 5.6 Proof — verified against the real world (bar: "state of the art in production")
+The review's #1 cluster: much of the surface is proof-gapped, not feature-gapped. All are **possible** but need
+external infrastructure a CI sandbox can't reach (so they are execution/attestation work, not code work):
+- ✳ **Live n8n contract execution in CI** — run the generated contract workflow inside real n8n (queue mode).
+  TECH-DEBT §1's single highest-value missing test. The load harness (`scripts/src/load-harness.ts`) is ready
+  and correctly refuses to let demo numbers pass as real.
+- 🔌 **2–3 live-tenant-verified flagship backends** — 0 of 41 catalogued are live-verified (SAP/Oracle/NetSuite/
+  D365 "catalogued, not live"); SQL/Mongo sidecars untested against real DBs. Also the field-mapping **external
+  read/write adapters** (§4.6 last mile).
+- ✳ **Published scale / load result** — against a gateway wired to real n8n + backend; queue-mode numbers are placeholders.
+- ✳ **Independent attestation** — pen-test summary, SOC 2 / ISO 27001 *certificates* (control mappings exist),
+  signed images (cosign parked), GitHub native secret-scanning on.
+- ✳ **KMS / vault / OTLP live verification** + **Authentik blueprint applied live** (mock-verified only today).
+- ✳ **Tested multi-region DR runbook** + a multi-replica (not single-SQLite) sample manifest.
+- ✅ **Exploration replica-workbench dirty-flag data-loss bug — FIXED** (per-source dirty tracking; commit
+  `f565521`). One blocker to promoting time-travel/exploration out of Experimental/Beta is now cleared; the rest
+  is end-to-end verification of the time-travel plane.
 
 ## Status legend
 
@@ -1911,3 +2018,15 @@ explicit, not forgotten. Every item is ⬜ Todo unless noted.
   zero-at-rest + broker-mediated + JSON-config portability (NOT BYOK/sovereignty — SAP already ships that).
   Highest-leverage next bets flagged: a portfolio-grounded copilot (§4.4), a first-class SAP read connector
   (§4.6), and config diff/staged-promotion to sharpen the portability wedge vs SAP CTS/CTS+ (§4.9).
+- _2026-07-17_ — Field-mapping / superset series (A–E5) shipped: `(broker, backend)` field addressing
+  (`lib/field-target`, 1:1:1), a first-class `mapping` def kind that subsumes `fieldRouting`, homeless-fields
+  surfaced not silent-defaulted, the read/write sidecar target + generic `/mapping/:slot` surface, the live
+  superset (backend-advertised ∪ org/programme `customField` defs, with type/length/regex + home-derived
+  validation), and a `/field-mapping` SPA picker. §4.6 slice 3 updated to reflect it; external per-`(broker,
+  backend)` adapters remain the last mile (§5.6).
+- _2026-07-17_ — **Phase 5 added — SOTA parity gaps (July 2026 review):** captured everything possible-but-
+  not-done from `docs/archive/reviews/SOTA-PARITY-2026-07.md` (five gap clusters + proof) plus the field-
+  mapping last mile — §5.1 collaboration UX, §5.2 AI capability half, §5.3 in-product automation, §5.4 platform
+  plumbing, §5.5 domain-model entities (`dependsOn[]` the #2 priority), §5.6 proof (external verification).
+  Disposition-tagged; the review's closing sequence recorded. Also logged: the exploration replica-workbench
+  dirty-flag data-loss bug is FIXED (per-source dirty tracking, commit `f565521`).
