@@ -720,7 +720,7 @@ authoring, and the drift guards — no feature bypasses the golden rules.
 
 ## Cross-cutting
 
-### X.1 Native handoff (companion-app bridge)  ⬜ Todo — full design in `docs/NATIVE-HANDOFF.md`
+### X.1 Native handoff (companion-app bridge)  🚧 In progress (slice 1a of 4) — full design in `docs/NATIVE-HANDOFF.md`
 - **Rationale.** Our inline artifacts (whiteboard, doc, sheet, board, gantt, dashboard) are "good
   enough"; a **"Use native"** button hands off to the specialist SaaS a connected backend already
   fronts (Miro, Notion, Smartsheet, MS Project, Power BI, …). The user works there under their own
@@ -742,6 +742,20 @@ authoring, and the drift guards — no feature bypasses the golden rules.
   vault/`storeCredential` + egress/residency + provenance/audit + the primitive store (`kind`).
 - **Slices.** (1) reference handoff + `<UseNative>` button; (2) sandboxed Live-Embed preview;
   (3) OAuth + content import (metadata/thumbnail via `safeFetch`).
+- **Slice 1a ✅ (the contract + reference broker path + routes).** The broker contract gains the sketched types
+  (`NativeSurfaceKind`, `NativeSurface`, `NativeContextRef`, `NativeHandoffRequest`, `NativeHandoff`,
+  `NativeImportRequest`) + three **optional** `Broker` methods (`nativeSurfaces` / `nativeHandoff` /
+  `nativeImport`). `lib/native-handoff` holds the security-critical bits: a **vendor→host allowlist**
+  (`VENDOR_HOSTS`), `buildVendorUrl` (a handoff URL is built ONLY against the vendor's allowlisted host, and an
+  `externalRef` full URL is accepted only when its host matches — no off-host redirect / SSRF pivot), and the
+  request sanitisers. `DemoBroker` implements all three (an illustrative `demoboard` vendor) so the reference
+  flow runs end to end. `routes/native` — `GET /native/surfaces` (viewer+, empty when none), `POST
+  /native/handoff` + `POST /native/import` (contributor+, 501 when the broker doesn't front it), audited —
+  behind the new default-off **`nativeHandoff`** module. 6 lib + 5 route tests (surfaces, minted host-allowlisted
+  URL, bad-vendor 400, reference attachment, RBAC); broker-conformance / contract / features / compat guards
+  green; typecheck clean. **Next:** slice 1b — the reusable capability-gated `<UseNative>` SPA control (reads
+  surfaces → per-vendor button → handoff opens the URL → import lands the reference), then slices 2–4 (embed,
+  content import, screenshot+AI fallback).
 
 ### X.2 AI primitive-authoring studio (companion skill)  ✅ Done (slices 1–4)
 - **Rationale.** Primitives + JSON defs are the app's building blocks, but authoring one means knowing the

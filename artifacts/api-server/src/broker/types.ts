@@ -607,6 +607,57 @@ export interface SchemaManifest {
   populated?: string[];
 }
 
+// ── Native handoff (companion-app bridge) — see docs/NATIVE-HANDOFF.md ──────────────────────────────────────
+/** An artifact kind OmniProject renders inline and a backend can front NATIVELY (Miro, Notion, …). Matches
+ *  our primitive/artifact kinds so the SPA can offer "Use native" on the right surfaces. */
+export type NativeSurfaceKind =
+  | "whiteboard" | "document" | "diagram" | "sheet" | "board"
+  | "schedule" | "dashboard" | "report" | "form" | "wiki";
+
+/** What a connected backend advertises it can do natively for a given artifact kind. Pure metadata — no
+ *  secrets, no URLs (URLs are minted per-request by `nativeHandoff`, host-allowlisted server-side). */
+export interface NativeSurface {
+  kind: NativeSurfaceKind;
+  vendor: string;                 // catalogue vendor id, e.g. "miro", "notion", "smartsheet"
+  label: string;                  // "Open in Miro"
+  actions: Array<"open" | "create" | "embed">;
+  /** How the artifact comes back: "reference" (a bare link; always available, zero-at-rest),
+   *  "content" (pull data via the vendor API), or "screenshot" (capture + AI vision). */
+  importMode: "reference" | "content" | "screenshot";
+}
+
+/** Anchor: WHAT OmniProject entity the native surface is bound to, so a reimport attaches back. */
+export interface NativeContextRef {
+  projectId?: string;
+  issueId?: string;
+  entity?: string;
+  id?: string;
+}
+
+export interface NativeHandoffRequest {
+  kind: NativeSurfaceKind;
+  vendor: string;
+  action: "open" | "create" | "embed";
+  contextRef?: NativeContextRef;
+  externalRef?: string;           // for "open": deep-link to an artifact from a prior import
+}
+
+/** The vetted, connector-minted handoff. `url` is built by the connector against the vendor's REAL domain
+ *  (host-allowlisted) — never from user input. `embedUrl` is the vendor's sandboxed Live-Embed, if any. */
+export interface NativeHandoff {
+  url: string;
+  embedUrl?: string;
+  handoffId: string;
+}
+
+export interface NativeImportRequest {
+  kind: NativeSurfaceKind;
+  vendor: string;
+  handoffId?: string;             // correlate a just-completed handoff…
+  externalRef?: string;           // …or import a known external artifact by id/url
+  target: { projectId: string; issueId?: string };
+}
+
 /**
  * The broker contract. Domain operations only — implementers translate to/from
  * their transport. `kind` and `live` are for diagnostics, not behaviour.
@@ -738,4 +789,17 @@ export interface Broker {
    * back to the env/Docker-secret scaffolding.
    */
   storeCredential?(ctx: ActorContext, input: { backend: string; name: string; value: string }): Promise<{ stored: boolean; ref?: string }>;
+
+  // ── Native handoff (companion-app bridge) — OPTIONAL. A connector implements only what it fronts; the
+  //    routes answer 501/empty when absent. See docs/NATIVE-HANDOFF.md. A NEW capability, not a new boundary:
+  //    handoff URLs are connector-minted + host-allowlisted; the reimport is a normal broker read/write.
+  /** The native surfaces this backend fronts (unioned across connected backends, capability-gating the SPA's
+   *  "Use native" affordance). */
+  nativeSurfaces?(ctx: ActorContext): Promise<NativeSurface[]>;
+  /** Mint the vetted vendor handoff URL — built against the vendor's real domain (host-allowlisted); the user
+   *  opens it in THEIR OWN browser and authenticates to the vendor directly (we never wrap its auth screen). */
+  nativeHandoff?(ctx: ActorContext, req: NativeHandoffRequest): Promise<NativeHandoff>;
+  /** Bring the native artifact back THROUGH the broker: a reference (importMode "reference") or enriched
+   *  content. Returns the attachment written to `target`; sanitised + provenance-stamped + audited. */
+  nativeImport?(ctx: ActorContext, req: NativeImportRequest): Promise<TaskAttachment>;
 }

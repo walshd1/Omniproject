@@ -256,6 +256,14 @@ export const FEATURE_MODULES: readonly FeatureModule[] = [
     reason: "storage", // writes user-defined JSON into the encrypted-JSON store; scope-gated per storage target
   },
   {
+    id: "nativeHandoff",
+    label: "Native handoff (companion apps)",
+    description: "Hand off an artifact to the specialist SaaS tool a connected backend fronts (Miro, Notion, MS Project, Power BI, …) and bring a reference back through the broker.",
+    load: () => import("../routes/native"),
+    defaultOff: true,
+    reason: "cost", // outbound handoff to external tools; content/screenshot import (later slices) egresses
+  },
+  {
     // Admin bulk-action runner: apply one canonical broker write (create/update project) to many
     // projects at once, declaratively. Has a backend route (POST /api/admin/bulk), so it loads
     // lazily; OFF until an admin opts in — it fans out project-level writes (high blast radius), so
