@@ -1471,6 +1471,27 @@ authoring, and the drift guards — no feature bypasses the golden rules.
   export routes 7/7 (sealed export gate + ciphertext + decrypt-restore + wrong-key 400), config-snapshot 3/3
   (drift guard, secret never restored from plaintext), config-purity green, BackupStep 24/24. Both packages
   typecheck clean.
+- **Slice 6 ✅ (TOTAL config — every config store outside `SettingsState` now travels too).** A coverage audit
+  ("verify the whole settings surface is covered") proved `SettingsState` is 100% captured (65/65 live keys, via
+  a runtime check + the `security-settings` drift guard tying `CLASSIFIED_KEYS` to the live object), then swept
+  every OTHER sealed store. Four held adjustable config outside settings; per the directive ("yes, as JSON
+  files") all now ride the backup:
+  - **`extension` + `registry-item`** (org-wide plugin/registry config, pure-JSON, no secrets) → added to the
+    def-store export's `EXPORT_TYPES`, so they travel in BOTH plaintext and sealed backups. Import RE-VALIDATES:
+    `isImportableExtension` re-runs `sanitizeContribution` on every contribution, `isImportableRegistryItem`
+    checks kind + JSON payload — a tampered/injected row is dropped, not written (new `CONFIG_VALIDATORS` map in
+    def-store-export).
+  - **`ai-providers`** (provider entities + capability mapping; API keys stay in the vault) and **`rate-card`**
+    (rate card + hashed identity map + project types + uplift + cost rules) → a new `stores` section on the full
+    backup, carried **ONLY in the ENCRYPTED (sealed) backup** because both touch sensitive/egress surfaces (pay
+    data, provider endpoints). `exportAiProviders`/`importAiProviders` re-validate each provider (id + known kind)
+    and mapping entry (drops forbidden/unknown ids); `exportRateCard`/`importRateCard` round-trip the whole sealed
+    state through the store's own on-disk coercion + the one `persist` choke point (so a restore is undoable).
+  - Deliberately still OUT (data/secrets/runtime-state, not config): `vault-store` (secrets, may be external),
+    `security-state` (revocations/kill-switch), `scim` (IdP-driven), `audit-chain` (evidence), wiki/proof content
+    (systems of record), `push-subscription` (per-device). Tests: def-store-export 7/7 (+ extension/registry ride
+    + tamper-drop), full-backup 6/6 (+ ai-providers/rate-card sealed-only round-trip), store + route + guardrail
+    suites 87/87 green. Both packages typecheck clean.
 
 ### X.9 Library audit — permissive (MIT/BSD/Apache-2.0) code that clears our five gates
 - **The gate (standing rule).** Add third-party code only where it (1) doesn't break our rules

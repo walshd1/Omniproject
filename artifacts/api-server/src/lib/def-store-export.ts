@@ -3,6 +3,8 @@ import {
 } from "./artifact-store";
 import { DEF_ARTIFACT, validateDef, DEF_KINDS, type StoredDef, type DefKind } from "./def-import";
 import { BINDING_ARTIFACT } from "./def-binding";
+import { EXTENSION_ARTIFACT, isImportableExtension } from "./extension";
+import { REGISTRY_ARTIFACT, isImportableRegistryItem } from "./registry";
 
 /**
  * DEF-STORE export / import (roadmap X.14) — the portable backup of everything an admin AUTHORS into the
@@ -28,8 +30,19 @@ export const DEF_STORE_EXPORT_VERSION = 1;
  *  (our shipped catalogues re-seed from code on the new instance); everything else is org/programme/project/
  *  user config. `def-policy` + `custom-roles` are single-row org config blobs; `def-binding` is per-scope maps;
  *  `user-prefs` is the per-user UI/accessibility row that moved out of the settings blob into each user's own
- *  vault (roadmap X.10) — carrying it here is what lets a backup/restore genuinely round-trip a person's setup. */
-const EXPORT_TYPES = [DEF_ARTIFACT, BINDING_ARTIFACT, "def-policy", "custom-roles", "user-prefs"] as const;
+ *  vault (roadmap X.10) — carrying it here is what lets a backup/restore genuinely round-trip a person's setup;
+ *  `extension` + `registry-item` are the org-wide plugin/registry config (pure-JSON, no code), folded in so the
+ *  backup is the org's TOTAL config. */
+const EXPORT_TYPES = [DEF_ARTIFACT, BINDING_ARTIFACT, "def-policy", "custom-roles", "user-prefs", EXTENSION_ARTIFACT, REGISTRY_ARTIFACT] as const;
+
+/** Per-type re-validators for the config-blob stores that carry a richer payload than a bare `{id}` map. On
+ *  import a row that fails its validator is DROPPED, not written — the "importer re-validates" rule extended to
+ *  extensions (each contribution re-sanitised) and registry items (kind + JSON payload). Types absent here fall
+ *  back to the `{id}`-object shape gate (def-policy, custom-roles, def-binding, user-prefs). */
+const CONFIG_VALIDATORS: Record<string, (row: unknown) => boolean> = {
+  [EXTENSION_ARTIFACT]: isImportableExtension,
+  [REGISTRY_ARTIFACT]: isImportableRegistryItem,
+};
 
 type Row = { id: string } & Record<string, unknown>;
 export interface ExportCollection { type: string; scope: ArtifactScope; items: Row[] }
@@ -151,9 +164,13 @@ export function applyDefStoreExport(input: unknown): ApplyReport {
       replaceArtifacts(DEF_ARTIFACT, scope, clean);
       written.push({ type, scope, count: clean.length });
     } else {
-      // Config blobs (def-binding maps, def-policy, custom-roles): each row must be an `{id}` object. No
-      // per-kind validator exists, but the shape gate + the store's own read-time validators keep them safe.
-      const clean = rawItems.filter((it): it is Row => !!it && typeof it === "object" && typeof (it as Row).id === "string");
+      // Config blobs (def-binding maps, def-policy, custom-roles, user-prefs, extension, registry-item): each
+      // row must be an `{id}` object, and — for types with a per-type validator (extension, registry-item) — it
+      // must also pass that validator (a tampered/injected row is dropped, not written). Types without one rely
+      // on the shape gate + the store's own read-time validators.
+      const validate = CONFIG_VALIDATORS[type];
+      const clean = rawItems.filter((it): it is Row =>
+        !!it && typeof it === "object" && typeof (it as Row).id === "string" && (!validate || validate(it)));
       if (clean.length < rawItems.length) { skipped += rawItems.length - clean.length; warnings.push(`dropped ${rawItems.length - clean.length} malformed ${type} row(s) in ${describeScope(scope)}`); }
       replaceArtifacts(type, scope, clean);
       written.push({ type, scope, count: clean.length });

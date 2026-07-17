@@ -18,7 +18,7 @@ import { refreshConfigDir, configBackupInfo, clearConfigBackup } from "../../lib
 import { buildConfigBundle } from "../../lib/config-bundle";
 import { buildSnapshot, applySnapshot } from "../../lib/config-snapshot";
 import { buildDefStoreExport, applyDefStoreExport, DefStoreImportError } from "../../lib/def-store-export";
-import { buildFullBackup, splitFullBackup, buildSealedFullBackup, isSealedFullBackup, openSealedFullBackup, SealedBackupError } from "../../lib/full-backup";
+import { buildFullBackup, splitFullBackup, buildSealedFullBackup, isSealedFullBackup, openSealedFullBackup, applyExtraStores, SealedBackupError } from "../../lib/full-backup";
 import { captureVersion } from "../../lib/config-store";
 import { isDevMode } from "../../lib/dev-mode";
 import { buildDebugBundleZip } from "../../lib/debug-bundle";
@@ -201,9 +201,16 @@ router.post("/setup/full-restore", requireRole("admin"), requireStepUp, (req, re
     try { defReport = applyDefStoreExport(halves.defStore); warnings.push(...defReport.warnings); }
     catch (err) { warnings.push(`defs not restored: ${err instanceof DefStoreImportError ? err.message : (err instanceof Error ? err.message : "invalid export")}`); }
   }
+  // The extra sealed stores (ai-providers + rate-card) ride only the ENCRYPTED backup, so this applies only on
+  // a sealed restore — each importer re-validates its own rows.
+  let storesReport: ReturnType<typeof applyExtraStores> | null = null;
+  if (halves.stores !== undefined) {
+    try { storesReport = applyExtraStores(halves.stores); }
+    catch (err) { warnings.push(`extra stores not restored: ${err instanceof Error ? err.message : "invalid stores"}`); }
+  }
   captureVersion("restored from full backup");
-  recordRequestAudit(req, { category: "admin", action: "full_backup.restore", write: true, meta: { settingsRestored, defCollections: defReport?.written.length ?? 0, defSkipped: defReport?.skipped ?? 0 } });
-  res.json({ restored: true, settingsRestored, defStore: defReport ?? null, warnings });
+  recordRequestAudit(req, { category: "admin", action: "full_backup.restore", write: true, meta: { settingsRestored, defCollections: defReport?.written.length ?? 0, defSkipped: defReport?.skipped ?? 0, stores: storesReport ? Object.keys(storesReport) : [] } });
+  res.json({ restored: true, settingsRestored, defStore: defReport ?? null, stores: storesReport, warnings });
 });
 
 // GET /api/setup/debug-bundle — a reproducible ZIP of config + loaded vendors +

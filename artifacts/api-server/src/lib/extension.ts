@@ -160,6 +160,20 @@ export function extensionMeta(ext: Extension): ExtensionMeta {
   };
 }
 
+/** True when a stored extension ROW is safe to reimport from a backup: a string id + name, and every
+ *  contribution re-passes `sanitizeContribution` (the pure-JSON def surface — the only risk surface, since an
+ *  extension ships NO code). The def-store import calls this so a tampered/injected manifest is dropped, not
+ *  written — the same "importer re-validates" rule the def rows follow. */
+export function isImportableExtension(raw: unknown): boolean {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return false;
+  const r = raw as Record<string, unknown>;
+  if (typeof r["id"] !== "string" || !r["id"]) return false;
+  if (typeof r["name"] !== "string" || !r["name"]) return false;
+  if (!Array.isArray(r["contributions"])) return false;
+  try { (r["contributions"] as unknown[]).forEach((c, i) => sanitizeContribution(c, i)); } catch { return false; }
+  return true;
+}
+
 /** Every installed extension (org scope). */
 export const listExtensions = (): Extension[] => listArtifacts<Extension>(EXTENSION_ARTIFACT, EXTENSION_SCOPE);
 export const getExtension = (id: string): Extension | null => getArtifact<Extension>(EXTENSION_ARTIFACT, EXTENSION_SCOPE, id);

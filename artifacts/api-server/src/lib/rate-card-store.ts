@@ -242,6 +242,51 @@ export function setIdentityAssignments(
   persist({ ...cur, identities });
 }
 
+/**
+ * BACKUP export/import (roadmap X.14). The rate card is the most sensitive config in the product (pay grades
+ * ↔ hashed identities), so it rides ONLY the ENCRYPTED full backup — never the plaintext one. `exportRateCard`
+ * captures the whole sealed state as-is (the identity map is already hashed, so no plaintext name travels);
+ * `importRateCard` rebuilds it through the SAME shape coercion the on-disk load uses, then persists via the one
+ * `persist` choke point (so a restore is undoable too). A restored backup only ever arrives inside an
+ * AES-GCM-authenticated sealed bundle, so matching the trusted on-disk parse is the right validation bar.
+ */
+export interface RateCardExport {
+  card: RateCard;
+  identities: IdentityMap;
+  projectTypes: ProjectType[];
+  projectTypeOf: Record<string, string>;
+  uplift: UpliftConfig;
+  costRules: CostRule[];
+}
+
+/** Capture the whole sealed rate-card state for an encrypted backup (identities are already hashed). */
+export function exportRateCard(): RateCardExport {
+  const s = ensureLoaded();
+  return { card: s.card, identities: s.identities, projectTypes: s.projectTypes, projectTypeOf: s.projectTypeOf, uplift: s.uplift, costRules: s.costRules };
+}
+
+/** Restore the rate-card state from a (decrypted, sealed) backup, coerced through the same shape guards the
+ *  on-disk load uses and persisted via the one `persist` choke point (so the restore is undoable). */
+export function importRateCard(data: unknown): void {
+  const d = (data ?? {}) as Partial<RateCardExport>;
+  persist({
+    card: { titles: d.card?.titles ?? {}, rates: d.card?.rates ?? {} },
+    identities: {
+      central: d.identities?.central ?? {},
+      programme: d.identities?.programme ?? {},
+      project: d.identities?.project ?? {},
+    },
+    projectTypes: Array.isArray(d.projectTypes) ? d.projectTypes : [],
+    projectTypeOf: d.projectTypeOf ?? {},
+    uplift: {
+      central: { margin: d.uplift?.central?.margin ?? 0, overhead: d.uplift?.central?.overhead ?? 0 },
+      programme: d.uplift?.programme ?? {},
+      project: d.uplift?.project ?? {},
+    },
+    costRules: Array.isArray(d.costRules) ? d.costRules : [],
+  });
+}
+
 /** Test-only: drop the in-memory cache (and reset to empty when RAM-only). */
 export function __resetRateCardCache(): void {
   state = empty();

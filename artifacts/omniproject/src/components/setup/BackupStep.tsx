@@ -255,10 +255,12 @@ export function BackupStep({
             + re-encrypts under this instance's key.
           </p>
           <p className="text-xs text-muted-foreground">
-            <b>Encrypted</b> is the complete state: it also carries your <b>secrets</b> (webhook signing keys, peer
-            tokens, …), sealed under this deployment's own key. Restoring it on another instance needs the same key
-            material — keep the encrypted file <i>and</i> your keys and you have the whole system. The plain
-            <b> Download full backup</b> leaves secrets out (safe to store as clear text).
+            <b>Encrypted</b> is the complete state: as well as settings + defs it carries your <b>secrets</b>
+            (webhook signing keys, peer tokens, …) and the sensitive stores kept out of clear text — the
+            <b> rate card</b> and <b>AI-provider</b> config — all sealed under this deployment's own key
+            (API keys stay in the vault). Restoring it on another instance needs the same key material — keep
+            the encrypted file <i>and</i> your keys and you have the whole system. The plain
+            <b> Download full backup</b> leaves secrets and those sensitive stores out (safe to store as clear text).
           </p>
           <div className="flex flex-wrap gap-2 items-center">
             <button
