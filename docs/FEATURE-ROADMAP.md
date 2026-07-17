@@ -1218,6 +1218,13 @@ authoring, and the drift guards — no feature bypasses the golden rules.
   programme lock pins its projects but the org can still override); typecheck clean. **Next:** wire the route +
   resolve-seam to derive the caller's programme (registry-driven) and accept programme bindings; the importer
   `programme` write path + def-policy gate; then slice 3 (render seam) + slice 4 (UI).
+- **The programme tier is OPT-IN (user directive, 2026-07-17): not every org uses programmes at all.** Optional
+  by construction — resolution consults the programme layer ONLY when the caller's project belongs to a
+  programme (`ctx.programmeId`); with none, the chain is exactly user → project → org → system and a
+  stray/locked programme binding is never consulted. The `programmeManager` role (X.13) is inert unless
+  assigned, and the programme store holds nothing unless written. A test locks this in (a caller with no
+  `programmeId` ignores even a locked programme binding). The route/importer wiring must preserve this: never
+  require a programme; derive it, and skip the layer when absent.
 - **Finding — forms are NOT migrated.** Verified: forms still run on the parallel settings writer
   (`PUT /api/forms`, settingsKey `forms`, admin/PMO; SPA `useSaveForms`), and no renderer reads form defs from
   `/api/defs/resolved`. Only **dashboards** are fully converged (X.10 3a–3c); **forms, reports, screens** still

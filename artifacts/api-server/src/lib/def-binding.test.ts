@@ -80,6 +80,25 @@ test("a PROGRAMME lock pins its projects (a project can't override), but the org
   assert.equal(canRebind(cfg, "screens", "programme", ctx), true);
 });
 
+test("the programme layer is OPTIONAL — with no programmeId it's skipped entirely, even a locked one", () => {
+  // Not every org uses programmes. A caller whose project belongs to no programme (no `programmeId`) must
+  // resolve as if the tier didn't exist: user → project → org → system, and a stray/locked programme binding
+  // in the config is never consulted.
+  const cfg: DefBindingConfig = {
+    org: { screens: { defId: "org~o" } },
+    programme: { prog1: { screens: { defId: "programme~pr", locked: true } } },
+    project: { p1: { screens: { defId: "project~pj" } } },
+    user: { u1: { screens: { defId: "user~u" } } },
+  };
+  const noProg = { projectId: "p1", sub: "u1" }; // no programmeId — the org doesn't use the tier
+  assert.equal(resolveDefBinding(cfg, "screens", noProg).source, "user");
+  assert.equal(resolveDefBinding({ ...cfg, user: {} }, "screens", noProg).source, "project");
+  assert.equal(resolveDefBinding({ org: cfg.org, programme: cfg.programme }, "screens", noProg).source, "org");
+  assert.equal(resolveDefBinding({ programme: cfg.programme }, "screens", noProg).source, "default");
+  // A project can rebind freely — a programme lock the caller isn't under doesn't bind them.
+  assert.equal(canRebind(cfg, "screens", "project", noProg), true);
+});
+
 test("bindings are per-slot — a lock on one slot doesn't touch another", () => {
   const cfg: DefBindingConfig = { org: { methodology: { defId: "org~scrum", locked: true } } };
   assert.equal(resolveDefBinding(cfg, "methodology", {}).locked, true);
