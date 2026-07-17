@@ -38,6 +38,8 @@ export interface EnumeratedField {
   precision?: number;
   /** Allowed values for an enum field. */
   options?: string[];
+  /** A regular expression the value must match (postcode/email/date shapes). ReDoS-guarded before use. */
+  pattern?: string;
   /** Whether the backend accepts an empty value (⇒ the UI field is optional). */
   nullable?: boolean;
 }

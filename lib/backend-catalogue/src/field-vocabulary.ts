@@ -72,6 +72,8 @@ export interface FieldDescriptor {
   precision?: number;
   /** Allowed values for `enum` fields. */
   options?: string[];
+  /** A regular-expression the value must match (e.g. a postcode/email/date shape). ReDoS-guarded on use. */
+  pattern?: string;
 }
 
 /**

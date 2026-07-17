@@ -96,3 +96,14 @@ test("a UI field inherits its backend's validation: enum options are surfaced an
   const ok = await h.req(`/projects/${PID}/mapping/cust/C-1`, { method: "PUT", cookie: ADMIN, body: { fields: { Tier: tier.options![0] } } });
   assert.equal(ok.status, 200);
 });
+
+test("a UI field inherits its backend's REGEX (email shape) — enforced on write", async () => {
+  const sup = (await (await h.req(`/fields/superset`, { cookie: ADMIN })).json()) as { fields: { canonicalKey: string; broker: string; system: string; nativeField: string; pattern?: string }[] };
+  const email = sup.fields.find((f) => f.canonicalKey === "contactEmail" && f.pattern)!;
+  assert.ok(email, "the demo backend advertises a regex-constrained field");
+  seedSystemDef("mapping", "Email mapping", { id: "contact", broker: email.broker, fields: { Email: { broker: email.broker, backend: email.system, field: email.nativeField, superset: "contactEmail" } } }, "2026-01-01T00:00:00.000Z");
+  const bad = await h.req(`/projects/${PID}/mapping/contact/E-1`, { method: "PUT", cookie: ADMIN, body: { fields: { Email: "not-an-email" } } });
+  assert.equal(bad.status, 400);
+  const ok = await h.req(`/projects/${PID}/mapping/contact/E-1`, { method: "PUT", cookie: ADMIN, body: { fields: { Email: "a@b.co" } } });
+  assert.equal(ok.status, 200);
+});

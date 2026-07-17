@@ -228,6 +228,10 @@ export const BROKER_CONTRACT_SCHEMA = {
           "items": { "type": "string" },
           "description": "Allowed values for an enum field."
         },
+        "pattern": {
+          "type": "string",
+          "description": "A regular expression the value must match (postcode/email/date shapes). ReDoS-guarded before use."
+        },
         "nullable": {
           "type": "boolean",
           "description": "Whether the backend accepts an empty value (the UI field is optional)."

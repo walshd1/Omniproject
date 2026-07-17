@@ -1,6 +1,6 @@
 import { v, ValidationError } from "./validate";
 import { FIELD_REGISTRY } from "./field-registry";
-import { assertSafePattern, patternMatches, UnsafeRegexError } from "./safe-regex";
+import { assertSafePattern, patternMatches, isSafePattern, UnsafeRegexError } from "./safe-regex";
 
 /**
  * Per-field DATA VALIDATION RULES — the admin-declared constraints a field's value must satisfy.
@@ -185,12 +185,15 @@ export function checkFieldValue(rule: FieldValidationRule, value: unknown, type:
  */
 export function deriveValidationRule(
   field: string,
-  c: { type: string; maxLength?: number; options?: string[]; nullable?: boolean },
+  c: { type: string; maxLength?: number; options?: string[]; pattern?: string; nullable?: boolean },
 ): FieldValidationRule {
   const rule: FieldValidationRule = { field };
   if (c.nullable === false) rule.required = true;
   if (fieldKind(c.type) === "string" && typeof c.maxLength === "number") rule.max = c.maxLength;
   if (c.options && c.options.length) rule.options = [...c.options];
+  // A backend-advertised regex (postcode/email/date). Only adopt it if it's SAFE — a hostile broker can't
+  // smuggle a ReDoS pattern into our enforcement path.
+  if (c.pattern && isSafePattern(c.pattern)) rule.pattern = c.pattern;
   return rule;
 }
 

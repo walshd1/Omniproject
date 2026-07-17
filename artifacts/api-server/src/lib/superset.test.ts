@@ -80,6 +80,21 @@ test("deriveMappingValidation makes each UI field inherit its home's constraints
   assert.equal(typeByUi["Name"], "string");
 });
 
+test("a backend-advertised regex flows into the derived rule (postcode/email shapes)", () => {
+  const withPattern: EnumeratedField[] = [{ key: "contactEmail", label: "Email", type: "string", sourceSystem: "crm", sourceField: "email", pattern: "^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$" }];
+  const superset = buildLiveSuperset([{ broker: "n8n", system: "crm", fields: withPattern }]);
+  assert.equal(superset[0]!.pattern, "^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$");
+  const { rules } = deriveMappingValidation({ Email: { broker: "n8n", backend: "crm", field: "email", superset: "contactEmail" } }, superset);
+  assert.equal(rules[0]!.pattern, "^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$");
+});
+
+test("an unsafe advertised regex is dropped, never adopted into enforcement (ReDoS/compile guard)", () => {
+  const evil: EnumeratedField[] = [{ key: "x", label: "X", type: "string", sourceSystem: "s", sourceField: "x", pattern: "[" }]; // uncompilable
+  const superset = buildLiveSuperset([{ broker: "n8n", system: "s", fields: evil }]);
+  const { rules } = deriveMappingValidation({ X: { broker: "n8n", backend: "s", field: "x", superset: "x" } }, superset);
+  assert.equal(rules[0]!.pattern, undefined); // the unsafe pattern was refused, the rest of the rule survives
+});
+
 test("deriveMappingValidation skips homeless / no-longer-live fields (nothing to validate against)", () => {
   const superset = buildLiveSuperset([{ broker: "n8n", system: "jira", fields: jira }]);
   const fields = {

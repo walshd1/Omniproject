@@ -769,6 +769,7 @@ export class DemoBroker implements Broker {
     const custom = [
       { key: "customerTier", label: "Customer tier", type: "enum", surface: true, store: false, sourceSystem: system, sourceField: "customfield_10200", options: ["bronze", "silver", "gold"], nullable: true },
       { key: "riskScore", label: "Risk score", type: "number", surface: true, store: false, sourceSystem: system, sourceField: "customfield_10201", precision: 0 },
+      { key: "contactEmail", label: "Contact email", type: "string", surface: true, store: false, sourceSystem: system, sourceField: "customfield_10202", maxLength: 254, pattern: "^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$" },
     ];
     return [...canonical, ...custom];
   }

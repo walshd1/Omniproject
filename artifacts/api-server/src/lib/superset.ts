@@ -43,6 +43,8 @@ export interface SupersetField {
   maxLength?: number;
   precision?: number;
   options?: string[];
+  /** A regex the value must match (postcode/email/date). */
+  pattern?: string;
   nullable?: boolean;
   /** Whether the canonical concept is in the registry (`true`) or a backend custom/unknown field (`false`). */
   canonical: boolean;
@@ -78,6 +80,7 @@ function toSupersetField(broker: string, defaultSystem: string, f: EnumeratedFie
   if (f.maxLength !== undefined) out.maxLength = f.maxLength;
   if (f.precision !== undefined) out.precision = f.precision;
   if (f.options !== undefined) out.options = f.options;
+  if (f.pattern !== undefined) out.pattern = f.pattern;
   if (f.nullable !== undefined) out.nullable = f.nullable;
   return out;
 }
@@ -111,6 +114,7 @@ export function sidecarEnumeratedFields(): EnumeratedField[] {
     ...(f.maxLength !== undefined ? { maxLength: f.maxLength } : {}),
     ...(f.precision !== undefined ? { precision: f.precision } : {}),
     ...(f.options !== undefined ? { options: f.options } : {}),
+    ...(f.pattern !== undefined ? { pattern: f.pattern } : {}),
   }));
 }
 
