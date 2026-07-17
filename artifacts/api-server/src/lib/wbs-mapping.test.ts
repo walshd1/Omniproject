@@ -59,3 +59,53 @@ test("sanitize requires id + name and rejects unsafe field names", () => {
   const ok = sanitizeWbsMapping({ id: "wpId", name: "subject", budget: "costBudget", extra: "ignored" });
   assert.deepEqual(ok, { id: "wpId", name: "subject", budget: "costBudget" });
 });
+
+test("per-field storage target: structure from the backend, cost figures from the sidecar (joined by WBS id)", () => {
+  // "Looks like SAP, structure stored in OpenProject, cost figures held in our sidecar."
+  const backend = [
+    { wpId: "WP-1", subject: "Platform", parentWp: "", statusName: "In progress" },
+    { wpId: "WP-1.1", subject: "Core", parentWp: "WP-1", statusName: "In progress" },
+  ];
+  const sidecar = [
+    { wbs: "WP-1", budgetGBP: "£480,000", spentGBP: "£312,000", poGBP: "£52,000" },
+    { wbs: "WP-1.1", budgetGBP: 300000, spentGBP: 205000, poGBP: 30000 },
+  ];
+  const mapping: WbsFieldMapping = {
+    id: "wpId", name: "subject", parentId: "parentWp", status: "statusName",
+    sidecarId: "wbs", // the sidecar names the join key differently from the backend
+    budget: { target: "sidecar", field: "budgetGBP" },
+    actual: { target: "sidecar", field: "spentGBP" },
+    commitment: { target: "sidecar", field: "poGBP" },
+    currencyDefault: "GBP",
+  };
+  const { wbs, financials } = applyWbsMapping({ backend, sidecar }, mapping, "proj-mix");
+  // Structure came from the backend…
+  assert.deepEqual(wbs.map((w) => w.id), ["WP-1", "WP-1.1"]);
+  assert.equal(wbs[1]!.parentId, "WP-1");
+  // …financials came from the sidecar, joined by the WBS id, money-as-strings parsed.
+  assert.equal(financials["WP-1"]!.budget, 480000);
+  assert.equal(financials["WP-1"]!.available, 480000 - 312000 - 52000);
+  assert.equal(financials["WP-1.1"]!.actual, 205000);
+});
+
+test("a mix: some fields from the backend, some from the sidecar, on the same element", () => {
+  const backend = [{ code: "A", title: "Root", trackerBudget: 1000 }];
+  const sidecar = [{ code: "A", ourActual: 400, ourCommit: 100 }];
+  const mapping: WbsFieldMapping = {
+    id: "code", name: "title",
+    budget: "trackerBudget",                              // backend (bare string)
+    actual: { target: "sidecar", field: "ourActual" },   // sidecar
+    commitment: { target: "sidecar", field: "ourCommit" },
+    currencyDefault: "GBP",
+  };
+  const { financials } = applyWbsMapping({ backend, sidecar }, mapping, "proj-split");
+  assert.equal(financials["A"]!.budget, 1000);
+  assert.equal(financials["A"]!.available, 1000 - 400 - 100);
+});
+
+test("sanitize accepts { target, field } refs and rejects an unknown target or unsafe field", () => {
+  const ok = sanitizeWbsMapping({ id: "code", name: "title", actual: { target: "sidecar", field: "ourActual" }, sidecarId: "code" });
+  assert.deepEqual(ok, { id: "code", name: "title", actual: { target: "sidecar", field: "ourActual" }, sidecarId: "code" });
+  assert.throws(() => sanitizeWbsMapping({ id: "c", name: "t", budget: { target: "elsewhere", field: "x" } }), WbsMappingError);
+  assert.throws(() => sanitizeWbsMapping({ id: "c", name: "t", budget: { target: "sidecar", field: "__proto__" } }), WbsMappingError);
+});

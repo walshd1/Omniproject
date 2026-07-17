@@ -38,13 +38,30 @@ the ledger; we bring the screens. The demo broker's fixtures already stand in fo
 The screen speaks in SEMANTIC fields (`wbs`, `name`, `budget`, `actual`, …). A **WBS field mapping**
 (`lib/wbs-mapping`, admin-authored, same idiom as `fieldOverrides`/`column-mapper`) maps each semantic field
 to a chosen backend's real field name — e.g. OpenProject `wpId`→`wbs`, `costBudget`→`budget`,
-`parentWp`→`parentId`. `applyWbsMapping(rows, mapping, projectId)` is PURE: it projects any backend's records
+`parentWp`→`parentId`. `applyWbsMapping(sources, mapping, projectId)` is PURE: it projects any backend's records
 into the exact `WbsElement`/`WbsFinancials` read model the screen consumes (money-as-strings parsed,
 `available = budget − actual − commitment`, WBS level derived from the parent chain). So the SAME JSON screen
 renders — and, for a read/write backend or the sidecar, round-trips — whether the data lives in SAP,
 OpenProject, another system, or our sidecar. Proven in tests with OpenProject-shaped rows → the identical
-model the SAP fixtures produce. **Next wiring:** store the mapping as a def through the importer, and a broker
-read that applies it over a generic backend's records + the read/write sidecar target.
+model the SAP fixtures produce.
+
+**Per-field storage targets (built).** Each financial field is a `FieldRef` — a bare source-field name (⇒ the
+`backend`/broker target) **or** `{ target, field }`. So *some fields map to OpenProject and some to our sidecar*
+on the same element: structure comes from the backend, and each cost figure is read from its own target, joined
+by the WBS id (`sidecarId` names the sidecar's join column when it differs). "Looks like SAP, structure in
+OpenProject, cost figures held in our zero-at-rest sidecar" is now expressible in one mapping.
+
+**Scope-overridable mapping (built).** The mapping resolves like screens/reports/def-bindings
+(`lib/wbs-mapping-resolve`): a shipped **core** layer (`CORE_WBS_MAPPINGS`, our bundled JSON) beneath, then
+`org → programme → project → user` overrides from the sealed store, **merged per-field, nearest wins** — a
+project can retarget just `budget` while inheriting the rest. Each override is validated through the same
+sanitiser the importer uses and physically lives in its own scope file, so a PM's change is confined to their
+project by construction. `resolveWbsMapping(ctx, slot)` returns the effective whole mapping.
+
+**Next wiring:** a broker read that returns a generic backend's RAW WBS records (so the resolved mapping does
+its projection in the route, replacing the demo's pre-shaped fixtures), the read/write **sidecar WBS target**
+(path 3 — author/import a WBS + financials with no ERP), and the **write path** (each field in the SAP-like
+screen writes back to its mapped target — broker for SAP/OpenProject, sidecar for ours).
 
 ## Non-goals (what SAP keeps)
 
