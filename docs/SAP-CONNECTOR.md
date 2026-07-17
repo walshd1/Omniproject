@@ -45,11 +45,17 @@ renders — and, for a read/write backend or the sidecar, round-trips — whethe
 OpenProject, another system, or our sidecar. Proven in tests with OpenProject-shaped rows → the identical
 model the SAP fixtures produce.
 
-**Per-field storage targets (built).** Each financial field is a `FieldRef` — a bare source-field name (⇒ the
-`backend`/broker target) **or** `{ target, field }`. So *some fields map to OpenProject and some to our sidecar*
-on the same element: structure comes from the backend, and each cost figure is read from its own target, joined
-by the WBS id (`sidecarId` names the sidecar's join column when it differs). "Looks like SAP, structure in
-OpenProject, cost figures held in our zero-at-rest sidecar" is now expressible in one mapping.
+**Per-field (broker, backend) addressing (built).** Every field resolves to **exactly one broker and exactly
+one backend** via the shared `lib/field-target` spine (`FieldTarget = { broker, backend, field }`) — the same
+composite identity `field-routing`'s `FieldRoute` carries, lifted into a reusable primitive. N backends reached
+through N brokers; each field names its single home. A field with **no declared home falls back to the built-in
+broker + the sidecar backend** — which *is* the basic self-hosted all-in-one deployment (no external broker,
+everything at home in our sidecar). Wire real brokers in and you route individual fields out; anything you don't
+route stays home. In the WBS mapping this means: the mapping declares a home (`broker`/`backend`) where the WBS
+*structure* lives, each cost figure inherits it or routes elsewhere (`{ backend: "sap", field: … }`), and the
+route projects per-`(broker,backend)` record buckets joined by the WBS id (`joinField` names the join column in
+non-home sources). "Structure in OpenProject, budget from SAP, the rest in our sidecar" is one mapping — proven
+in tests.
 
 **Scope-overridable mapping (built).** The mapping resolves like screens/reports/def-bindings
 (`lib/wbs-mapping-resolve`): a shipped **core** layer (`CORE_WBS_MAPPINGS`, our bundled JSON) beneath, then

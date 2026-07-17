@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { applyWbsMapping, sanitizeWbsMapping, WbsMappingError, type WbsFieldMapping } from "./wbs-mapping";
+import { applyWbsMapping, sanitizeWbsMapping, WbsMappingError, mappingHome, type WbsFieldMapping } from "./wbs-mapping";
+import { targetKey, BUILTIN_BROKER, SIDECAR_BACKEND } from "./field-target";
 
 /**
  * WBS field mapping (§4.6): the SAP-looking cost screen, populated from ANY backend. These prove the same
@@ -60,52 +61,65 @@ test("sanitize requires id + name and rejects unsafe field names", () => {
   assert.deepEqual(ok, { id: "wpId", name: "subject", budget: "costBudget" });
 });
 
-test("per-field storage target: structure from the backend, cost figures from the sidecar (joined by WBS id)", () => {
-  // "Looks like SAP, structure stored in OpenProject, cost figures held in our sidecar."
-  const backend = [
-    { wpId: "WP-1", subject: "Platform", parentWp: "", statusName: "In progress" },
-    { wpId: "WP-1.1", subject: "Core", parentWp: "WP-1", statusName: "In progress" },
-  ];
-  const sidecar = [
-    { wbs: "WP-1", budgetGBP: "£480,000", spentGBP: "£312,000", poGBP: "£52,000" },
-    { wbs: "WP-1.1", budgetGBP: 300000, spentGBP: 205000, poGBP: 30000 },
-  ];
+test("per-field target: structure from an OpenProject broker/backend, cost figures from our sidecar (joined by id)", () => {
+  // "Looks like SAP, structure stored in OpenProject (via n8n), cost figures held in our built-in sidecar."
+  const OP = targetKey({ broker: "n8n", backend: "openproject" });
+  const SIDECAR = targetKey({ broker: BUILTIN_BROKER, backend: SIDECAR_BACKEND });
+  const buckets = {
+    [OP]: [
+      { wpId: "WP-1", subject: "Platform", parentWp: "", statusName: "In progress" },
+      { wpId: "WP-1.1", subject: "Core", parentWp: "WP-1", statusName: "In progress" },
+    ],
+    [SIDECAR]: [
+      { wbs: "WP-1", budgetGBP: "£480,000", spentGBP: "£312,000", poGBP: "£52,000" },
+      { wbs: "WP-1.1", budgetGBP: 300000, spentGBP: 205000, poGBP: 30000 },
+    ],
+  };
   const mapping: WbsFieldMapping = {
+    broker: "n8n", backend: "openproject",              // the home: WBS structure lives in OpenProject
     id: "wpId", name: "subject", parentId: "parentWp", status: "statusName",
-    sidecarId: "wbs", // the sidecar names the join key differently from the backend
-    budget: { target: "sidecar", field: "budgetGBP" },
-    actual: { target: "sidecar", field: "spentGBP" },
-    commitment: { target: "sidecar", field: "poGBP" },
+    joinField: "wbs",                                    // non-home sources name the join key differently
+    // each cost figure routes to the built-in broker + sidecar backend
+    budget: { broker: BUILTIN_BROKER, backend: SIDECAR_BACKEND, field: "budgetGBP" },
+    actual: { broker: BUILTIN_BROKER, backend: SIDECAR_BACKEND, field: "spentGBP" },
+    commitment: { broker: BUILTIN_BROKER, backend: SIDECAR_BACKEND, field: "poGBP" },
     currencyDefault: "GBP",
   };
-  const { wbs, financials } = applyWbsMapping({ backend, sidecar }, mapping, "proj-mix");
-  // Structure came from the backend…
+  const { wbs, financials } = applyWbsMapping(buckets, mapping, "proj-mix");
+  // Structure came from the home (OpenProject) bucket…
   assert.deepEqual(wbs.map((w) => w.id), ["WP-1", "WP-1.1"]);
   assert.equal(wbs[1]!.parentId, "WP-1");
-  // …financials came from the sidecar, joined by the WBS id, money-as-strings parsed.
+  // …financials came from the sidecar bucket, joined by the WBS id, money-as-strings parsed.
   assert.equal(financials["WP-1"]!.budget, 480000);
   assert.equal(financials["WP-1"]!.available, 480000 - 312000 - 52000);
   assert.equal(financials["WP-1.1"]!.actual, 205000);
+  assert.deepEqual(mappingHome(mapping), { broker: "n8n", backend: "openproject" });
 });
 
-test("a mix: some fields from the backend, some from the sidecar, on the same element", () => {
-  const backend = [{ code: "A", title: "Root", trackerBudget: 1000 }];
-  const sidecar = [{ code: "A", ourActual: 400, ourCommit: 100 }];
+test("N backends: budget from SAP, actuals from the sidecar, structure from OpenProject — all on one element", () => {
+  const OP = targetKey({ broker: "n8n", backend: "openproject" });
+  const SAP = targetKey({ broker: "n8n", backend: "sap" });
+  const SIDECAR = targetKey({ broker: BUILTIN_BROKER, backend: SIDECAR_BACKEND });
+  const buckets = {
+    [OP]: [{ code: "A", title: "Root" }],
+    [SAP]: [{ code: "A", ACDOCA_BUDGET: 1000 }],
+    [SIDECAR]: [{ code: "A", ourActual: 400, ourCommit: 100 }],
+  };
   const mapping: WbsFieldMapping = {
-    id: "code", name: "title",
-    budget: "trackerBudget",                              // backend (bare string)
-    actual: { target: "sidecar", field: "ourActual" },   // sidecar
-    commitment: { target: "sidecar", field: "ourCommit" },
+    broker: "n8n", backend: "openproject", id: "code", name: "title", joinField: "code",
+    budget: { backend: "sap", field: "ACDOCA_BUDGET" },        // broker inherited (n8n), backend → SAP
+    actual: { broker: BUILTIN_BROKER, backend: SIDECAR_BACKEND, field: "ourActual" },
+    commitment: { broker: BUILTIN_BROKER, backend: SIDECAR_BACKEND, field: "ourCommit" },
     currencyDefault: "GBP",
   };
-  const { financials } = applyWbsMapping({ backend, sidecar }, mapping, "proj-split");
-  assert.equal(financials["A"]!.budget, 1000);
-  assert.equal(financials["A"]!.available, 1000 - 400 - 100);
+  const { financials } = applyWbsMapping(buckets, mapping, "proj-split");
+  assert.equal(financials["A"]!.budget, 1000);              // reached SAP
+  assert.equal(financials["A"]!.available, 1000 - 400 - 100); // + sidecar actuals/commitments
 });
 
-test("sanitize accepts { target, field } refs and rejects an unknown target or unsafe field", () => {
-  const ok = sanitizeWbsMapping({ id: "code", name: "title", actual: { target: "sidecar", field: "ourActual" }, sidecarId: "code" });
-  assert.deepEqual(ok, { id: "code", name: "title", actual: { target: "sidecar", field: "ourActual" }, sidecarId: "code" });
-  assert.throws(() => sanitizeWbsMapping({ id: "c", name: "t", budget: { target: "elsewhere", field: "x" } }), WbsMappingError);
-  assert.throws(() => sanitizeWbsMapping({ id: "c", name: "t", budget: { target: "sidecar", field: "__proto__" } }), WbsMappingError);
+test("sanitize accepts { broker?, backend?, field } refs and rejects unsafe ids/shapes", () => {
+  const ok = sanitizeWbsMapping({ id: "code", name: "title", actual: { backend: "sidecar", field: "ourActual" }, joinField: "code" });
+  assert.deepEqual(ok, { id: "code", name: "title", actual: { backend: "sidecar", field: "ourActual" }, joinField: "code" });
+  assert.throws(() => sanitizeWbsMapping({ id: "c", name: "t", budget: { backend: "__proto__", field: "x" } }), WbsMappingError);
+  assert.throws(() => sanitizeWbsMapping({ id: "c", name: "t", budget: { backend: "sidecar", field: "__proto__" } }), WbsMappingError);
 });

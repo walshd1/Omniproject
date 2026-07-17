@@ -18,18 +18,18 @@ test("with no overrides, the resolved mapping is exactly the shipped core", () =
 test("a higher scope overrides only the fields it names; the rest inherit downward", () => {
   // Org points cost figures at the sidecar; the project retargets just `budget` back to a tracker field.
   const org: Partial<WbsFieldMapping> = {
-    actual: { target: "sidecar", field: "ourActual" },
-    commitment: { target: "sidecar", field: "ourCommit" },
+    actual: { backend: "sidecar", field: "ourActual" },
+    commitment: { backend: "sidecar", field: "ourCommit" },
   };
-  const project: Partial<WbsFieldMapping> = { budget: { target: "sidecar", field: "ourBudget" } };
+  const project: Partial<WbsFieldMapping> = { budget: { backend: "sidecar", field: "ourBudget" } };
   const m = mergeWbsMapping({ core, org, project });
   // Structure inherited straight from core…
   assert.equal(m.id, "id");
   assert.equal(m.name, "name");
   // …org's sidecar retargeting survived…
-  assert.deepEqual(m.actual, { target: "sidecar", field: "ourActual" });
+  assert.deepEqual(m.actual, { backend: "sidecar", field: "ourActual" });
   // …and the project's single-field override won over both core and org.
-  assert.deepEqual(m.budget, { target: "sidecar", field: "ourBudget" });
+  assert.deepEqual(m.budget, { backend: "sidecar", field: "ourBudget" });
 });
 
 test("nearest wins: user beats project beats programme beats org beats core", () => {
