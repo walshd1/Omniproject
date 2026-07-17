@@ -251,6 +251,27 @@ describe("BackupStep", () => {
     await waitFor(() => expect(fetchFn).toHaveBeenCalledWith("/api/setup/full-backup?encrypted=1", expect.anything()));
   });
 
+  it("compares an uploaded backup against live and renders the content-free diff", async () => {
+    const diffResult = {
+      schema: "omniproject/config-diff", generatedAt: "t", identical: false,
+      settings: { added: ["priorityLabels"], removed: [], changed: [{ key: "reportingCurrency", status: "changed", secret: false }, { key: "priorityLabels", status: "added", secret: false }], unchanged: 3 },
+      defStore: [{ type: "def", scopeLabel: "org", added: 1, removed: 0, changed: 1, items: [{ id: "d-new", status: "added", fromRowVersion: null, toRowVersion: 1 }, { id: "d-bump", status: "changed", fromRowVersion: 1, toRowVersion: 2 }] }],
+      extraStores: [], summary: { settingsAdded: 1, settingsRemoved: 0, settingsChanged: 1, defsAdded: 1, defsRemoved: 0, defsChanged: 1, collectionsChanged: 1 },
+    };
+    const fetchFn = vi.fn().mockResolvedValue({ ok: true, status: 200, json: () => Promise.resolve(diffResult) });
+    globalThis.fetch = fetchFn as unknown as typeof fetch;
+    const user = userEvent.setup();
+    const { container, findByTestId } = renderWithProviders(<BackupStep isAdmin status={status} />);
+    // the compare input is the 4th file input (snapshot, defs, full-restore, compare)
+    const compareInput = container.querySelectorAll('input[type="file"]')[3] as HTMLInputElement;
+    await user.upload(compareInput, snapshotFile(fullBundle(), "other.json"));
+    const panel = await findByTestId("config-diff-result");
+    expect(fetchFn).toHaveBeenCalledWith("/api/setup/config-diff", expect.objectContaining({ method: "POST" }));
+    expect(panel).toHaveTextContent("reportingCurrency");
+    expect(panel).toHaveTextContent("d-bump");
+    expect(panel).toHaveTextContent("v1→2");
+  });
+
   it("accepts a SEALED backup file for restore (encrypted schema)", async () => {
     const sealed = JSON.stringify({ schema: "omniproject/full-backup-sealed", version: 1, createdAt: "t", keyFingerprint: "fp", sealed: "c2.1.abc" });
     const user = userEvent.setup();

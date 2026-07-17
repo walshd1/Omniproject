@@ -1689,7 +1689,16 @@ explicit, not forgotten. Every item is ⬜ Todo unless noted.
 - ✳ **Policy-as-config guardrails** (mandatory fields/gates per methodology — composition gate exists, extend).
 
 ### 4.9 Config lifecycle & portability *(our wedge — sharpen vs SAP CTS/CTS+)*
-- ✳ **Config diff / drift report between instances** (compare two encrypted-JSON backups; show what changed).
+- ✅ **Config diff / drift report between instances** — `lib/config-diff` (`buildConfigDiff(from, to, now)`)
+  compares two full backups and reports WHAT CHANGED: settings by KEY (added/removed/changed — never values;
+  secret-bearing keys flagged, never valued), def-store collections by scope+type then by `id` + `rowVersion`,
+  and the sealed extra stores by PRESENCE only. `POST /api/setup/config-diff` (admin + fresh step-up; a side
+  omitted defaults to LIVE, so `{ to }` previews "what restoring this backup would change" and a sealed side is
+  decrypted with this instance's key first). SPA: a **Compare with backup** control in `BackupStep` renders the
+  content-free change report (settings chips + per-collection id/version chips). Tests: config-diff lib 6/6
+  (added/removed/changed, secret-flagged + content-free, scope grouping, presence-only stores, schema reject),
+  export routes +2 (live-vs-uploaded + step-up gate, live-vs-live identical), BackupStep 25/25. Both packages
+  typecheck clean. **Next in §4.9:** staged promotion (select a diff subset → apply dev→test→prod, signed + audited).
 - ✳ **Staged promotion (dev→test→prod) for config/defs** — a lightweight, JSON-native answer to SAP transports; selective, reviewable, signed.
 - ✳ **Config versioning + rollback timeline** (partially exists via config-store history — surface it), **change approval on config promotion**.
 - ✳ **Benchmark doc: JSON-config portability vs SAP CTS/CTS+/cTMS** (research open question — quantify migration effort).
