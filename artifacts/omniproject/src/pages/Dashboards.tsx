@@ -15,7 +15,7 @@ import {
   type DashboardWidget,
 } from "../lib/dashboards";
 import { downloadDashboard, readDashboardFile } from "../lib/dashboard-file";
-import { useResolvedDefs } from "../lib/defs";
+import { useResolvedDefs, useImportDef, useUpdateDef, useDeleteDef, type DefStorage } from "../lib/defs";
 import { primitivesFor } from "../lib/primitive-store";
 import { WidgetView } from "../components/dashboard/widgets";
 import { DataState } from "../components/DataState";
@@ -54,6 +54,11 @@ export function Dashboards() {
   // Dashboards authored through the ONE importer store (X.10). They render read-only here — editing happens
   // in the definition editor, and they never join the settings-bundle CRUD set, so a Save can't migrate them.
   const { data: importedDefs } = useResolvedDefs<Dashboard>("dashboard");
+  // The single write path (X.10): dashboards are authored/edited as importer defs into the scoped encrypted
+  // store. The legacy settings-bundle writer stays only to manage pre-existing dashboards until they're migrated.
+  const importDef = useImportDef();
+  const updateDef = useUpdateDef();
+  const deleteDef = useDeleteDef();
   const save = useSaveDashboards();
   const { toast } = useToast();
 
@@ -61,6 +66,9 @@ export function Dashboards() {
   const [editing, setEditing] = useState(false);
   // The working copy while editing (committed to the server on Save).
   const [draft, setDraft] = useState<Dashboard | null>(null);
+  // Where a NEW def-backed dashboard is sealed (its scope fixes the write gate). Existing defs keep their scope.
+  const [draftStorage, setDraftStorage] = useState<DefStorage>("user");
+  const defWriteBusy = importDef.isPending || updateDef.isPending || deleteDef.isPending;
   const [importError, setImportError] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -99,7 +107,12 @@ export function Dashboards() {
     if (allDashboards.length === 0) return null;
     return allDashboards.find((d) => d.id === activeId) ?? allDashboards[0]!;
   }, [allDashboards, activeId, editing, draft]);
-  const activeIsImported = !!active && importedIds.has(active.id);
+  // A def-backed dashboard lives in the encrypted def store (scoped id); a legacy one lives in the settings
+  // bundle. `draftIsDef` is derived from the draft's id so Save routes to the right (single) write path.
+  const isDefId = (id: string) => importedIds.has(id);
+  const draftIsNewDef = !!draft && !isDefId(draft.id) && !(dashboards ?? []).some((d) => d.id === draft.id);
+  const draftIsDef = !!draft && (isDefId(draft.id) || draftIsNewDef);
+  const activeIsLegacy = !!active && (dashboards ?? []).some((d) => d.id === active.id);
 
   // Real-time: when viewing (not editing) a dashboard with a refresh interval, re-read the mounted
   // widgets' data on that cadence. A client-side poll of the existing read model — no new write path.
@@ -118,9 +131,15 @@ export function Dashboards() {
     });
   }
 
+  const defError = (e: unknown) =>
+    toast({ title: "Couldn't save the dashboard", description: e instanceof Error ? e.message : "failed", variant: "destructive" });
+  /** The importer payload for a dashboard def — the real Dashboard shape. */
+  const defPayload = (d: Dashboard) => ({ id: d.id, name: d.name, widgets: d.widgets, ...(d.refreshMs ? { refreshMs: d.refreshMs } : {}) });
+
   function startNew() {
     const dash: Dashboard = { id: crypto.randomUUID(), name: "New dashboard", widgets: [] };
     setDraft(dash);
+    setDraftStorage("user");
     setActiveId(dash.id);
     setEditing(true);
   }
@@ -139,17 +158,27 @@ export function Dashboards() {
 
   function saveEdit() {
     if (!draft) return;
+    const done = (id: string) => { setEditing(false); setDraft(null); setActiveId(id); };
+    if (draftIsDef) {
+      // The single write path: author/edit the dashboard as a def in the encrypted store via the importer.
+      if (isDefId(draft.id)) {
+        updateDef.mutate({ id: draft.id, name: draft.name, payload: defPayload(draft) }, { onSuccess: (row) => done(row.id), onError: defError });
+      } else {
+        importDef.mutate({ kind: "dashboard", storage: draftStorage, name: draft.name, payload: defPayload(draft) }, { onSuccess: (row) => done(row.id), onError: defError });
+      }
+      return;
+    }
+    // Legacy settings-bundle dashboard (pre-migration): keep managing it via its original path.
     const others = (dashboards ?? []).filter((d) => d.id !== draft.id);
-    const savedId = draft.id;
-    persist([...others, draft], () => {
-      setEditing(false);
-      setDraft(null);
-      setActiveId(savedId);
-    });
+    persist([...others, draft], () => done(draft.id));
   }
 
   function deleteActive() {
     if (!active) return;
+    if (isDefId(active.id)) {
+      deleteDef.mutate(active.id, { onSuccess: () => { setActiveId(null); cancelEdit(); }, onError: defError });
+      return;
+    }
     persist((dashboards ?? []).filter((d) => d.id !== active.id), () => {
       setActiveId(null);
       cancelEdit();
@@ -162,17 +191,21 @@ export function Dashboards() {
     const preset = presets.find((p) => p.id === presetId);
     if (!preset) return;
     const dash: Dashboard = { ...dashboardFromPreset(preset), id: crypto.randomUUID() };
-    persist([...(dashboards ?? []), dash], () => setActiveId(dash.id));
+    // New dashboards are authored as defs through the importer (into the user's private encrypted store).
+    importDef.mutate({ kind: "dashboard", storage: "user", name: dash.name, payload: defPayload(dash) }, { onSuccess: (row) => setActiveId(row.id), onError: defError });
   }
 
-  /** Import a dashboard file — validate, mint a fresh id, persist, and select it. */
+  /** Import a dashboard file — validate, mint a fresh id, and author it as a def via the importer. */
   async function importFile(file: File | undefined) {
     setImportError(null);
     if (!file) return;
     try {
       const parsed = await readDashboardFile(file);
       const dash: Dashboard = { ...parsed, id: crypto.randomUUID() };
-      persist([...(dashboards ?? []), dash], () => setActiveId(dash.id));
+      importDef.mutate(
+        { kind: "dashboard", storage: "user", name: dash.name, payload: defPayload(dash) },
+        { onSuccess: (row) => setActiveId(row.id), onError: (e) => setImportError(e instanceof Error ? e.message : "Could not import that file.") },
+      );
     } catch (e) {
       setImportError(e instanceof Error ? e.message : "Could not import that file.");
     }
@@ -225,15 +258,15 @@ export function Dashboards() {
                 <option key={d.id} value={d.id}>{d.name}</option>
               ))}
               {imported.length > 0 && (
-                <optgroup label="Imported (read-only)">
+                <optgroup label="Definitions">
                   {imported.map((d) => (
                     <option key={d.id} value={d.id}>{d.name}</option>
                   ))}
                 </optgroup>
               )}
             </select>
-            {activeIsImported && <span data-testid="dashboard-imported-badge" className="text-[10px] font-black uppercase tracking-widest text-muted-foreground border border-border px-1.5 py-0.5">Imported · read-only</span>}
-            {active && !activeIsImported && <button onClick={startEdit} className="px-3 py-1 text-xs font-bold uppercase tracking-wider border-2 border-foreground">Edit</button>}
+            {activeIsLegacy && <span data-testid="dashboard-legacy-badge" title="Stored in the legacy settings bundle — will be migrated to the definition store" className="text-[10px] font-black uppercase tracking-widest text-muted-foreground border border-border px-1.5 py-0.5">Legacy</span>}
+            {active && <button onClick={startEdit} className="px-3 py-1 text-xs font-bold uppercase tracking-wider border-2 border-foreground">Edit</button>}
             <button onClick={startNew} className="px-3 py-1 text-xs font-bold uppercase tracking-wider bg-foreground text-background">New</button>
             {active && <button onClick={() => downloadDashboard(active)} className="px-3 py-1 text-xs font-bold uppercase tracking-wider border-2 border-foreground">Export</button>}
             <button onClick={() => fileRef.current?.click()} className="px-3 py-1 text-xs font-bold uppercase tracking-wider border-2 border-foreground">Import</button>
@@ -270,6 +303,14 @@ export function Dashboards() {
               value={draft.name}
               onChange={(e) => setDraft({ ...draft, name: e.target.value })}
             />
+            {draftIsDef && !isDefId(draft.id) && (
+              <select aria-label="Storage target" data-testid="dashboard-storage" value={draftStorage} onChange={(e) => setDraftStorage(e.target.value as DefStorage)}
+                className="border-2 border-foreground bg-background px-2 py-1 text-xs">
+                <option value="user">Personal</option>
+                <option value="project">Project</option>
+                <option value="org">Org-wide</option>
+              </select>
+            )}
             <select
               aria-label="Add widget"
               className="border-2 border-foreground bg-background px-2 py-1 text-sm"
@@ -289,9 +330,9 @@ export function Dashboards() {
                 {REFRESH_OPTIONS.map((o) => <option key={o.ms} value={o.ms}>{o.label}</option>)}
               </select>
             </label>
-            <button onClick={saveEdit} disabled={save.isPending} className="px-3 py-1 text-xs font-bold uppercase tracking-wider bg-foreground text-background disabled:opacity-50">Save</button>
+            <button onClick={saveEdit} disabled={save.isPending || defWriteBusy} className="px-3 py-1 text-xs font-bold uppercase tracking-wider bg-foreground text-background disabled:opacity-50">Save</button>
             <button onClick={cancelEdit} className="px-3 py-1 text-xs font-bold uppercase tracking-wider border-2 border-foreground">Cancel</button>
-            <button onClick={deleteActive} disabled={save.isPending} className="px-3 py-1 text-xs font-bold uppercase tracking-wider border-2 border-red-500 text-red-500 disabled:opacity-50">Delete</button>
+            <button onClick={deleteActive} disabled={save.isPending || defWriteBusy} className="px-3 py-1 text-xs font-bold uppercase tracking-wider border-2 border-red-500 text-red-500 disabled:opacity-50">Delete</button>
             {save.isError && <span role="alert" className="text-xs font-bold text-red-500">{(save.error as Error).message}</span>}
           </div>
         )}

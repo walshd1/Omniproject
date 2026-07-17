@@ -1027,6 +1027,39 @@ authoring, and the drift guards — no feature bypasses the golden rules.
   the **settings-bundle slices** (`/api/dashboards`, `/api/screen-defs`, `/api/screen-layouts`) are live and
   rendered; the **importer** (`/api/defs`) is live for `primitive`/`form` but its `screen`/`dashboard`/`report`
   kinds are **validated-but-unconsumed**. Unification makes the renderers read from the importer.
+- **THE INVARIANT (user directive, 2026-07-17).** **Two write paths, period:** the **importer** (create,
+  `POST /api/defs`) and the **editor** (edit, `PUT /api/defs/:id`) are the ONLY things that may persist a
+  user-authored DEFINITION into the encrypted stores. **Every other surface is read-only ingest** — it *reads*
+  resolved defs and renders them; it never writes. **A def in use is read-only**: a rendered dashboard / screen /
+  report can only be changed by loading it into the editor, which writes back through that one path. This means
+  the parallel definition-writers that exist today (the settings-bundle `PUT`s for dashboards / screen-defs /
+  screen-layouts, and any theme / font / business-rule / saved-view writer) are **convergence targets to
+  retire** — not just stores to overlay. Scope is **definitions** (the `DEF_KINDS`); user *content* with its own
+  purpose-built validated editor (whiteboard scenes, wiki docs, proofs) is a separate category and out of scope
+  here. (Overlay slices 2–4 stay valid as the additive first step; the retirement of the parallel writers is the
+  cutover, slice 5+, now understood as mandatory, not optional.)
+- **The scope classifier (user directive, 2026-07-17).** *"Is it a NEW ARTIFACT, or data in flight?"* A
+  **definition** is authored once and then *used* read-only (a dashboard, screen, report, form, theme/colour,
+  font, business rule, content page, template, workflow) → it goes through the importer/editor. **Content in
+  flight** is saved continuously as you work (whiteboard sticky notes, wiki doc edits, proof annotations) — you'd
+  never "export on every save" — so it keeps its own purpose-built live editor and encrypted content store. The
+  rationale is cost + safety: the sealed stores are **write-rarely / read-mostly**, every write is a
+  decrypt→modify→re-encrypt cycle, so funnelling all *definition* writes through the one importer choke point
+  keeps those cycles rare and in one place; every other surface only ingests (reads a resolved def, renders it,
+  cacheable, never re-encrypts). By this test: **saved/panel views** (live per-user render state) and the
+  already-encrypted **admin/registry metadata** (def-policy, custom-roles, extension, registry-item — their own
+  single validated encrypted writers, with step-up) are NOT new-artifact definitions and stay on their paths;
+  the **authored artifacts** converge.
+- **Audit (2026-07-17) — the parallel definition-writers to retire, in priority order.** All bypass the importer,
+  persisting to the **settings/config bundle** (a different store from the sealed def store), so convergence is a
+  real migration, not just a UI change. Core: `PUT /api/dashboards` (`dashboards`), `PUT /api/screen-defs`
+  (`screenDefs`) + `PUT /api/screen-layouts` (`screenLayouts`), `PUT /api/reports` + `/api/reports/custom` +
+  `/api/report-overrides`, `PUT /api/forms` (`forms`). Styling/rules: `PUT /api/branding` (org **colours + fonts**)
+  and `PUT /api/admin/ruleset*` (**business rules**) — bespoke writers. Then org-JSON config (content pages,
+  templates, workflows, automations, custom fields). **The super-writer** `PATCH /api/settings` can write any
+  slice in bulk — it must be locked out of the converged slices too. Sequencing chosen: **core first, slice by
+  slice** — finish each kind (author/edit → importer; render read-only; migrate existing settings data; retire
+  the old writer + close the `PATCH` bypass for that slice) before the next.
 - **Slicing.** (1) the resolve-by-kind read seam; (2) dashboards render importer defs (overlay, real validator);
   (3) reports; (4) screens; (5) migrate/bridge the settings slices + retire the parallel path. Each slice is
   additive (built-ins/settings keep working) until the final cutover — no big-bang.
@@ -1046,8 +1079,20 @@ authoring, and the drift guards — no feature bypasses the golden rules.
   edited in the definition editor, never joining the settings-bundle CRUD set (so a Save can't migrate them),
   keyed by their scoped store id and shape-guarded against a malformed payload. First renderer consuming the
   X.10 seam. 1 def-import validator test (real shape + rejections), the resolve seam test seeds a real dashboard,
-  1 page test (importer dashboard renders read-only, no Edit); both packages typecheck clean. **Next:** slice 3 —
-  reports render importer `report` defs.
+  1 page test (importer dashboard renders read-only, no Edit); both packages typecheck clean.
+- **Slice 3a ✅ (dashboards AUTHORED through the importer — the write-path convergence).** `pages/Dashboards`
+  now writes every new/edited dashboard as a **def through the importer** (`useImportDef` `POST /api/defs` /
+  `useUpdateDef` `PUT /api/defs/:id` / `useDeleteDef`), into the scoped encrypted store — with a **storage-target
+  selector** (Personal / Project / Org-wide) for a new def. New, preset, and file-import all author defs; a
+  def-backed dashboard is now editable in the builder (which IS the editor, writing through the one path), while
+  a rendered/viewed dashboard stays read-only. The legacy settings-bundle writer (`PUT /api/dashboards`) is kept
+  **only** to manage pre-existing dashboards (badged "Legacy") until they're migrated — no NEW settings writes.
+  Net: the encrypted store's single decrypt→encrypt write path now covers dashboard authoring. 2 page tests
+  (New authors via `POST /api/defs` with kind+storage and does NOT `PUT /api/dashboards`; a def dashboard is
+  editable), existing tests repointed to the importer; SPA typecheck clean. (Operational note: authoring now
+  needs the `defImporter` module + a configured artifact store; legacy dashboards still render without it.)
+  **Next:** slice 3b — migrate existing settings dashboards into the def store + retire `PUT /api/dashboards`;
+  then slice 4 (reports), slice 5 (screens), and the `PATCH /api/settings` lockdown.
 
 ### X.9 Library audit — permissive (MIT/BSD/Apache-2.0) code that clears our five gates
 - **The gate (standing rule).** Add third-party code only where it (1) doesn't break our rules
