@@ -1143,6 +1143,25 @@ authoring, and the drift guards — no feature bypasses the golden rules.
   scope handling extended (`system.json` read/write + filename round-trip); both packages typecheck clean. **Next:**
   seed the actual shipped catalogues (screens/reports/rulesets/dashboards) into the system store, and the client
   "Duplicate to my store" fork for a read-only `system~` def.
+- **Slice 3 ✅ (seed the shipped catalogues into the system store).** `lib/system-defs` builds the full
+  shipped-default set from OUR bundled catalogues in `@workspace/backend-catalogue` (the approved-from-us source):
+  **reports** (`reportCatalogue`), **forms** (`formCatalogue`), **business rules** (`referenceRulesetCatalogue` —
+  the methodology reference bundles), and **dashboards** (`dashboardPresetCatalogue`, adapted to the real
+  `Dashboard` shape by synthesising each widget's `id`). It seals them via **`replaceSystemDefs`** — a new
+  **one-shot** `artifact-store.replaceArtifacts` (single decrypt→replace→re-encrypt, never per-item). Wired into
+  `bootstrap()` as **`seedSystemDefaultsIfEmpty()`**: auto-installs on first boot only (empty store); it does NOT
+  silently overwrite on every boot. (Screens + primitives still to come — their defaults live only in the SPA and
+  must be relocated into the shared package first.) 1 seeder test (installs report/form/businessRule/dashboard
+  system rows, `createdBy:"system"`, preset widgets get ids; idempotent install; one-shot re-apply is stable).
+- **Slice 4 ✅ (the admin-gated approved-update mechanism).** Per the directive — the system store's decrypt-update-
+  re-encrypt must be **admin-gated and only accept approved-from-us content**. `routes/system-defs`:
+  **`POST /api/admin/system-defs/apply`** (admin + **step-up**, audited) re-applies OUR bundled catalogue in one
+  shot — it takes **no def payload**, so an admin can only apply the vendor-approved defaults, never inject their
+  own into the system tier; **`GET /api/admin/system-defs`** is an admin read of the installed set (count per
+  kind). There remains **no importer/editor write path** to `system`. 3 route tests (admin applies + summary;
+  non-admin 403 on both; stale step-up refused). Both packages typecheck clean. **Next:** relocate the SPA screen
+  + primitive defaults into the shared package and seed them; the client "Duplicate to my store" fork; then
+  continue the X.10 convergence (reports/screens/rules).
 
 ### X.9 Library audit — permissive (MIT/BSD/Apache-2.0) code that clears our five gates
 - **The gate (standing rule).** Add third-party code only where it (1) doesn't break our rules

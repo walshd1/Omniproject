@@ -13,7 +13,7 @@
  * the sealed write via `artifact-store`.
  */
 import type { ActorContext } from "../broker/types";
-import { listArtifacts, getArtifact, putArtifact, deleteArtifact, SYSTEM_SCOPE, type ArtifactScope } from "./artifact-store";
+import { listArtifacts, getArtifact, putArtifact, deleteArtifact, replaceArtifacts, SYSTEM_SCOPE, type ArtifactScope } from "./artifact-store";
 import { validateScreenDefs } from "./screen-def";
 import { validateForms } from "./form-def";
 import { validatePrimitiveDef } from "@workspace/backend-catalogue";
@@ -234,16 +234,28 @@ export const makeSystemDefId = (localId: string): string => `system~${localId}`;
 /** The shipped-default defs (read-only). */
 export const listSystemDefs = (): StoredDef[] => listArtifacts<StoredDef>(DEF_ARTIFACT, SYSTEM_SCOPE);
 
-/** Seed one shipped default into the read-only system store. PRIVILEGED — the product's own defaults installer,
- *  NOT reachable through the user importer (which only ever targets the customer scopes user/project/org). */
-export function seedSystemDef(kind: DefKind, name: string, payload: unknown, now: string): StoredDef {
+/** Build (validate + stamp) one shipped-default row WITHOUT writing — the row for the read-only system store.
+ *  Throws {@link DefError} on an invalid payload. */
+export function buildSystemDefRow(kind: DefKind, name: string, payload: unknown, now: string): StoredDef {
   const check = validateDef(kind, payload);
   if (!check.ok) throw new DefError(`invalid system ${kind}: ${check.errors.join("; ")}`);
   const localId = typeof (payload as { id?: unknown })?.id === "string" ? String((payload as { id: string }).id) : cleanName(name) || "default";
-  const row: StoredDef = {
+  return {
     id: makeSystemDefId(localId), kind, name: cleanName(name) || localId, payload,
     createdBy: "system", createdAt: now, updatedAt: now, rowVersion: 1,
   };
+}
+
+/** Seed one shipped default into the read-only system store. PRIVILEGED — the product's own defaults installer,
+ *  NOT reachable through the user importer (which only ever targets the customer scopes user/project/org). */
+export function seedSystemDef(kind: DefKind, name: string, payload: unknown, now: string): StoredDef {
+  const row = buildSystemDefRow(kind, name, payload, now);
   putArtifact(DEF_ARTIFACT, SYSTEM_SCOPE, row);
   return row;
+}
+
+/** Replace the ENTIRE system store in ONE sealed write (decrypt→replace→re-encrypt) — the one-shot update the
+ *  shipped-defaults installer / the admin-gated approved-update route use. Never per-item. */
+export function replaceSystemDefs(rows: StoredDef[]): void {
+  replaceArtifacts(DEF_ARTIFACT, SYSTEM_SCOPE, rows);
 }

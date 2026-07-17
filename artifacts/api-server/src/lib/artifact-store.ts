@@ -141,6 +141,13 @@ export function putArtifact<T extends { id: string }>(type: string, scope: Artif
   writeCollection(type, scope, items);
 }
 
+/** Replace an ENTIRE (type, scope) collection in a SINGLE sealed write — one decrypt-free re-encrypt, no
+ *  per-item read-modify-write. This is the one-shot update primitive the SYSTEM store uses: build the full
+ *  default set, then seal it once. */
+export function replaceArtifacts<T extends { id: string }>(type: string, scope: ArtifactScope, items: T[]): void {
+  writeCollection(type, scope, items);
+}
+
 /** Remove an item from a scope; returns whether it was present. */
 export function deleteArtifact(type: string, scope: ArtifactScope, id: string): boolean {
   const items = readCollection<{ id: string }>(type, scope);
