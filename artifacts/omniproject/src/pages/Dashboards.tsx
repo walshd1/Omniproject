@@ -15,6 +15,7 @@ import {
   type DashboardWidget,
 } from "../lib/dashboards";
 import { downloadDashboard, readDashboardFile } from "../lib/dashboard-file";
+import { useResolvedDefs } from "../lib/defs";
 import { primitivesFor } from "../lib/primitive-store";
 import { WidgetView } from "../components/dashboard/widgets";
 import { DataState } from "../components/DataState";
@@ -50,6 +51,9 @@ export function Dashboards() {
   const enabled = featureEnabled(features, "dashboards");
   const { data: caps } = useGetCapabilities();
   const { data: dashboards, isLoading, isError, error, refetch } = useDashboards();
+  // Dashboards authored through the ONE importer store (X.10). They render read-only here — editing happens
+  // in the definition editor, and they never join the settings-bundle CRUD set, so a Save can't migrate them.
+  const { data: importedDefs } = useResolvedDefs<Dashboard>("dashboard");
   const save = useSaveDashboards();
   const { toast } = useToast();
 
@@ -78,12 +82,24 @@ export function Dashboards() {
     [caps],
   );
 
+  // Importer-authored dashboards, keyed by their scoped store id (unique + distinct from settings ids) and
+  // guarded to the real shape so a malformed payload can't crash the grid.
+  const imported = useMemo<Dashboard[]>(
+    () => (Array.isArray(importedDefs) ? importedDefs : [])
+      .map((d) => ({ ...(d.payload as Dashboard), id: d.id }))
+      .filter((d) => d && typeof d.name === "string" && Array.isArray(d.widgets)),
+    [importedDefs],
+  );
+  const importedIds = useMemo(() => new Set(imported.map((d) => d.id)), [imported]);
+  // The picker + active-resolution set: settings-bundle dashboards first, then the read-only importer ones.
+  const allDashboards = useMemo(() => [...(dashboards ?? []), ...imported], [dashboards, imported]);
+
   const active = useMemo<Dashboard | null>(() => {
     if (editing && draft) return draft;
-    const list = dashboards ?? [];
-    if (list.length === 0) return null;
-    return list.find((d) => d.id === activeId) ?? list[0]!;
-  }, [dashboards, activeId, editing, draft]);
+    if (allDashboards.length === 0) return null;
+    return allDashboards.find((d) => d.id === activeId) ?? allDashboards[0]!;
+  }, [allDashboards, activeId, editing, draft]);
+  const activeIsImported = !!active && importedIds.has(active.id);
 
   // Real-time: when viewing (not editing) a dashboard with a refresh interval, re-read the mounted
   // widgets' data on that cadence. A client-side poll of the existing read model — no new write path.
@@ -204,12 +220,20 @@ export function Dashboards() {
               value={active?.id ?? ""}
               onChange={(e) => setActiveId(e.target.value)}
             >
-              {(dashboards ?? []).length === 0 && <option value="">No dashboards yet</option>}
+              {allDashboards.length === 0 && <option value="">No dashboards yet</option>}
               {(dashboards ?? []).map((d) => (
                 <option key={d.id} value={d.id}>{d.name}</option>
               ))}
+              {imported.length > 0 && (
+                <optgroup label="Imported (read-only)">
+                  {imported.map((d) => (
+                    <option key={d.id} value={d.id}>{d.name}</option>
+                  ))}
+                </optgroup>
+              )}
             </select>
-            {active && <button onClick={startEdit} className="px-3 py-1 text-xs font-bold uppercase tracking-wider border-2 border-foreground">Edit</button>}
+            {activeIsImported && <span data-testid="dashboard-imported-badge" className="text-[10px] font-black uppercase tracking-widest text-muted-foreground border border-border px-1.5 py-0.5">Imported · read-only</span>}
+            {active && !activeIsImported && <button onClick={startEdit} className="px-3 py-1 text-xs font-bold uppercase tracking-wider border-2 border-foreground">Edit</button>}
             <button onClick={startNew} className="px-3 py-1 text-xs font-bold uppercase tracking-wider bg-foreground text-background">New</button>
             {active && <button onClick={() => downloadDashboard(active)} className="px-3 py-1 text-xs font-bold uppercase tracking-wider border-2 border-foreground">Export</button>}
             <button onClick={() => fileRef.current?.click()} className="px-3 py-1 text-xs font-bold uppercase tracking-wider border-2 border-foreground">Import</button>

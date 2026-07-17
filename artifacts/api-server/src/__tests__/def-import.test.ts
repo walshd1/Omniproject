@@ -49,12 +49,19 @@ test("validateDef uses the real per-kind validators", () => {
   assert.equal(validateDef("screen", { id: "x", label: "X" }).ok, false);
 });
 
-test("report/dashboard/jsonDef get a structural check", () => {
+test("report/jsonDef get a structural check", () => {
   assert.equal(validateDef("report", { id: "r1" }).ok, true);
   assert.equal(validateDef("report", { label: "no id" }).ok, false);
-  assert.equal(validateDef("dashboard", { id: "d1" }).ok, true);
   assert.equal(validateDef("jsonDef", { anything: true }).ok, true);
   assert.equal(validateDef("jsonDef", "not an object").ok, false);
+});
+
+test("dashboard validates against the real Dashboard shape (id + name + widgets[])", () => {
+  assert.equal(validateDef("dashboard", { id: "d1", name: "Exec", widgets: [{ id: "w1", type: "portfolioHealth" }] }).ok, true);
+  assert.equal(validateDef("dashboard", { id: "d1", name: "Exec", widgets: [] }).ok, true);
+  assert.equal(validateDef("dashboard", { id: "d1" }).ok, false);                       // no name / widgets
+  assert.equal(validateDef("dashboard", { id: "d1", name: "X", widgets: {} }).ok, false); // widgets not an array
+  assert.equal(validateDef("dashboard", { id: "d1", name: "X", widgets: [{ id: "w1" }] }).ok, false); // widget needs a type
 });
 
 test("sanitizeDef is the choke point: kind + name + payload + per-kind validity", () => {
