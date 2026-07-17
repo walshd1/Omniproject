@@ -1239,6 +1239,22 @@ authoring, and the drift guards — no feature bypasses the golden rules.
   their own programme (200) but not one they don't own (403), and can select but not lock without step-up); the
   existing org-lock test now carries a fresh step-up. API typecheck clean; def-bindings routes 8/8, resolver
   8/8, RBAC suite 137/137 green.
+- **Slice 2d ✅ (the programme IMPORTER write path).** A programme is now a first-class def **write target** —
+  authored through the ONE importer/editor, same as user/project/org. `artifact-store` grows a def-only
+  `ScopedTarget = StorageTarget | "programme"`; the self-describing-id helpers (`makeScopedId` /
+  `parseScopedId` / `scopeFromParsed`) understand `programme~<programmeId>~<localId>` and round-trip it, WITHOUT
+  widening the shared `StorageTarget` (whiteboard/wiki/proof/goal/invoice keep their 4-target exhaustive gates;
+  the two that re-export the parser now narrow it back, rejecting a programme id). `def-policy` gains a
+  `programme` scope (default gate **`programmeManager`**; pmo/admin clear it) and a `programmeManager` `DefGate`;
+  `authorizeDefWrite` takes an `{projectId, programmeId}` and its programme branch enforces **the gate AND that
+  programme's row-scope** via a new `guardProgrammeScope` (403 + audited `scope.denied:programme` when out of
+  scope), so a programme manager's def is physically confined to a programme they own. `POST /api/defs` accepts
+  `storage:"programme"` (+ `programmeId`); `GET /api/defs` + `/defs/resolved/:kind` include the programme layer
+  only for an in-scope `?programmeId=` (opt-in — invisible otherwise); the def-policy PUT + editor/delete paths
+  all carry programme through. 5 route tests (manager refused at the gate, programme lead writes their own
+  programme, confined to owned programmes — beta 403 while pmo passes, programmeId required, and the written def
+  is get/list/resolve-able only in scope). Full API + SPA typecheck clean; whiteboard/wiki/proof/invoice/goal
+  101/101, def routes + policy + import + bindings 40/40 green.
 - **Finding — forms are NOT migrated.** Verified: forms still run on the parallel settings writer
   (`PUT /api/forms`, settingsKey `forms`, admin/PMO; SPA `useSaveForms`), and no renderer reads form defs from
   `/api/defs/resolved`. Only **dashboards** are fully converged (X.10 3a–3c); **forms, reports, screens** still
@@ -1264,8 +1280,12 @@ authoring, and the drift guards — no feature bypasses the golden rules.
 - **Slice 2 ✅ (programme-scope binding writes + step-up-to-lock).** Done under X.12 slice 2c: the def-bindings
   route accepts `programme` scope (programmeManager rung + that programme's row-scope, pmo/admin above), and
   setting any LOCK now requires a fresh step-up (`stepUpFresh` on the sealed session's `stepUpAt`). See X.12 2c
-  for the route/test detail. **Next:** the programme importer write path + def-policy gate (programme as a
-  writable `StorageTarget`); then X.12 slice 3 (render seam) + slice 4 (select/lock UI).
+  for the route/test detail.
+- **Slice 3 ✅ (programme as a def WRITE target).** Done under X.12 slice 2d: `programme` is now a writable def
+  target through the one importer/editor, gated by the `programmeManager` def-policy scope + that programme's
+  row-scope (`guardProgrammeScope`), without widening the shared `StorageTarget`. See X.12 2d. **Next:** X.12
+  slice 3 (wire the render seam to the winning def per scope) + slice 4 (select/lock UI); the SPA def-policy
+  mirror (`writableDefScopes`) can surface `programme` as an authoring target for a programmeManager.
 
 ### X.9 Library audit — permissive (MIT/BSD/Apache-2.0) code that clears our five gates
 - **The gate (standing rule).** Add third-party code only where it (1) doesn't break our rules

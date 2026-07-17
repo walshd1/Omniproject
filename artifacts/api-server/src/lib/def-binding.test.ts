@@ -103,6 +103,34 @@ test("the programme layer is OPTIONAL — with no programmeId it's skipped entir
   assert.equal(canRebind(cfg, "screens", "project", noProg), true);
 });
 
+test("any level above binds all levels below: with locks at MANY levels, the highest wins", () => {
+  // org + programme + project ALL lock the same slot → the org (the highest level above) binds every level
+  // below it; the programme and project locks are superseded, not merged.
+  const all: DefBindingConfig = {
+    org: { screens: { defId: "org~mandate", locked: true } },
+    programme: { prog1: { screens: { defId: "programme~x", locked: true } } },
+    project: { p1: { screens: { defId: "project~y", locked: true } } },
+  };
+  const ctx = { projectId: "p1", programmeId: "prog1", sub: "u1" };
+  const r = resolveDefBinding(all, "screens", ctx);
+  assert.deepEqual(r, { defId: "org~mandate", locked: true, lockedBy: "org", source: "org" });
+  // Nothing below the org may rebind — not the programme, not the project, not the user.
+  assert.equal(canRebind(all, "screens", "programme", ctx), false);
+  assert.equal(canRebind(all, "screens", "project", ctx), false);
+  assert.equal(canRebind(all, "screens", "user", ctx), false);
+
+  // Drop the org lock → the next level above (programme) now binds everything below IT.
+  const noOrg: DefBindingConfig = {
+    programme: { prog1: { screens: { defId: "programme~x", locked: true } } },
+    project: { p1: { screens: { defId: "project~y", locked: true } } },
+  };
+  const r2 = resolveDefBinding(noOrg, "screens", ctx);
+  assert.equal(r2.lockedBy, "programme");
+  assert.equal(canRebind(noOrg, "screens", "project", ctx), false); // project is below the programme lock
+  assert.equal(canRebind(noOrg, "screens", "user", ctx), false);
+  assert.equal(canRebind(noOrg, "screens", "programme", ctx), true); // the locking level itself may re-set it
+});
+
 test("bindings are per-slot — a lock on one slot doesn't touch another", () => {
   const cfg: DefBindingConfig = { org: { methodology: { defId: "org~scrum", locked: true } } };
   assert.equal(resolveDefBinding(cfg, "methodology", {}).locked, true);

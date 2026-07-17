@@ -46,8 +46,15 @@ export interface SanitizedWhiteboardWrite {
 /** Build a self-describing whiteboard id (shared scoped-id primitive). */
 export const makeWhiteboardId = makeScopedId;
 
-/** Parse a self-describing whiteboard id back to its storage + parts, or null if malformed. */
-export const parseWhiteboardId = parseScopedId;
+/** Parse a self-describing whiteboard id back to its storage + parts, or null if malformed / not a whiteboard
+ *  target (the def-only `programme` tier is rejected — a whiteboard is never programme-scoped). */
+export function parseWhiteboardId(id: string): { storage: StorageTarget; projectId?: string; localId: string } | null {
+  const p = parseScopedId(id);
+  if (!p || !isStorageTarget(p.storage)) return null;
+  return p.projectId !== undefined
+    ? { storage: p.storage, projectId: p.projectId, localId: p.localId }
+    : { storage: p.storage, localId: p.localId };
+}
 
 /** The encrypted-JSON scope for a non-sidecar id. The caller's OWN sub is always used for a user board, so
  *  the id can never address another user's private area. */

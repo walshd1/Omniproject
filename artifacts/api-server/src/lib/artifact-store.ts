@@ -49,15 +49,28 @@ export function isStorageTarget(s: unknown): s is StorageTarget {
 }
 
 /**
+ * The DEF store adds a `programme` tier on top of the shared targets (the override chain
+ * user → project → programme → org → system). The scoped-id helpers below understand `programme`, but
+ * GENERIC artifacts (whiteboard / wiki / proof / goal / invoice) never emit it — their routes gate storage to
+ * a `StorageTarget` — so teaching the id helpers about `programme` here does NOT widen those artifacts'
+ * exhaustive target switches. Only the def importer/editor writes a programme-scoped artifact.
+ */
+export type ScopedTarget = StorageTarget | "programme";
+
+/**
  * Build a SELF-DESCRIBING artifact id that encodes WHERE it lives (`<target>~…~<localId>`), so a later
  * read/write routes to the right store without a lookup. `~` never appears in a uuid or a target word.
+ * For the container targets the middle segment is the owner id — a projectId for `project`, a programmeId
+ * for `programme`.
  */
-export function makeScopedId(storage: StorageTarget, localId: string, projectId?: string): string {
-  return storage === "project" ? `project~${projectId}~${localId}` : `${storage}~${localId}`;
+export function makeScopedId(storage: ScopedTarget, localId: string, ownerId?: string): string {
+  if (storage === "project") return `project~${ownerId}~${localId}`;
+  if (storage === "programme") return `programme~${ownerId}~${localId}`;
+  return `${storage}~${localId}`;
 }
 
 /** Parse a self-describing id back to its target + parts, or null when malformed. */
-export function parseScopedId(id: string): { storage: StorageTarget; projectId?: string; localId: string } | null {
+export function parseScopedId(id: string): { storage: ScopedTarget; projectId?: string; programmeId?: string; localId: string } | null {
   const parts = id.split("~");
   const storage = parts[0];
   if (storage === "user" || storage === "org" || storage === "sidecar") {
@@ -67,18 +80,23 @@ export function parseScopedId(id: string): { storage: StorageTarget; projectId?:
     // project~<projectId>~<localId>; localId is a uuid (no ~), projectId is everything between.
     return parts.length >= 3 ? { storage, projectId: parts.slice(1, -1).join("~"), localId: parts[parts.length - 1]! } : null;
   }
+  if (storage === "programme") {
+    // programme~<programmeId>~<localId>; same shape as project, distinct target word.
+    return parts.length >= 3 ? { storage, programmeId: parts.slice(1, -1).join("~"), localId: parts[parts.length - 1]! } : null;
+  }
   return null;
 }
 
 /**
  * The encrypted-JSON scope for a parsed non-sidecar id. The caller's OWN sub is always used for a `user`
  * artifact, so an id can never address another user's private area (cross-user access is structurally
- * impossible). Returns null for a sidecar id (there is no JSON scope) or a project id missing its projectId.
+ * impossible). Returns null for a sidecar id (there is no JSON scope) or a container id missing its owner id.
  */
-export function scopeFromParsed(parsed: { storage: StorageTarget; projectId?: string }, sub: string | undefined): ArtifactScope | null {
+export function scopeFromParsed(parsed: { storage: ScopedTarget; projectId?: string; programmeId?: string }, sub: string | undefined): ArtifactScope | null {
   if (parsed.storage === "user") return { kind: "user", sub: sub ?? "" };
   if (parsed.storage === "org") return { kind: "org" };
   if (parsed.storage === "project" && parsed.projectId) return { kind: "project", projectId: parsed.projectId };
+  if (parsed.storage === "programme" && parsed.programmeId) return { kind: "programme", programmeId: parsed.programmeId };
   return null;
 }
 

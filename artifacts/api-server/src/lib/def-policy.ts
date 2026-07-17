@@ -1,7 +1,7 @@
 import type { Request, Response } from "express";
 import { hasRole } from "./rbac";
-import { guardProjectScope } from "./project-scope";
-import { getArtifact, putArtifact, artifactStoreEnabled, type StorageTarget } from "./artifact-store";
+import { guardProjectScope, guardProgrammeScope } from "./project-scope";
+import { getArtifact, putArtifact, artifactStoreEnabled, type ScopedTarget } from "./artifact-store";
 
 /**
  * DEFINITION SCOPE POLICY — the admin-configurable answer to "who may WRITE a definition at each scope". The
@@ -12,18 +12,20 @@ import { getArtifact, putArtifact, artifactStoreEnabled, type StorageTarget } fr
  * writes/edits/deletes. Used by both the importer and the editor so the two share ONE permission model.
  */
 
-/** A write gate for one scope. `pmoOrAdmin` means either orthogonal authority (a plain manager is NOT enough). */
-export type DefGate = "contributor" | "manager" | "pmoOrAdmin" | "admin";
-export const DEF_GATES: readonly DefGate[] = ["contributor", "manager", "pmoOrAdmin", "admin"];
+/** A write gate for one scope. `pmoOrAdmin` means either orthogonal authority (a plain manager is NOT enough);
+ *  `programmeManager` is the scoped rung between manager and the authorities (which also clear it). */
+export type DefGate = "contributor" | "manager" | "programmeManager" | "pmoOrAdmin" | "admin";
+export const DEF_GATES: readonly DefGate[] = ["contributor", "manager", "programmeManager", "pmoOrAdmin", "admin"];
 
 export interface DefScopePolicy {
   user: DefGate;
   project: DefGate;
+  programme: DefGate;
   org: DefGate;
 }
 
-/** The defaults: user → any author; project → PM (manager); org → PMO or admin. */
-export const DEFAULT_DEF_SCOPE_POLICY: DefScopePolicy = { user: "contributor", project: "manager", org: "pmoOrAdmin" };
+/** The defaults: user → any author; project → PM (manager); programme → programmeManager; org → PMO or admin. */
+export const DEFAULT_DEF_SCOPE_POLICY: DefScopePolicy = { user: "contributor", project: "manager", programme: "programmeManager", org: "pmoOrAdmin" };
 
 const POLICY_TYPE = "def-policy";
 const POLICY_ID = "policy";
@@ -36,6 +38,7 @@ export function satisfiesDefGate(req: Request, gate: DefGate): boolean {
   switch (gate) {
     case "contributor": return hasRole(req, "contributor");
     case "manager": return hasRole(req, "manager");
+    case "programmeManager": return hasRole(req, "programmeManager");
     case "pmoOrAdmin": return hasRole(req, "pmo") || hasRole(req, "admin");
     case "admin": return hasRole(req, "admin");
   }
@@ -48,6 +51,7 @@ export function getDefScopePolicy(): DefScopePolicy {
   return {
     user: isGate(row.user) ? row.user : DEFAULT_DEF_SCOPE_POLICY.user,
     project: isGate(row.project) ? row.project : DEFAULT_DEF_SCOPE_POLICY.project,
+    programme: isGate(row.programme) ? row.programme : DEFAULT_DEF_SCOPE_POLICY.programme,
     org: isGate(row.org) ? row.org : DEFAULT_DEF_SCOPE_POLICY.org,
   };
 }
@@ -59,6 +63,7 @@ export function setDefScopePolicy(patch: unknown): DefScopePolicy {
   const next: DefScopePolicy = {
     user: isGate(p["user"]) ? p["user"] : current.user,
     project: isGate(p["project"]) ? p["project"] : current.project,
+    programme: isGate(p["programme"]) ? p["programme"] : current.programme,
     org: isGate(p["org"]) ? p["org"] : current.org,
   };
   putArtifact(POLICY_TYPE, ORG_SCOPE, { id: POLICY_ID, ...next });
@@ -70,16 +75,22 @@ export function setDefScopePolicy(patch: unknown): DefScopePolicy {
  * project scope for `project`. Returns true when allowed; otherwise it has ALREADY sent the response
  * (403/400) and the caller must return.
  */
-export async function authorizeDefWrite(req: Request, res: Response, storage: StorageTarget, projectId: string | undefined): Promise<boolean> {
+export async function authorizeDefWrite(req: Request, res: Response, storage: ScopedTarget, ids: { projectId?: string | undefined; programmeId?: string | undefined }): Promise<boolean> {
   const policy = getDefScopePolicy();
   const deny = (gate: DefGate, what: string): boolean => { res.status(403).json({ error: `writing ${what} requires ${gate}` }); return false; };
   switch (storage) {
     case "user":
       return satisfiesDefGate(req, policy.user) ? true : deny(policy.user, "to your area");
     case "project":
-      if (!projectId) { res.status(400).json({ error: "a project definition needs a projectId" }); return false; }
+      if (!ids.projectId) { res.status(400).json({ error: "a project definition needs a projectId" }); return false; }
       if (!satisfiesDefGate(req, policy.project)) return deny(policy.project, "a project definition");
-      return guardProjectScope(req, res, projectId);
+      return guardProjectScope(req, res, ids.projectId);
+    case "programme":
+      if (!ids.programmeId) { res.status(400).json({ error: "a programme definition needs a programmeId" }); return false; }
+      // The gate (programmeManager by default; pmo/admin clear it) AND that programme's row-scope, so a
+      // programme manager's def is confined to a programme they own.
+      if (!satisfiesDefGate(req, policy.programme)) return deny(policy.programme, "a programme definition");
+      return guardProgrammeScope(req, res, ids.programmeId);
     case "org":
       return satisfiesDefGate(req, policy.org) ? true : deny(policy.org, "an org-wide definition");
     case "sidecar":
