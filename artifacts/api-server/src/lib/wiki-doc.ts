@@ -183,8 +183,15 @@ export function sanitizeWikiDocWrite(raw: unknown): SanitizedWikiDocWrite {
 
 /** Build a self-describing wiki-doc id (shared scoped-id primitive). */
 export const makeWikiDocId = makeScopedId;
-/** Parse a self-describing wiki-doc id back to its storage + parts, or null if malformed. */
-export const parseWikiDocId = parseScopedId;
+/** Parse a self-describing wiki-doc id back to its storage + parts, or null if malformed / not a wiki-doc
+ *  target (the def-only `programme` tier is rejected — a wiki doc is never programme-scoped). */
+export function parseWikiDocId(id: string): { storage: StorageTarget; projectId?: string; localId: string } | null {
+  const p = parseScopedId(id);
+  if (!p || !isStorageTarget(p.storage)) return null;
+  return p.projectId !== undefined
+    ? { storage: p.storage, projectId: p.projectId, localId: p.localId }
+    : { storage: p.storage, localId: p.localId };
+}
 /** The encrypted-JSON scope for a non-sidecar id (the caller's OWN sub is always used for a user doc). */
 export const wikiDocScope = scopeFromParsed;
 

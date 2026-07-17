@@ -56,6 +56,19 @@ export async function guardProjectScope(req: Request, res: Response, projectId: 
   return false;
 }
 
+/**
+ * Express convenience: enforce that the caller is within a PROGRAMME's scope, sending a 403 (and auditing the
+ * cross-scope attempt) when not. all-scope (PMO/admin) passes; a programme-scoped principal passes only for a
+ * programme they own (`inScope` on programmeIds); everyone narrower is refused. Used by the def
+ * importer/editor for a `programme`-target write, so a programme manager's def is confined to their programme.
+ */
+export function guardProgrammeScope(req: Request, res: Response, programmeId: string): boolean {
+  if (inScope(scopeForReq(req), { programmeIds: [programmeId] })) return true;
+  auditScopeDenied(req, "programme", programmeId, "programme not in your scope");
+  res.status(403).json({ error: "programme not in your scope" });
+  return false;
+}
+
 /** The minimal task shape the scope check reads (structural, so this stays free of a broker-type import). */
 interface ScopableTask { projectId?: string | null; assignee?: string | null; collaborators?: string[] | null }
 
