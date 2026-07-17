@@ -180,24 +180,17 @@ These are documented in `docs/AI-SECURITY.md §6`; restated here so they're not 
   coverage of the toggle flow. Not fixed here — it needs the same explicit dirty/Save-gate (and
   ideally a shared optimistic-concurrency primitive) that would also benefit `RateCardAdmin`, so
   it's best done once across both rather than piecemeal per component.
-- **[correctness debt] Exploration's global `dirty` flag is a single unscoped boolean, so one
-  source's "downloaded" action can wrongly clear another source's undownloaded work.**
-  `lib/exploration.ts` exposes one module-level `dirty` shared by every writer/reader across the
-  exploration surface — nothing scopes it per data source. Confirmed by tracing the actual code
-  paths: `ReplicaWorkbench.tsx`'s effect (keyed on `[replica, qc]`) calls `markExplorationDirty()`
-  whenever replica mode is entered, independent of any staged snapshot/edge. Its own "Export"
-  button calls `exportReplica()` (`lib/explore-replica.ts`), which only triggers the file download
-  and never calls `markExplorationClean()` — so exporting the replica does not, and nothing else
-  does either. Meanwhile `Explore.tsx`'s `downloadExploration()` calls `markExplorationClean()`
-  *unconditionally* after only conditionally exporting snapshots/edges. Net effect: entering
-  replica mode with zero staged snapshots/edges, then clicking the page's "Download exploration"
-  button, exports nothing (both are empty) but still clears `dirty` — so the "Unsaved exploration"
-  banner disappears and the `beforeunload` warning is torn down, even though the replica overlay's
-  edits were never downloaded and are still headed for loss on tab close. Found via a security
-  review of `Explore.test.tsx`'s new coverage of the download/pop-out/exit flows; not fixed here —
-  the real fix is a design decision (e.g. scope `dirty` per source, or have `exportReplica` mark
-  its own source clean and have the page only clear sources it actually exported), not a one-line
-  patch.
+- **[RESOLVED] Exploration's global `dirty` flag data-loss bug — fixed (proof sweep, §6).**
+  `lib/exploration.ts` now tracks the dirty state **per source** (`snapshots` / `edges` / `replica`
+  / `shifts`): `markExplorationDirty(source)` / `markExplorationClean(source)`, and the aggregate
+  `isExplorationDirty()` stays true while ANY source is unsaved. Each "download = save" path clears
+  only what it exported — `exportSnapshots`→`snapshots`, `exportEdges`→`edges`, `exportReplica`→
+  `replica`; `Explore.tsx`'s `downloadExploration()` no longer clears unconditionally (it relies on
+  the per-source exporters, so a snapshot download can't tear down the replica overlay's warning).
+  No-arg `markExplorationClean()` still clears everything for an explicit discard/reset. Two
+  regression tests pin the exact loss scenario (`exploration.test.ts` + `Explore.test.tsx`). *(The
+  original suggested fix — scope per source + have each exporter clear its own source — was applied
+  in full.)*
 - **[altitude] The backend-catalogue growth freeze (`scripts/src/lib/backend-freeze.ts`) is a
   bespoke one-off in `gen-vendors.ts` rather than living in `plane-verifier.ts`'s existing `CHECKS`
   registry.** `plane-verifier.ts` already holds per-plane business-rule invariants (e.g. the
