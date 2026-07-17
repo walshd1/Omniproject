@@ -12,7 +12,7 @@ export interface AuthUser {
 // the gateway sends is the single representative label (highest authority, else base).
 // `guest` is the invite-only FLOOR (below viewer) — a client-facing portal principal confined to one
 // project. It never satisfies a viewer+ gate, so it can't reach the app proper; mirrors the gateway.
-export type Role = "guest" | "viewer" | "contributor" | "manager" | "pmo" | "admin";
+export type Role = "guest" | "viewer" | "contributor" | "manager" | "programmeManager" | "pmo" | "admin";
 
 export interface AuthState {
   authenticated: boolean;
@@ -36,13 +36,13 @@ export interface AuthState {
   impossibleTravel?: boolean;
 }
 
-/** The linear base ladder. `guest` is the floor (below viewer). The authorities (pmo/admin) sit above it
- *  and confer manager base. */
-const BASE_RANK = { guest: 0, viewer: 1, contributor: 2, manager: 3 } as const;
+/** The linear base ladder. `guest` is the floor (below viewer). `programmeManager` is a scoped rung above
+ *  project `manager`; the authorities (pmo/admin) sit above it and confer programmeManager base. */
+const BASE_RANK = { guest: 0, viewer: 1, contributor: 2, manager: 3, programmeManager: 4 } as const;
 type BaseRole = keyof typeof BASE_RANK;
 const AUTHORITIES = new Set<Role>(["pmo", "admin"]);
-/** A role's base rung — an authority confers manager-level base. */
-const baseRank = (role: Role): number => (AUTHORITIES.has(role) ? BASE_RANK.manager : BASE_RANK[role as BaseRole]);
+/** A role's base rung — an authority confers programmeManager-level base (they sit above that rung). */
+const baseRank = (role: Role): number => (AUTHORITIES.has(role) ? BASE_RANK.programmeManager : BASE_RANK[role as BaseRole]);
 
 /** Does this role satisfy the gate `min`? Mirrors the gateway's `grantsSatisfy`:
  *  - an AUTHORITY gate (pmo/admin) needs that EXACT authority (orthogonal — admin ≠ pmo);
