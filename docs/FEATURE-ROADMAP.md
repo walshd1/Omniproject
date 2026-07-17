@@ -1503,6 +1503,13 @@ authoring, and the drift guards — no feature bypasses the golden rules.
     honest:** `dsar` no longer claims audit is "not retained in the gateway" — it reports the sealed local log,
     a content-free count of retained events naming the subject, the retention window, and the erasure-exempt /
     legal-hold basis for audit records.
+  - **Retention/disposal SURFACED (admin control).** `auditLogStatus()` (retained count, window, span, durable
+    vs RAM-only, cap) + `disposeAuditLog()` (prune-to-window now) power `GET /api/security/audit/log` +
+    `POST /api/security/audit/log/dispose` (admin + step-up + audited), and the same active disposal is folded
+    into `POST /history/dispose` so ONE run enforces both retention windows (now runs even with no brokered
+    history source). SPA: an **Audit evidence log** card in the Security admin (`SecurityKeys`) shows the status
+    (sealed-at-rest vs in-memory badge) + a step-up-gated **Dispose now**. Tests: security routes +2, history
+    routes green, SecurityKeys 13/13. Both packages typecheck clean.
   - Deliberately still OUT (data/secrets/runtime-state, not config): `vault-store` (secrets, may be external),
     `security-state` (revocations/kill-switch), `scim` (IdP-driven), wiki/proof content (systems of record),
     `push-subscription` (per-device). Tests: def-store-export 7/7 (+ extension/registry ride + tamper-drop),

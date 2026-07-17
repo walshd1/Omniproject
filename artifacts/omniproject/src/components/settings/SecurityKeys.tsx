@@ -3,7 +3,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useAuth, roleAtLeast, logout } from "../../lib/auth";
-import { useSecurityKeys, revokeKey, revokeUserSessions, useConfigKeyFingerprint, exportConfigBundle, useMaintenance, setMaintenance, type KeyStatus } from "../../lib/security";
+import { useSecurityKeys, revokeKey, revokeUserSessions, useConfigKeyFingerprint, exportConfigBundle, useMaintenance, setMaintenance, useAuditLog, disposeAuditLog, type KeyStatus } from "../../lib/security";
 import { stepUp, withStepUp } from "../../lib/step-up";
 import { useToast } from "@/hooks/use-toast";
 import { ConfirmButton } from "../ConfirmButton";
@@ -20,6 +20,7 @@ export function SecurityKeys() {
   const { data } = useSecurityKeys();
   const { data: configFp } = useConfigKeyFingerprint();
   const { data: maintenance } = useMaintenance();
+  const { data: auditLog } = useAuditLog();
   const { toast } = useToast();
   const [sub, setSub] = useState("");
   const [lockReason, setLockReason] = useState("");
@@ -60,6 +61,17 @@ export function SecurityKeys() {
       setSub("");
     } catch (e) {
       toast({ title: "Couldn't revoke sessions", description: e instanceof Error ? e.message : "failed", variant: "destructive" });
+    }
+  };
+
+  const onDisposeAuditLog = async (): Promise<void> => {
+    if (!(await stepUp())) return; // step-up gated: it deletes durable evidence
+    try {
+      const r = await disposeAuditLog();
+      await qc.invalidateQueries({ queryKey: ["audit-log"] });
+      toast({ title: "Retention enforced", description: `Disposed ${r.disposed} event(s); ${r.remaining} retained.` });
+    } catch (e) {
+      toast({ title: "Couldn't dispose", description: e instanceof Error ? e.message : "failed", variant: "destructive" });
     }
   };
 
@@ -164,6 +176,36 @@ export function SecurityKeys() {
             {maintenance?.engaged && maintenance.reason && <> Reason: <span className="font-medium">{maintenance.reason}</span></>}
           </p>
         </div>
+
+        {/* Audit evidence log: the sealed, tamper-evident record retained at rest + carried in the encrypted backup. */}
+        {auditLog && typeof auditLog.retained === "number" && (
+          <div className="space-y-2 border-t border-border pt-3" data-testid="audit-log">
+            <div className="flex items-center justify-between gap-2 text-sm">
+              <span className="flex items-center gap-2">
+                Audit evidence log
+                {auditLog.durable
+                  ? <span className="rounded bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-700">sealed at rest</span>
+                  : <span className="rounded bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-800">in-memory (no config dir)</span>}
+              </span>
+              <ConfirmButton
+                testId="dispose-audit-log"
+                className="inline-flex min-h-8 items-center justify-center rounded-md border [border-color:var(--button-outline)] px-3 text-xs font-medium shadow-xs"
+                title="Enforce the retention window now?"
+                description={`This permanently disposes evidence events older than the retention window (${auditLog.retentionDays === null ? "currently unbounded — nothing will be dropped" : `${auditLog.retentionDays} day(s)`}). Audit records are erasure-exempt otherwise. Needs a fresh step-up.`}
+                confirmLabel="Dispose now"
+                onConfirm={() => void onDisposeAuditLog()}
+              >
+                Dispose now
+              </ConfirmButton>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {auditLog.retained.toLocaleString()} retained event(s){auditLog.oldest ? ` · ${auditLog.oldest.slice(0, 10)} → ${auditLog.newest?.slice(0, 10)}` : ""} ·
+              retention {auditLog.retentionDays === null ? "unbounded" : `${auditLog.retentionDays} day(s)`} · cap {auditLog.cap.toLocaleString()}.
+              The tamper-evident chain of events is retained sealed and rides the encrypted backup (SIEM stays the durable record).
+              Set the window under History retention; it's enforced on backup export, disposal, and here.
+            </p>
+          </div>
+        )}
 
         {/* Config-at-rest key: confirm-by-fingerprint + export (to move encrypted files). */}
         <div className="space-y-2 border-t border-border pt-3" data-testid="config-key">

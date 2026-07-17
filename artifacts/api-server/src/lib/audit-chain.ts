@@ -301,6 +301,33 @@ export function importAuditChain(data: unknown): { applied: boolean; reason?: st
   return { applied: true };
 }
 
+/** Status of the sealed evidence log for the security admin: how many events are retained, the disposal
+ *  window, the span, whether the log is DURABLE (a config dir is set — else RAM-only), and the hard cap. */
+export function auditLogStatus(): { retained: number; retentionDays: number | null; oldest: string | null; newest: string | null; durable: boolean; cap: number } {
+  ensureLogLoaded();
+  const days = getSettings().historyRetention?.retentionDays;
+  return {
+    retained: logEvents.length,
+    retentionDays: typeof days === "number" && days > 0 ? days : null,
+    oldest: logEvents[0]?.ts ?? null,
+    newest: logEvents[logEvents.length - 1]?.ts ?? null,
+    durable: resolveConfigFile("AUDIT_LOG_FILE", "audit-log.json") != null,
+    cap: MAX_LOG_EVENTS,
+  };
+}
+
+/** Actively enforce the retention window NOW: prune events past `historyRetention.retentionDays` + the hard
+ *  cap, persist, and report how many were disposed. Called by the security admin action + the /history/dispose
+ *  job so retention is enforced actively, not only lazily on read/flush. */
+export function disposeAuditLog(): { disposed: number; remaining: number } {
+  ensureLogLoaded();
+  const before = logEvents.length;
+  pruneLog();
+  logDirty = true;
+  flushAuditLog();
+  return { disposed: before - logEvents.length, remaining: logEvents.length };
+}
+
 /** DSAR support: a CONTENT-FREE count of retained evidence events whose actor matches a subject predicate
  *  (plus the total retained). Never returns event bodies — the caller reports counts + the retention basis,
  *  the same content-free posture as the provenance ring. */
