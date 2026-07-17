@@ -1093,6 +1093,14 @@ authoring, and the drift guards — no feature bypasses the golden rules.
   needs the `defImporter` module + a configured artifact store; legacy dashboards still render without it.)
   **Next:** slice 3b — migrate existing settings dashboards into the def store + retire `PUT /api/dashboards`;
   then slice 4 (reports), slice 5 (screens), and the `PATCH /api/settings` lockdown.
+- **Slice 3b ✅ (drain the legacy dashboards into the def store).** `pages/Dashboards` gains an **admin-only**
+  "Migrate N legacy → definitions" action: it re-authors every legacy settings-bundle dashboard as an **org def**
+  through the importer (`mutateAsync` loop), then **clears the settings slice** (`PUT /api/dashboards []`) — after
+  which the parallel store holds nothing and the only dashboard writer left in normal use is the importer/editor.
+  Admin-gated (an org def write needs manager+, and it touches the shared slice). 2 tests (admin migrate →
+  `POST /api/defs` org + settings cleared to `[]`; non-admin sees no migrate button); SPA typecheck clean.
+  **Next:** slice 3c — once drained, remove/har­den the `PUT /api/dashboards` route itself; then slice 4
+  (reports), slice 5 (screens), colours/fonts + business rules, and the `PATCH /api/settings` lockdown.
 
 ### X.9 Library audit — permissive (MIT/BSD/Apache-2.0) code that clears our five gates
 - **The gate (standing rule).** Add third-party code only where it (1) doesn't break our rules

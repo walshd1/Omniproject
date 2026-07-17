@@ -16,8 +16,9 @@ function project(over: Partial<Project> = {}): Project {
   };
 }
 
-function seed(opts: { enabled?: boolean; dashboards?: Dashboard[]; imported?: Dashboard[]; projects?: Project[]; surfaceProgramme?: boolean } = {}): QueryClient {
+function seed(opts: { enabled?: boolean; dashboards?: Dashboard[]; imported?: Dashboard[]; projects?: Project[]; surfaceProgramme?: boolean; role?: string } = {}): QueryClient {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity }, mutations: { retry: false } } });
+  if (opts.role) qc.setQueryData(["auth", "me"], { sub: "u1", role: opts.role });
   qc.setQueryData(featuresQueryKey(), [
     { id: "dashboards", kind: "module", label: "Custom dashboards", description: "", enabled: opts.enabled ?? true, loaded: true, needsRestart: false },
   ] satisfies FeatureStatus[]);
@@ -119,6 +120,29 @@ describe("Dashboards", () => {
     await waitFor(() =>
       expect(fetch).toHaveBeenCalledWith("/api/defs", expect.objectContaining({ method: "POST" })),
     );
+  });
+
+  it("lets an admin migrate legacy settings dashboards into the def store, then clears the slice (X.10 3b)", async () => {
+    const calls = mockFetchRouter({
+      "POST /api/defs": { ok: true, status: 201, body: { id: "org~m-1", kind: "dashboard", name: "Ops", payload: {}, rowVersion: 1 } },
+      "PUT /api/dashboards": { ok: true, body: {} },
+    });
+    renderWithProviders(<Dashboards />, { client: seed({ dashboards: [{ id: "d1", name: "Ops", widgets: [] }], role: "admin" }) });
+    fireEvent.click(screen.getByTestId("dashboard-migrate"));
+    // Each legacy dashboard is re-authored as an ORG def through the importer…
+    await waitFor(() => expect(calls.some((c) => c.url.includes("/api/defs") && c.init?.method === "POST")).toBe(true));
+    const post = calls.find((c) => c.url.includes("/api/defs") && c.init?.method === "POST")!;
+    expect(JSON.parse(String(post.init!.body))).toMatchObject({ kind: "dashboard", storage: "org", name: "Ops" });
+    // …then the settings slice is cleared to empty (the parallel store is drained).
+    await waitFor(() => {
+      const put = calls.find((c) => c.url.includes("/api/dashboards") && c.init?.method === "PUT");
+      expect(put && JSON.parse(String(put.init!.body))).toEqual({ dashboards: [] });
+    });
+  });
+
+  it("does not offer the legacy migration to a non-admin", () => {
+    renderWithProviders(<Dashboards />, { client: seed({ dashboards: [{ id: "d1", name: "Ops", widgets: [] }], role: "manager" }) });
+    expect(screen.queryByTestId("dashboard-migrate")).toBeNull();
   });
 
   it("omits entity-gated widgets the backend can't surface", () => {
