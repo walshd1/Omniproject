@@ -50,6 +50,10 @@ export interface ScreenDef {
   methodologies?: string[];
   requiresRole?: "viewer" | "contributor" | "manager" | "admin";
   panels: Panel[];
+  /** The customer's saved arrangement (drag order / spans / hidden), FOLDED INTO the def (roadmap X.10):
+   *  a saved layout rides on the screen def artifact in the def store rather than a separate `screenLayouts`
+   *  settings map. Applied at render by `applyLayout`; absent for a def that ships no customised arrangement. */
+  layout?: ScreenLayout;
 }
 
 /** A saved arrangement for one screen (drag-customised, persisted to config JSON). */

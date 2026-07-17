@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { getJson, sendJson } from "./api";
 import { settingsQueryKey } from "./settings-query";
+import { useResolvedDefs, useImportDef, useUpdateDef } from "./defs";
 import { mergeScreens, resolveScreenDef, screenDefs, type ScreenCatalogueEntry } from "./screen-catalogue";
 
 /**
@@ -45,6 +46,29 @@ export function useDrainLegacyScreenDefs() {
       qc.invalidateQueries({ queryKey: settingsQueryKey });
     },
   });
+}
+
+/**
+ * UPSERT one org screen OVERRIDE def through the importer (the ONE write path): PUT the existing org `screen`
+ * def in place, else POST a new one. `def.id` pins which built-in it overrides. Shared by the Screens admin
+ * (content override) and EditableScreen (folded layout) so both go through the same choke point. Returns a
+ * `save(def)` and a `saving` flag; invalidates the resolved-screens cache on success.
+ */
+export function useSaveScreenOverride() {
+  const qc = useQueryClient();
+  const { data: defs } = useResolvedDefs<OrgScreenDef>("screen");
+  const orgDefs = useMemo(() => (Array.isArray(defs) ? defs : []).filter((d) => d.id.startsWith("org~")), [defs]);
+  const scopedIdByScreenId = useMemo(() => new Map(orgDefs.map((d) => [(d.payload as OrgScreenDef).id, d.id])), [orgDefs]);
+  const importDef = useImportDef();
+  const updateDef = useUpdateDef();
+  const save = async (def: OrgScreenDef): Promise<void> => {
+    const scopedId = scopedIdByScreenId.get(def.id);
+    const name = String(def.label ?? def.id);
+    if (scopedId) await updateDef.mutateAsync({ id: scopedId, name, payload: def });
+    else await importDef.mutateAsync({ kind: "screen", storage: "org", name, payload: def });
+    await qc.invalidateQueries({ queryKey: screenDefsResolvedKey });
+  };
+  return { save, saving: importDef.isPending || updateDef.isPending, orgDefs, scopedIdByScreenId };
 }
 
 /** The EFFECTIVE screen catalogue for this session: built-ins merged with the org's stored defs. */
