@@ -32,6 +32,10 @@ const KNOWN_NON_MUTATING = new Set([
   "getWikiDoc", "listWikiDocs", "listWikiSpaces", "listWikiDocVersions", "getWikiDocVersion",
   // Whiteboard reads (writeWhiteboard is the guarded mutation).
   "getWhiteboard", "listWhiteboards",
+  // Native handoff (X.1): nativeSurfaces lists the surfaces a backend fronts (read); nativeHandoff MINTS a
+  // per-request vendor URL (no store mutation — route stamps write:false). nativeImport IS the guarded
+  // mutation (attachment written to the target), so it lives in WRITE_CLASSIFIERS, not here.
+  "nativeSurfaces", "nativeHandoff",
 ]);
 
 /** Extract the method names declared on `export interface Broker { … }` from types.ts (methods only —
