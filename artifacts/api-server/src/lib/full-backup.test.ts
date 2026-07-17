@@ -111,6 +111,41 @@ test("the audit-chain head rides the sealed backup, and restore is ADVANCE-ONLY 
   assert.equal(audit.exportAuditChain().seq, 5, "the live audit position was preserved");
 });
 
+test("the audit EVIDENCE log rides the sealed backup and round-trips; a tampered log is refused", async () => {
+  const audit = await import("./audit-chain");
+  const settings = { branding: null } as unknown as SettingsState;
+
+  audit.__resetAuditChain();
+  audit.sealAuditEvent({ ts: "2026-07-17T00:00:00.000Z", category: "admin", action: "grant-role" } as never);
+  audit.sealAuditEvent({ ts: "2026-07-17T00:01:00.000Z", category: "admin", action: "change-policy" } as never);
+
+  // Plaintext carries no evidence log; the sealed backup carries the events.
+  const plain = buildFullBackup(settings, "2026-07-17T00:02:00.000Z", false);
+  assert.equal(plain.stores, undefined);
+  const sealed = buildSealedFullBackup(settings, "2026-07-17T00:02:00.000Z");
+  const exported = (openSealedFullBackup(sealed).stores as { auditLog: unknown[] }).auditLog;
+  assert.equal(exported.length, 2, "both audit events ride the sealed backup");
+
+  // Fresh instance: restore brings the evidence back, chain intact, head at the tip.
+  audit.__resetAuditChain();
+  const applied = applyExtraStores(openSealedFullBackup(sealed).stores).auditLog;
+  assert.equal(applied?.applied, true);
+  assert.equal(applied?.count, 2);
+  const back = audit.exportAuditLog();
+  assert.equal(back.length, 2);
+  assert.equal(audit.verifyAuditChain(back).ok, true, "the restored evidence is a valid chain");
+  assert.equal(audit.exportAuditChain().seq, 2, "the head moved to the evidence tip");
+
+  // A TAMPERED log (an event body altered so its seal no longer verifies) is refused, not written.
+  audit.__resetAuditChain();
+  const tampered = JSON.parse(JSON.stringify(exported)) as { action: string }[];
+  tampered[1]!.action = "change-policy-EVIL";
+  const bad = applyExtraStores({ auditLog: tampered }).auditLog;
+  assert.equal(bad?.applied, false);
+  assert.match(bad?.reason ?? "", /chain invalid|hash mismatch|altered/);
+  assert.equal(audit.exportAuditLog().length, 0, "nothing was written from the tampered log");
+});
+
 test("openSealedFullBackup rejects a non-sealed envelope and a corrupted token", () => {
   assert.throws(() => openSealedFullBackup({ schema: "omniproject/full-backup" }), SealedBackupError);
   const sealed = buildSealedFullBackup(withSecret, "2026-07-17T00:00:00.000Z");

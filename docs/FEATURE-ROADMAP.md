@@ -1487,12 +1487,22 @@ authoring, and the drift guards — no feature bypasses the golden rules.
     data, provider endpoints). `exportAiProviders`/`importAiProviders` re-validate each provider (id + known kind)
     and mapping entry (drops forbidden/unknown ids); `exportRateCard`/`importRateCard` round-trip the whole sealed
     state through the store's own on-disk coercion + the one `persist` choke point (so a restore is undoable).
-  - **`audit-chain`** (the tamper-evident chain HEAD `{seq, lastHash}` — the events live in the external SIEM)
-    → sealed `stores` section, sealed-only. Carrying the head lets a migrated instance CONTINUE the same chain
-    (same key material ⇒ the seals still verify across the boundary) instead of resetting to genesis. Restore is
-    **ADVANCE-ONLY**: it never REWINDS the audit position (that would let issued seqs be reused / the chain
-    fork) — a fresh target advances to the backup's head; restoring an older backup onto a live instance keeps
-    the live (higher) head.
+  - **`audit-chain`** (the tamper-evident chain HEAD `{seq, lastHash}`) → sealed `stores` section, sealed-only.
+    Carrying the head lets a migrated instance CONTINUE the same chain (same key material ⇒ the seals still
+    verify across the boundary) instead of resetting to genesis. Restore is **ADVANCE-ONLY**: it never REWINDS
+    the audit position (that would let issued seqs be reused / the chain fork) — a fresh target advances to the
+    backup's head; restoring an older backup onto a live instance keeps the live (higher) head.
+  - **audit EVIDENCE log** (directive: "loss/transfer must not lose the chain of evidence"). The head alone
+    proves continuity but carries no evidence, and audit events streamed only to the external SIEM. So — the
+    user chose it — the sealed EVENTS are now retained AT REST too: an AES-256-GCM `SealedFile` in `audit-chain`
+    (RAM-only without a config dir, same posture as every sealed store), bounded by `historyRetention.retentionDays`
+    (+ a hard count cap), debounced writes, flushed on backup-export and graceful shutdown. Carried in the
+    ENCRYPTED backup, so encrypted-backup + keys reconstitute the whole chain AND its events, no SIEM required.
+    Restore RE-VERIFIES the chain (`verifyAuditChain`) — a tampered log is refused, never written — and is
+    ADVANCE-ONLY (keeps the live evidence if it's newer), moving the head to the restored tip. **DSAR made
+    honest:** `dsar` no longer claims audit is "not retained in the gateway" — it reports the sealed local log,
+    a content-free count of retained events naming the subject, the retention window, and the erasure-exempt /
+    legal-hold basis for audit records.
   - Deliberately still OUT (data/secrets/runtime-state, not config): `vault-store` (secrets, may be external),
     `security-state` (revocations/kill-switch), `scim` (IdP-driven), wiki/proof content (systems of record),
     `push-subscription` (per-device). Tests: def-store-export 7/7 (+ extension/registry ride + tamper-drop),

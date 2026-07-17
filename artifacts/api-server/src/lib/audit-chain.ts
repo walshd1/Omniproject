@@ -7,6 +7,7 @@ import { logger } from "./logger";
 import { SealedFile, resolveConfigFile } from "./sealed-file";
 import { sharedKv, sharedStateMode } from "./shared-state";
 import { safeParseJson } from "./safe-json";
+import { getSettings } from "./settings";
 import type { AuditEvent } from "./audit";
 
 /**
@@ -65,6 +66,66 @@ function persistHead(): void {
   store.write(JSON.stringify(head));
 }
 
+// ── Local EVIDENCE log (roadmap X.14 — "loss/transfer must not lose the chain of evidence") ─────────
+// The head alone proves continuity but carries no evidence. So the sealed EVENTS are also retained at rest
+// (AES-256-GCM `SealedFile`, RAM-only when no config dir is set — same posture as every other sealed store),
+// bounded by the `historyRetention.retentionDays` disposal window (+ a hard count cap so the file/backup can't
+// grow unbounded), and carried in the ENCRYPTED backup. So an encrypted backup + the keys reconstitute the
+// whole tamper-evident chain AND its events, with no external SIEM required. Writes are debounced (coalesced)
+// to avoid rewriting a growing sealed file on every event; `flushAuditLog()` forces a synchronous write (used
+// by the backup export + tests). The external SIEM stays the durable system of record; this is the portable copy.
+const MAX_LOG_EVENTS = 200_000;
+const LOG_FLUSH_MS = 1000;
+let logEvents: SealedAuditEvent[] = [];
+let logLoaded = false;
+let logDirty = false;
+let logFlushTimer: ReturnType<typeof setTimeout> | null = null;
+const logStore = new SealedFile(() => resolveConfigFile("AUDIT_LOG_FILE", "audit-log.json"), "audit log");
+
+function ensureLogLoaded(): void {
+  if (logLoaded) return;
+  logStore.loadOnce((raw) => {
+    const parsed = safeParseJson<SealedAuditEvent[]>(raw);
+    if (Array.isArray(parsed)) logEvents = parsed;
+  });
+  logLoaded = true;
+}
+
+/** Drop events past the retention window (`historyRetention.retentionDays`; null/≤0 ⇒ keep forever) and, as a
+ *  hard backstop regardless of time, cap the total count so the sealed file + every backup stay bounded. */
+function pruneLog(): void {
+  const days = getSettings().historyRetention?.retentionDays;
+  if (typeof days === "number" && days > 0) {
+    const min = Date.now() - days * 24 * 60 * 60 * 1000;
+    logEvents = logEvents.filter((e) => { const t = Date.parse(e.ts); return Number.isNaN(t) || t >= min; });
+  }
+  if (logEvents.length > MAX_LOG_EVENTS) logEvents = logEvents.slice(-MAX_LOG_EVENTS);
+}
+
+/** Force a synchronous prune + seal-to-disk of the evidence log (backup export + tests + shutdown). */
+export function flushAuditLog(): void {
+  if (logFlushTimer) { clearTimeout(logFlushTimer); logFlushTimer = null; }
+  if (!logDirty) return;
+  pruneLog();
+  logStore.write(JSON.stringify(logEvents));
+  logDirty = false;
+}
+
+function scheduleLogFlush(): void {
+  if (logFlushTimer) return;
+  logFlushTimer = setTimeout(() => { logFlushTimer = null; flushAuditLog(); }, LOG_FLUSH_MS);
+  if (typeof logFlushTimer.unref === "function") logFlushTimer.unref();
+}
+
+/** Append a freshly-sealed event to the local evidence log (debounced write). */
+function recordToLog(ev: SealedAuditEvent): void {
+  ensureLogLoaded();
+  logEvents.push(ev);
+  if (logEvents.length > MAX_LOG_EVENTS) logEvents = logEvents.slice(-MAX_LOG_EVENTS);
+  logDirty = true;
+  scheduleLogFlush();
+}
+
 /** Seal an event into the chain: advances the head and returns the event with its seal.
  *  SYNC — the single-replica path (in-memory head, optionally SealedFile-persisted). This is
  *  the ONLY path when REDIS_URL is unset, and it is byte-identical to before this change. */
@@ -76,7 +137,9 @@ export function sealAuditEvent(ev: AuditEvent): SealedAuditEvent {
   const hash = linkHash(seq, prevHash, ev, version);
   head = { seq, lastHash: hash };
   persistHead();
-  return { ...ev, seal: { seq, prevHash, hash, kv: version } };
+  const sealed: SealedAuditEvent = { ...ev, seal: { seq, prevHash, hash, kv: version } };
+  recordToLog(sealed);
+  return sealed;
 }
 
 // ── Fleet-shared chain head (opt-in: only active when REDIS_URL ⇒ shared-state mode "redis") ──
@@ -119,7 +182,7 @@ export async function sealAuditEventShared(ev: AuditEvent): Promise<SealedAuditE
     const prevHash = cur.lastHash;
     const hash = linkHash(seq, prevHash, ev, version);
     const won = await sharedKv.cas(SHARED_HEAD_KEY, cur.raw, JSON.stringify({ seq, lastHash: hash } satisfies Head));
-    if (won) return { ...ev, seal: { seq, prevHash, hash, kv: version } };
+    if (won) { const sealed: SealedAuditEvent = { ...ev, seal: { seq, prevHash, hash, kv: version } }; recordToLog(sealed); return sealed; }
     // Lost the CAS: another replica advanced the head. Loop re-reads it and re-links.
   }
   // Extreme, sustained contention only. Surface it rather than risk an unlinked seal.
@@ -238,9 +301,54 @@ export function importAuditChain(data: unknown): { applied: boolean; reason?: st
   return { applied: true };
 }
 
-/** Test-only: reset the in-memory head (and the shared head key). */
+/** DSAR support: a CONTENT-FREE count of retained evidence events whose actor matches a subject predicate
+ *  (plus the total retained). Never returns event bodies — the caller reports counts + the retention basis,
+ *  the same content-free posture as the provenance ring. */
+export function auditLogSubjectRefs(matchesActor: (actor: SealedAuditEvent["actor"]) => boolean): { retained: number; total: number } {
+  ensureLogLoaded();
+  return { retained: logEvents.filter((e) => matchesActor(e.actor ?? null)).length, total: logEvents.length };
+}
+
+/** The retained evidence log (sealed events), pruned + flushed so a backup captures the current bounded set. */
+export function exportAuditLog(): SealedAuditEvent[] {
+  ensureLogLoaded();
+  flushAuditLog();      // prune + persist so the export matches disk
+  return logEvents.slice();
+}
+
+/**
+ * Restore the evidence log from a backup. The events are FIRST re-verified as an intact chain
+ * (`verifyAuditChain`) — a tampered/broken log is refused, never written. ADVANCE-ONLY, like the head: a
+ * restore replaces the local log only when its tip seq is ≥ the live tip (a fresh migration target advances;
+ * restoring an older backup onto a live instance keeps the live evidence). When it advances, the head is moved
+ * to the log's tip too, so head + log stay consistent.
+ */
+export function importAuditLog(data: unknown): { applied: boolean; count: number; reason?: string } {
+  ensureLoaded();
+  ensureLogLoaded();
+  if (!Array.isArray(data)) return { applied: false, count: 0, reason: "audit log is not an array" };
+  const evs = data as SealedAuditEvent[];
+  const verdict = verifyAuditChain(evs);
+  if (!verdict.ok) return { applied: false, count: 0, reason: `chain invalid at index ${verdict.brokenAt}: ${verdict.reason}` };
+  const tipSeq = evs.length ? evs[evs.length - 1]!.seal.seq : 0;
+  const liveTip = logEvents.length ? logEvents[logEvents.length - 1]!.seal.seq : head.seq;
+  if (tipSeq < liveTip) return { applied: false, count: 0, reason: `kept live evidence log (tip ${liveTip} newer than backup ${tipSeq})` };
+  logEvents = evs.slice();
+  logDirty = true;
+  flushAuditLog();
+  if (evs.length) head = { seq: evs[evs.length - 1]!.seal.seq, lastHash: evs[evs.length - 1]!.seal.hash };
+  persistHead();
+  return { applied: true, count: logEvents.length };
+}
+
+/** Test-only: reset the in-memory head (and the shared head key) + the evidence log. */
 export function __resetAuditChain(): void {
   head = { seq: 0, lastHash: GENESIS };
   store.reset();
   void sharedKv.del(SHARED_HEAD_KEY);
+  logEvents = [];
+  logLoaded = false;
+  logDirty = false;
+  if (logFlushTimer) { clearTimeout(logFlushTimer); logFlushTimer = null; }
+  logStore.reset();
 }

@@ -5,7 +5,8 @@ import { sealConfig, openConfig, isSealedConfig, internalKeyFingerprint } from "
 import { safeParseJson } from "./safe-json";
 import { exportAiProviders, importAiProviders, type AiProvidersExport } from "./ai-providers";
 import { exportRateCard, importRateCard, type RateCardExport } from "./rate-card-store";
-import { exportAuditChain, importAuditChain, type AuditChainExport } from "./audit-chain";
+import { exportAuditChain, importAuditChain, exportAuditLog, importAuditLog, type AuditChainExport } from "./audit-chain";
+import type { SealedAuditEvent } from "./audit-chain";
 
 /**
  * FULL BACKUP (roadmap X.14) — ONE portable file that carries BOTH halves of what an admin owns: the settings
@@ -28,6 +29,8 @@ export interface ExtraStores {
   rateCard?: RateCardExport;
   /** The tamper-evident audit chain HEAD ({seq, lastHash}), so a migrated instance continues the same chain. */
   auditChain?: AuditChainExport;
+  /** The retained audit EVENTS (the chain of evidence itself) — so a loss/transfer doesn't lose the record. */
+  auditLog?: SealedAuditEvent[];
 }
 
 export interface FullBackup {
@@ -52,7 +55,7 @@ export function buildFullBackup(settings: SettingsState, now: string, includeSec
     settings: buildSnapshot(settings, includeSecrets),
     defStore: buildDefStoreExport(now),
   };
-  if (includeSecrets) backup.stores = { aiProviders: exportAiProviders(), rateCard: exportRateCard(), auditChain: exportAuditChain() };
+  if (includeSecrets) backup.stores = { aiProviders: exportAiProviders(), rateCard: exportRateCard(), auditChain: exportAuditChain(), auditLog: exportAuditLog() };
   return backup;
 }
 
@@ -68,12 +71,18 @@ export function splitFullBackup(input: unknown): { settings: unknown; defStore: 
 
 /** Apply the extra sealed stores (ai-providers + rate-card) from a decrypted sealed backup. Each importer
  *  re-validates its own rows. Returns a small per-store report; silently does nothing for absent halves. */
-export function applyExtraStores(stores: unknown): { aiProviders?: { providers: number; mappings: number }; rateCard?: boolean; auditChain?: { applied: boolean; reason?: string } } {
-  const out: { aiProviders?: { providers: number; mappings: number }; rateCard?: boolean; auditChain?: { applied: boolean; reason?: string } } = {};
+export function applyExtraStores(stores: unknown): {
+  aiProviders?: { providers: number; mappings: number }; rateCard?: boolean;
+  auditChain?: { applied: boolean; reason?: string }; auditLog?: { applied: boolean; count: number; reason?: string };
+} {
+  const out: ReturnType<typeof applyExtraStores> = {};
   if (!stores || typeof stores !== "object") return out;
   const s = stores as ExtraStores;
   if (s.aiProviders !== undefined) out.aiProviders = importAiProviders(s.aiProviders);
   if (s.rateCard !== undefined) { importRateCard(s.rateCard); out.rateCard = true; }
+  // Import the evidence log FIRST (it verifies the chain and moves the head to its tip), then the standalone
+  // head — so if only the head is present it still applies, and if both are present they stay consistent.
+  if (s.auditLog !== undefined) out.auditLog = importAuditLog(s.auditLog);
   if (s.auditChain !== undefined) out.auditChain = importAuditChain(s.auditChain);
   return out;
 }
