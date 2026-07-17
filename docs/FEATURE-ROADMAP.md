@@ -1623,6 +1623,96 @@ catalogue + a branch in `validateSubmission` (server) and `FormPanel`/`FormsAdmi
 File attachments are intentionally **not** a primitive: the platform stores no files at rest,
 so an attachment field would be a URL reference (`url` type) pointing at the system of record.
 
+## Phase 4 — SOTA competitive-parity backlog (SAP + PPM leaders, 2026 research)
+
+Captured in full per the directive "add all missing features even if we don't think we should." Sourced
+from the cited deep-research pass (SAP S/4HANA PPM, ServiceNow SPM, Planview, Broadcom Clarity, Atlassian
+Align/Focus, Microsoft Planner/Project) plus general SOTA PPM. **Inclusion here is NOT a commitment** — many
+items conflict with our stateless / zero-at-rest / broker-mediated rules and are logged so the trade-off is
+explicit, not forgotten. Every item is ⬜ Todo unless noted.
+
+**Disposition legend (orthogonal to build-status):**
+- ✳ **Fits** — rides the existing architecture (engine + JSON artifacts + broker seam); build when prioritised.
+- 🔌 **Broker-dependent** — feasible only by brokering from a connected system of record; we render/orchestrate, we don't store.
+- ⚠ **Tension** — pulls against a core rule (zero-at-rest, no data cached in config, stateless); needs an explicit exception or a sidecar SoR.
+- ❄ **Likely won't build** — contradicts the architecture or the positioning; logged for completeness, not planned.
+
+### 4.1 Financial / ERP-native depth (SAP's moat)
+- 🔌 **Project→GL cost brokering** — surface actual cost postings, commitments, and WIP by WBS/cost-object, read live from SAP/Oracle/NetSuite; never posted or stored here.
+- 🔌 **Event-based revenue recognition mirror** — display SAP EBRR results (fixed-price / T&M / periodic) as a read model; recognition stays in the ERP.
+- 🔌 **Capitalization / CapEx-OpEx split, cost-center + procurement + HR-cost roll-ups** — brokered read models per scope.
+- ❄ **Be the ledger** — own postings, settlement, actuals, revenue recognition at rest. Directly contradicts zero-at-rest; SAP's job, not ours.
+- ✳ **Deeper cost engine at the plan layer** — multi-currency EAC/ETC, funding sources, chargeback/showback, rate-card versioning over time (extends existing rate-card + budget-plan).
+- ✳ **Benefits realization tracking** — planned vs actual benefit by initiative, tied to Goals/OKRs.
+
+### 4.2 Resource management & capacity planning
+- ✳ **Capacity vs demand at portfolio scale** — role/skill supply modelling, allocation heatmaps, over/under-utilisation (extends resource-allocations + skills-planning).
+- ✳ **Skills/competency matrix + gap analysis**, **named + generic (role-based) resourcing**, **soft vs hard booking / reservations**.
+- 🔌 **Timesheet actuals reconciliation** — brokered from the timesheet SoR; drive utilisation + burn.
+- ✳ **What-if resource scenarios** — model reassignments before committing (client-side projection, same posture as the scheduler).
+
+### 4.3 Portfolio analytics & decisioning
+- ✳ **Scenario / what-if portfolio planning** — fund/defer/cut simulations against capacity + budget envelopes.
+- ✳ **Efficient-frontier / optimisation** — pick the highest-value portfolio under constraints (value vs cost vs risk).
+- ✳ **Monte Carlo** on schedule + cost + benefit (client-side compute; no data retained).
+- ✳ **Roadmap / investment themes / strategic buckets**, **stage-gate governance with gate criteria + approvals** (extends composition + approval chains).
+- ✳ **Portfolio Kanban + WSJF/RICE/weighted-shortest-job** (priority-weights engine already exists — deepen).
+
+### 4.4 Embedded AI / copilot grounded in the live portfolio *(where ServiceNow/MS are pulling ahead)*
+- ✳ **Portfolio-grounded copilot** — Q&A + roll-ups over the *brokered* live portfolio (status, risk, "what slipped and why"), grounded at query time, nothing cached. The single highest-leverage AI item.
+- ✳ **Epic/initiative health scoring** — R/Y/G across risk dimensions (dependencies, blocked work, timeline, ownership) with plain-English reasoning (ServiceNow Now Assist parity).
+- ✳ **NL → artifact** already exists for primitives; extend to **NL → report / dashboard / screen / automation**.
+- ✳ **AI status-report + exec-digest generation** from brokered state (builds on exec-digest).
+- ✳ **Agentic task monitoring / next-best-action**, **duplicate-demand detection**, **auto-summarise threads/wiki/proofs**.
+- ⚠ **AI over historical trend data** — needs a retained corpus; only over the opt-in sidecar/history store, never core.
+
+### 4.5 Agile / adaptive planning at scale
+- 🔌 **SAFe / scaled-agile constructs** (ARTs, PI planning, program board, dependency mapping) — orchestrate over the brokered agile SoR (Jira etc.), Jira Align / Atlassian Align territory.
+- ✳ **OKR ↔ delivery linkage** (Goals exist; wire objectives to brokered epics/initiatives + auto-roll-up progress).
+- ✳ **Dependency graph + critical-path across teams**, **capacity-based sprint/PI forecasting**.
+
+### 4.6 Enterprise integration & data
+- ✳ **First-class SAP connector** (S/4HANA / PS / PPM read models) — the credibility connector; brokered, not stored.
+- ✳ **Broader broker catalogue** — Oracle/NetSuite/Workday/MS Project/Smartsheet/monday/Asana/Azure DevOps read+write seams.
+- ✳ **iPaaS / webhook-out / OData feed** (OData read already exists — extend), **bi-directional sync policies**, **field-mapping studio** (partly exists).
+- ⚠ **Data warehouse / lakehouse export** — legitimate, but any retained extract needs the sidecar SoR + explicit retention, not core.
+
+### 4.7 Reporting, BI & dashboards
+- ✳ **Cross-project/portfolio pivot + drill-through**, **scheduled report delivery / subscriptions**, **export to PPTX/XLSX/PDF**.
+- ✳ **Baseline vs actual variance + EVM suite** (SPI/CPI/EAC — partially present, complete it), **burn-up/down + cumulative flow**.
+- 🔌 **Embedded external BI** (SAC / Power BI / Tableau) via broker seam rather than re-implementing a BI engine.
+
+### 4.8 Governance, risk, compliance
+- ✳ **Risk + issue register with scoring/heatmaps** (RAID exists in registers — deepen to scored matrices + mitigation workflow).
+- ✳ **Change-control board / change requests**, **decision log**, **assumption + dependency registers** (some exist — formalise).
+- ✳ **Audit-ready compliance packs** (SOC2/ISO evidence export) — leans on the tamper-evident audit chain we just shipped.
+- ✳ **Policy-as-config guardrails** (mandatory fields/gates per methodology — composition gate exists, extend).
+
+### 4.9 Config lifecycle & portability *(our wedge — sharpen vs SAP CTS/CTS+)*
+- ✳ **Config diff / drift report between instances** (compare two encrypted-JSON backups; show what changed).
+- ✳ **Staged promotion (dev→test→prod) for config/defs** — a lightweight, JSON-native answer to SAP transports; selective, reviewable, signed.
+- ✳ **Config versioning + rollback timeline** (partially exists via config-store history — surface it), **change approval on config promotion**.
+- ✳ **Benchmark doc: JSON-config portability vs SAP CTS/CTS+/cTMS** (research open question — quantify migration effort).
+
+### 4.10 Work management & collaboration parity
+- ✳ **Gantt with dependencies + baselines + drag-reschedule** (scheduler exists; add the interactive Gantt surface), **timeline/roadmap views**.
+- ✳ **Portfolio calendar / milestone calendar**, **workload view**, **cross-project dependencies board**.
+- ✳ **Forms → intake → triage → approval pipeline** (intake forms exist; add the demand-intake funnel + scoring).
+- ✳ **@-mention notifications, watchers, digest rules** (presence/comments exist — extend to a notification centre).
+
+### 4.11 Platform, extensibility, deployment
+- ✳ **Marketplace maturation** (marketplace + registry exist) — ratings, versioned installs, paid/community tiers, signing.
+- ✳ **Public API + SDK + API tokens + rate-limited developer portal** (API portal generated already — productise).
+- ✳ **Multi-org / multi-tenant management console**, **SSO/SCIM breadth** (SCIM + OIDC exist — add SAML breadth, more IdPs).
+- ✳ **Mobile-native shell** (PWA exists; the X.1 native-handoff bridge is the seam).
+- ⚠ **On-prem "air-gapped" distribution** — feasible (self-host exists) but needs a supported offline update + license story.
+
+### 4.12 Explicitly-not-building (logged so the decision is on record)
+- ❄ Owning financial postings / becoming the ERP ledger (§4.1).
+- ❄ Storing brokered project/issue data at rest to enable "faster" analytics — breaks zero-at-rest; use the broker + optional sidecar instead.
+- ❄ A bundled proprietary BI engine — broker to SAC/Power BI/Tableau (§4.7).
+- ❄ Re-selling "BYOK / data sovereignty" as a differentiator — the research showed SAP already offers BYOK/HYOK; keep it as hygiene, lead with zero-at-rest + portability instead.
+
 ## Status legend
 
 - ⬜ **Todo** — not started.
@@ -1784,3 +1874,10 @@ so an attachment field would be a URL reference (`url` type) pointing at the sys
   allowlist (replaces 'none'). Roadmap: added the **MIT/permissive library-audit verdict** (X.9) and the
   **architecture findings** — grid to JSON-define via a `gridColumns` settings slice (X.7), **dashboards already
   JSON-defined** via `/api/dashboards` (X.8), and the two-store unification as an open decision (X.10).
+- _2026-07-17_ — Added **Phase 4 — SOTA competitive-parity backlog** (full sweep, incl. items we may not
+  build) from the cited SAP/PPM deep-research pass. Each item tagged ✳ fits / 🔌 broker-dependent / ⚠ tension
+  with a core rule / ❄ likely-won't-build, so the trade-offs are on record rather than forgotten. Research net:
+  SAP's project→GL depth and the leaders' embedded-AI maturity are real gaps; our defensible wedge is
+  zero-at-rest + broker-mediated + JSON-config portability (NOT BYOK/sovereignty — SAP already ships that).
+  Highest-leverage next bets flagged: a portfolio-grounded copilot (§4.4), a first-class SAP read connector
+  (§4.6), and config diff/staged-promotion to sharpen the portability wedge vs SAP CTS/CTS+ (§4.9).
