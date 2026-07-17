@@ -29,7 +29,8 @@ function cookie(session: object): string {
   const mac = crypto.createHmac("sha256", SECRET).update(value).digest("base64").replace(/=+$/, "");
   return `omni_session=${encodeURIComponent("s:" + value + "." + mac)}`;
 }
-const ADMIN = cookie({ sub: "a", email: "ada@x.io", roles: ["omni-admins"], amr: ["hwk"] });
+// A fresh step-up stamp so the PUT (step-up gated) passes; amr grants the admin authority.
+const ADMIN = cookie({ sub: "a", email: "ada@x.io", roles: ["omni-admins"], amr: ["hwk"], stepUpAt: Date.now() });
 const MANAGER = cookie({ sub: "m", email: "mia@x.io", roles: ["omni-managers"] });
 // A user whose ONLY IdP group is "finance" — unmapped to any fixed role, so it resolves via a custom role.
 const FINANCE = cookie({ sub: "f", email: "fin@x.io", roles: ["finance"] });
