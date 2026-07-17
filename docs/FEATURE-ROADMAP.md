@@ -1359,6 +1359,19 @@ authoring, and the drift guards — no feature bypasses the golden rules.
   drain-only with migration bridges. The React renderers stay engine. The remaining settings-config overlays
   (`disabledScreens`, `reportOverrides`, `collectionEditRoles`) are small policy the engine applies on top, not
   definitions.
+- **user-adjustable prefs MOVED into each user's own vault ✅ (directive "all user-adjustable settings state
+  should be stored in the appropriate JSON vault … so export/backup/restore can genuinely work").** `userPrefs`
+  (per-user UI/accessibility: font scale/family, colours, contrast, motion, switch-scan, density, scoped
+  overrides) was the ONE genuinely user-adjustable settings surface — written by any authed user via
+  `PUT /api/me/prefs` — yet it lived in the ORG-wide settings blob keyed by `sub`. `lib/user-prefs` now reads/
+  writes the caller's OWN scoped AES-256-GCM vault (`user-<sub>.json`, type `user-prefs`) when the artifact
+  store is configured, with the legacy `settings.userPrefs[sub]` map kept as a READ bridge (a pre-migration
+  pref still resolves; the next save moves it in) and as the fallback when no store is configured. Reads are
+  re-sanitised on the way out, so a pref that entered the vault via a restored/tampered BACKUP (the def-store
+  import re-encrypts config blobs but has no per-kind validator for them) is still normalised. `user-prefs` is
+  added to the def-store export's `EXPORT_TYPES`, so a full backup now genuinely round-trips a person's setup
+  across a migration. Tests: user-prefs 17/17 (legacy fallback path), def-store-export 6/6 (+ new prefs
+  ride-the-backup round-trip), config-snapshot/full-backup green; api-server typechecks clean.
 
 ### X.13 `programmeManager` RBAC role — scoped rung, step-up to lock  🚧 In progress
 - **Directive (2026-07-17).** A **programme manager** is a permission level in RBAC, assignable by admin/PMO —
@@ -1395,7 +1408,8 @@ authoring, and the drift guards — no feature bypasses the golden rules.
   it never included the **encrypted def stores** (imported defs, selection bindings + locks, the def-write
   policy, custom RBAC roles). An admin backing up today silently lost every def, binding, and lock.
 - **Slice 1 ✅ (def-store export/import lib + routes).** `lib/def-store-export`: `buildDefStoreExport(now)`
-  walks the customer-authored artifact types (`def`, `def-binding`, `def-policy`, `custom-roles`) via
+  walks the customer-authored artifact types (`def`, `def-binding`, `def-policy`, `custom-roles`, and — since
+  the X.10 user-prefs move — `user-prefs`) via
   `listAllArtifactCollections`, **excluding the system scope** (our catalogues re-seed from code, so they never
   travel in a customer backup), into a portable plaintext bundle. `applyDefStoreExport(bundle)` is the ONLY
   writer back in (the X.10 choke-point rule): it **re-validates every def by its per-kind validator** (a

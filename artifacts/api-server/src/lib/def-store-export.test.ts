@@ -12,6 +12,7 @@ process.env["OMNI_CONFIG_DIR"] = CONFIG_DIR;
 const { putDef, listDefs, seedSystemDef, listSystemDefs } = await import("./def-import");
 const { setScopeBinding, getScopeBindings } = await import("./def-binding");
 const { putArtifact, listArtifacts } = await import("./artifact-store");
+const { setUserPrefs, getUserPrefs } = await import("./user-prefs");
 const { buildDefStoreExport, applyDefStoreExport, DEF_STORE_EXPORT_SCHEMA } = await import("./def-store-export");
 
 const now = "2026-07-17T00:00:00.000Z";
@@ -88,4 +89,22 @@ test("import RE-VALIDATES defs: a tampered/invalid payload is dropped, not writt
 
 test("import rejects an unrecognised schema", () => {
   assert.throws(() => applyDefStoreExport({ schema: "not-ours", collections: [] }), /schema/i);
+});
+
+test("per-user prefs ride the backup and round-trip into a fresh store (setup follows the person)", () => {
+  // With the store enabled, a save lands in the user's OWN vault, not the settings blob.
+  setUserPrefs("u-prefs", { fontScale: 1.25, highContrast: true, backgroundColor: "#0b1020" });
+  const bundle = buildDefStoreExport(now);
+  const prefsCol = bundle.collections.find((c) => c.type === "user-prefs" && c.scope.kind === "user");
+  assert.ok(prefsCol, "a user-prefs collection is captured in the backup");
+  assert.equal(prefsCol.items[0]?.id, "prefs");
+
+  // Migrate: wipe the store, reimport the bundle — the person's setup comes back intact.
+  fs.rmSync(path.join(CONFIG_DIR, "artifacts"), { recursive: true, force: true });
+  const report = applyDefStoreExport(bundle);
+  assert.ok(report.written.some((w) => w.type === "user-prefs"));
+  const restored = getUserPrefs("u-prefs");
+  assert.equal(restored.fontScale, 1.25);
+  assert.equal(restored.highContrast, true);
+  assert.equal(restored.backgroundColor, "#0b1020");
 });

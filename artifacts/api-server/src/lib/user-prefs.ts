@@ -1,13 +1,35 @@
 import { getSettings, updateSettings, type UserPrefs, type ScopedThemeOverride } from "./settings";
+import { artifactStoreEnabled, getArtifact, putArtifact } from "./artifact-store";
 
 /**
  * Per-user UI/accessibility preferences, persisted server-side keyed by the user's
  * `sub` so a person's setup (text size, background colour, contrast, motion) follows
- * them across SESSIONS and devices — not just one browser. Stored as JSON; the code
- * here supplies the standard defaults when a user (or a field) is unspecified.
+ * them across SESSIONS and devices — not just one browser.
+ *
+ * STORAGE (roadmap X.10 — "user-adjustable settings live in the appropriate JSON vault"): these are the ONE
+ * genuinely user-adjustable settings surface (written by any authed user via `PUT /api/me/prefs`), so they
+ * belong in that user's OWN scoped, AES-256-GCM-sealed vault — `user-<sub>.json` in the artifact store — not
+ * commingled in the org-wide config blob. A write touches only the caller's own vault. The legacy
+ * `settings.userPrefs[sub]` map is a READ bridge: a pre-migration pref still resolves, and the user's next
+ * save moves it into their vault. When no artifact store is configured, we fall back to the settings map.
  *
  * This is personal config, never project data — the same trust class as branding.
  */
+
+/** The per-user prefs artifact: type + fixed id (one row per user vault). */
+const PREFS_TYPE = "user-prefs";
+const PREFS_ID = "prefs";
+interface StoredPrefs { id: string; prefs: UserPrefs }
+const userScope = (sub: string) => ({ kind: "user", sub }) as const;
+
+/** The user's prefs from THEIR vault, or null (store off / none saved). Sanitised on the way out so a
+ *  payload that entered the vault via a restored/tampered BACKUP (the def-store import re-encrypts config
+ *  blobs but has no per-kind validator for them) is still normalised to valid prefs before use. */
+function vaultPrefs(sub: string): UserPrefs | null {
+  if (!artifactStoreEnabled()) return null;
+  const raw = getArtifact<StoredPrefs>(PREFS_TYPE, userScope(sub), PREFS_ID)?.prefs;
+  return raw == null ? null : sanitizeUserPrefs(raw);
+}
 
 export const DEFAULT_USER_PREFS: UserPrefs = {
   fontScale: 1,
@@ -94,19 +116,26 @@ export function sanitizeUserPrefs(input: unknown): UserPrefs {
   };
 }
 
-/** A user's stored prefs, or the code defaults when they have none. */
+/** A user's stored prefs, or the code defaults when they have none. Reads their own vault
+ *  first, then the legacy settings map (migration bridge), then falls back to the defaults. */
 export function getUserPrefs(sub: string): UserPrefs {
-  return getSettings().userPrefs[sub] ?? DEFAULT_USER_PREFS;
+  return vaultPrefs(sub) ?? getSettings().userPrefs[sub] ?? DEFAULT_USER_PREFS;
 }
 
-/** Has this user saved prefs? (Lets the client tell "stored" from "defaults".) */
+/** Has this user saved prefs? (Lets the client tell "stored" from "defaults".)
+ *  True if they're in the vault OR still only in the legacy settings map. */
 export function hasUserPrefs(sub: string): boolean {
-  return Object.prototype.hasOwnProperty.call(getSettings().userPrefs, sub);
+  return vaultPrefs(sub) != null || Object.prototype.hasOwnProperty.call(getSettings().userPrefs, sub);
 }
 
-/** Persist (sanitised) prefs for a user; returns what was stored. */
+/** Persist (sanitised) prefs for a user; returns what was stored. Writes to the caller's OWN
+ *  scoped vault when the artifact store is configured; otherwise falls back to the settings map. */
 export function setUserPrefs(sub: string, input: unknown): UserPrefs {
   const clean = sanitizeUserPrefs(input);
-  updateSettings({ userPrefs: { ...getSettings().userPrefs, [sub]: clean } });
+  if (artifactStoreEnabled()) {
+    putArtifact<StoredPrefs>(PREFS_TYPE, userScope(sub), { id: PREFS_ID, prefs: clean });
+  } else {
+    updateSettings({ userPrefs: { ...getSettings().userPrefs, [sub]: clean } });
+  }
   return clean;
 }

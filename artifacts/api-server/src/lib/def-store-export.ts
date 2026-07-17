@@ -26,8 +26,10 @@ export const DEF_STORE_EXPORT_VERSION = 1;
 
 /** The customer-authored encrypted stores to back up. The `def` store's SYSTEM scope is deliberately EXCLUDED
  *  (our shipped catalogues re-seed from code on the new instance); everything else is org/programme/project/
- *  user config. `def-policy` + `custom-roles` are single-row org config blobs; `def-binding` is per-scope maps. */
-const EXPORT_TYPES = [DEF_ARTIFACT, BINDING_ARTIFACT, "def-policy", "custom-roles"] as const;
+ *  user config. `def-policy` + `custom-roles` are single-row org config blobs; `def-binding` is per-scope maps;
+ *  `user-prefs` is the per-user UI/accessibility row that moved out of the settings blob into each user's own
+ *  vault (roadmap X.10) — carrying it here is what lets a backup/restore genuinely round-trip a person's setup. */
+const EXPORT_TYPES = [DEF_ARTIFACT, BINDING_ARTIFACT, "def-policy", "custom-roles", "user-prefs"] as const;
 
 type Row = { id: string } & Record<string, unknown>;
 export interface ExportCollection { type: string; scope: ArtifactScope; items: Row[] }
