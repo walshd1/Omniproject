@@ -1038,6 +1038,28 @@ authoring, and the drift guards — no feature bypasses the golden rules.
   purpose-built validated editor (whiteboard scenes, wiki docs, proofs) is a separate category and out of scope
   here. (Overlay slices 2–4 stay valid as the additive first step; the retirement of the parallel writers is the
   cutover, slice 5+, now understood as mandatory, not optional.)
+- **The scope classifier (user directive, 2026-07-17).** *"Is it a NEW ARTIFACT, or data in flight?"* A
+  **definition** is authored once and then *used* read-only (a dashboard, screen, report, form, theme/colour,
+  font, business rule, content page, template, workflow) → it goes through the importer/editor. **Content in
+  flight** is saved continuously as you work (whiteboard sticky notes, wiki doc edits, proof annotations) — you'd
+  never "export on every save" — so it keeps its own purpose-built live editor and encrypted content store. The
+  rationale is cost + safety: the sealed stores are **write-rarely / read-mostly**, every write is a
+  decrypt→modify→re-encrypt cycle, so funnelling all *definition* writes through the one importer choke point
+  keeps those cycles rare and in one place; every other surface only ingests (reads a resolved def, renders it,
+  cacheable, never re-encrypts). By this test: **saved/panel views** (live per-user render state) and the
+  already-encrypted **admin/registry metadata** (def-policy, custom-roles, extension, registry-item — their own
+  single validated encrypted writers, with step-up) are NOT new-artifact definitions and stay on their paths;
+  the **authored artifacts** converge.
+- **Audit (2026-07-17) — the parallel definition-writers to retire, in priority order.** All bypass the importer,
+  persisting to the **settings/config bundle** (a different store from the sealed def store), so convergence is a
+  real migration, not just a UI change. Core: `PUT /api/dashboards` (`dashboards`), `PUT /api/screen-defs`
+  (`screenDefs`) + `PUT /api/screen-layouts` (`screenLayouts`), `PUT /api/reports` + `/api/reports/custom` +
+  `/api/report-overrides`, `PUT /api/forms` (`forms`). Styling/rules: `PUT /api/branding` (org **colours + fonts**)
+  and `PUT /api/admin/ruleset*` (**business rules**) — bespoke writers. Then org-JSON config (content pages,
+  templates, workflows, automations, custom fields). **The super-writer** `PATCH /api/settings` can write any
+  slice in bulk — it must be locked out of the converged slices too. Sequencing chosen: **core first, slice by
+  slice** — finish each kind (author/edit → importer; render read-only; migrate existing settings data; retire
+  the old writer + close the `PATCH` bypass for that slice) before the next.
 - **Slicing.** (1) the resolve-by-kind read seam; (2) dashboards render importer defs (overlay, real validator);
   (3) reports; (4) screens; (5) migrate/bridge the settings slices + retire the parallel path. Each slice is
   additive (built-ins/settings keep working) until the final cutover — no big-bang.
