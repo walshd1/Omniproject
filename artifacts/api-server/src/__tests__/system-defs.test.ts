@@ -26,7 +26,7 @@ test("seedSystemDefaultsIfEmpty installs the bundled defaults once; applySystemD
 
   const defs = listSystemDefs();
   const kinds = new Set(defs.map((d) => d.kind));
-  for (const k of ["report", "form", "businessRule", "dashboard"] as const) {
+  for (const k of ["report", "form", "businessRule", "methodology", "dashboard"] as const) {
     assert.ok(kinds.has(k), `the system store has a ${k} default`);
   }
   // Every shipped default is a read-only system row authored by "system".

@@ -1159,9 +1159,18 @@ authoring, and the drift guards — no feature bypasses the golden rules.
   shot — it takes **no def payload**, so an admin can only apply the vendor-approved defaults, never inject their
   own into the system tier; **`GET /api/admin/system-defs`** is an admin read of the installed set (count per
   kind). There remains **no importer/editor write path** to `system`. 3 route tests (admin applies + summary;
-  non-admin 403 on both; stale step-up refused). Both packages typecheck clean. **Next:** relocate the SPA screen
-  + primitive defaults into the shared package and seed them; the client "Duplicate to my store" fork; then
-  continue the X.10 convergence (reports/screens/rules).
+  non-admin 403 on both; stale step-up refused). Both packages typecheck clean.
+- **Slice 5 ✅ (methodologies are system JSON + org-authorable).** Added **`methodology`** as a `DefKind`
+  (backend `def-import` + SPA `defs` + the `Definitions` editor's `KIND_LABEL`), validated structurally (`id` +
+  `label`). The seeder now installs the shipped **methodology catalogue** (`methodologyCatalogue()` from the
+  bundled package — the rich `MethodologyDefinition`: kind, capabilities, tools, …) into the read-only system
+  store alongside reports/forms/rules/dashboards. Because `methodology` is now a real def kind, it is
+  **authorable through the importer into the org-wide store** (and user/project) under the same def-policy
+  (org = pmo/admin) — no special-casing. `DEF_KINDS` drift test + methodology validator test updated; seeder test
+  asserts a methodology default is installed; both packages typecheck clean. **Next:** relocate the SPA-only
+  **screen** (24 panel-bearing) + **primitive** (19) default catalogues into `@workspace/backend-catalogue` so the
+  backend seeder can source them too (they're already `DefKind`s + org-authorable — only the *system defaults*
+  are blocked on the data living SPA-side); then the client "Duplicate to my store" fork.
 
 ### X.9 Library audit — permissive (MIT/BSD/Apache-2.0) code that clears our five gates
 - **The gate (standing rule).** Add third-party code only where it (1) doesn't break our rules

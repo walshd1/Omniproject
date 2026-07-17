@@ -1,10 +1,10 @@
-import { reportCatalogue, formCatalogue, dashboardPresetCatalogue, referenceRulesetCatalogue, type DashboardPreset } from "@workspace/backend-catalogue";
+import { reportCatalogue, formCatalogue, dashboardPresetCatalogue, referenceRulesetCatalogue, methodologyCatalogue, type DashboardPreset } from "@workspace/backend-catalogue";
 import { artifactStoreEnabled } from "./artifact-store";
 import { buildSystemDefRow, replaceSystemDefs, listSystemDefs, type StoredDef } from "./def-import";
 
 /**
  * THE SHIPPED-DEFAULTS INSTALLER for the read-only system store (roadmap X.11). Our built-in defaults — reports,
- * forms, business-rule reference bundles, dashboard presets — are sourced from OUR bundled catalogues in
+ * forms, business-rule reference bundles, methodologies, dashboard presets — are sourced from OUR bundled catalogues in
  * `@workspace/backend-catalogue` (the approved-from-us source; a customer can't inject into this tier). They are
  * sealed into the `system` def blob in a SINGLE one-shot write (`replaceSystemDefs`), never per-item.
  *
@@ -35,6 +35,7 @@ export function buildSystemDefaultRows(): StoredDef[] {
   for (const r of reportCatalogue()) rows.push(buildSystemDefRow("report", r.label, r, SEED_AT));
   for (const f of formCatalogue()) rows.push(buildSystemDefRow("form", f.label, f, SEED_AT));
   for (const b of referenceRulesetCatalogue()) rows.push(buildSystemDefRow("businessRule", b.label, b, SEED_AT));
+  for (const m of methodologyCatalogue()) rows.push(buildSystemDefRow("methodology", m.label, m, SEED_AT));
   for (const p of dashboardPresetCatalogue()) rows.push(buildSystemDefRow("dashboard", p.name, presetToDashboardPayload(p), SEED_AT));
   return rows;
 }
