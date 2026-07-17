@@ -373,7 +373,7 @@ export async function resolveLiveSuperset(req: Request): Promise<SupersetField[]
   const ctx = contextFromReq(req);
   const enumerated = await probe(broker.describeFields?.(ctx), []);
   const inputs: SupersetInput[] = [];
-  if (enumerated.length) inputs.push({ system: broker.kind, fields: enumerated });
+  if (enumerated.length) inputs.push({ broker: broker.kind, system: broker.kind, fields: enumerated });
   if (artifactStoreEnabled()) inputs.push(sidecarSupersetInput()); // the sidecar exposes all its data types
   return buildLiveSuperset(inputs);
 }

@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { buildLiveSuperset, sidecarEnumeratedFields, type SupersetInput } from "./superset";
+import { buildLiveSuperset, sidecarEnumeratedFields, fieldRefFromSuperset, type SupersetInput } from "./superset";
+import { sanitizeMapping } from "./mapping";
 import type { EnumeratedField } from "./field-registry";
 
 /**
@@ -17,7 +18,7 @@ const todoist: EnumeratedField[] = [
 ];
 
 test("duplicates are kept DISTINCT: two backends' `title` are two entries, each with its own origin + limits", () => {
-  const sup = buildLiveSuperset([{ system: "jira", fields: jira }, { system: "todoist", fields: todoist }]);
+  const sup = buildLiveSuperset([{ broker: "n8n", system: "jira", fields: jira }, { broker: "n8n", system: "todoist", fields: todoist }]);
   const titles = sup.filter((s) => s.canonicalKey === "title");
   assert.equal(titles.length, 2);
   const j = titles.find((t) => t.system === "jira")!;
@@ -30,7 +31,7 @@ test("duplicates are kept DISTINCT: two backends' `title` are two entries, each 
 });
 
 test("it carries the three things a mapping needs: origin, type, and constraints", () => {
-  const [f] = buildLiveSuperset([{ system: "jira", fields: jira }]);
+  const [f] = buildLiveSuperset([{ broker: "n8n", system: "jira", fields: jira }]);
   assert.equal(f!.system, "jira");             // where it originated
   assert.equal(f!.nativeField, "summary");
   assert.equal(f!.type, "string");             // what type
@@ -39,8 +40,8 @@ test("it carries the three things a mapping needs: origin, type, and constraints
 });
 
 test("it expands and shrinks with the connected set", () => {
-  const one: SupersetInput[] = [{ system: "jira", fields: jira }];
-  const two: SupersetInput[] = [...one, { system: "todoist", fields: todoist }];
+  const one: SupersetInput[] = [{ broker: "n8n", system: "jira", fields: jira }];
+  const two: SupersetInput[] = [...one, { broker: "n8n", system: "todoist", fields: todoist }];
   assert.equal(buildLiveSuperset(one).length, 2);
   assert.equal(buildLiveSuperset(two).length, 3);   // + todoist:title
   assert.equal(buildLiveSuperset([]).length, 0);    // no backends → nothing mappable
@@ -48,14 +49,27 @@ test("it expands and shrinks with the connected set", () => {
 
 test("an exact duplicate field from one backend is de-duplicated (first wins)", () => {
   const dup = [...jira, { key: "title", label: "Summary", type: "string", sourceSystem: "jira", sourceField: "summary" }];
-  assert.equal(buildLiveSuperset([{ system: "jira", fields: dup }]).filter((s) => s.canonicalKey === "title").length, 1);
+  assert.equal(buildLiveSuperset([{ broker: "n8n", system: "jira", fields: dup }]).filter((s) => s.canonicalKey === "title").length, 1);
+});
+
+test("fieldRefFromSuperset derives the mapping ref (home + native + superset) from a picked entry — not hand-typed", () => {
+  const [j] = buildLiveSuperset([{ broker: "n8n", system: "jira", fields: jira }]);
+  const ref = fieldRefFromSuperset(j!);
+  assert.deepEqual(ref, { broker: "n8n", backend: "jira", field: "summary", superset: "title" });
+});
+
+test("the backend↔superset↔UI triple round-trips through the mapping importer (stored in org JSON)", () => {
+  const [j] = buildLiveSuperset([{ broker: "n8n", system: "jira", fields: jira }]);
+  // UI element "Title" ← superset "title" ← jira:summary — the full triple as one mapping field.
+  const m = sanitizeMapping({ id: "issue", fields: { Title: fieldRefFromSuperset(j!) } });
+  assert.deepEqual(m.fields["Title"], { broker: "n8n", backend: "jira", field: "summary", superset: "title" });
 });
 
 test("turning on the sidecar advertises the whole canonical vocabulary (unbounded, nullable)", () => {
   const sidecar = sidecarEnumeratedFields();
   assert.ok(sidecar.length > 20, "the sidecar exposes the full canonical set");
   assert.ok(sidecar.every((f) => f.nullable === true && f.sourceSystem === "sidecar"));
-  const sup = buildLiveSuperset([{ system: "sidecar", fields: sidecar }]);
+  const sup = buildLiveSuperset([{ broker: "builtin", system: "sidecar", fields: sidecar }]);
   assert.ok(sup.every((s) => s.system === "sidecar"));
   assert.ok(sup.some((s) => s.canonicalKey === "title"));
 });

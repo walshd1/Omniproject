@@ -30,6 +30,8 @@ export interface SupersetField {
   canonicalKey: string;
   /** Human label (canonical registry label when known, else the backend's advertised label). */
   label: string;
+  /** The broker hop that fronts this field's backend (e.g. "n8n", "builtin"). */
+  broker: string;
   /** The connected backend this field originates from (its origin/lineage). */
   system: string;
   /** The backend's native field id (what the broker actually reads/writes). */
@@ -46,15 +48,18 @@ export interface SupersetField {
   group?: string;
 }
 
-/** One connected backend's advertised fields. */
-export interface SupersetInput { system: string; fields: EnumeratedField[] }
+/** One connected backend's advertised fields, tagged with the broker hop that fronts it. */
+export interface SupersetInput { broker: string; system: string; fields: EnumeratedField[] }
 
 const REGISTRY_BY_KEY = new Map<string, FieldDescriptor>(FIELD_REGISTRY.map((f) => [f.key, f]));
 
-/** Project one backend's enumerated field into a superset entry (canonical label/group when the key is known). */
-function toSupersetField(system: string, f: EnumeratedField): SupersetField | null {
+/** Project one backend's enumerated field into a superset entry (canonical label/group when the key is known).
+ *  The field's own `sourceSystem` wins over the input default, so one broker fronting several backends stays
+ *  distinct per backend. */
+function toSupersetField(broker: string, defaultSystem: string, f: EnumeratedField): SupersetField | null {
   const native = f.sourceField || f.key;
   if (!f.key || !native) return null;
+  const system = f.sourceSystem || defaultSystem;
   const canonicalKey = f.key;
   const canonical = CANONICAL_FIELD_KEYS.has(canonicalKey);
   const desc = REGISTRY_BY_KEY.get(canonicalKey);
@@ -62,6 +67,7 @@ function toSupersetField(system: string, f: EnumeratedField): SupersetField | nu
     id: `${system}:${native}`,
     canonicalKey,
     label: f.label || desc?.label || canonicalKey,
+    broker,
     system,
     nativeField: native,
     type: f.type || desc?.type || "string",
@@ -85,7 +91,7 @@ export function buildLiveSuperset(inputs: SupersetInput[]): SupersetField[] {
   const seen = new Set<string>();
   for (const inp of inputs) {
     for (const f of inp.fields) {
-      const sf = toSupersetField(inp.system, f);
+      const sf = toSupersetField(inp.broker, inp.system, f);
       if (!sf || seen.has(sf.id)) continue;
       seen.add(sf.id);
       out.push(sf);
@@ -107,8 +113,14 @@ export function sidecarEnumeratedFields(): EnumeratedField[] {
   }));
 }
 
-/** The sidecar's superset input, labelled with the built-in broker's sidecar system id. */
-export const sidecarSupersetInput = (): SupersetInput => ({ system: SIDECAR_BACKEND, fields: sidecarEnumeratedFields() });
+/** The sidecar's superset input: fronted by the built-in broker, backend = sidecar. */
+export const sidecarSupersetInput = (): SupersetInput => ({ broker: BUILTIN_BROKER, system: SIDECAR_BACKEND, fields: sidecarEnumeratedFields() });
 
-/** The built-in broker id every sidecar-sourced superset field is homed under (for the mapping's `(broker, backend)`). */
-export const SIDECAR_SUPERSET_BROKER = BUILTIN_BROKER;
+/**
+ * Build the mapping {@link FieldRef} for a picked superset entry — the admin selects a LIVE field and the native
+ * id + home come from the entry (broker-derived, never hand-typed). Records the full triple: the UI element is
+ * the mapping key; the ref carries the backend home + native field + the canonical `superset` it reconciles to.
+ */
+export function fieldRefFromSuperset(sf: SupersetField): { broker: string; backend: string; field: string; superset: string } {
+  return { broker: sf.broker, backend: sf.system, field: sf.nativeField, superset: sf.canonicalKey };
+}
