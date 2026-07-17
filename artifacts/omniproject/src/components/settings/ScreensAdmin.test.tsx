@@ -5,11 +5,18 @@ import { renderWithProviders } from "../../test/utils";
 import { settingsQueryKey } from "../../lib/settings-query";
 import { ScreensAdmin } from "./ScreensAdmin";
 
-function seed(role: string | undefined, org: unknown[] = [], disabled: string[] = []): QueryClient {
+function seed(role: string | undefined, org: Array<{ id: string; label?: string }> = [], disabled: string[] = []): QueryClient {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity }, mutations: { retry: false } } });
   if (role) qc.setQueryData(["auth", "me"], { authenticated: true, role, user: { sub: "u1" } });
-  // Screen defs + disabled screens are slices of the one shared /api/settings read.
-  qc.setQueryData(settingsQueryKey, { screenDefs: org, disabledScreens: disabled });
+  // disabledScreens + collectionEditRoles are still slices of the shared /api/settings read.
+  qc.setQueryData(settingsQueryKey, { disabledScreens: disabled });
+  // Screen OVERRIDES are def-store artifacts now: the resolved override set (useOrgScreenDefs), the legacy
+  // bridge (useLegacyOrgScreenDefs), and the org `screen` defs with their scoped ids (useResolvedDefs).
+  qc.setQueryData(["screen-defs", "resolved"], org);
+  qc.setQueryData(["screen-defs", "legacy"], []);
+  qc.setQueryData(["defs", "resolved", "screen", null, null], org.map((s, i) => ({
+    id: `org~s${i}`, kind: "screen", name: s.label ?? s.id, payload: s, createdBy: null, createdAt: "", updatedAt: "", rowVersion: 1,
+  })));
   return qc;
 }
 
@@ -42,22 +49,23 @@ describe("ScreensAdmin", () => {
     expect(body.disabledScreens).toContain("kanban");
   });
 
-  it("customising via the structured editor PUTs the def into the org screen defs (id pinned)", async () => {
-    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("{}", { status: 200 }));
-    renderWithProviders(<ScreensAdmin />, { client: seed("pmo") });
+  it("customising via the structured editor POSTs the override as a def (id pinned)", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("{}", { status: 201 }));
+    renderWithProviders(<ScreensAdmin />, { client: seed("pmo") }); // kanban not yet overridden → a new def
     fireEvent.click(screen.getByTestId("screen-edit-kanban"));
     expect(screen.getByTestId("screen-editor")).toBeInTheDocument(); // structured editor, not a raw textarea
     fireEvent.change(screen.getByTestId("screen-editor-label"), { target: { value: "Custom Kanban" } });
     fireEvent.click(screen.getByTestId("screen-editor-save"));
-    const put = await waitFor(() => {
-      const call = fetchMock.mock.calls.find(([u, i]) => u === "/api/screen-defs" && (i as RequestInit)?.method === "PUT");
+    const post = await waitFor(() => {
+      const call = fetchMock.mock.calls.find(([u, i]) => String(u) === "/api/defs" && (i as RequestInit)?.method === "POST");
       expect(call).toBeTruthy();
       return call!;
     });
-    const body = JSON.parse((put[1] as RequestInit).body as string) as { screenDefs: { id: string; label: string }[] };
-    const kanban = body.screenDefs.find((s) => s.id === "kanban")!;
-    expect(kanban.label).toBe("Custom Kanban");
-    expect(kanban.id).toBe("kanban"); // pinned — the editor can't retarget the override
+    const body = JSON.parse((post[1] as RequestInit).body as string) as { kind: string; storage: string; payload: { id: string; label: string } };
+    expect(body.kind).toBe("screen");
+    expect(body.storage).toBe("org");
+    expect(body.payload.label).toBe("Custom Kanban");
+    expect(body.payload.id).toBe("kanban"); // pinned — the editor can't retarget the override
   });
 
   it("panel-kind picker is driven by the shared primitive store (incl. previously-missing kinds)", () => {
