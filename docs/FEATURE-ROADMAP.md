@@ -1193,3 +1193,15 @@ so an attachment field would be a URL reference (`url` type) pointing at the sys
   (feature-detect + PushManager subscribe), `lib/use-push` + a per-device Notifications settings card (off by
   default, dropped on logout). Zero-at-rest preserved. Allow-list/classify/config-gate/sealed round-trip/
   delivery-prune/route + client-probe tests. **Phase 2.5 slices 1–3 done; native shells backlogged (stretch).**
+- _2026-07-17_ — **Virtualization extended to two high-cardinality surfaces** (no new dependency —
+  the audit found a working, license-free, tested hand-rolled `useVirtualRows` already in-tree, only
+  wired into ListView/TablePanel). Applied it to the **editable issue grid** (`components/grid/IssueGrid`
+  — bounded scroll body + sticky header, windowed `<tr data-vrow>` with spacer rows) and the **governance
+  activity/audit trail** (`components/settings/GovernanceDashboard` — the `activity-log` `<ul>` windowed
+  in its fixed-height box). Both fall back to rendering every row when unmeasured (tests) or short, so
+  behaviour is unchanged for small sets. Dependency review verdict (rule: license-safe + auditable +
+  secure + genuine enhancement): **skip DOMPurify** (no raw-HTML sink — the SPA renders user content as
+  React text nodes, URLs scheme-allowlisted server-side), **skip rrule** (the hand-rolled `recurrence.ts`
+  already covers the current grammar incl. DST/month-end), **skip @tanstack/react-virtual/table** (we
+  extended our own hook instead). Grid + governance tests gained a `data-vrow` wiring assertion; SPA
+  typecheck clean.
