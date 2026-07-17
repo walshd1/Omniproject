@@ -5,6 +5,7 @@ import { sealConfig, openConfig, isSealedConfig, internalKeyFingerprint } from "
 import { safeParseJson } from "./safe-json";
 import { exportAiProviders, importAiProviders, type AiProvidersExport } from "./ai-providers";
 import { exportRateCard, importRateCard, type RateCardExport } from "./rate-card-store";
+import { exportAuditChain, importAuditChain, type AuditChainExport } from "./audit-chain";
 
 /**
  * FULL BACKUP (roadmap X.14) — ONE portable file that carries BOTH halves of what an admin owns: the settings
@@ -20,10 +21,13 @@ export const FULL_BACKUP_SCHEMA = "omniproject/full-backup";
 export const FULL_BACKUP_VERSION = 1;
 
 /** The extra sealed stores that live OUTSIDE settings + the def store, carried only in the ENCRYPTED backup
- *  (both touch sensitive/egress surfaces — pay data, provider endpoints). Present only when `includeSecrets`. */
+ *  (all touch sensitive surfaces — pay data, provider endpoints, the audit position). Present only when
+ *  `includeSecrets`. */
 export interface ExtraStores {
   aiProviders?: AiProvidersExport;
   rateCard?: RateCardExport;
+  /** The tamper-evident audit chain HEAD ({seq, lastHash}), so a migrated instance continues the same chain. */
+  auditChain?: AuditChainExport;
 }
 
 export interface FullBackup {
@@ -48,7 +52,7 @@ export function buildFullBackup(settings: SettingsState, now: string, includeSec
     settings: buildSnapshot(settings, includeSecrets),
     defStore: buildDefStoreExport(now),
   };
-  if (includeSecrets) backup.stores = { aiProviders: exportAiProviders(), rateCard: exportRateCard() };
+  if (includeSecrets) backup.stores = { aiProviders: exportAiProviders(), rateCard: exportRateCard(), auditChain: exportAuditChain() };
   return backup;
 }
 
@@ -64,12 +68,13 @@ export function splitFullBackup(input: unknown): { settings: unknown; defStore: 
 
 /** Apply the extra sealed stores (ai-providers + rate-card) from a decrypted sealed backup. Each importer
  *  re-validates its own rows. Returns a small per-store report; silently does nothing for absent halves. */
-export function applyExtraStores(stores: unknown): { aiProviders?: { providers: number; mappings: number }; rateCard?: boolean } {
-  const out: { aiProviders?: { providers: number; mappings: number }; rateCard?: boolean } = {};
+export function applyExtraStores(stores: unknown): { aiProviders?: { providers: number; mappings: number }; rateCard?: boolean; auditChain?: { applied: boolean; reason?: string } } {
+  const out: { aiProviders?: { providers: number; mappings: number }; rateCard?: boolean; auditChain?: { applied: boolean; reason?: string } } = {};
   if (!stores || typeof stores !== "object") return out;
   const s = stores as ExtraStores;
   if (s.aiProviders !== undefined) out.aiProviders = importAiProviders(s.aiProviders);
   if (s.rateCard !== undefined) { importRateCard(s.rateCard); out.rateCard = true; }
+  if (s.auditChain !== undefined) out.auditChain = importAuditChain(s.auditChain);
   return out;
 }
 

@@ -1487,11 +1487,17 @@ authoring, and the drift guards — no feature bypasses the golden rules.
     data, provider endpoints). `exportAiProviders`/`importAiProviders` re-validate each provider (id + known kind)
     and mapping entry (drops forbidden/unknown ids); `exportRateCard`/`importRateCard` round-trip the whole sealed
     state through the store's own on-disk coercion + the one `persist` choke point (so a restore is undoable).
+  - **`audit-chain`** (the tamper-evident chain HEAD `{seq, lastHash}` — the events live in the external SIEM)
+    → sealed `stores` section, sealed-only. Carrying the head lets a migrated instance CONTINUE the same chain
+    (same key material ⇒ the seals still verify across the boundary) instead of resetting to genesis. Restore is
+    **ADVANCE-ONLY**: it never REWINDS the audit position (that would let issued seqs be reused / the chain
+    fork) — a fresh target advances to the backup's head; restoring an older backup onto a live instance keeps
+    the live (higher) head.
   - Deliberately still OUT (data/secrets/runtime-state, not config): `vault-store` (secrets, may be external),
-    `security-state` (revocations/kill-switch), `scim` (IdP-driven), `audit-chain` (evidence), wiki/proof content
-    (systems of record), `push-subscription` (per-device). Tests: def-store-export 7/7 (+ extension/registry ride
-    + tamper-drop), full-backup 6/6 (+ ai-providers/rate-card sealed-only round-trip), store + route + guardrail
-    suites 87/87 green. Both packages typecheck clean.
+    `security-state` (revocations/kill-switch), `scim` (IdP-driven), wiki/proof content (systems of record),
+    `push-subscription` (per-device). Tests: def-store-export 7/7 (+ extension/registry ride + tamper-drop),
+    full-backup 7/7 (+ ai-providers/rate-card sealed-only round-trip + audit-chain advance-only), store + route
+    + guardrail suites green. Both packages typecheck clean.
 
 ### X.9 Library audit — permissive (MIT/BSD/Apache-2.0) code that clears our five gates
 - **The gate (standing rule).** Add third-party code only where it (1) doesn't break our rules

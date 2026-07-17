@@ -83,6 +83,34 @@ test("the extra sensitive stores (ai-providers + rate-card) ride ONLY the sealed
   assert.equal(rateCard.getUpliftConfig().central.margin, 0.2);
 });
 
+test("the audit-chain head rides the sealed backup, and restore is ADVANCE-ONLY (never rewinds the position)", async () => {
+  const audit = await import("./audit-chain");
+  const settings = { branding: null } as unknown as SettingsState;
+
+  // Advance the chain to a known head, then take a sealed backup carrying it.
+  audit.__resetAuditChain();
+  audit.sealAuditEvent({ category: "admin", action: "a" } as never);
+  audit.sealAuditEvent({ category: "admin", action: "b" } as never); // head now at seq 2
+  const atSeq2 = audit.exportAuditChain();
+  assert.equal(atSeq2.seq, 2);
+  const sealed = buildSealedFullBackup(settings, "2026-07-17T00:00:00.000Z");
+  assert.equal((sealed.schema && openSealedFullBackup(sealed).stores as { auditChain: { seq: number } }).auditChain.seq, 2);
+
+  // Fresh instance (genesis): restoring advances the chain to seq 2 — continuity preserved.
+  audit.__resetAuditChain();
+  assert.equal(applyExtraStores(openSealedFullBackup(sealed).stores).auditChain?.applied, true);
+  assert.equal(audit.exportAuditChain().seq, 2);
+
+  // Live instance already AHEAD (seq 5): restoring the older backup must NOT rewind it.
+  audit.__resetAuditChain();
+  for (let i = 0; i < 5; i++) audit.sealAuditEvent({ category: "admin", action: `e${i}` } as never);
+  assert.equal(audit.exportAuditChain().seq, 5);
+  const res = applyExtraStores(openSealedFullBackup(sealed).stores).auditChain;
+  assert.equal(res?.applied, false);
+  assert.match(res?.reason ?? "", /never rewinds|older/);
+  assert.equal(audit.exportAuditChain().seq, 5, "the live audit position was preserved");
+});
+
 test("openSealedFullBackup rejects a non-sealed envelope and a corrupted token", () => {
   assert.throws(() => openSealedFullBackup({ schema: "omniproject/full-backup" }), SealedBackupError);
   const sealed = buildSealedFullBackup(withSecret, "2026-07-17T00:00:00.000Z");

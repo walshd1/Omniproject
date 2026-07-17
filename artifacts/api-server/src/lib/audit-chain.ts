@@ -204,6 +204,40 @@ export function verifyAuditChain(events: SealedAuditEvent[], expectedFirstPrev: 
   return { ok: true, count: events.length, brokenAt: null };
 }
 
+/**
+ * BACKUP export/import (roadmap X.14). The audit-chain store persists only the chain HEAD ({seq, lastHash}) —
+ * the events themselves live in the external SIEM. Carrying the head in the ENCRYPTED backup lets a migrated
+ * instance CONTINUE the same tamper-evident chain (with the same key material the seals still verify across the
+ * boundary) instead of resetting to genesis and reusing seqs. Sealed-backup only (an audit position is
+ * sensitive). Single-replica / SealedFile head; in Redis fleet mode the authoritative head lives in shared
+ * state and travels with Redis.
+ */
+export interface AuditChainExport { seq: number; lastHash: string }
+
+export function exportAuditChain(): AuditChainExport {
+  ensureLoaded();
+  return { seq: head.seq, lastHash: head.lastHash };
+}
+
+/**
+ * Restore the chain head from a backup — ADVANCE-ONLY. The audit position is monotonic by design, so a restore
+ * must never REWIND it (that would let already-issued seqs be reused / the chain fork). A fresh migration
+ * target is at genesis, so it advances to the backup's head; restoring an older backup onto a live instance
+ * KEEPS the live (higher) head. Returns whether it applied, with a reason when it didn't.
+ */
+export function importAuditChain(data: unknown): { applied: boolean; reason?: string } {
+  ensureLoaded();
+  const d = (data ?? {}) as Partial<AuditChainExport>;
+  if (typeof d.seq !== "number" || !Number.isFinite(d.seq) || d.seq < 0 || typeof d.lastHash !== "string" || !d.lastHash) {
+    return { applied: false, reason: "malformed audit-chain head" };
+  }
+  const seq = Math.floor(d.seq);
+  if (seq < head.seq) return { applied: false, reason: `kept live head seq ${head.seq} (backup's ${seq} is older — audit position never rewinds)` };
+  head = { seq, lastHash: d.lastHash };
+  persistHead();
+  return { applied: true };
+}
+
 /** Test-only: reset the in-memory head (and the shared head key). */
 export function __resetAuditChain(): void {
   head = { seq: 0, lastHash: GENESIS };
