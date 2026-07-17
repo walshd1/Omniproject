@@ -1027,6 +1027,17 @@ authoring, and the drift guards — no feature bypasses the golden rules.
   the **settings-bundle slices** (`/api/dashboards`, `/api/screen-defs`, `/api/screen-layouts`) are live and
   rendered; the **importer** (`/api/defs`) is live for `primitive`/`form` but its `screen`/`dashboard`/`report`
   kinds are **validated-but-unconsumed**. Unification makes the renderers read from the importer.
+- **THE INVARIANT (user directive, 2026-07-17).** **Two write paths, period:** the **importer** (create,
+  `POST /api/defs`) and the **editor** (edit, `PUT /api/defs/:id`) are the ONLY things that may persist a
+  user-authored DEFINITION into the encrypted stores. **Every other surface is read-only ingest** — it *reads*
+  resolved defs and renders them; it never writes. **A def in use is read-only**: a rendered dashboard / screen /
+  report can only be changed by loading it into the editor, which writes back through that one path. This means
+  the parallel definition-writers that exist today (the settings-bundle `PUT`s for dashboards / screen-defs /
+  screen-layouts, and any theme / font / business-rule / saved-view writer) are **convergence targets to
+  retire** — not just stores to overlay. Scope is **definitions** (the `DEF_KINDS`); user *content* with its own
+  purpose-built validated editor (whiteboard scenes, wiki docs, proofs) is a separate category and out of scope
+  here. (Overlay slices 2–4 stay valid as the additive first step; the retirement of the parallel writers is the
+  cutover, slice 5+, now understood as mandatory, not optional.)
 - **Slicing.** (1) the resolve-by-kind read seam; (2) dashboards render importer defs (overlay, real validator);
   (3) reports; (4) screens; (5) migrate/bridge the settings slices + retire the parallel path. Each slice is
   additive (built-ins/settings keep working) until the final cutover — no big-bang.
