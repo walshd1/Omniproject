@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { buildLiveSuperset, sidecarEnumeratedFields, fieldRefFromSuperset, type SupersetInput } from "./superset";
+import { buildLiveSuperset, sidecarEnumeratedFields, fieldRefFromSuperset, deriveMappingValidation, type SupersetInput } from "./superset";
 import { sanitizeMapping } from "./mapping";
 import type { EnumeratedField } from "./field-registry";
 
@@ -63,6 +63,30 @@ test("the backend↔superset↔UI triple round-trips through the mapping importe
   // UI element "Title" ← superset "title" ← jira:summary — the full triple as one mapping field.
   const m = sanitizeMapping({ id: "issue", fields: { Title: fieldRefFromSuperset(j!) } });
   assert.deepEqual(m.fields["Title"], { broker: "n8n", backend: "jira", field: "summary", superset: "title" });
+});
+
+test("deriveMappingValidation makes each UI field inherit its home's constraints (length here)", () => {
+  const superset = buildLiveSuperset([{ broker: "n8n", system: "jira", fields: jira }, { broker: "n8n", system: "todoist", fields: todoist }]);
+  // UI "Name" maps to Jira's title (maxLength 255); UI "AltName" to Todoist's (maxLength 500).
+  const fields = {
+    Name: { broker: "n8n", backend: "jira", field: "summary", superset: "title" },
+    AltName: { broker: "n8n", backend: "todoist", field: "content", superset: "title" },
+  };
+  const { rules, typeByUi } = deriveMappingValidation(fields, superset);
+  const name = rules.find((r) => r.field === "Name")!;
+  const alt = rules.find((r) => r.field === "AltName")!;
+  assert.equal(name.max, 255);   // inherited Jira's length
+  assert.equal(alt.max, 500);    // inherited Todoist's — the SAME UI concept, different backend limit
+  assert.equal(typeByUi["Name"], "string");
+});
+
+test("deriveMappingValidation skips homeless / no-longer-live fields (nothing to validate against)", () => {
+  const superset = buildLiveSuperset([{ broker: "n8n", system: "jira", fields: jira }]);
+  const fields = {
+    Gone: { broker: "n8n", backend: "asana", field: "notes", superset: "description" }, // asana not connected
+    Bare: "loose",                                                                        // homeless
+  };
+  assert.deepEqual(deriveMappingValidation(fields, superset).rules, []);
 });
 
 test("turning on the sidecar advertises the whole canonical vocabulary (unbounded, nullable)", () => {

@@ -1,6 +1,7 @@
 import { FIELD_REGISTRY, CANONICAL_FIELD_KEYS, type FieldDescriptor } from "@workspace/backend-catalogue";
 import type { EnumeratedField } from "./field-registry";
-import { BUILTIN_BROKER, SIDECAR_BACKEND } from "./field-target";
+import { BUILTIN_BROKER, SIDECAR_BACKEND, type FieldRef } from "./field-target";
+import { deriveValidationRule, type FieldValidationRule } from "./field-validation";
 
 /**
  * THE LIVE SUPERSET (roadmap §4.6) — the set of fields an admin may map a UI element onto, built DYNAMICALLY
@@ -123,4 +124,27 @@ export const sidecarSupersetInput = (): SupersetInput => ({ broker: BUILTIN_BROK
  */
 export function fieldRefFromSuperset(sf: SupersetField): { broker: string; backend: string; field: string; superset: string } {
   return { broker: sf.broker, backend: sf.system, field: sf.nativeField, superset: sf.canonicalKey };
+}
+
+/**
+ * Derive the UI-field validation for a mapping from its fields' HOMES (roadmap §4.6): for each mapping entry,
+ * find the live-superset field it points at (`<backend>:<nativeField>`) and inherit that backend's constraints
+ * as a rule keyed by the UI element. Returns the rules PLUS the per-UI-element type (for the value evaluator).
+ * Homeless / unresolved / no-longer-live fields contribute nothing — the UI simply can't validate what has no
+ * live home. So the UI field always validates to exactly what its backend accepts.
+ */
+export function deriveMappingValidation(fields: Record<string, FieldRef>, superset: SupersetField[]): { rules: FieldValidationRule[]; typeByUi: Record<string, string> } {
+  const byId = new Map(superset.map((s) => [s.id, s]));
+  const rules: FieldValidationRule[] = [];
+  const typeByUi: Record<string, string> = {};
+  for (const [uiKey, ref] of Object.entries(fields)) {
+    const backend = typeof ref === "string" ? undefined : ref.backend;
+    const field = typeof ref === "string" ? ref : ref.field;
+    if (!backend || !field) continue; // homeless / bare — no live home to inherit from
+    const sf = byId.get(`${backend}:${field}`);
+    if (!sf) continue; // the field isn't live+linked (backend gone) — nothing to validate against
+    rules.push(deriveValidationRule(uiKey, sf));
+    typeByUi[uiKey] = sf.type;
+  }
+  return { rules, typeByUi };
 }

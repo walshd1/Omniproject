@@ -178,6 +178,23 @@ export function checkFieldValue(rule: FieldValidationRule, value: unknown, type:
 }
 
 /**
+ * Derive a {@link FieldValidationRule} for a UI element from the CONSTRAINTS its home advertises (roadmap §4.6):
+ * a linked UI field inherits the backend field's own validation. `maxLength` → a text `max` (length), `options`
+ * → the allowed set, `nullable === false` → `required`. `field` is the UI element key the value arrives under.
+ * (Precision is display formatting, not a value bound, so it isn't a rule.)
+ */
+export function deriveValidationRule(
+  field: string,
+  c: { type: string; maxLength?: number; options?: string[]; nullable?: boolean },
+): FieldValidationRule {
+  const rule: FieldValidationRule = { field };
+  if (c.nullable === false) rule.required = true;
+  if (fieldKind(c.type) === "string" && typeof c.maxLength === "number") rule.max = c.maxLength;
+  if (c.options && c.options.length) rule.options = [...c.options];
+  return rule;
+}
+
+/**
  * Enforce a set of rules over a record, returning every violation message. A rule for a field that is
  * absent from the record is skipped UNLESS it is `required`. `typeOf` resolves a field's type (see
  * `resolveFieldType`).

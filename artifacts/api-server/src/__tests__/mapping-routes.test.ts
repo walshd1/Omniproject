@@ -76,3 +76,23 @@ test("empty rows (no 404) when a mapping exists but nothing is authored yet", as
   assert.equal(r.status, 200);
   assert.deepEqual(await r.json(), { rows: [] });
 });
+
+test("a UI field inherits its backend's validation: enum options are surfaced and enforced on write", async () => {
+  // Pick a LIVE superset field with an enum constraint (the demo advertises `customerTier`), then map a UI
+  // element onto it — the derived rule must come from the backend, not be hand-set.
+  const sup = (await (await h.req(`/fields/superset`, { cookie: ADMIN })).json()) as { fields: { canonicalKey: string; broker: string; system: string; nativeField: string; options?: string[] }[] };
+  const tier = sup.fields.find((f) => f.canonicalKey === "customerTier" && f.options?.length)!;
+  assert.ok(tier, "the demo backend advertises an enum field");
+  seedSystemDef("mapping", "Tier mapping", { id: "cust", broker: tier.broker, fields: { Tier: { broker: tier.broker, backend: tier.system, field: tier.nativeField, superset: "customerTier" } } }, "2026-01-01T00:00:00.000Z");
+
+  // GET surfaces the inherited validation (the enum options) for the UI element.
+  const g = (await (await h.req(`/projects/${PID}/mapping/cust`, { cookie: ADMIN })).json()) as { validation: { field: string; options?: string[] }[] };
+  const rule = g.validation.find((r) => r.field === "Tier")!;
+  assert.deepEqual(rule.options, tier.options);
+
+  // A write outside the backend's allowed set is rejected; an allowed one succeeds.
+  const bad = await h.req(`/projects/${PID}/mapping/cust/C-1`, { method: "PUT", cookie: ADMIN, body: { fields: { Tier: "platinum" } } });
+  assert.equal(bad.status, 400);
+  const ok = await h.req(`/projects/${PID}/mapping/cust/C-1`, { method: "PUT", cookie: ADMIN, body: { fields: { Tier: tier.options![0] } } });
+  assert.equal(ok.status, 200);
+});

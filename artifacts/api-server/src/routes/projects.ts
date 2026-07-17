@@ -40,6 +40,8 @@ import { artifactStoreEnabled } from "../lib/artifact-store";
 import { resolveMapping } from "../lib/mapping-resolve";
 import { projectMappingRows, planMappingWrite, resolveMappingTargets } from "../lib/mapping";
 import { getSidecarRows, upsertSidecarRow } from "../lib/mapping-sidecar";
+import { resolveLiveSuperset } from "../lib/capabilities";
+import { deriveMappingValidation } from "../lib/superset";
 import { poolMap } from "../lib/concurrency-pool";
 import {
   type Row,
@@ -594,8 +596,10 @@ router.get("/projects/:projectId/mapping/:slot", async (req, res) => {
     const ctx = contextFromReq(req);
     const mapping = resolveMapping({ projectId, ...(ctx.sub ? { sub: ctx.sub } : {}) }, slot);
     if (!mapping) { res.status(404).json({ error: `no mapping for slot "${slot}"` }); return; }
-    // Surface homeless fields alongside the mapping so the admin sees which fields still need a home.
-    res.json({ ...mapping, homeless: resolveMappingTargets(mapping).homeless });
+    // Surface homeless fields + the validation each UI field inherits from its live home, so the admin sees
+    // both which fields need a home and what each one will accept.
+    const { rules } = deriveMappingValidation(mapping.fields, await resolveLiveSuperset(req));
+    res.json({ ...mapping, homeless: resolveMappingTargets(mapping).homeless, validation: rules });
   }, { projectId });
 });
 
@@ -633,6 +637,11 @@ router.put("/projects/:projectId/mapping/:slot/:rowId", requireRole("contributor
     const ctx = contextFromReq(req);
     const mapping = resolveMapping({ projectId, ...(ctx.sub ? { sub: ctx.sub } : {}) }, slot);
     if (!mapping) { res.status(404).json({ error: `no mapping for slot "${slot}"` }); return; }
+    // Enforce the validation each UI field inherits from its live home — a write can't violate what the
+    // backend accepts (length/required/enum), the runtime half of "set the UI field to match the backend".
+    const { rules, typeByUi } = deriveMappingValidation(mapping.fields, await resolveLiveSuperset(req));
+    const violations = checkFieldValues(rules, values, (f) => typeByUi[f] ?? "string");
+    if (violations.length) { res.status(400).json({ error: "field validation failed", violations }); return; }
     const plan = planMappingWrite(mapping, values);
     upsertSidecarRow(projectId, slot, plan.sidecarIdField, rowId, plan.sidecar);
     recordAudit({ ts: new Date().toISOString(), category: "admin", action: `mapping_write:${slot}:${rowId}`, projectId, result: "success", status: 200 });
