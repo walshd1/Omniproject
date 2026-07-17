@@ -10,6 +10,7 @@ import {
   screenDefsResolvedKey, type OrgScreenDef,
 } from "../../lib/org-screens";
 import { useResolvedDefs, useImportDef, useUpdateDef, useDeleteDef } from "../../lib/defs";
+import { useScreenLayouts, useDrainLegacyScreenLayouts } from "../../lib/screen-layouts";
 import { screenIsCore } from "../../lib/screen-catalogue";
 import { useDisabledScreens, useSaveDisabledScreens, isScreenDisabled } from "../../lib/screen-state";
 import { useCollectionEditRoles, useSaveCollectionEditRoles, type EditPolicy } from "../../lib/collection-edit-roles";
@@ -55,7 +56,9 @@ export function ScreensAdmin() {
   const qc = useQueryClient();
   const { data: legacy } = useLegacyOrgScreenDefs();
   const drain = useDrainLegacyScreenDefs();
-  const savingDef = importDef.isPending || updateDef.isPending || deleteDef.isPending || drain.isPending;
+  const { data: legacyLayouts } = useScreenLayouts(); // legacy screenLayouts map (pre-fold), for migration
+  const drainLayouts = useDrainLegacyScreenLayouts();
+  const savingDef = importDef.isPending || updateDef.isPending || deleteDef.isPending || drain.isPending || drainLayouts.isPending;
   const { data: disabled } = useDisabledScreens();
   const saveDisabled = useSaveDisabledScreens();
   const { data: editRoles } = useCollectionEditRoles();
@@ -135,6 +138,28 @@ export function ScreensAdmin() {
     }
   };
 
+  // Fold any legacy `settings.screenLayouts` INTO the screen defs — for each customised screen, upsert its org
+  // def carrying the layout, then drain the legacy map. (Layouts folded per-screen also happen live via the
+  // Edit-layout mode; this bulk-migrates whatever predates the fold.)
+  const legacyLayoutEntries = Object.entries(legacyLayouts ?? {});
+  const migrateLayouts = async () => {
+    try {
+      for (const [id, layout] of legacyLayoutEntries) {
+        const base = screens.find((s) => s.id === id);
+        if (!base) continue;
+        const def = { ...base, layout } as OrgScreenDef;
+        const scopedId = scopedIdByScreenId.get(id);
+        if (scopedId) await updateDef.mutateAsync({ id: scopedId, name: String(def.label ?? id), payload: def });
+        else await importDef.mutateAsync({ kind: "screen", storage: "org", name: String(def.label ?? id), payload: def });
+      }
+      await drainLayouts.mutateAsync();
+      await invalidate();
+      toast({ title: "MIGRATED", description: "Legacy screen layouts folded into the def store." });
+    } catch (e) {
+      toast({ title: "MIGRATION FAILED", description: e instanceof Error ? e.message : "Try again.", variant: "destructive" });
+    }
+  };
+
   return (
     <AdminSection icon={MonitorCog} title="Screens" testId="screens-admin" bodyClassName="space-y-3">
       <p className="text-xs text-muted-foreground">
@@ -145,6 +170,11 @@ export function ScreensAdmin() {
       {legacyDefs.length > 0 && (
         <Button type="button" variant="outline" size="sm" onClick={migrateLegacy} disabled={savingDef} data-testid="screens-migrate-legacy">
           Migrate {legacyDefs.length} legacy screen override{legacyDefs.length === 1 ? "" : "s"}
+        </Button>
+      )}
+      {legacyLayoutEntries.length > 0 && (
+        <Button type="button" variant="outline" size="sm" onClick={migrateLayouts} disabled={savingDef} data-testid="screens-migrate-layouts">
+          Fold {legacyLayoutEntries.length} legacy layout{legacyLayoutEntries.length === 1 ? "" : "s"} into defs
         </Button>
       )}
       <div className="divide-y divide-border border-2 border-border">

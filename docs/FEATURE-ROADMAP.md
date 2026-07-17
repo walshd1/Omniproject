@@ -1342,13 +1342,23 @@ authoring, and the drift guards — no feature bypasses the golden rules.
   settings overlay (metadata tweaks, not standalone defs). Tests: custom-reports routes 4/4 (importer-authored
   resolve, drain 410, legacy bridge, pmo gate), CustomReportsAdmin + CustomReportsPanel 23/23; both packages
   typecheck clean.
+- **screenLayouts FOLDED into the screen def ✅ (X.10).** A saved layout (drag order / spans / hidden) now
+  RIDES ON the screen def — `ScreenDef` gains an optional `layout` field, and `EditableScreen`'s "Save layout"
+  upserts an org `screen` def carrying it through the ONE importer (shared `useSaveScreenOverride` — the same
+  choke point ScreensAdmin uses) instead of writing a separate `settings.screenLayouts[id]` map. The renderer
+  applies `applyLayout(screen, screen.layout ?? legacyLayout ?? methodologyFallback)`. `PUT /api/screen-layouts`
+  is retired to **drain-only** (410 on non-empty, `{}` allowed); a legacy layout still applies (bridge) and
+  ScreensAdmin gains a **fold-legacy-layouts** button. Tests: screen-layouts routes 4/4 (drain 410, legacy
+  bridge, pmo gate), EditableScreen 6/6 (folds into the def, id pinned, panels kept), ScreensAdmin +
+  App+ScreenPage green. Both packages typecheck clean.
 - **✅ SWEEP DONE — engine and artifacts are separate.** Every shipped catalogue (screens incl. core,
   primitives, forms, reports, methodologies, business rules, dashboard presets) is seeded into the read-only
-  `system` def store, and every customer authoring surface (dashboards, forms, screens, reports) writes ONLY
-  through the importer into the scoped encrypted def store — the settings-bundle writers (`PUT /api/forms`,
-  `/screen-defs`, `/reports/custom`, dashboards) are all retired to drain-only with migration bridges. The
-  React renderers stay engine. Remaining settings-config overlays (`screenLayouts`, `disabledScreens`,
-  `reportOverrides`, `collectionEditRoles`) are policy the engine applies on top, not definitions.
+  `system` def store, and every customer authoring surface (dashboards, forms, screens, reports, AND per-screen
+  layouts) writes ONLY through the importer into the scoped encrypted def store — the settings-bundle writers
+  (`PUT /api/forms`, `/screen-defs`, `/reports/custom`, `/screen-layouts`, dashboards) are all retired to
+  drain-only with migration bridges. The React renderers stay engine. The remaining settings-config overlays
+  (`disabledScreens`, `reportOverrides`, `collectionEditRoles`) are small policy the engine applies on top, not
+  definitions.
 
 ### X.13 `programmeManager` RBAC role — scoped rung, step-up to lock  🚧 In progress
 - **Directive (2026-07-17).** A **programme manager** is a permission level in RBAC, assignable by admin/PMO —
