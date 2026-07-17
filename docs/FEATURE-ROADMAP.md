@@ -1172,6 +1172,31 @@ authoring, and the drift guards — no feature bypasses the golden rules.
   backend seeder can source them too (they're already `DefKind`s + org-authorable — only the *system defaults*
   are blocked on the data living SPA-side); then the client "Duplicate to my store" fork.
 
+### X.12 Def selection + lock (which def is IN USE at each scope)  🚧 In progress (slice 1 of ~4)
+- **Goal (user directive, 2026-07-17).** The tiered def store says which defs EXIST; it does not say which is
+  IN USE. Two needs: (a) a **project manager can load THEIR custom screen** instead of our default (select a def
+  for their scope); (b) an **admin/PMO can LOCK a choice** at a higher scope so lower scopes can't override
+  ("the org mandates this methodology / these screens").
+- **Finding (architecture scout).** No selection infra exists at the right level yet: screens resolve only
+  built-in-vs-**org** (org wins; no project/user tier, no lock); methodology has no per-project selection; the
+  `/api/defs/resolved` seam is **flat** (all tiers returned as distinct scoped ids, no winner picking, no
+  "active" field). The closest existing LOCK pattern is `feature-resolution.ts` (org→programme→project monotonic
+  narrowing → `{locked, lockedBy}`, already governing `methodology:<id>`) — but it locks on/off, not a chosen
+  value. So a small **binding layer** is needed, reusing those lock semantics; the def store stays pure content.
+- **Design.** A **selection binding** = for a logical SLOT (a screen id, a methodology slot, …) which def is
+  chosen at each scope + whether it's LOCKED. Resolution mirrors feature-resolution: an ORG lock wins absolutely;
+  else a PROJECT lock wins for that project; else most-specific-unlocked wins (user → project → org); else the
+  system default. The binding decides the WINNER; the def store still serves content by id.
+- **Slices.** (1) the pure resolver; (2) a `defBindings` settings slice + read/write routes (RBAC: user sets
+  their own, project = manager, org = pmo/admin; setting `locked` needs the scope's authority); (3) wire the
+  render seam (`useScreenDef` / the resolve consumer) to pick the winning def per scope; (4) the select/lock UI.
+- **Slice 1 ✅ (the pure resolver).** `lib/def-binding`: `DefBinding {defId, locked?}`, `DefBindingConfig`
+  (`org` slot→binding, `project` projectId→slot→binding, `user` sub→slot→binding), `resolveDefBinding(config,
+  slot, ctx)` → `{defId|null, locked, lockedBy?, source}` with the narrowing + lock rules above, and `canRebind`
+  (may a principal at this level change the slot — a user is blocked by any lock, a project only by an org lock).
+  5 tests (default fallback; user>project>org; org lock absolute; project lock pins users but org can still
+  override; per-slot isolation); typecheck clean. **Next:** slice 2 — the `defBindings` store + routes.
+
 ### X.9 Library audit — permissive (MIT/BSD/Apache-2.0) code that clears our five gates
 - **The gate (standing rule).** Add third-party code only where it (1) doesn't break our rules
   (stateless / broker-mediated / zero-at-rest), (2) is license-safe (MIT/BSD/Apache-2.0 — no
