@@ -63,15 +63,31 @@ describe("Dashboards", () => {
     expect(screen.getByText("Status breakdown")).toBeInTheDocument();
   });
 
-  it("renders an importer-authored dashboard read-only, with no Edit affordance (X.10)", () => {
+  it("renders an importer-authored (definition) dashboard, editable via the importer (X.10)", () => {
     const imported: Dashboard = { id: "exec", name: "Imported Exec", widgets: [{ id: "w1", type: "projectCount", span: 1 }] };
     renderWithProviders(<Dashboards />, { client: seed({ dashboards: [], imported: [imported], projects: [project()] }) });
-    // It's selectable (the picker shows it under the read-only group) and renders its widgets…
+    // It's selectable (under the Definitions group) and renders its widgets…
     expect(screen.getByRole("option", { name: "Imported Exec" })).toBeInTheDocument();
     expect(screen.getByTestId("dashboard-grid")).toBeInTheDocument();
-    // …but it's read-only: the imported badge shows and there's no Edit button.
-    expect(screen.getByTestId("dashboard-imported-badge")).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /^edit$/i })).toBeNull();
+    // …and it's a def, so it's NOT a legacy-settings dashboard and Edit is available (writes go via the importer).
+    expect(screen.queryByTestId("dashboard-legacy-badge")).toBeNull();
+    expect(screen.getByRole("button", { name: /^edit$/i })).toBeInTheDocument();
+  });
+
+  it("authors a NEW dashboard through the importer (POST /api/defs), not the settings bundle (X.10)", async () => {
+    const calls = mockFetchRouter({
+      "POST /api/defs": { ok: true, status: 201, body: { id: "user~new-1", kind: "dashboard", name: "New dashboard", payload: {}, rowVersion: 1 } },
+    });
+    renderWithProviders(<Dashboards />, { client: seed({ dashboards: [] }) });
+    fireEvent.click(screen.getByRole("button", { name: /new/i }));
+    // A storage target picker appears for a new def; default is Personal (user scope).
+    expect(screen.getByTestId("dashboard-storage")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /^save$/i }));
+    await waitFor(() => expect(calls.some((c) => c.url.includes("/api/defs") && (c.init?.method ?? "GET") === "POST")).toBe(true));
+    // The def write carries the dashboard kind + chosen storage — and nothing was PUT to /api/dashboards.
+    const post = calls.find((c) => c.url.includes("/api/defs") && c.init?.method === "POST")!;
+    expect(JSON.parse(String(post.init!.body))).toMatchObject({ kind: "dashboard", storage: "user" });
+    expect(calls.some((c) => c.url.includes("/api/dashboards") && c.init?.method === "PUT")).toBe(false);
   });
 
   it("renders a placeholder for an unknown widget type", () => {
@@ -98,10 +114,10 @@ describe("Dashboards", () => {
     fireEvent.click(screen.getAllByLabelText("Move down")[0]!);
     fireEvent.click(screen.getAllByLabelText("Move up")[1]!);
 
-    // Save persists via the mutation (fetch is stubbed; fires asynchronously).
+    // Save persists through the importer (POST /api/defs) — the single write path (X.10).
     fireEvent.click(screen.getByRole("button", { name: /^save$/i }));
     await waitFor(() =>
-      expect(fetch).toHaveBeenCalledWith("/api/dashboards", expect.objectContaining({ method: "PUT" })),
+      expect(fetch).toHaveBeenCalledWith("/api/defs", expect.objectContaining({ method: "POST" })),
     );
   });
 
@@ -134,9 +150,9 @@ describe("Dashboards", () => {
     expect(suggestions).toBeInTheDocument();
     const applyBtn = screen.getByRole("button", { name: /Head of Projects/i });
     fireEvent.click(applyBtn);
-    // Applying a preset persists a fresh dashboard via the existing save path.
+    // Applying a preset authors a fresh dashboard through the importer.
     await waitFor(() =>
-      expect(fetch).toHaveBeenCalledWith("/api/dashboards", expect.objectContaining({ method: "PUT" })),
+      expect(fetch).toHaveBeenCalledWith("/api/defs", expect.objectContaining({ method: "POST" })),
     );
   });
 
@@ -148,7 +164,7 @@ describe("Dashboards", () => {
     expect(values).toContain("project-manager-today");
     fireEvent.change(picker, { target: { value: "project-manager-today" } });
     await waitFor(() =>
-      expect(fetch).toHaveBeenCalledWith("/api/dashboards", expect.objectContaining({ method: "PUT" })),
+      expect(fetch).toHaveBeenCalledWith("/api/defs", expect.objectContaining({ method: "POST" })),
     );
   });
 
@@ -250,11 +266,12 @@ describe("Dashboards", () => {
     }
   });
 
-  it("shows an alert with the error message when saving fails", async () => {
+  it("shows an alert when saving a LEGACY dashboard fails (settings path retained pre-migration)", async () => {
     mockFetchRouter({ "PUT /api/dashboards": { ok: false, status: 500, body: { message: "boom" } } });
     try {
-      renderWithProviders(<Dashboards />, { client: seed({ dashboards: [] }) });
-      fireEvent.click(screen.getByRole("button", { name: /^new$/i }));
+      // A pre-existing settings-bundle dashboard still saves via the legacy path until migrated.
+      renderWithProviders(<Dashboards />, { client: seed({ dashboards: [{ id: "d1", name: "Legacy", widgets: [] }] }) });
+      fireEvent.click(screen.getByRole("button", { name: /^edit$/i }));
       fireEvent.click(screen.getByRole("button", { name: /^save$/i }));
       await waitFor(() => expect(screen.getByRole("alert")).toBeInTheDocument());
     } finally {
@@ -274,7 +291,7 @@ describe("Dashboards", () => {
     );
     await user.upload(screen.getByLabelText(/import dashboard file/i), file);
     await waitFor(() =>
-      expect(fetch).toHaveBeenCalledWith("/api/dashboards", expect.objectContaining({ method: "PUT" })),
+      expect(fetch).toHaveBeenCalledWith("/api/defs", expect.objectContaining({ method: "POST" })),
     );
   });
 

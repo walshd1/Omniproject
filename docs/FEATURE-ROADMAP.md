@@ -1079,8 +1079,20 @@ authoring, and the drift guards — no feature bypasses the golden rules.
   edited in the definition editor, never joining the settings-bundle CRUD set (so a Save can't migrate them),
   keyed by their scoped store id and shape-guarded against a malformed payload. First renderer consuming the
   X.10 seam. 1 def-import validator test (real shape + rejections), the resolve seam test seeds a real dashboard,
-  1 page test (importer dashboard renders read-only, no Edit); both packages typecheck clean. **Next:** slice 3 —
-  reports render importer `report` defs.
+  1 page test (importer dashboard renders read-only, no Edit); both packages typecheck clean.
+- **Slice 3a ✅ (dashboards AUTHORED through the importer — the write-path convergence).** `pages/Dashboards`
+  now writes every new/edited dashboard as a **def through the importer** (`useImportDef` `POST /api/defs` /
+  `useUpdateDef` `PUT /api/defs/:id` / `useDeleteDef`), into the scoped encrypted store — with a **storage-target
+  selector** (Personal / Project / Org-wide) for a new def. New, preset, and file-import all author defs; a
+  def-backed dashboard is now editable in the builder (which IS the editor, writing through the one path), while
+  a rendered/viewed dashboard stays read-only. The legacy settings-bundle writer (`PUT /api/dashboards`) is kept
+  **only** to manage pre-existing dashboards (badged "Legacy") until they're migrated — no NEW settings writes.
+  Net: the encrypted store's single decrypt→encrypt write path now covers dashboard authoring. 2 page tests
+  (New authors via `POST /api/defs` with kind+storage and does NOT `PUT /api/dashboards`; a def dashboard is
+  editable), existing tests repointed to the importer; SPA typecheck clean. (Operational note: authoring now
+  needs the `defImporter` module + a configured artifact store; legacy dashboards still render without it.)
+  **Next:** slice 3b — migrate existing settings dashboards into the def store + retire `PUT /api/dashboards`;
+  then slice 4 (reports), slice 5 (screens), and the `PATCH /api/settings` lockdown.
 
 ### X.9 Library audit — permissive (MIT/BSD/Apache-2.0) code that clears our five gates
 - **The gate (standing rule).** Add third-party code only where it (1) doesn't break our rules
