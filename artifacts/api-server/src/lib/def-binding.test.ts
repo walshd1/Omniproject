@@ -93,8 +93,12 @@ test("the programme layer is OPTIONAL — with no programmeId it's skipped entir
   const noProg = { projectId: "p1", sub: "u1" }; // no programmeId — the org doesn't use the tier
   assert.equal(resolveDefBinding(cfg, "screens", noProg).source, "user");
   assert.equal(resolveDefBinding({ ...cfg, user: {} }, "screens", noProg).source, "project");
-  assert.equal(resolveDefBinding({ org: cfg.org, programme: cfg.programme }, "screens", noProg).source, "org");
-  assert.equal(resolveDefBinding({ programme: cfg.programme }, "screens", noProg).source, "default");
+  const orgAndProg = {
+    org: { screens: { defId: "org~o" } },
+    programme: { prog1: { screens: { defId: "programme~pr", locked: true } } },
+  };
+  assert.equal(resolveDefBinding(orgAndProg, "screens", noProg).source, "org");
+  assert.equal(resolveDefBinding({ programme: orgAndProg.programme }, "screens", noProg).source, "default");
   // A project can rebind freely — a programme lock the caller isn't under doesn't bind them.
   assert.equal(canRebind(cfg, "screens", "project", noProg), true);
 });

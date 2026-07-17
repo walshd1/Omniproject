@@ -1225,6 +1225,20 @@ authoring, and the drift guards — no feature bypasses the golden rules.
   assigned, and the programme store holds nothing unless written. A test locks this in (a caller with no
   `programmeId` ignores even a locked programme binding). The route/importer wiring must preserve this: never
   require a programme; derive it, and skip the layer when absent.
+- **Slice 2c ✅ (programme-scope binding writes + step-up-to-lock).** The route now accepts `scope: "programme"`
+  and enforces step-up on ANY lock. `GET /api/defs/bindings` gains `?programmeId=` and returns a fourth
+  `programme` map — populated only when the caller is `inScope` of that programme (else `{}`), so the opt-in
+  tier stays invisible to callers outside it. `PUT` with `scope:"programme"` needs the **`programmeManager`
+  rung AND that programme's row-scope** (`inScope(scopeForReq(req), {programmeIds:[id]})`), so a programme
+  manager's change is confined to a programme they own; pmo/admin (all-scope) pass. `canRebind` checks the
+  org lock only (a programme is above project). **Step-up-to-lock now spans all scopes**: setting `locked:true`
+  at project/programme/org is refused **403** unless the session has a fresh `stepUpAt` (`stepUpFresh`) — a
+  lock mandates lower scopes, so it's the step-up-gated action; everyday selection is not. 4 new route tests
+  (step-up needed to lock but not to select; a programme binding lives in its programme's scope + GET reflects
+  it via `?programmeId`, absent without it; a contributor is 403 at the programme gate, a programme lead binds
+  their own programme (200) but not one they don't own (403), and can select but not lock without step-up); the
+  existing org-lock test now carries a fresh step-up. API typecheck clean; def-bindings routes 8/8, resolver
+  8/8, RBAC suite 137/137 green.
 - **Finding — forms are NOT migrated.** Verified: forms still run on the parallel settings writer
   (`PUT /api/forms`, settingsKey `forms`, admin/PMO; SPA `useSaveForms`), and no renderer reads form defs from
   `/api/defs/resolved`. Only **dashboards** are fully converged (X.10 3a–3c); **forms, reports, screens** still
@@ -1246,9 +1260,12 @@ authoring, and the drift guards — no feature bypasses the golden rules.
   updated). 1 new test (programmeManager clears manager/programmeManager, not pmo/admin; a plain manager doesn't
   clear it; pmo/admin sit above it); the 5 RBAC assertions encoding the old "authorities imply manager base"
   invariant updated; full RBAC suite (gateway 120 + properties + sso-parity + scope + strong-auth + custom-roles
-  + route gating = ~200 tests) green; both packages typecheck clean. **Next:** require step-up on a programme
-  binding LOCK; wire the def-bindings route to accept `programme` scope (programme-manager or pmo/admin +
-  programme scope); the programme importer write path + def-policy gate.
+  + route gating = ~200 tests) green; both packages typecheck clean.
+- **Slice 2 ✅ (programme-scope binding writes + step-up-to-lock).** Done under X.12 slice 2c: the def-bindings
+  route accepts `programme` scope (programmeManager rung + that programme's row-scope, pmo/admin above), and
+  setting any LOCK now requires a fresh step-up (`stepUpFresh` on the sealed session's `stepUpAt`). See X.12 2c
+  for the route/test detail. **Next:** the programme importer write path + def-policy gate (programme as a
+  writable `StorageTarget`); then X.12 slice 3 (render seam) + slice 4 (select/lock UI).
 
 ### X.9 Library audit — permissive (MIT/BSD/Apache-2.0) code that clears our five gates
 - **The gate (standing rule).** Add third-party code only where it (1) doesn't break our rules
