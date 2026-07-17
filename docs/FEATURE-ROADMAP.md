@@ -1766,14 +1766,28 @@ state-respecting path.
 (§5.5) → collaboration layer (§5.1) → automation recipes (§4.1.2/§5.3) → agentic execution + evals (§5.2) →
 multi-tenancy → managed offering (§5.4).
 
+> **Reconciled against the code (2026-07-17).** The parity review's "verified by grep" was evidently not run
+> against this branch's current state — a code audit of all 27 claims found **6 wrong or understated**, now
+> corrected inline below: real-time CRDT co-edit + live cursors are **built (flagged)**, the encrypted offline
+> read cache is **built (flagged)**, a block/rich editor already exists for the wiki (only comments are plain),
+> Gantt cascade-reschedule already ships, the agentic **execution rails** already exist (only the AI-drive
+> policy is unwired), and one-click **deploy templates** already ship (only the hosted tier is missing). The
+> other 21 items verified as genuine gaps.
+
 ### 5.1 Interactive collaboration UX (bar: Linear / Monday / Asana / Notion)
-- ✳ **Rich-text everywhere** — a Tiptap/ProseMirror/Slate editor for comments/descriptions with slash-commands,
-  inline mentions, embeds. Editor state is client-side; no at-rest conflict. (Comments are a plain `<textarea>` today.)
+- ✳ **Rich-text on comments/descriptions** *(partial — the wiki already has it)* — the wiki `DocEditor` is a
+  full **block editor** (headings/callouts/code/tables/lists/checklists/embeds, palette-driven from the
+  primitive store). Comments/issue-descriptions are still a plain input with server-parsed mentions
+  (`components/issue-dialog/CommentsPanel.tsx`). Gap: bring the block editor (or a rich-text lib) to those.
 - ✳ **Mention autocomplete** — client typeahead against project members (mentions are parsed server-side already; pure UI).
-- ⚠ **Real-time co-editing** — CRDT/OT co-editing + live cursors on text. State-respecting path: **ephemeral** Yjs
-  over the existing SSE/Redis bus, never persisted. (Presence today is avatars + advisory soft-locks.)
+- ✅ **Real-time CRDT co-edit + live cursors — BUILT (flagged); extend surface.** Yjs CRDT co-edit ships on the
+  wiki block model (`lib/collab`, `lib/collab-doc`, `routes/collab`, default-off `wikiCoEdit` flag) and live
+  cursors ship on whiteboards (`CanvasEditor.tsx`, `presence` toggle). The parity review listed this as a gap —
+  it is wrong. **Remaining:** extend CRDT co-edit to issue comments/descriptions (still plain today).
 - ✳ **Interactive Gantt dependency editing** — dependency arrows, link create/edit, bar-resize handles,
-  critical-path overlay ON the timeline. Blocked on the `dependsOn[]` contract entity (§5.5). Extends §4.10.
+  critical-path overlay ON the timeline. *Note: cascade-reschedule (move a bar + every dependent it pushes)
+  already ships (`lib/cascade-reschedule`, `gantt-cascade-toggle`); the four named interactions are the gap.*
+  Blocked further on the `dependsOn[]` contract entity (§5.5). Extends §4.10.
 - ✳ **Kanban swimlanes + WIP-limit enforcement** — swimlane grouping (assignee/epic/priority) + board-level
   `wipLimit` enforcement (the methodology packs already declare the concept).
 - ⚠ **Binary attachments** — filename+URL references only today (zero-at-rest by design). State-respecting path:
@@ -1782,13 +1796,18 @@ multi-tenancy → managed offering (§5.4).
 - ✳ **Global undo** — app-wide undo stack / `Cmd+Z` across recent mutations (per-action toast undo exists).
 - ✳ **Per-user notification preferences** — per-event/per-channel subscription, quiet hours, digest opt-in
   (small per-user state; today one localStorage on/off + role/list digests). Extends §4.10.
-- ⚠ **Offline / local-first read cache** — a bounded, encrypted, session-scoped on-device read cache (full
-  local-first is off-thesis). Extends 2.5.
+- ✅ **Bounded encrypted offline read cache — BUILT (flagged).** The AES-256-GCM, session-scoped (key bound to
+  `sub`, wiped on logout), 24h-TTL, allow-listed (tasks + my-work) on-device read cache ships (`lib/offline-cache`,
+  `use-offline-cache`, default-off `offlineCache` flag; Phase 2.5). The parity review's "none" is wrong.
+  **Remaining:** FULL local-first (write-behind sync) only — off-thesis.
 
 ### 5.2 AI — the capability half (bar: 2026 agentic)
-- ⚠→✳ **Supervised agentic execution mode** — a bounded execution mode over the existing rails (autonomous
-  principals, capability grants, kill-switch, audit chain): pre-approved action classes, per-run budgets,
-  step-by-step audit, instant revoke. A *policy* upgrade more than architecture. (Everything is propose-only today.)
+- ⚠→✳ **Supervised agentic execution mode** — the execution RAILS already exist (`lib/autonomous-grant` is a
+  default-deny grant registry pinning WHAT/WHERE/HOW-LONG + a per-process write cap + fail-closed audit +
+  kill-switch `ai-kill` + short-lived minted principals `lib/autonomous`); the AI copilot is still propose-only
+  (`capability-governance.ts` — every write human-confirmed). Gap = wiring an AI drive over those rails
+  (pre-approved action classes, per-run budgets, step-by-step audit, instant revoke). A *policy* upgrade, not
+  architecture — the review's framing is correct.
 - ⚠ **Predictive / learned analytics** — risk scoring, delivery-date prediction, anomaly detection trained over
   the **customer-owned** time-travel/logging store + snapshot exports (models are derived artifacts; data stays
   theirs). Blocked until the time-travel plane is production-proven (§5.6). Deepens §4.4.
@@ -1812,8 +1831,10 @@ multi-tenancy → managed offering (§5.4).
   not built; single-tenant today. Unlocks per-tenant rate plans/quotas + the pooled managed offering. Extends §4.11.
 - ✳ **Third-party plugin runtime + sandbox + versioned extension API** — the seven-planes catalogue is the
   substrate; the missing layer is packaging/sandboxing/distribution (Forge/Monday-apps parity). Extends §4.11.
-- ✳ **Managed / hosted offering + one-click deploy** — self-host only today; at least one-click deploys, ideally
-  a hosted tier (gated on multi-tenancy). Extends §4.11.
+- ✳ **Hosted / managed tier** *(one-click deploy already ships)* — Railway one-click templates
+  (`deploy/railway/*.railway.json`), a Helm chart (`deploy/helm`), and multiple compose profiles already exist,
+  so the parity review's "self-host only, deploys pending" understates it. The real gap is the **hosted
+  multi-tenant tier** (gated on the multi-tenancy implementation above). Extends §4.11.
 - ✳ **GraphQL (or equivalent typed query API)** — REST + OpenAPI + OData today; noted because every B1 benchmark
   ships one (arguably optional given OData + generated clients).
 - ✳ **i18n breadth** — 15–30+ full locales (4 curated today; framework ready).
@@ -2030,3 +2051,10 @@ external infrastructure a CI sandbox can't reach (so they are execution/attestat
   plumbing, §5.5 domain-model entities (`dependsOn[]` the #2 priority), §5.6 proof (external verification).
   Disposition-tagged; the review's closing sequence recorded. Also logged: the exploration replica-workbench
   dirty-flag data-loss bug is FIXED (per-source dirty tracking, commit `f565521`).
+- _2026-07-17_ — **Phase 5 reconciled against the code.** A read-audit of all 27 parity-review gap claims found
+  6 wrong or understated (the review's "verified by grep" was stale vs this branch): real-time CRDT co-edit +
+  live cursors are BUILT (`wikiCoEdit`/`presence` flags), the encrypted offline read cache is BUILT
+  (`offlineCache` flag), the wiki has a full block editor (only comments are plain), Gantt cascade-reschedule
+  already ships, the agentic execution rails already exist (`lib/autonomous-grant`), and one-click deploy
+  templates (Railway/Helm/compose) already ship — only the hosted tier is missing. Corrected inline with file
+  evidence; the other 21 items verified as genuine gaps.
