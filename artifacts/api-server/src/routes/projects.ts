@@ -33,7 +33,11 @@ import { randomUUID } from "node:crypto";
 import { aggregateResourcePool } from "../lib/resource-pool";
 import { guardProjectScope } from "../lib/project-scope";
 import { resolveWbsMapping } from "../lib/wbs-mapping-resolve";
-import { WbsMappingError } from "../lib/wbs-mapping";
+import { applyWbsMapping, mappingHome, WbsMappingError } from "../lib/wbs-mapping";
+import { targetKey, BUILTIN_HOME } from "../lib/field-target";
+import { getSidecarWbs, hasSidecarWbs, upsertSidecarWbsRow } from "../lib/wbs-sidecar";
+import { planWbsWrite } from "../lib/wbs-write";
+import { artifactStoreEnabled } from "../lib/artifact-store";
 import { poolMap } from "../lib/concurrency-pool";
 import {
   type Row,
@@ -467,15 +471,36 @@ router.get("/projects/:projectId/wbs", async (req, res) => {
 
 // The WBS cost tree JOINED with each element's financials, shaped as `{ rows }` so the GENERIC table panel
 // renders it from a JSON screen def (no bespoke component). This is what a "copy of a SAP screen" binds to.
+// Two sources behind the ONE shape: when the project has AUTHORED sidecar WBS (the all-in-one / SAP-light case),
+// the resolved mapping projects the sealed sidecar rows; otherwise the external broker's native WBS read models
+// serve it. Either way the same `{ rows }` come out — the screen never knows where the data lives.
 router.get("/projects/:projectId/wbs/cost-rows", async (req, res) => {
   const params = parseRouteParams(GetProjectSummaryParams, req, res, "Invalid project id");
   if (!params) return;
   const { projectId } = params;
   await withBrokerErrors(req, res, "wbs_cost_rows failed", async () => {
     if (!(await guardProjectScope(req, res, projectId))) return;
+    const ctx = contextFromReq(req);
+
+    // Sidecar-backed (our zero-at-rest store): resolve the mapping and project the sealed rows through it.
+    if (hasSidecarWbs(projectId)) {
+      const mapping = resolveWbsMapping({ projectId, ...(ctx.sub ? { sub: ctx.sub } : {}) });
+      const sidecarRows = getSidecarWbs(projectId);
+      // Home + sidecar buckets both draw from the sealed rows (external buckets have no adapter yet — empty).
+      const buckets: Record<string, typeof sidecarRows> = { [targetKey(mappingHome(mapping))]: sidecarRows };
+      buckets[targetKey(BUILTIN_HOME)] = sidecarRows;
+      const { wbs, financials } = applyWbsMapping(buckets, mapping, projectId);
+      const rows = wbs.map((w) => {
+        const f = financials[w.id];
+        return { wbs: w.id, name: w.name, status: w.status ?? "", budget: f?.budget ?? null, actual: f?.actual ?? null, committed: f?.commitment ?? null, available: f?.available ?? null };
+      });
+      res.json({ rows });
+      return;
+    }
+
+    // External backend that speaks WBS natively (the demo/ERP broker): use its read models directly.
     const broker = getBroker();
     if (!broker.listWbsElements) { res.status(501).json({ error: "this backend does not expose an ERP project structure" }); return; }
-    const ctx = contextFromReq(req);
     const wbs = await broker.listWbsElements(ctx, projectId);
     const rows = await Promise.all(wbs.map(async (w) => {
       const f = broker.getWbsFinancials ? await broker.getWbsFinancials(ctx, w.id) : null;
@@ -502,6 +527,39 @@ router.get("/projects/:projectId/wbs/mapping", async (req, res) => {
       if (e instanceof WbsMappingError) { res.status(404).json({ error: e.message }); return; }
       throw e;
     }
+  }, { projectId });
+});
+
+// Write a WBS element's semantic field values back to their mapped homes (roadmap §4.6 — "data entered in a
+// SAP-like interface … some fields map to OpenProject and some to our sidecar"). The resolved mapping routes
+// each field: sidecar-targeted fields are written to our sealed store (created on first save, merged after);
+// external-targeted fields are reported as `external` (broker write adapters are a later slice — never silently
+// dropped). contributor+, project-scope gated, audited.
+router.put("/projects/:projectId/wbs/:wbsId", requireRole("contributor"), async (req, res) => {
+  const params = parseRouteParams(GetProjectSummaryParams, req, res, "Invalid project id");
+  if (!params) return;
+  const { projectId } = params;
+  const wbsId = String(req.params["wbsId"] ?? "");
+  await withBrokerErrors(req, res, "wbs_write failed", async () => {
+    if (!(await guardProjectScope(req, res, projectId))) return;
+    if (!wbsId) { res.status(400).json({ error: "a WBS id is required" }); return; }
+    if (!artifactStoreEnabled()) { res.status(501).json({ error: "no encrypted-JSON store is configured on this deployment" }); return; }
+    const body = (req.body ?? {}) as { fields?: unknown };
+    const values = body.fields && typeof body.fields === "object" && !Array.isArray(body.fields) ? (body.fields as Record<string, unknown>) : null;
+    if (!values) { res.status(400).json({ error: "fields must be an object of semanticKey → value" }); return; }
+    const ctx = contextFromReq(req);
+    let mapping;
+    try { mapping = resolveWbsMapping({ projectId, ...(ctx.sub ? { sub: ctx.sub } : {}) }); }
+    catch (e) { if (e instanceof WbsMappingError) { res.status(404).json({ error: e.message }); return; } throw e; }
+    const plan = planWbsWrite(mapping, values);
+    upsertSidecarWbsRow(projectId, plan.sidecarIdField, wbsId, plan.sidecar);
+    recordAudit({ ts: new Date().toISOString(), category: "admin", action: `wbs_write:${wbsId}`, projectId, result: "success", status: 200 });
+    res.json({
+      wbsId,
+      written: Object.keys(plan.sidecar),
+      external: plan.external.map((e) => ({ key: e.key, broker: e.target.broker, backend: e.target.backend })),
+      unmapped: plan.unmapped,
+    });
   }, { projectId });
 });
 

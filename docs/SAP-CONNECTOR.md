@@ -71,10 +71,19 @@ through the importer's sanitiser and lives in its own sealed scope file, so a PM
 project by construction. `GET /projects/:id/wbs/mapping` returns the effective mapping (the admin UI reads it to
 show "where each field comes from").
 
-**Next wiring:** a broker read that returns a generic backend's RAW WBS records (so the resolved mapping does
-its projection in the route, replacing the demo's pre-shaped fixtures), the read/write **sidecar WBS target**
-(path 3 — author/import a WBS + financials with no ERP), and the **write path** (each field in the SAP-like
-screen writes back to its mapped target — broker for SAP/OpenProject, sidecar for ours).
+**Sidecar WBS store + write path (built).** `lib/wbs-sidecar` is OmniProject's own zero-at-rest home for WBS
+records — the built-in broker's backend, and the basic self-hosted all-in-one model (path 3). Rows are RAW
+records so the SAME `applyWbsMapping` projects them. `GET /wbs/cost-rows` serves the sidecar via the resolved
+mapping when a project has authored sidecar WBS, and falls back to the external broker's native read models
+otherwise — one `{ rows }` shape, either source. `PUT /projects/:id/wbs/:wbsId` writes semantic field values
+back through the mapping (`lib/wbs-write`): sidecar-targeted fields land in our sealed store (created on first
+save, field-by-field merge after); external-targeted fields are returned as `external` — the broker write
+adapters are the remaining slice, so those are reported, never silently dropped. contributor+, project-scope
+gated, audited.
+
+**Remaining:** the external broker read/write adapters themselves (reaching a genuinely different
+SAP/OpenProject instance per `(broker, backend)` address). The routing decision + the sidecar leg are done;
+per-platform adapter instances bound to each endpoint are the last mile (see `broker/registry.ts`).
 
 ## Non-goals (what SAP keeps)
 
