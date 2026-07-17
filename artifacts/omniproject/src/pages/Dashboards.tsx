@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useGetCapabilities } from "@workspace/api-client-react";
 import { canSurfaceEntity } from "../lib/capabilities-fields";
+import { useAuth, roleAtLeast } from "../lib/auth";
 import { useFeatures, featureEnabled } from "../lib/features";
 import {
   useDashboards,
@@ -47,6 +48,7 @@ function refreshLabel(ms: number | undefined): string {
 }
 
 export function Dashboards() {
+  const { data: auth } = useAuth();
   const { data: features } = useFeatures();
   const enabled = featureEnabled(features, "dashboards");
   const { data: caps } = useGetCapabilities();
@@ -211,6 +213,29 @@ export function Dashboards() {
     }
   }
 
+  // One-time drain of the parallel store (X.10 slice 3b): re-author every legacy settings-bundle dashboard as
+  // an ORG def through the importer, then clear the settings slice — after which the only dashboard writer left
+  // is the importer/editor. Admin-only (an org def write needs manager+, and this touches the shared slice).
+  const legacyDashboards = dashboards ?? [];
+  const canMigrate = roleAtLeast(auth?.role, "admin") && legacyDashboards.length > 0;
+  const [migrating, setMigrating] = useState(false);
+  async function migrateLegacy() {
+    if (legacyDashboards.length === 0) return;
+    setMigrating(true);
+    try {
+      for (const d of legacyDashboards) {
+        await importDef.mutateAsync({ kind: "dashboard", storage: "org", name: d.name, payload: defPayload(d) });
+      }
+      await save.mutateAsync([]); // the settings slice is now drained — the parallel writer has nothing to hold
+      toast({ title: "MIGRATED", description: `${legacyDashboards.length} dashboard(s) moved to the definition store.` });
+      setActiveId(null);
+    } catch (e) {
+      toast({ title: "Migration failed", description: e instanceof Error ? e.message : "Some dashboards were not migrated.", variant: "destructive" });
+    } finally {
+      setMigrating(false);
+    }
+  }
+
   // --- draft mutators (edit mode only) ---
   function addWidget(type: string) {
     if (!draft) return;
@@ -266,6 +291,13 @@ export function Dashboards() {
               )}
             </select>
             {activeIsLegacy && <span data-testid="dashboard-legacy-badge" title="Stored in the legacy settings bundle — will be migrated to the definition store" className="text-[10px] font-black uppercase tracking-widest text-muted-foreground border border-border px-1.5 py-0.5">Legacy</span>}
+            {canMigrate && (
+              <button onClick={migrateLegacy} disabled={migrating} data-testid="dashboard-migrate"
+                title="Move legacy settings-bundle dashboards into the encrypted definition store"
+                className="px-3 py-1 text-xs font-bold uppercase tracking-wider border-2 border-amber-500 text-amber-600 disabled:opacity-50">
+                {migrating ? "Migrating…" : `Migrate ${legacyDashboards.length} legacy → definitions`}
+              </button>
+            )}
             {active && <button onClick={startEdit} className="px-3 py-1 text-xs font-bold uppercase tracking-wider border-2 border-foreground">Edit</button>}
             <button onClick={startNew} className="px-3 py-1 text-xs font-bold uppercase tracking-wider bg-foreground text-background">New</button>
             {active && <button onClick={() => downloadDashboard(active)} className="px-3 py-1 text-xs font-bold uppercase tracking-wider border-2 border-foreground">Export</button>}
