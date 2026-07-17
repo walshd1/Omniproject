@@ -2,8 +2,9 @@ import { Router } from "express";
 import { contextFromReq, withBrokerErrors } from "../broker";
 import { requireRole } from "../lib/rbac";
 import { sharedKv } from "../lib/shared-state";
+import { safeParseJson } from "../lib/safe-json";
 import {
-  runningTimerKey, sanitizeTimerStart, elapsedHours, timerToEntry, TIMER_TTL_MS, TimerError,
+  runningTimerKey, sanitizeTimerStart, elapsedHours, timerToEntry, isRunningTimer, TIMER_TTL_MS, TimerError,
   type RunningTimer,
 } from "../lib/timer";
 
@@ -18,7 +19,12 @@ const router = Router();
 async function readTimer(sub: string): Promise<RunningTimer | null> {
   const raw = await sharedKv.get(runningTimerKey(sub));
   if (!raw) return null;
-  try { return JSON.parse(raw) as RunningTimer; } catch { return null; }
+  // The shared KV may be a cross-replica Redis (a trust boundary), so harden the parse against prototype
+  // pollution and validate the shape — a malformed/foreign value reads as "no timer", never a bad cast.
+  try {
+    const parsed = safeParseJson<unknown>(raw);
+    return isRunningTimer(parsed) ? parsed : null;
+  } catch { return null; }
 }
 
 // GET /api/timer — the caller's running timer + its live elapsed hours, or {running:false}.

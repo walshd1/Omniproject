@@ -5,6 +5,7 @@ import { getProjects, getIssues } from "../lib/data";
 import { guestPortalEnabled, mintGuestToken, isValidEmail } from "../lib/magic-link";
 import { sendEmail } from "../lib/email";
 import { isDevMode } from "../lib/dev-mode";
+import { isDone } from "../broker/vocabulary";
 import { baseUrl } from "./auth";
 import type { GuestTier } from "../lib/oidc";
 
@@ -79,7 +80,9 @@ function num(v: unknown): number | undefined {
  *  (budget, actualCost, benefit, cost centre, …) are never copied across. */
 function curateStatus(project: Record<string, unknown>, issues: readonly Record<string, unknown>[]) {
   const total = num(project["issueCount"]) ?? issues.length;
-  const done = num(project["completedCount"]) ?? issues.filter((i) => i["status"] === "done").length;
+  // Use the canonical completion test (broker/vocabulary) so a backend whose "done" is spelt closed/completed/
+  // resolved is still counted — not just the literal string "done".
+  const done = num(project["completedCount"]) ?? issues.filter((i) => isDone(typeof i["status"] === "string" ? i["status"] : null)).length;
   const percent = total > 0 ? Math.round((done / total) * 100) : 0;
 
   // Health rollup: count issue RAG statuses (never the internal per-issue detail).

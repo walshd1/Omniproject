@@ -17,6 +17,15 @@ export interface RunningTimer {
   note?: string;
 }
 
+/** Runtime shape check for a timer read back from the shared KV (which may be a cross-replica Redis, i.e. a
+ *  trust boundary — another replica/version, or a corrupted value, could hold a non-conforming shape). Guards
+ *  the two required string fields; the optionals are only ever read as strings downstream. */
+export function isRunningTimer(v: unknown): v is RunningTimer {
+  if (!v || typeof v !== "object") return false;
+  const t = v as Record<string, unknown>;
+  return typeof t["startedAt"] === "string" && typeof t["projectId"] === "string";
+}
+
 /** A rejected timer start (maps to 400). */
 export class TimerError extends Error {
   constructor(message: string) { super(message); this.name = "TimerError"; }
