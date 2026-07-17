@@ -1305,9 +1305,17 @@ authoring, and the drift guards — no feature bypasses the golden rules.
   SPA renders from (screen-catalogue.ts imports the catalogue; the ScreenRenderer + panel components — the
   ENGINE — stay in the app). `resolveJsonModule` enabled in the base tsconfig so the package can import JSON.
   All three packages typecheck clean; system-defs asserts a shipped `screen` default (Home), SPA
-  screen-catalogue 12/12. **Primitives:** user chose FULL relocation — the primitive definitions move into the
-  backend catalogue next (their own slice; the React renderers stay engine). Then the screens authoring/read
-  convergence onto the importer (retire the `screenDefs` settings writer), then reports.
+  screen-catalogue 12/12.
+- **PRIMITIVE catalogue relocated ✅ (X.11 "make … primitives system JSON"; user chose FULL relocation).** The
+  shipped primitive catalogue (data-only metadata — "nothing here imports React") moved from the SPA
+  (`components/charts/catalogue.ts`) into `@workspace/backend-catalogue` (`primitive-catalogue` →
+  `primitiveCatalogue()`), reusing the existing `primitive-schema` contract (the SAME types + `validatePrimitiveDef`
+  the importer already runs). `system-defs` now seeds `primitive` rows into `system.json`; the SPA path keeps
+  working via a thin RE-EXPORT SHIM at the old `components/charts/catalogue` (the React RENDERERS — ChartView etc.
+  — stay engine; only the definitions moved). All three packages typecheck clean; system-defs asserts a shipped
+  `primitive` default (bar chart), backend primitive-schema 5/5, SPA charts/artifact/primitive-store 107/107.
+  Builtin drop-in primitive JSONs stay SPA-side (methodology-pack glob), unaffected. **Next:** the screens +
+  reports authoring/read convergence onto the importer (retire the `screenDefs`/`customReports` settings writers).
 
 ### X.13 `programmeManager` RBAC role — scoped rung, step-up to lock  🚧 In progress
 - **Directive (2026-07-17).** A **programme manager** is a permission level in RBAC, assignable by admin/PMO —
