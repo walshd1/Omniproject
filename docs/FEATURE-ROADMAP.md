@@ -1329,7 +1329,26 @@ authoring, and the drift guards — no feature bypasses the golden rules.
   `screenLayouts` / `disabledScreens` / `collectionEditRoles` overlays remain small settings-config (policy the
   renderer applies on top, not definitions) — a later fold-in could move `screenLayouts` into the def. Tests:
   screen-defs routes 6/6 (importer-authored resolve, drain 410, legacy bridge, malformed→400, pmo gate),
-  ScreensAdmin 7/7, App+ScreenPage 25/25; both packages typecheck clean. **Last remaining:** reports.
+  ScreensAdmin 7/7, App+ScreenPage 25/25; both packages typecheck clean.
+- **REPORTS ✅ converged — sweep COMPLETE (X.10 reports; engine/artifacts separate).** Bespoke report
+  DEFINITIONS are now ARTIFACTS in the def store, authored through the ONE importer (kind `report`); the ENGINE
+  (the CustomReport renderer) reads them. Backend: `lib/report-store` (`resolveCustomReports`) unions the
+  bespoke set (legacy `settings.customReports` bridge < org < project < user); `GET /api/reports/custom/resolved`
+  serves it and `PUT /api/reports/custom` is retired to **drain-only** (410 on non-empty, `[]` allowed). SPA:
+  `useCustomReports` reads the resolved endpoint (the renderer follows); `CustomReportsAdmin` is a **per-def
+  upsert** (POST new / PUT changed / DELETE removed org `report` defs) with a one-shot **migrate legacy reports**
+  button; `useSaveCustomReports` retired (derived arrays `useMemo`'d; `saveError` state hoisted above the early
+  returns — Rules-of-Hooks). Overrides of the SHIPPED built-in reports stay the separate `reportOverrides`
+  settings overlay (metadata tweaks, not standalone defs). Tests: custom-reports routes 4/4 (importer-authored
+  resolve, drain 410, legacy bridge, pmo gate), CustomReportsAdmin + CustomReportsPanel 23/23; both packages
+  typecheck clean.
+- **✅ SWEEP DONE — engine and artifacts are separate.** Every shipped catalogue (screens incl. core,
+  primitives, forms, reports, methodologies, business rules, dashboard presets) is seeded into the read-only
+  `system` def store, and every customer authoring surface (dashboards, forms, screens, reports) writes ONLY
+  through the importer into the scoped encrypted def store — the settings-bundle writers (`PUT /api/forms`,
+  `/screen-defs`, `/reports/custom`, dashboards) are all retired to drain-only with migration bridges. The
+  React renderers stay engine. Remaining settings-config overlays (`screenLayouts`, `disabledScreens`,
+  `reportOverrides`, `collectionEditRoles`) are policy the engine applies on top, not definitions.
 
 ### X.13 `programmeManager` RBAC role — scoped rung, step-up to lock  🚧 In progress
 - **Directive (2026-07-17).** A **programme manager** is a permission level in RBAC, assignable by admin/PMO —
