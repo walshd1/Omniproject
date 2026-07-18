@@ -298,6 +298,20 @@ test("FORM container floors are engine-enforced: a fork may compose but may NOT 
   assert.match(((await bad.json()) as { error: string }).error, /relax floor|branch above/);
 });
 
+test("FAST PATH: a standalone (rootless, childless) def is still fully validated, not waved through", async () => {
+  // Warm the child index by importing a valid def (the first import builds + persists it via the full path).
+  assert.equal((await req("/defs", { method: "POST", body: { kind: "primitive", storage: "user", name: "Warm", payload: { ...PRIMITIVE, id: "fp-warm" } } })).status, 201);
+  // A standalone form with NO title field passes the fragment shape but must be rejected by the composed-whole
+  // container floor — the fast path (rootless + nothing extends it) must NOT skip that validation.
+  const noTitle = { id: "fp-form", label: "No title", target: { kind: "issue" }, fields: [{ key: "d", label: "Details", type: "textarea", mapTo: "description" }] };
+  const bad = await req("/defs", { method: "POST", body: { kind: "form", storage: "user", name: "No title", payload: noTitle } });
+  assert.equal(bad.status, 400);
+  assert.match(((await bad.json()) as { error: string }).error, /title/);
+  // A sound standalone form is accepted.
+  const ok = { id: "fp-ok", label: "OK", target: { kind: "issue" }, fields: [{ key: "s", label: "Summary", type: "text", mapTo: "title" }] };
+  assert.equal((await req("/defs", { method: "POST", body: { kind: "form", storage: "user", name: "OK", payload: ok } })).status, 201);
+});
+
 test("DELETE is BLOCKED (409) when another def is built on the target, then succeeds once the dependant is gone", async () => {
   const root = { id: "del-root", label: "DelRoot", category: "chart", chartType: "bar", description: "d", params: [{ key: "data", label: "Rows", type: "rows", required: true, description: "d" }] };
   const rootRow = (await (await req("/defs", { method: "POST", body: { kind: "primitive", storage: "user", name: "DelRoot", payload: root } })).json()) as { id: string };

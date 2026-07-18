@@ -14,6 +14,7 @@
  */
 import type { ActorContext } from "../broker/types";
 import { listArtifacts, getArtifact, putArtifact, deleteArtifact, replaceArtifacts, listAllArtifactCollections, SYSTEM_SCOPE, type ArtifactScope } from "./artifact-store";
+import { readDefIndex, ensureDefIndex, defHasChildren, defIndexAddEdge, invalidateDefIndex } from "./def-index";
 import { validateScreenDefs } from "./screen-def";
 import { sanitizeMapping } from "./mapping";
 import { validateCustomFieldDef } from "./custom-fields";
@@ -389,7 +390,24 @@ export function checkImportIntegrity(kind: DefKind, payload: unknown, edit?: Edi
   const p = (payload ?? {}) as Record<string, unknown>;
   const selfId = typeof p["id"] === "string" ? p["id"] : "";
   if (!selfId) return null;                                 // no logical id → per-kind validator already ran
+  const ext = typeof p["extends"] === "string" && p["extends"] ? p["extends"] : "";
+  // FAST PATH — a ROOTLESS def that NOTHING extends can neither need ancestors nor cascade into descendants, so
+  // its integrity check is just "does it validate against the shipped catalogue alone?". The child index answers
+  // "does anything extend it?" without decrypting the whole store. Gated hard: only when the index is present
+  // (absent → full path rebuilds it) and neither this id NOR (on a rename) the prior id has any children.
+  if (!ext) {
+    const ix = readDefIndex();
+    const priorHasKids = !!(edit && edit.priorId && edit.priorId !== selfId && ix && defHasChildren(ix, kind, edit.priorId));
+    if (ix && !defHasChildren(ix, kind, selfId) && !priorHasKids) {
+      const g = new Map<string, Record<string, unknown>>();
+      for (const d of shippedDefs(kind)) { const id = typeof d["id"] === "string" ? d["id"] : ""; if (id) g.set(id, d); }
+      g.set(selfId, p);
+      const own = composedValidity(kind, selfId, g);
+      return own ? `this definition does not hold against its ancestors: ${own}` : null;
+    }
+  }
   const cols = collectDefCollections();                     // ONE decrypt of the store; both folds reuse it
+  ensureDefIndex(cols);                                     // refresh/persist the index so future inert writes go fast
   const before = defGraphFrom(cols, kind);                  // the world as it is (deployment-wide)
   // The world with this change applied: overlay the new payload and, on edit, drop the row's stale stored copy
   // so a rename doesn't leave the old logical id behind.
@@ -415,7 +433,12 @@ export function checkImportIntegrity(kind: DefKind, payload: unknown, edit?: Edi
  */
 export function checkDeleteIntegrity(kind: DefKind, storageId: string, logicalId: string): string | null {
   if (!logicalId) return null;
+  // FAST PATH — if NOTHING extends this id (per the child index), deleting it can't orphan anything, so no scan
+  // is needed. Absent index → full path (which rebuilds it).
+  const ix = readDefIndex();
+  if (ix && !defHasChildren(ix, kind, logicalId)) return null;
   const cols = collectDefCollections();                     // ONE decrypt; before/after both fold it in memory
+  ensureDefIndex(cols);
   const before = defGraphFrom(cols, kind);
   const after = defGraphFrom(cols, kind, { excludeStorageId: storageId });
   for (const child of descendantsOf(logicalId, before)) {
@@ -425,7 +448,17 @@ export function checkDeleteIntegrity(kind: DefKind, storageId: string, logicalId
   }
   return null;
 }
-export const putDef = (scope: ArtifactScope, a: StoredDef): void => putArtifact(DEF_ARTIFACT, scope, a);
+export const putDef = (scope: ArtifactScope, a: StoredDef): void => {
+  putArtifact(DEF_ARTIFACT, scope, a);
+  // Keep the child-edge index current write-through (additive → only ever over-reports, which is safe). Any
+  // failure invalidates the whole index so it is rebuilt from a full scan on next use (rebuild-on-doubt).
+  try {
+    const pl = (a.payload ?? {}) as Record<string, unknown>;
+    const child = typeof pl["id"] === "string" ? pl["id"] : "";
+    const parent = typeof pl["extends"] === "string" ? pl["extends"] : "";
+    if (child && parent) defIndexAddEdge(a.kind, child, parent);
+  } catch { invalidateDefIndex(); }
+};
 export const deleteDef = (scope: ArtifactScope, id: string): boolean => deleteArtifact(DEF_ARTIFACT, scope, id);
 
 // ── System (shipped defaults) store ──────────────────────────────────────────────────────────────────────
@@ -463,4 +496,5 @@ export function seedSystemDef(kind: DefKind, name: string, payload: unknown, now
  *  shipped-defaults installer / the admin-gated approved-update route use. Never per-item. */
 export function replaceSystemDefs(rows: StoredDef[]): void {
   replaceArtifacts(DEF_ARTIFACT, SYSTEM_SCOPE, rows);
+  invalidateDefIndex(); // shipped-default edges changed → rebuild the child index on next use
 }
