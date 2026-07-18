@@ -442,13 +442,8 @@ export interface PresentationConfig {
    * the customer's config JSON. Never project data.
    */
   screenLayouts: Record<string, ScreenLayout>;
-  /**
-   * Admin/PMO view-curation: canonical field keys HIDDEN from view on top of what the backend makes
-   * available. The availability resolver subtracts these from the surfaced set, so a deployment can
-   * trim available-but-unwanted fields. Customer-level config — rides the snapshot/export so the
-   * curated view travels in the bundle — never project data. See lib/availability.
-   */
-  hiddenFields: string[];
+  // NB the view-curation hidden-field list is NOT a settings key — it moved into the composition model as a
+  // config-def-backed collection (`hidden-fields`, via settingsCollectionRouter's config mode; see lib/availability).
   /**
    * Named saved views (filters + sort + visible columns + grouping) a user can switch between.
    * Customer-level presentation config — rides the snapshot/export so saved views travel in the
@@ -1109,7 +1104,6 @@ const FIELD_DESCRIPTORS: { [K in keyof SettingsState]: FieldDescriptor<K> } = {
   programmeFeatures: { seed: () => ({}), validate: shapeChecked((v) => validateScopeFeatureMap(v, "programmeFeatures")) },
   projectFeatures: { seed: () => ({}), validate: shapeChecked((v) => validateScopeFeatureMap(v, "projectFeatures")) },
   governanceRules: { seed: () => [], validate: shapeChecked((v) => validateGovernanceRules(v, "governanceRules")) },
-  hiddenFields: { seed: () => [], validate: stringArrayField("hiddenFields") },
   savedViews: { seed: () => [], validate: shapeChecked(validateSavedViews) },
   customReports: { seed: () => [], validate: shapeChecked(validateCustomReports) },
   reportOverrides: { seed: () => [], validate: shapeChecked(validateReportOverrides) },

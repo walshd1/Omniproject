@@ -9,6 +9,20 @@ import { resolveCapabilities, resolveFieldManifest, resolveLiveSuperset } from "
 import { resolveAvailability } from "../lib/availability";
 import { requireRole, roleForReq } from "../lib/rbac";
 import { settingsCollectionRouter } from "../lib/settings-collection-router";
+import { SettingsValidationError } from "../lib/settings";
+
+/** The hidden-field curation list: an array of field-id strings. Off settings now, so its sanitiser lives here
+ *  (the same string-array shape `updateSettings` enforced). Throws → 400 via the collection router's catch. */
+function sanitizeHiddenFields(value: unknown): string[] {
+  if (!Array.isArray(value)) throw new SettingsValidationError("hiddenFields must be an array");
+  const out: string[] = [];
+  for (const v of value) {
+    if (typeof v !== "string") throw new SettingsValidationError("hiddenFields entries must be strings");
+    const t = v.trim();
+    if (t) out.push(t);
+  }
+  return [...new Set(out)];
+}
 
 const router = Router();
 
@@ -49,7 +63,9 @@ router.get("/availability", async (req, res) => {
 router.use(
   settingsCollectionRouter({
     path: "/availability/curation",
-    settingsKey: "hiddenFields",
+    responseKey: "hiddenFields", // the JSON key on the body + reply (unchanged contract)
+    configId: "hidden-fields",   // config-def-backed (CHOICE) — no longer a settings key
+    validate: sanitizeHiddenFields,
     versionLabel: "field visibility curated",
     method: "patch",
     readGuards: [requireAdminOrPmo],

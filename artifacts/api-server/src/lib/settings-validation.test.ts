@@ -87,12 +87,13 @@ test("federatedPeers: id/label/baseUrl/token/region/active are all validated", (
 // the bulk PATCH can't set them, so there's nothing to validate here. Their shape guards (sanitizeBranding /
 // sanitizeLabels) are exercised in premium-config.test, on both the write and the defensive-read paths.
 
-test("string-array fields: disabledFeatures / enabledFeatures / hiddenFields", () => {
+test("string-array fields: disabledFeatures / enabledFeatures", () => {
+  // NB hiddenFields is no longer a settings key (config-def-backed `hidden-fields`); its sanitiser is tested
+  // via the availability-curation route.
   throws({ disabledFeatures: "odata" });
   throws({ disabledFeatures: [1, 2] });
   throws({ enabledFeatures: [true] });
-  throws({ hiddenFields: { a: 1 } });
-  assert.doesNotThrow(() => updateSettings({ disabledFeatures: ["odata"], enabledFeatures: ["labels"], hiddenFields: ["budget"] }));
+  assert.doesNotThrow(() => updateSettings({ disabledFeatures: ["odata"], enabledFeatures: ["labels"] }));
 });
 
 test("featureGovernance / scope feature maps / governanceRules shapes", () => {

@@ -9,7 +9,7 @@ process.env["SESSION_SECRET"] = "test-session-secret-do-not-use-in-prod";
 const CONFIG_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "scoped-config-"));
 process.env["OMNI_CONFIG_DIR"] = CONFIG_DIR;
 
-const { resolveScopedConfig, configDefLayers, resolveConfig, resolveScheduling, sanitizeSchedulingValues, DEFAULT_SCHEDULING } = await import("./scoped-config");
+const { resolveScopedConfig, configDefLayers, resolveConfig, resolveScheduling, sanitizeSchedulingValues, DEFAULT_SCHEDULING, readConfigCollection, writeOrgConfigCollection } = await import("./scoped-config");
 const { putDef, deleteDef } = await import("./def-import");
 
 const now = "2026-07-18T00:00:00.000Z";
@@ -72,6 +72,18 @@ test("resolveScheduling: code default beneath an org config def beneath a projec
     deleteDef({ kind: "org" }, "org~config-scheduling");
     deleteDef({ kind: "project", projectId: "PX" }, "project~PX~sched");
   }
+});
+
+test("config-def-backed collection: write at org, read scope-folded; array value round-trips through the `value` wrapper", () => {
+  // An ARRAY collection (like hiddenFields) still fits the object-only `values` shape via the `value` wrapper.
+  assert.deepEqual(readConfigCollection("demo-coll", ["fallback"]), ["fallback"]); // unset → fallback
+  writeOrgConfigCollection("demo-coll", "Demo", ["a", "b"]);
+  assert.deepEqual(readConfigCollection<string[]>("demo-coll", []), ["a", "b"]);
+  // A project-scope layer replaces a keyless array whole (nearest wins).
+  putDef({ kind: "project", projectId: "PC" }, configRow("project~PC~demo-coll", "demo-coll", { value: ["z"] }));
+  assert.deepEqual(readConfigCollection<string[]>("demo-coll", [], { projectId: "PC" }), ["z"]);
+  assert.deepEqual(readConfigCollection<string[]>("demo-coll", []), ["a", "b"]); // org unaffected
+  deleteDef({ kind: "project", projectId: "PC" }, "project~PC~demo-coll");
 });
 
 test("sanitizeSchedulingValues validates + normalises (partial, sorted, de-duped)", () => {

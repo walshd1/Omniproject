@@ -151,10 +151,9 @@ test("savedViews: rejects malformed view-engine fields", () => {
   assert.throws(() => updateSettings({ savedViews: [{ id: "x", name: "n", filters: [{ field: "s" }] }] }), SettingsValidationError);
 });
 
-test("hiddenFields: rejects a non-string-array", () => {
-  assert.throws(() => updateSettings({ hiddenFields: [1, 2] as unknown as string[] }), SettingsValidationError);
-  assert.deepEqual(updateSettings({ hiddenFields: ["dueDate"] }).hiddenFields, ["dueDate"]);
-});
+// NB hiddenFields is no longer a settings key — it's a config-def-backed collection (`hidden-fields`, via
+// settingsCollectionRouter's config mode). Its sanitiser (sanitizeHiddenFields) is exercised in the
+// availability-curation route test.
 
 test("dashboards: accepts well-formed dashboards and persists them", () => {
   const dashboards = [

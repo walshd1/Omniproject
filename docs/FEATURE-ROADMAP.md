@@ -2178,8 +2178,27 @@ full backstop + commit.
     snapshot. **Slice 3 complete.**
 
 ### Phase B — the larger choice slices (more consumers)
+**Master seam ✅ — `settingsCollectionRouter` config-def mode.** ~25 collection routes (raci, stakeholders,
+panelViews, savedViews, disabledScreens, collectionEditRoles, automations, templates, report-overrides,
+resource-allocations, routing, …) share `lib/settings-collection-router`. It now has an OPT-IN `configId` mode:
+a route flips from a `SettingsState` key to a scope-layered `config` def by passing `configId` + a carried
+`validate` sanitiser — the HTTP contract is byte-identical (so the SPA never changes), and the collection leaves
+settings. `lib/scoped-config` gained `readConfigCollection` / `writeOrgConfigCollection` (an array/object
+collection rides the object-only `values` shape via a `{ value }` wrapper, so scope layers still deep-merge /
+merge-by-id through `mergeValue`). **CHOICE-only** for now: config mode skips `applySettingsGuarded`, so a
+security-classified collection stays settings-backed until the floor gate is wired onto this path (Phase C).
+With the seam built, each remaining Phase B collection is a ~3-line flip (configId + validate + drop the
+settings key/classification) plus a store-enabled route test.
 - **Slice 4 · `screenLayouts` + `hiddenFields` + `savedViews`.** View/presentation policy (already partly
   scope-aware).
+  - **`hiddenFields` ✅ (first config-def-collection adopter, no compat).** The admin/PMO view-curation list
+    moved OUT of `settings.hiddenFields` (field + FIELD_DESCRIPTORS + `security-settings` CHOICE all removed)
+    into a `hidden-fields` config def via the seam above. `GET`/`PATCH /api/availability/curation` contract
+    unchanged (SPA untouched); `lib/availability` reads `readConfigCollection("hidden-fields", [])` fresh per
+    resolve; the string-array sanitiser moved into the route. Backend-only; full suite green.
+  - **`savedViews` — pending.** Behind the `savedViews` feature module (`routes/views`, already a
+    settingsCollectionRouter user) — a clean flip once tackled. **`screenLayouts`** is a separate target: it's
+    being folded INTO screen defs (per-screen), not a standalone config collection, so it's not this seam's job.
 - **Slice 5 · `collectionEditRoles` + `disabledScreens`/`disabledFeatures`.** Access/visibility policy —
   classify carefully (edit-roles borders on authz; today "choice", so policy, but tighten-only is the safer read).
 - **Slice 6 · `automations` + `templates` + `raci` + `stakeholders` + `methodologyComposition`.** Remaining

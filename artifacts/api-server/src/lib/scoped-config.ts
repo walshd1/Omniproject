@@ -17,7 +17,7 @@
  * settings-blob compatibility layer — the working-time policy lives entirely in the composition model.
  */
 import { mergeValue } from "@workspace/backend-catalogue";
-import { listDefs, listSystemDefs, type StoredDef } from "./def-import";
+import { listDefs, listSystemDefs, getDef, putDef, type StoredDef } from "./def-import";
 
 /** Which programme/project/user scopes to consult when resolving a config (org + system are always included). */
 export interface ConfigScopes { projectId?: string; programmeId?: string; sub?: string }
@@ -73,6 +73,35 @@ export function configDefLayers(configId: string, scopes: ConfigScopes): Record<
  */
 export function resolveConfig<T>(configId: string, base: T, scopes: ConfigScopes): T {
   return resolveScopedConfig(base, configDefLayers(configId, scopes));
+}
+
+// ── Config-def-backed "collection" (the settings-collection migration vehicle) ───────────────────────────────
+// A settings-collection field (an array/object like `hiddenFields`, `savedViews`, `raci`, …) becomes a config
+// def whose `values` wraps the collection under a single `value` key (so an array collection still fits the
+// object-only `values` shape, and scope layers still deep-merge / merge-by-id through `mergeValue`). One helper
+// pair reads it (scope-folded) and writes it at org scope — the seam `settingsCollectionRouter`'s config mode
+// uses, so every collection route can migrate off settings without changing its HTTP contract.
+
+/** The scope-folded value of a config-def-backed collection, or `fallback` when unset. */
+export function readConfigCollection<T>(configId: string, fallback: T, scopes: ConfigScopes = {}): T {
+  const merged = resolveScopedConfig<{ value?: T }>({}, configDefLayers(configId, scopes));
+  return (merged.value ?? fallback) as T;
+}
+
+/** Persist a collection as the ORG-scope config def `{ id, values: { value } }`. Singleton org row, updated in
+ *  place. Store must be enabled (a no-op otherwise, matching the artifact-store's write behaviour). */
+export function writeOrgConfigCollection(configId: string, name: string, value: unknown): void {
+  const payload = { id: configId, values: { value } };
+  const existing = getDef({ kind: "org" }, orgConfigCollectionId(configId));
+  const now = new Date().toISOString();
+  putDef({ kind: "org" }, existing
+    ? { ...existing, payload, updatedAt: now, rowVersion: (existing.rowVersion ?? 1) + 1 }
+    : { id: orgConfigCollectionId(configId), kind: "config", name, payload, createdBy: null, createdAt: now, updatedAt: now, rowVersion: 1 });
+}
+
+/** The stable storage id of an org-scope config-collection def (one singleton row per logical config). */
+export function orgConfigCollectionId(configId: string): string {
+  return `org~config-${configId}`;
 }
 
 // ── Scheduling: the first migrated config (working-time policy) ──────────────────────────────────────────────
