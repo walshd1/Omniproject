@@ -39,5 +39,11 @@ export function kindRootConstraints(kind: string): DefConstraint[] {
  * primitive-instance children.
  */
 export function kindElementErrors(kind: string, def: Record<string, unknown>): string[] {
-  return kind === "form" ? validateFormFields(def["fields"]) : [];
+  if (kind !== "form") return [];
+  const errors = validateFormFields(def["fields"]);
+  // A form writes an ISSUE — checked on the composed whole (a thin fork inherits its parent's target).
+  const target = def["target"];
+  const targetKind = target && typeof target === "object" && !Array.isArray(target) ? (target as Record<string, unknown>)["kind"] : undefined;
+  if (targetKind !== "issue") errors.push('a form must target an issue (target.kind must be "issue")');
+  return errors;
 }

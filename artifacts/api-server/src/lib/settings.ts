@@ -28,7 +28,7 @@ import { validateBudgetPlans, BudgetPlanError, type BudgetPlan } from "./budget-
 import { validateScreenDefs, ScreenDefError, type OrgScreenDef } from "./screen-def";
 import { validateRaci, RaciError, type RaciEntry } from "./raci";
 import { validateStakeholders, StakeholderError, type Stakeholder } from "./stakeholder";
-import { validateForms, FormDefError, type FormDef } from "./form-def";
+import { FormDefError, type FormDef } from "./form-def";
 import { validateAutomations, AutomationError } from "./automation";
 import { validateTemplates, TemplateError } from "./project-template";
 import type { AutomationRecipe, ProjectTemplate } from "@workspace/backend-catalogue";
@@ -1225,7 +1225,7 @@ const FIELD_DESCRIPTORS: { [K in keyof SettingsState]: FieldDescriptor<K> } = {
     },
   },
   panelViews: { seed: () => [], validate: shapeChecked(validatePanelViews) },
-  forms: { seed: () => [], validate: normalisedBy((v) => validateForms(v), FormDefError) },
+  forms: { seed: () => [], validate: normalisedBy((v) => { if (!Array.isArray(v)) throw new FormDefError("forms must be an array"); return v as FormDef[]; }, FormDefError) },
   automations: { seed: () => [], validate: normalisedBy((v) => validateAutomations(v), AutomationError) },
   templates: { seed: () => [], validate: normalisedBy((v) => validateTemplates(v), TemplateError) },
   raci: { seed: () => [], validate: normalisedBy((v) => validateRaci(v), RaciError) },

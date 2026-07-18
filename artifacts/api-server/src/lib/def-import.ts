@@ -15,10 +15,9 @@
 import type { ActorContext } from "../broker/types";
 import { listArtifacts, getArtifact, putArtifact, deleteArtifact, replaceArtifacts, listAllArtifactCollections, SYSTEM_SCOPE, type ArtifactScope } from "./artifact-store";
 import { validateScreenDefs } from "./screen-def";
-import { validateForms } from "./form-def";
 import { sanitizeMapping } from "./mapping";
 import { validateCustomFieldDef } from "./custom-fields";
-import { validatePrimitiveDef, shippedDefRefs, shippedDefs, extendsLineage, composeExtends, composedConstraintErrors, kindRootConstraints, kindElementErrors } from "@workspace/backend-catalogue";
+import { validatePrimitiveDef, shippedDefRefs, shippedDefs, extendsLineage, composeExtends, composedConstraintErrors, kindRootConstraints, kindElementErrors, validateFormFields } from "@workspace/backend-catalogue";
 
 /** A user-definable JSON kind the importer accepts. */
 export type DefKind = "primitive" | "screen" | "form" | "report" | "dashboard" | "businessRule" | "methodology" | "mapping" | "customField" | "theme" | "font" | "jsonDef";
@@ -75,7 +74,17 @@ export function validateDef(kind: DefKind, payload: unknown): DefValidation {
       return { ok: r.ok, errors: r.errors, ...(r.def ? { value: r.def } : {}) };
     }
     case "screen": return fromThrowing(() => validateScreenDefs([payload])[0]);
-    case "form": return fromThrowing(() => validateForms([payload])[0]);
+    case "form": {
+      // Forms are validated by the engine, not a monolithic validator: fragment-time we check the id is present
+      // and every DECLARED field is a valid field-primitive instance (type known, required params, the inherited
+      // `mapTo` allow-list floor, choice options) — the checks that hold for a partial fork. The CONTAINER floors
+      // (>=1 field, exactly one title, unique targets/keys, target.kind) are enforced on the COMPOSED whole in
+      // `composedValidity`, so a thin fork that inherits fields/title/target still validates once composed.
+      const base = structural(payload, ["id"]);
+      if (!base.ok) return base;
+      const fieldErrors = validateFormFields((payload as Record<string, unknown>)["fields"]);
+      return fieldErrors.length ? { ok: false, errors: fieldErrors } : { ok: true, errors: [], value: payload };
+    }
     case "report": return structural(payload, ["id"]);
     case "dashboard": return validateDashboardDef(payload);
     case "businessRule": return structural(payload, ["id"]);
