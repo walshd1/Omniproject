@@ -3,9 +3,9 @@ import type { ReactNode } from "react";
 import { useMemo, useState } from "react";
 import { Link } from "wouter";
 import { useGetPortfolioHealth } from "@workspace/api-client-react";
-import { componentsFor, getComponent } from "@workspace/backend-catalogue";
+import { componentsFor } from "@workspace/backend-catalogue";
 import { buildExecHealth, execHeadline, type ExecException, type Rag } from "../../lib/exec-pack";
-import { resolveDrillTo, overdueDrillTo, costOverrunDrillTo, type ResolvedDrillTo } from "../../lib/drill-to";
+import { resolveHealthDrills, type ResolvedDrillTo } from "../../lib/drill-to";
 import { useT } from "../../lib/i18n";
 import { DataState } from "../DataState";
 import { StatCard } from "./StatCard";
@@ -32,10 +32,6 @@ const RAG_STYLE: Record<Rag, { dot: string; text: string }> = {
   RED: { dot: "bg-red-500", text: "text-red-500" },
 };
 
-// Reuse the SAME declarative drillTo the portfolioHealth widget declares (backlog #122) — one
-// descriptor, two surfaces (the dashboard KPI cards AND this board pack's exceptions table), proving
-// the mechanism composes instead of every "N blocked" figure hand-rolling its own filter-building.
-const BLOCKERS_DRILL_TO = getComponent("widget:portfolioHealth")?.drillTo;
 
 function RagBar({ rag, total }: { rag: Record<Rag, number>; total: number }) {
   const seg = (n: number) => (total ? `${(n / total) * 100}%` : "0%");
@@ -80,13 +76,9 @@ function DrillCell({
 
 function ExceptionRow({ e }: { e: ExceptionView }) {
   const style = RAG_STYLE[e.rag];
-  const row = e as unknown as Record<string, unknown>;
-  const blockersDrill = BLOCKERS_DRILL_TO ? resolveDrillTo(BLOCKERS_DRILL_TO, row) : null;
-  const scheduleDrill = resolveDrillTo(overdueDrillTo(), row);
-  const budgetDrill = resolveDrillTo(costOverrunDrillTo(), row);
-  const canDrillBlockers = !!blockersDrill && e.activeBlockersCount > 0;
-  const canDrillSchedule = !!scheduleDrill && e.scheduleVarianceDays < 0;
-  const canDrillBudget = !!budgetDrill && e.budgetVariancePercentage > 0;
+  const { blockers, schedule, budget } = resolveHealthDrills(e);
+  const blockersDrill = blockers.drill, scheduleDrill = schedule.drill, budgetDrill = budget.drill;
+  const canDrillBlockers = blockers.canDrill, canDrillSchedule = schedule.canDrill, canDrillBudget = budget.canDrill;
   return (
     <tr className="border-b border-border/50" data-testid={`exec-exception-${e.projectId}`}>
       <td className="py-2 pr-3">
