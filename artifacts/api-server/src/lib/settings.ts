@@ -33,10 +33,8 @@ import { validateTemplates, TemplateError } from "./project-template";
 import type { AutomationRecipe, ProjectTemplate } from "@workspace/backend-catalogue";
 import { reportCatalogue, type ReportDefinition } from "@workspace/backend-catalogue";
 import { validateCustomFields, validateCustomFieldSources, CustomFieldError, type CustomField } from "./custom-fields";
-import { sanitizeBranding } from "./branding";
 import { sanitizeUserPrefs } from "./user-prefs";
 import { sanitizeGrant } from "./calendar-push";
-import { sanitizeLabels } from "./labels";
 import { isForbiddenKey, stripDangerousKeysDeep } from "./safe-json";
 import { validateFieldValidation, FieldValidationError, type FieldValidationRule } from "./field-validation";
 import { validateProgrammeRegistry, ProgrammeRegistryError, type ProgrammeRegistry } from "./programmes";
@@ -432,14 +430,12 @@ export interface GovernanceConfig {
 /** Presentation / curation config: branding, labels, screen layouts, saved views, dashboards,
  *  custom + built-in reports, content pages, hidden fields and the methodology composition. */
 export interface PresentationConfig {
-  /** White-label branding overrides (null/empty → product defaults). */
-  branding: BrandingConfig | null;
-  // NB the org-wide accessibility DEFAULTS are NOT a settings key — they moved into the composition model as a
-  // scope-layered `accessibility-defaults` config def (see lib/scoped-config + lib/user-prefs + routes/accessibility).
-  /** Company-nomenclature label overrides, keyed by i18n key. */
-  labelOverrides: Record<string, string>;
-  // NB the custom priority-level labels are NOT a settings key — they moved into the composition model as a
-  // scope-layered `priority-labels` config def (see lib/scoped-config + routes/priority-labels).
+  // NB these presentation configs are NOT settings keys — each moved into the composition model as a
+  // scope-layered config def (see lib/scoped-config + the matching lib/route):
+  //   • white-label `branding`            → lib/branding (env default beneath the org config def)
+  //   • company-nomenclature `labelOverrides` (`label-overrides`) → lib/labels
+  //   • org accessibility `accessibilityDefaults` (`accessibility-defaults`) → lib/user-prefs + routes/accessibility
+  //   • custom `priorityLabels` (`priority-labels`) → routes/priority-labels
   /**
    * Per-screen layout overrides (drag-arranged panel order / spans / hidden), keyed
    * by screen id. Presentation config — part of the snapshot/export so it travels in
@@ -828,34 +824,6 @@ export interface ScreenLayout {
   hidden?: string[];
 }
 
-function brandingFromEnv(): BrandingConfig | null {
-  const b: BrandingConfig = {
-    appName: process.env["BRAND_APP_NAME"]?.trim() || null,
-    shortName: process.env["BRAND_SHORT_NAME"]?.trim() || null,
-    logoUrl: process.env["BRAND_LOGO_URL"]?.trim() || null,
-    primaryColor: process.env["BRAND_PRIMARY_COLOR"]?.trim() || null,
-    loginHeading: process.env["BRAND_LOGIN_HEADING"]?.trim() || null,
-    footerText: process.env["BRAND_FOOTER_TEXT"]?.trim() || null,
-    supportUrl: process.env["BRAND_SUPPORT_URL"]?.trim() || null,
-    fontFamily: process.env["BRAND_FONT_FAMILY"]?.trim() || null,
-  };
-  return Object.values(b).some(Boolean) ? b : null;
-}
-
-function labelsFromEnv(): Record<string, string> {
-  const raw = process.env["LABEL_OVERRIDES"]?.trim();
-  if (!raw) return {};
-  try {
-    const parsed = JSON.parse(raw) as Record<string, unknown>;
-    const out: Record<string, string> = {};
-    for (const [k, v] of Object.entries(parsed)) if (typeof v === "string") out[k] = v;
-    return out;
-  } catch (err) {
-    logger.warn({ err }, "LABEL_OVERRIDES is not valid JSON — ignoring, no label overrides seeded");
-    return {};
-  }
-}
-
 function webhooksFromEnv(): WebhookSubscription[] {
   const raw = process.env["WEBHOOKS"]?.trim();
   if (!raw) return [];
@@ -1054,32 +1022,6 @@ const FIELD_DESCRIPTORS: { [K in keyof SettingsState]: FieldDescriptor<K> } = {
     validate: (value) => {
       if (typeof value !== "boolean") throw new SettingsValidationError("errorTelemetry must be a boolean");
       return value;
-    },
-  },
-  branding: {
-    // Branding's fontFamily is injected into an inline style, so the bulk PATCH / config restore must run
-    // it through the SAME sanitizer as saveBranding (http(s) URLs, hex colour, safe font stack, length caps).
-    seed: () => brandingFromEnv(),
-    validate: (value) => {
-      if (value == null) return null;
-      try {
-        return sanitizeBranding(value);
-      } catch (e) {
-        throw new SettingsValidationError(e instanceof Error ? e.message : "invalid branding");
-      }
-    },
-  },
-  labelOverrides: {
-    seed: () => labelsFromEnv(),
-    validate: (value) => {
-      if (typeof value !== "object" || value == null || Array.isArray(value)) throw new SettingsValidationError("labelOverrides must be an object");
-      // Same sanitizer saveLabels uses (catalogue allow-list + length cap), so a bulk PATCH can't persist
-      // non-catalogue keys or unbounded copy.
-      try {
-        return sanitizeLabels(value);
-      } catch (e) {
-        throw new SettingsValidationError(e instanceof Error ? e.message : "invalid labelOverrides");
-      }
     },
   },
   fieldRouting: {

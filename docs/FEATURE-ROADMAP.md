@@ -2162,9 +2162,20 @@ full backstop + commit.
     `GET`/`PUT /api/priority-labels` contract is IDENTICAL (`{ canonical, labels }`), so the SPA + its tests are
     untouched — only storage moved (settings → sealed config def; GET now accepts optional programme/project
     query for scoped resolution). Backend-only; full suite green.
-  - **`branding` + `labelOverrides` — pending.** These are read PRE-login (public `brandingRouter`/`labelsRouter`),
-    so migrating them means the resolver must serve the org-scope config def without a session (it can — org
-    scope needs no auth) while keeping the public read contract.
+  - **`branding` + `labelOverrides` ✅ (config defs + env default layer, no compat).** Both moved OUT of settings
+    (`PresentationConfig` fields, `FIELD_DESCRIPTORS`, `brandingFromEnv`/`labelsFromEnv`, and the
+    `security-settings` CHOICE classifications all removed) into `branding` / `label-overrides` ORG config defs.
+    Resolution order: **org config def → `BRAND_*` / `LABEL_OVERRIDES` env default → product default** — env is
+    kept as a first-class DEPLOY-TIME default layer beneath the org override (not a legacy shim; the login screen
+    stays white-labellable pre-auth, read straight off the org sealed store without a session). The route
+    contracts (`GET`/`PUT`/`DELETE /api/branding`, `GET`/`PUT /api/labels`, presets) are UNCHANGED, so the SPA is
+    untouched. **Security:** the settings-restore path used to re-run branding through `sanitizeBranding` (the
+    inline-style font-stack guard); since the generic config-def importer has no branding validator, that guard
+    now runs DEFENSIVELY ON READ (`orgBranding`/`orgLabels` sanitise the stored values, rejecting a
+    tampered/restored def before it can reach the inline style), covered by new premium-config tests.
+    `brandingFromEnv`/`labelsFromEnv` moved to `lib/branding`/`lib/labels`; the env-seed tests assert them
+    directly. Branding/labels now ride the DEF half of the full backup (config defs) rather than the settings
+    snapshot. **Slice 3 complete.**
 
 ### Phase B — the larger choice slices (more consumers)
 - **Slice 4 · `screenLayouts` + `hiddenFields` + `savedViews`.** View/presentation policy (already partly

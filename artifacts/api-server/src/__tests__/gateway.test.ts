@@ -958,8 +958,6 @@ const SAMPLE_SETTINGS = {
   closedProjects: {},
   guidAliases: {},
   retiredGuids: [],
-  branding: null,
-  labelOverrides: {},
   webhooks: [],
   federatedPeers: [],
   loggingSync: { enabled: false, url: null, acknowledgedWarranty: false },

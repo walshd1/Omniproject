@@ -3,8 +3,10 @@
  * Premium feature — governed by licenses/PREMIUM.txt, NOT Apache-2.0.
  * Use in production requires a valid OmniProject commercial licence.
  */
-import { getSettings, updateSettings, type BrandingConfig } from "./settings";
+import { type BrandingConfig } from "./settings";
 import { isEntitled } from "./license";
+import { artifactStoreEnabled, makeScopedId } from "./artifact-store";
+import { getDef, putDef, deleteDef, type StoredDef } from "./def-import";
 
 /**
  * White-label branding (premium feature `branding`).
@@ -14,9 +16,41 @@ import { isEntitled } from "./license";
  * logo, accent colour and login/footer text. If the licence lapses, branding
  * reverts to the defaults automatically (the override is kept but not served).
  *
- * Pure presentation config — stateless, carried in the settings store and
- * included in config snapshots.
+ * STORAGE: branding is a `branding` config def at ORG scope (NOT a settings key) — it rides the sealed def
+ * store + the def backup like every other config in the composition model. Beneath the org override sits the
+ * DEPLOY DEFAULT from `BRAND_*` env vars (a first-class deploy-time source, e.g. a helm chart), and beneath that
+ * the product defaults. So the resolution order is: org config def → env default → product default.
  */
+
+const BRANDING_CONFIG_ID = "branding";
+const ORG_BRANDING_ID = makeScopedId("org", `config-${BRANDING_CONFIG_ID}`);
+
+/** The deploy-time branding default from `BRAND_*` env vars (null when none set). */
+export function brandingFromEnv(): BrandingConfig | null {
+  const b: BrandingConfig = {
+    appName: process.env["BRAND_APP_NAME"]?.trim() || null,
+    shortName: process.env["BRAND_SHORT_NAME"]?.trim() || null,
+    logoUrl: process.env["BRAND_LOGO_URL"]?.trim() || null,
+    primaryColor: process.env["BRAND_PRIMARY_COLOR"]?.trim() || null,
+    loginHeading: process.env["BRAND_LOGIN_HEADING"]?.trim() || null,
+    footerText: process.env["BRAND_FOOTER_TEXT"]?.trim() || null,
+    supportUrl: process.env["BRAND_SUPPORT_URL"]?.trim() || null,
+    fontFamily: process.env["BRAND_FONT_FAMILY"]?.trim() || null,
+  };
+  return Object.values(b).some(Boolean) ? b : null;
+}
+
+/** The stored org branding override (the config def's values), or null when unset / no store. Sanitised on
+ *  READ through the SAME guard as `saveBranding` (font-stack / URL / colour / length caps): the generic
+ *  config-def importer has no branding-specific validator, so a value that entered the store via a
+ *  restored/tampered BACKUP is normalised here before it can reach the inline style. A value that fails the
+ *  guard is rejected (→ null → falls back to the env/product default), never rendered. */
+function orgBranding(): BrandingConfig | null {
+  if (!artifactStoreEnabled()) return null;
+  const v = (getDef({ kind: "org" }, ORG_BRANDING_ID)?.payload as { values?: unknown } | undefined)?.values;
+  if (!v || typeof v !== "object" || Array.isArray(v)) return null;
+  try { return sanitizeBranding(v); } catch { return null; }
+}
 
 export const DEFAULT_BRANDING: Required<BrandingConfig> = {
   appName: "OmniProject",
@@ -73,10 +107,11 @@ export function sanitizeBranding(input: unknown): BrandingConfig {
   };
 }
 
-/** The branding the UI should render right now (defaults unless entitled). */
+/** The branding the UI should render right now (defaults unless entitled). The override is the org config def,
+ *  falling back to the `BRAND_*` env default; both sit beneath the product defaults. */
 export function effectiveBranding(): EffectiveBranding {
   const entitled = isEntitled("branding");
-  const override = getSettings().branding;
+  const override = orgBranding() ?? brandingFromEnv();
   const hasOverride = !!override && Object.values(override).some(Boolean);
   const merged = entitled && override
     ? {
@@ -93,14 +128,20 @@ export function effectiveBranding(): EffectiveBranding {
   return { ...merged, entitled, locked: hasOverride && !entitled };
 }
 
-/** Persist branding overrides (callers must enforce the entitlement). */
+/** Persist branding overrides as the org `branding` config def (callers must enforce the entitlement). */
 export function saveBranding(input: unknown): BrandingConfig {
   const branding = sanitizeBranding(input);
-  updateSettings({ branding });
+  const payload = { id: BRANDING_CONFIG_ID, values: branding };
+  const existing = getDef({ kind: "org" }, ORG_BRANDING_ID);
+  const now = new Date().toISOString();
+  const row: StoredDef = existing
+    ? { ...existing, payload, updatedAt: now, rowVersion: (existing.rowVersion ?? 1) + 1 }
+    : { id: ORG_BRANDING_ID, kind: "config", name: "Branding", payload, createdBy: null, createdAt: now, updatedAt: now, rowVersion: 1 };
+  putDef({ kind: "org" }, row);
   return branding;
 }
 
-/** Reset white-label branding back to the product defaults. */
+/** Reset white-label branding back to the deploy/product defaults (remove the org override def). */
 export function clearBranding(): void {
-  updateSettings({ branding: null });
+  deleteDef({ kind: "org" }, ORG_BRANDING_ID);
 }

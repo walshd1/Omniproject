@@ -3,8 +3,10 @@
  * Premium feature — governed by licenses/PREMIUM.txt, NOT Apache-2.0.
  * Use in production requires a valid OmniProject commercial licence.
  */
-import { getSettings, updateSettings } from "./settings";
 import { isEntitled } from "./license";
+import { logger } from "./logger";
+import { artifactStoreEnabled, makeScopedId } from "./artifact-store";
+import { getDef, putDef, type StoredDef } from "./def-import";
 
 /**
  * Field / term label overrides (historically the premium `labels` feature).
@@ -46,6 +48,38 @@ export const LABEL_CATALOG: LabelTerm[] = [
 const ALLOWED = new Set(LABEL_CATALOG.map((t) => t.key));
 const MAX_LEN = 60;
 
+// STORAGE: label overrides are a `label-overrides` config def at ORG scope (NOT a settings key) — riding the
+// sealed def store + the def backup. Beneath the org override sits the DEPLOY DEFAULT from the LABEL_OVERRIDES
+// env var (a first-class deploy-time source), then the product defaults.
+const LABELS_CONFIG_ID = "label-overrides";
+const ORG_LABELS_ID = makeScopedId("org", `config-${LABELS_CONFIG_ID}`);
+
+/** The deploy-time label overrides from the LABEL_OVERRIDES env var (JSON map; {} when unset/invalid). */
+export function labelsFromEnv(): Record<string, string> {
+  const raw = process.env["LABEL_OVERRIDES"]?.trim();
+  if (!raw) return {};
+  try {
+    const parsed = JSON.parse(raw) as Record<string, unknown>;
+    const out: Record<string, string> = {};
+    for (const [k, v] of Object.entries(parsed)) if (typeof v === "string") out[k] = v;
+    return out;
+  } catch (err) {
+    logger.warn({ err }, "LABEL_OVERRIDES is not valid JSON — ignoring, no label overrides seeded");
+    return {};
+  }
+}
+
+/** The stored org label overrides (the config def's values), or null when unset / no store. Sanitised on READ
+ *  through the SAME guard as `saveLabels` (catalogue allow-list + length cap + string-only), so a non-catalogue
+ *  key or oversized value that entered via a restored/tampered BACKUP (the generic config-def importer has no
+ *  labels validator) is normalised before use rather than rendered. */
+function orgLabels(): Record<string, string> | null {
+  if (!artifactStoreEnabled()) return null;
+  const v = (getDef({ kind: "org" }, ORG_LABELS_ID)?.payload as { values?: unknown } | undefined)?.values;
+  if (!v || typeof v !== "object" || Array.isArray(v)) return null;
+  try { return sanitizeLabels(v); } catch { return {}; }
+}
+
 /** Validate + normalise an overrides map. Throws on bad input; drops unknowns. */
 export function sanitizeLabels(input: unknown): Record<string, string> {
   if (!input || typeof input !== "object") throw new Error("labels must be an object");
@@ -79,14 +113,20 @@ export function effectiveLabels(): { entitled: boolean; locked: boolean; overrid
   return {
     entitled: !locked,
     locked,
-    overrides: locked ? {} : getSettings().labelOverrides ?? {},
+    overrides: locked ? {} : (orgLabels() ?? labelsFromEnv()),
     catalog: LABEL_CATALOG,
   };
 }
 
-/** Persist label overrides (callers enforce the PMO/admin role). */
+/** Persist label overrides as the org `label-overrides` config def (callers enforce the PMO/admin role). */
 export function saveLabels(input: unknown): Record<string, string> {
   const overrides = sanitizeLabels(input);
-  updateSettings({ labelOverrides: overrides });
+  const payload = { id: LABELS_CONFIG_ID, values: overrides };
+  const existing = getDef({ kind: "org" }, ORG_LABELS_ID);
+  const now = new Date().toISOString();
+  const row: StoredDef = existing
+    ? { ...existing, payload, updatedAt: now, rowVersion: (existing.rowVersion ?? 1) + 1 }
+    : { id: ORG_LABELS_ID, kind: "config", name: "Label overrides", payload, createdBy: null, createdAt: now, updatedAt: now, rowVersion: 1 };
+  putDef({ kind: "org" }, row);
   return overrides;
 }

@@ -83,13 +83,9 @@ test("federatedPeers: id/label/baseUrl/token/region/active are all validated", (
   assert.doesNotThrow(() => updateSettings({ federatedPeers: [{ id: "p", label: "L", baseUrl: "https://peer.example.com", token: "t", region: "eu", active: true }] }));
 });
 
-test("branding / labelOverrides object shape", () => {
-  throws({ branding: "not-an-object" });
-  throws({ labelOverrides: "not-an-object" });
-  throws({ labelOverrides: null });
-  assert.doesNotThrow(() => updateSettings({ branding: null }));
-  assert.doesNotThrow(() => updateSettings({ labelOverrides: { status: "Stage" } }));
-});
+// NB branding + labelOverrides are no longer settings keys (they're `branding`/`label-overrides` config defs) —
+// the bulk PATCH can't set them, so there's nothing to validate here. Their shape guards (sanitizeBranding /
+// sanitizeLabels) are exercised in premium-config.test, on both the write and the defensive-read paths.
 
 test("string-array fields: disabledFeatures / enabledFeatures / hiddenFields", () => {
   throws({ disabledFeatures: "odata" });
