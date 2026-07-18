@@ -12,7 +12,6 @@ import { DEPLOYMENT_PROFILES, setRuntimeProfile, type DeploymentProfile } from "
 import { evaluateConstraints } from "./settings-constraints";
 import { settingsPreset } from "./settings-presets";
 import type { BackendFieldMap } from "../broker/types";
-import { CANONICAL_PRIORITY } from "../broker/vocabulary";
 import type { GovernanceRule } from "./governance-rules";
 import { validatePredicate } from "./predicate";
 import { isValidCadence, type SnapshotCadence } from "../history/cadence";
@@ -439,9 +438,8 @@ export interface PresentationConfig {
   // scope-layered `accessibility-defaults` config def (see lib/scoped-config + lib/user-prefs + routes/accessibility).
   /** Company-nomenclature label overrides, keyed by i18n key. */
   labelOverrides: Record<string, string>;
-  /** Admin/PMO custom display names for the canonical priority levels (canonical → label). Empty
-   *  ⇒ the canonical names. Distinct from labelOverrides (which is premium company-nomenclature). */
-  priorityLabels: Record<string, string>;
+  // NB the custom priority-level labels are NOT a settings key — they moved into the composition model as a
+  // scope-layered `priority-labels` config def (see lib/scoped-config + routes/priority-labels).
   /**
    * Per-screen layout overrides (drag-arranged panel order / spans / hidden), keyed
    * by screen id. Presentation config — part of the snapshot/export so it travels in
@@ -1082,22 +1080,6 @@ const FIELD_DESCRIPTORS: { [K in keyof SettingsState]: FieldDescriptor<K> } = {
       } catch (e) {
         throw new SettingsValidationError(e instanceof Error ? e.message : "invalid labelOverrides");
       }
-    },
-  },
-  priorityLabels: {
-    seed: () => ({}),
-    validate: (value) => {
-      if (typeof value !== "object" || value == null || Array.isArray(value)) throw new SettingsValidationError("priorityLabels must be an object");
-      const clean: Record<string, string> = {};
-      for (const [k, val] of Object.entries(value as Record<string, unknown>)) {
-        if (!(CANONICAL_PRIORITY as readonly string[]).includes(k)) throw new SettingsValidationError(`priorityLabels key "${k}" is not a canonical priority`);
-        if (val === undefined || val === null || val === "") continue; // empty ⇒ use the canonical name
-        if (typeof val !== "string") throw new SettingsValidationError(`priorityLabels["${k}"] must be a string`);
-        const t = val.trim();
-        if (t.length > 40) throw new SettingsValidationError(`priorityLabels["${k}"] is too long (max 40)`);
-        if (t) clean[k] = t;
-      }
-      return clean;
     },
   },
   fieldRouting: {

@@ -2156,6 +2156,15 @@ full backstop + commit.
   round-trip (a null default is not a default). `/api/me/prefs` still surfaces `orgDefaults`, now config-sourced.
 - **Slice 3 · `branding` + `labelOverrides` + `priorityLabels`.** Presentation policy; proves deep object merge
   and nested scope override.
+  - **`priorityLabels` ✅ (config def, route contract unchanged, no compat).** Custom priority-level display
+    names moved OUT of `settings.priorityLabels` (field + FIELD_DESCRIPTORS + `security-settings` CHOICE all
+    removed) into a scope-layered `priority-labels` config def, folded system < org < programme < project. The
+    `GET`/`PUT /api/priority-labels` contract is IDENTICAL (`{ canonical, labels }`), so the SPA + its tests are
+    untouched — only storage moved (settings → sealed config def; GET now accepts optional programme/project
+    query for scoped resolution). Backend-only; full suite green.
+  - **`branding` + `labelOverrides` — pending.** These are read PRE-login (public `brandingRouter`/`labelsRouter`),
+    so migrating them means the resolver must serve the org-scope config def without a session (it can — org
+    scope needs no auth) while keeping the public read contract.
 
 ### Phase B — the larger choice slices (more consumers)
 - **Slice 4 · `screenLayouts` + `hiddenFields` + `savedViews`.** View/presentation policy (already partly
