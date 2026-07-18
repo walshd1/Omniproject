@@ -1,4 +1,4 @@
-import { reportCatalogue, formCatalogue, dashboardPresetCatalogue, referenceRulesetCatalogue, methodologyCatalogue, screenDefCatalogue, primitiveCatalogue, type DashboardPreset } from "@workspace/backend-catalogue";
+import { reportCatalogue, formCatalogue, dashboardDefCatalogue, referenceRulesetCatalogue, methodologyCatalogue, screenDefCatalogue, primitiveCatalogue, mappingCatalogue } from "@workspace/backend-catalogue";
 import { artifactStoreEnabled } from "./artifact-store";
 import { buildSystemDefRow, replaceSystemDefs, listSystemDefs, type StoredDef } from "./def-import";
 
@@ -19,16 +19,6 @@ import { buildSystemDefRow, replaceSystemDefs, listSystemDefs, type StoredDef } 
 /** Deterministic stamp for shipped defaults (not per-boot), so the sealed set is stable across installs. */
 const SEED_AT = "2026-01-01T00:00:00.000Z";
 
-/** A dashboard PRESET (`{ widgets: [{ type, span?, title? }] }`) → the dashboard def payload the renderer wants
- *  (`{ id, name, widgets: [{ id, type, span?, title? }] }`), synthesising each widget's required `id`. */
-function presetToDashboardPayload(p: DashboardPreset): { id: string; name: string; widgets: Array<{ id: string; type: string; span?: number; title?: string }> } {
-  return {
-    id: p.id,
-    name: p.name,
-    widgets: p.widgets.map((w, i) => ({ id: `${w.type}-${i}`, type: w.type, ...(w.span ? { span: w.span } : {}), ...(w.title ? { title: w.title } : {}) })),
-  };
-}
-
 /** Build the FULL shipped-default def set from the bundled catalogues (the approved-from-us content). */
 export function buildSystemDefaultRows(): StoredDef[] {
   const rows: StoredDef[] = [];
@@ -36,9 +26,13 @@ export function buildSystemDefaultRows(): StoredDef[] {
   for (const f of formCatalogue()) rows.push(buildSystemDefRow("form", f.label, f, SEED_AT));
   for (const b of referenceRulesetCatalogue()) rows.push(buildSystemDefRow("businessRule", b.label, b, SEED_AT));
   for (const m of methodologyCatalogue()) rows.push(buildSystemDefRow("methodology", m.label, m, SEED_AT));
-  for (const p of dashboardPresetCatalogue()) rows.push(buildSystemDefRow("dashboard", p.name, presetToDashboardPayload(p), SEED_AT));
+  for (const d of dashboardDefCatalogue()) rows.push(buildSystemDefRow("dashboard", d.name, d, SEED_AT));
   for (const s of screenDefCatalogue()) rows.push(buildSystemDefRow("screen", String(s.label), s, SEED_AT));
   for (const p of primitiveCatalogue()) rows.push(buildSystemDefRow("primitive", p.label, p, SEED_AT));
+  // The shipped CORE field mappings (roadmap §4.6) — authored as JSON under assets/mappings/, seeded into the
+  // system store, overridable by org/programme/project/user through the importer. The SAME catalogue the
+  // resolver uses as its store-off fallback layer (one JSON source of truth, no TS mapping constants).
+  for (const m of mappingCatalogue()) rows.push(buildSystemDefRow("mapping", m.label, m, SEED_AT));
   return rows;
 }
 

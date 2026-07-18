@@ -117,7 +117,7 @@ export const CHOICE_SETTINGS: readonly string[] = [
   // GovernanceConfig (feature toggles — functional, not the governance controls)
   "disabledFeatures", "enabledFeatures", "programmeFeatures", "projectFeatures",
   // PresentationConfig (all presentation)
-  "branding", "labelOverrides", "priorityLabels", "screenLayouts", "hiddenFields",
+  "screenLayouts",
   "savedViews", "dashboards", "customReports", "reportOverrides", "reports", "resourceAllocations", "budgetPlans", "methodologyComposition", "contentPages",
   // Editable-screens config — org-authored screen defs/content + on-screen registers. All presentation:
   // screen definitions, the on/off list, per-collection edit policy, the saved pivot views, and the RACI /
@@ -131,10 +131,6 @@ export const CHOICE_SETTINGS: readonly string[] = [
   "userPrefs",
   // PlatformConfig
   "skillsPlanning",
-  // Working-time policy for the (client-side, projected) scheduling engine — hours/day, working week,
-  // holidays. An operational calendar CHOICE, not a fail-closed security control (the schedule itself is
-  // computed live in the browser and never persisted).
-  "scheduling",
   // Workflows — the DEFINITION is authored config; its security is enforced at RUN time (approval binding +
   // the content-hash-bound responsibility acceptance that voids on edit, §4.2), not at the edit gate.
   "workflows",

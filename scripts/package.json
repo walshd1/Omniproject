@@ -20,6 +20,7 @@
     "gen-notification-routes": "tsx ./src/gen-notification-routes.ts",
     "gen-fields": "tsx ./src/gen-fields.ts",
     "gen-reports": "tsx ./src/gen-reports.ts",
+    "gen-mappings": "tsx ./src/gen-mappings.ts",
     "gen-widgets": "tsx ./src/gen-widgets.ts",
     "gen-dashboard-presets": "tsx ./src/gen-dashboard-presets.ts",
     "gen-screens": "tsx ./src/gen-screens.ts",

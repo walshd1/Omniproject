@@ -1,5 +1,5 @@
 import type { Request, Response } from "express";
-import { validateForms, unwritableMapFields } from "./form-def";
+import { unwritableMapFields, type FormDef } from "./form-def";
 import { resolveCapabilities, type Capabilities } from "./capabilities";
 
 /**
@@ -20,11 +20,11 @@ export async function runDefWriteHook(req: Request, res: Response, kind: string,
   if (kind === "form") {
     // A form may only MAP onto issue fields the connected backend can store — the same capability plane that
     // gates the interactive grid. Enforce it at authoring (early, named feedback); the submit path re-checks
-    // defensively in case capabilities changed since. `sanitizeDef` already ran the shape validator, so a
-    // parse failure here just means "not a gateable form" — leave it to the shape error already surfaced.
-    let forms;
-    try { forms = validateForms([payload]); } catch { return true; }
-    const bad = unwritableMapFields(forms[0]!, writableIssueFields(await resolveCapabilities(req)));
+    // defensively in case capabilities changed since. `sanitizeDef` already validated the field shapes (type,
+    // required params, the writable-target floor), so here we read the declared fields straight off the payload.
+    const p = (payload ?? {}) as Record<string, unknown>;
+    const def = { fields: Array.isArray(p["fields"]) ? (p["fields"] as FormDef["fields"]) : [] } as FormDef;
+    const bad = unwritableMapFields(def, writableIssueFields(await resolveCapabilities(req)));
     if (bad.length > 0) {
       res.status(400).json({ error: `This form maps to issue field(s) the connected backend can't store: ${bad.join(", ")}. Remove the mapping or connect a backend that advertises them.` });
       return false;

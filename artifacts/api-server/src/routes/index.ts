@@ -27,6 +27,8 @@ import exportRouter from "./export";
 import archiveRouter from "./archive";
 import priorityLabelsRouter from "./priority-labels";
 import calendarRouter from "./calendar";
+import schedulingRouter from "./scheduling";
+import accessibilityRouter from "./accessibility";
 import featuresRouter from "./features";
 import rateCardRouter from "./rate-card";
 import viewsRouter from "./views";
@@ -203,6 +205,8 @@ router.use(requireAuth, exportRouter);
 router.use(requireAuth, archiveRouter);
 router.use(requireAuth, priorityLabelsRouter);
 router.use(requireAuth, calendarRouter);
+router.use(requireAuth, schedulingRouter);
+router.use(requireAuth, accessibilityRouter);
 router.use(requireAuth, featuresRouter);
 router.use(requireAuth, rateCardRouter);
 // These three carry a toggleable feature module (savedViews / dashboards / contentPages) whose

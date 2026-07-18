@@ -9,7 +9,7 @@ import type { IssueWrite } from "../broker/types";
 import { guardProjectScope } from "../lib/project-scope";
 import { evaluateRuleset } from "../lib/ruleset";
 import { resolveCapabilities, type Capabilities } from "../lib/capabilities";
-import { FormDefError, validateSubmission, issueWriteFromSubmission, filterIssueWriteToWritable } from "../lib/form-def";
+import { FormDefError, formContainerErrors, validateSubmission, issueWriteFromSubmission, filterIssueWriteToWritable } from "../lib/form-def";
 import { findFormDef, resolveFormDefs } from "../lib/form-store";
 
 /** The set of issue fields the connected backend ADVERTISES as storable (`FieldSupport.store`). A form may
@@ -45,6 +45,15 @@ router.post("/forms/:formId/submit", requireRole("contributor"), async (req, res
   const targetProjectId = def.target.projectId;
   if (!targetProjectId) {
     res.status(400).json({ error: "This form isn't connected to a project yet." });
+    return;
+  }
+
+  // Validate the RESOLVED def through the shared engine floors at the point of use — so submission doesn't
+  // trust an authoring-time validator and a def drifted by a scope override can't mint a malformed issue
+  // (e.g. a title-less form). Single source of truth with the importer's composed-whole check.
+  const defErrors = formContainerErrors(def);
+  if (defErrors.length) {
+    res.status(409).json({ error: `This form's definition is invalid: ${defErrors.join("; ")}` });
     return;
   }
 

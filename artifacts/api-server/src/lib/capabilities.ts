@@ -16,6 +16,10 @@ import {
 } from "./field-registry";
 import { isTimeTravelEnabled, getSettings } from "./settings";
 import { dataResidencyEnabled, allowedRegions } from "./data-residency";
+import { artifactStoreEnabled } from "./artifact-store";
+import { buildLiveSuperset, sidecarSupersetInput, type SupersetField, type SupersetInput } from "./superset";
+import { listDefs } from "./def-import";
+import { validateCustomFieldDef, customFieldToEnumerated, type CustomFieldDef } from "./custom-fields";
 
 /**
  * Capability signal — which data domains the wired backend(s) can populate, so
@@ -353,4 +357,46 @@ export async function resolveFieldManifest(req: Request): Promise<FieldManifest>
     customFields: customFieldsFrom(enumerated),
     relationshipCandidates: inferRelationshipCandidates(enumerated, ENTITY_KEYS),
   };
+}
+
+/**
+ * The LIVE SUPERSET (roadmap §4.6): every field mappable RIGHT NOW — the union of the connected backend(s)'
+ * advertised fields PLUS the sidecar's full canonical vocabulary when the sidecar is on. Only live+linked fields
+ * appear (it's built from what's actually connected), duplicates are kept distinct per backend, and it
+ * grows/shrinks with the connected set. This is what the mapping picker binds to, so an admin can only map a UI
+ * element onto a field that a real, active backend can serve.
+ *
+ * Honest scope: `describeFields` runs against the ACTIVE broker (one concrete adapter today), so the non-sidecar
+ * half is the active backend's fields; per-kind adapters for other connected brokers are the remaining last mile
+ * (see broker/registry.ts). The sidecar half is fully live now.
+ */
+export async function resolveLiveSuperset(req: Request, opts: { programmeId?: string } = {}): Promise<SupersetField[]> {
+  const broker = getBroker();
+  const ctx = contextFromReq(req);
+  const enumerated = await probe(broker.describeFields?.(ctx), []);
+  const inputs: SupersetInput[] = [];
+  if (enumerated.length) inputs.push({ broker: broker.kind, system: broker.kind, fields: enumerated });
+  if (artifactStoreEnabled()) inputs.push(sidecarSupersetInput()); // the sidecar advertises the canonical types it can HOLD (a home)
+
+  // The superset is a UNION: backend-advertised fields ∪ org/programme custom fields authored via the importer.
+  // A custom field's DEFINITION is the superset (org/programme JSON); its DATA lives at its home (default: the
+  // sidecar via the built-in broker). Read org always; the caller's programme when named + in scope.
+  const cf: CustomFieldDef[] = [];
+  if (artifactStoreEnabled()) {
+    for (const d of listDefs({ kind: "org" })) if (d.kind === "customField") { try { cf.push(validateCustomFieldDef(d.payload)); } catch { /* skip a corrupt row */ } }
+    if (opts.programmeId) for (const d of listDefs({ kind: "programme", programmeId: opts.programmeId })) if (d.kind === "customField") { try { cf.push(validateCustomFieldDef(d.payload)); } catch { /* skip */ } }
+  }
+  // Legacy settings.customFields bridge (sidecar-homed) — folded in until it's drained to the importer.
+  for (const legacy of getSettings().customFields ?? []) cf.push({ key: legacy.key, label: legacy.label, type: legacy.type });
+
+  const byHome = new Map<string, SupersetInput>();
+  for (const c of cf) {
+    const { broker: b, system, field } = customFieldToEnumerated(c);
+    const k = `${b} ${system}`;
+    if (!byHome.has(k)) byHome.set(k, { broker: b, system, fields: [] });
+    byHome.get(k)!.fields.push(field);
+  }
+  inputs.push(...byHome.values());
+
+  return buildLiveSuperset(inputs);
 }

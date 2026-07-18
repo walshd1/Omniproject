@@ -10,6 +10,7 @@ import {
   SAMPLE_PROJECTS, SAMPLE_ISSUES, SAMPLE_RAID, SAMPLE_CAPACITY, SAMPLE_FINANCIALS,
   SAMPLE_PORTFOLIO, DEMO_FX, sampleActivity, sampleNotifications, persistDemoState,
   resetDemoDataToSeed, shouldAutoResetDemo, demoResetIntervalMinutes,
+  SAMPLE_WBS, SAMPLE_WBS_FINANCIALS,
 } from "./demo-data";
 import {
   BrokerError,
@@ -24,6 +25,8 @@ import {
   type TaskItemWrite,
   type Task,
   type TaskWrite,
+  type WbsElement,
+  type WbsFinancials,
   type TaskComment,
   type TaskCommentWrite,
   type TaskAttachment,
@@ -412,6 +415,17 @@ export class DemoBroker implements Broker {
     return item;
   }
 
+  // ── SAP / ERP read models (docs/SAP-CONNECTOR.md §4.6) — fixtures so the connector pipeline is testable
+  //    with no SAP tenant. READ-ONLY; the demo broker stands in for an ERP front. ──────────────────────
+  async listWbsElements(_ctx: ActorContext, projectId: string): Promise<WbsElement[]> {
+    return (SAMPLE_WBS[projectId] ?? []).map((w) => ({ ...w }));
+  }
+
+  async getWbsFinancials(_ctx: ActorContext, wbsId: string): Promise<WbsFinancials | null> {
+    const f = SAMPLE_WBS_FINANCIALS[wbsId];
+    return f ? { ...f } : null;
+  }
+
   // ── Tasks (GTD actionable next-actions) ──────────────────────────────────────
   async listTasks(_ctx: ActorContext, opts: { projectId?: string } = {}): Promise<Task[]> {
     const all = SAMPLE_TASKS.map((t) => ({ ...t }));
@@ -746,10 +760,16 @@ export class DemoBroker implements Broker {
     const canonical = FIELD_REGISTRY.map((f) => ({
       key: f.key, label: f.label, type: f.type, surface: true, store: true,
       sourceSystem: system, sourceField: SAMPLE_NATIVE_FIELDS[f.key] ?? f.key,
+      // Illustrative advertised constraints (a real broker reports its own): text fields cap length, enums
+      // carry their options, so a linked UI field inherits the backend's own validation.
+      ...(f.type === "string" ? { maxLength: 255 } : {}),
+      ...(f.type === "text" ? { maxLength: 32000 } : {}),
+      ...(f.type === "currency" || f.type === "percent" ? { precision: 2 } : {}),
     }));
     const custom = [
-      { key: "customerTier", label: "Customer tier", type: "string", surface: true, store: false, sourceSystem: system, sourceField: "customfield_10200" },
-      { key: "riskScore", label: "Risk score", type: "number", surface: true, store: false, sourceSystem: system, sourceField: "customfield_10201" },
+      { key: "customerTier", label: "Customer tier", type: "enum", surface: true, store: false, sourceSystem: system, sourceField: "customfield_10200", options: ["bronze", "silver", "gold"], nullable: true },
+      { key: "riskScore", label: "Risk score", type: "number", surface: true, store: false, sourceSystem: system, sourceField: "customfield_10201", precision: 0 },
+      { key: "contactEmail", label: "Contact email", type: "string", surface: true, store: false, sourceSystem: system, sourceField: "customfield_10202", maxLength: 254, pattern: "^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$" },
     ];
     return [...canonical, ...custom];
   }

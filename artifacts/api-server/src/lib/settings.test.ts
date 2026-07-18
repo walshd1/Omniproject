@@ -151,10 +151,9 @@ test("savedViews: rejects malformed view-engine fields", () => {
   assert.throws(() => updateSettings({ savedViews: [{ id: "x", name: "n", filters: [{ field: "s" }] }] }), SettingsValidationError);
 });
 
-test("hiddenFields: rejects a non-string-array", () => {
-  assert.throws(() => updateSettings({ hiddenFields: [1, 2] as unknown as string[] }), SettingsValidationError);
-  assert.deepEqual(updateSettings({ hiddenFields: ["dueDate"] }).hiddenFields, ["dueDate"]);
-});
+// NB hiddenFields is no longer a settings key — it's a config-def-backed collection (`hidden-fields`, via
+// settingsCollectionRouter's config mode). Its sanitiser (sanitizeHiddenFields) is exercised in the
+// availability-curation route test.
 
 test("dashboards: accepts well-formed dashboards and persists them", () => {
   const dashboards = [
@@ -203,26 +202,10 @@ test("redactSettingsForRead: masks federated-peer tokens (never leaked over GET)
   assert.equal(redacted.federatedPeers[0]!.baseUrl, "https://eu.omni.example"); // non-secret fields preserved
 });
 
-test("branding is sanitised through the bulk PATCH — a font-family injection is rejected, a good value kept", () => {
-  // fontFamily is injected into an inline style, so the bulk PATCH must apply saveBranding's font-stack guard.
-  assert.throws(() => updateSettings({ branding: { fontFamily: "x; } body { background: url(javascript:alert(1)) }" } }), SettingsValidationError);
-  assert.throws(() => updateSettings({ branding: { logoUrl: "javascript:alert(1)" } }), SettingsValidationError); // non-http URL
-  const ok = updateSettings({ branding: { appName: "Acme", fontFamily: "Inter, sans-serif", primaryColor: "#2563eb" } });
-  assert.equal(ok.branding?.fontFamily, "Inter, sans-serif");
-  updateSettings({ branding: null });
-});
-
-test("labelOverrides keeps only string values (the i18n layer assumes strings)", () => {
-  // labelOverrides is the label catalogue — the bulk PATCH runs the SAME sanitizer as saveLabels:
-  // catalogue allow-list + length cap + string-only. A real catalogue key is kept; everything else drops.
-  const s = updateSettings({ labelOverrides: JSON.parse('{"nav.dashboard":"Home","not.a.catalogue.key":"x","__proto__":"y"}') });
-  assert.equal(s.labelOverrides["nav.dashboard"], "Home");                                             // catalogue key kept
-  assert.equal(Object.prototype.hasOwnProperty.call(s.labelOverrides, "not.a.catalogue.key"), false);  // non-catalogue dropped
-  assert.equal(Object.prototype.hasOwnProperty.call(s.labelOverrides, "__proto__"), false);            // forbidden (non-catalogue) key dropped
-  assert.throws(() => updateSettings({ labelOverrides: JSON.parse('{"nav.projects":123}') }), SettingsValidationError);     // non-string at a catalogue key rejected
-  assert.throws(() => updateSettings({ labelOverrides: { "nav.dashboard": "x".repeat(200) } }), SettingsValidationError); // over the length cap
-  updateSettings({ labelOverrides: {} });
-});
+// NB branding + labelOverrides are no longer settings keys — they're `branding`/`label-overrides` config defs
+// (see lib/branding, lib/labels). The bulk PATCH can no longer set them; the font-stack / catalogue guards are
+// applied by saveBranding/saveLabels on write AND defensively on read (orgBranding/orgLabels), covered by
+// premium-config.test + labels tests.
 
 test("scope feature maps reject a feature that is both required and forbidden in a scope", () => {
   // programmeFeatures / projectFeatures are per-scope require/forbid maps. Mirror validateGovernance's

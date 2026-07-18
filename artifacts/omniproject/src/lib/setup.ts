@@ -323,6 +323,31 @@ export async function restoreFullBackup(backup: unknown): Promise<FullRestoreRes
   return data;
 }
 
+export interface ConfigDiff {
+  schema: string;
+  generatedAt: string;
+  settings: { added: string[]; removed: string[]; changed: { key: string; status: "added" | "removed" | "changed"; secret: boolean }[]; unchanged: number };
+  defStore: { type: string; scopeLabel: string; added: number; removed: number; changed: number; items: { id: string; status: "added" | "removed" | "changed"; fromRowVersion: number | null; toRowVersion: number | null }[] }[];
+  extraStores: { name: string; from: boolean; to: boolean }[];
+  summary: { settingsAdded: number; settingsRemoved: number; settingsChanged: number; defsAdded: number; defsRemoved: number; defsChanged: number; collectionsChanged: number };
+  identical: boolean;
+}
+
+/** Compare an uploaded backup (`to`) against the LIVE config; content-free change report. Needs a fresh
+ *  step-up (it decrypts every store to build the live side). A step-up requirement surfaces as
+ *  Error("step_up_required"). */
+export async function diffConfig(to: unknown): Promise<ConfigDiff> {
+  const res = await fetch("/api/setup/config-diff", {
+    method: "POST",
+    credentials: "same-origin",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ to }),
+  });
+  const data = (await res.json().catch(() => ({}))) as ConfigDiff & { code?: string; error?: string };
+  if (!res.ok) throw new Error(data.code === "step_up_required" ? "step_up_required" : (data.error || `config diff failed: ${res.status}`));
+  return data;
+}
+
 export interface ConfigVersion {
   id: string;
   env: string;

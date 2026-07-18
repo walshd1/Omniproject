@@ -3,6 +3,8 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { Panel } from "../../lib/screen";
 import { useLiveEvents, matchesLive } from "../../lib/live-events";
+import { resolveSourceUrl } from "../../lib/panel-source";
+import { useStore } from "../../store/useStore";
 
 /**
  * Per-panel data binding — gives a panel its OWN query so it loads, revalidates and
@@ -21,7 +23,11 @@ import { useLiveEvents, matchesLive } from "../../lib/live-events";
  */
 export function BoundPanel({ panel, render }: { panel: Panel; render: (p: Panel) => ReactNode }) {
   const source = panel.source!;
-  const url = source.url;
+  // Fill `{projectId}` (and future context tokens) from the active project, so a JSON panel can bind a
+  // project-scoped endpoint with no bespoke component. If a token is unresolved (no active project yet), hold
+  // off fetching rather than hit a malformed URL.
+  const activeProjectId = useStore((s) => s.activeProjectId);
+  const { url, unresolved } = resolveSourceUrl(source.url, { projectId: activeProjectId ?? undefined });
   const qc = useQueryClient();
   const queryKey = ["panel-data", url] as const;
 
@@ -29,7 +35,16 @@ export function BoundPanel({ panel, render }: { panel: Panel; render: (p: Panel)
     queryKey,
     queryFn: async () => (await fetch(url, { credentials: "same-origin" })).json(),
     staleTime: 30_000,
+    enabled: !unresolved,
   });
+
+  if (unresolved) {
+    return (
+      <div className="rounded border border-border p-4" data-testid={`bound-panel-pending-${panel.id}`}>
+        <p className="text-sm text-muted-foreground">Select a project to load {panel.title ?? "this panel"}.</p>
+      </div>
+    );
+  }
 
   // Live, push-based revalidation: when a relevant change is announced, revalidate
   // THIS panel only (conditionally). The hook is a no-op when not opted in.

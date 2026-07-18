@@ -12,7 +12,6 @@ import { DEPLOYMENT_PROFILES, setRuntimeProfile, type DeploymentProfile } from "
 import { evaluateConstraints } from "./settings-constraints";
 import { settingsPreset } from "./settings-presets";
 import type { BackendFieldMap } from "../broker/types";
-import { CANONICAL_PRIORITY } from "../broker/vocabulary";
 import type { GovernanceRule } from "./governance-rules";
 import { validatePredicate } from "./predicate";
 import { isValidCadence, type SnapshotCadence } from "../history/cadence";
@@ -28,16 +27,14 @@ import { validateBudgetPlans, BudgetPlanError, type BudgetPlan } from "./budget-
 import { validateScreenDefs, ScreenDefError, type OrgScreenDef } from "./screen-def";
 import { validateRaci, RaciError, type RaciEntry } from "./raci";
 import { validateStakeholders, StakeholderError, type Stakeholder } from "./stakeholder";
-import { validateForms, FormDefError, type FormDef } from "./form-def";
+import { FormDefError, type FormDef } from "./form-def";
 import { validateAutomations, AutomationError } from "./automation";
 import { validateTemplates, TemplateError } from "./project-template";
 import type { AutomationRecipe, ProjectTemplate } from "@workspace/backend-catalogue";
 import { reportCatalogue, type ReportDefinition } from "@workspace/backend-catalogue";
 import { validateCustomFields, validateCustomFieldSources, CustomFieldError, type CustomField } from "./custom-fields";
-import { sanitizeBranding } from "./branding";
 import { sanitizeUserPrefs } from "./user-prefs";
 import { sanitizeGrant } from "./calendar-push";
-import { sanitizeLabels } from "./labels";
 import { isForbiddenKey, stripDangerousKeysDeep } from "./safe-json";
 import { validateFieldValidation, FieldValidationError, type FieldValidationRule } from "./field-validation";
 import { validateProgrammeRegistry, ProgrammeRegistryError, type ProgrammeRegistry } from "./programmes";
@@ -433,26 +430,20 @@ export interface GovernanceConfig {
 /** Presentation / curation config: branding, labels, screen layouts, saved views, dashboards,
  *  custom + built-in reports, content pages, hidden fields and the methodology composition. */
 export interface PresentationConfig {
-  /** White-label branding overrides (null/empty → product defaults). */
-  branding: BrandingConfig | null;
-  /** Company-nomenclature label overrides, keyed by i18n key. */
-  labelOverrides: Record<string, string>;
-  /** Admin/PMO custom display names for the canonical priority levels (canonical → label). Empty
-   *  ⇒ the canonical names. Distinct from labelOverrides (which is premium company-nomenclature). */
-  priorityLabels: Record<string, string>;
+  // NB these presentation configs are NOT settings keys — each moved into the composition model as a
+  // scope-layered config def (see lib/scoped-config + the matching lib/route):
+  //   • white-label `branding`            → lib/branding (env default beneath the org config def)
+  //   • company-nomenclature `labelOverrides` (`label-overrides`) → lib/labels
+  //   • org accessibility `accessibilityDefaults` (`accessibility-defaults`) → lib/user-prefs + routes/accessibility
+  //   • custom `priorityLabels` (`priority-labels`) → routes/priority-labels
   /**
    * Per-screen layout overrides (drag-arranged panel order / spans / hidden), keyed
    * by screen id. Presentation config — part of the snapshot/export so it travels in
    * the customer's config JSON. Never project data.
    */
   screenLayouts: Record<string, ScreenLayout>;
-  /**
-   * Admin/PMO view-curation: canonical field keys HIDDEN from view on top of what the backend makes
-   * available. The availability resolver subtracts these from the surfaced set, so a deployment can
-   * trim available-but-unwanted fields. Customer-level config — rides the snapshot/export so the
-   * curated view travels in the bundle — never project data. See lib/availability.
-   */
-  hiddenFields: string[];
+  // NB the view-curation hidden-field list is NOT a settings key — it moved into the composition model as a
+  // config-def-backed collection (`hidden-fields`, via settingsCollectionRouter's config mode; see lib/availability).
   /**
    * Named saved views (filters + sort + visible columns + grouping) a user can switch between.
    * Customer-level presentation config — rides the snapshot/export so saved views travel in the
@@ -554,22 +545,8 @@ export interface UserConfig {
 }
 
 /** Platform-level odds and ends: deployment profile, error telemetry opt-in, skills planning. */
-/**
- * Working-time policy for the (client-side, projected) scheduling engine — the organisation's definition of
- * a working day/week, so estimate→duration and the auto-scheduler count real working time. Config only: the
- * schedule itself is always computed live in the browser, never persisted (see the SPA scheduling libs).
- */
-export interface SchedulingConfig {
-  /** Hours in a working day, used to convert an estimate to a duration (default 8). */
-  hoursPerDay: number;
-  /** Working weekdays, 0 = Sun … 6 = Sat (default Mon–Fri = [1,2,3,4,5]). */
-  workingWeekdays: number[];
-  /** ISO dates (YYYY-MM-DD) that are non-working holidays (default none). */
-  holidays: string[];
-}
-
-export const DEFAULT_SCHEDULING: SchedulingConfig = { hoursPerDay: 8, workingWeekdays: [1, 2, 3, 4, 5], holidays: [] };
-
+// NB the working-time policy for the scheduling engine is NOT a settings key — it moved into the composition
+// model as a scope-layered `scheduling` config def (see lib/scoped-config + routes/scheduling).
 export interface PlatformConfig {
   /** Deployment context chosen in the setup wizard (relaxes enterprise couplings by choice). */
   deploymentProfile?: DeploymentProfile;
@@ -582,8 +559,6 @@ export interface PlatformConfig {
   errorTelemetry: boolean;
   /** Skills matrix + demand for the skills-capacity report (planning config, admin/PMO edited). */
   skillsPlanning: SkillsPlanningSettings;
-  /** Working-time policy for the scheduling engine (hours/day, working week, holidays). */
-  scheduling: SchedulingConfig;
 }
 
 /**
@@ -844,34 +819,6 @@ export interface ScreenLayout {
   hidden?: string[];
 }
 
-function brandingFromEnv(): BrandingConfig | null {
-  const b: BrandingConfig = {
-    appName: process.env["BRAND_APP_NAME"]?.trim() || null,
-    shortName: process.env["BRAND_SHORT_NAME"]?.trim() || null,
-    logoUrl: process.env["BRAND_LOGO_URL"]?.trim() || null,
-    primaryColor: process.env["BRAND_PRIMARY_COLOR"]?.trim() || null,
-    loginHeading: process.env["BRAND_LOGIN_HEADING"]?.trim() || null,
-    footerText: process.env["BRAND_FOOTER_TEXT"]?.trim() || null,
-    supportUrl: process.env["BRAND_SUPPORT_URL"]?.trim() || null,
-    fontFamily: process.env["BRAND_FONT_FAMILY"]?.trim() || null,
-  };
-  return Object.values(b).some(Boolean) ? b : null;
-}
-
-function labelsFromEnv(): Record<string, string> {
-  const raw = process.env["LABEL_OVERRIDES"]?.trim();
-  if (!raw) return {};
-  try {
-    const parsed = JSON.parse(raw) as Record<string, unknown>;
-    const out: Record<string, string> = {};
-    for (const [k, v] of Object.entries(parsed)) if (typeof v === "string") out[k] = v;
-    return out;
-  } catch (err) {
-    logger.warn({ err }, "LABEL_OVERRIDES is not valid JSON — ignoring, no label overrides seeded");
-    return {};
-  }
-}
-
 function webhooksFromEnv(): WebhookSubscription[] {
   const raw = process.env["WEBHOOKS"]?.trim();
   if (!raw) return [];
@@ -1072,48 +1019,6 @@ const FIELD_DESCRIPTORS: { [K in keyof SettingsState]: FieldDescriptor<K> } = {
       return value;
     },
   },
-  branding: {
-    // Branding's fontFamily is injected into an inline style, so the bulk PATCH / config restore must run
-    // it through the SAME sanitizer as saveBranding (http(s) URLs, hex colour, safe font stack, length caps).
-    seed: () => brandingFromEnv(),
-    validate: (value) => {
-      if (value == null) return null;
-      try {
-        return sanitizeBranding(value);
-      } catch (e) {
-        throw new SettingsValidationError(e instanceof Error ? e.message : "invalid branding");
-      }
-    },
-  },
-  labelOverrides: {
-    seed: () => labelsFromEnv(),
-    validate: (value) => {
-      if (typeof value !== "object" || value == null || Array.isArray(value)) throw new SettingsValidationError("labelOverrides must be an object");
-      // Same sanitizer saveLabels uses (catalogue allow-list + length cap), so a bulk PATCH can't persist
-      // non-catalogue keys or unbounded copy.
-      try {
-        return sanitizeLabels(value);
-      } catch (e) {
-        throw new SettingsValidationError(e instanceof Error ? e.message : "invalid labelOverrides");
-      }
-    },
-  },
-  priorityLabels: {
-    seed: () => ({}),
-    validate: (value) => {
-      if (typeof value !== "object" || value == null || Array.isArray(value)) throw new SettingsValidationError("priorityLabels must be an object");
-      const clean: Record<string, string> = {};
-      for (const [k, val] of Object.entries(value as Record<string, unknown>)) {
-        if (!(CANONICAL_PRIORITY as readonly string[]).includes(k)) throw new SettingsValidationError(`priorityLabels key "${k}" is not a canonical priority`);
-        if (val === undefined || val === null || val === "") continue; // empty ⇒ use the canonical name
-        if (typeof val !== "string") throw new SettingsValidationError(`priorityLabels["${k}"] must be a string`);
-        const t = val.trim();
-        if (t.length > 40) throw new SettingsValidationError(`priorityLabels["${k}"] is too long (max 40)`);
-        if (t) clean[k] = t;
-      }
-      return clean;
-    },
-  },
   fieldRouting: {
     // Anti-collision (one source → one UI element, both ways) lives in field-routing; surface its error
     // as the standard settings 400, and persist the normalised (trimmed) map.
@@ -1151,7 +1056,6 @@ const FIELD_DESCRIPTORS: { [K in keyof SettingsState]: FieldDescriptor<K> } = {
   historyRetention: { seed: () => ({ ...DEFAULT_HISTORY_RETENTION }), validate: shapeChecked(validateHistoryRetention) },
   digestDelivery: { seed: () => digestDeliveryFromEnv(), validate: shapeChecked(validateDigestDelivery) },
   skillsPlanning: { seed: () => ({ matrix: [], demand: [] }), validate: shapeChecked(validateSkillsPlanning) },
-  scheduling: { seed: () => ({ ...DEFAULT_SCHEDULING }), validate: shapeChecked(validateScheduling) },
   fieldOverrides: { seed: () => ({ fields: {}, entities: {} }), validate: shapeChecked(validateFieldOverrides) },
   screenLayouts: {
     seed: () => ({}),
@@ -1200,7 +1104,6 @@ const FIELD_DESCRIPTORS: { [K in keyof SettingsState]: FieldDescriptor<K> } = {
   programmeFeatures: { seed: () => ({}), validate: shapeChecked((v) => validateScopeFeatureMap(v, "programmeFeatures")) },
   projectFeatures: { seed: () => ({}), validate: shapeChecked((v) => validateScopeFeatureMap(v, "projectFeatures")) },
   governanceRules: { seed: () => [], validate: shapeChecked((v) => validateGovernanceRules(v, "governanceRules")) },
-  hiddenFields: { seed: () => [], validate: stringArrayField("hiddenFields") },
   savedViews: { seed: () => [], validate: shapeChecked(validateSavedViews) },
   customReports: { seed: () => [], validate: shapeChecked(validateCustomReports) },
   reportOverrides: { seed: () => [], validate: shapeChecked(validateReportOverrides) },
@@ -1225,7 +1128,7 @@ const FIELD_DESCRIPTORS: { [K in keyof SettingsState]: FieldDescriptor<K> } = {
     },
   },
   panelViews: { seed: () => [], validate: shapeChecked(validatePanelViews) },
-  forms: { seed: () => [], validate: normalisedBy((v) => validateForms(v), FormDefError) },
+  forms: { seed: () => [], validate: normalisedBy((v) => { if (!Array.isArray(v)) throw new FormDefError("forms must be an array"); return v as FormDef[]; }, FormDefError) },
   automations: { seed: () => [], validate: normalisedBy((v) => validateAutomations(v), AutomationError) },
   templates: { seed: () => [], validate: normalisedBy((v) => validateTemplates(v), TemplateError) },
   raci: { seed: () => [], validate: normalisedBy((v) => validateRaci(v), RaciError) },
@@ -1797,32 +1700,6 @@ function validateSkillsPlanning(value: unknown): void {
       if (typeof req?.["id"] !== "string" || typeof req?.["skill"] !== "string") throw new SettingsValidationError("each demand row needs id + skill");
       if (typeof req["hoursNeeded"] !== "number" || !Number.isFinite(req["hoursNeeded"]) || req["hoursNeeded"] < 0) throw new SettingsValidationError("demand hoursNeeded must be a non-negative number");
       if (req["minProficiency"] !== undefined && (typeof req["minProficiency"] !== "number" || req["minProficiency"] < 1 || req["minProficiency"] > 5)) throw new SettingsValidationError("demand minProficiency must be 1–5");
-    }
-  }
-}
-
-/** Validate the scheduling working-time config: hours/day in (0,24], working weekdays a set of 0–6, and
- *  holidays a list of ISO dates. A working week with no working day is rejected (it would make the
- *  scheduler's day arithmetic non-terminating). Config, so kept light. */
-const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
-function validateScheduling(value: unknown): void {
-  if (!value || typeof value !== "object") throw new SettingsValidationError("scheduling must be an object");
-  const { hoursPerDay, workingWeekdays, holidays } = value as Record<string, unknown>;
-  if (hoursPerDay !== undefined) {
-    if (typeof hoursPerDay !== "number" || !Number.isFinite(hoursPerDay) || hoursPerDay <= 0 || hoursPerDay > 24) {
-      throw new SettingsValidationError("scheduling.hoursPerDay must be a number in (0, 24]");
-    }
-  }
-  if (workingWeekdays !== undefined) {
-    if (!Array.isArray(workingWeekdays) || workingWeekdays.length === 0) throw new SettingsValidationError("scheduling.workingWeekdays must be a non-empty array");
-    for (const d of workingWeekdays) {
-      if (typeof d !== "number" || !Number.isInteger(d) || d < 0 || d > 6) throw new SettingsValidationError("scheduling.workingWeekdays entries must be integers 0–6");
-    }
-  }
-  if (holidays !== undefined) {
-    if (!Array.isArray(holidays)) throw new SettingsValidationError("scheduling.holidays must be an array");
-    for (const h of holidays) {
-      if (typeof h !== "string" || !ISO_DATE.test(h)) throw new SettingsValidationError("scheduling.holidays entries must be YYYY-MM-DD strings");
     }
   }
 }

@@ -36,6 +36,9 @@ const KNOWN_NON_MUTATING = new Set([
   // per-request vendor URL (no store mutation — route stamps write:false). nativeImport IS the guarded
   // mutation (attachment written to the target), so it lives in WRITE_CLASSIFIERS, not here.
   "nativeSurfaces", "nativeHandoff",
+  // SAP / ERP read models (§4.6): the WBS cost tree + per-WBS financial roll-up — READ-ONLY, brokered from
+  // the system of record (SAP keeps the ledger; we never post).
+  "listWbsElements", "getWbsFinancials",
 ]);
 
 /** Extract the method names declared on `export interface Broker { … }` from types.ts (methods only —

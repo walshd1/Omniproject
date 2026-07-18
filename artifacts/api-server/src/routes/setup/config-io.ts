@@ -18,7 +18,8 @@ import { refreshConfigDir, configBackupInfo, clearConfigBackup } from "../../lib
 import { buildConfigBundle } from "../../lib/config-bundle";
 import { buildSnapshot, applySnapshot } from "../../lib/config-snapshot";
 import { buildDefStoreExport, applyDefStoreExport, DefStoreImportError } from "../../lib/def-store-export";
-import { buildFullBackup, splitFullBackup, buildSealedFullBackup, isSealedFullBackup, openSealedFullBackup, applyExtraStores, SealedBackupError } from "../../lib/full-backup";
+import { buildFullBackup, splitFullBackup, buildSealedFullBackup, isSealedFullBackup, openSealedFullBackup, applyExtraStores, SealedBackupError, FULL_BACKUP_SCHEMA, FULL_BACKUP_VERSION, type FullBackup } from "../../lib/full-backup";
+import { buildConfigDiff } from "../../lib/config-diff";
 import { captureVersion } from "../../lib/config-store";
 import { isDevMode } from "../../lib/dev-mode";
 import { buildDebugBundleZip } from "../../lib/debug-bundle";
@@ -170,6 +171,34 @@ router.get("/setup/full-backup", requireRole("admin"), requireStepUp, (req, res)
     .type("application/json")
     .set("Content-Disposition", `attachment; filename="omniproject-full-backup.json"`)
     .send(JSON.stringify(backup, null, 2));
+});
+
+// POST /api/setup/config-diff — compare two full backups and report WHAT CHANGED (content-free: settings by
+// key, defs by id + rowVersion; secrets flagged, never valued). A side omitted from the body defaults to the
+// LIVE config, so { to } previews "what restoring this backup would change" and { from, to } compares two
+// bundles. A sealed side is decrypted with THIS deployment's key first. Admin + a fresh step-up (it decrypts
+// every store to build the live side — same surface as the export); read-only + content-free (no secrets emitted).
+router.post("/setup/config-diff", requireRole("admin"), requireStepUp, (req, res) => {
+  const body = (req.body ?? {}) as { from?: unknown; to?: unknown };
+  const now = new Date().toISOString();
+  const resolveSide = (x: unknown): FullBackup => {
+    if (x === undefined || x === null) return buildFullBackup(getSettings(), now); // the live config
+    if (isSealedFullBackup(x)) {
+      const halves = openSealedFullBackup(x); // needs this instance's key; throws SealedBackupError otherwise
+      const env: FullBackup = { schema: FULL_BACKUP_SCHEMA, version: FULL_BACKUP_VERSION, createdAt: now, settings: halves.settings as FullBackup["settings"], defStore: halves.defStore as FullBackup["defStore"] };
+      if (halves.stores !== undefined) env.stores = halves.stores as NonNullable<FullBackup["stores"]>;
+      return env;
+    }
+    return x as FullBackup; // plaintext envelope — splitFullBackup inside buildConfigDiff validates its schema
+  };
+  try {
+    const diff = buildConfigDiff(resolveSide(body.from), resolveSide(body.to), now);
+    recordRequestAudit(req, { category: "admin", action: "config.diff", write: false, meta: { settingsChanged: diff.summary.settingsChanged, defsChanged: diff.summary.defsChanged + diff.summary.defsAdded + diff.summary.defsRemoved, collections: diff.summary.collectionsChanged, identical: diff.identical } });
+    res.json(diff);
+  } catch (err) {
+    const msg = err instanceof SealedBackupError ? err.message : (err instanceof Error ? err.message : "invalid backup");
+    res.status(400).json({ error: msg });
+  }
 });
 
 // POST /api/setup/full-restore — restore BOTH halves from a full backup. Each half runs through its own

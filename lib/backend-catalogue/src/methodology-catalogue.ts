@@ -44,6 +44,9 @@ export interface MethodologyDefinition extends MethodologyManifest {
   tools: { states: string[]; ceremonies: string[] };
   /** Display order in the methodology picker. */
   order: number;
+  /** COMPOSITION: the id of a parent methodology this one is built on (see def-compose). A customer fork
+   *  records its parent here so the importer traces its ancestry + guards the chain. Omitted = a root. */
+  extends?: string;
 }
 
 /** Every shipped methodology, in display order. Authored as JSON under

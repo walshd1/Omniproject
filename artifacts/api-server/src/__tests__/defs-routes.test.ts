@@ -169,3 +169,159 @@ test("org target: a contributor can't write it, a pmo/admin can (default org gat
     }
   }
 });
+
+test("importer REJECTS a def whose extends ancestor is missing (broken ancestor) and ACCEPTS a valid one", async () => {
+  // A thin child extending a SHIPPED root ("table" primitive) is accepted — the ancestor resolves.
+  const okChild = { id: "my-editable-table", label: "My editable table", category: "table", description: "d", extends: "table", params: [] };
+  assert.equal((await req("/defs", { method: "POST", body: { kind: "primitive", storage: "user", name: "Child", payload: okChild } })).status, 201);
+  // Extending a parent that exists in NO scope is rejected 400 (fail-closed).
+  const orphan = { id: "orphan-prim", label: "Orphan", category: "table", description: "d", extends: "ghost-parent", params: [] };
+  const bad = await req("/defs", { method: "POST", body: { kind: "primitive", storage: "user", name: "Orphan", payload: orphan } });
+  assert.equal(bad.status, 400);
+  assert.match(((await bad.json()) as { error: string }).error, /does not exist/);
+});
+
+test("importer REJECTS an edit that would CYCLE the extends chain", async () => {
+  const root = { id: "cyc-a", label: "A", category: "table", description: "d", params: [{ key: "x", label: "X", type: "string", required: true, description: "d" }] };
+  const a = (await (await req("/defs", { method: "POST", body: { kind: "primitive", storage: "user", name: "A", payload: root } })).json()) as { id: string };
+  const child = { id: "cyc-b", label: "B", category: "table", description: "d", extends: "cyc-a", params: [] };
+  assert.equal((await req("/defs", { method: "POST", body: { kind: "primitive", storage: "user", name: "B", payload: child } })).status, 201);
+  // Edit A to extend B → A→B→A cycle → 400.
+  const put = await req(`/defs/${encodeURIComponent(a.id)}`, { method: "PUT", body: { name: "A", payload: { ...root, extends: "cyc-b" } } });
+  assert.equal(put.status, 400);
+  assert.match(((await put.json()) as { error: string }).error, /cycle/);
+});
+
+test("CASCADE: RENAMING an ancestor's id, which orphans a def built on it, is rejected", async () => {
+  // A root primitive; a thin child extends it by id and is valid.
+  const root = { id: "casc-root", label: "Root", category: "chart", chartType: "bar", description: "d", params: [{ key: "data", label: "Rows", type: "rows", required: true, description: "d" }] };
+  const rootRow = (await (await req("/defs", { method: "POST", body: { kind: "primitive", storage: "user", name: "Root", payload: root } })).json()) as { id: string };
+  const child = { id: "casc-child", label: "Child", category: "chart", chartType: "bar", description: "d", extends: "casc-root", params: [] };
+  assert.equal((await req("/defs", { method: "POST", body: { kind: "primitive", storage: "user", name: "Child", payload: child } })).status, 201);
+  // Renaming the root's logical id (valid on its own) would leave the child extending a now-missing parent — a
+  // cascade failure down the chain — so the edit is rejected before it can be stored.
+  const renamed = { ...root, id: "casc-root-renamed" };
+  const put = await req(`/defs/${encodeURIComponent(rootRow.id)}`, { method: "PUT", body: { name: "Root", payload: renamed } });
+  assert.equal(put.status, 400);
+  assert.match(((await put.json()) as { error: string }).error, /downstream/);
+  // A benign edit to the root (rename its param label, id unchanged) keeps the composed child valid → succeeds.
+  const okRoot = { ...root, params: [{ key: "data", label: "Renamed rows", type: "rows", required: true, description: "d" }] };
+  assert.equal((await req(`/defs/${encodeURIComponent(rootRow.id)}`, { method: "PUT", body: { name: "Root", payload: okRoot } })).status, 200);
+});
+
+test("Tier 1: a customer can FORK a shipped dashboard/businessRule (extends a system def) and it is ancestry-guarded", async () => {
+  const { dashboardDefCatalogue, referenceRulesetCatalogue } = await import("@workspace/backend-catalogue");
+  const shippedDash = dashboardDefCatalogue()[0]!;                 // a real shipped dashboard id to fork
+  const shippedRule = referenceRulesetCatalogue()[0]!;            // a real shipped businessRule id to fork
+
+  // A dashboard fork that extends a shipped dashboard resolves its ancestor → 201 (composes to a valid whole).
+  const dashFork = { id: "my-exec-dash", name: "My exec view", extends: shippedDash.id, widgets: [{ id: "extra", type: "portfolioHealth" }] };
+  assert.equal((await req("/defs", { method: "POST", body: { kind: "dashboard", storage: "user", name: "Dash fork", payload: dashFork } })).status, 201);
+
+  // A THIN businessRule fork (structural kind) extends a shipped ruleset and inherits the rest → 201.
+  const ruleFork = { id: "my-scrum-rules", extends: shippedRule.id };
+  assert.equal((await req("/defs", { method: "POST", body: { kind: "businessRule", storage: "user", name: "Rule fork", payload: ruleFork } })).status, 201);
+
+  // Forking a parent that exists in NO scope is rejected 400 (the ancestry guard now covers these kinds too).
+  const orphanDash = { id: "orphan-dash", name: "Orphan", extends: "ghost-dashboard", widgets: [] };
+  const bad = await req("/defs", { method: "POST", body: { kind: "dashboard", storage: "user", name: "Orphan", payload: orphanDash } });
+  assert.equal(bad.status, 400);
+  assert.match(((await bad.json()) as { error: string }).error, /does not exist/);
+});
+
+test("CONSTRAINTS: floors are inherited + tighten-only, policy is relaxable — enforced on the composed whole", async () => {
+  // A base def introduces a title-cardinality FLOOR + a value-cap FLOOR + a value-min POLICY. (jsonDef has no
+  // bespoke validator, so this exercises the constraint layer in isolation.)
+  const base = {
+    id: "cn-base", value: 5, tags: [{ id: "t1", role: "title" }],
+    constraints: [
+      { id: "one-title", kind: "floor", type: "cardinality", path: "tags", where: { field: "role", eq: "title" }, min: 1, max: 1 },
+      { id: "val-cap", kind: "floor", type: "bound", path: "value", max: 10 },
+      { id: "val-min", kind: "policy", type: "bound", path: "value", min: 3 },
+    ],
+  };
+  assert.equal((await req("/defs", { method: "POST", body: { kind: "jsonDef", storage: "user", name: "Base", payload: base } })).status, 201);
+
+  // (a) A thin fork that inherits everything and satisfies the floors → 201.
+  const ok = { id: "cn-ok", extends: "cn-base", value: 8 };
+  assert.equal((await req("/defs", { method: "POST", body: { kind: "jsonDef", storage: "user", name: "OK", payload: ok } })).status, 201);
+
+  // Inherited POLICY still bites when not relaxed: value 1 < inherited min 3 → 400.
+  const tooLow = { id: "cn-low", extends: "cn-base", value: 1 };
+  assert.equal((await req("/defs", { method: "POST", body: { kind: "jsonDef", storage: "user", name: "Low", payload: tooLow } })).status, 400);
+
+  // (b) A fork may RELAX a policy (child-wins): re-declare val-min ≥ 0, then value 1 is fine → 201.
+  const relax = { id: "cn-relax", extends: "cn-base", value: 1, constraints: [{ id: "val-min", kind: "policy", type: "bound", path: "value", min: 0 }] };
+  assert.equal((await req("/defs", { method: "POST", body: { kind: "jsonDef", storage: "user", name: "Relax", payload: relax } })).status, 201);
+
+  // (c) A fork may NOT loosen a FLOOR: re-declaring val-cap at 100 (value itself fine) → 400, "branch above".
+  const loosen = { id: "cn-loosen", extends: "cn-base", value: 5, constraints: [{ id: "val-cap", kind: "floor", type: "bound", path: "value", max: 100 }] };
+  const bad = await req("/defs", { method: "POST", body: { kind: "jsonDef", storage: "user", name: "Loosen", payload: loosen } });
+  assert.equal(bad.status, 400);
+  assert.match(((await bad.json()) as { error: string }).error, /relax floor|branch above/);
+
+  // (d) A fork may TIGHTEN a floor: cap 10 → 5, value 5 satisfies it → 201.
+  const tighten = { id: "cn-tighten", extends: "cn-base", value: 5, constraints: [{ id: "val-cap", kind: "floor", type: "bound", path: "value", max: 5 }] };
+  assert.equal((await req("/defs", { method: "POST", body: { kind: "jsonDef", storage: "user", name: "Tighten", payload: tighten } })).status, 201);
+});
+
+test("FORM container floors are engine-enforced: a fork may compose but may NOT relax exactly-one-title", async () => {
+  const base = {
+    id: "bf-req", label: "Base request", target: { kind: "issue" },
+    fields: [
+      { key: "summary", label: "Summary", type: "text", mapTo: "title", required: true },
+      { key: "details", label: "Details", type: "textarea", mapTo: "description" },
+    ],
+  };
+  assert.equal((await req("/defs", { method: "POST", body: { kind: "form", storage: "user", name: "Base", payload: base } })).status, 201);
+
+  // A complete, valid fork composes fine → 201.
+  const okFork = {
+    id: "ff-ok", label: "Fork", extends: "bf-req", target: { kind: "issue" },
+    fields: [
+      { key: "summary", label: "Summary", type: "text", mapTo: "title", required: true },
+      { key: "prio", label: "Priority", type: "select", mapTo: "priority", options: ["low", "high"] },
+    ],
+  };
+  assert.equal((await req("/defs", { method: "POST", body: { kind: "form", storage: "user", name: "OK fork", payload: okFork } })).status, 201);
+
+  // A fork that re-declares the container floor to allow TWO titles is rejected — a floor is tighten-only, you
+  // must branch above the form container to escape it. (The fork is itself a valid single-title form, so this
+  // isolates the engine floor-protection, not a per-field check.)
+  const relaxFork = {
+    id: "ff-relax", label: "Relax fork", extends: "bf-req", target: { kind: "issue" },
+    fields: [{ key: "summary", label: "Summary", type: "text", mapTo: "title", required: true }],
+    constraints: [{ id: "form-one-title", kind: "floor", type: "cardinality", path: "fields", where: { field: "mapTo", eq: "title" }, min: 1, max: 2 }],
+  };
+  const bad = await req("/defs", { method: "POST", body: { kind: "form", storage: "user", name: "Relax fork", payload: relaxFork } });
+  assert.equal(bad.status, 400);
+  assert.match(((await bad.json()) as { error: string }).error, /relax floor|branch above/);
+});
+
+test("FAST PATH: a standalone (rootless, childless) def is still fully validated, not waved through", async () => {
+  // Warm the child index by importing a valid def (the first import builds + persists it via the full path).
+  assert.equal((await req("/defs", { method: "POST", body: { kind: "primitive", storage: "user", name: "Warm", payload: { ...PRIMITIVE, id: "fp-warm" } } })).status, 201);
+  // A standalone form with NO title field passes the fragment shape but must be rejected by the composed-whole
+  // container floor — the fast path (rootless + nothing extends it) must NOT skip that validation.
+  const noTitle = { id: "fp-form", label: "No title", target: { kind: "issue" }, fields: [{ key: "d", label: "Details", type: "textarea", mapTo: "description" }] };
+  const bad = await req("/defs", { method: "POST", body: { kind: "form", storage: "user", name: "No title", payload: noTitle } });
+  assert.equal(bad.status, 400);
+  assert.match(((await bad.json()) as { error: string }).error, /title/);
+  // A sound standalone form is accepted.
+  const ok = { id: "fp-ok", label: "OK", target: { kind: "issue" }, fields: [{ key: "s", label: "Summary", type: "text", mapTo: "title" }] };
+  assert.equal((await req("/defs", { method: "POST", body: { kind: "form", storage: "user", name: "OK", payload: ok } })).status, 201);
+});
+
+test("DELETE is BLOCKED (409) when another def is built on the target, then succeeds once the dependant is gone", async () => {
+  const root = { id: "del-root", label: "DelRoot", category: "chart", chartType: "bar", description: "d", params: [{ key: "data", label: "Rows", type: "rows", required: true, description: "d" }] };
+  const rootRow = (await (await req("/defs", { method: "POST", body: { kind: "primitive", storage: "user", name: "DelRoot", payload: root } })).json()) as { id: string };
+  const child = { id: "del-child", label: "DelChild", category: "chart", chartType: "bar", description: "d", extends: "del-root", params: [] };
+  const childRow = (await (await req("/defs", { method: "POST", body: { kind: "primitive", storage: "user", name: "DelChild", payload: child } })).json()) as { id: string };
+  // Deleting the root while the child still extends it orphans the child → 409.
+  const blocked = await req(`/defs/${encodeURIComponent(rootRow.id)}`, { method: "DELETE" });
+  assert.equal(blocked.status, 409);
+  assert.match(((await blocked.json()) as { error: string }).error, /built on it/);
+  // Remove the dependant first, then the root deletes cleanly.
+  assert.equal((await req(`/defs/${encodeURIComponent(childRow.id)}`, { method: "DELETE" })).status, 204);
+  assert.equal((await req(`/defs/${encodeURIComponent(rootRow.id)}`, { method: "DELETE" })).status, 204);
+});

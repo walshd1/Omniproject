@@ -4,6 +4,7 @@ import { useSchedulingSettings } from "../../lib/scheduling-settings";
 import { DAY_MS, dayToShortDate } from "../../lib/date-utils";
 import { computeProjectForecast, type ForecastIssue, type ForecastRow } from "../../lib/project-forecast";
 import { loadEdges } from "../../lib/dependencies";
+import { useProjectDependencies } from "../../lib/project-dependencies";
 import { DataState } from "../DataState";
 import { ReportEmpty } from "./ReportEmpty";
 import { ReportTable } from "./ReportTable";
@@ -19,7 +20,9 @@ export function AutoScheduleForecast({ projectId }: { projectId: string }) {
   const { data: issues, isLoading, isError, error, refetch } = useGetProjectIssues(projectId, {
     query: { queryKey: getGetProjectIssuesQueryKey(projectId) },
   });
-  const edges = useMemo(() => loadEdges(), []);
+  // Durable brokered edges (SoR-provided or sidecar, §5.5) merged with the browser-volatile overlay.
+  const { data: brokered } = useProjectDependencies(projectId);
+  const edges = useMemo(() => [...loadEdges(), ...(brokered ?? [])], [brokered]);
   const { hoursPerDay, calendar } = useSchedulingSettings();
 
   const { forecast, titleOf } = useMemo(() => {

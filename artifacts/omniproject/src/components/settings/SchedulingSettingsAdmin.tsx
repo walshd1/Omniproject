@@ -1,17 +1,16 @@
 import { useEffect, useState } from "react";
-import { useQueryClient } from "@tanstack/react-query";
-import { getGetSettingsQueryKey } from "@workspace/api-client-react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { CalendarClock } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { sendJson } from "../../lib/api";
-import { settingsQueryKey, useSettingsSlice } from "../../lib/settings-query";
-import { type RawSchedulingConfig } from "../../lib/scheduling-settings";
+import { getJson, sendJson } from "../../lib/api";
+import { schedulingOrgKey, schedulingResolvedKey, type RawSchedulingConfig } from "../../lib/scheduling-settings";
 
 /**
  * Admin control for the org's WORKING-TIME policy (roadmap 3.1 follow-up 7b) — hours per working day plus the
- * working week and holidays that the (client-side, projected) scheduling engine uses. Writes the `scheduling`
- * settings block via PATCH /api/settings; the engine reads the same block through `useSchedulingSettings`, so
- * saving here re-plans every forecast / Gantt cascade / critical path. Admin-only, like the other org config.
+ * working week and holidays that the (client-side, projected) scheduling engine uses. The policy is a
+ * scope-layered `scheduling` config def, not a settings key: this reads the org-scope values from
+ * `GET /api/scheduling` and writes them with `PUT /api/scheduling`. The engine reads the RESOLVED policy through
+ * `useSchedulingSettings`, so saving here re-plans every forecast / Gantt cascade / critical path. Admin/PMO.
  */
 
 // Display order Mon→Sun; value is Date.getUTCDay (0 = Sun).
@@ -21,7 +20,12 @@ const WEEKDAYS: { value: number; label: string }[] = [
 ];
 
 export function SchedulingSettingsAdmin() {
-  const { data: raw } = useSettingsSlice((s) => s["scheduling"] as RawSchedulingConfig | undefined);
+  const { data: orgConfig } = useQuery({
+    queryKey: schedulingOrgKey,
+    queryFn: () => getJson<{ scheduling: RawSchedulingConfig }>("/api/scheduling"),
+    staleTime: 15_000,
+  });
+  const raw = orgConfig?.scheduling;
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
@@ -64,10 +68,10 @@ export function SchedulingSettingsAdmin() {
       holidays,
     };
     try {
-      await sendJson("/api/settings", { scheduling }, "PATCH");
-      // The engine reads the ["settings"] slice; the generated hooks read their own key — refresh both.
-      queryClient.invalidateQueries({ queryKey: settingsQueryKey });
-      queryClient.invalidateQueries({ queryKey: getGetSettingsQueryKey() });
+      await sendJson("/api/scheduling", { scheduling }, "PUT");
+      // The admin editor seeds from the org config; the engine reads the resolved policy — refresh both.
+      queryClient.invalidateQueries({ queryKey: schedulingOrgKey });
+      queryClient.invalidateQueries({ queryKey: schedulingResolvedKey });
       toast({ title: "WORKING TIME SAVED", description: `${hours}h/day · ${workingDays.size}-day week · ${holidays.length} holiday${holidays.length === 1 ? "" : "s"}` });
     } catch {
       toast({ title: "COULD NOT SAVE", description: "Check the values and try again.", variant: "destructive" });

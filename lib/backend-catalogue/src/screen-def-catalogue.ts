@@ -1,5 +1,7 @@
+import { composeExtends } from "./def-compose";
 import budgetPlans from "./screens/budget-plans.json";
 import burndown from "./screens/burndown.json";
+import epics from "./screens/epics.json";
 import explore from "./screens/explore.json";
 import gantt from "./screens/gantt.json";
 import home from "./screens/home.json";
@@ -14,6 +16,7 @@ import projectGantt from "./screens/project-gantt.json";
 import projects from "./screens/projects.json";
 import raciMatrix from "./screens/raci-matrix.json";
 import raid from "./screens/raid.json";
+import sapProjectCost from "./screens/sap-project-cost.json";
 import reports from "./screens/reports.json";
 import resourceAllocations from "./screens/resource-allocations.json";
 import riskRegister from "./screens/risk-register.json";
@@ -38,17 +41,30 @@ export interface RawScreenDef {
   id: string;
   label: string;
   panels: Array<Record<string, unknown>>;
+  /** COMPOSITION: the id of a parent screen this one is built on (see def-compose). A thin child adds/alters
+   *  panels (by panel id) + presentation over its parent; `resolveScreenDef` flattens the chain. */
+  extends?: string;
   [key: string]: unknown;
 }
 
 /** All shipped screen defs, in catalogue order (core pages first, then the methodology-shipped screens). */
 export const SCREEN_DEF_CATALOGUE: RawScreenDef[] = [
   budgetPlans, resourceAllocations, home, myWork, tasks, reports, programmes, programmeDetail,
-  projects, projectDetail, explore, kanban, scrum, sprints, userStories, burndown, gantt, prince2,
-  raid, intake, projectGantt, riskRegister, raciMatrix, stakeholders,
+  projects, projectDetail, explore, kanban, scrum, sprints, userStories, epics, burndown, gantt, prince2,
+  raid, intake, projectGantt, riskRegister, raciMatrix, stakeholders, sapProjectCost,
 ] as unknown as RawScreenDef[];
 
-/** The shipped screen defs (a fresh array each call, so a caller can't mutate the catalogue). */
+const RAW_SCREEN_BY_ID = new Map(SCREEN_DEF_CATALOGUE.map((s) => [s.id, s]));
+
+/** Resolve a screen's `extends` chain into the effective (flattened) def + lineage — panels compose by panel id,
+ *  presentation property-by-property (child wins). Undefined when unknown; a rootless screen resolves to itself. */
+export function resolveScreenDef(id: string): (RawScreenDef & { lineage: string[] }) | undefined {
+  return composeExtends<RawScreenDef>(id, (k) => RAW_SCREEN_BY_ID.get(k));
+}
+
+/** The shipped screen defs, FLATTENED (extends executed). A fresh array each call so a caller can't mutate the
+ *  catalogue; a screen that never uses `extends` is returned unchanged. `lineage` is kept only on the explicit
+ *  `resolveScreenDef` return, not on the catalogue entries. */
 export function screenDefCatalogue(): RawScreenDef[] {
-  return [...SCREEN_DEF_CATALOGUE];
+  return SCREEN_DEF_CATALOGUE.map((s) => { const { lineage: _l, ...def } = resolveScreenDef(s.id)!; return def; });
 }

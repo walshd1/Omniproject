@@ -13,7 +13,8 @@ import {
 } from "../lib/artifact-store";
 import {
   sanitizeDef, sanitizeDefUpdate, validateDef, newStoredDef, updateStoredDef, storedDefMeta,
-  listDefs, listSystemDefs, getDef, putDef, deleteDef, DefError, DEF_KINDS,
+  listDefs, listSystemDefs, getDef, putDef, deleteDef, DefError, DEF_KINDS, checkImportAncestry,
+  checkImportIntegrity, checkDeleteIntegrity,
   type DefKind, type StoredDef, type StoredDefMeta,
 } from "../lib/def-import";
 import defBindingsRouter from "./def-bindings";
@@ -161,6 +162,14 @@ router.post("/defs", requireRole("contributor"), (req, res) => {
     if (!(await runDefWriteHook(req, res, input.kind, input.payload))) return;
     if (!artifactStoreEnabled()) { res.status(501).json({ error: "no encrypted-JSON store is configured on this deployment" }); return; }
     const ctx = contextFromReq(req);
+    // COMPOSITION: reject a def whose `extends` ancestor is missing or cyclic (checked against the shipped
+    // catalogue + every scope the author can see + this def), then the BIDIRECTIONAL integrity check — the def
+    // must compose + validate as a whole against its ancestors, and must not break any def built downstream.
+    const ancestryScopes = { ...(projectId ? { projectId } : {}), ...(programmeId ? { programmeId } : {}), ...(ctx.sub ? { sub: ctx.sub } : {}) };
+    const ancestryErr = checkImportAncestry(input.kind, input.payload, ancestryScopes);
+    if (ancestryErr) { res.status(400).json({ error: ancestryErr }); return; }
+    const integrityErr = checkImportIntegrity(input.kind, input.payload);
+    if (integrityErr) { res.status(400).json({ error: integrityErr }); return; }
     const ownerId = storage === "programme" ? programmeId : projectId;
     const id = makeScopedId(storage, crypto.randomUUID(), ownerId);
     const scope = scopeFromParsed({ storage, ...(projectId ? { projectId } : {}), ...(programmeId ? { programmeId } : {}) }, ctx.sub);
@@ -187,6 +196,15 @@ router.put("/defs/:id", requireRole("contributor"), (req, res) =>
     let upd;
     try { upd = sanitizeDefUpdate(existing.kind, req.body); }
     catch (e) { if (e instanceof DefError) { res.status(400).json({ error: e.message }); return; } throw e; }
+    // COMPOSITION: re-check the extends ancestry on edit (an edit can introduce a broken/cyclic parent), then
+    // the BIDIRECTIONAL integrity check — an edit to an ANCESTOR that would cascade failure into a def built
+    // downstream (or an edit that no longer holds against its own ancestors) is rejected before it is stored.
+    const editScopes = { ...(parsed.projectId ? { projectId: parsed.projectId } : {}), ...(parsed.programmeId ? { programmeId: parsed.programmeId } : {}), ...(ctx.sub ? { sub: ctx.sub } : {}) };
+    const ancestryErr = checkImportAncestry(existing.kind, upd.payload, editScopes);
+    if (ancestryErr) { res.status(400).json({ error: ancestryErr }); return; }
+    const priorId = typeof (existing.payload as { id?: unknown } | null)?.id === "string" ? String((existing.payload as { id: string }).id) : "";
+    const integrityErr = checkImportIntegrity(existing.kind, upd.payload, { storageId: id, priorId });
+    if (integrityErr) { res.status(400).json({ error: integrityErr }); return; }
     if (!(await runDefWriteHook(req, res, existing.kind, upd.payload))) return;
     const row = updateStoredDef(existing, upd, new Date().toISOString());
     putDef(scope, row);
@@ -204,7 +222,15 @@ router.delete("/defs/:id", requireRole("contributor"), (req, res) =>
     if (!artifactStoreEnabled()) { res.status(204).end(); return; }
     const ctx = contextFromReq(req);
     const scope = scopeFromParsed(parsed, ctx.sub);
-    if (scope) deleteDef(scope, id);
+    const existing = scope ? getDef(scope, id) : null;
+    if (existing && scope) {
+      // COMPOSITION: block a delete that would ORPHAN defs built on this one — removing a def others `extends`
+      // (and that no longer resolves from a lower scope) cascades failure into every dependant.
+      const logicalId = typeof (existing.payload as { id?: unknown } | null)?.id === "string" ? String((existing.payload as { id: string }).id) : "";
+      const err = checkDeleteIntegrity(existing.kind, id, logicalId);
+      if (err) { res.status(409).json({ error: err }); return; }
+      deleteDef(scope, id);
+    }
     res.status(204).end();
   }),
 );

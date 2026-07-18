@@ -119,6 +119,23 @@ test("org extensions + registry items ride the backup; import RE-VALIDATES (a ta
   assert.ok(report.written.some((w) => w.type === "extension") && report.written.some((w) => w.type === "registry-item"));
 });
 
+test("config defs (the org-level tree) ride the backup and round-trip into a fresh store", () => {
+  // A scope-layered config def — the migration vehicle — at org + project scope.
+  putDef({ kind: "org" }, { id: "org~config-scheduling", kind: "config", name: "Working time", createdBy: "a", createdAt: now, updatedAt: now, rowVersion: 1, payload: { id: "scheduling", values: { hoursPerDay: 7 } } });
+  putDef({ kind: "project", projectId: "PB" }, { id: "project~PB~cfg", kind: "config", name: "Proj sched", createdBy: "a", createdAt: now, updatedAt: now, rowVersion: 1, payload: { id: "scheduling", values: { hoursPerDay: 6 } } });
+
+  const bundle = buildDefStoreExport(now);
+  const ids = bundle.collections.filter((c) => c.type === "def").flatMap((c) => c.items.map((i) => i.id));
+  assert.ok(ids.includes("org~config-scheduling"), "the org config def is captured");
+  assert.ok(ids.includes("project~PB~cfg"), "the project config def is captured");
+
+  // Wipe + reimport — the full config tree comes back, re-validated by kind.
+  fs.rmSync(path.join(CONFIG_DIR, "artifacts"), { recursive: true, force: true });
+  applyDefStoreExport(bundle);
+  assert.equal(listDefs({ kind: "org" }).find((d) => d.id === "org~config-scheduling")?.kind, "config");
+  assert.equal(listDefs({ kind: "project", projectId: "PB" })[0]?.id, "project~PB~cfg");
+});
+
 test("per-user prefs ride the backup and round-trip into a fresh store (setup follows the person)", () => {
   // With the store enabled, a save lands in the user's OWN vault, not the settings blob.
   setUserPrefs("u-prefs", { fontScale: 1.25, highContrast: true, backgroundColor: "#0b1020" });

@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  DEF_KINDS, validateDef, sanitizeDef, newStoredDef, storedDefMeta, DefError,
+  DEF_KINDS, validateDef, sanitizeDef, newStoredDef, storedDefMeta, DefError, defMethodologies,
 } from "../lib/def-import";
 import type { ActorContext } from "../broker/types";
 
@@ -25,7 +25,28 @@ const GOOD_FORM = {
 };
 
 test("DEF_KINDS is the expected closed set", () => {
-  assert.deepEqual([...DEF_KINDS], ["primitive", "screen", "form", "report", "dashboard", "businessRule", "methodology", "theme", "font", "jsonDef"]);
+  assert.deepEqual([...DEF_KINDS], ["primitive", "screen", "form", "report", "dashboard", "businessRule", "methodology", "mapping", "customField", "theme", "font", "config", "jsonDef"]);
+});
+
+test("a config def needs an id and an object `values`", () => {
+  assert.equal(validateDef("config", { id: "scheduling", values: { hoursPerDay: 7 } }).ok, true);
+  assert.equal(validateDef("config", { id: "scheduling" }).ok, true, "values is optional");
+  assert.equal(validateDef("config", { values: { x: 1 } }).ok, false, "id is required");
+  assert.equal(validateDef("config", { id: "x", values: [1, 2] }).ok, false, "values must be an object");
+  assert.equal(validateDef("config", { id: "x", values: "nope" }).ok, false);
+});
+
+test("ANY def may carry a loose optional methodology tag; a malformed tag is rejected", () => {
+  // Present + well-formed on any kind → accepted, and readable via defMethodologies.
+  const tagged = { ...GOOD_PRIMITIVE, methodologies: ["scrum", "safe"] };
+  assert.equal(validateDef("primitive", tagged).ok, true);
+  assert.deepEqual(defMethodologies(tagged), ["scrum", "safe"]);
+  // Absent → neutral (no tag).
+  assert.equal(defMethodologies(GOOD_PRIMITIVE), undefined);
+  // Malformed → rejected, regardless of kind.
+  assert.equal(validateDef("report", { id: "r", methodologies: "scrum" }).ok, false);
+  assert.equal(validateDef("report", { id: "r", methodologies: [""] }).ok, false);
+  assert.equal(validateDef("config", { id: "c", methodologies: [1] }).ok, false);
 });
 
 test("business rules, colour themes and fonts go through the importer too", () => {

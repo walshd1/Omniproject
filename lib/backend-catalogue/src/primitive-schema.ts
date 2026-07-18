@@ -46,6 +46,15 @@ export interface PrimitiveDefShape {
   description: string;
   /** When it's a ChartView-dispatchable chart, the spec type it draws through. */
   chartType?: ChartViewType;
+  /**
+   * COMPOSITION: the id of the parent primitive this one is built on. A child is a THIN def — it inherits every
+   * param of its ancestors and only adds NEW params or ALTERS ones it names (property-by-property, child wins).
+   * `resolvePrimitive` executes the chain up to a root (a primitive with no `extends`). We keep the fewest, most
+   * generic roots and compose everything else, so any leaf traces back to the defs + fields it is built from.
+   */
+  extends?: string;
+  /** Params this def adds or alters vs its parent (the whole set for a root). May be empty for a child that only
+   *  relabels/recategorises its parent. */
   params: PrimitiveParamShape[];
 }
 
@@ -92,11 +101,22 @@ export function validatePrimitiveDef(raw: unknown): PrimitiveValidation {
     else chartType = ct as ChartViewType;
   }
 
+  // COMPOSITION: optional parent id. Its existence + acyclicity is checked by `resolvePrimitive` against the
+  // catalogue (a payload can be validated in isolation, before the parent is in scope), so here we only shape-check.
+  let extendsId: string | undefined;
+  if (o["extends"] !== undefined && o["extends"] !== null && o["extends"] !== "") {
+    const e = str(o["extends"]);
+    if (!ID_RE.test(e)) errors.push('extends must be a kebab-case primitive id');
+    else if (e === id) errors.push("extends must not be the primitive's own id");
+    else extendsId = e;
+  }
+
   const params: PrimitiveParamShape[] = [];
   const rawParams = o["params"];
-  if (!Array.isArray(rawParams) || rawParams.length === 0) {
-    errors.push("params must be a non-empty array");
-  } else {
+  // A ROOT must define its params; a CHILD (extends set) may add none (it inherits the whole parent).
+  if (!Array.isArray(rawParams) || (rawParams.length === 0 && !extendsId)) {
+    errors.push("params must be a non-empty array (a root defines its params; only an `extends` child may omit them)");
+  } else if (Array.isArray(rawParams)) {
     const keys = new Set<string>();
     rawParams.forEach((rp, i) => {
       const p = (rp ?? {}) as Record<string, unknown>;
@@ -127,6 +147,6 @@ export function validatePrimitiveDef(raw: unknown): PrimitiveValidation {
   return {
     ok: true,
     errors: [],
-    def: { id, label, category: category as PrimitiveCategory, description, ...(chartType ? { chartType } : {}), params },
+    def: { id, label, category: category as PrimitiveCategory, description, ...(chartType ? { chartType } : {}), ...(extendsId ? { extends: extendsId } : {}), params },
   };
 }

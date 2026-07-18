@@ -802,4 +802,48 @@ export interface Broker {
   /** Bring the native artifact back THROUGH the broker: a reference (importMode "reference") or enriched
    *  content. Returns the attachment written to `target`; sanitised + provenance-stamped + audited. */
   nativeImport?(ctx: ActorContext, req: NativeImportRequest): Promise<TaskAttachment>;
+
+  // ── SAP / ERP project + finance READ MODELS (docs/SAP-CONNECTOR.md §4.6) — OPTIONAL. A connector that fronts
+  //    an ERP (SAP S/4HANA) implements these; every other backend omits them and the routes answer 501/empty.
+  //    READ-ONLY references + numbers from the system of record — SAP keeps the ledger; we never post, never
+  //    settle, never store the values at rest.
+  /** The WBS elements (the project cost-structure tree; `parentId` gives the nesting). */
+  listWbsElements?(ctx: ActorContext, projectId: string): Promise<WbsElement[]>;
+  /** The financial roll-up for one WBS element (actual / commitment / budget / WIP / planned), read from the ERP. */
+  getWbsFinancials?(ctx: ActorContext, wbsId: string): Promise<WbsFinancials | null>;
+
+  // Dependency graph (roadmap §5.5): NOT a bespoke broker entity. A dependency edge is a row in the generic
+  //   `dependencies` mapping slot (`{fromId, toId, kind, note}`), read/written/deleted through the SAME generic
+  //   mapping + sidecar surface every other slot uses (`/mapping/:slot/rows`, `PUT`/`DELETE /mapping/:slot/:rowId`).
+  //   Nothing methodology- or agile-specific lives on the engine contract.
+}
+
+/**
+ * SAP read model — a WBS element in a project's cost structure (docs/SAP-CONNECTOR.md §4.6). SAP owns these;
+ * we render them by reference (the id is the cost-collecting key), never copying at rest.
+ */
+export interface WbsElement {
+  id: string;
+  projectId: string;
+  parentId: string | null;
+  name: string;
+  level: number;
+  /** SAP system/user status label (display-only). */
+  status?: string;
+  responsible?: string | null;
+}
+
+/**
+ * SAP read model — the financial roll-up for one WBS element, READ from SAP's ledger (ACDOCA). We never post
+ * or settle; all amounts are in `currency`. `available` = budget − (actual + commitment).
+ */
+export interface WbsFinancials {
+  wbsId: string;
+  currency: string;
+  budget: number;
+  actual: number;
+  commitment: number;
+  wip: number;
+  planned: number;
+  available: number;
 }

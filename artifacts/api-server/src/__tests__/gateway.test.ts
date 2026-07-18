@@ -958,9 +958,6 @@ const SAMPLE_SETTINGS = {
   closedProjects: {},
   guidAliases: {},
   retiredGuids: [],
-  branding: null,
-  labelOverrides: {},
-  priorityLabels: {},
   webhooks: [],
   federatedPeers: [],
   loggingSync: { enabled: false, url: null, acknowledgedWarranty: false },
@@ -979,7 +976,6 @@ const SAMPLE_SETTINGS = {
   programmeFeatures: {},
   projectFeatures: {},
   governanceRules: [],
-  hiddenFields: [],
   savedViews: [],
   dashboards: [],
   contentPages: [],
@@ -1000,7 +996,6 @@ const SAMPLE_SETTINGS = {
   forms: [],
   automations: [],
   templates: [],
-  scheduling: { hoursPerDay: 8, workingWeekdays: [1, 2, 3, 4, 5], holidays: [] },
 };
 
 test("redactSettingsForRead: masks webhook signing secrets (never leaked over GET)", async () => {
@@ -1033,12 +1028,10 @@ test("buildSnapshot: carries the portable presentation config (curation, views, 
   const snap = buildSnapshot({
     ...SAMPLE_SETTINGS,
     disabledFeatures: ["odata"],
-    hiddenFields: ["dueDate"],
     savedViews: [{ id: "v1", name: "Triage", scope: "grid", columns: ["title"] }],
     dashboards: [{ id: "d1", name: "Exec", widgets: [{ id: "w1", type: "portfolioHealth" }] }],
   });
   assert.deepEqual(snap.settings.disabledFeatures, ["odata"]);
-  assert.deepEqual(snap.settings.hiddenFields, ["dueDate"]);
   assert.equal(snap.settings.savedViews![0]!.name, "Triage");
   assert.equal(snap.settings.dashboards![0]!.widgets[0]!.type, "portfolioHealth");
   // …and they round-trip back into a settings patch with no warnings.

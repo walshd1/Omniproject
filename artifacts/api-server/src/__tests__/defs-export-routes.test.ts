@@ -135,6 +135,34 @@ test("SEALED full backup is an encrypted envelope that decrypts + restores under
   assert.equal(bindings.org["screens"]?.defId, "system~x");
 });
 
+test("config-diff previews changes: live-vs-uploaded, content-free, admin + step-up gated", async () => {
+  assert.equal((await req("/setup/config-diff", { method: "POST", body: {}, cookie: ADMIN })).status, 403); // no step-up
+
+  // A live backup, then a modified copy uploaded as `to`: change a setting + drop a def collection's item.
+  const live = await req("/setup/full-backup", { cookie: ADMIN_STEPPED }).then((r) => r.json()) as { settings: { settings: Record<string, unknown> }; defStore: { collections: { type: string; items: { id: string }[] }[] } };
+  const candidate = JSON.parse(JSON.stringify(live)) as typeof live;
+  candidate.settings.settings["reportingCurrency"] = "USD"; // a settings change
+  // Drop one org def so the diff shows a removal.
+  const orgDef = candidate.defStore.collections.find((c) => c.type === "def");
+  const removedId = orgDef?.items[0]?.id;
+  if (orgDef && removedId) orgDef.items = orgDef.items.filter((i) => i.id !== removedId);
+
+  const diff = await req("/setup/config-diff", { method: "POST", body: { to: candidate }, cookie: ADMIN_STEPPED }).then((r) => r.json()) as {
+    schema: string; identical: boolean; settings: { changed: { key: string; status: string }[] }; defStore: { removed: number }[]; summary: { defsRemoved: number };
+  };
+  assert.equal(diff.schema, "omniproject/config-diff");
+  assert.equal(diff.identical, false);
+  assert.ok(diff.settings.changed.some((c) => c.key === "reportingCurrency" && c.status === "changed"));
+  if (removedId) assert.ok(diff.summary.defsRemoved >= 1, "the dropped def shows as a removal");
+  // Content-free: the changed currency VALUE never appears in the diff.
+  assert.equal(JSON.stringify(diff).includes("USD"), false);
+});
+
+test("config-diff of live-vs-live is identical (empty)", async () => {
+  const diff = await req("/setup/config-diff", { method: "POST", body: {}, cookie: ADMIN_STEPPED }).then((r) => r.json()) as { identical: boolean };
+  assert.equal(diff.identical, true);
+});
+
 test("a sealed backup sealed under a DIFFERENT key cannot be restored (clear error, not a silent wipe)", async () => {
   const sealedBody = await req("/setup/full-backup?encrypted=1", { cookie: ADMIN_STEPPED }).then((r) => r.json()) as { sealed: string };
   // Corrupt the ciphertext so the AES-GCM tag no longer authenticates (stands in for a wrong/rotated key).

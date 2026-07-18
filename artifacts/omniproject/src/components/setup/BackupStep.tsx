@@ -1,7 +1,7 @@
 import { useRef, useState } from "react";
-import { Download, Save, Upload, Database, ShieldAlert } from "lucide-react";
+import { Download, Save, Upload, Database, ShieldAlert, GitCompare } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { downloadSnapshot, restoreSnapshot, downloadDefsExport, importDefsBundle, downloadFullBackup, restoreFullBackup, type SetupStatus } from "../../lib/setup";
+import { downloadSnapshot, restoreSnapshot, downloadDefsExport, importDefsBundle, downloadFullBackup, restoreFullBackup, diffConfig, type SetupStatus, type ConfigDiff } from "../../lib/setup";
 import { Step, download, useRefreshAndSettings } from "./shared";
 import { safeParseJson } from "../../lib/safe-json";
 import {
@@ -77,6 +77,9 @@ export function BackupStep({
   // A validated FULL backup (settings + defs) pending confirmation.
   const [pendingFull, setPendingFull] = useState<{ backup: unknown; fileName: string } | null>(null);
   const fullInputRef = useRef<HTMLInputElement>(null);
+  // The most recent config diff (uploaded backup vs live).
+  const [diff, setDiff] = useState<{ result: ConfigDiff; fileName: string } | null>(null);
+  const diffInputRef = useRef<HTMLInputElement>(null);
 
   const stepUpHint = () => toast({
     title: "Re-authentication needed",
@@ -169,6 +172,22 @@ export function BackupStep({
     const shapeError = validateFullBackup(parsed);
     if (shapeError) { toast({ title: "Couldn't restore", description: shapeError, variant: "destructive" }); return; }
     setPendingFull({ backup: parsed, fileName: file.name });
+  };
+
+  const onSelectDiffFile = async (file: File | undefined) => {
+    if (!file) return;
+    let parsed: unknown;
+    try { parsed = safeParseJson(await file.text()); }
+    catch { toast({ title: "Couldn't compare", description: "That file isn't valid JSON.", variant: "destructive" }); return; }
+    const shapeError = validateFullBackup(parsed);
+    if (shapeError) { toast({ title: "Couldn't compare", description: shapeError, variant: "destructive" }); return; }
+    try {
+      const result = await diffConfig(parsed);
+      setDiff({ result, fileName: file.name });
+    } catch (e) {
+      if (e instanceof Error && e.message === "step_up_required") stepUpHint();
+      else toast({ title: "Couldn't compare", description: e instanceof Error ? e.message : "compare failed", variant: "destructive" });
+    }
   };
 
   const confirmFullRestore = async () => {
@@ -285,7 +304,68 @@ export function BackupStep({
                 onChange={(e) => { onSelectFullFile(e.target.files?.[0]); e.target.value = ""; }}
               />
             </label>
+            <label className="px-4 py-2 text-xs font-black uppercase tracking-widest border border-border flex items-center gap-2 cursor-pointer hover:border-primary" data-testid="compare-config">
+              <GitCompare className="w-3.5 h-3.5" /> Compare with backup
+              <input
+                ref={diffInputRef}
+                type="file"
+                accept="application/json,.json"
+                className="hidden"
+                onChange={(e) => { onSelectDiffFile(e.target.files?.[0]); e.target.value = ""; }}
+              />
+            </label>
           </div>
+          <p className="text-xs text-muted-foreground">
+            <b>Compare</b> shows exactly what would change if you restored a backup — settings by key, defs by id
+            (with version), what's added / removed / changed — without applying anything. Content-free: no values
+            or secrets are shown. Preview a migration or spot drift between instances before you commit.
+          </p>
+          {diff && (
+            <div className="space-y-2 rounded border border-border p-3 text-xs" data-testid="config-diff-result">
+              <div className="flex items-center justify-between gap-2">
+                <span className="font-medium">
+                  Diff vs <span className="font-mono break-all">{diff.fileName}</span>
+                </span>
+                <button className="text-muted-foreground hover:text-foreground" onClick={() => setDiff(null)} aria-label="Dismiss diff">✕</button>
+              </div>
+              {diff.result.identical ? (
+                <p className="text-emerald-600">No differences — this backup matches the live config.</p>
+              ) : (
+                <>
+                  <p className="text-muted-foreground">
+                    Settings: <b>{diff.result.summary.settingsChanged}</b> changed, <b>{diff.result.summary.settingsAdded}</b> added,{" "}
+                    <b>{diff.result.summary.settingsRemoved}</b> removed · Defs across <b>{diff.result.summary.collectionsChanged}</b> collection(s):{" "}
+                    <b>{diff.result.summary.defsAdded}</b> added, <b>{diff.result.summary.defsRemoved}</b> removed, <b>{diff.result.summary.defsChanged}</b> changed.
+                  </p>
+                  {diff.result.settings.changed.length > 0 && (
+                    <div>
+                      <div className="font-semibold">Settings</div>
+                      <ul className="flex flex-wrap gap-1">
+                        {diff.result.settings.changed.map((c) => (
+                          <li key={c.key} className={`rounded px-1.5 py-0.5 font-mono ${c.status === "added" ? "bg-emerald-50 text-emerald-700" : c.status === "removed" ? "bg-red-50 text-red-700" : "bg-amber-50 text-amber-800"}`}>
+                            {c.key}{c.secret ? " 🔒" : ""} <span className="opacity-70">{c.status}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  {diff.result.defStore.map((c) => (
+                    <div key={`${c.type}~${c.scopeLabel}`}>
+                      <div className="font-semibold">{c.type} · {c.scopeLabel} <span className="text-muted-foreground">(+{c.added} −{c.removed} ~{c.changed})</span></div>
+                      <ul className="flex flex-wrap gap-1">
+                        {c.items.slice(0, 40).map((i) => (
+                          <li key={i.id} className={`rounded px-1.5 py-0.5 font-mono ${i.status === "added" ? "bg-emerald-50 text-emerald-700" : i.status === "removed" ? "bg-red-50 text-red-700" : "bg-amber-50 text-amber-800"}`}>
+                            {i.id}{i.status === "changed" && i.fromRowVersion != null ? ` v${i.fromRowVersion}→${i.toRowVersion}` : ""}
+                          </li>
+                        ))}
+                        {c.items.length > 40 && <li className="text-muted-foreground">+{c.items.length - 40} more</li>}
+                      </ul>
+                    </div>
+                  ))}
+                </>
+              )}
+            </div>
+          )}
         </div>
       )}
 

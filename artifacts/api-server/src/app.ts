@@ -41,6 +41,7 @@ import { brokerKind } from "./broker";
 import { getSettings, updateSettings } from "./lib/settings";
 import { restoreActiveEnvironment } from "./lib/config-store";
 import { seedSystemDefaultsIfEmpty } from "./lib/system-defs";
+import { invalidateDefIndex } from "./lib/def-index";
 import { SAMPLE_PROGRAMME_REGISTRY } from "./broker/demo-data";
 
 const app: Express = express();
@@ -108,6 +109,9 @@ export async function bootstrap(): Promise<void> {
   // system def store, sourced from the bundled catalogues. One-shot; no-op when already installed or the store
   // is off. Runtime UPDATES go through the admin-gated approved-update route, not this.
   seedSystemDefaultsIfEmpty();
+  // Rebuild-on-doubt: drop the composition child-edge index at boot so a crash that stranded a stale index can't
+  // let the importer's fast path wrongly skip a cascade. It is rebuilt from a full scan on first use.
+  invalidateDefIndex();
 }
 
 /**

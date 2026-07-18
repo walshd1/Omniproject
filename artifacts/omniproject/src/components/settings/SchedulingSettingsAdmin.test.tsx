@@ -2,21 +2,21 @@ import { describe, it, expect, afterEach } from "vitest";
 import { screen, fireEvent, waitFor } from "@testing-library/react";
 import { QueryClient } from "@tanstack/react-query";
 import { renderWithProviders, mockFetchRouter, resetFetchMock } from "../../test/utils";
-import { settingsQueryKey } from "../../lib/settings-query";
+import { schedulingOrgKey } from "../../lib/scheduling-settings";
 import { Toaster } from "../ui/toaster";
 import { SchedulingSettingsAdmin } from "./SchedulingSettingsAdmin";
 
-/** The working-time admin card: seeds from settings, edits, and PATCHes /api/settings. */
+/** The working-time admin card: seeds from GET /api/scheduling (the org config def), edits, PUT /api/scheduling. */
 function seed(scheduling: unknown): QueryClient {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } });
-  qc.setQueryData(settingsQueryKey, { scheduling });
+  qc.setQueryData(schedulingOrgKey, { scheduling });
   return qc;
 }
 
 describe("SchedulingSettingsAdmin", () => {
   afterEach(() => resetFetchMock());
 
-  it("seeds the editor from the org settings", async () => {
+  it("seeds the editor from the org config def", async () => {
     renderWithProviders(<SchedulingSettingsAdmin />, {
       client: seed({ hoursPerDay: 7.5, workingWeekdays: [1, 2, 3, 4, 5], holidays: ["2026-12-25"] }),
     });
@@ -26,8 +26,8 @@ describe("SchedulingSettingsAdmin", () => {
     expect(screen.getByTestId("sched-holiday-list")).toHaveTextContent("2026-12-25");
   });
 
-  it("saves an edited working-time config via PATCH /api/settings", async () => {
-    mockFetchRouter({ "/api/settings": { ok: true, body: { ok: true } } });
+  it("saves an edited working-time config via PUT /api/scheduling", async () => {
+    mockFetchRouter({ "/api/scheduling": { ok: true, body: { scheduling: { hoursPerDay: 6, workingWeekdays: [1, 2, 3, 4, 5, 6], holidays: [] } } } });
     renderWithProviders(<><SchedulingSettingsAdmin /><Toaster /></>, {
       client: seed({ hoursPerDay: 8, workingWeekdays: [1, 2, 3, 4, 5], holidays: [] }),
     });

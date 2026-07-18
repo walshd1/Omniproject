@@ -1,11 +1,15 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { brandingFromEnv } from "./branding";
+import { labelsFromEnv } from "./labels";
 
 /**
- * Coverage for the module-load-time environment-seed helpers in settings.ts
- * (brandingFromEnv, labelsFromEnv, webhooksFromEnv, peersFromEnv, loggingSyncFromEnv,
- * disabled/enabledFeaturesFromEnv and the coerce* env readers). These run ONCE at import
- * to seed the default SettingsState, so they can't be driven through the public API.
+ * Coverage for the environment-seed helpers: the deploy-time defaults from env vars.
+ * `brandingFromEnv`/`labelsFromEnv` (in lib/branding + lib/labels — branding/labels are config defs now, with
+ * env as the base default layer beneath the org override) read env at call time, so they're tested directly.
+ * The rest (webhooksFromEnv, peersFromEnv, loggingSyncFromEnv, disabled/enabledFeaturesFromEnv, coerce* readers)
+ * still run ONCE at settings import to seed the default SettingsState, so they can't be driven through the
+ * public API.
  *
  * Recipe: set the relevant env var(s), then re-import the settings module with a UNIQUE
  * cache-busting query so its top-level runs again against the fresh env, and read the effect
@@ -41,13 +45,12 @@ async function withEnv<T>(vars: Record<string, string>, fn: () => Promise<T>): P
 // brandingFromEnv
 // ---------------------------------------------------------------------------
 
-test("branding: no BRAND_* env → branding is null", async () => {
-  const s = await loadFreshSettings();
-  assert.equal(s.branding, null);
+test("branding: no BRAND_* env → null", async () => {
+  assert.equal(brandingFromEnv(), null);
 });
 
 test("branding: all BRAND_* set → full BrandingConfig", async () => {
-  const s = await withEnv(
+  const b = await withEnv(
     {
       BRAND_APP_NAME: "Acme",
       BRAND_SHORT_NAME: "AC",
@@ -58,9 +61,9 @@ test("branding: all BRAND_* set → full BrandingConfig", async () => {
       BRAND_SUPPORT_URL: "https://support.example.com",
       BRAND_FONT_FAMILY: "Inter, sans-serif",
     },
-    loadFreshSettings,
+    async () => brandingFromEnv(),
   );
-  assert.deepEqual(s.branding, {
+  assert.deepEqual(b, {
     appName: "Acme",
     shortName: "AC",
     logoUrl: "https://cdn.example.com/logo.png",
@@ -73,16 +76,16 @@ test("branding: all BRAND_* set → full BrandingConfig", async () => {
 });
 
 test("branding: one field set, others trim to null; whitespace-only coerces to null", async () => {
-  const s = await withEnv({ BRAND_APP_NAME: "  Acme  ", BRAND_SHORT_NAME: "   " }, loadFreshSettings);
+  const b = await withEnv({ BRAND_APP_NAME: "  Acme  ", BRAND_SHORT_NAME: "   " }, async () => brandingFromEnv());
   // Set field is trimmed; whitespace-only field becomes null via `.trim() || null`.
-  assert.equal(s.branding.appName, "Acme");
-  assert.equal(s.branding.shortName, null);
-  assert.equal(s.branding.logoUrl, null);
+  assert.equal(b!.appName, "Acme");
+  assert.equal(b!.shortName, null);
+  assert.equal(b!.logoUrl, null);
 });
 
 test("branding: all fields whitespace-only → .some(Boolean) false → null", async () => {
-  const s = await withEnv({ BRAND_APP_NAME: "   ", BRAND_FOOTER_TEXT: "  " }, loadFreshSettings);
-  assert.equal(s.branding, null);
+  const b = await withEnv({ BRAND_APP_NAME: "   ", BRAND_FOOTER_TEXT: "  " }, async () => brandingFromEnv());
+  assert.equal(b, null);
 });
 
 // ---------------------------------------------------------------------------
@@ -90,26 +93,25 @@ test("branding: all fields whitespace-only → .some(Boolean) false → null", a
 // ---------------------------------------------------------------------------
 
 test("labels: no LABEL_OVERRIDES → empty object", async () => {
-  const s = await loadFreshSettings();
-  assert.deepEqual(s.labelOverrides, {});
+  assert.deepEqual(labelsFromEnv(), {});
 });
 
 test("labels: valid JSON keeps string values, drops non-string values", async () => {
-  const s = await withEnv(
+  const l = await withEnv(
     { LABEL_OVERRIDES: JSON.stringify({ status: "Stage", risk: "Threat", count: 5, nested: { a: 1 } }) },
-    loadFreshSettings,
+    async () => labelsFromEnv(),
   );
-  assert.deepEqual(s.labelOverrides, { status: "Stage", risk: "Threat" });
+  assert.deepEqual(l, { status: "Stage", risk: "Threat" });
 });
 
 test("labels: malformed JSON → warns and seeds no overrides", async () => {
-  const s = await withEnv({ LABEL_OVERRIDES: "{not valid json" }, loadFreshSettings);
-  assert.deepEqual(s.labelOverrides, {});
+  const l = await withEnv({ LABEL_OVERRIDES: "{not valid json" }, async () => labelsFromEnv());
+  assert.deepEqual(l, {});
 });
 
 test("labels: whitespace-only string is treated as unset", async () => {
-  const s = await withEnv({ LABEL_OVERRIDES: "   " }, loadFreshSettings);
-  assert.deepEqual(s.labelOverrides, {});
+  const l = await withEnv({ LABEL_OVERRIDES: "   " }, async () => labelsFromEnv());
+  assert.deepEqual(l, {});
 });
 
 // ---------------------------------------------------------------------------
