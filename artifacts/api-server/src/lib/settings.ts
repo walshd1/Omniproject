@@ -145,23 +145,9 @@ export interface PeerInstance {
  * operator must acknowledge that egressed data is outside OmniProject's warranty.
  */
 /**
- * Self-host DB adoption — the operator's choice to let OmniProject's OWN database become a
- * system-of-record (or an augmenting store) for a slice of the work-item superset. Same "disclose,
- * don't insure" trust class as `loggingSync`: adopting it moves the only copy of some data into
- * infrastructure OmniProject neither operates nor backs up nor warrants, so it can only be turned on
- * with an explicit data-responsibility acknowledgement. `adopted` is the org-level opt-in set of
- * gated `selfhost:<domain>` domains (core domains are implicit). See selfhost/setup-wizard.
- */
-export interface SelfHostConfig {
-  mode: "off" | "augmenting" | "system-of-record";
-  /** Gated domain ids opted into at org level (e.g. "financials", "quality"). Core is implicit. */
-  adopted: string[];
-  /** The admin acknowledged that self-host data is theirs to own, secure and back up. */
-  acknowledgedDataResponsibility: boolean;
-}
-
-const SELF_HOST_MODES = ["off", "augmenting", "system-of-record"] as const;
-const DEFAULT_SELF_HOST: SelfHostConfig = { mode: "off", adopted: [], acknowledgedDataResponsibility: false };
+// (Self-host DB adoption `selfHost` moved to the `self-host` config def — see lib/self-host-config — roadmap
+//  Phase C. It's a CHOICE config: the disclose-don't-insure acknowledgement is its gate, enforced by the setup
+//  route's validator, not a sign-off.)
 
 /** Optional above-the-seam email delivery for the scheduled digests. */
 export interface DigestDeliveryConfig {
@@ -342,8 +328,6 @@ export interface IntegrationConfig {
   digestDelivery: DigestDeliveryConfig;
   /** Per-user calendar-push consent (keyed by `sub`); default not-granted. */
   calendarPush: Record<string, CalendarPushGrant>;
-  /** Opt-in self-host DB adoption (off by default; needs a data-responsibility ack to enable). */
-  selfHost: SelfHostConfig;
 }
 
 // (State-history egress `loggingSync` and the snapshot-cadence/retention config `historyRetention` both moved
@@ -955,7 +939,6 @@ const FIELD_DESCRIPTORS: { [K in keyof SettingsState]: FieldDescriptor<K> } = {
   },
   webhooks: { seed: () => webhooksFromEnv(), validate: shapeChecked(validateWebhooks) },
   federatedPeers: { seed: () => peersFromEnv(), validate: shapeChecked(validateFederatedPeers) },
-  selfHost: { seed: () => ({ ...DEFAULT_SELF_HOST }), validate: shapeChecked(validateSelfHost) },
   digestDelivery: { seed: () => digestDeliveryFromEnv(), validate: shapeChecked(validateDigestDelivery) },
   skillsPlanning: { seed: () => ({ matrix: [], demand: [] }), validate: shapeChecked(validateSkillsPlanning) },
   fieldOverrides: { seed: () => ({ fields: {}, entities: {} }), validate: shapeChecked(validateFieldOverrides) },
@@ -1450,27 +1433,6 @@ function validateDashboards(value: unknown): void {
   }
 }
 
-/** Validate the opt-in self-host adoption config: a valid mode, a string[] of adopted domain ids,
- *  and — the "disclose, don't insure" gate — an explicit acknowledgement whenever the mode isn't
- *  `off`. A non-off mode without the acknowledgement is rejected, mirroring `validateLoggingSync`. */
-function validateSelfHost(value: unknown): void {
-  if (!value || typeof value !== "object") throw new SettingsValidationError("selfHost must be an object");
-  const { mode, adopted, acknowledgedDataResponsibility } = value as Record<string, unknown>;
-  if (!(SELF_HOST_MODES as readonly string[]).includes(mode as string)) {
-    throw new SettingsValidationError(`selfHost.mode must be one of: ${SELF_HOST_MODES.join(", ")}`);
-  }
-  if (!Array.isArray(adopted) || adopted.some((x) => typeof x !== "string")) {
-    throw new SettingsValidationError("selfHost.adopted must be an array of strings");
-  }
-  if (typeof acknowledgedDataResponsibility !== "boolean") {
-    throw new SettingsValidationError("selfHost.acknowledgedDataResponsibility must be a boolean");
-  }
-  if (mode !== "off" && acknowledgedDataResponsibility !== true) {
-    throw new SettingsValidationError(
-      "enabling self-host storage requires acknowledging that the data is yours to own, secure and back up (outside OmniProject's warranty)",
-    );
-  }
-}
 
 /** Validate the digest email-delivery config: `emailRecipients` must be a bounded array of non-empty
  *  strings that look like email addresses (a light `x@y` shape check — the SMTP layer is the real

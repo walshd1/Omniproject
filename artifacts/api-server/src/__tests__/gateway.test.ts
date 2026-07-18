@@ -958,7 +958,6 @@ const SAMPLE_SETTINGS = {
   retiredGuids: [],
   webhooks: [],
   federatedPeers: [],
-  selfHost: { mode: "off" as const, adopted: [], acknowledgedDataResponsibility: false },
   digestDelivery: { emailRecipients: [] },
   skillsPlanning: { matrix: [], demand: [] },
   fieldOverrides: { fields: {}, entities: {} },

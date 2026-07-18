@@ -32,7 +32,9 @@ export const SECURITY_SETTINGS: Record<string, RelaxPredicate> = {
   brokerUrl: changed,
   backendSource: changed,
   oidcIssuerUrl: changed,
-  selfHost: changed,
+  // (`selfHost` moved to the `self-host` CHOICE config def — Phase C. Its real gate is the data-responsibility
+  //  acknowledgement on the setup route, not a sign-off; the `changed` classification here only ever guarded the
+  //  bulk PATCH /settings backdoor, which can no longer reach it once it leaves settings.)
   // Egress / cross-instance data sharing. DIRECTIONAL: opening a NEW active egress target (a webhook to a
   // new/redirected url, a peer at a new baseUrl) is the relaxation; removing/deactivating one strengthens
   // and applies immediately (the invariant lets you increase posture freely). A same-target credential

@@ -42,14 +42,9 @@ test("a feature both enabled and disabled is a hard violation", () => {
   assert.match(violations[0]!.message, /can't be both enabled and disabled/);
 });
 
-test("selfHost mode is locked until its acknowledgement is given", () => {
-  // (loggingSync's enable lock left settings-constraints with the `logging-sync` config def — Phase C; its
-  //  url + warranty-ack gate is enforced by the route validator + the panel's local guard.)
-  const { locks } = evaluateConstraints(withSettings({
-    selfHost: { mode: "off", adopted: [], acknowledgedDataResponsibility: false },
-  }));
-  assert.ok(lockPaths(locks).includes("selfHost.mode"));
-});
+// (The loggingSync + selfHost enable-locks left settings-constraints with their `logging-sync` / `self-host`
+//  config defs — Phase C; each ack/warranty gate is now enforced by its route validator + the panel's local
+//  guard, so there's no settings-constraints lock left to assert here.)
 
 test("updateSettings REJECTS an enabled∩disabled feature combination (server enforcement)", () => {
   assert.throws(

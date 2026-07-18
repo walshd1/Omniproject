@@ -46,7 +46,7 @@ test("drift guard: the backup captures EVERY settings key except the secret-bear
   for (const k of EXCLUDED_KEYS) assert.equal(captured.has(k), false, `secret-bearing "${k}" must not be captured`);
   // The deny-list is exactly the secret/credential/signed-grant keys (guards against an accidental widening).
   assert.deepEqual([...EXCLUDED_KEYS].sort(),
-    ["capabilityStates", "federatedPeers", "selfHost", "webhooks", "workflowAcceptances"]);
+    ["capabilityStates", "federatedPeers", "webhooks", "workflowAcceptances"]);
 });
 
 test("restore never writes back a secret-bearing key, even if an old snapshot carries one", () => {

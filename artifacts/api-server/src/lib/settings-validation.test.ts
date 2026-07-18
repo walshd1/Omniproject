@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { updateSettings, getSettings, redactSettingsForRead, SettingsValidationError, validateSavedViews } from "./settings";
 import { sanitizeLoggingSync } from "./logging-sync";
 import { sanitizeHistoryRetention } from "./history-retention";
+import { sanitizeSelfHost } from "./self-host-config";
 
 /**
  * Settings patch validation — updateSettings runs an untrusted patch through validatePatch,
@@ -161,15 +162,17 @@ test("loggingSync: sanitizeLoggingSync — safe url; enabling needs url + warran
   );
 });
 
-test("selfHost: valid mode + string[] adopted; a non-off mode needs the data-responsibility ack", () => {
-  throws({ selfHost: "nope" });
-  throws({ selfHost: { mode: "bogus", adopted: [], acknowledgedDataResponsibility: false } }); // bad mode
-  throws({ selfHost: { mode: "off", adopted: [1], acknowledgedDataResponsibility: false } }); // non-string id
-  throws({ selfHost: { mode: "off", adopted: [], acknowledgedDataResponsibility: "yes" } }); // non-boolean ack
-  throws({ selfHost: { mode: "system-of-record", adopted: ["financials"], acknowledgedDataResponsibility: false } }); // no ack
-  assert.doesNotThrow(() => updateSettings({ selfHost: { mode: "augmenting", adopted: ["quality"], acknowledgedDataResponsibility: true } }));
-  // Reset back off so it doesn't leak into other tests.
-  updateSettings({ selfHost: { mode: "off", adopted: [], acknowledgedDataResponsibility: false } });
+test("selfHost: sanitizeSelfHost — valid mode + string[] adopted; a non-off mode needs the ack (the `self-host` config def)", () => {
+  const bad = (v: unknown) => assert.throws(() => sanitizeSelfHost(v), SettingsValidationError);
+  bad("nope");
+  bad({ mode: "bogus", adopted: [], acknowledgedDataResponsibility: false }); // bad mode
+  bad({ mode: "off", adopted: [1], acknowledgedDataResponsibility: false }); // non-string id
+  bad({ mode: "off", adopted: [], acknowledgedDataResponsibility: "yes" }); // non-boolean ack
+  bad({ mode: "system-of-record", adopted: ["financials"], acknowledgedDataResponsibility: false }); // no ack
+  assert.deepEqual(
+    sanitizeSelfHost({ mode: "augmenting", adopted: ["quality"], acknowledgedDataResponsibility: true }),
+    { mode: "augmenting", adopted: ["quality"], acknowledgedDataResponsibility: true },
+  );
 });
 
 test("historyRetention: sanitizeHistoryRetention — valid org-default + scope cadence maps; bad cadences rejected (the `history-retention` config def)", () => {

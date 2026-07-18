@@ -2289,9 +2289,35 @@ settings key/classification) plus a store-enabled route test.
     `useGetSettings`/`useUpdateSettings`. New route test + the security/history/rbac integration tests repointed
     to `/api/logging-sync` + the sealed store. (Also fixed 3 SPA composition tests left seeding the pre-6c
     `["settings"]` key — now `["methodology-composition"]`.) Full suite green.
-  - **Remaining (NEXT).** `brokerUrl`/`backendSource`, AI provider/model allowlists, `historyRetention`, session
-    controls. Then the cross-scope FLOOR semantics — a lower scope may only TIGHTEN (a project restricts further,
-    never loosens the org egress allow-list) — folded into the scope resolver.
+  - **`historyRetention` ✅ (own module, floor gate; backend-only).** The snapshot cadence (org default + PMO
+    programme/project overrides) + the org-wide disposal window + legal holds left `SettingsState` for the
+    `history-retention` config def. New `lib/history-retention` (type + default + `sanitizeHistoryRetention` +
+    `resolveHistoryRetention` + `retentionDaysNow`/`legalHoldsNow`); `security-config` holds the
+    SHORTENING-is-a-relaxation predicate; `routes/history` keeps its admin/PMO authority checks and routes the PUT
+    through the floor gate (a shortening → 202 held, else applies). Repointed the audit-critical readers
+    (`audit-chain` evidence-log prune, `dsar` window, `history/lifecycle` disposal + legal holds). Removed from
+    settings + `SECURITY_SETTINGS` (the now-empty `HistoryConfig` sub-config dropped). No SPA surface; not a
+    contract field. New shorten→202 / lengthen→200 route coverage; unit tests repointed.
+  - **`selfHost` ✅ (own module, CHOICE config; backend-only).** The self-host DB adoption config left
+    `SettingsState` for the `self-host` config def. NB it migrated as a CHOICE, not floor-gated: its real gate is
+    the disclose-don't-insure ACKNOWLEDGEMENT (kept in `sanitizeSelfHost`), and it's authored through the admin
+    setup wizard (`POST /api/setup/self-host`), which has always applied immediately — never a sign-off. Its
+    former `SECURITY_SETTINGS` `changed` classification only guarded the bulk `PATCH /settings` backdoor, which
+    can no longer reach it once it leaves settings. New `lib/self-host-config` (type + default + sanitize +
+    `resolveSelfHost`); `routes/setup` GET/POST read the resolver + write via `writeOrgConfigCollection`;
+    `selfhost/runtime` + `timesheets/store` repointed. Removed from settings, `SECURITY_SETTINGS`, the
+    `settings-constraints` ack-lock, and `config-snapshot` `EXCLUDED_KEYS`. SPA already talked to the setup route
+    via hand-written hooks → zero SPA change. Not a contract field. Full suite green.
+  - **Not migrated (documented, deliberate).** `brokerUrl`/`backendSource`/`oidcIssuerUrl` are boot-time TRUST
+    ROOTS read across the broker seam before any org/scope context exists — deployment control-plane, not
+    scope-layered config; forcing them into config defs would be high-risk and semantically wrong. `webhooks`,
+    `federatedPeers`, `capabilityStates`, `workflowAcceptances`, `approvalChains`, `approvalBindings`,
+    `featureGovernance`, `governanceRules` are the security MACHINERY itself (dedicated passkey/step-up routes,
+    fail-closed governance controls) — not "choices with a floor". Roadmap "session controls" has no concrete
+    settings keys. These stay in `SettingsState`.
+  - **Cross-scope FLOOR semantics (NEXT).** A lower scope may only TIGHTEN (a project restricts further, never
+    loosens the org egress allow-list) — folded into the scope resolver, so a security config def's lower-scope
+    layer can only narrow the org's.
 
 ### Phase D — artifacts' template/schema layer (content stays sealed data, zero-at-rest)
 - **Slice 8 · schema families.** proof-annotation kinds, invoice-line schema, goal key-result kinds,
