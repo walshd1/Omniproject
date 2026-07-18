@@ -1,0 +1,14 @@
+{
+  "id": "epics",
+  "label": "Epic model",
+  "broker": "builtin",
+  "backend": "sidecar",
+  "joinField": "id",
+  "fields": {
+    "id": "id",
+    "name": "name",
+    "goal": "goal",
+    "state": "state",
+    "itemIds": "itemIds"
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "id": "dependencies",
+  "label": "Dependency graph",
+  "broker": "builtin",
+  "backend": "sidecar",
+  "joinField": "id",
+  "fields": {
+    "id": "id",
+    "fromId": "fromId",
+    "toId": "toId",
+    "kind": "kind",
+    "note": "note"
+  }
+}

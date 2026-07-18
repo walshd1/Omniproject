@@ -1,14 +1,15 @@
 import { getSettings } from "./settings";
 import { listDefs, listSystemDefs, type StoredDef } from "./def-import";
 import { sanitizeMapping, mergeMappings, mappingFromFieldRoutes, type Mapping } from "./mapping";
-import { BUILTIN_BROKER, SIDECAR_BACKEND } from "./field-target";
+import { getMappingDef } from "@workspace/backend-catalogue";
 
 /**
  * MAPPING RESOLUTION (roadmap §4.6) — the scope layering shared by EVERY mapped surface (WBS today; screens /
  * forms / reports "across the board"). A mapping slot resolves like screens/reports/def-bindings: the org's
  * legacy `fieldRouting` (subsumed) + the system-store mapping defs beneath, then org → programme → project →
- * user mapping defs, merged PER FIELD (nearest wins). Consumers add their own shipped CORE layer on top of the
- * base (e.g. WBS prepends `CORE_WBS_MAPPING`) and adapt the merged mapping to their view.
+ * user mapping defs, merged PER FIELD (nearest wins). The shipped CORE layer is sourced from the JSON mapping
+ * catalogue (assets/mappings/) — the same JSON the system store is seeded from, so there is one source of truth
+ * and no hand-written TS mapping constants. Consumers (e.g. WBS) adapt the merged mapping to their view.
  *
  * PURE over the def store + settings — no bespoke storage.
  */
@@ -26,24 +27,16 @@ function mappingDefsForSlot(rows: StoredDef[], slot: string): Mapping[] {
   return out;
 }
 
-/** Shipped CORE mapping defs, keyed by slot — the base layer for a slot that OmniProject ships a default for,
- *  so it resolves out of the box (org/programme/project/user layers still override per field). The dependency
- *  graph is a `dependencies` slot: `{fromId, toId, kind, note}` rows homed on the built-in broker's sidecar by
- *  default (an admin can remap any field to a backend's native link API). No engine entity — just a def. */
-const SIDECAR_HOME = { broker: BUILTIN_BROKER, backend: SIDECAR_BACKEND } as const;
-const CORE_MAPPINGS: Record<string, Mapping> = {
-  dependencies: {
-    id: "dependencies",
-    joinField: "id",
-    fields: {
-      id: { ...SIDECAR_HOME, field: "id" },
-      fromId: { ...SIDECAR_HOME, field: "fromId" },
-      toId: { ...SIDECAR_HOME, field: "toId" },
-      kind: { ...SIDECAR_HOME, field: "kind" },
-      note: { ...SIDECAR_HOME, field: "note" },
-    },
-  },
-};
+/** The shipped CORE mapping for a slot, sourced from the JSON catalogue (`@workspace/backend-catalogue`
+ *  assets/mappings/<slot>.json), sanitised into a `Mapping`. This is the store-off fallback + base layer for
+ *  every slot OmniProject ships a default for (`dependencies`, `wbs`, `sprints`, `epics`, …) — the SAME JSON the
+ *  system store is seeded from, so there is ONE source of truth and no hand-written TS mapping constants. Empty
+ *  when the slot has no shipped default. */
+function coreMappingLayers(slot: string): Mapping[] {
+  const def = getMappingDef(slot);
+  if (!def) return [];
+  try { return [sanitizeMapping(def)]; } catch { return []; }
+}
 
 /** The caller's resolution context — which programme/project/user layers to consult. */
 export interface MappingCtx { projectId?: string; programmeId?: string; sub?: string }
@@ -55,7 +48,7 @@ export interface MappingCtx { projectId?: string; programmeId?: string; sub?: st
  */
 export function storedMappingLayers(ctx: MappingCtx, slot: string): Mapping[] {
   const layers: Mapping[] = [];
-  if (CORE_MAPPINGS[slot]) layers.push(CORE_MAPPINGS[slot]);
+  layers.push(...coreMappingLayers(slot));
   layers.push(...mappingDefsForSlot(listSystemDefs(), slot));
   const routes = getSettings().fieldRouting;
   if (Array.isArray(routes) && routes.length) layers.push(mappingFromFieldRoutes(routes, slot));

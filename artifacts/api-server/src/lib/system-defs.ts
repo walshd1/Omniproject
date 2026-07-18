@@ -1,7 +1,6 @@
-import { reportCatalogue, formCatalogue, dashboardPresetCatalogue, referenceRulesetCatalogue, methodologyCatalogue, screenDefCatalogue, primitiveCatalogue, type DashboardPreset } from "@workspace/backend-catalogue";
+import { reportCatalogue, formCatalogue, dashboardPresetCatalogue, referenceRulesetCatalogue, methodologyCatalogue, screenDefCatalogue, primitiveCatalogue, mappingCatalogue, type DashboardPreset } from "@workspace/backend-catalogue";
 import { artifactStoreEnabled } from "./artifact-store";
 import { buildSystemDefRow, replaceSystemDefs, listSystemDefs, type StoredDef } from "./def-import";
-import { CORE_WBS_MAPPING } from "./wbs-mapping-resolve";
 
 /**
  * THE SHIPPED-DEFAULTS INSTALLER for the read-only system store (roadmap X.11). Our built-in defaults — reports,
@@ -40,9 +39,10 @@ export function buildSystemDefaultRows(): StoredDef[] {
   for (const p of dashboardPresetCatalogue()) rows.push(buildSystemDefRow("dashboard", p.name, presetToDashboardPayload(p), SEED_AT));
   for (const s of screenDefCatalogue()) rows.push(buildSystemDefRow("screen", String(s.label), s, SEED_AT));
   for (const p of primitiveCatalogue()) rows.push(buildSystemDefRow("primitive", p.label, p, SEED_AT));
-  // The shipped CORE field mappings (roadmap §4.6) — "core mappings in JSON in the system store", overridable
-  // by org/programme/project/user through the importer. Kept as the same constant the resolver falls back to.
-  rows.push(buildSystemDefRow("mapping", "WBS cost mapping", CORE_WBS_MAPPING, SEED_AT));
+  // The shipped CORE field mappings (roadmap §4.6) — authored as JSON under assets/mappings/, seeded into the
+  // system store, overridable by org/programme/project/user through the importer. The SAME catalogue the
+  // resolver uses as its store-off fallback layer (one JSON source of truth, no TS mapping constants).
+  for (const m of mappingCatalogue()) rows.push(buildSystemDefRow("mapping", m.label, m, SEED_AT));
   return rows;
 }
 

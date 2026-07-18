@@ -1,7 +1,8 @@
-import { mergeMappings, type Mapping } from "./mapping";
+import { mergeMappings, sanitizeMapping, type Mapping } from "./mapping";
 import { storedMappingLayers, type MappingCtx } from "./mapping-resolve";
 import { WbsMappingError, type WbsFieldMapping } from "./wbs-mapping";
-import { BUILTIN_BROKER, SIDECAR_BACKEND, type FieldRef } from "./field-target";
+import { type FieldRef } from "./field-target";
+import { getMappingDef } from "@workspace/backend-catalogue";
 
 /**
  * WBS mapping resolution (roadmap §4.6) — the WBS cost screen's view over the first-class {@link Mapping}
@@ -20,23 +21,18 @@ import { BUILTIN_BROKER, SIDECAR_BACKEND, type FieldRef } from "./field-target";
 export const DEFAULT_WBS_SLOT = "wbs";
 
 /**
- * The shipped CORE WBS mapping (the system layer) — a generic {@link Mapping} we bundle, overridable by every
- * scope above. With no home declared it resolves to the built-in broker + sidecar backend, so out of the box
- * the cost screen renders from our all-in-one store with no configuration; a customer on SAP/OpenProject/Jira
- * overrides the fields (and their broker/backend) at whatever scope they choose.
+ * The shipped CORE WBS mapping (the system layer), sourced from the JSON catalogue
+ * (`@workspace/backend-catalogue` assets/mappings/wbs.json) — DATA, not a hand-written TS constant. With the
+ * all-in-one home declared it resolves to the built-in broker + sidecar backend, so out of the box the cost
+ * screen renders from our store with no configuration; a customer on SAP/OpenProject/Jira overrides the fields
+ * (and their broker/backend) at whatever scope they choose. Falls back to a bare id/name mapping only if the
+ * asset is somehow absent (keeps the resolver total).
  */
-export const CORE_WBS_MAPPING: Mapping = {
-  id: DEFAULT_WBS_SLOT,
-  // The all-in-one home, DECLARED (not silently assumed): out of the box the WBS lives in our built-in broker +
-  // sidecar. An admin overrides the home (or individual fields) to point at SAP/OpenProject/… at any scope.
-  broker: BUILTIN_BROKER, backend: SIDECAR_BACKEND,
-  fields: {
-    id: "id", name: "name", parentId: "parentId", status: "status", responsible: "responsible",
-    budget: "budget", actual: "actual", commitment: "commitment", wip: "wip", planned: "planned",
-    currency: "currency",
-  },
-  defaults: { currency: "GBP" },
-};
+export function coreWbsMapping(): Mapping {
+  const def = getMappingDef(DEFAULT_WBS_SLOT);
+  if (def) { try { return sanitizeMapping(def); } catch { /* fall through */ } }
+  return { id: DEFAULT_WBS_SLOT, fields: { id: "id", name: "name" } };
+}
 
 /** Extract the native field NAME from a ref for a home-only structure field (broker/backend ignored — structure
  *  always reads from the home). */
@@ -83,7 +79,7 @@ export type WbsMappingCtx = MappingCtx;
  */
 export function resolveWbsMapping(ctx: WbsMappingCtx, slot: string = DEFAULT_WBS_SLOT): WbsFieldMapping {
   const layers: Mapping[] = [];
-  if (slot === DEFAULT_WBS_SLOT) layers.push(CORE_WBS_MAPPING);
+  if (slot === DEFAULT_WBS_SLOT) layers.push(coreWbsMapping());
   layers.push(...storedMappingLayers(ctx, slot));
   return mappingToWbs(mergeMappings(layers));
 }

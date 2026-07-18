@@ -27,6 +27,7 @@ export * from "./persona-catalogue";
 export * from "./methodology-rulesets";
 export * from "./drill-to";
 export * from "./report-catalogue";
+export * from "./mapping-catalogue";
 export * from "./form-catalogue";
 export * from "./automation-catalogue";
 export * from "./template-catalogue";
