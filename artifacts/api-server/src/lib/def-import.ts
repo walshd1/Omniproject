@@ -13,12 +13,12 @@
  * the sealed write via `artifact-store`.
  */
 import type { ActorContext } from "../broker/types";
-import { listArtifacts, getArtifact, putArtifact, deleteArtifact, replaceArtifacts, SYSTEM_SCOPE, type ArtifactScope } from "./artifact-store";
+import { listArtifacts, getArtifact, putArtifact, deleteArtifact, replaceArtifacts, listAllArtifactCollections, SYSTEM_SCOPE, type ArtifactScope } from "./artifact-store";
 import { validateScreenDefs } from "./screen-def";
 import { validateForms } from "./form-def";
 import { sanitizeMapping } from "./mapping";
 import { validateCustomFieldDef } from "./custom-fields";
-import { validatePrimitiveDef, shippedDefRefs, extendsLineage } from "@workspace/backend-catalogue";
+import { validatePrimitiveDef, shippedDefRefs, shippedDefs, extendsLineage, composeExtends } from "@workspace/backend-catalogue";
 
 /** A user-definable JSON kind the importer accepts. */
 export type DefKind = "primitive" | "screen" | "form" | "report" | "dashboard" | "businessRule" | "methodology" | "mapping" | "customField" | "theme" | "font" | "jsonDef";
@@ -265,6 +265,134 @@ export function checkImportAncestry(kind: DefKind, payload: unknown, scopes: Anc
   byId.set(selfId, { id: selfId, extends: ext });          // the def being imported (may override a lower scope)
   try { extendsLineage(selfId, (k) => byId.get(k)); return null; }
   catch (e) { return e instanceof Error ? e.message : "broken extends ancestry"; }
+}
+
+// ── BIDIRECTIONAL COMPOSITION integrity (the cascade check) ────────────────────────────────────────────────
+// `checkImportAncestry` above proves the edited def's OWN `extends` chain resolves (upward). But a def built by
+// COPYING + ALTERING a core def sits in a web of dependants: a change to a ROOT can cascade FAILURE down the
+// chain. So on every write we also (down) compose the edited def over its ancestors and validate the flattened
+// WHOLE — it must hold against WHAT THE ANCESTOR PROVIDES — and (cascade) re-compose + re-validate every
+// DESCENDANT, rejecting a change that would break one that was previously fine. A delete is guarded the same
+// way: removing a def that others are built on is blocked. Fail-closed, regression-based (never punishes
+// pre-existing breakage), keyed on LOGICAL ids exactly like the ancestry graph.
+
+/** The scope-chain precedence of a stored collection (base → nearest): shipped defaults sit beneath, then the
+ *  customer's own defs override by id up the chain. Deployment-scoped defs (org / programme / project / user)
+ *  are all just BRANCHES off the shipped core — a copied ancestor whose chain continues at that scope — so the
+ *  integrity graph must include EVERY one of them, not only the scopes named in the request. */
+const SCOPE_RANK: Record<string, number> = { system: 0, org: 1, programme: 2, project: 3, user: 4 };
+const scopeRank = (s: ArtifactScope): number => SCOPE_RANK[s.kind] ?? 5;
+
+/** The composition graph for a kind — logical id → the payload that supplies it — with the shipped catalogue
+ *  beneath EVERY deployment scope (org / programme / project / user), read across the whole store and folded by
+ *  override precedence (nearest scope wins on an id clash). `extends` edges are kept intact (a shipped child
+ *  extends a shipped root, both present), so the graph reflects the real ancestry across the deployment. An
+ *  `overlay` replaces one id with an in-flight edit; an `excludeStorageId` simulates a delete (that stored row is
+ *  skipped, so the id falls back to any lower scope that still provides it). */
+function defGraph(kind: DefKind, opts: { overlay?: Record<string, unknown>; excludeStorageId?: string } = {}): Map<string, Record<string, unknown>> {
+  const byId = new Map<string, Record<string, unknown>>();
+  for (const d of shippedDefs(kind)) {
+    const id = typeof d["id"] === "string" ? d["id"] : "";
+    if (id) byId.set(id, d);
+  }
+  // Every stored def collection across the deployment, base → nearest, so a branch at ANY scope is in the graph.
+  const collections = listAllArtifactCollections<StoredDef>(DEF_ARTIFACT)
+    .sort((a, b) => scopeRank(a.scope) - scopeRank(b.scope));
+  for (const { items } of collections) {
+    for (const d of items) {
+      if (d.kind !== kind) continue;
+      if (opts.excludeStorageId && d.id === opts.excludeStorageId) continue;
+      const p = (d.payload ?? {}) as Record<string, unknown>;
+      const id = typeof p["id"] === "string" ? p["id"] : "";
+      if (id) byId.set(id, p);
+    }
+  }
+  if (opts.overlay) { const id = typeof opts.overlay["id"] === "string" ? opts.overlay["id"] : ""; if (id) byId.set(id, opts.overlay); }
+  return byId;
+}
+
+/** Every id whose `extends` chain passes THROUGH `rootId` (its transitive dependants), by walking child edges.
+ *  Excludes `rootId` itself. */
+function descendantsOf(rootId: string, byId: Map<string, Record<string, unknown>>): string[] {
+  const children = new Map<string, string[]>();
+  for (const [id, p] of byId) {
+    const ext = typeof p["extends"] === "string" ? p["extends"] : "";
+    if (ext) { const arr = children.get(ext) ?? []; arr.push(id); children.set(ext, arr); }
+  }
+  const out: string[] = [];
+  const seen = new Set<string>([rootId]);
+  const queue = [...(children.get(rootId) ?? [])];
+  while (queue.length) {
+    const cur = queue.shift()!;
+    if (seen.has(cur)) continue;
+    seen.add(cur); out.push(cur);
+    for (const c of children.get(cur) ?? []) if (!seen.has(c)) queue.push(c);
+  }
+  return out;
+}
+
+/** Compose `id` over its ancestors in `byId` and validate the flattened WHOLE against its kind. Returns an error
+ *  message, or null when it composes AND validates. A broken chain (missing parent / cycle) is an error. */
+function composedValidity(kind: DefKind, id: string, byId: Map<string, Record<string, unknown>>): string | null {
+  let composed: (Record<string, unknown> & { lineage: string[] }) | undefined;
+  try { composed = composeExtends(id, (k) => byId.get(k) as (Record<string, unknown> & { id: string; extends?: string }) | undefined); }
+  catch (e) { return e instanceof Error ? e.message : `def "${id}": broken extends chain`; }
+  if (!composed) return `def "${id}" not found`;
+  const { lineage: _l, ...flat } = composed;
+  const check = validateDef(kind, flat);
+  return check.ok ? null : check.errors.join("; ");
+}
+
+/** On EDIT, the identity of the row being rewritten: its storage id (so the STALE stored payload is excluded
+ *  from the simulated after-world) and its prior LOGICAL id (so a RENAME — which orphans everything built on the
+ *  old id — is caught). Omitted for a fresh import. */
+export interface EditContext { storageId: string; priorId: string }
+
+/**
+ * BIDIRECTIONAL integrity for an import/edit. Returns an error MESSAGE (→ 400) or null. Two directions:
+ *  - DOWN: the edited def, composed over its ancestors, must validate as a WHOLE — a child extending a parent
+ *    has to hold against what the ancestor provides (not just be a well-formed fragment).
+ *  - CASCADE: every DESCENDANT that was valid before this change must STILL be valid after it — so an edit to a
+ *    root (its content, or a RENAME of its id) that would break a def downstream is rejected here, before it is
+ *    stored. Regression-based: a descendant already broken (for its own reasons) is not blamed on this change.
+ */
+export function checkImportIntegrity(kind: DefKind, payload: unknown, edit?: EditContext): string | null {
+  const p = (payload ?? {}) as Record<string, unknown>;
+  const selfId = typeof p["id"] === "string" ? p["id"] : "";
+  if (!selfId) return null;                                 // no logical id → per-kind validator already ran
+  const before = defGraph(kind);                            // the world as it is (deployment-wide)
+  // The world with this change applied: overlay the new payload and, on edit, drop the row's stale stored copy
+  // so a rename doesn't leave the old logical id behind.
+  const after = defGraph(kind, { overlay: p, ...(edit ? { excludeStorageId: edit.storageId } : {}) });
+  const own = composedValidity(kind, selfId, after);
+  if (own) return `this definition does not hold against its ancestors: ${own}`;
+  // Descendants of the def under its NEW id, plus — on a rename — those still built on its OLD id (now orphaned).
+  const targets = new Set<string>(descendantsOf(selfId, after));
+  if (edit && edit.priorId && edit.priorId !== selfId) for (const d of descendantsOf(edit.priorId, before)) targets.add(d);
+  for (const child of targets) {
+    if (child === selfId) continue;
+    const wasOk = composedValidity(kind, child, before) === null;
+    const nowErr = composedValidity(kind, child, after);
+    if (wasOk && nowErr) return `this change would break downstream definition "${child}": ${nowErr}`;
+  }
+  return null;
+}
+
+/**
+ * Guard a DELETE: removing a def that others are BUILT ON orphans them. Returns an error MESSAGE (→ 409) or null.
+ * Regression-based — a descendant that was valid only because this def existed, and breaks once it is gone, blocks
+ * the delete; one that still resolves from a lower scope (or was already broken) does not.
+ */
+export function checkDeleteIntegrity(kind: DefKind, storageId: string, logicalId: string): string | null {
+  if (!logicalId) return null;
+  const before = defGraph(kind);
+  const after = defGraph(kind, { excludeStorageId: storageId });
+  for (const child of descendantsOf(logicalId, before)) {
+    const wasOk = composedValidity(kind, child, before) === null;
+    const nowErr = composedValidity(kind, child, after);
+    if (wasOk && nowErr) return `cannot delete "${logicalId}": downstream definition "${child}" is built on it (${nowErr})`;
+  }
+  return null;
 }
 export const putDef = (scope: ArtifactScope, a: StoredDef): void => putArtifact(DEF_ARTIFACT, scope, a);
 export const deleteDef = (scope: ArtifactScope, id: string): boolean => deleteArtifact(DEF_ARTIFACT, scope, id);

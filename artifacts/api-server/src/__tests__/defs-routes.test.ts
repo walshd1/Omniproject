@@ -191,3 +191,34 @@ test("importer REJECTS an edit that would CYCLE the extends chain", async () => 
   assert.equal(put.status, 400);
   assert.match(((await put.json()) as { error: string }).error, /cycle/);
 });
+
+test("CASCADE: RENAMING an ancestor's id, which orphans a def built on it, is rejected", async () => {
+  // A root primitive; a thin child extends it by id and is valid.
+  const root = { id: "casc-root", label: "Root", category: "chart", chartType: "bar", description: "d", params: [{ key: "data", label: "Rows", type: "rows", required: true, description: "d" }] };
+  const rootRow = (await (await req("/defs", { method: "POST", body: { kind: "primitive", storage: "user", name: "Root", payload: root } })).json()) as { id: string };
+  const child = { id: "casc-child", label: "Child", category: "chart", chartType: "bar", description: "d", extends: "casc-root", params: [] };
+  assert.equal((await req("/defs", { method: "POST", body: { kind: "primitive", storage: "user", name: "Child", payload: child } })).status, 201);
+  // Renaming the root's logical id (valid on its own) would leave the child extending a now-missing parent — a
+  // cascade failure down the chain — so the edit is rejected before it can be stored.
+  const renamed = { ...root, id: "casc-root-renamed" };
+  const put = await req(`/defs/${encodeURIComponent(rootRow.id)}`, { method: "PUT", body: { name: "Root", payload: renamed } });
+  assert.equal(put.status, 400);
+  assert.match(((await put.json()) as { error: string }).error, /downstream/);
+  // A benign edit to the root (rename its param label, id unchanged) keeps the composed child valid → succeeds.
+  const okRoot = { ...root, params: [{ key: "data", label: "Renamed rows", type: "rows", required: true, description: "d" }] };
+  assert.equal((await req(`/defs/${encodeURIComponent(rootRow.id)}`, { method: "PUT", body: { name: "Root", payload: okRoot } })).status, 200);
+});
+
+test("DELETE is BLOCKED (409) when another def is built on the target, then succeeds once the dependant is gone", async () => {
+  const root = { id: "del-root", label: "DelRoot", category: "chart", chartType: "bar", description: "d", params: [{ key: "data", label: "Rows", type: "rows", required: true, description: "d" }] };
+  const rootRow = (await (await req("/defs", { method: "POST", body: { kind: "primitive", storage: "user", name: "DelRoot", payload: root } })).json()) as { id: string };
+  const child = { id: "del-child", label: "DelChild", category: "chart", chartType: "bar", description: "d", extends: "del-root", params: [] };
+  const childRow = (await (await req("/defs", { method: "POST", body: { kind: "primitive", storage: "user", name: "DelChild", payload: child } })).json()) as { id: string };
+  // Deleting the root while the child still extends it orphans the child → 409.
+  const blocked = await req(`/defs/${encodeURIComponent(rootRow.id)}`, { method: "DELETE" });
+  assert.equal(blocked.status, 409);
+  assert.match(((await blocked.json()) as { error: string }).error, /built on it/);
+  // Remove the dependant first, then the root deletes cleanly.
+  assert.equal((await req(`/defs/${encodeURIComponent(childRow.id)}`, { method: "DELETE" })).status, 204);
+  assert.equal((await req(`/defs/${encodeURIComponent(rootRow.id)}`, { method: "DELETE" })).status, 204);
+});

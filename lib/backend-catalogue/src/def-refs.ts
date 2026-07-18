@@ -22,3 +22,19 @@ export function shippedDefRefs(kind: string): DefRef[] {
     default: return [];
   }
 }
+
+/**
+ * The full shipped def PAYLOADS of a kind. The importer's integrity check composes a user def over these to
+ * validate the WHOLE, so it needs the fields, not just the ids. `extends` edges are kept intact — a shipped
+ * child (e.g. the `register` primitive) and its shipped parent (`table`) are BOTH returned, so the importer's
+ * graph reflects the real ancestry rather than treating children as pre-flattened roots.
+ */
+export function shippedDefs(kind: string): Record<string, unknown>[] {
+  switch (kind) {
+    case "primitive": return primitiveCatalogue() as unknown as Record<string, unknown>[];
+    case "report": return reportCatalogue() as unknown as Record<string, unknown>[];
+    case "screen": return screenDefCatalogue() as unknown as Record<string, unknown>[];
+    case "mapping": return mappingCatalogue() as unknown as Record<string, unknown>[];
+    default: return [];
+  }
+}
