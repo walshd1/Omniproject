@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { requireRole } from "../lib/rbac";
-import { artifactStoreEnabled } from "../lib/artifact-store";
+import { requireArtifactStore } from "../lib/artifact-store";
 import { SettingsValidationError } from "../lib/settings";
 import { resolveLoggingSync, sanitizeLoggingSync, LOGGING_SYNC_CONFIG_ID } from "../lib/logging-sync";
 import { applyConfigCollectionGuarded } from "../lib/config-guard";
@@ -25,7 +25,7 @@ router.get("/logging-sync", (_req, res) => {
 });
 
 router.put("/logging-sync", requireRole("admin"), async (req, res) => {
-  if (!artifactStoreEnabled()) { res.status(501).json({ error: "no encrypted-JSON store is configured on this deployment" }); return; }
+  if (!requireArtifactStore(res)) return;
   let value;
   try {
     value = sanitizeLoggingSync((req.body as { loggingSync?: unknown } | undefined)?.loggingSync);

@@ -6,9 +6,7 @@ import { requireRole } from "../lib/rbac";
 import { assertProjectScope } from "../lib/project-scope";
 import { authorizeStorageTarget } from "../lib/storage-target-authz";
 import { proposeIfBound } from "../lib/approval-gate";
-import {
-  artifactStoreEnabled, listArtifacts, getArtifact, putArtifact, deleteArtifact,
-} from "../lib/artifact-store";
+import { artifactStoreEnabled, listArtifacts, getArtifact, putArtifact, deleteArtifact, requireArtifactStore } from "../lib/artifact-store";
 import {
   PROOF_ARTIFACT, sanitizeProofWrite, makeProofId, parseProofId, proofScope,
   newJsonProofRow, mergeJsonProofRow, applyDecision, actorLabel, isReviewDecision, proofMeta, ProofError,
@@ -72,7 +70,7 @@ router.post("/proofs", requireRole("contributor"), (req, res) => {
   catch (e) { if (e instanceof ProofError) { res.status(400).json({ error: e.message }); return; } throw e; }
   return withBrokerErrors(req, res, "create_proof failed", async () => {
     if (!(await authorizeTarget(req, res, input.storage, input.projectId, "write"))) return;
-    if (!artifactStoreEnabled()) { res.status(501).json({ error: "no encrypted-JSON store is configured on this deployment" }); return; }
+    if (!requireArtifactStore(res)) return;
     const ctx = contextFromReq(req);
     const scope = proofScope(input, ctx.sub);
     if (!scope) { res.status(400).json({ error: "invalid storage target" }); return; }

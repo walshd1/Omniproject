@@ -1,6 +1,6 @@
 import { Router, type RequestHandler } from "express";
 import { requireRole } from "../lib/rbac";
-import { artifactStoreEnabled } from "../lib/artifact-store";
+import { requireArtifactStore } from "../lib/artifact-store";
 import { SettingsValidationError } from "../lib/settings";
 import {
   resolveAiProviderAllowlist, sanitizeAiProviderAllowlist, writeOrgAiProviderAllowlist,
@@ -26,7 +26,7 @@ function allowlistRoutes(
 ): void {
   router.get(path, (_req, res) => { res.json({ [key]: resolve() }); });
   const put: RequestHandler = (req, res) => {
-    if (!artifactStoreEnabled()) { res.status(501).json({ error: "no encrypted-JSON store is configured on this deployment" }); return; }
+    if (!requireArtifactStore(res)) return;
     let value: string[] | null;
     try { value = sanitize((req.body as Record<string, unknown> | undefined)?.[key]); }
     catch (err) { res.status(400).json({ error: err instanceof SettingsValidationError ? err.message : "invalid allowlist" }); return; }

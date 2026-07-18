@@ -16,7 +16,7 @@ import { Router } from "express";
 import { updateSettings } from "../lib/settings";
 import { resolveSelfHost, sanitizeSelfHost, SELF_HOST_CONFIG_ID } from "../lib/self-host-config";
 import { writeOrgConfigCollection } from "../lib/scoped-config";
-import { artifactStoreEnabled } from "../lib/artifact-store";
+import { requireArtifactStore } from "../lib/artifact-store";
 import { requireRole, requireAnyRole, getRoleMap } from "../lib/rbac";
 import { isTruthy } from "../lib/env-config";
 import { selfHostGatingForScope } from "../selfhost";
@@ -154,7 +154,7 @@ router.get("/setup/self-host", requireAnyRole("admin", "pmo"), (req, res) => {
 // acknowledgement is rejected (400), so this can never persist an un-acknowledged adoption. It's a CHOICE config
 // def (`self-host`) — the ack is the gate, so this applies immediately (never a sign-off), unchanged from before.
 router.post("/setup/self-host", requireRole("admin"), (req, res) => {
-  if (!artifactStoreEnabled()) { res.status(501).json({ error: "no encrypted-JSON store is configured on this deployment" }); return; }
+  if (!requireArtifactStore(res)) return;
   const body = (req.body ?? {}) as Record<string, unknown>;
   const mode = typeof body["mode"] === "string" ? body["mode"] : "off";
   const adopted = Array.isArray(body["adopted"]) ? body["adopted"].filter((x): x is string => typeof x === "string") : [];

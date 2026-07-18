@@ -2,7 +2,7 @@ import { Router } from "express";
 import { requireRole } from "../lib/rbac";
 import { requireStepUp } from "../lib/step-up";
 import { recordRequestAudit } from "../lib/audit";
-import { artifactStoreEnabled } from "../lib/artifact-store";
+import { requireArtifactStore } from "../lib/artifact-store";
 import { listSystemDefs } from "../lib/def-import";
 import { applySystemDefaults } from "../lib/system-defs";
 
@@ -27,7 +27,7 @@ router.get("/admin/system-defs", requireRole("admin"), (_req, res) => {
 // POST /api/admin/system-defs/apply — (re)apply OUR bundled defaults in one shot. Admin + step-up. No body:
 // the content is always the approved-from-us catalogue, so this can't be used to inject custom system defs.
 router.post("/admin/system-defs/apply", requireRole("admin"), requireStepUp, (req, res) => {
-  if (!artifactStoreEnabled()) { res.status(501).json({ error: "no encrypted-JSON store is configured on this deployment" }); return; }
+  if (!requireArtifactStore(res)) return;
   const { count } = applySystemDefaults();
   recordRequestAudit(req, { category: "admin", action: "system_defs_apply", write: true, meta: { count } });
   res.json({ applied: true, count });

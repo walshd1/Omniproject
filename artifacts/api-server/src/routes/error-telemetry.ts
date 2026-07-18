@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { requireRole } from "../lib/rbac";
-import { artifactStoreEnabled } from "../lib/artifact-store";
+import { requireArtifactStore } from "../lib/artifact-store";
 import { resolveErrorTelemetry, ERROR_TELEMETRY_CONFIG_ID } from "../lib/scoped-config";
 import { applyConfigCollectionGuarded } from "../lib/config-guard";
 import { captureVersion } from "../lib/config-store";
@@ -23,7 +23,7 @@ router.get("/error-telemetry", (_req, res) => {
 });
 
 router.put("/error-telemetry", requireRole("admin"), async (req, res) => {
-  if (!artifactStoreEnabled()) { res.status(501).json({ error: "no encrypted-JSON store is configured on this deployment" }); return; }
+  if (!requireArtifactStore(res)) return;
   const value = (req.body as { errorTelemetry?: unknown } | undefined)?.errorTelemetry;
   if (typeof value !== "boolean") { res.status(400).json({ error: "errorTelemetry must be a boolean" }); return; }
   const guarded = await applyConfigCollectionGuarded(ERROR_TELEMETRY_CONFIG_ID, "Error telemetry", value, getSession(req)?.sub ?? "admin");

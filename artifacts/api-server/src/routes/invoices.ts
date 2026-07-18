@@ -4,9 +4,7 @@ import { contextFromReq, withBrokerErrors } from "../broker";
 import { requireRole } from "../lib/rbac";
 import { assertProjectScope } from "../lib/project-scope";
 import { authorizeStorageTarget } from "../lib/storage-target-authz";
-import {
-  artifactStoreEnabled, listArtifacts, getArtifact, putArtifact, deleteArtifact,
-} from "../lib/artifact-store";
+import { artifactStoreEnabled, listArtifacts, getArtifact, putArtifact, deleteArtifact, requireArtifactStore } from "../lib/artifact-store";
 import {
   INVOICE_ARTIFACT, sanitizeInvoiceWrite, makeInvoiceId, parseInvoiceId, invoiceScope,
   newInvoiceRow, mergeInvoiceRow, invoiceMeta, isInvoiceStatus, canTransitionInvoice, applyInvoiceStatus, InvoiceError,
@@ -64,7 +62,7 @@ router.post("/invoices", requireRole("manager"), (req, res) => {
   catch (e) { if (e instanceof InvoiceError) { res.status(400).json({ error: e.message }); return; } throw e; }
   return withBrokerErrors(req, res, "create_invoice failed", async () => {
     if (!(await authorizeTarget(req, res, input.storage, input.projectId, "write"))) return;
-    if (!artifactStoreEnabled()) { res.status(501).json({ error: "no encrypted-JSON store is configured on this deployment" }); return; }
+    if (!requireArtifactStore(res)) return;
     const ctx = contextFromReq(req);
     const scope = invoiceScope(input, ctx.sub);
     if (!scope) { res.status(400).json({ error: "invalid storage target" }); return; }

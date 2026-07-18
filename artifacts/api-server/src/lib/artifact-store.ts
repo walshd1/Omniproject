@@ -128,6 +128,19 @@ export function artifactStoreEnabled(): boolean {
   return !!process.env["OMNI_CONFIG_DIR"]?.trim();
 }
 
+/**
+ * Route guard for endpoints that need the encrypted-JSON store: when it isn't configured on this
+ * deployment, write the standard `501` and return false; otherwise return true. Collapses the
+ * `if (!artifactStoreEnabled()) { res.status(501)… ; return; }` block copy-pasted across ~24 routes into
+ * `if (!requireArtifactStore(res)) return;`. Typed structurally so this storage module stays free of an
+ * express dependency.
+ */
+export function requireArtifactStore(res: { status(code: number): { json(body: unknown): unknown } }): boolean {
+  if (artifactStoreEnabled()) return true;
+  res.status(501).json({ error: "no encrypted-JSON store is configured on this deployment" });
+  return false;
+}
+
 function readCollection<T>(type: string, scope: ArtifactScope): T[] {
   const f = fileFor(type, scope);
   if (!f) return [];

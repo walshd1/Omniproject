@@ -4,7 +4,7 @@ import { getSettings, SettingsValidationError } from "../lib/settings";
 import { isTimeTravelEnabled } from "../lib/logging-sync";
 import { resolveHistoryRetention, sanitizeHistoryRetention, HISTORY_RETENTION_CONFIG_ID } from "../lib/history-retention";
 import { applyConfigCollectionGuarded } from "../lib/config-guard";
-import { artifactStoreEnabled } from "../lib/artifact-store";
+import { requireArtifactStore } from "../lib/artifact-store";
 import { captureVersion } from "../lib/config-store";
 import { getSession } from "./auth";
 import { requireRole, requireAnyRole, hasRole, scopeForReq } from "../lib/rbac";
@@ -194,7 +194,7 @@ router.get("/history/retention", requireAnyRole("admin", "pmo"), (req, res) => {
  * cadences) happens in updateSettings; the org-default authority check is here.
  */
 router.put("/history/retention", requireAnyRole("admin", "pmo"), async (req, res) => {
-  if (!artifactStoreEnabled()) { res.status(501).json({ error: "no encrypted-JSON store is configured on this deployment" }); return; }
+  if (!requireArtifactStore(res)) return;
   const body = (req.body ?? {}) as Record<string, unknown>;
   const current = resolveHistoryRetention();
   const isAdmin = hasRole(req, "admin");

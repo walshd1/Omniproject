@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { getSession } from "./auth";
 import { requireAnyRole } from "../lib/rbac";
-import { artifactStoreEnabled, makeScopedId } from "../lib/artifact-store";
+import { artifactStoreEnabled, makeScopedId, requireArtifactStore } from "../lib/artifact-store";
 import { getDef, putDef, newStoredDef, validateDef, checkImportIntegrity, type StoredDef } from "../lib/def-import";
 import { contextFromReq } from "../broker";
 import {
@@ -50,7 +50,7 @@ router.get("/scheduling", requireAnyRole("pmo", "admin"), (_req, res) => {
 });
 
 router.put("/scheduling", requireAnyRole("pmo", "admin"), (req, res) => {
-  if (!artifactStoreEnabled()) { res.status(501).json({ error: "no encrypted-JSON store is configured on this deployment" }); return; }
+  if (!requireArtifactStore(res)) return;
   const body = (req.body ?? {}) as { scheduling?: unknown };
   const raw = body.scheduling ?? req.body;
   let values: Record<string, unknown>;

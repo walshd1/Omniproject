@@ -7,10 +7,7 @@ import { assertProjectScope, guardProgrammeScope } from "../lib/project-scope";
 import { authorizeStorageTarget } from "../lib/storage-target-authz";
 import { authorizeDefWrite, getDefScopePolicy, setDefScopePolicy, DEF_GATES } from "../lib/def-policy";
 import { runDefWriteHook } from "../lib/def-write-hooks";
-import {
-  artifactStoreEnabled, makeScopedId, parseScopedId, scopeFromParsed, isStorageTarget,
-  type ScopedTarget,
-} from "../lib/artifact-store";
+import { artifactStoreEnabled, makeScopedId, parseScopedId, scopeFromParsed, isStorageTarget, type ScopedTarget, requireArtifactStore } from "../lib/artifact-store";
 import {
   sanitizeDef, sanitizeDefUpdate, validateDef, newStoredDef, updateStoredDef, storedDefMeta,
   listDefs, listSystemDefs, getDef, putDef, deleteDef, DefError, DEF_KINDS, checkImportAncestry,
@@ -61,7 +58,7 @@ router.get("/defs/policy", requireRole("viewer"), (_req, res) => {
 
 // PUT /api/defs/policy — change who may write at each scope (admin only — altering the permission model).
 router.put("/defs/policy", requireRole("admin"), (req, res) => {
-  if (!artifactStoreEnabled()) { res.status(501).json({ error: "no encrypted-JSON store is configured on this deployment" }); return; }
+  if (!requireArtifactStore(res)) return;
   const body = (req.body ?? {}) as Record<string, unknown>;
   for (const scope of ["user", "project", "programme", "org"] as const) {
     if (body[scope] !== undefined && !(DEF_GATES as readonly string[]).includes(String(body[scope]))) {
@@ -160,7 +157,7 @@ router.post("/defs", requireRole("contributor"), (req, res) => {
   return withBrokerErrors(req, res, "def import failed", async () => {
     if (!(await authorizeDefWrite(req, res, storage, { projectId, programmeId }))) return;
     if (!(await runDefWriteHook(req, res, input.kind, input.payload))) return;
-    if (!artifactStoreEnabled()) { res.status(501).json({ error: "no encrypted-JSON store is configured on this deployment" }); return; }
+    if (!requireArtifactStore(res)) return;
     const ctx = contextFromReq(req);
     // COMPOSITION: reject a def whose `extends` ancestor is missing or cyclic (checked against the shipped
     // catalogue + every scope the author can see + this def), then the BIDIRECTIONAL integrity check — the def

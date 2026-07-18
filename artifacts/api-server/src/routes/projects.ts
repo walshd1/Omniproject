@@ -36,7 +36,7 @@ import { resolveWbsMapping } from "../lib/wbs-mapping-resolve";
 import { applyWbsMapping, WbsMappingError } from "../lib/wbs-mapping";
 import { getSidecarWbs, hasSidecarWbs, upsertSidecarWbsRow } from "../lib/wbs-sidecar";
 import { planWbsWrite } from "../lib/wbs-write";
-import { artifactStoreEnabled } from "../lib/artifact-store";
+import { requireArtifactStore } from "../lib/artifact-store";
 import { resolveMapping } from "../lib/mapping-resolve";
 import { projectMappingRows, planMappingWrite, resolveMappingTargets } from "../lib/mapping";
 import { getSidecarRows, upsertSidecarRow, removeSidecarRow } from "../lib/mapping-sidecar";
@@ -544,7 +544,7 @@ router.put("/projects/:projectId/wbs/:wbsId", requireRole("contributor"), async 
   await withBrokerErrors(req, res, "wbs_write failed", async () => {
     if (!(await guardProjectScope(req, res, projectId))) return;
     if (!wbsId) { res.status(400).json({ error: "a WBS id is required" }); return; }
-    if (!artifactStoreEnabled()) { res.status(501).json({ error: "no encrypted-JSON store is configured on this deployment" }); return; }
+    if (!requireArtifactStore(res)) return;
     const body = (req.body ?? {}) as { fields?: unknown };
     const values = body.fields && typeof body.fields === "object" && !Array.isArray(body.fields) ? (body.fields as Record<string, unknown>) : null;
     if (!values) { res.status(400).json({ error: "fields must be an object of semanticKey → value" }); return; }
@@ -630,7 +630,7 @@ router.put("/projects/:projectId/mapping/:slot/:rowId", requireRole("contributor
   await withBrokerErrors(req, res, "mapping_write failed", async () => {
     if (!(await guardProjectScope(req, res, projectId))) return;
     if (!rowId) { res.status(400).json({ error: "a row id is required" }); return; }
-    if (!artifactStoreEnabled()) { res.status(501).json({ error: "no encrypted-JSON store is configured on this deployment" }); return; }
+    if (!requireArtifactStore(res)) return;
     const body = (req.body ?? {}) as { fields?: unknown };
     const values = body.fields && typeof body.fields === "object" && !Array.isArray(body.fields) ? (body.fields as Record<string, unknown>) : null;
     if (!values) { res.status(400).json({ error: "fields must be an object of semanticKey → value" }); return; }
@@ -667,7 +667,7 @@ router.delete("/projects/:projectId/mapping/:slot/:rowId", requireRole("contribu
   await withBrokerErrors(req, res, "mapping_delete failed", async () => {
     if (!(await guardProjectScope(req, res, projectId))) return;
     if (!rowId) { res.status(400).json({ error: "a row id is required" }); return; }
-    if (!artifactStoreEnabled()) { res.status(501).json({ error: "no encrypted-JSON store is configured on this deployment" }); return; }
+    if (!requireArtifactStore(res)) return;
     const ctx = contextFromReq(req);
     const mapping = resolveMapping({ projectId, ...(ctx.sub ? { sub: ctx.sub } : {}) }, slot);
     if (!mapping) { res.status(404).json({ error: `no mapping for slot "${slot}"` }); return; }

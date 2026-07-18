@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { requireAnyRole } from "../lib/rbac";
-import { artifactStoreEnabled } from "../lib/artifact-store";
+import { requireArtifactStore } from "../lib/artifact-store";
 import { resolveMethodologyComposition, writeOrgConfigCollection, METHODOLOGY_COMPOSITION_ID } from "../lib/scoped-config";
 
 /**
@@ -28,7 +28,7 @@ router.get("/methodology-composition", (_req, res) => {
 });
 
 router.put("/methodology-composition", requireAnyRole("pmo", "admin"), (req, res) => {
-  if (!artifactStoreEnabled()) { res.status(501).json({ error: "no encrypted-JSON store is configured on this deployment" }); return; }
+  if (!requireArtifactStore(res)) return;
   let value: string[] | null;
   try { value = sanitize((req.body as { methodologyComposition?: unknown } | undefined)?.methodologyComposition); }
   catch (e) { res.status(400).json({ error: e instanceof Error ? e.message : "invalid methodology composition" }); return; }

@@ -2,7 +2,7 @@ import crypto from "node:crypto";
 import { Router } from "express";
 import { contextFromReq, withBrokerErrors } from "../broker";
 import { requireRole, hasRole } from "../lib/rbac";
-import { artifactStoreEnabled } from "../lib/artifact-store";
+import { artifactStoreEnabled, requireArtifactStore } from "../lib/artifact-store";
 import { getCommunityMarketplace } from "../lib/community-marketplace";
 import {
   sanitizeRegistrySubmit, newRegistryItem, reviewRegistryItem, releaseRegistryItem, retractRegistryItem,
@@ -70,7 +70,7 @@ router.post("/registry", requireRole("contributor"), (req, res) => {
   try { input = sanitizeRegistrySubmit(req.body); }
   catch (e) { if (e instanceof RegistryError) { res.status(400).json({ error: e.message }); return; } throw e; }
   return withBrokerErrors(req, res, "submit_registry failed", async () => {
-    if (!artifactStoreEnabled()) { res.status(501).json({ error: "no encrypted-JSON store is configured on this deployment" }); return; }
+    if (!requireArtifactStore(res)) return;
     const row = newRegistryItem(crypto.randomUUID(), input, contextFromReq(req), new Date().toISOString());
     putRegistryItem(row);
     res.status(201).json(row);

@@ -6,7 +6,7 @@ import { inScope } from "../lib/scope";
 import { stepUpFresh } from "../lib/step-up";
 import { getSession } from "./auth";
 import { recordRequestAudit } from "../lib/audit";
-import { artifactStoreEnabled } from "../lib/artifact-store";
+import { artifactStoreEnabled, requireArtifactStore } from "../lib/artifact-store";
 import { getScopeBindings, setScopeBinding, loadBindingConfig, canRebind, resolveDefBinding, type DefBinding, type DefBindingConfig, type ResolvedBinding } from "../lib/def-binding";
 
 /**
@@ -79,7 +79,7 @@ router.get("/defs/active", requireRole("viewer"), (req, res) =>
 //   body: { scope: "user"|"project"|"programme"|"org", slot, defId?|null, locked?, projectId?, programmeId? }
 router.put("/defs/bindings", requireRole("contributor"), (req, res) =>
   withBrokerErrors(req, res, "set_binding failed", async () => {
-    if (!artifactStoreEnabled()) { res.status(501).json({ error: "no encrypted-JSON store is configured on this deployment" }); return; }
+    if (!requireArtifactStore(res)) return;
     const body = (req.body ?? {}) as { scope?: unknown; slot?: unknown; defId?: unknown; locked?: unknown; projectId?: unknown; programmeId?: unknown };
     const scope = body.scope;
     const slot = typeof body.slot === "string" ? body.slot.trim() : "";
