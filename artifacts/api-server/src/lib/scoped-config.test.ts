@@ -9,9 +9,8 @@ process.env["SESSION_SECRET"] = "test-session-secret-do-not-use-in-prod";
 const CONFIG_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "scoped-config-"));
 process.env["OMNI_CONFIG_DIR"] = CONFIG_DIR;
 
-const { resolveScopedConfig, configDefLayers, resolveConfig, resolveScheduling } = await import("./scoped-config");
-const { putDef } = await import("./def-import");
-const { updateSettings, DEFAULT_SCHEDULING } = await import("./settings");
+const { resolveScopedConfig, configDefLayers, resolveConfig, resolveScheduling, sanitizeSchedulingValues, DEFAULT_SCHEDULING } = await import("./scoped-config");
+const { putDef, deleteDef } = await import("./def-import");
 
 const now = "2026-07-18T00:00:00.000Z";
 
@@ -51,10 +50,13 @@ test("configDefLayers gathers a logical id across scopes in precedence order (sy
   assert.deepEqual(resolveConfig("demo", { level: "code", shared: "code" }, { projectId: "P1", sub: "U1" }), { level: "user", shared: "org" });
 });
 
-test("resolveScheduling: org settings.scheduling is the compat layer beneath a project config def override", () => {
+test("resolveScheduling: code default beneath an org config def beneath a project override (no settings layer)", () => {
   try {
-    updateSettings({ scheduling: { hoursPerDay: 7, workingWeekdays: [1, 2, 3, 4, 5], holidays: ["2026-12-25"] } });
-    // No scopes → just the org compat layer over the code default.
+    // Nothing authored → the code default (no settings compat layer exists).
+    assert.deepEqual(resolveScheduling(), DEFAULT_SCHEDULING);
+
+    // The org's working-time policy lives as an org-scope `scheduling` config def.
+    putDef({ kind: "org" }, configRow("org~config-scheduling", "scheduling", { hoursPerDay: 7, holidays: ["2026-12-25"] }));
     assert.deepEqual(resolveScheduling(), { hoursPerDay: 7, workingWeekdays: [1, 2, 3, 4, 5], holidays: ["2026-12-25"] });
 
     // A project-scoped scheduling config def overrides the org calendar for that project only.
@@ -62,11 +64,23 @@ test("resolveScheduling: org settings.scheduling is the compat layer beneath a p
     const eff = resolveScheduling({ projectId: "PX" });
     assert.equal(eff.hoursPerDay, 6);                      // from the project config def
     assert.deepEqual(eff.workingWeekdays, [1, 2, 3, 4]);   // from the project config def
-    assert.deepEqual(eff.holidays, ["2026-12-25"]);        // untouched → inherited from the org compat layer
+    assert.deepEqual(eff.holidays, ["2026-12-25"]);        // untouched → inherited from the org config def
 
     // A different project sees only the org calendar (no config def of its own).
     assert.equal(resolveScheduling({ projectId: "PY" }).hoursPerDay, 7);
   } finally {
-    updateSettings({ scheduling: { ...DEFAULT_SCHEDULING } });
+    deleteDef({ kind: "org" }, "org~config-scheduling");
+    deleteDef({ kind: "project", projectId: "PX" }, "project~PX~sched");
   }
+});
+
+test("sanitizeSchedulingValues validates + normalises (partial, sorted, de-duped)", () => {
+  assert.deepEqual(sanitizeSchedulingValues({ hoursPerDay: 7 }), { hoursPerDay: 7 });
+  assert.deepEqual(sanitizeSchedulingValues({ workingWeekdays: [5, 1, 1, 3] }).workingWeekdays, [1, 3, 5]);
+  assert.deepEqual(sanitizeSchedulingValues({ holidays: ["2026-12-25", "2026-01-01", "2026-01-01"] }).holidays, ["2026-01-01", "2026-12-25"]);
+  assert.throws(() => sanitizeSchedulingValues({ hoursPerDay: 0 }), /hoursPerDay/);
+  assert.throws(() => sanitizeSchedulingValues({ hoursPerDay: 25 }), /hoursPerDay/);
+  assert.throws(() => sanitizeSchedulingValues({ workingWeekdays: [] }), /workingWeekdays/);
+  assert.throws(() => sanitizeSchedulingValues({ workingWeekdays: [7] }), /workingWeekdays/);
+  assert.throws(() => sanitizeSchedulingValues({ holidays: ["25/12/2026"] }), /holidays/);
 });

@@ -65,10 +65,42 @@ function fromThrowing(run: () => unknown): DefValidation {
 }
 
 /**
+ * An OPTIONAL, loose methodology tag any artifact def may carry in its JSON (`methodologies: string[]`) — the
+ * same convention the shipped screen/report/view catalogues use, generalised to every kind so ANY def can be
+ * softly associated with one or more methodologies (an untagged def is neutral — it applies everywhere). Loose:
+ * present-or-absent, and when present must be an array of non-empty strings (the `"*"` wildcard allowed). The
+ * tag never constrains composition — it is metadata a renderer filters on (see `matchesMethodology`).
+ */
+export function defMethodologies(payload: unknown): string[] | undefined {
+  const v = (payload as { methodologies?: unknown } | null | undefined)?.methodologies;
+  return Array.isArray(v) ? v.filter((t): t is string => typeof t === "string" && !!t.trim()) : undefined;
+}
+
+/** Loosely validate the optional methodology tag on ANY def: when present it must be an array of non-empty
+ *  strings. Absent ⇒ no error (neutral). */
+function methodologyTagErrors(payload: unknown): string[] {
+  const v = (payload as { methodologies?: unknown } | null | undefined)?.methodologies;
+  if (v === undefined) return [];
+  if (!Array.isArray(v) || !v.every((t) => typeof t === "string" && !!t.trim())) {
+    return ["methodologies must be an array of non-empty strings"];
+  }
+  return [];
+}
+
+/**
  * Validate a payload against its kind using the REAL product validators — the same ones the individual def
- * routes enforce — so a stored def can never be a shape the product would reject. Never throws.
+ * routes enforce — so a stored def can never be a shape the product would reject. Also enforces the loose,
+ * cross-kind optional methodology tag. Never throws.
  */
 export function validateDef(kind: DefKind, payload: unknown): DefValidation {
+  const byKind = validateDefByKind(kind, payload);
+  if (!byKind.ok) return byKind;
+  const tagErrors = methodologyTagErrors(payload);
+  return tagErrors.length ? { ok: false, errors: tagErrors } : byKind;
+}
+
+/** The per-kind structural/product validation (the loose methodology tag is checked by the caller). */
+function validateDefByKind(kind: DefKind, payload: unknown): DefValidation {
   switch (kind) {
     case "primitive": {
       const r = validatePrimitiveDef(payload);

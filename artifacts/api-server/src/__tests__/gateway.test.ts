@@ -1001,7 +1001,6 @@ const SAMPLE_SETTINGS = {
   forms: [],
   automations: [],
   templates: [],
-  scheduling: { hoursPerDay: 8, workingWeekdays: [1, 2, 3, 4, 5], holidays: [] },
 };
 
 test("redactSettingsForRead: masks webhook signing secrets (never leaked over GET)", async () => {

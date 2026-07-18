@@ -12,13 +12,12 @@
  * This is the SCOPE-OVERRIDE axis (nearest-wins across scopes, like mappings), distinct from the COMPOSITION
  * axis (`extends` within one kind). Both use `mergeValue`; here the layers are scopes, there they are ancestors.
  *
- * Slice 1 introduces the resolver + the `scheduling` config with the org's existing `settings.scheduling` kept
- * as a compatibility layer (NOT yet drained — reversible). Later slices move each config's authoritative source
- * from settings into config defs and retire the compat layer.
+ * `scheduling` is the first migrated config: its authoritative source is the config-def store (an org-scope
+ * `scheduling` config def, authored via the admin route), scope-layered over the code default. There is NO
+ * settings-blob compatibility layer — the working-time policy lives entirely in the composition model.
  */
 import { mergeValue } from "@workspace/backend-catalogue";
 import { listDefs, listSystemDefs, type StoredDef } from "./def-import";
-import { getSettings, DEFAULT_SCHEDULING, type SchedulingConfig } from "./settings";
 
 /** Which programme/project/user scopes to consult when resolving a config (org + system are always included). */
 export interface ConfigScopes { projectId?: string; programmeId?: string; sub?: string }
@@ -76,14 +75,64 @@ export function resolveConfig<T>(configId: string, base: T, scopes: ConfigScopes
   return resolveScopedConfig(base, configDefLayers(configId, scopes));
 }
 
+// ── Scheduling: the first migrated config (working-time policy) ──────────────────────────────────────────────
+// The (client-side, projected) scheduling engine's working day/week — hours/day, working weekdays, holidays.
+// Config only: the schedule itself is computed live in the browser and never persisted. Its authoritative
+// source is the config-def store (an org-scope `scheduling` config def), scope-layered over the code default.
+
+export const SCHEDULING_CONFIG_ID = "scheduling";
+
+export interface SchedulingConfig {
+  /** Hours in a working day, used to convert an estimate to a duration (default 8). */
+  hoursPerDay: number;
+  /** Working weekdays, 0 = Sun … 6 = Sat (default Mon–Fri = [1,2,3,4,5]). */
+  workingWeekdays: number[];
+  /** ISO dates (YYYY-MM-DD) that are non-working holidays (default none). */
+  holidays: string[];
+}
+
+export const DEFAULT_SCHEDULING: SchedulingConfig = { hoursPerDay: 8, workingWeekdays: [1, 2, 3, 4, 5], holidays: [] };
+
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+
 /**
- * The effective working-time policy at a scope. Layer order (base → leaf): the code default, then the org's
- * existing `settings.scheduling` (the COMPAT layer — scheduling's authoritative source until a later slice
- * drains it), then any `scheduling` config defs at system/org/programme/project/user. So a project-scoped
- * scheduling config def overrides the org calendar, which overrides the code default — exactly the migration's
- * scope-layered model, with no behaviour change for a deployment that authors no config defs.
+ * Validate + normalise a partial scheduling `values` payload (the org admin's working-time edit) into a clean
+ * partial: hours/day in (0,24], working weekdays a non-empty set of integers 0–6 (a week with no working day
+ * would make the scheduler's day arithmetic non-terminating), holidays a de-duped sorted list of ISO dates.
+ * Throws {@link Error} on an invalid value. Returns only the keys that were present (a partial config layer).
+ */
+export function sanitizeSchedulingValues(raw: unknown): Partial<SchedulingConfig> {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) throw new Error("scheduling values must be an object");
+  const { hoursPerDay, workingWeekdays, holidays } = raw as Record<string, unknown>;
+  const out: Partial<SchedulingConfig> = {};
+  if (hoursPerDay !== undefined) {
+    if (typeof hoursPerDay !== "number" || !Number.isFinite(hoursPerDay) || hoursPerDay <= 0 || hoursPerDay > 24) {
+      throw new Error("scheduling.hoursPerDay must be a number in (0, 24]");
+    }
+    out.hoursPerDay = hoursPerDay;
+  }
+  if (workingWeekdays !== undefined) {
+    if (!Array.isArray(workingWeekdays) || workingWeekdays.length === 0) throw new Error("scheduling.workingWeekdays must be a non-empty array");
+    for (const d of workingWeekdays) {
+      if (typeof d !== "number" || !Number.isInteger(d) || d < 0 || d > 6) throw new Error("scheduling.workingWeekdays entries must be integers 0–6");
+    }
+    out.workingWeekdays = [...new Set(workingWeekdays as number[])].sort((a, b) => a - b);
+  }
+  if (holidays !== undefined) {
+    if (!Array.isArray(holidays)) throw new Error("scheduling.holidays must be an array");
+    for (const h of holidays) {
+      if (typeof h !== "string" || !ISO_DATE.test(h)) throw new Error("scheduling.holidays entries must be YYYY-MM-DD strings");
+    }
+    out.holidays = [...new Set(holidays as string[])].sort();
+  }
+  return out;
+}
+
+/**
+ * The effective working-time policy at a scope: the code default with every `scheduling` config-def layer
+ * folded on top (system < org < programme < project < user), nearest scope winning. No settings compat layer —
+ * a deployment that authors no scheduling config def simply gets the code default.
  */
 export function resolveScheduling(scopes: ConfigScopes = {}): SchedulingConfig {
-  const orgCompat = getSettings().scheduling;
-  return resolveScopedConfig<SchedulingConfig>(DEFAULT_SCHEDULING, [orgCompat, ...configDefLayers("scheduling", scopes)]);
+  return resolveConfig(SCHEDULING_CONFIG_ID, DEFAULT_SCHEDULING, scopes);
 }

@@ -521,20 +521,21 @@ authoring, and the drift guards — no feature bypasses the golden rules.
   no-deps, zero-drag, knock-on-isolation) + 3 component tests (toggle gating ×2, cascade-writes-both). **3.1
   complete: working calendars, task constraints, lead/lag, and drag-a-bar-and-cascade all shipped.**
 - **Follow-up 7a ✅ (configurable working-time — plumbing).** Hours-per-day + the working week/holidays are no
-  longer hardcoded (was `HOURS_PER_DAY = 8` in two places, Mon–Fri fixed). New **org setting** `scheduling`
-  (`hoursPerDay` ∈ (0,24], `workingWeekdays` 0–6, `holidays` ISO dates) in `lib/settings` — seeded to 8h /
-  Mon–Fri, validated (empty week rejected), read through the existing `/api/settings` slice. Client
-  `lib/scheduling-settings` (`useSchedulingSettings` + pure `resolveSchedulingSettings`) resolves it to a
-  `{ hoursPerDay, WorkingCalendar }` with safe defaults; threaded through `schedule-adapter` /
-  `project-forecast` / `cascade-reschedule` (trailing optional param, defaults 8) and consumed by the forecast
-  report, the board Gantt cascade, and Critical Path. 5 server validator tests + 3 resolver tests; existing
-  suites green (defaults preserve behaviour). **Next:** the admin settings card to edit it (7b).
+  longer hardcoded (was `HOURS_PER_DAY = 8` in two places, Mon–Fri fixed). The working-time policy
+  (`hoursPerDay` ∈ (0,24], `workingWeekdays` 0–6, `holidays` ISO dates) is a scope-layered **`scheduling` config
+  def** (see "Model migration" Slice 1 — it began as an `/api/settings` slice and was migrated OUT of settings
+  into the composition model, with `settings.scheduling` removed). Client `lib/scheduling-settings`
+  (`useSchedulingSettings` + pure `resolveSchedulingSettings`) reads the resolved policy from
+  `GET /api/scheduling/resolved` and resolves it to a `{ hoursPerDay, WorkingCalendar }` with safe defaults;
+  threaded through `schedule-adapter` / `project-forecast` / `cascade-reschedule` (trailing optional param,
+  defaults 8) and consumed by the forecast report, the board Gantt cascade, and Critical Path.
 - **Follow-up 7b ✅ (working-time admin UI).** `components/settings/SchedulingSettingsAdmin` — a **Working time
   (scheduling)** card in Settings: an hours-per-day number input, a Mon→Sun working-week toggle row, and a
-  holiday-date add/remove list. Saves the `scheduling` block via `PATCH /api/settings` and invalidates BOTH
-  the engine's `["settings"]` slice and the generated settings key so every forecast / Gantt cascade / critical
-  path re-plans immediately; Save is disabled until valid (hours ∈ (0,24], ≥1 working day). Registered as the
-  `scheduling` admin panel (palette-jumpable). Also fixed a **pre-existing panel drift** (an earlier slice's
+  holiday-date add/remove list. Seeds from `GET /api/scheduling` (the org config def) and saves via
+  `PUT /api/scheduling`, invalidating both the org-config and the engine's resolved query so every forecast /
+  Gantt cascade / critical path re-plans immediately; Save is disabled until valid (hours ∈ (0,24], ≥1 working
+  day). Registered as the `scheduling` admin panel (palette-jumpable). Also fixed a **pre-existing panel drift**
+  (an earlier slice's
   `guestInvite` panel was missing from `SETTINGS_PANEL_KEYS`). 3 component tests (seed, save-PATCH, validation
   gate) + the panel drift-guard now green. **Working-time is now fully user-configurable.**
 
@@ -2123,10 +2124,24 @@ drain the legacy settings slice to read-only (never delete until the resolved pa
 full backstop + commit.
 
 ### Phase A — prove the pattern (pure policy, low blast radius)
-- **Slice 1 · `scheduling`.** Smallest self-contained choice slice (hours/day, working week, holidays), one
-  consumer (the client scheduler already reads a resolved slice). **Extract the reusable
-  `resolveScopedConfig(field, scopes)` helper here** — the foundation emerges from the first real slice, not
-  built speculatively.
+- **Slice 1 · `scheduling` ✅ (config DefKind + resolver + full drain, NO compat).** A new `config` DefKind
+  (logical `id` + partial `values` object) rides the importer choke point + sealed store like every other def.
+  `lib/scoped-config` extracts the reusable `resolveScopedConfig(base, layers)` / `configDefLayers(id, scopes)` /
+  `resolveConfig` — folds config-def layers across scopes (system < org < programme < project < user) via the
+  shared `mergeValue` algebra. `scheduling` is fully migrated: its authoritative source is now an org-scope
+  `scheduling` config def, scope-layered over the code default — **`settings.scheduling` removed entirely**
+  (interface field, `FIELD_DESCRIPTORS` seed, `validateScheduling`, and the `security-settings` CHOICE
+  classification all deleted; no compat layer, per the "remove legacy/compat code" directive). Reads:
+  `GET /api/scheduling/resolved` (engine, scope-folded). Writes: `GET`/`PUT /api/scheduling` — a dedicated
+  admin/PMO route (the generic `/api/defs` importer is behind a default-off module, so scheduling gets its own
+  ungated validated write path, a singleton org config def with a stable id). SPA repointed off the settings
+  slice. Two additions rode this slice: (a) **any artifact def may carry a loose optional `methodologies` tag**
+  in its JSON — validated cross-kind at the importer (`defMethodologies` helper), the same convention the
+  shipped screen/report catalogues use, generalised so any def is softly methodology-associable; (b) confirmed
+  the **full org-level config-def tree rides the backup** (config defs are `def` artifacts → captured +
+  re-validated on round-trip; test added). NB the deviation from recipe step ⑤ (drain-don't-delete): scheduling
+  had no deployed legacy data to strand, and the directive was explicit, so it was a clean removal rather than a
+  read-only drain.
 - **Slice 2 · accessibility.** Fold the org-default-under-user-leaf (already built) into that generic resolver
   so programme/project can also default; proves the per-user leaf inside the mechanism.
 - **Slice 3 · `branding` + `labelOverrides` + `priorityLabels`.** Presentation policy; proves deep object merge
