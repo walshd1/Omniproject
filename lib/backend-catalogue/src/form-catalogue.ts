@@ -80,6 +80,9 @@ export interface FormDefinition {
   enabled?: boolean;
   /** Methodology tags — "*"/omitted = neutral (all). */
   methodologies?: string[];
+  /** COMPOSITION: the id of a parent form this one is built on (see def-compose). A customer fork records its
+   *  parent here so the importer traces its ancestry + guards the chain. Omitted = a root/template form. */
+  extends?: string;
 }
 
 /** The shipped form TEMPLATES, in display order. Untargeted — an admin binds `target.projectId`. */

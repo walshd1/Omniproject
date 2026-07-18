@@ -209,6 +209,26 @@ test("CASCADE: RENAMING an ancestor's id, which orphans a def built on it, is re
   assert.equal((await req(`/defs/${encodeURIComponent(rootRow.id)}`, { method: "PUT", body: { name: "Root", payload: okRoot } })).status, 200);
 });
 
+test("Tier 1: a customer can FORK a shipped dashboard/businessRule (extends a system def) and it is ancestry-guarded", async () => {
+  const { dashboardDefCatalogue, referenceRulesetCatalogue } = await import("@workspace/backend-catalogue");
+  const shippedDash = dashboardDefCatalogue()[0]!;                 // a real shipped dashboard id to fork
+  const shippedRule = referenceRulesetCatalogue()[0]!;            // a real shipped businessRule id to fork
+
+  // A dashboard fork that extends a shipped dashboard resolves its ancestor → 201 (composes to a valid whole).
+  const dashFork = { id: "my-exec-dash", name: "My exec view", extends: shippedDash.id, widgets: [{ id: "extra", type: "portfolioHealth" }] };
+  assert.equal((await req("/defs", { method: "POST", body: { kind: "dashboard", storage: "user", name: "Dash fork", payload: dashFork } })).status, 201);
+
+  // A THIN businessRule fork (structural kind) extends a shipped ruleset and inherits the rest → 201.
+  const ruleFork = { id: "my-scrum-rules", extends: shippedRule.id };
+  assert.equal((await req("/defs", { method: "POST", body: { kind: "businessRule", storage: "user", name: "Rule fork", payload: ruleFork } })).status, 201);
+
+  // Forking a parent that exists in NO scope is rejected 400 (the ancestry guard now covers these kinds too).
+  const orphanDash = { id: "orphan-dash", name: "Orphan", extends: "ghost-dashboard", widgets: [] };
+  const bad = await req("/defs", { method: "POST", body: { kind: "dashboard", storage: "user", name: "Orphan", payload: orphanDash } });
+  assert.equal(bad.status, 400);
+  assert.match(((await bad.json()) as { error: string }).error, /does not exist/);
+});
+
 test("DELETE is BLOCKED (409) when another def is built on the target, then succeeds once the dependant is gone", async () => {
   const root = { id: "del-root", label: "DelRoot", category: "chart", chartType: "bar", description: "d", params: [{ key: "data", label: "Rows", type: "rows", required: true, description: "d" }] };
   const rootRow = (await (await req("/defs", { method: "POST", body: { kind: "primitive", storage: "user", name: "DelRoot", payload: root } })).json()) as { id: string };
