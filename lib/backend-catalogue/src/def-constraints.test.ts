@@ -60,6 +60,29 @@ test("a floor cannot be downgraded to policy by a descendant", () => {
   assert.match(errors[0]!, /relax floor|policy/);
 });
 
+test("unique: duplicate mapTo targets fail, except the aggregating ones (description/labels)", () => {
+  const uniqTargets = { id: "uniq", kind: "floor", type: "unique", path: "fields", field: "mapTo", except: ["description", "labels"] };
+  const { effective } = foldConstraints([[uniqTargets]]);
+  const ok = { fields: [{ mapTo: "title" }, { mapTo: "priority" }, { mapTo: "description" }, { mapTo: "description" }] };
+  assert.deepEqual(evaluateConstraints(ok, effective), []);                       // description may repeat
+  const dup = { fields: [{ mapTo: "priority" }, { mapTo: "priority" }] };
+  assert.equal(evaluateConstraints(dup, effective).length, 1);                    // priority may not
+});
+
+test("unique floor: a descendant may SHRINK the except set but not ADD to it", () => {
+  const base = { id: "uniq", kind: "floor", type: "unique", path: "fields", field: "mapTo", except: ["description"] };
+  const shrink = { id: "uniq", kind: "floor", type: "unique", path: "fields", field: "mapTo", except: [] };
+  assert.deepEqual(foldConstraints([[base], [shrink]]).errors, []);               // fewer exceptions = stricter
+  const grow = { id: "uniq", kind: "floor", type: "unique", path: "fields", field: "mapTo", except: ["description", "priority"] };
+  const g = foldConstraints([[base], [grow]]);
+  assert.equal(g.errors.length, 1);                                               // adding "priority" loosens → error
+  assert.match(g.errors[0]!, /relax floor|branch above/);
+});
+
+test("a unique rule with no keying field is rejected as malformed", () => {
+  assert.equal(coerceConstraint({ id: "u", kind: "floor", type: "unique", path: "fields" }), null);
+});
+
 test("composedConstraintErrors folds a lineage and evaluates the whole in one call", () => {
   // root introduces the title floor + value cap; leaf tightens the cap and satisfies both.
   const root = [cardTitle, capValue];

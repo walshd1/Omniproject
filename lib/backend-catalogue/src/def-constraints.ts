@@ -20,8 +20,10 @@
 /** Whether a rule is a relax-able POLICY or a tighten-only FLOOR. */
 export type ConstraintKind = "policy" | "floor";
 /** The rule shapes this slice supports. `cardinality` counts child-set elements (optionally matching a
- *  predicate) into a [min,max]; `bound` holds a numeric field within [min,max]. */
-export type ConstraintType = "cardinality" | "bound";
+ *  predicate) into a [min,max]; `bound` holds a numeric field within [min,max]; `unique` requires a per-element
+ *  field's values to be distinct across the child set, save an allowed-to-repeat `except` set (the aggregating
+ *  targets — e.g. many form fields may map to `description`/`labels`, but every other target is one-field-each). */
+export type ConstraintType = "cardinality" | "bound" | "unique";
 
 export interface DefConstraint {
   /** Stable id — overrides + floor-conjoin merge BY this id along the lineage. */
@@ -35,12 +37,17 @@ export interface DefConstraint {
   /** cardinality: min/max COUNT. bound: min/max VALUE. Either bound may be omitted (that side is unbounded). */
   min?: number;
   max?: number;
+  /** unique only — the per-element field whose values must be distinct across `path`. */
+  field?: string;
+  /** unique only — values allowed to repeat (the aggregating targets). Tightening a floor SHRINKS this set;
+   *  a descendant may not ADD to it (that would loosen the rule). */
+  except?: unknown[];
   /** Optional human message used verbatim when the rule fails. */
   message?: string;
 }
 
 const CONSTRAINT_KINDS = new Set<string>(["policy", "floor"]);
-const CONSTRAINT_TYPES = new Set<string>(["cardinality", "bound"]);
+const CONSTRAINT_TYPES = new Set<string>(["cardinality", "bound", "unique"]);
 const isRec = (v: unknown): v is Record<string, unknown> => !!v && typeof v === "object" && !Array.isArray(v);
 const isNum = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v);
 
@@ -57,7 +64,10 @@ export function coerceConstraint(raw: unknown): DefConstraint | null {
   if (isNum(raw["min"])) c.min = raw["min"];
   if (isNum(raw["max"])) c.max = raw["max"];
   if (isRec(raw["where"]) && typeof raw["where"]["field"] === "string") c.where = { field: raw["where"]["field"], eq: raw["where"]["eq"] };
+  if (typeof raw["field"] === "string") c.field = raw["field"];
+  if (Array.isArray(raw["except"])) c.except = raw["except"];
   if (typeof raw["message"] === "string") c.message = raw["message"];
+  if (c.type === "unique" && !c.field) return null; // a unique rule needs the element field it keys on
   return c;
 }
 
@@ -98,6 +108,14 @@ export function foldConstraints(perNodeRootToLeaf: unknown[][]): { effective: De
         if (prior.min !== undefined && c.min < prior.min) errors.push(`cannot relax floor "${c.id}": an ancestor requires "${prior.path}" ≥ ${prior.min}; branch above where it is introduced`);
         else merged.min = prior.min !== undefined ? Math.max(prior.min, c.min) : c.min;
       }
+      if (c.type === "unique" && c.except !== undefined) {
+        // Tightening a unique floor SHRINKS its exceptions (fewer targets may repeat). A descendant may not ADD
+        // an exception the ancestor didn't grant — that would loosen the rule.
+        const priorExcept = new Set((prior.except ?? []).map((v) => JSON.stringify(v)));
+        const added = c.except.filter((v) => !priorExcept.has(JSON.stringify(v)));
+        if (added.length) errors.push(`cannot relax floor "${c.id}": an ancestor does not permit ${JSON.stringify(added)} to repeat in "${prior.path}"; branch above where it is introduced`);
+        else merged.except = c.except; // subset (or equal) → the descendant's stricter set wins
+      }
       byId.set(c.id, merged);
     }
   }
@@ -115,6 +133,23 @@ export function evaluateConstraints(def: Record<string, unknown>, constraints: D
       const label = c.where ? `"${c.path}" entries where ${c.where.field}=${JSON.stringify(c.where.eq)}` : `"${c.path}"`;
       if (c.min !== undefined && count < c.min) errors.push(c.message ?? `${label} must number at least ${c.min} (has ${count})`);
       if (c.max !== undefined && count > c.max) errors.push(c.message ?? `${label} must number at most ${c.max} (has ${count})`);
+    } else if (c.type === "unique") {
+      const raw = getPath(def, c.path);
+      const list = Array.isArray(raw) ? raw : [];
+      const field = c.field!; // guaranteed by coerceConstraint
+      const except = new Set((c.except ?? []).map((v) => JSON.stringify(v)));
+      const counts = new Map<string, { val: unknown; n: number }>();
+      for (const el of list) {
+        if (!isRec(el)) continue;
+        const v = el[field];
+        if (v === undefined) continue;
+        const key = JSON.stringify(v);
+        if (except.has(key)) continue;
+        const e = counts.get(key) ?? { val: v, n: 0 };
+        e.n += 1;
+        counts.set(key, e);
+      }
+      for (const { val, n } of counts.values()) if (n > 1) errors.push(c.message ?? `"${c.path}" has ${n} entries with ${field}=${JSON.stringify(val)} (must be unique)`);
     } else {
       const v = getPath(def, c.path);
       if (!isNum(v)) { errors.push(c.message ?? `"${c.path}" must be a number to satisfy constraint "${c.id}"`); continue; }
