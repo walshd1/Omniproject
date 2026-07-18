@@ -61,6 +61,60 @@ export const BROKER_CONTRACT_SCHEMA = {
       ],
       "description": "Who initiated an action. Autonomous actors (scheduled jobs, AI agents) are first-class principals — keyed, RBAC-roled and provenance-bound like a human."
     },
+    "Annotation": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Stable id within the proof (for keys + comment-thread anchoring)."
+        },
+        "type": {
+          "$ref": "#/$defs/AnnotationType"
+        },
+        "x": {
+          "type": "number",
+          "description": "Normalised top-left / point position on the deliverable (0..1)."
+        },
+        "y": {
+          "type": "number"
+        },
+        "w": {
+          "type": "number",
+          "description": "Normalised region size — box / highlight (0..1)."
+        },
+        "h": {
+          "type": "number"
+        },
+        "text": {
+          "type": "string",
+          "description": "The reviewer's note."
+        },
+        "page": {
+          "type": "number",
+          "description": "Which page of a multi-page deliverable (PDF) this pins to (1-based)."
+        },
+        "resolved": {
+          "type": "boolean",
+          "description": "Whether the raised point has been addressed."
+        }
+      },
+      "required": [
+        "id",
+        "type",
+        "x",
+        "y"
+      ],
+      "additionalProperties": false,
+      "description": "One annotation pinned onto a deliverable. Which optional fields apply depends on `type`: a `pin` uses just `x`/`y`; a `box`/`highlight` adds `w`/`h`. `text` is the reviewer's note; `resolved` marks a raised point as addressed. `page` targets a page of a multi-page PDF (1-based; defaults to 1). A generic overlay renderer switches on `type`. All coordinates are normalised (0..1)."
+    },
+    "AnnotationType": {
+      "enum": [
+        "pin",
+        "box",
+        "highlight"
+      ],
+      "description": "The supported annotation types. `pin` — a point marker at (x, y); `box` — a rectangular region (x, y + w, h); `highlight` — a rectangular emphasis region. Coordinates are NORMALISED to the deliverable (0..1 of its width/height), so an annotation survives any render scale."
+    },
     "BackendFieldMap": {
       "type": "object",
       "properties": {
@@ -176,6 +230,108 @@ export const BROKER_CONTRACT_SCHEMA = {
       ],
       "description": "Normalised error taxonomy — no broker-specific status quirks leak upward."
     },
+    "CalloutTone": {
+      "enum": [
+        "info",
+        "warn",
+        "success",
+        "danger"
+      ],
+      "description": "The tones a `callout` block can carry."
+    },
+    "CanvasElement": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Stable id within the scene (for keys, connector binding, live-cursor anchoring)."
+        },
+        "type": {
+          "$ref": "#/$defs/CanvasElementType"
+        },
+        "x": {
+          "type": "number",
+          "description": "Top-left position on the infinite canvas."
+        },
+        "y": {
+          "type": "number"
+        },
+        "w": {
+          "type": "number",
+          "description": "Box size — sticky / shape / frame."
+        },
+        "h": {
+          "type": "number"
+        },
+        "text": {
+          "type": "string",
+          "description": "Text — a sticky's note, a shape's label, a text element's body, a frame's label."
+        },
+        "color": {
+          "$ref": "#/$defs/StickyColor",
+          "description": "Sticky colour."
+        },
+        "shape": {
+          "$ref": "#/$defs/ShapeKind",
+          "description": "Shape kind."
+        },
+        "fontSize": {
+          "type": "number",
+          "description": "Text size for a `text` element."
+        },
+        "x2": {
+          "type": "number",
+          "description": "Connector end point (its start is `x`/`y`)."
+        },
+        "y2": {
+          "type": "number"
+        },
+        "from": {
+          "type": "string",
+          "description": "Optional connector endpoints bound to element ids (so the line follows them)."
+        },
+        "to": {
+          "type": "string"
+        },
+        "points": {
+          "type": "array",
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "number"
+            }
+          },
+          "description": "Freehand path points for a `draw` element — `[x, y]` pairs relative to `x`/`y` (the stroke origin)."
+        },
+        "strokeWidth": {
+          "type": "number",
+          "description": "Stroke width (draw) / border weight."
+        },
+        "link": {
+          "type": "string",
+          "description": "Optional external reference (safe scheme only) — the content lives elsewhere (zero-at-rest)."
+        }
+      },
+      "required": [
+        "id",
+        "type",
+        "x",
+        "y"
+      ],
+      "additionalProperties": false,
+      "description": "One element on a whiteboard. Which optional fields apply depends on `type`: `sticky` uses text+color+box; `shape` uses shape+box (+optional text label); `text` uses text+fontSize; `connector` uses the end point `x2/y2` (start is `x/y`) and may bind to element ids via `from`/`to`; `frame` uses text (its label)+box. A generic renderer switches on `type`. `link` (any type) is an OPTIONAL external reference — e.g. a sticky that links to a work item — restricted to safe schemes by the sanitiser (zero-at-rest, never inlined)."
+    },
+    "CanvasElementType": {
+      "enum": [
+        "sticky",
+        "shape",
+        "text",
+        "connector",
+        "frame",
+        "draw"
+      ],
+      "description": "The supported canvas element types. `sticky` — a coloured sticky note (the staple); `shape` — a rectangle/ellipse/diamond (optionally labelled); `text` — free-standing text; `connector` — a line/arrow between two points or elements; `frame` — a labelled grouping container."
+    },
     "CapabilityFlags": {
       "type": "object",
       "additionalProperties": {
@@ -185,6 +341,122 @@ export const BROKER_CONTRACT_SCHEMA = {
     },
     "ContractVersion": {
       "const": "v1"
+    },
+    "Deliverable": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "$ref": "#/$defs/DeliverableKind"
+        },
+        "url": {
+          "type": "string",
+          "description": "Safe-scheme URL of the media (validated by the sanitiser)."
+        },
+        "label": {
+          "type": "string",
+          "description": "Optional human label / filename."
+        }
+      },
+      "required": [
+        "kind",
+        "url"
+      ],
+      "additionalProperties": false,
+      "description": "A deliverable under review — a REFERENCE to media that lives elsewhere (never inlined; zero-at-rest)."
+    },
+    "DeliverableKind": {
+      "enum": [
+        "image",
+        "pdf"
+      ],
+      "description": "The deliverable media kinds a proof can reference."
+    },
+    "DocBlock": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Stable id within the document (for keys, presence anchoring, comment threading)."
+        },
+        "type": {
+          "$ref": "#/$defs/DocBlockType"
+        },
+        "text": {
+          "type": "string",
+          "description": "Free text for a text block (heading/paragraph/quote/callout/code)."
+        },
+        "level": {
+          "type": "number",
+          "description": "Heading level (1–3); defaulted to 2 when omitted."
+        },
+        "tone": {
+          "$ref": "#/$defs/CalloutTone",
+          "description": "Callout tone."
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/DocListItem"
+          },
+          "description": "Items for a list block."
+        },
+        "rows": {
+          "type": "array",
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "description": "Rows of cells for a `table` block."
+        },
+        "url": {
+          "type": "string",
+          "description": "External reference for an `embed` block (the content lives elsewhere — zero-at-rest)."
+        },
+        "caption": {
+          "type": "string",
+          "description": "Optional caption for an `embed`."
+        }
+      },
+      "required": [
+        "id",
+        "type"
+      ],
+      "additionalProperties": false,
+      "description": "One block in a document. Which optional fields apply depends on `type`: text blocks use `text`; `heading` adds `level`; `callout` adds `tone`; list blocks use `items`; `table` uses `rows`; `embed` uses `url` (+ optional `caption`). A generic renderer switches on `type`."
+    },
+    "DocBlockType": {
+      "enum": [
+        "heading",
+        "paragraph",
+        "quote",
+        "callout",
+        "code",
+        "bullet-list",
+        "numbered-list",
+        "checklist",
+        "divider",
+        "table",
+        "embed"
+      ],
+      "description": "The supported document block types. Text-bearing: `heading` (with a level), `paragraph`, `quote`, `callout` (with a tone), `code`. Lists: `bullet-list`, `numbered-list`, `checklist` (items may be checked). Structural: `divider`, `table` (a grid of cells), `embed` (a REFERENCE to external content by URL — zero-at-rest, never inlined bytes)."
+    },
+    "DocListItem": {
+      "type": "object",
+      "properties": {
+        "text": {
+          "type": "string"
+        },
+        "checked": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "text"
+      ],
+      "additionalProperties": false,
+      "description": "One item in a list block. `checked` only applies to a `checklist`."
     },
     "EnumeratedField": {
       "type": "object",
@@ -1199,6 +1471,15 @@ export const BROKER_CONTRACT_SCHEMA = {
       "additionalProperties": true,
       "description": "A PROOF — a deliverable (image/PDF, referenced not inlined) under creative review (roadmap 2.4). Carries a list of typed `annotation`-family primitives pinned onto it and a review decision bound to the current version. Held in the encrypted-JSON store (storage-target model), like a whiteboard."
     },
+    "ProofDecision": {
+      "enum": [
+        "pending",
+        "approved",
+        "rejected",
+        "changes-requested"
+      ],
+      "description": "A review decision on a proof version. `pending` — awaiting review; `approved` — signed off; `rejected` — declined; `changes-requested` — needs rework before re-review. Bound to a version so a new deliverable revision re-opens the decision."
+    },
     "ProofMeta": {
       "type": "object",
       "properties": {
@@ -1473,6 +1754,24 @@ export const BROKER_CONTRACT_SCHEMA = {
       ],
       "additionalProperties": false,
       "description": "The non-secret material needed to re-derive a session's broker key."
+    },
+    "ShapeKind": {
+      "enum": [
+        "rectangle",
+        "ellipse",
+        "diamond"
+      ],
+      "description": "The shapes a `shape` element can be."
+    },
+    "StickyColor": {
+      "enum": [
+        "yellow",
+        "green",
+        "blue",
+        "pink",
+        "gray"
+      ],
+      "description": "The palette of sticky-note colours (named, not raw hex — so the renderer owns the actual values)."
     },
     "Summary": {
       "type": "object",

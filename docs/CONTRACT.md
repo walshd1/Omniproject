@@ -113,6 +113,28 @@ Who initiated an action. Autonomous actors (scheduled jobs, AI agents) are first
 
 Enum: `human`, `automation`, `agent`
 
+### Annotation
+
+One annotation pinned onto a deliverable. Which optional fields apply depends on `type`: a `pin` uses just `x`/`y`; a `box`/`highlight` adds `w`/`h`. `text` is the reviewer's note; `resolved` marks a raised point as addressed. `page` targets a page of a multi-page PDF (1-based; defaults to 1). A generic overlay renderer switches on `type`. All coordinates are normalised (0..1).
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `id` | string | yes | Stable id within the proof (for keys + comment-thread anchoring). |
+| `type` | [AnnotationType](#annotationtype) | yes |  |
+| `x` | number | yes | Normalised top-left / point position on the deliverable (0..1). |
+| `y` | number | yes |  |
+| `w` | number | — | Normalised region size — box / highlight (0..1). |
+| `h` | number | — |  |
+| `text` | string | — | The reviewer's note. |
+| `page` | number | — | Which page of a multi-page deliverable (PDF) this pins to (1-based). |
+| `resolved` | boolean | — | Whether the raised point has been addressed. |
+
+### AnnotationType
+
+The supported annotation types. `pin` — a point marker at (x, y); `box` — a rectangular region (x, y + w, h); `highlight` — a rectangular emphasis region. Coordinates are NORMALISED to the deliverable (0..1 of its width/height), so an annotation survives any render scale.
+
+Enum: `pin`, `box`, `highlight`
+
 ### BackendFieldMap
 
 Per-field / per-entity support a backend declares. Finer-grained than the domain flags: e.g. a backend may surface `dueDate` read-only (surface without store), or have no `programmeId` field at all (programme entity unsupported).
@@ -148,6 +170,42 @@ Normalised error taxonomy — no broker-specific status quirks leak upward.
 
 Enum: `conflict`, `not_found`, `unauthorized`, `bad_request`, `rate_limited`, `unavailable`
 
+### CalloutTone
+
+The tones a `callout` block can carry.
+
+Enum: `info`, `warn`, `success`, `danger`
+
+### CanvasElement
+
+One element on a whiteboard. Which optional fields apply depends on `type`: `sticky` uses text+color+box; `shape` uses shape+box (+optional text label); `text` uses text+fontSize; `connector` uses the end point `x2/y2` (start is `x/y`) and may bind to element ids via `from`/`to`; `frame` uses text (its label)+box. A generic renderer switches on `type`. `link` (any type) is an OPTIONAL external reference — e.g. a sticky that links to a work item — restricted to safe schemes by the sanitiser (zero-at-rest, never inlined).
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `id` | string | yes | Stable id within the scene (for keys, connector binding, live-cursor anchoring). |
+| `type` | [CanvasElementType](#canvaselementtype) | yes |  |
+| `x` | number | yes | Top-left position on the infinite canvas. |
+| `y` | number | yes |  |
+| `w` | number | — | Box size — sticky / shape / frame. |
+| `h` | number | — |  |
+| `text` | string | — | Text — a sticky's note, a shape's label, a text element's body, a frame's label. |
+| `color` | [StickyColor](#stickycolor) | — | Sticky colour. |
+| `shape` | [ShapeKind](#shapekind) | — | Shape kind. |
+| `fontSize` | number | — | Text size for a `text` element. |
+| `x2` | number | — | Connector end point (its start is `x`/`y`). |
+| `y2` | number | — |  |
+| `from` | string | — | Optional connector endpoints bound to element ids (so the line follows them). |
+| `to` | string | — |  |
+| `points` | number[][] | — | Freehand path points for a `draw` element — `[x, y]` pairs relative to `x`/`y` (the stroke origin). |
+| `strokeWidth` | number | — | Stroke width (draw) / border weight. |
+| `link` | string | — | Optional external reference (safe scheme only) — the content lives elsewhere (zero-at-rest). |
+
+### CanvasElementType
+
+The supported canvas element types. `sticky` — a coloured sticky note (the staple); `shape` — a rectangle/ellipse/diamond (optionally labelled); `text` — free-standing text; `connector` — a line/arrow between two points or elements; `frame` — a labelled grouping container.
+
+Enum: `sticky`, `shape`, `text`, `connector`, `frame`, `draw`
+
 ### CapabilityFlags
 
 Raw capability flags a backend can populate (domain → available).
@@ -157,6 +215,53 @@ Type: map → boolean
 ### ContractVersion
 
 Type: `v1`
+
+### Deliverable
+
+A deliverable under review — a REFERENCE to media that lives elsewhere (never inlined; zero-at-rest).
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `kind` | [DeliverableKind](#deliverablekind) | yes |  |
+| `url` | string | yes | Safe-scheme URL of the media (validated by the sanitiser). |
+| `label` | string | — | Optional human label / filename. |
+
+### DeliverableKind
+
+The deliverable media kinds a proof can reference.
+
+Enum: `image`, `pdf`
+
+### DocBlock
+
+One block in a document. Which optional fields apply depends on `type`: text blocks use `text`; `heading` adds `level`; `callout` adds `tone`; list blocks use `items`; `table` uses `rows`; `embed` uses `url` (+ optional `caption`). A generic renderer switches on `type`.
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `id` | string | yes | Stable id within the document (for keys, presence anchoring, comment threading). |
+| `type` | [DocBlockType](#docblocktype) | yes |  |
+| `text` | string | — | Free text for a text block (heading/paragraph/quote/callout/code). |
+| `level` | number | — | Heading level (1–3); defaulted to 2 when omitted. |
+| `tone` | [CalloutTone](#callouttone) | — | Callout tone. |
+| `items` | [DocListItem](#doclistitem)[] | — | Items for a list block. |
+| `rows` | string[][] | — | Rows of cells for a `table` block. |
+| `url` | string | — | External reference for an `embed` block (the content lives elsewhere — zero-at-rest). |
+| `caption` | string | — | Optional caption for an `embed`. |
+
+### DocBlockType
+
+The supported document block types. Text-bearing: `heading` (with a level), `paragraph`, `quote`, `callout` (with a tone), `code`. Lists: `bullet-list`, `numbered-list`, `checklist` (items may be checked). Structural: `divider`, `table` (a grid of cells), `embed` (a REFERENCE to external content by URL — zero-at-rest, never inlined bytes).
+
+Enum: `heading`, `paragraph`, `quote`, `callout`, `code`, `bullet-list`, `numbered-list`, `checklist`, `divider`, `table`, `embed`
+
+### DocListItem
+
+One item in a list block. `checked` only applies to a `checklist`.
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `text` | string | yes |  |
+| `checked` | boolean | — |  |
 
 ### EnumeratedField
 
@@ -454,6 +559,12 @@ A PROOF — a deliverable (image/PDF, referenced not inlined) under creative rev
 | `updatedBy` | string \| null | — |  |
 | _(other)_ | any | — | Open row — backend-specific fields pass through. |
 
+### ProofDecision
+
+A review decision on a proof version. `pending` — awaiting review; `approved` — signed off; `rejected` — declined; `changes-requested` — needs rework before re-review. Bound to a version so a new deliverable revision re-opens the decision.
+
+Enum: `pending`, `approved`, `rejected`, `changes-requested`
+
 ### ProofMeta
 
 A proof's metadata (no annotations/deliverable body) — the list view.
@@ -541,6 +652,18 @@ The non-secret material needed to re-derive a session's broker key.
 | `smono` | string | yes | Monotonic-clock reading (ns string) at session creation. |
 | `salt` | string | yes | Per-session CSPRNG entropy (hex). |
 | `bkver` | number | — | Broker-key version the session key was derived under (for revocation/rotation). |
+
+### ShapeKind
+
+The shapes a `shape` element can be.
+
+Enum: `rectangle`, `ellipse`, `diamond`
+
+### StickyColor
+
+The palette of sticky-note colours (named, not raw hex — so the renderer owns the actual values).
+
+Enum: `yellow`, `green`, `blue`, `pink`, `gray`
 
 ### Summary
 
@@ -833,13 +956,3 @@ A WIKI SPACE — a named container for documents (a knowledge base / team space)
 | `name` | string | yes |  |
 | `description` | string \| null | — |  |
 | _(other)_ | any | — | Open row — backend-specific fields pass through. |
-
-## ⚠️ Unmapped contract fields
-
-The generator could not map these to a code type — review before relying on them:
-
-- Type `DocBlock` is referenced by the contract but has no definition in broker/{types,contract}.ts.
-- Type `CanvasElement` is referenced by the contract but has no definition in broker/{types,contract}.ts.
-- Type `Deliverable` is referenced by the contract but has no definition in broker/{types,contract}.ts.
-- Type `Annotation` is referenced by the contract but has no definition in broker/{types,contract}.ts.
-- Type `ProofDecision` is referenced by the contract but has no definition in broker/{types,contract}.ts.
