@@ -8,11 +8,19 @@
   "panels": [
     {
       "id": "epics-register",
-      "kind": "table",
+      "kind": "register",
       "title": "Epics",
       "span": 12,
-      "source": { "url": "/api/projects/{projectId}/mapping/epics/rows" },
-      "config": { "columns": ["id", "name", "goal", "state", "itemIds"] }
+      "config": {
+        "slot": "epics",
+        "columns": [
+          { "field": "id", "label": "Id" },
+          { "field": "name", "label": "Name" },
+          { "field": "goal", "label": "Goal" },
+          { "field": "state", "label": "State" },
+          { "field": "itemIds", "label": "Items" }
+        ]
+      }
     }
   ]
 }

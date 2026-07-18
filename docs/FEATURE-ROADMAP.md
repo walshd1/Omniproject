@@ -1847,6 +1847,27 @@ multi-tenancy → managed offering (§5.4).
 methods — that would bake a methodology (agile) into the engine and duplicate the generic mapping/sidecar
 surface. Each is a **row in a generic mapping slot** (`GET /mapping/:slot/rows`, `PUT`/`DELETE /mapping/:slot/:rowId`)
 plus, where it has a UI, a screen/report **def** authored through the importer. The engine stays methodology-neutral.
+
+**The pattern, now complete end-to-end (data + render) — via REUSE, not new primitives.** A domain
+register/board/list is: (1) a `mapping` slot def (JSON, methodology-neutral data), + (2) a screen def whose panel
+is an EXISTING primitive pointed at the slot. No new panel/primitive was needed:
+- **Read-only** → the `table` panel with `source.url = /api/projects/{projectId}/mapping/:slot/rows` (columns
+  derived from the rows) — zero config, already shipped.
+- **Editable** → the existing **`register`** panel gained an additive `slot` source: the SAME editable grid, but
+  it reads the slot's rows and on Save RECONCILES the draft against the server via per-row `PUT` + `DELETE`
+  through the generic surface (instead of the whole-array PUT it does for settings collections). Columns from
+  the def; the server re-validates.
+So **every register is a pure JSON screen def, no bespoke code per entity** — and it reused the editable-grid
+primitive rather than shipping a parallel one. The epics register ships as the first slot-backed `register`
+screen; sprints/RAID/risks/milestones/stakeholders follow as defs.
+
+**Same-pattern candidates surveyed (not yet done).** (a) **RAID → `raid` slot** — `listRaid`/`addRaid` are still
+bespoke `Broker` methods returning `Row[]`; retire them into a slot (exact dependencies replay). (b) The
+governance **registers** (risks, decisions, change-requests, lessons-learned, stakeholders) → slots + `data-slot`
+screen defs, tagged `[prince2,waterfall]`. (c) **Hardcoded methodology data in the SPA** (`lib/methodology.ts`
+`SPRINT_COLUMNS`/`WIP_LIMITS`/`PRINCE2_STAGES`) duplicates — and has **drifted from** — the methodology packs'
+`tools.states`; read it from the resolved pack (the non-agile twin of the mapping-constant cleanup, fixes a live
+drift bug).
 - 🚧 **Explicit dependency graph** — durable directed edges. **The review's #2 priority:** unlocks interactive
   Gantt links, network diagrams, true critical path on live data, and cascade-reschedule.
   - **✅ Generic-slot model.** A dependency edge is a row in the shipped `dependencies` mapping slot

@@ -3,6 +3,8 @@ import { screen, fireEvent, waitFor } from "@testing-library/react";
 import { QueryClient } from "@tanstack/react-query";
 import { renderWithProviders } from "../../../test/utils";
 import { settingsQueryKey } from "../../../lib/settings-query";
+import { useStore } from "../../../store/useStore";
+import { slotRowsQueryKey } from "../../../lib/data-slot";
 import type { Panel } from "../../../lib/screen";
 import { RegisterPanel } from "./RegisterPanel";
 
@@ -65,5 +67,53 @@ describe("RegisterPanel (editable data on the screen)", () => {
     });
     const body = JSON.parse((put[1] as RequestInit).body as string) as { raci: Array<{ task: string; role: string; responsibility: string }> };
     expect(body.raci[0]).toMatchObject({ task: "Deploy", role: "Ops", responsibility: "A" });
+  });
+});
+
+// ── SLOT source: the SAME register panel over a generic mapping slot (no new primitive) ──────────────────────
+const slotPanel: Panel = {
+  id: "epics", kind: "register", title: "Epics",
+  config: { slot: "epics", columns: [{ field: "id", label: "Id" }, { field: "name", label: "Name" }] },
+};
+
+function seedSlot(role: string, rows: unknown[]): QueryClient {
+  const qc = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity }, mutations: { retry: false } } });
+  qc.setQueryData(["auth", "me"], { authenticated: true, role, user: { sub: "u1" } });
+  qc.setQueryData(settingsQueryKey, {});                               // collectionEditRoles read still fires
+  qc.setQueryData(slotRowsQueryKey("proj-001", "epics"), { rows });    // useSlotRows reads {rows}
+  useStore.setState({ activeProjectId: "proj-001" });
+  return qc;
+}
+
+describe("RegisterPanel (slot source — the same editable grid over a mapping slot)", () => {
+  it("renders the slot's rows and a contributor can edit", () => {
+    renderWithProviders(<RegisterPanel panel={slotPanel} />, { client: seedSlot("contributor", [{ id: "E-1", name: "Checkout" }]) });
+    expect(screen.getByTestId("register-add")).toBeTruthy();
+    expect(screen.getByDisplayValue("Checkout")).toBeTruthy();
+  });
+
+  it("Save UPSERTs each row via PUT to the generic slot endpoint (id keys the row)", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(null, { status: 204 }));
+    renderWithProviders(<RegisterPanel panel={slotPanel} />, { client: seedSlot("contributor", [{ id: "E-1", name: "Checkout" }]) });
+    fireEvent.change(screen.getByLabelText("Row 1 Name"), { target: { value: "Renamed" } });
+    fireEvent.click(screen.getByTestId("register-save"));
+    const put = await waitFor(() => {
+      const call = fetchMock.mock.calls.find(([u, i]) => String(u) === "/api/projects/proj-001/mapping/epics/E-1" && (i as RequestInit)?.method === "PUT");
+      expect(call).toBeTruthy();
+      return call!;
+    });
+    const body = JSON.parse((put[1] as RequestInit).body as string) as { fields: { name: string } };
+    expect(body.fields.name).toBe("Renamed");       // id keys the row, not a written field
+  });
+
+  it("Save DELETEs a row the draft dropped (reconcile)", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(null, { status: 204 }));
+    renderWithProviders(<RegisterPanel panel={slotPanel} />, { client: seedSlot("contributor", [{ id: "E-1", name: "Checkout" }]) });
+    fireEvent.click(screen.getByLabelText("Remove row 1"));
+    fireEvent.click(screen.getByTestId("register-save"));
+    await waitFor(() => {
+      const call = fetchMock.mock.calls.find(([u, i]) => String(u) === "/api/projects/proj-001/mapping/epics/E-1" && (i as RequestInit)?.method === "DELETE");
+      expect(call).toBeTruthy();
+    });
   });
 });

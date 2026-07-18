@@ -37,14 +37,14 @@ test("the velocity report is TAGGED agile — surfaces under scrum/scrumban/safe
   for (const m of ["waterfall", "prince2"]) assert.ok(!reportsForMethodology(m).some((r) => r.id === "velocity"), `velocity must NOT belong to ${m}`);
 });
 
-test("a register screen is PURE JSON: the epics screen binds a table panel to the epics slot's rows endpoint", () => {
-  const screens = screenDefCatalogue() as unknown as Array<{ id: string; methodologies?: string[]; panels: Array<{ kind: string; source?: { url?: string } }> }>;
+test("a register screen is PURE JSON: the epics screen is the generic register panel bound to the epics slot", () => {
+  const screens = screenDefCatalogue() as unknown as Array<{ id: string; methodologies?: string[]; panels: Array<{ kind: string; config?: { slot?: string } }> }>;
   const epics = screens.find((s) => s.id === "epics")!;
   assert.ok(epics, "the epics register screen should ship");
-  // Zero-code: a source-bound table over the generic slot rows endpoint, {projectId} filled at render time.
+  // Reuse, not a new primitive: the existing editable `register` panel with a slot source — no bespoke code.
   const panel = epics.panels[0]!;
-  assert.equal(panel.kind, "table");
-  assert.equal(panel.source?.url, "/api/projects/{projectId}/mapping/epics/rows");
+  assert.equal(panel.kind, "register");
+  assert.equal(panel.config?.slot, "epics");
   // The register belongs to agile (a loose tag, usable anywhere the composition enables it).
   for (const m of AGILE) assert.ok(matchesMethodology(epics.methodologies, m), `epics register should belong to ${m}`);
 });
