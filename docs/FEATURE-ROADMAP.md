@@ -2220,9 +2220,26 @@ settings key/classification) plus a store-enabled route test.
     `normalisedBy(validate…, …Error)` as the config-mode `validate`; the `/raci/rows` + `/stakeholders/rows`
     endpoints repointed to `readConfigCollection(…)`. Route contracts unchanged (SPA untouched); the route test
     is store-enabled and drives both registers + the edit-policy via `writeOrgConfigCollection`.
-  - **`automations` + `templates` + `methodologyComposition` — pending.** `automations`/`templates` have
-    standalone validators + their own `Error` classes (clean `normalisedBy` flips); `methodologyComposition` is
-    a simple `string[]|null`. Next up.
+  - **`automations` + `templates` ✅ (batch flip, no compat).** Both flipped to config-def collections
+    (`automations` / `templates`) via the seam; settings keys + FIELD_DESCRIPTORS + CHOICE removed and the
+    now-unused imports dropped from `lib/settings`. The routes pass `normalisedBy(validate…, …Error)` as the
+    config-mode `validate` (each has a standalone validator + its own `Error` class); the automations `/run`
+    endpoint repointed to `readConfigCollection`. Route contracts unchanged (SPA untouched); route tests
+    store-enabled and seed via `writeOrgConfigCollection`.
+  - **`methodologyComposition` ✅ (dedicated route, no compat).** The composition is a NULLABLE `string[] | null`
+    (`null` = uncurated, everything visible), so it can't ride the array-collection seam whose default is `[]`.
+    It moved to a dedicated `methodology-composition` config def with a null-preserving `{ value }` wrapper:
+    `lib/scoped-config` gained `resolveMethodologyComposition` (reads `readConfigCollection<string[]|null>(…, null)`),
+    and a new `routes/methodology-composition` (GET any-authed; PUT admin/PMO, validated `null | string[]`)
+    replaces the old settings slice. All consumers repointed: the output hard-gate (`lib/composition-gate`),
+    reference rulesets (`routes/ruleset`) and reports (`routes/reports`) now read `resolveMethodologyComposition()`
+    instead of `getSettings().methodologyComposition`; the SPA `methodology-composition-api` hooks repoint to
+    `/api/methodology-composition` while keeping the `{ data }` shape callers destructure. `settings.methodologyComposition`
+    removed (field + FIELD_DESCRIPTORS + CHOICE). Store-enabled route tests cover the new route + the gate paths.
+
+  **Phase B choice slices complete.** Every choice-classified collection now lives in the composition model as a
+  scope-layered `config` def; `SettingsState` retains only security-classified keys (Phase C) and the handful of
+  toggle/registry keys still read module-wide (`disabledFeatures`, `reports`, …). Next milestone: Phase C floor gate.
 
 ### Phase C — security/floor slices (introduce the floor + sign-off wiring)
 - **Slice 7 · the floor gate.** Wire "relaxing a floor config needs sign-off" onto the existing `relaxingKeys` /

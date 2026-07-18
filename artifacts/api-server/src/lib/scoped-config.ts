@@ -104,6 +104,14 @@ export function orgConfigCollectionId(configId: string): string {
   return `org~config-${configId}`;
 }
 
+/** The methodology COMPOSITION — the PMO/admin's curated set of visible artifact/output/ruleset ids, or `null`
+ *  when uncurated (everything on). A config-def-backed collection whose value is nullable (so `null` — the
+ *  meaningful "uncurated" — survives, unlike an array collection's `[]` default). */
+export const METHODOLOGY_COMPOSITION_ID = "methodology-composition";
+export function resolveMethodologyComposition(scopes: ConfigScopes = {}): string[] | null {
+  return readConfigCollection<string[] | null>(METHODOLOGY_COMPOSITION_ID, null, scopes);
+}
+
 // ── Scheduling: the first migrated config (working-time policy) ──────────────────────────────────────────────
 // The (client-side, projected) scheduling engine's working day/week — hours/day, working weekdays, holidays.
 // Config only: the schedule itself is computed live in the browser and never persisted. Its authoritative

@@ -947,7 +947,6 @@ const SAMPLE_SETTINGS = {
   fxRateAsOfDate: null,
   customReports: [],
   reportOverrides: [],
-  methodologyComposition: null,
   oidcIssuerUrl: "https://idp",
   errorTelemetry: false,
   fieldRouting: [],

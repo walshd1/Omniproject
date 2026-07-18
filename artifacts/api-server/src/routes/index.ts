@@ -29,6 +29,7 @@ import priorityLabelsRouter from "./priority-labels";
 import calendarRouter from "./calendar";
 import schedulingRouter from "./scheduling";
 import accessibilityRouter from "./accessibility";
+import methodologyCompositionRouter from "./methodology-composition";
 import featuresRouter from "./features";
 import rateCardRouter from "./rate-card";
 import viewsRouter from "./views";
@@ -207,6 +208,7 @@ router.use(requireAuth, priorityLabelsRouter);
 router.use(requireAuth, calendarRouter);
 router.use(requireAuth, schedulingRouter);
 router.use(requireAuth, accessibilityRouter);
+router.use(requireAuth, methodologyCompositionRouter);
 router.use(requireAuth, featuresRouter);
 router.use(requireAuth, rateCardRouter);
 // These three carry a toggleable feature module (savedViews / dashboards / contentPages) whose

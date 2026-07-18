@@ -118,13 +118,8 @@ test("savedViews entries need string id + name", () => {
   assert.doesNotThrow(() => validateSavedViews([{ id: "v", name: "My view" }]));
 });
 
-test("methodologyComposition: null or an array of strings", () => {
-  throws({ methodologyComposition: "scrum" }); // not an array
-  throws({ methodologyComposition: [1, 2] }); // non-string entries
-  assert.doesNotThrow(() => updateSettings({ methodologyComposition: null })); // uncurated
-  assert.deepEqual(updateSettings({ methodologyComposition: ["report:burndown", "view:raid"] }).methodologyComposition, ["report:burndown", "view:raid"]);
-  updateSettings({ methodologyComposition: null });
-});
+// NB methodologyComposition is no longer a settings key (it's a nullable `methodology-composition` config def);
+// its null/array validation is exercised in the methodology-composition route test.
 
 test("artifact style: enums for font/align, capped colour + title strings", () => {
   const view = (style: unknown) => [{ id: "v", name: "V", style }];

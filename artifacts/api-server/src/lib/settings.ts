@@ -493,13 +493,8 @@ export interface PresentationConfig {
   // (via settingsCollectionRouter's config mode): `disabled-screens` (routes/disabled-screens),
   // `collection-edit-roles` (routes/collection-edit-roles; read by lib/collection-edit-policy) and
   // `panel-views` (routes/panel-views).
-  /**
-   * Methodology composition — the PMO/admin's curated set of visible artifact / output / ruleset ids,
-   * assembled from one-click methodology presets and refined per item (so "some Scrum + some PRINCE2" is
-   * just a curated list). `null` = uncurated: everything the catalogues offer stays visible (the default).
-   * Customer-level presentation config; rides the snapshot/export, never project data.
-   */
-  methodologyComposition: string[] | null;
+  // NB the methodology composition is NOT a settings key — it moved into the composition model as a nullable
+  // config-def-backed collection (`methodology-composition`; see lib/scoped-config + routes/methodology-composition).
   /**
    * Named content pages: an ordered, flat list of unified-library component ids (reports + widgets,
    * see @workspace/backend-catalogue componentsFor("content")) a customer composes into free-form
@@ -1089,15 +1084,6 @@ const FIELD_DESCRIPTORS: { [K in keyof SettingsState]: FieldDescriptor<K> } = {
   budgetPlans: { seed: () => [], validate: normalisedBy((v) => validateBudgetPlans(v), BudgetPlanError) },
   screenDefs: { seed: () => [], validate: normalisedBy((v) => validateScreenDefs(v), ScreenDefError) },
   forms: { seed: () => [], validate: normalisedBy((v) => { if (!Array.isArray(v)) throw new FormDefError("forms must be an array"); return v as FormDef[]; }, FormDefError) },
-  methodologyComposition: {
-    seed: () => null,
-    validate: (value) => {
-      if (value !== null && (!Array.isArray(value) || value.some((x) => typeof x !== "string"))) {
-        throw new SettingsValidationError("methodologyComposition must be null or an array of strings");
-      }
-      return value as string[] | null;
-    },
-  },
   dashboards: { seed: () => [], validate: shapeChecked(validateDashboards) },
   contentPages: { seed: () => [], validate: shapeChecked(validateContentPages) },
   priorityWeights: { seed: () => ({ ...DEFAULT_PRIORITY_WEIGHTS }), validate: shapeChecked(validatePriorityWeights) },
