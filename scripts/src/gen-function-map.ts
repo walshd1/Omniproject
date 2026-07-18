@@ -17,13 +17,11 @@
 import ts from "typescript";
 import fs from "node:fs";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { REPO_ROOT as ROOT } from "./lib/repo-root";
 import { walkFiles } from "./lib/walk-files";
 import { escapeTableCell } from "./lib/markdown";
 import { parseSourceFile } from "./lib/ts-ast";
 
-const HERE = path.dirname(fileURLToPath(import.meta.url));
-const ROOT = path.resolve(HERE, "../..");
 const OUT_MD = path.join(ROOT, "docs/FUNCTION-MAP.md");
 
 /** A package source tree to map, with the files that are generated/trivial. */

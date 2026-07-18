@@ -678,6 +678,14 @@ History-retention vocabulary — the durable time-series layer that lets the sel
 
 Server entrypoint.
 
+### `artifacts/api-server/src/lib/actor.ts`
+
+Shared actor-identity helpers over the broker's `ActorContext`.
+
+| Function | What it does |
+| --- | --- |
+| `actorLabel` | The human-readable label recorded on a write's `*By` audit field: the actor's email, then name, then subject id, or null when the context carries none. |
+
 ### `artifacts/api-server/src/lib/ai-allowlist.ts`
 
 AI SELECTION ALLOWLISTS — governance FLOORS (roadmap Phase C) over which AI providers / models / STT engines may be SELECTED (`aiProvider` / `aiModel` / `sttProvider`).
@@ -877,6 +885,7 @@ SCOPED ENCRYPTED-JSON ARTIFACT STORE — the canonical home for user-authored ar
 | `parseScopedId` | Parse a self-describing id back to its target + parts, or null when malformed. |
 | `scopeFromParsed` | The encrypted-JSON scope for a parsed non-sidecar id. |
 | `artifactStoreEnabled` | Whether the encrypted-JSON artifact store is available (an OMNI_CONFIG_DIR is configured). |
+| `requireArtifactStore` | Route guard for endpoints that need the encrypted-JSON store: when it isn't configured on this deployment, write the standard `501` and return false; otherwise return true. |
 | `listArtifacts` | Every item in a (type, scope) collection. |
 | `getArtifact` | One item by id within a scope, or null. |
 | `putArtifact` | Upsert an item into a scope (read-modify-write of the sealed collection). |
@@ -1220,6 +1229,7 @@ Shared input-coercion guards for untrusted values (request bodies, external JSON
 | `isStr` | Narrow to a string. |
 | `isNum` | Narrow to a finite number (rejects NaN/Infinity). |
 | `stringArray` | Keep only the string members of an array (empty array for a non-array). |
+| `sanitizeText` | Strip control characters and cap length on a free-text value before storage, so authored text can never carry a control-char payload or blow a limit. |
 
 ### `artifacts/api-server/src/lib/collab-hub.ts`
 
@@ -2041,7 +2051,6 @@ GOAL / OKR server logic (roadmap 3.2) — the authoritative sanitiser + storage 
 | `makeGoalId` | Build a self-describing goal id (shared scoped-id primitive). |
 | `parseGoalId` | Parse a self-describing goal id, or null if malformed / not a JSON target. |
 | `goalScope` | The encrypted-JSON scope for a goal id (the caller's OWN sub is always used for a user goal). |
-| `actorLabel` | A goal actor's label (email > name > sub) for the audit `updatedBy`. |
 | `newGoalRow` | Build the row for a NEW goal from a sanitised write (owner stamped from ctx; progress derived; version 1). |
 | `goalLinkKey` | The stable, URL-safe key for a work-item link (base64url of the addressing triple). |
 | `sanitizeGoalLink` | Validate + normalise a raw work-item link (throws {@link GoalError} on a bad shape). |
@@ -2172,7 +2181,6 @@ INVOICE server logic (roadmap 3.3) — the authoritative sanitiser + storage acc
 | `makeInvoiceId` | ── Storage-target model ───────────────────────────────────────────────────────────────────────────────── |
 | `parseInvoiceId` | — |
 | `invoiceScope` | — |
-| `actorLabel` | — |
 | `newInvoiceRow` | Build the row for a NEW invoice (owner stamped from ctx; totals derived; status draft; version 1). |
 | `mergeInvoiceRow` | Apply an UPDATE, preserving id/owner/storage/status/timestamps; totals recomputed. |
 | `applyInvoiceStatus` | Move an invoice to `next` status (assumes the transition was validated by {@link canTransitionInvoice}). |
@@ -2744,7 +2752,6 @@ PROOF server logic — the authoritative sanitiser + storage access for the crea
 | `makeProofId` | Build a self-describing proof id (shared scoped-id primitive). |
 | `parseProofId` | Parse a self-describing proof id, or null if malformed / not a JSON target. |
 | `proofScope` | The encrypted-JSON scope for a proof id (the caller's OWN sub is always used for a user proof). |
-| `actorLabel` | A proof actor's label (email > name > sub) for the audit `decidedBy`/`updatedBy`. |
 | `newJsonProofRow` | Build the row for a NEW proof from a sanitised write. |
 | `mergeJsonProofRow` | Apply an UPDATE to an existing proof, preserving its id/owner/storage. |
 | `isReviewDecision` | Whether a string is a settable review decision (approved / rejected / changes-requested). |
@@ -3741,7 +3748,6 @@ WIKI document server logic — the authoritative sanitiser + broker access for c
 
 | Function | What it does |
 | --- | --- |
-| `sanitizeText` | Strip control characters (keep tab/newline) and cap length so authored text can never carry a payload or blow a limit. |
 | `sanitizeEmbedUrl` | Validate an embed URL against the safe-scheme allow-list; returns the normalised href or throws. |
 | `sanitizeDocBlock` | Sanitise one raw block into a well-formed `DocBlock`, or throw {@link WikiError}. |
 | `sanitizeDocBlocks` | Sanitise a whole block list. |
@@ -5113,6 +5119,10 @@ Markdown emit helpers for the codegen scripts (`gen-contract`, `gen-function-map
 | Function | What it does |
 | --- | --- |
 | `escapeTableCell` | Make an arbitrary string safe to drop into a GitHub-flavoured Markdown *table cell*. |
+
+### `scripts/src/lib/repo-root.ts`
+
+The repository root, resolved once from this file's fixed location (scripts/src/lib/).
 
 ### `scripts/src/lib/superset.ts`
 

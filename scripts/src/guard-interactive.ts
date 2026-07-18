@@ -18,12 +18,10 @@
  */
 import fs from "node:fs";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { REPO_ROOT as ROOT } from "./lib/repo-root";
 import { walkFiles } from "./lib/walk-files";
 import { reportGuard } from "./lib/guard-harness";
 
-const HERE = path.dirname(fileURLToPath(import.meta.url));
-const ROOT = path.resolve(HERE, "../..");
 const SPA_SRC = path.join(ROOT, "artifacts/omniproject/src");
 
 /** Native elements that are keyboard-operable on their own. */

@@ -24,12 +24,10 @@
 import ts from "typescript";
 import fs from "node:fs";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { REPO_ROOT as ROOT } from "./lib/repo-root";
 import { escapeTableCell } from "./lib/markdown";
 import { parseSourceFile } from "./lib/ts-ast";
 
-const HERE = path.dirname(fileURLToPath(import.meta.url));
-const ROOT = path.resolve(HERE, "../..");
 const SRC_DIR = path.join(ROOT, "artifacts/api-server/src");
 const OUT_SCHEMA = path.join(ROOT, "docs/contract/broker.v1.schema.json");
 const OUT_MD = path.join(ROOT, "docs/CONTRACT.md");
