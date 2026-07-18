@@ -9,6 +9,7 @@
 import type { ActorContext } from "../broker/types";
 import { listArtifacts, getArtifact, putArtifact, deleteArtifact, type ArtifactScope } from "./artifact-store";
 import { sanitizeText as cleanText } from "./coerce";
+import { actorLabel } from "./actor";
 import { EXTENSION_CONTRIBUTION_KINDS, type ExtensionContributionKind, type ExtensionStatus } from "@workspace/backend-catalogue";
 
 /** A rejected extension install (maps to 400). */
@@ -122,7 +123,7 @@ export function newExtensionRow(id: string, input: SanitizedExtensionInstall, ct
     status: "installed",
     contributions: input.contributions,
     installedAt: now,
-    installedBy: ctx.email ?? ctx.name ?? ctx.sub ?? null,
+    installedBy: actorLabel(ctx),
     updatedAt: now,
     rowVersion: 1,
   };

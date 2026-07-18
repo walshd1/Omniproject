@@ -15,6 +15,7 @@ import type { ActorContext, Whiteboard, WhiteboardMeta, WhiteboardWrite, Whitebo
 import type { StorageTarget } from "./artifact-store";
 import { makeScopedId, parseScopedId, scopeFromParsed, isStorageTarget } from "./artifact-store";
 import { sanitizeText as cleanText } from "./coerce";
+import { actorLabel } from "./actor";
 import {
   CANVAS_ELEMENT_TYPES, CANVAS_LIMITS, SHAPE_KINDS, STICKY_COLORS,
   type CanvasElement, type CanvasElementType, type ShapeKind, type StickyColor,
@@ -60,9 +61,6 @@ export function parseWhiteboardId(id: string): { storage: StorageTarget; project
 /** The encrypted-JSON scope for a non-sidecar id. The caller's OWN sub is always used for a user board, so
  *  the id can never address another user's private area. */
 export const whiteboardScope = scopeFromParsed;
-
-/** A board's actor label for the audit `updatedBy` field (email > name > sub). */
-const actorLabel = (ctx: ActorContext): string | null => ctx.email ?? ctx.name ?? ctx.sub ?? null;
 
 /**
  * Build the row for a NEW board destined for an encrypted-JSON store. The owner is stamped from `ctx.sub`

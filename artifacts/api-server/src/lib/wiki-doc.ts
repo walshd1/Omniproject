@@ -16,6 +16,7 @@ import {
   listArtifacts, getArtifact, putArtifact, deleteArtifact,
 } from "./artifact-store";
 import { sanitizeText } from "./coerce";
+import { actorLabel } from "./actor";
 import {
   DOC_BLOCK_TYPES, WIKI_LIMITS, CALLOUT_TONES, docWikiLinks, slugifyDocTitle,
   type DocBlock, type DocBlockType, type DocListItem, type CalloutTone,
@@ -184,9 +185,6 @@ export function parseWikiDocId(id: string): { storage: StorageTarget; projectId?
 }
 /** The encrypted-JSON scope for a non-sidecar id (the caller's OWN sub is always used for a user doc). */
 export const wikiDocScope = scopeFromParsed;
-
-/** The document's actor label (email > name > sub) for the audit `updatedBy`/`author`. */
-const actorLabel = (ctx: ActorContext): string | null => ctx.email ?? ctx.name ?? ctx.sub ?? null;
 
 /**
  * Build the row for a NEW document destined for an encrypted-JSON store. The id is self-describing, the

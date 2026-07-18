@@ -1,5 +1,5 @@
 import { Router, type Request } from "express";
-import { getBroker, contextFromReq, respondBrokerError } from "../broker";
+import { getBroker, contextFromReq, withBrokerErrors } from "../broker";
 import { getSettings, SettingsValidationError } from "../lib/settings";
 import { isTimeTravelEnabled } from "../lib/logging-sync";
 import { resolveHistoryRetention, sanitizeHistoryRetention, HISTORY_RETENTION_CONFIG_ID } from "../lib/history-retention";
@@ -56,12 +56,9 @@ router.get("/history/replay", async (req, res) => {
     res.status(400).json({ error: "from must be before to" });
     return;
   }
-  try {
+  await withBrokerErrors(req, res, "history replay failed", async () => {
     res.json(await getBroker().replay(contextFromReq(req), { ...(from !== undefined ? { from } : {}), ...(to !== undefined ? { to } : {}) }));
-  } catch (err) {
-    req.log.error({ err }, "history replay failed");
-    respondBrokerError(res, err);
-  }
+  });
 });
 
 const GRAINS: readonly TrendGrain[] = ["day", "week", "month", "quarter"];

@@ -13,6 +13,7 @@
 import type { ActorContext, Proof, ProofMeta, ProofWrite } from "../broker/types";
 import { makeScopedId, parseScopedId, scopeFromParsed, type ArtifactScope, type StorageTarget } from "./artifact-store";
 import { sanitizeText as cleanText } from "./coerce";
+import { actorLabel } from "./actor";
 import {
   ANNOTATION_TYPES, REGION_ANNOTATION_TYPES, DELIVERABLE_KINDS, REVIEW_DECISIONS, PROOF_LIMITS,
   type Annotation, type AnnotationType, type Deliverable, type DeliverableKind, type ProofDecision,
@@ -151,7 +152,7 @@ export const proofScope = (parsed: { storage: ProofStorage; projectId?: string }
   scopeFromParsed(parsed as { storage: StorageTarget; projectId?: string }, sub);
 
 /** A proof actor's label (email > name > sub) for the audit `decidedBy`/`updatedBy`. */
-export const actorLabel = (ctx: ActorContext): string | null => ctx.email ?? ctx.name ?? ctx.sub ?? null;
+export { actorLabel };
 
 /** Build the row for a NEW proof from a sanitised write. The owner is stamped from ctx (never the client);
  *  the proof starts at version 1 with a `pending` decision. */

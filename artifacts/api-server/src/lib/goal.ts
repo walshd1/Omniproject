@@ -11,6 +11,7 @@
 import type { ActorContext } from "../broker/types";
 import { makeScopedId, parseScopedId, scopeFromParsed, type ArtifactScope, type StorageTarget } from "./artifact-store";
 import { sanitizeText as cleanText } from "./coerce";
+import { actorLabel } from "./actor";
 import { nextOccurrence } from "./recurrence";
 import { KEY_RESULT_KINDS, isBinaryKeyResultKind, type KeyResultKind } from "@workspace/backend-catalogue";
 
@@ -242,7 +243,7 @@ export const goalScope = (parsed: { storage: GoalStorage; projectId?: string }, 
   scopeFromParsed(parsed as { storage: StorageTarget; projectId?: string }, sub);
 
 /** A goal actor's label (email > name > sub) for the audit `updatedBy`. */
-export const actorLabel = (ctx: ActorContext): string | null => ctx.email ?? ctx.name ?? ctx.sub ?? null;
+export { actorLabel };
 
 /** Build the row for a NEW goal from a sanitised write (owner stamped from ctx; progress derived; version 1). */
 export function newGoalRow(id: string, input: SanitizedGoalWrite, ctx: ActorContext, now: string): Goal {

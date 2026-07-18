@@ -9,6 +9,7 @@
 import type { ActorContext } from "../broker/types";
 import { listArtifacts, getArtifact, putArtifact, deleteArtifact, type ArtifactScope } from "./artifact-store";
 import { sanitizeText as cleanText } from "./coerce";
+import { actorLabel } from "./actor";
 import {
   REGISTRY_ITEM_KINDS, type RegistryItemKind, type RegistryApprovalStatus, type RegistryVisibility,
 } from "@workspace/backend-catalogue";
@@ -115,7 +116,6 @@ export function sanitizeRegistrySubmit(raw: unknown): SanitizedRegistrySubmit {
   return { kind: obj["kind"], name, publisher, version, description: description || null, tags: cleanTags(obj["tags"]), payload };
 }
 
-const actorLabel = (ctx: ActorContext): string | null => ctx.email ?? ctx.name ?? ctx.sub ?? null;
 
 /** Build the row for a newly submitted item (draft, internal; identity stamped from ctx). */
 export function newRegistryItem(id: string, input: SanitizedRegistrySubmit, ctx: ActorContext, now: string): RegistryItem {

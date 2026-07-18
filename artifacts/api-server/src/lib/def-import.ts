@@ -15,6 +15,7 @@
 import type { ActorContext } from "../broker/types";
 import { listArtifacts, getArtifact, putArtifact, deleteArtifact, replaceArtifacts, listAllArtifactCollections, SYSTEM_SCOPE, type ArtifactScope } from "./artifact-store";
 import { sanitizeText } from "./coerce";
+import { actorLabel } from "./actor";
 import { readDefIndex, ensureDefIndex, defHasChildren, defIndexAddEdge, invalidateDefIndex } from "./def-index";
 import { validateScreenDefs } from "./screen-def";
 import { sanitizeMapping } from "./mapping";
@@ -231,7 +232,6 @@ export interface StoredDefMeta {
   updatedAt: string;
 }
 
-const actorLabel = (ctx: ActorContext): string | null => ctx.email ?? ctx.name ?? ctx.sub ?? null;
 
 /** Validate an EDIT to an existing def: the kind is fixed (can't change on edit), the payload is re-validated,
  *  and the name is optional (kept when omitted). Throws {@link DefError} (→ 400). */
