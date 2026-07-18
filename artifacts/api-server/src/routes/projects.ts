@@ -40,6 +40,7 @@ import { artifactStoreEnabled } from "../lib/artifact-store";
 import { resolveMapping } from "../lib/mapping-resolve";
 import { projectMappingRows, planMappingWrite, resolveMappingTargets } from "../lib/mapping";
 import { getSidecarRows, upsertSidecarRow } from "../lib/mapping-sidecar";
+import { getSidecarDependencies, upsertSidecarDependency, removeSidecarDependency } from "../lib/dependency-sidecar";
 import { resolveLiveSuperset } from "../lib/capabilities";
 import { deriveMappingValidation } from "../lib/superset";
 import { poolMap } from "../lib/concurrency-pool";
@@ -601,8 +602,11 @@ router.get("/projects/:projectId/dependencies", async (req, res) => {
   await withBrokerErrors(req, res, "list_dependencies failed", async () => {
     if (!(await guardProjectScope(req, res, projectId))) return;
     const broker = getBroker();
-    if (!broker.listDependencies) { res.status(501).json({ error: "this backend does not expose a dependency graph" }); return; }
-    res.json({ edges: await broker.listDependencies(contextFromReq(req), projectId) });
+    // Prefer the backend's own link API; fall back to our sealed sidecar (the built-in home) when it fronts none.
+    const edges = broker.listDependencies
+      ? await broker.listDependencies(contextFromReq(req), projectId)
+      : getSidecarDependencies(projectId);
+    res.json({ edges });
   }, { projectId });
 });
 
@@ -615,8 +619,11 @@ router.post("/projects/:projectId/dependencies", requireRole("contributor"), asy
     const link = sanitizeDependency(req.body);
     if (!link) { res.status(400).json({ error: "a dependency needs distinct fromId + toId and a valid kind (blocks | depends_on | relates_to)" }); return; }
     const broker = getBroker();
-    if (!broker.writeDependency) { res.status(501).json({ error: "this backend does not accept dependency edges" }); return; }
-    const saved = await broker.writeDependency(contextFromReq(req), projectId, link);
+    // Prefer the backend's own link API; otherwise the built-in home needs the sealed store enabled to persist.
+    if (!broker.writeDependency && !artifactStoreEnabled()) { res.status(501).json({ error: "this backend does not accept dependency edges" }); return; }
+    const saved = broker.writeDependency
+      ? await broker.writeDependency(contextFromReq(req), projectId, link)
+      : upsertSidecarDependency(projectId, link);
     recordAudit({ ts: new Date().toISOString(), category: "admin", action: `write_dependency:${link.fromId}->${link.toId}`, projectId, result: "success", status: 200 });
     res.status(201).json(saved);
   }, { projectId });
@@ -631,8 +638,10 @@ router.delete("/projects/:projectId/dependencies", requireRole("contributor"), a
     const link = sanitizeDependency(req.body);
     if (!link) { res.status(400).json({ error: "a dependency delete needs fromId + toId + kind" }); return; }
     const broker = getBroker();
-    if (!broker.removeDependency) { res.status(501).json({ error: "this backend does not accept dependency edges" }); return; }
-    await broker.removeDependency(contextFromReq(req), projectId, link.fromId, link.toId, link.kind);
+    // Prefer the backend's own link API; otherwise remove from the sealed sidecar (a no-op when the store is off).
+    if (!broker.removeDependency && !artifactStoreEnabled()) { res.status(501).json({ error: "this backend does not accept dependency edges" }); return; }
+    if (broker.removeDependency) await broker.removeDependency(contextFromReq(req), projectId, link.fromId, link.toId, link.kind);
+    else removeSidecarDependency(projectId, link.fromId, link.toId, link.kind);
     recordAudit({ ts: new Date().toISOString(), category: "admin", action: `remove_dependency:${link.fromId}->${link.toId}`, projectId, result: "success", status: 200 });
     res.status(204).end();
   }, { projectId });

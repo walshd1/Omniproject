@@ -1844,9 +1844,18 @@ multi-tenancy → managed offering (§5.4).
 
 ### 5.5 Domain-model entities in the contract (bar: B1 / B2)
 The single highest-leverage contract change — four concepts that are vocabulary strings today, not entities:
-- ✳ **Explicit dependency graph (`dependsOn[]`)** — readable/writable edges through the broker. **The review's
+- 🚧 **Explicit dependency graph (`dependsOn[]`)** — readable/writable edges through the broker. **The review's
   #2 priority:** one addition unlocks interactive Gantt links, network diagrams, true critical path on live
-  data, and cascade-reschedule. (Today: `blocked`/`blockedReason` flags + exploration hash-links only.)
+  data, and cascade-reschedule.
+  - **Slice 1 ✅ (brokered edges).** `DependencyLink {fromId, toId, kind: blocks|depends_on|relates_to, note?}`
+    on the `Broker` contract (`listDependencies`/`writeDependency`/`removeDependency`, capability-gated, guarded);
+    `GET/POST/DELETE /projects/:projectId/dependencies` (read project-scope-gated, write/delete contributor+,
+    audited); demo broker fixtures. Zero-at-rest — only id→id/kind crosses the seam, never item content.
+  - **Slice 2 ✅ (sidecar fallback).** `lib/dependency-sidecar` — AES-256-GCM sealed per-project edge store, the
+    built-in home for backends that front no native link API. The three routes prefer the broker method and fall
+    back to the sealed store (write/delete 501 only when the store is off), idempotent on from·kind·to.
+  - **Next (slice 3):** migrate the SPA's browser-volatile `lib/dependencies` + GanttChart cascade to consume the
+    brokered endpoint — the interactive-Gantt-links + live-CPM payoff. (Today the SPA graph is client-only.)
 - ✳ **Sprints / iterations as entities** — open/close/carry-over, sprint goals, real velocity history (derived from labels/fields today).
 - ✳ **Epics / work-item hierarchy** — epic→story→subtask in the contract (`parentTaskId` on GTD tasks only today).
 - ✳ **Milestones & baselines as entities** — versioned baselines + variance-to-baseline over time (`baseline()` read exists; milestones are date fields).
