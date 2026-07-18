@@ -21,8 +21,8 @@ import { validateCustomFieldDef } from "./custom-fields";
 import { validatePrimitiveDef, shippedDefRefs, shippedDefs, extendsLineage, composeExtends, composedConstraintErrors, kindRootConstraints, kindElementErrors, validateFormFields } from "@workspace/backend-catalogue";
 
 /** A user-definable JSON kind the importer accepts. */
-export type DefKind = "primitive" | "screen" | "form" | "report" | "dashboard" | "businessRule" | "methodology" | "mapping" | "customField" | "theme" | "font" | "jsonDef";
-export const DEF_KINDS: readonly DefKind[] = ["primitive", "screen", "form", "report", "dashboard", "businessRule", "methodology", "mapping", "customField", "theme", "font", "jsonDef"];
+export type DefKind = "primitive" | "screen" | "form" | "report" | "dashboard" | "businessRule" | "methodology" | "mapping" | "customField" | "theme" | "font" | "config" | "jsonDef";
+export const DEF_KINDS: readonly DefKind[] = ["primitive", "screen", "form", "report", "dashboard", "businessRule", "methodology", "mapping", "customField", "theme", "font", "config", "jsonDef"];
 
 /** The artifact-store type key: one sealed collection per scope holds every stored def. */
 export const DEF_ARTIFACT = "def";
@@ -94,6 +94,7 @@ export function validateDef(kind: DefKind, payload: unknown): DefValidation {
     case "customField": return fromThrowing(() => validateCustomFieldDef(payload));
     case "theme": return validateTheme(payload);
     case "font": return structural(payload, ["id", "family"]);
+    case "config": return validateConfigDef(payload);
     case "jsonDef": return structural(payload, []);
   }
 }
@@ -114,6 +115,22 @@ function validateDashboardDef(payload: unknown): DefValidation {
     if (typeof o["type"] !== "string" || !o["type"].trim()) errors.push(`widgets[${i}].type is required`);
   });
   return errors.length ? { ok: false, errors } : { ok: true, errors: [], value: payload };
+}
+
+/** A scoped CONFIG def: an `id` (the logical config being layered, e.g. "scheduling") + a `values` object — the
+ *  PARTIAL contribution this scope makes to that config. A config def is the reusable vehicle for the model
+ *  migration: the same logical id imported at system/org/programme/project/user is scope-resolved nearest-wins
+ *  (deep-merged base→leaf via `resolveScopedConfig`), so any settings blob becomes a composable, scope-layered
+ *  def riding the importer choke point + sealed store like everything else. `values` must be a plain JSON object
+ *  (never an array / primitive) so a layer can only ever CONTRIBUTE keys, never smuggle a non-object shape. */
+function validateConfigDef(payload: unknown): DefValidation {
+  const base = structural(payload, ["id"]);
+  if (!base.ok) return base;
+  const values = (payload as Record<string, unknown>)["values"];
+  if (values !== undefined && (typeof values !== "object" || values === null || Array.isArray(values))) {
+    return { ok: false, errors: ["values must be a JSON object"] };
+  }
+  return { ok: true, errors: [], value: payload };
 }
 
 /** A colour theme: an id + a `colors` map of string colour values (checked so a theme can't smuggle a
