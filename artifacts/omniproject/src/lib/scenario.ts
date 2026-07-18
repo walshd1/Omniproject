@@ -1,5 +1,5 @@
 import type { Project, PortfolioHealthSummary } from "@workspace/api-client-react";
-import { num } from "./num";
+import { num, round1 } from "./num";
 
 /**
  * What-If scenario engine — a STATELESS, in-browser overlay on the LIVE
@@ -85,7 +85,6 @@ export function applyScenario(
   return { projects: adjustedProjects, portfolio: adjustedPortfolio };
 }
 
-const round1 = (n: number): number => Math.round(n * 10) / 10;
 /** Mean over ONLY the finite values (a non-finite read-model figure is excluded from BOTH the sum and
  *  the count, not averaged in as 0), matching the server twin summarizeHealth. 0 when none are finite. */
 const finiteAvg = (ns: readonly (number | null | undefined)[]): number => {

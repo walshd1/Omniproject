@@ -14,3 +14,7 @@ export const numLoose = (v: unknown): number => {
 /** Round to 2 decimal places — the shared home for the money/percentage roll-ups that each used to
  *  re-declare `Math.round(n * 100) / 100` locally (portfolio-value, portfolio-finance, benefits, custom-report). */
 export const round2 = (n: number): number => Math.round(n * 100) / 100;
+
+/** Round to 1 decimal place — the shared home for the utilisation / health / flow roll-ups that each
+ *  re-declared `Math.round(n * 10) / 10` locally. */
+export const round1 = (n: number): number => Math.round(n * 10) / 10;

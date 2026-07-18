@@ -1,4 +1,4 @@
-import { num } from "./num";
+import { num, round1 } from "./num";
 import { convertAmount, isConvertible } from "./currency";
 import { summariseBenefits, type BenefitInput } from "./benefits";
 
@@ -83,7 +83,6 @@ export interface ProjectPriorityScore {
   valueDensity: number | null;
 }
 
-const round1 = (n: number): number => Math.round(n * 10) / 10;
 
 /** Map a free-form MoSCoW string to a 0–100 weight. Regex-matched (mirrors benefitBucket in
  *  benefits.ts) so "Must have", "MUST", "m" (Jira shorthand) etc. all resolve the same way. */
