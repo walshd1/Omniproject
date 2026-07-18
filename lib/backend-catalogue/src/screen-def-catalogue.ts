@@ -1,5 +1,6 @@
 import budgetPlans from "./screens/budget-plans.json";
 import burndown from "./screens/burndown.json";
+import epics from "./screens/epics.json";
 import explore from "./screens/explore.json";
 import gantt from "./screens/gantt.json";
 import home from "./screens/home.json";
@@ -45,7 +46,7 @@ export interface RawScreenDef {
 /** All shipped screen defs, in catalogue order (core pages first, then the methodology-shipped screens). */
 export const SCREEN_DEF_CATALOGUE: RawScreenDef[] = [
   budgetPlans, resourceAllocations, home, myWork, tasks, reports, programmes, programmeDetail,
-  projects, projectDetail, explore, kanban, scrum, sprints, userStories, burndown, gantt, prince2,
+  projects, projectDetail, explore, kanban, scrum, sprints, userStories, epics, burndown, gantt, prince2,
   raid, intake, projectGantt, riskRegister, raciMatrix, stakeholders, sapProjectCost,
 ] as unknown as RawScreenDef[];
 

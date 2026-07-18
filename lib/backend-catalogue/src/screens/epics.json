@@ -1,0 +1,18 @@
+{
+  "id": "epics",
+  "label": "Epics",
+  "hint": "The project's epics (epic → story → subtask). A generic data-slot register: rows are read live from the `epics` mapping slot through the same generic surface every slot uses — a pure JSON screen, no bespoke code.",
+  "methodologies": ["scrum", "scrumban", "safe"],
+  "route": "/epics",
+  "nav": { "label": "Epics" },
+  "panels": [
+    {
+      "id": "epics-register",
+      "kind": "table",
+      "title": "Epics",
+      "span": 12,
+      "source": { "url": "/api/projects/{projectId}/mapping/epics/rows" },
+      "config": { "columns": ["id", "name", "goal", "state", "itemIds"] }
+    }
+  ]
+}

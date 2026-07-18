@@ -27,7 +27,7 @@ test("the sprint + epic + dependency + wbs MODELS ship as JSON mapping defs (no 
 
 test("the sprint + epic MODELS are methodology-NEUTRAL data (the tag lives on the surfaces, not the slot)", () => {
   for (const id of ["sprints", "epics"]) {
-    const def = getMappingDef(id)! as Record<string, unknown>;
+    const def = getMappingDef(id)! as unknown as Record<string, unknown>;
     assert.ok(!("methodologies" in def), `mapping "${id}" must stay methodology-neutral data`);
   }
 });
@@ -35,6 +35,18 @@ test("the sprint + epic MODELS are methodology-NEUTRAL data (the tag lives on th
 test("the velocity report is TAGGED agile — surfaces under scrum/scrumban/safe, not waterfall/prince2", () => {
   for (const m of AGILE) assert.ok(reportsForMethodology(m).some((r) => r.id === "velocity"), `velocity should belong to ${m}`);
   for (const m of ["waterfall", "prince2"]) assert.ok(!reportsForMethodology(m).some((r) => r.id === "velocity"), `velocity must NOT belong to ${m}`);
+});
+
+test("a register screen is PURE JSON: the epics screen binds a table panel to the epics slot's rows endpoint", () => {
+  const screens = screenDefCatalogue() as unknown as Array<{ id: string; methodologies?: string[]; panels: Array<{ kind: string; source?: { url?: string } }> }>;
+  const epics = screens.find((s) => s.id === "epics")!;
+  assert.ok(epics, "the epics register screen should ship");
+  // Zero-code: a source-bound table over the generic slot rows endpoint, {projectId} filled at render time.
+  const panel = epics.panels[0]!;
+  assert.equal(panel.kind, "table");
+  assert.equal(panel.source?.url, "/api/projects/{projectId}/mapping/epics/rows");
+  // The register belongs to agile (a loose tag, usable anywhere the composition enables it).
+  for (const m of AGILE) assert.ok(matchesMethodology(epics.methodologies, m), `epics register should belong to ${m}`);
 });
 
 test("the sprint board + backlog + burndown SCREENS are TAGGED agile (belong to the iteration methodologies)", () => {
