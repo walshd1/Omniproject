@@ -499,19 +499,10 @@ export interface PresentationConfig {
    *  also the delivery vehicle for a new-methodology JSON bundle. The SPA merges these over its built-in
    *  screen catalogue and renders them through the one generic builder. See routes/screen-defs. */
   screenDefs: OrgScreenDef[];
-  /** Screen ids an admin/PMO has turned OFF for this deployment — hidden from nav and refused by the
-   *  builder (an off screen shows a "turned off" state, never a crash). Overriding vs disabling are the
-   *  two admin controls on the Screens admin panel. See routes/disabled-screens. */
-  disabledScreens: string[];
-  /** Per-collection EDIT policy for on-screen editable content (collectionKey → a role, or "readonly").
-   *  The default is user-editable; an admin/PMO raises the bar or locks a collection read-only. Enforced
-   *  server-side (lib/collection-edit-policy) and mirrored by the SPA's edit controls. */
-  collectionEditRoles: Record<string, string>;
-  /** Org-saved PANEL VIEWS — a named period/pivot preset (group + aggregation + filters) a user has saved
-   *  off a table/chart panel's control bar, scoped to a `screen`+`panel`, so a filtered view can be recalled
-   *  later. Shared, customer-level presentation config (rides the config-bundle snapshot); never project
-   *  data. Writes follow the collection edit-policy (default user-editable). See routes/panel-views. */
-  panelViews: PanelView[];
+  // NB these are NOT settings keys — each moved into the composition model as a config-def-backed collection
+  // (via settingsCollectionRouter's config mode): `disabled-screens` (routes/disabled-screens),
+  // `collection-edit-roles` (routes/collection-edit-roles; read by lib/collection-edit-policy) and
+  // `panel-views` (routes/panel-views).
   /**
    * Methodology composition — the PMO/admin's curated set of visible artifact / output / ruleset ids,
    * assembled from one-click methodology presets and refined per item (so "some Scrum + some PRINCE2" is
@@ -935,7 +926,7 @@ function urlField(field: string) {
 }
 
 /** Validator for a `string[]` field (rejects non-arrays / non-string members). */
-function stringArrayField(field: string) {
+export function stringArrayField(field: string) {
   return (value: unknown): string[] => {
     if (!Array.isArray(value) || value.some((x) => typeof x !== "string")) {
       throw new SettingsValidationError(`${field} must be an array of strings`);
@@ -955,7 +946,7 @@ export function shapeChecked<T>(assert: (value: unknown) => void) {
 
 /** Adapt a validator that RETURNS a normalised value and throws a typed error, mapping that error to
  *  the standard settings 400 (SettingsValidationError) while letting anything else propagate. */
-function normalisedBy<T>(run: (value: unknown) => T, ErrorClass: new (...args: never[]) => Error) {
+export function normalisedBy<T>(run: (value: unknown) => T, ErrorClass: new (...args: never[]) => Error) {
   return (value: unknown): T => {
     try {
       return run(value);
@@ -1107,22 +1098,6 @@ const FIELD_DESCRIPTORS: { [K in keyof SettingsState]: FieldDescriptor<K> } = {
   resourceAllocations: { seed: () => [], validate: normalisedBy((v) => validateResourceAllocations(v), ResourceAllocationError) },
   budgetPlans: { seed: () => [], validate: normalisedBy((v) => validateBudgetPlans(v), BudgetPlanError) },
   screenDefs: { seed: () => [], validate: normalisedBy((v) => validateScreenDefs(v), ScreenDefError) },
-  disabledScreens: { seed: () => [], validate: stringArrayField("disabledScreens") },
-  collectionEditRoles: {
-    seed: () => ({}),
-    validate: (value) => {
-      if (typeof value !== "object" || value == null || Array.isArray(value)) throw new SettingsValidationError("collectionEditRoles must be an object");
-      const allowed = new Set(["viewer", "contributor", "manager", "pmo", "admin", "readonly"]);
-      const out: Record<string, string> = {};
-      for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
-        if (isForbiddenKey(k)) continue;
-        if (typeof v !== "string" || !allowed.has(v)) throw new SettingsValidationError(`collectionEditRoles["${k}"] must be one of viewer, contributor, manager, pmo, admin, readonly`);
-        out[k] = v;
-      }
-      return out;
-    },
-  },
-  panelViews: { seed: () => [], validate: shapeChecked(validatePanelViews) },
   forms: { seed: () => [], validate: normalisedBy((v) => { if (!Array.isArray(v)) throw new FormDefError("forms must be an array"); return v as FormDef[]; }, FormDefError) },
   automations: { seed: () => [], validate: normalisedBy((v) => validateAutomations(v), AutomationError) },
   templates: { seed: () => [], validate: normalisedBy((v) => validateTemplates(v), TemplateError) },
@@ -1533,7 +1508,7 @@ export function validateSavedViews(value: unknown): void {
  * values. Hardened because these are shared, customer-level config that ride the config bundle; a malformed
  * or hostile entry must 400, never persist a shape a renderer could choke on.
  */
-function validatePanelViews(value: unknown): void {
+export function validatePanelViews(value: unknown): void {
   if (!Array.isArray(value)) throw new SettingsValidationError("panelViews must be an array");
   const ids = new Set<string>();
   for (const view of value) {

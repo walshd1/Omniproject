@@ -1,5 +1,6 @@
 import { settingsCollectionRouter } from "../lib/settings-collection-router";
 import { requireCollectionEdit } from "../lib/collection-edit-policy";
+import { shapeChecked, validatePanelViews } from "../lib/settings";
 
 /**
  * Org-saved PANEL VIEWS store. A user saves a filtered/pivoted view off a table or chart panel's control bar
@@ -13,7 +14,9 @@ import { requireCollectionEdit } from "../lib/collection-edit-policy";
  */
 export default settingsCollectionRouter({
   path: "/panel-views",
-  settingsKey: "panelViews",
+  responseKey: "panelViews",
+  configId: "panel-views", // config-def-backed (CHOICE) — no longer a settings key
+  validate: shapeChecked(validatePanelViews),
   versionLabel: "panel views updated",
   writeGuards: [requireCollectionEdit("panelViews", "contributor")],
 });

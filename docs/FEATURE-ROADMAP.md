@@ -2203,10 +2203,19 @@ settings key/classification) plus a store-enabled route test.
     `validateSavedViews` directly. `GET`/`PUT /api/views` contract + `savedViews` feature-module gate unchanged
     (SPA untouched). **`screenLayouts`** is a separate target: it folds INTO screen defs (per-screen), not a
     standalone config collection, so it's not this seam's job.
-- **Slice 5 · `collectionEditRoles` + `disabledScreens`/`disabledFeatures`.** Access/visibility policy —
-  classify carefully (edit-roles borders on authz; today "choice", so policy, but tighten-only is the safer read).
+- **Slice 5 · `collectionEditRoles` + `disabledScreens` + `panelViews` ✅ (batch flip, no compat).** All three
+  flipped to config-def collections via the seam; settings keys + FIELD_DESCRIPTORS + CHOICE classifications
+  removed. Validators: `stringArrayField`/`validatePanelViews` exported from `lib/settings` and reused;
+  `validateCollectionEditRoles` extracted into its route. `lib/collection-edit-policy` (`editPolicyFor`, the
+  hot-path write gate read by RACI/stakeholders/panelViews/…) now reads `readConfigCollection("collection-edit-roles")`
+  instead of settings. Route contracts unchanged (SPA untouched); route tests store-enabled and drive
+  `collection-edit-roles` via `writeOrgConfigCollection` (RBAC-independent setup). NB `disabledFeatures` stays a
+  settings key for now (it's the feature-module toggle read all over `feature-modules`; a later slice). Full
+  suite green.
 - **Slice 6 · `automations` + `templates` + `raci` + `stakeholders` + `methodologyComposition`.** Remaining
-  choice content slices.
+  choice content slices. `raci`/`stakeholders` have standalone validators (`validateRaci`/`validateStakeholders`
+  from `lib/raci`/`lib/stakeholder`) + a `/rows` read to repoint; `automations`/`templates` similar. Clean flips
+  once tackled.
 
 ### Phase C — security/floor slices (introduce the floor + sign-off wiring)
 - **Slice 7 · the floor gate.** Wire "relaxing a floor config needs sign-off" onto the existing `relaxingKeys` /
