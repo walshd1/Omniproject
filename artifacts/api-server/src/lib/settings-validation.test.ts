@@ -1,6 +1,6 @@
 import { test, afterEach } from "node:test";
 import assert from "node:assert/strict";
-import { updateSettings, getSettings, redactSettingsForRead, SettingsValidationError } from "./settings";
+import { updateSettings, getSettings, redactSettingsForRead, SettingsValidationError, validateSavedViews } from "./settings";
 
 /**
  * Settings patch validation — updateSettings runs an untrusted patch through validatePatch,
@@ -109,12 +109,13 @@ test("featureGovernance / scope feature maps / governanceRules shapes", () => {
   assert.doesNotThrow(() => updateSettings({ featureGovernance: { required: ["labels"], forbidden: [] }, governanceRules: [{ id: "r", require: ["labels"] }] }));
 });
 
+// savedViews is a config def now (routes/views); its validator is exercised directly.
 test("savedViews entries need string id + name", () => {
-  throws({ savedViews: "nope" });
-  throws({ savedViews: [null] });
-  throws({ savedViews: [{ name: "no id" }] });
-  throws({ savedViews: [{ id: "v" }] }); // no name
-  assert.doesNotThrow(() => updateSettings({ savedViews: [{ id: "v", name: "My view" }] }));
+  assert.throws(() => validateSavedViews("nope"), SettingsValidationError);
+  assert.throws(() => validateSavedViews([null]), SettingsValidationError);
+  assert.throws(() => validateSavedViews([{ name: "no id" }]), SettingsValidationError);
+  assert.throws(() => validateSavedViews([{ id: "v" }]), SettingsValidationError); // no name
+  assert.doesNotThrow(() => validateSavedViews([{ id: "v", name: "My view" }]));
 });
 
 test("methodologyComposition: null or an array of strings", () => {
@@ -126,13 +127,14 @@ test("methodologyComposition: null or an array of strings", () => {
 });
 
 test("artifact style: enums for font/align, capped colour + title strings", () => {
-  const view = (style: unknown) => ({ savedViews: [{ id: "v", name: "V", style }] });
-  throws(view("nope")); // not an object
-  throws(view({ fontFamily: "comic-sans" })); // unknown font
-  throws(view({ align: "justify" })); // unknown align
-  throws(view({ textColor: "x".repeat(65) })); // over the colour cap
-  throws(view({ title: "t".repeat(201) })); // over the title cap
-  assert.doesNotThrow(() => updateSettings(view({ title: "Velocity", fontFamily: "serif", textColor: "#123456", background: "rgba(0,0,0,0.1)", align: "center" })));
+  const view = (style: unknown) => [{ id: "v", name: "V", style }];
+  const throwsView = (style: unknown) => assert.throws(() => validateSavedViews(view(style)), SettingsValidationError);
+  throwsView("nope"); // not an object
+  throwsView({ fontFamily: "comic-sans" }); // unknown font
+  throwsView({ align: "justify" }); // unknown align
+  throwsView({ textColor: "x".repeat(65) }); // over the colour cap
+  throwsView({ title: "t".repeat(201) }); // over the title cap
+  assert.doesNotThrow(() => validateSavedViews(view({ title: "Velocity", fontFamily: "serif", textColor: "#123456", background: "rgba(0,0,0,0.1)", align: "center" })));
   // The same guard applies to custom reports.
   const okReport = { id: "r", label: "R", scope: "tasks" as const, viz: "bar" as const, metrics: [{ id: "m", field: "count", agg: "count" as const }] };
   throws({ customReports: [{ ...okReport, style: { fontFamily: "papyrus" } }] });

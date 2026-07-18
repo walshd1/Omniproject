@@ -2196,9 +2196,13 @@ settings key/classification) plus a store-enabled route test.
     into a `hidden-fields` config def via the seam above. `GET`/`PATCH /api/availability/curation` contract
     unchanged (SPA untouched); `lib/availability` reads `readConfigCollection("hidden-fields", [])` fresh per
     resolve; the string-array sanitiser moved into the route. Backend-only; full suite green.
-  - **`savedViews` — pending.** Behind the `savedViews` feature module (`routes/views`, already a
-    settingsCollectionRouter user) — a clean flip once tackled. **`screenLayouts`** is a separate target: it's
-    being folded INTO screen defs (per-screen), not a standalone config collection, so it's not this seam's job.
+  - **`savedViews` ✅ (config-def collection, no compat).** Flipped `routes/views` to config mode (`saved-views`
+    config def) — `settings.savedViews` removed (field + FIELD_DESCRIPTORS + CHOICE). `validateSavedViews` +
+    `shapeChecked` are now exported from `lib/settings` and passed as the router's `validate`, so the rich
+    view-engine validation (entity/viewKind/chart/timeline/style) is unchanged — its tests moved to call
+    `validateSavedViews` directly. `GET`/`PUT /api/views` contract + `savedViews` feature-module gate unchanged
+    (SPA untouched). **`screenLayouts`** is a separate target: it folds INTO screen defs (per-screen), not a
+    standalone config collection, so it's not this seam's job.
 - **Slice 5 · `collectionEditRoles` + `disabledScreens`/`disabledFeatures`.** Access/visibility policy —
   classify carefully (edit-roles borders on authz; today "choice", so policy, but tighten-only is the safer read).
 - **Slice 6 · `automations` + `templates` + `raci` + `stakeholders` + `methodologyComposition`.** Remaining

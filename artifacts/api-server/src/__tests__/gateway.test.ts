@@ -976,7 +976,6 @@ const SAMPLE_SETTINGS = {
   programmeFeatures: {},
   projectFeatures: {},
   governanceRules: [],
-  savedViews: [],
   dashboards: [],
   contentPages: [],
   priorityWeights: { rice: 25, wsjf: 25, moscow: 15, strategic: 15, benefit: 20 },
@@ -1028,11 +1027,9 @@ test("buildSnapshot: carries the portable presentation config (curation, views, 
   const snap = buildSnapshot({
     ...SAMPLE_SETTINGS,
     disabledFeatures: ["odata"],
-    savedViews: [{ id: "v1", name: "Triage", scope: "grid", columns: ["title"] }],
     dashboards: [{ id: "d1", name: "Exec", widgets: [{ id: "w1", type: "portfolioHealth" }] }],
   });
   assert.deepEqual(snap.settings.disabledFeatures, ["odata"]);
-  assert.equal(snap.settings.savedViews![0]!.name, "Triage");
   assert.equal(snap.settings.dashboards![0]!.widgets[0]!.type, "portfolioHealth");
   // …and they round-trip back into a settings patch with no warnings.
   const { patch, warnings } = applySnapshot(snap);

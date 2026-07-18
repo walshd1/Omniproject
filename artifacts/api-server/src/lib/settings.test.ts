@@ -1,9 +1,9 @@
 import { test, afterEach } from "node:test";
 import assert from "node:assert/strict";
-import { updateSettings, getSettings, redactSettingsForRead, SettingsValidationError, DEFAULT_PRIORITY_WEIGHTS } from "./settings";
+import { updateSettings, getSettings, redactSettingsForRead, SettingsValidationError, DEFAULT_PRIORITY_WEIGHTS, validateSavedViews } from "./settings";
 
 afterEach(() => {
-  updateSettings({ savedViews: [], hiddenFields: [], disabledFeatures: [], dashboards: [], reportingCurrency: null, fxRatePolicy: "spot", fxRateAsOfDate: null, customReports: [], reportOverrides: [], contentPages: [], priorityWeights: { ...DEFAULT_PRIORITY_WEIGHTS }, federatedPeers: [] }); // reset shared store
+  updateSettings({ disabledFeatures: [], dashboards: [], reportingCurrency: null, fxRatePolicy: "spot", fxRateAsOfDate: null, customReports: [], reportOverrides: [], contentPages: [], priorityWeights: { ...DEFAULT_PRIORITY_WEIGHTS }, federatedPeers: [] }); // reset shared store
 });
 
 test("errorTelemetry: accepts a boolean, rejects a non-boolean, defaults off", () => {
@@ -101,54 +101,46 @@ test("fxRateAsOfDate: accepts an ISO date, null to clear, rejects an unparseable
   assert.throws(() => updateSettings({ fxRateAsOfDate: "not-a-date" }), SettingsValidationError);
 });
 
-test("savedViews: accepts well-formed views and persists them", () => {
-  const views = [
-    { id: "v1", name: "My grid", scope: "grid", columns: ["title", "status"], sort: { field: "status", dir: "asc" as const } },
+// savedViews left settings for a `saved-views` config def (routes/views); its validator `validateSavedViews`
+// (throws on a bad shape) is exercised directly here — the same coverage the updateSettings path had.
+test("savedViews: accepts well-formed views", () => {
+  assert.doesNotThrow(() => validateSavedViews([
+    { id: "v1", name: "My grid", scope: "grid", columns: ["title", "status"], sort: { field: "status", dir: "asc" } },
     { id: "v2", name: "Due soon" },
-  ];
-  const s = updateSettings({ savedViews: views });
-  assert.equal(s.savedViews.length, 2);
-  assert.equal(getSettings().savedViews[0]!.name, "My grid");
+  ]));
 });
 
 test("savedViews: rejects a non-array and a view missing id/name", () => {
-  assert.throws(() => updateSettings({ savedViews: "nope" }), SettingsValidationError);
-  assert.throws(() => updateSettings({ savedViews: [{ name: "no id" }] }), SettingsValidationError);
-  assert.throws(() => updateSettings({ savedViews: [{ id: "x" }] }), SettingsValidationError);
+  assert.throws(() => validateSavedViews("nope"), SettingsValidationError);
+  assert.throws(() => validateSavedViews([{ name: "no id" }]), SettingsValidationError);
+  assert.throws(() => validateSavedViews([{ id: "x" }]), SettingsValidationError);
 });
 
 test("savedViews: accepts view-engine fields (entity/viewKind/filters/groupBy)", () => {
-  const s = updateSettings({ savedViews: [
-    { id: "e1", name: "Blocked", entity: "issue", viewKind: "board", filters: [{ field: "status", value: "in_progress" }], groupBy: "assignee", sort: { field: "priority", dir: "desc" as const } },
-  ] });
-  assert.equal(s.savedViews[0]!.entity, "issue");
-  assert.equal(s.savedViews[0]!.viewKind, "board");
+  assert.doesNotThrow(() => validateSavedViews([
+    { id: "e1", name: "Blocked", entity: "issue", viewKind: "board", filters: [{ field: "status", value: "in_progress" }], groupBy: "assignee", sort: { field: "priority", dir: "desc" } },
+  ]));
 });
 
 test("savedViews: accepts the table viewKind with columns", () => {
-  const s = updateSettings({ savedViews: [{ id: "t1", name: "Table", entity: "task", viewKind: "table", columns: ["status", "assignee"] }] });
-  assert.equal(s.savedViews[0]!.viewKind, "table");
+  assert.doesNotThrow(() => validateSavedViews([{ id: "t1", name: "Table", entity: "task", viewKind: "table", columns: ["status", "assignee"] }]));
 });
 
 test("savedViews: accepts the chart viewKind with a chart spec, rejects a bad chart type", () => {
-  const s = updateSettings({ savedViews: [{ id: "cv1", name: "By status", entity: "task", viewKind: "chart", chart: { type: "gantt", startField: "startDate", endField: "dueDate" } }] });
-  assert.equal(s.savedViews[0]!.viewKind, "chart");
-  assert.equal(s.savedViews[0]!.chart!.type, "gantt");
-  assert.throws(() => updateSettings({ savedViews: [{ id: "x", name: "n", viewKind: "chart", chart: { type: "sunburst" } }] }), SettingsValidationError);
+  assert.doesNotThrow(() => validateSavedViews([{ id: "cv1", name: "By status", entity: "task", viewKind: "chart", chart: { type: "gantt", startField: "startDate", endField: "dueDate" } }]));
+  assert.throws(() => validateSavedViews([{ id: "x", name: "n", viewKind: "chart", chart: { type: "sunburst" } }]), SettingsValidationError);
 });
 
 test("savedViews: accepts the timeline viewKind with a dateField", () => {
-  const s = updateSettings({ savedViews: [{ id: "tl1", name: "Timeline", entity: "issue", viewKind: "timeline", dateField: "dueDate" }] });
-  assert.equal(s.savedViews[0]!.viewKind, "timeline");
-  assert.equal(s.savedViews[0]!.dateField, "dueDate");
-  assert.throws(() => updateSettings({ savedViews: [{ id: "x", name: "n", dateField: 5 }] }), SettingsValidationError);
+  assert.doesNotThrow(() => validateSavedViews([{ id: "tl1", name: "Timeline", entity: "issue", viewKind: "timeline", dateField: "dueDate" }]));
+  assert.throws(() => validateSavedViews([{ id: "x", name: "n", dateField: 5 }]), SettingsValidationError);
 });
 
 test("savedViews: rejects malformed view-engine fields", () => {
-  assert.throws(() => updateSettings({ savedViews: [{ id: "x", name: "n", entity: "widget" }] }), SettingsValidationError);
-  assert.throws(() => updateSettings({ savedViews: [{ id: "x", name: "n", viewKind: "grid" }] }), SettingsValidationError);
-  assert.throws(() => updateSettings({ savedViews: [{ id: "x", name: "n", sort: { field: "s", dir: "up" } }] }), SettingsValidationError);
-  assert.throws(() => updateSettings({ savedViews: [{ id: "x", name: "n", filters: [{ field: "s" }] }] }), SettingsValidationError);
+  assert.throws(() => validateSavedViews([{ id: "x", name: "n", entity: "widget" }]), SettingsValidationError);
+  assert.throws(() => validateSavedViews([{ id: "x", name: "n", viewKind: "grid" }]), SettingsValidationError);
+  assert.throws(() => validateSavedViews([{ id: "x", name: "n", sort: { field: "s", dir: "up" } }]), SettingsValidationError);
+  assert.throws(() => validateSavedViews([{ id: "x", name: "n", filters: [{ field: "s" }] }]), SettingsValidationError);
 });
 
 // NB hiddenFields is no longer a settings key — it's a config-def-backed collection (`hidden-fields`, via

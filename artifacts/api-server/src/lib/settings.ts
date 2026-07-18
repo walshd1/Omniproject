@@ -444,12 +444,8 @@ export interface PresentationConfig {
   screenLayouts: Record<string, ScreenLayout>;
   // NB the view-curation hidden-field list is NOT a settings key — it moved into the composition model as a
   // config-def-backed collection (`hidden-fields`, via settingsCollectionRouter's config mode; see lib/availability).
-  /**
-   * Named saved views (filters + sort + visible columns + grouping) a user can switch between.
-   * Customer-level presentation config — rides the snapshot/export so saved views travel in the
-   * bundle — never project data. See routes/views + the SPA savedViews feature module.
-   */
-  savedViews: SavedView[];
+  // NB saved views are NOT a settings key — they moved into the composition model as a config-def-backed
+  // collection (`saved-views`, via settingsCollectionRouter's config mode; see routes/views).
   /**
    * Named custom dashboards: an ordered list of widget instances chosen from the widget catalogue.
    * Customer-level presentation config — rides the snapshot/export so dashboards travel in the
@@ -950,7 +946,7 @@ function stringArrayField(field: string) {
 
 /** Adapt a validator that only THROWS on bad input (no normalisation) into a descriptor validator —
  *  persists the dangerous-key-stripped value verbatim, exactly as the old `if (k in patch) checkX(...)`. */
-function shapeChecked<T>(assert: (value: unknown) => void) {
+export function shapeChecked<T>(assert: (value: unknown) => void) {
   return (value: unknown): T => {
     assert(value);
     return value as T;
@@ -1104,7 +1100,6 @@ const FIELD_DESCRIPTORS: { [K in keyof SettingsState]: FieldDescriptor<K> } = {
   programmeFeatures: { seed: () => ({}), validate: shapeChecked((v) => validateScopeFeatureMap(v, "programmeFeatures")) },
   projectFeatures: { seed: () => ({}), validate: shapeChecked((v) => validateScopeFeatureMap(v, "projectFeatures")) },
   governanceRules: { seed: () => [], validate: shapeChecked((v) => validateGovernanceRules(v, "governanceRules")) },
-  savedViews: { seed: () => [], validate: shapeChecked(validateSavedViews) },
   customReports: { seed: () => [], validate: shapeChecked(validateCustomReports) },
   reportOverrides: { seed: () => [], validate: shapeChecked(validateReportOverrides) },
   // The per-deployment report store — seeded from the built-in catalogue, then deployment-owned JSON.
@@ -1490,7 +1485,7 @@ function validateFederatedPeers(value: unknown): void {
 }
 
 /** Shape-validate the saved-view list: an array whose every entry is an object with a string id + name. */
-function validateSavedViews(value: unknown): void {
+export function validateSavedViews(value: unknown): void {
   if (!Array.isArray(value)) throw new SettingsValidationError("savedViews must be an array");
   for (const view of value) {
     if (!view || typeof view !== "object") throw new SettingsValidationError("each saved view must be an object");
