@@ -14,6 +14,7 @@ import { getBroker, contextFromReq } from "../broker";
 import type { ActorContext, Whiteboard, WhiteboardMeta, WhiteboardWrite, WhiteboardScene } from "../broker/types";
 import type { StorageTarget } from "./artifact-store";
 import { makeScopedId, parseScopedId, scopeFromParsed, isStorageTarget } from "./artifact-store";
+import { sanitizeText as cleanText } from "./coerce";
 import {
   CANVAS_ELEMENT_TYPES, CANVAS_LIMITS, SHAPE_KINDS, STICKY_COLORS,
   type CanvasElement, type CanvasElementType, type ShapeKind, type StickyColor,
@@ -112,19 +113,6 @@ const SAFE_LINK_SCHEMES = new Set(["http:", "https:", "mailto:"]);
 /** Coordinates are clamped to a finite range so a rogue value can't blow up a renderer. */
 const COORD_MIN = -1_000_000;
 const COORD_MAX = 1_000_000;
-
-/** Strip control characters and cap length on a free-text value (note text, board name). */
-function cleanText(value: unknown, max: number): string {
-  if (typeof value !== "string") return "";
-  let out = "";
-  for (const ch of value) {
-    const c = ch.codePointAt(0)!;
-    const printable = c === 9 || c === 10 || (c >= 32 && c !== 127 && !(c >= 128 && c <= 159));
-    if (printable) out += ch;
-    if (out.length >= max) break;
-  }
-  return out.slice(0, max);
-}
 
 /** A finite number clamped to the canvas coordinate range (defaulted when absent/NaN). */
 function coord(v: unknown, def = 0): number {

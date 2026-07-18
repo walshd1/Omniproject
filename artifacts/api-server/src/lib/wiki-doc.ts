@@ -15,6 +15,7 @@ import {
   makeScopedId, parseScopedId, scopeFromParsed, isStorageTarget,
   listArtifacts, getArtifact, putArtifact, deleteArtifact,
 } from "./artifact-store";
+import { sanitizeText } from "./coerce";
 import {
   DOC_BLOCK_TYPES, WIKI_LIMITS, CALLOUT_TONES, docWikiLinks, slugifyDocTitle,
   type DocBlock, type DocBlockType, type DocListItem, type CalloutTone,
@@ -30,20 +31,9 @@ const TONE_SET = new Set<string>(CALLOUT_TONES);
 /** URL schemes an `embed` reference may use — everything else (javascript:, data:, file:, …) is rejected. */
 const SAFE_URL_SCHEMES = new Set(["http:", "https:", "mailto:"]);
 
-/** Strip control characters (keep tab/newline) and cap length so authored text can never carry a payload
- *  or blow a limit. This runs on every free-text value before storage. */
-export function sanitizeText(value: unknown, max: number): string {
-  if (typeof value !== "string") return "";
-  let out = "";
-  for (const ch of value) {
-    const c = ch.codePointAt(0)!;
-    // Keep tab (9) and newline (10); drop other C0 controls (<32), DEL (127) and C1 controls (128-159).
-    const printable = c === 9 || c === 10 || (c >= 32 && c !== 127 && !(c >= 128 && c <= 159));
-    if (printable) out += ch;
-    if (out.length >= max) break;
-  }
-  return out.slice(0, max);
-}
+// `sanitizeText` — the free-text control-char stripper — now lives in ./coerce (the shared primitives
+// home, imported above for this module's own block sanitisers); re-exported so existing importers keep the name.
+export { sanitizeText };
 
 /** Validate an embed URL against the safe-scheme allow-list; returns the normalised href or throws. */
 export function sanitizeEmbedUrl(raw: unknown): string {

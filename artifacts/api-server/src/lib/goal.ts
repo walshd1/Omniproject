@@ -10,6 +10,7 @@
  */
 import type { ActorContext } from "../broker/types";
 import { makeScopedId, parseScopedId, scopeFromParsed, type ArtifactScope, type StorageTarget } from "./artifact-store";
+import { sanitizeText as cleanText } from "./coerce";
 import { nextOccurrence } from "./recurrence";
 import { KEY_RESULT_KINDS, isBinaryKeyResultKind, type KeyResultKind } from "@workspace/backend-catalogue";
 
@@ -145,19 +146,6 @@ export interface SanitizedGoalWrite {
   cadence: string | null;
   storage: GoalStorage;
   projectId?: string;
-}
-
-/** Strip control characters and cap length on a free-text value. */
-function cleanText(value: unknown, max: number): string {
-  if (typeof value !== "string") return "";
-  let out = "";
-  for (const ch of value) {
-    const c = ch.codePointAt(0)!;
-    const printable = c === 9 || c === 10 || (c >= 32 && c !== 127 && !(c >= 128 && c <= 159));
-    if (printable) out += ch;
-    if (out.length >= max) break;
-  }
-  return out.slice(0, max);
 }
 
 /** A finite number or a default. */

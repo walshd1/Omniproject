@@ -14,6 +14,7 @@
  */
 import type { ActorContext } from "../broker/types";
 import { listArtifacts, getArtifact, putArtifact, deleteArtifact, replaceArtifacts, listAllArtifactCollections, SYSTEM_SCOPE, type ArtifactScope } from "./artifact-store";
+import { sanitizeText } from "./coerce";
 import { readDefIndex, ensureDefIndex, defHasChildren, defIndexAddEdge, invalidateDefIndex } from "./def-index";
 import { validateScreenDefs } from "./screen-def";
 import { sanitizeMapping } from "./mapping";
@@ -186,17 +187,8 @@ export interface SanitizedDef {
   value: unknown;
 }
 
-function cleanName(value: unknown): string {
-  if (typeof value !== "string") return "";
-  let out = "";
-  for (const ch of value) {
-    const c = ch.codePointAt(0)!;
-    const printable = c === 9 || (c >= 32 && c !== 127 && !(c >= 128 && c <= 159));
-    if (printable) out += ch;
-    if (out.length >= DEF_LIMITS.maxName) break;
-  }
-  return out.trim().slice(0, DEF_LIMITS.maxName);
-}
+// A def NAME is single-line: strip control chars incl. newline, cap at the name limit, and trim.
+const cleanName = (value: unknown): string => sanitizeText(value, DEF_LIMITS.maxName, { newlines: false, trim: true });
 
 /**
  * The single choke point: validate the whole import request (kind, name, payload size + shape). Throws
