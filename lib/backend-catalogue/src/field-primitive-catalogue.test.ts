@@ -9,20 +9,30 @@ import { formCatalogue, FORM_FIELD_TYPES } from "./form-catalogue";
  * on the root — actually bites.
  */
 
-test("field is a root; every FORM_FIELD_TYPE is a child that extends it", () => {
-  assert.equal(fieldPrimitive("field")!.extends, undefined);
-  for (const t of FORM_FIELD_TYPES) assert.equal(fieldPrimitive(t)!.extends, "field", `${t} extends field`);
-  // The root carries the mapTo allow-list as a FLOOR.
-  const floor = fieldPrimitive("field")!.constraints!.find((c) => c.id === "field-map-target")!;
+test("field is the permissive ROOT (no floors); form-field carries the mapTo floor; types extend form-field", () => {
+  const root = fieldPrimitive("field")!;
+  assert.equal(root.extends, undefined);
+  assert.equal(root.abstract, true);                 // never used raw
+  assert.ok(!root.constraints || root.constraints.length === 0, "the root imposes no restrictive floors");
+  const formField = fieldPrimitive("form-field")!;
+  assert.equal(formField.extends, "field");
+  assert.equal(formField.abstract, true);
+  const floor = formField.constraints!.find((c) => c.id === "form-field-target")!;
   assert.equal(floor.kind, "floor");
   assert.equal(floor.type, "enum");
+  for (const t of FORM_FIELD_TYPES) assert.equal(fieldPrimitive(t)!.extends, "form-field", `${t} extends form-field`);
+});
+
+test("abstract ancestors may never be used raw as a field type", () => {
+  assert.ok(validateFieldInstance({ key: "a", label: "A", type: "field", mapTo: "title" }).length >= 1);
+  assert.ok(validateFieldInstance({ key: "a", label: "A", type: "form-field", mapTo: "title" }).length >= 1);
 });
 
 test("every shipped form's fields validate as field-primitive instances (no regression)", () => {
   for (const form of formCatalogue()) {
     assert.deepEqual(validateFormFields(form.fields), [], `shipped form "${form.id}" fields must validate`);
   }
-  assert.ok(fieldPrimitiveCatalogue().length === FORM_FIELD_TYPES.length + 1); // root + one per type
+  assert.equal(fieldPrimitiveCatalogue().length, FORM_FIELD_TYPES.length + 2); // root + form-field + one per type
 });
 
 test("per-field checks bite: unknown type, non-writable mapTo, missing options", () => {

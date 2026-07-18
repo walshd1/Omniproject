@@ -2,50 +2,62 @@ import { FORM_FIELD_TYPES, ISSUE_WRITE_TARGETS } from "./form-catalogue";
 import { evaluateConstraints, type DefConstraint } from "./def-constraints";
 
 /**
- * FIELD PRIMITIVES — `field` is a ROOT primitive (sibling to `table` / `bar`), and every form-input type is a
- * thin CHILD that extends it (text ← field, select ← field, …). The root holds the common field contract as
- * params (`key`/`label`/`type`/`mapTo`/…) and, crucially, the security-relevant rule as a declared FLOOR: a
- * field's `mapTo` must be a WRITABLE issue field. Being a floor on the root, it is inherited by every field type
- * and can't be relaxed by a fork — the allow-list moves off the monolithic form validator onto the primitive,
- * where the composition model wants it. Each concrete type adds only what's new (a choice type needs `options`;
- * a text-ish type may cap `maxLength`).
+ * FIELD PRIMITIVES — `field` is a ROOT primitive (sibling to `table` / `bar`). Per the model, a root is the MOST
+ * PERMISSIVE shape possible and is NEVER used raw: it holds only what is universal to any input (an identity +
+ * a label + a type) and imposes no restrictive floors. The restrictions arrive in specialisations:
  *
- * The type ids are DERIVED from `FORM_FIELD_TYPES` (the one source the SPA `field` family also draws from), so
- * this can never drift from the accepted set. Per-field validation (`validateFormFields`) resolves each form
- * field to its primitive and checks the field instance against that primitive's required params + constraints —
- * the "each child is a primitive instance validated against its primitive" rule, run on the composed/resolved
- * form at import AND submission.
+ *   field (root, abstract, permissive)
+ *     └─ form-field (abstract) — a field BOUND INTO A FORM: adds `mapTo` and the security FLOOR that it be a
+ *          writable issue field. This is where "an issue needs a real target" lives — it is a property of using
+ *          a field to write an issue, not of field-ness, so it is NOT on the permissive root.
+ *          └─ text / select / date / … (concrete) — each adds only its type specifics (a choice needs options).
+ *
+ * Only the concrete leaves are ever instantiated (a form field's `type` is `text`/`select`/…); the two abstract
+ * ancestors can never be used raw (`validateFieldInstance` rejects them). The leaf type ids are DERIVED from
+ * `FORM_FIELD_TYPES` (the one source the SPA field family also uses), so they can't drift from the accepted set.
  */
 
 export interface FieldParam { key: string; required?: boolean }
 export interface FieldPrimitive {
-  /** `field` (root) or a form-field type id (`text`, `select`, …). */
+  /** `field` (root) / `form-field` (intermediate) / a concrete type id (`text`, `select`, …). */
   id: string;
-  /** Children extend the root `field`. */
+  /** The parent this primitive extends (root has none). */
   extends?: string;
+  /** Abstract primitives are NEVER used raw — only their concrete descendants are instantiated. */
+  abstract?: boolean;
   label: string;
-  /** The field's configuration properties (marked `required` where the field must carry them). */
+  /** The field's configuration properties (marked `required` where a field must carry them). */
   params: FieldParam[];
-  /** Declared validation for a field of this type (evaluated against the field instance). */
+  /** Declared validation for a field at this level (evaluated against the field instance). */
   constraints?: DefConstraint[];
 }
 
 const titleCase = (s: string): string => s.replace(/(^|[-_])(\w)/g, (_m, _p, c: string) => (_p ? " " : "") + c.toUpperCase());
 
-/** The ROOT: the common contract + the `mapTo` allow-list floor + the (any-field) optional `maxLength` bound. */
+/** ROOT — the most permissive shape: identity + label + type + the common optional config. No floors. */
 const FIELD_ROOT: FieldPrimitive = {
   id: "field",
-  label: "Form field",
+  label: "Field",
+  abstract: true,
   params: [
     { key: "key", required: true },
     { key: "label", required: true },
     { key: "type", required: true },
-    { key: "mapTo", required: true },
     { key: "required" }, { key: "help" }, { key: "placeholder" }, { key: "maxLength" },
   ],
+};
+
+/** INTERMEDIATE — a field bound into a form: adds `mapTo` and the writable-issue-field FLOOR (the security
+ *  allow-list) plus the positive-`maxLength` policy. Abstract; concrete field types extend THIS. */
+const FORM_FIELD: FieldPrimitive = {
+  id: "form-field",
+  extends: "field",
+  label: "Form field",
+  abstract: true,
+  params: [{ key: "mapTo", required: true }],
   constraints: [
-    { id: "field-map-target", kind: "floor", type: "enum", path: "mapTo", values: [...ISSUE_WRITE_TARGETS], message: "a field must map to a writable issue field" },
-    { id: "field-maxlength", kind: "policy", type: "bound", path: "maxLength", min: 1, message: "maxLength must be a positive number" },
+    { id: "form-field-target", kind: "floor", type: "enum", path: "mapTo", values: [...ISSUE_WRITE_TARGETS], message: "a field must map to a writable issue field" },
+    { id: "form-field-maxlength", kind: "policy", type: "bound", path: "maxLength", min: 1, message: "maxLength must be a positive number" },
   ],
 };
 
@@ -60,40 +72,51 @@ function childFor(type: string): FieldPrimitive {
     params.push({ key: "options", required: optionsRequired });
     if (optionsRequired) constraints.push({ id: `${type}-options`, kind: "floor", type: "cardinality", path: "options", min: 1, message: `a ${type} field needs at least one option` });
   }
-  return { id: type, extends: "field", label: titleCase(type), params, ...(constraints.length ? { constraints } : {}) };
+  return { id: type, extends: "form-field", label: titleCase(type), params, ...(constraints.length ? { constraints } : {}) };
 }
 
-const FIELD_PRIMITIVES: FieldPrimitive[] = [FIELD_ROOT, ...FORM_FIELD_TYPES.map(childFor)];
+const FIELD_PRIMITIVES: FieldPrimitive[] = [FIELD_ROOT, FORM_FIELD, ...FORM_FIELD_TYPES.map(childFor)];
 const byId = new Map(FIELD_PRIMITIVES.map((p) => [p.id, p]));
 
-/** The field primitives (root + one per form-field type). A fresh array so a caller can't mutate the catalogue. */
+/** The field primitives (root + intermediate + one per form-field type). A fresh array each call. */
 export function fieldPrimitiveCatalogue(): FieldPrimitive[] {
   return FIELD_PRIMITIVES.map((p) => ({ ...p, params: p.params.map((x) => ({ ...x })), ...(p.constraints ? { constraints: p.constraints.map((c) => ({ ...c })) } : {}) }));
 }
 
-/** One field primitive (root or a type), or undefined. */
-export function fieldPrimitive(type: string): FieldPrimitive | undefined { return byId.get(type); }
+/** One field primitive by id, or undefined. */
+export function fieldPrimitive(id: string): FieldPrimitive | undefined { return byId.get(id); }
 
-/** The effective constraints for a field type — the root's inherited floors PLUS the type's own. */
+/** Walk a field type's extends chain (leaf → root), throwing on a broken chain. */
+function chainOf(type: string): FieldPrimitive[] {
+  const chain: FieldPrimitive[] = [];
+  let cur = byId.get(type);
+  const seen = new Set<string>();
+  while (cur && !seen.has(cur.id)) {
+    seen.add(cur.id);
+    chain.push(cur);
+    cur = cur.extends ? byId.get(cur.extends) : undefined;
+  }
+  return chain;
+}
+
+/** The effective constraints for a concrete field type — every ancestor's, composed. */
 function effectiveFieldConstraints(type: string): DefConstraint[] {
-  const child = byId.get(type);
-  const root = FIELD_ROOT.constraints ?? [];
-  return child && child.id !== "field" ? [...root, ...(child.constraints ?? [])] : [...root];
+  return chainOf(type).flatMap((p) => p.constraints ?? []);
 }
 
-/** The required config keys a field of `type` must carry (root's required params + the type's). */
+/** The required config keys a concrete field of `type` must carry (all ancestors' required params). */
 function requiredParams(type: string): string[] {
-  const child = byId.get(type);
-  const params = child && child.id !== "field" ? [...FIELD_ROOT.params, ...child.params] : FIELD_ROOT.params;
-  return params.filter((p) => p.required).map((p) => p.key);
+  return chainOf(type).flatMap((p) => p.params).filter((p) => p.required).map((p) => p.key);
 }
 
-/** Validate ONE form-field instance against its field primitive — the type is known, its required params are
- *  present, and it satisfies the primitive's constraints (incl. the inherited `mapTo` allow-list floor). */
+/** Validate ONE form-field instance against its field primitive — the type is a concrete (never an abstract
+ *  ancestor used raw), its required params are present, and it satisfies the composed constraints (incl. the
+ *  inherited `mapTo` allow-list floor from `form-field`). */
 export function validateFieldInstance(field: Record<string, unknown>): string[] {
   const type = typeof field["type"] === "string" ? field["type"] : "";
   const label = (typeof field["label"] === "string" && field["label"]) ? field["label"] : (typeof field["key"] === "string" && field["key"] ? field["key"] : "a field");
-  if (!byId.has(type) || type === "field") return [`"${label}" has an unknown field type "${type}"`];
+  const prim = byId.get(type);
+  if (!prim || prim.abstract) return [`"${label}" has an unknown field type "${type}"`]; // a root/abstract may never be used raw
   const errors: string[] = [];
   for (const key of requiredParams(type)) {
     const v = field[key];
