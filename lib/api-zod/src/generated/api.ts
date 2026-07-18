@@ -846,6 +846,66 @@ export const GetPortfolioSummaryResponse = zod.object({
 
 
 /**
+ * Fans out every project's financials + the FX table through the broker and folds them into programme roll-ups + a portfolio total in one reporting currency (via the broker FX table). `currency` overrides the org default reporting currency. Read-through and derive-only; nothing is stored.
+ * @summary Portfolio financials consolidated into one reporting currency, rolled up by programme
+ */
+export const GetPortfolioFinancialsQueryParams = zod.object({
+  "currency": zod.coerce.string().optional()
+})
+
+export const GetPortfolioFinancialsResponse = zod.object({
+  "reportingCurrency": zod.string(),
+  "programmes": zod.array(zod.object({
+  "key": zod.string(),
+  "label": zod.string(),
+  "projects": zod.number(),
+  "budget": zod.number(),
+  "actual": zod.number(),
+  "forecast": zod.number(),
+  "earnedValue": zod.number(),
+  "variance": zod.number(),
+  "cpi": zod.number().nullable(),
+  "localCurrency": zod.string().nullable(),
+  "local": zod.object({
+  "budget": zod.number(),
+  "actual": zod.number(),
+  "forecast": zod.number(),
+  "earnedValue": zod.number()
+}).describe('A roll-up row\'s un-converted totals in its single local currency.').nullable(),
+  "excludedForFx": zod.number()
+}).describe('A consolidated financial row (a programme, or the whole portfolio) in the reporting currency.')),
+  "portfolio": zod.object({
+  "key": zod.string(),
+  "label": zod.string(),
+  "projects": zod.number(),
+  "budget": zod.number(),
+  "actual": zod.number(),
+  "forecast": zod.number(),
+  "earnedValue": zod.number(),
+  "variance": zod.number(),
+  "cpi": zod.number().nullable(),
+  "localCurrency": zod.string().nullable(),
+  "local": zod.object({
+  "budget": zod.number(),
+  "actual": zod.number(),
+  "forecast": zod.number(),
+  "earnedValue": zod.number()
+}).describe('A roll-up row\'s un-converted totals in its single local currency.').nullable(),
+  "excludedForFx": zod.number()
+}).describe('A consolidated financial row (a programme, or the whole portfolio) in the reporting currency.'),
+  "currencyMix": zod.array(zod.object({
+  "currency": zod.string(),
+  "projects": zod.number()
+}).describe('A distinct source currency seen across the portfolio and how many projects used it.')),
+  "fx": zod.object({
+  "base": zod.string(),
+  "provenance": zod.string().nullable(),
+  "asOf": zod.string().nullable()
+}).nullable()
+}).describe('Portfolio financials consolidated into one reporting currency, rolled up by programme.')
+
+
+/**
  * Fans out live to every ACTIVE peer in settings.federatedPeers (GET their own /portfolio/summary with the configured bearer token) and returns this instance's own summary alongside each peer's, clearly labeled by peer id/label/region — never blended into one number. An unreachable or misconfigured peer degrades to a labeled "unavailable" contribution instead of failing the whole view. Nothing is cached; every call re-fans-out.
  * @summary This instance's portfolio summary merged with every configured peer's (backlog
  */

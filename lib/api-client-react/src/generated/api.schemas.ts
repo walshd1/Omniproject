@@ -827,6 +827,63 @@ export interface PortfolioSummary {
   capacity: CapacityTotals | null;
 }
 
+/**
+ * A roll-up row's un-converted totals in its single local currency.
+ */
+export interface FinanceLocalTotals {
+  budget: number;
+  actual: number;
+  forecast: number;
+  earnedValue: number;
+}
+
+/**
+ * A consolidated financial row (a programme, or the whole portfolio) in the reporting currency.
+ */
+export interface FinanceRollup {
+  key: string;
+  label: string;
+  projects: number;
+  budget: number;
+  actual: number;
+  forecast: number;
+  earnedValue: number;
+  variance: number;
+  /** @nullable */
+  cpi: number | null;
+  /** @nullable */
+  localCurrency: string | null;
+  local: FinanceLocalTotals | null;
+  excludedForFx: number;
+}
+
+/**
+ * A distinct source currency seen across the portfolio and how many projects used it.
+ */
+export interface CurrencyMix {
+  currency: string;
+  projects: number;
+}
+
+export type PortfolioFinancialsFx = {
+  base: string;
+  /** @nullable */
+  provenance: string | null;
+  /** @nullable */
+  asOf: string | null;
+} | null;
+
+/**
+ * Portfolio financials consolidated into one reporting currency, rolled up by programme.
+ */
+export interface PortfolioFinancials {
+  reportingCurrency: string;
+  programmes: FinanceRollup[];
+  portfolio: FinanceRollup;
+  currencyMix: CurrencyMix[];
+  fx: PortfolioFinancialsFx;
+}
+
 export type PeerPortfolioResultStatus = typeof PeerPortfolioResultStatus[keyof typeof PeerPortfolioResultStatus];
 
 
@@ -1425,5 +1482,9 @@ from?: string;
  * ISO 8601 upper bound (inclusive).
  */
 to?: string;
+};
+
+export type GetPortfolioFinancialsParams = {
+currency?: string;
 };
 
