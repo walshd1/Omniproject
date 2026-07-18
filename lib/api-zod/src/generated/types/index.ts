@@ -48,7 +48,6 @@ export * from './issueInputPriority';
 export * from './issuePriority';
 export * from './issueUpdate';
 export * from './issueUpdatePriority';
-export * from './loggingSync';
 export * from './notification';
 export * from './peerPortfolioResult';
 export * from './peerPortfolioResultStatus';

@@ -14,7 +14,8 @@ import {
   type FieldGroup,
   type EnumeratedField,
 } from "./field-registry";
-import { isTimeTravelEnabled, getSettings } from "./settings";
+import { getSettings } from "./settings";
+import { isTimeTravelEnabled } from "./logging-sync";
 import { dataResidencyEnabled, allowedRegions } from "./data-residency";
 import { artifactStoreEnabled } from "./artifact-store";
 import { buildLiveSuperset, sidecarSupersetInput, type SupersetField, type SupersetInput } from "./superset";

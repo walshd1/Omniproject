@@ -1,6 +1,7 @@
 import { Router, type Request } from "express";
 import { getBroker, contextFromReq, respondBrokerError } from "../broker";
-import { isTimeTravelEnabled, getSettings, updateSettings, SettingsValidationError } from "../lib/settings";
+import { getSettings, updateSettings, SettingsValidationError } from "../lib/settings";
+import { isTimeTravelEnabled } from "../lib/logging-sync";
 import { requireRole, requireAnyRole, hasRole, scopeForReq } from "../lib/rbac";
 import { requireStepUp } from "../lib/step-up";
 import { recordRequestAudit } from "../lib/audit";

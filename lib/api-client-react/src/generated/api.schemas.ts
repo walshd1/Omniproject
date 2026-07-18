@@ -1080,17 +1080,6 @@ export const SettingsDeploymentProfile = {
   demo: 'demo',
 } as const;
 
-/**
- * Opt-in state-history egress to an operator-owned logging server (off by default). The single deliberate relaxation of OmniProject's stateless posture; egressed data is the operator's responsibility and outside OmniProject's warranty. Enabling it unlocks historical time-travel.
- */
-export interface LoggingSync {
-  enabled: boolean;
-  /** @nullable */
-  url?: string | null;
-  /** The admin acknowledged egressed data is outside OmniProject's warranty. */
-  acknowledgedWarranty: boolean;
-}
-
 export type FieldMapOverrideFields = {[key: string]: FieldSupport};
 
 export type FieldMapOverrideEntities = {[key: string]: FieldSupport};
@@ -1132,7 +1121,6 @@ export interface Settings {
   oidcIssuerUrl?: string | null;
   /** Deployment context chosen in the setup wizard, which relaxes enterprise couplings by choice (e.g. a charity/self-hosted instance on a plain-HTTP LAN). Optional; absent until an admin selects one. The infra-level DEPLOYMENT_PROFILE env var takes precedence on a fresh boot (see docs/REVERSE-PROXY.md). */
   deploymentProfile?: SettingsDeploymentProfile;
-  loggingSync?: LoggingSync;
   fieldOverrides?: FieldMapOverride;
 }
 
@@ -1211,7 +1199,6 @@ export interface SettingsUpdate {
   oidcIssuerUrl?: string | null;
   /** Set the deployment profile (admin). Persisted; the infra-level DEPLOYMENT_PROFILE env var still wins on a fresh boot (see docs/REVERSE-PROXY.md). */
   deploymentProfile?: SettingsUpdateDeploymentProfile;
-  loggingSync?: LoggingSync;
   fieldOverrides?: FieldMapOverride;
 }
 

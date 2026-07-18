@@ -1,5 +1,8 @@
 import { test, before, after, afterEach } from "node:test";
 import assert from "node:assert/strict";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import { startHarness, adminCookie, type Harness } from "./_harness";
 
 /**
@@ -7,18 +10,24 @@ import { startHarness, adminCookie, type Harness } from "./_harness";
  * 409 until the operator opts into the logging server, then it replays recorded
  * portfolio states through the broker (the demo broker synthesises a short ramp).
  * The 502/broker-error catch is unreachable — the demo broker never throws on replay.
+ * Time-travel now reads the `logging-sync` config def (Phase C), so enable the sealed store.
  */
+process.env["SESSION_SECRET"] ??= "integration-harness-secret";
+const CONFIG_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "history-routes-"));
+process.env["OMNI_CONFIG_DIR"] = CONFIG_DIR;
+
 let h: Harness;
 const ADMIN = adminCookie();
 before(async () => { h = await startHarness(); });
-after(() => h?.close());
+after(() => { h?.close(); fs.rmSync(CONFIG_DIR, { recursive: true, force: true }); });
 
 async function setTimeTravel(enabled: boolean): Promise<void> {
-  const { updateSettings } = await import("../lib/settings");
-  updateSettings(
+  const { writeOrgConfigCollection } = await import("../lib/scoped-config");
+  writeOrgConfigCollection(
+    "logging-sync", "Logging sync",
     enabled
-      ? { loggingSync: { enabled: true, url: "https://logs.example.com", acknowledgedWarranty: true } }
-      : { loggingSync: { enabled: false } },
+      ? { enabled: true, url: "https://logs.example.com", acknowledgedWarranty: true }
+      : { enabled: false, url: null, acknowledgedWarranty: false },
   );
 }
 afterEach(() => setTimeTravel(false));

@@ -1,5 +1,11 @@
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+// Time-travel reads the `logging-sync` config def (Phase C) — enable the sealed store for the replay test.
+process.env["SESSION_SECRET"] ??= "integration-harness-secret";
+process.env["OMNI_CONFIG_DIR"] = fs.mkdtempSync(path.join(os.tmpdir(), "rbac-enforcement-"));
 import { startHarness, cookie, adminCookie, memberCookie, type Harness } from "./_harness";
 
 /**
@@ -97,16 +103,16 @@ test("history trends: a portfolio-scoped principal (PMO) is not blocked by the s
 // Replay returns recorded portfolio-wide states; like the portfolio-wide branch of the trends guard it
 // requires portfolio (PMO/admin) scope, else any scoped principal could read the whole portfolio's log.
 test("history replay: a scoped principal can't read portfolio-wide retained history (403); PMO can", async () => {
-  const { updateSettings } = await import("../lib/settings");
+  const { writeOrgConfigCollection } = await import("../lib/scoped-config");
   await withRealRbac(async () => {
-    updateSettings({ loggingSync: { enabled: true, url: "https://logs.example.com", acknowledgedWarranty: true } });
+    writeOrgConfigCollection("logging-sync", "Logging sync", { enabled: true, url: "https://logs.example.com", acknowledgedWarranty: true });
     try {
       // A user-level principal has no portfolio scope → the portfolio-wide replay is refused.
       assert.equal((await h.req("/history/replay", { cookie: memberCookie() })).status, 403);
       // A portfolio-scoped principal (PMO) passes the guard (never a 403).
       assert.notEqual((await h.req("/history/replay", { cookie: pmoCookie() })).status, 403);
     } finally {
-      updateSettings({ loggingSync: { enabled: false } });
+      writeOrgConfigCollection("logging-sync", "Logging sync", { enabled: false, url: null, acknowledgedWarranty: false });
     }
   });
 });

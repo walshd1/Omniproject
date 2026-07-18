@@ -145,14 +145,6 @@ export interface PeerInstance {
  * and is responsible for. Enabling it unlocks historical time-travel. The
  * operator must acknowledge that egressed data is outside OmniProject's warranty.
  */
-export interface LoggingSyncConfig {
-  enabled: boolean;
-  url: string | null;
-  /** The admin acknowledged that egressed data leaves OmniProject's warranty. */
-  acknowledgedWarranty: boolean;
-}
-
-
 /**
  * Self-host DB adoption — the operator's choice to let OmniProject's OWN database become a
  * system-of-record (or an augmenting store) for a slice of the work-item superset. Same "disclose,
@@ -381,10 +373,9 @@ export interface IntegrationConfig {
   selfHost: SelfHostConfig;
 }
 
-/** State-history egress + durable snapshot retention. */
+/** Durable snapshot retention. (State-history egress `loggingSync` moved to the `logging-sync` config def —
+ *  see lib/logging-sync — roadmap Phase C.) */
 export interface HistoryConfig {
-  /** Opt-in state-history egress to an operator-owned logging server (off by default). */
-  loggingSync: LoggingSyncConfig;
   /** Snapshot cadence for durable history retention (admin org default + PMO scope overrides). */
   historyRetention: HistoryRetentionSettings;
 }
@@ -834,19 +825,6 @@ function peersFromEnv(): PeerInstance[] {
   }
 }
 
-function loggingSyncFromEnv(): LoggingSyncConfig {
-  const url = process.env["LOGGING_SYNC_URL"]?.trim() || null;
-  // Env-provided config is operator-trusted; still drop an unsafe URL and only
-  // enable when the warranty was explicitly acknowledged via env.
-  const ack = process.env["LOGGING_SYNC_ACK_WARRANTY"] === "true";
-  const safe = url ? isSafeOutboundUrl(url) : false;
-  return {
-    enabled: !!url && safe && ack,
-    url: safe ? url : null,
-    acknowledgedWarranty: ack,
-  };
-}
-
 /** Feature-module ids disabled via env (`DISABLED_FEATURES=odata,integrations`). */
 function disabledFeaturesFromEnv(): string[] {
   return (process.env["DISABLED_FEATURES"]?.trim() || "").split(/[\s,]+/).filter(Boolean);
@@ -1008,7 +986,6 @@ const FIELD_DESCRIPTORS: { [K in keyof SettingsState]: FieldDescriptor<K> } = {
   },
   webhooks: { seed: () => webhooksFromEnv(), validate: shapeChecked(validateWebhooks) },
   federatedPeers: { seed: () => peersFromEnv(), validate: shapeChecked(validateFederatedPeers) },
-  loggingSync: { seed: () => loggingSyncFromEnv(), validate: shapeChecked(validateLoggingSync) },
   selfHost: { seed: () => ({ ...DEFAULT_SELF_HOST }), validate: shapeChecked(validateSelfHost) },
   historyRetention: { seed: () => ({ ...DEFAULT_HISTORY_RETENTION }), validate: shapeChecked(validateHistoryRetention) },
   digestDelivery: { seed: () => digestDeliveryFromEnv(), validate: shapeChecked(validateDigestDelivery) },
@@ -1085,11 +1062,6 @@ const store: SettingsState = (() => {
   }
   return seeded as unknown as SettingsState;
 })();
-
-/** True when historical time-travel is available (operator opted into egress). */
-export function isTimeTravelEnabled(): boolean {
-  return store.loggingSync.enabled;
-}
 
 // The writable-key allow-list, DERIVED from the field registry so it can never drift from the store
 // seed or the validators (which is what retired the bespoke `_MissingSettingsKeys` compile-time guard
@@ -1506,29 +1478,6 @@ function validateDashboards(value: unknown): void {
       const { id: wid, type } = w as Record<string, unknown>;
       if (typeof wid !== "string" || !wid) throw new SettingsValidationError("each dashboard widget needs a string id");
       if (typeof type !== "string" || !type) throw new SettingsValidationError("each dashboard widget needs a type");
-    }
-  }
-}
-
-/** Validate the opt-in logging-sync egress config: an object with an optional safe-outbound `url`;
- *  turning it on requires both a url and an explicit warranty acknowledgement. */
-function validateLoggingSync(value: unknown): void {
-  if (!value || typeof value !== "object") throw new SettingsValidationError("loggingSync must be an object");
-  const { enabled, url, acknowledgedWarranty } = value as Record<string, unknown>;
-  if (url != null) {
-    if (typeof url !== "string") throw new SettingsValidationError("loggingSync.url must be a string or null");
-    try {
-      assertSafeOutboundUrl(url, "loggingSync.url");
-    } catch (err) {
-      throw new SettingsValidationError(err instanceof UnsafeUrlError ? err.message : "loggingSync.url is invalid");
-    }
-  }
-  if (enabled === true) {
-    // Egress is the one out-of-warranty relaxation: it can only be turned on
-    // with a destination AND an explicit acknowledgement of the warranty boundary.
-    if (typeof url !== "string" || !url) throw new SettingsValidationError("enable the logging sync requires a url");
-    if (acknowledgedWarranty !== true) {
-      throw new SettingsValidationError("enabling the logging sync requires acknowledging that egressed data is outside OmniProject's warranty");
     }
   }
 }

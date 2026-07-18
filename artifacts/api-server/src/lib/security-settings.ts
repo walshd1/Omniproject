@@ -51,15 +51,8 @@ export const SECURITY_SETTINGS: Record<string, RelaxPredicate> = {
     const before = activeBases(o);
     return [...activeBases(n)].some((b) => !before.has(b)); // any newly-active peer target ⇒ relax
   },
-  // Egress TOGGLES have a clear direction too: turning egress ON (or redirecting where it goes) is the
-  // relaxation; turning it OFF strengthens and applies immediately. So these are directional, not
-  // fail-closed `changed` — a disable is never gated.
-  loggingSync: (o, n) => {
-    const on = (v: Val): boolean => !!(v && typeof v === "object" && (v as { enabled?: unknown }).enabled === true);
-    const dest = (v: Val): unknown => (v && typeof v === "object" ? (v as { url?: unknown }).url : undefined);
-    // Relax = ending up enabled with a NEW destination: newly turned on, or redirected while on.
-    return on(n) && (!on(o) || dest(o) !== dest(n));
-  },
+  // (`errorTelemetry` + `loggingSync` egress toggles moved to the `error-telemetry` / `logging-sync` config
+  //  defs — their relaxation predicates live in `security-config`, evaluated by the floor gate. Roadmap Phase C.)
   // The controls themselves — weakening any is the classic insider move; fail-closed on any edit.
   approvalChains: changed,
   approvalBindings: changed,

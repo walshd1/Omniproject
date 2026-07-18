@@ -20,6 +20,14 @@ export const SECURITY_CONFIGS: Record<string, RelaxPredicate> = {
   // `SECURITY_SETTINGS` classification: turning it ON is the relaxation (held for a sign-off); turning it OFF
   // strengthens and applies immediately.
   "error-telemetry": (o, n) => n === true && o !== true,
+  // Logging-sync egress — streaming the event log to an operator-owned destination. Directional (verbatim from
+  // the old `SECURITY_SETTINGS` predicate): the relaxation is ending up ENABLED with a NEW destination (newly
+  // turned on, or redirected while on); disabling strengthens and applies immediately.
+  "logging-sync": (o, n) => {
+    const on = (v: unknown): boolean => !!(v && typeof v === "object" && (v as { enabled?: unknown }).enabled === true);
+    const dest = (v: unknown): unknown => (v && typeof v === "object" ? (v as { url?: unknown }).url : undefined);
+    return on(n) && (!on(o) || dest(o) !== dest(n));
+  },
 };
 
 /** TRUE when moving `configId` from `oldValue`→`newValue` relaxes the posture. FALSE for a choice config (not

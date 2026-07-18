@@ -49,20 +49,20 @@ test("egress keys are DIRECTIONAL: opening/redirecting relaxes, removing/deactiv
   const peer = (baseUrl: string, active = true) => ({ id: baseUrl, label: "L", baseUrl, token: "t", region: "eu", active });
   assert.deepEqual(relaxingKeys({ federatedPeers: [] }, { federatedPeers: [peer("https://eu")] }), ["federatedPeers"]);
   assert.deepEqual(relaxingKeys({ federatedPeers: [peer("https://eu")] }, { federatedPeers: [] }), []);
-
-  // loggingSync: turning egress ON relaxes; OFF is immediate.
-  assert.deepEqual(relaxingKeys({ loggingSync: { enabled: false } }, { loggingSync: { enabled: true, url: "https://logs" } }), ["loggingSync"]);
-  assert.deepEqual(relaxingKeys({ loggingSync: { enabled: true, url: "https://logs" } }, { loggingSync: { enabled: false, url: null } }), []);
-  assert.deepEqual(relaxingKeys({ loggingSync: { enabled: true, url: "https://a" } }, { loggingSync: { enabled: true, url: "https://b" } }), ["loggingSync"]); // redirect → relax
 });
 
-test("error-telemetry is a SECURITY config (floor gate): enabling relaxes, disabling is immediate", () => {
-  // errorTelemetry left SettingsState for the `error-telemetry` config def (Phase C 7b); its relaxation
-  // predicate now lives in SECURITY_CONFIGS, evaluated on the config path via relaxingConfig.
+test("error-telemetry + logging-sync are SECURITY configs (floor gate): enabling relaxes, disabling is immediate", () => {
+  // errorTelemetry + loggingSync left SettingsState for the `error-telemetry` / `logging-sync` config defs
+  // (Phase C 7b); their relaxation predicates now live in SECURITY_CONFIGS, evaluated via relaxingConfig.
   assert.equal(relaxingConfig("error-telemetry", false, true), true);
   assert.equal(relaxingConfig("error-telemetry", true, false), false);
   assert.equal(relaxingConfig("error-telemetry", null, true), true); // unset → on ⇒ relax
   assert.equal(relaxingConfig("__a-choice-config", false, true), false); // unregistered ⇒ never a relaxation
+
+  // logging-sync: turning egress ON relaxes; OFF is immediate; a redirect while on relaxes.
+  assert.equal(relaxingConfig("logging-sync", { enabled: false }, { enabled: true, url: "https://logs" }), true);
+  assert.equal(relaxingConfig("logging-sync", { enabled: true, url: "https://logs" }, { enabled: false, url: null }), false);
+  assert.equal(relaxingConfig("logging-sync", { enabled: true, url: "https://a" }, { enabled: true, url: "https://b" }), true);
 });
 
 test("capabilityStates is DIRECTIONAL on the exposure ladder (off < user-defined < public) + egress endpoint", () => {

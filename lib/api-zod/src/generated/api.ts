@@ -1065,11 +1065,6 @@ export const GetSettingsResponse = zod.object({
   "fxRateAsOfDate": zod.string().nullish().describe('ISO 8601 date the \"as of\" rate is read for when fxRatePolicy isn\'t \"spot\". Ignored (falls back to spot) when null.'),
   "oidcIssuerUrl": zod.string().nullish(),
   "deploymentProfile": zod.enum(['enterprise', 'business', 'nonprofit', 'self-hosted', 'demo']).optional().describe('Deployment context chosen in the setup wizard, which relaxes enterprise couplings by choice (e.g. a charity\/self-hosted instance on a plain-HTTP LAN). Optional; absent until an admin selects one. The infra-level DEPLOYMENT_PROFILE env var takes precedence on a fresh boot (see docs\/REVERSE-PROXY.md).'),
-  "loggingSync": zod.object({
-  "enabled": zod.boolean(),
-  "url": zod.string().nullish(),
-  "acknowledgedWarranty": zod.boolean().describe('The admin acknowledged egressed data is outside OmniProject\'s warranty.')
-}).optional().describe('Opt-in state-history egress to an operator-owned logging server (off by default). The single deliberate relaxation of OmniProject\'s stateless posture; egressed data is the operator\'s responsibility and outside OmniProject\'s warranty. Enabling it unlocks historical time-travel.'),
   "fieldOverrides": zod.object({
   "fields": zod.record(zod.string(), zod.object({
   "surface": zod.boolean(),
@@ -1097,11 +1092,6 @@ export const UpdateSettingsBody = zod.object({
   "fxRateAsOfDate": zod.string().nullish().describe('Set the \"as of\" date used when fxRatePolicy isn\'t \"spot\" (see Settings.fxRateAsOfDate).'),
   "oidcIssuerUrl": zod.string().nullish(),
   "deploymentProfile": zod.enum(['enterprise', 'business', 'nonprofit', 'self-hosted', 'demo']).optional().describe('Set the deployment profile (admin). Persisted; the infra-level DEPLOYMENT_PROFILE env var still wins on a fresh boot (see docs\/REVERSE-PROXY.md).'),
-  "loggingSync": zod.object({
-  "enabled": zod.boolean(),
-  "url": zod.string().nullish(),
-  "acknowledgedWarranty": zod.boolean().describe('The admin acknowledged egressed data is outside OmniProject\'s warranty.')
-}).optional().describe('Opt-in state-history egress to an operator-owned logging server (off by default). The single deliberate relaxation of OmniProject\'s stateless posture; egressed data is the operator\'s responsibility and outside OmniProject\'s warranty. Enabling it unlocks historical time-travel.'),
   "fieldOverrides": zod.object({
   "fields": zod.record(zod.string(), zod.object({
   "surface": zod.boolean(),
@@ -1125,11 +1115,6 @@ export const UpdateSettingsResponse = zod.object({
   "fxRateAsOfDate": zod.string().nullish().describe('ISO 8601 date the \"as of\" rate is read for when fxRatePolicy isn\'t \"spot\". Ignored (falls back to spot) when null.'),
   "oidcIssuerUrl": zod.string().nullish(),
   "deploymentProfile": zod.enum(['enterprise', 'business', 'nonprofit', 'self-hosted', 'demo']).optional().describe('Deployment context chosen in the setup wizard, which relaxes enterprise couplings by choice (e.g. a charity\/self-hosted instance on a plain-HTTP LAN). Optional; absent until an admin selects one. The infra-level DEPLOYMENT_PROFILE env var takes precedence on a fresh boot (see docs\/REVERSE-PROXY.md).'),
-  "loggingSync": zod.object({
-  "enabled": zod.boolean(),
-  "url": zod.string().nullish(),
-  "acknowledgedWarranty": zod.boolean().describe('The admin acknowledged egressed data is outside OmniProject\'s warranty.')
-}).optional().describe('Opt-in state-history egress to an operator-owned logging server (off by default). The single deliberate relaxation of OmniProject\'s stateless posture; egressed data is the operator\'s responsibility and outside OmniProject\'s warranty. Enabling it unlocks historical time-travel.'),
   "fieldOverrides": zod.object({
   "fields": zod.record(zod.string(), zod.object({
   "surface": zod.boolean(),

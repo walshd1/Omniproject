@@ -2274,9 +2274,24 @@ settings key/classification) plus a store-enabled route test.
     `useSaveErrorTelemetry`, which surfaces the 202 `pending` in the toast) repoint `ErrorTelemetrySync` (read) and
     `ErrorTelemetrySettings` (write) off `useGetSettings`/`useUpdateSettings`. New route test + config-guard cover
     the gate; SPA tests reseed the new query key. Full suite green.
-  - **Remaining (NEXT).** `loggingSync`, `brokerUrl`/`backendSource`, AI provider/model allowlists,
-    `historyRetention`, session controls. Then the cross-scope FLOOR semantics — a lower scope may only TIGHTEN (a
-    project restricts further, never loosens the org egress allow-list) — folded into the scope resolver.
+  - **`loggingSync` ✅ (egress config, own module, end-to-end).** The opt-in state-history egress (the "logging
+    server", unlocks time-travel) left `SettingsState` for the `logging-sync` config def. It got its own module
+    `lib/logging-sync` (mirroring `branding`/`labels`): the `LoggingSyncConfig` type, `loggingSyncFromEnv` (the
+    `LOGGING_SYNC_*` env BASE layer), `sanitizeLoggingSync` (url + warranty-ack gate → 400), `resolveLoggingSync`
+    (org def → env → off) and `isTimeTravelEnabled`. `security-config` holds the directional relax predicate
+    (enable, or redirect-while-on, relaxes). A dedicated `routes/logging-sync` (GET any-authed; PUT admin →
+    202-on-enable via the floor gate) replaces the settings slice; `capabilities` + `routes/history` read
+    `isTimeTravelEnabled` from the new module. Removed from settings (type + field + env-seed + validator + the
+    `SECURITY_SETTINGS` classification), from the `settings-constraints` enable-lock (now the route validator +
+    the panel's local guard), from `config-snapshot` `EXCLUDED_KEYS` (its egress url rides the sealed org config-
+    def backup, not the settings snapshot), and from the OpenAPI schemas (client + bundle regenerated). SPA:
+    hand-written `logging-sync-api` hooks (surfacing the 202 `pending`) repoint `LoggingSyncSettings` off
+    `useGetSettings`/`useUpdateSettings`. New route test + the security/history/rbac integration tests repointed
+    to `/api/logging-sync` + the sealed store. (Also fixed 3 SPA composition tests left seeding the pre-6c
+    `["settings"]` key — now `["methodology-composition"]`.) Full suite green.
+  - **Remaining (NEXT).** `brokerUrl`/`backendSource`, AI provider/model allowlists, `historyRetention`, session
+    controls. Then the cross-scope FLOOR semantics — a lower scope may only TIGHTEN (a project restricts further,
+    never loosens the org egress allow-list) — folded into the scope resolver.
 
 ### Phase D — artifacts' template/schema layer (content stays sealed data, zero-at-rest)
 - **Slice 8 · schema families.** proof-annotation kinds, invoice-line schema, goal key-result kinds,

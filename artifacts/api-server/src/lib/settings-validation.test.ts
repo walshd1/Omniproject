@@ -1,6 +1,7 @@
 import { test, afterEach } from "node:test";
 import assert from "node:assert/strict";
 import { updateSettings, getSettings, redactSettingsForRead, SettingsValidationError, validateSavedViews } from "./settings";
+import { sanitizeLoggingSync } from "./logging-sync";
 
 /**
  * Settings patch validation — updateSettings runs an untrusted patch through validatePatch,
@@ -146,15 +147,17 @@ test("fieldOverrides support-map validation", () => {
   assert.doesNotThrow(() => updateSettings({ fieldOverrides: { fields: { budget: { surface: true, store: false } }, entities: {} } }));
 });
 
-test("loggingSync: object with a safe url; enabling needs url + warranty ack", () => {
-  throws({ loggingSync: "nope" });
-  throws({ loggingSync: { url: 5 } });
-  throws({ loggingSync: { url: "http://169.254.169.254/logs" } }); // unsafe
-  throws({ loggingSync: { enabled: true, url: "", acknowledgedWarranty: true } }); // no url
-  throws({ loggingSync: { enabled: true, url: "https://logs.example.com", acknowledgedWarranty: false } }); // no ack
-  assert.doesNotThrow(() => updateSettings({ loggingSync: { enabled: true, url: "https://logs.example.com", acknowledgedWarranty: true } }));
-  // Reset the sync back off so it doesn't leak into other tests.
-  updateSettings({ loggingSync: { enabled: false, url: null, acknowledgedWarranty: false } });
+test("loggingSync: sanitizeLoggingSync — safe url; enabling needs url + warranty ack (the `logging-sync` config def)", () => {
+  const bad = (v: unknown) => assert.throws(() => sanitizeLoggingSync(v), SettingsValidationError);
+  bad("nope");
+  bad({ url: 5 });
+  bad({ url: "http://169.254.169.254/logs" }); // unsafe
+  bad({ enabled: true, url: "", acknowledgedWarranty: true }); // no url
+  bad({ enabled: true, url: "https://logs.example.com", acknowledgedWarranty: false }); // no ack
+  assert.deepEqual(
+    sanitizeLoggingSync({ enabled: true, url: "https://logs.example.com", acknowledgedWarranty: true }),
+    { enabled: true, url: "https://logs.example.com", acknowledgedWarranty: true },
+  );
 });
 
 test("selfHost: valid mode + string[] adopted; a non-off mode needs the data-responsibility ack", () => {
