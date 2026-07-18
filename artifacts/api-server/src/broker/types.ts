@@ -811,6 +811,33 @@ export interface Broker {
   listWbsElements?(ctx: ActorContext, projectId: string): Promise<WbsElement[]>;
   /** The financial roll-up for one WBS element (actual / commitment / budget / WIP / planned), read from the ERP. */
   getWbsFinancials?(ctx: ActorContext, wbsId: string): Promise<WbsFinancials | null>;
+
+  // ── Dependency graph (roadmap §5.5) — OPTIONAL. Directed edges between work items, brokered from the SoR
+  //    (native issue links where the backend supports them; our sidecar otherwise). Zero-at-rest: we never
+  //    hold the item CONTENT, only the id→id edge. Unlocks interactive Gantt links + true CPM on live data.
+  /** The dependency edges within a project (directed `fromId → toId`). Empty when none / unsupported. */
+  listDependencies?(ctx: ActorContext, projectId: string): Promise<DependencyLink[]>;
+  /** Assert a dependency edge (idempotent on `from·kind·to`). Returns the stored edge. */
+  writeDependency?(ctx: ActorContext, projectId: string, link: DependencyLink): Promise<DependencyLink>;
+  /** Remove a dependency edge (no-op if absent). */
+  removeDependency?(ctx: ActorContext, projectId: string, fromId: string, toId: string, kind: DependencyKind): Promise<void>;
+}
+
+/** The relationship a {@link DependencyLink} expresses. `depends_on`/`blocks` drive scheduling (CPM, cascade);
+ *  `relates_to` is a soft cross-reference. */
+export type DependencyKind = "blocks" | "depends_on" | "relates_to";
+
+/**
+ * A directed dependency edge between two work items in a project (roadmap §5.5). Brokered from the system of
+ * record — never a content copy, only the `fromId → toId` relationship + its kind. This is the contract entity
+ * the client's browser-volatile edge store graduates to, so dependency links survive and drive live CPM.
+ */
+export interface DependencyLink {
+  fromId: string;
+  toId: string;
+  kind: DependencyKind;
+  /** An optional short user note — the only free text carried. */
+  note?: string;
 }
 
 /**

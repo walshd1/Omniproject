@@ -67,6 +67,10 @@ const WRITE_CLASSIFIERS = {
   // target project/issue (route stamps write:true) — a genuine mutation. Guard it under `native_import`,
   // project-scoped by the target, so an autonomous actor must be granted it (fail-closed if ungranted).
   nativeImport: (args, now): WriteRequest => ({ action: "native_import", projectId: str(rec(rec(args[1])["target"])["projectId"]), now }),
+  // Dependency-graph writes (roadmap §5.5): writeDependency(ctx, projectId, link) /
+  // removeDependency(ctx, projectId, from, to, kind) mutate the project's edge set — guard them project-scoped.
+  writeDependency: (args, now): WriteRequest => ({ action: "write_dependency", projectId: str(args[1]), fields: Object.keys(rec(args[2])), now }),
+  removeDependency: (args, now): WriteRequest => ({ action: "remove_dependency", projectId: str(args[1]), now }),
 } satisfies Record<string, (args: unknown[], now: number) => WriteRequest>;
 
 /** A broker method the autonomous gate must run authorization for. */

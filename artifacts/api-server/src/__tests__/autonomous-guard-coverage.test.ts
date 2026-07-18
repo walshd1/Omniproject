@@ -39,6 +39,9 @@ const KNOWN_NON_MUTATING = new Set([
   // SAP / ERP read models (§4.6): the WBS cost tree + per-WBS financial roll-up — READ-ONLY, brokered from
   // the system of record (SAP keeps the ledger; we never post).
   "listWbsElements", "getWbsFinancials",
+  // Dependency graph (§5.5): listDependencies is READ-ONLY; writeDependency + removeDependency are the guarded
+  // mutations (WRITE_CLASSIFIERS in broker/autonomous-guard).
+  "listDependencies",
 ]);
 
 /** Extract the method names declared on `export interface Broker { … }` from types.ts (methods only —

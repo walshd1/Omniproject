@@ -580,6 +580,64 @@ router.get("/projects/:projectId/wbs/:wbsId/financials", async (req, res) => {
   }, { projectId });
 });
 
+// ── Dependency graph (roadmap §5.5) — directed edges between work items, brokered from the SoR (zero-at-rest:
+//    only id→id relationships, never item content). Read is project-scope-gated; write/delete are contributor+.
+const DEP_KINDS = new Set(["blocks", "depends_on", "relates_to"]);
+/** Validate a dependency-edge write body: two non-empty ids, a known kind, an optional short note. */
+function sanitizeDependency(body: unknown): { fromId: string; toId: string; kind: "blocks" | "depends_on" | "relates_to"; note?: string } | null {
+  const b = (body ?? {}) as Record<string, unknown>;
+  const fromId = typeof b["fromId"] === "string" ? b["fromId"].trim() : "";
+  const toId = typeof b["toId"] === "string" ? b["toId"].trim() : "";
+  const kind = typeof b["kind"] === "string" ? b["kind"] : "";
+  if (!fromId || !toId || fromId === toId || !DEP_KINDS.has(kind)) return null;
+  const note = typeof b["note"] === "string" ? b["note"].slice(0, 280) : undefined;
+  return { fromId, toId, kind: kind as "blocks" | "depends_on" | "relates_to", ...(note ? { note } : {}) };
+}
+
+router.get("/projects/:projectId/dependencies", async (req, res) => {
+  const params = parseRouteParams(GetProjectSummaryParams, req, res, "Invalid project id");
+  if (!params) return;
+  const { projectId } = params;
+  await withBrokerErrors(req, res, "list_dependencies failed", async () => {
+    if (!(await guardProjectScope(req, res, projectId))) return;
+    const broker = getBroker();
+    if (!broker.listDependencies) { res.status(501).json({ error: "this backend does not expose a dependency graph" }); return; }
+    res.json({ edges: await broker.listDependencies(contextFromReq(req), projectId) });
+  }, { projectId });
+});
+
+router.post("/projects/:projectId/dependencies", requireRole("contributor"), async (req, res) => {
+  const params = parseRouteParams(GetProjectSummaryParams, req, res, "Invalid project id");
+  if (!params) return;
+  const { projectId } = params;
+  await withBrokerErrors(req, res, "write_dependency failed", async () => {
+    if (!(await guardProjectScope(req, res, projectId))) return;
+    const link = sanitizeDependency(req.body);
+    if (!link) { res.status(400).json({ error: "a dependency needs distinct fromId + toId and a valid kind (blocks | depends_on | relates_to)" }); return; }
+    const broker = getBroker();
+    if (!broker.writeDependency) { res.status(501).json({ error: "this backend does not accept dependency edges" }); return; }
+    const saved = await broker.writeDependency(contextFromReq(req), projectId, link);
+    recordAudit({ ts: new Date().toISOString(), category: "admin", action: `write_dependency:${link.fromId}->${link.toId}`, projectId, result: "success", status: 200 });
+    res.status(201).json(saved);
+  }, { projectId });
+});
+
+router.delete("/projects/:projectId/dependencies", requireRole("contributor"), async (req, res) => {
+  const params = parseRouteParams(GetProjectSummaryParams, req, res, "Invalid project id");
+  if (!params) return;
+  const { projectId } = params;
+  await withBrokerErrors(req, res, "remove_dependency failed", async () => {
+    if (!(await guardProjectScope(req, res, projectId))) return;
+    const link = sanitizeDependency(req.body);
+    if (!link) { res.status(400).json({ error: "a dependency delete needs fromId + toId + kind" }); return; }
+    const broker = getBroker();
+    if (!broker.removeDependency) { res.status(501).json({ error: "this backend does not accept dependency edges" }); return; }
+    await broker.removeDependency(contextFromReq(req), projectId, link.fromId, link.toId, link.kind);
+    recordAudit({ ts: new Date().toISOString(), category: "admin", action: `remove_dependency:${link.fromId}->${link.toId}`, projectId, result: "success", status: 200 });
+    res.status(204).end();
+  }, { projectId });
+});
+
 // ── Generic mapping surface (roadmap §4.6, "across the board") — the SAME (broker, backend) addressing +
 //    sidecar the WBS cost screen uses, exposed for ANY slot so a form / report / custom screen JSON can bind a
 //    mapped, sidecar-backed table with no bespoke code. WBS keeps its own richer endpoints (financial roll-ups).

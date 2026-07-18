@@ -2,7 +2,7 @@ import { DEV_PERSIST_FILE, saveState, loadState } from "../lib/dev-persist";
 import { INDICATIVE_FX_RATES } from "../lib/fx-fallback";
 import { configuredBrokerUrl } from "../lib/broker-url";
 import { CANONICAL_STATUS, CANONICAL_PRIORITY, isDone } from "./vocabulary";
-import type { Row, FxRates, Project, Issue, PortfolioRow, WbsElement, WbsFinancials } from "./types";
+import type { Row, FxRates, Project, Issue, PortfolioRow, WbsElement, WbsFinancials, DependencyLink } from "./types";
 
 /**
  * Demo dataset — the canned data the DemoBroker serves. Lives entirely under the
@@ -54,6 +54,16 @@ export const SAMPLE_WBS_FINANCIALS: Record<string, WbsFinancials> = {
   "SSO-1": { wbsId: "SSO-1", currency: "GBP", budget: 140000, actual: 96000, commitment: 9000, wip: 4000, planned: 138000, available: 35000 },
   "SSO-1.1": { wbsId: "SSO-1.1", currency: "GBP", budget: 90000, actual: 61000, commitment: 6000, wip: 3000, planned: 89000, available: 23000 },
   "MON-1": { wbsId: "MON-1", currency: "GBP", budget: 90000, actual: 61000, commitment: 7000, wip: 2000, planned: 88000, available: 22000 },
+};
+
+/** Demo dependency edges (roadmap §5.5) — directed `fromId → toId` among proj-001's sample issues, so the
+ *  graph/CPM/Gantt-link surfaces have live data. The demo broker keeps a MUTABLE copy so writes round-trip. */
+export const SAMPLE_DEPENDENCIES: Record<string, DependencyLink[]> = {
+  "proj-001": [
+    { fromId: "iss-002", toId: "iss-001", kind: "depends_on", note: "API contract before client" },
+    { fromId: "iss-003", toId: "iss-002", kind: "depends_on" },
+    { fromId: "iss-004", toId: "iss-001", kind: "blocks" },
+  ],
 };
 
 /**
