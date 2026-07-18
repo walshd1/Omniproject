@@ -16,7 +16,10 @@ import type { RelaxPredicate } from "./security-settings";
  * in this map writes through `applyConfigCollectionGuarded` (sign-off on relax); anything else writes directly.
  */
 export const SECURITY_CONFIGS: Record<string, RelaxPredicate> = {
-  // Populated by Phase C migration slices (egress toggles, brokerUrl, retention, …). Empty until then.
+  // Error telemetry — the admin opt-in for internal client-error reporting. Directional, mirroring its old
+  // `SECURITY_SETTINGS` classification: turning it ON is the relaxation (held for a sign-off); turning it OFF
+  // strengthens and applies immediately.
+  "error-telemetry": (o, n) => n === true && o !== true,
 };
 
 /** TRUE when moving `configId` from `oldValue`→`newValue` relaxes the posture. FALSE for a choice config (not

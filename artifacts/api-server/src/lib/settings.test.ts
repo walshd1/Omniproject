@@ -6,12 +6,9 @@ afterEach(() => {
   updateSettings({ disabledFeatures: [], dashboards: [], reportingCurrency: null, fxRatePolicy: "spot", fxRateAsOfDate: null, customReports: [], reportOverrides: [], contentPages: [], priorityWeights: { ...DEFAULT_PRIORITY_WEIGHTS }, federatedPeers: [] }); // reset shared store
 });
 
-test("errorTelemetry: accepts a boolean, rejects a non-boolean, defaults off", () => {
-  assert.equal(getSettings().errorTelemetry, false); // off by default
-  assert.equal(updateSettings({ errorTelemetry: true }).errorTelemetry, true);
-  assert.equal(updateSettings({ errorTelemetry: false }).errorTelemetry, false);
-  assert.throws(() => updateSettings({ errorTelemetry: "yes" as unknown as boolean }), SettingsValidationError);
-});
+// errorTelemetry left SettingsState for the `error-telemetry` config def (roadmap Phase C, slice 7b) — it is now
+// a SECURITY-classified config governed by the floor gate. Its boolean validation + guard round-trip is covered
+// by error-telemetry-routes.test / config-guard.test, not here.
 
 test("reportOverrides: accepts partial metadata overrides and rejects bad shape", () => {
   const ok = updateSettings({ reportOverrides: [{ id: "evm", label: "Earned value", order: 5, hidden: true }, { id: "burndown" }] });

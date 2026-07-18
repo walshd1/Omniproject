@@ -2261,11 +2261,22 @@ settings key/classification) plus a store-enabled route test.
   - Tests: `config-guard.test` (strengthen→immediate, relax→held→applied-on-sign-off, non-security→immediate,
     driving the real passkey sign-off ceremony) + `settings-collection-guard-routes.test` (the router's 202/200
     branches over a real Express app). Full suite green.
-- **Slice 7b · migrate the security-classified slices (NEXT).** With the gate in place, each is a thin flip
-  (register the predicate in `SECURITY_CONFIGS`, add a route, repoint readers + the SPA off `PATCH /settings`):
-  egress toggles (`errorTelemetry`, `loggingSync`), `brokerUrl`/`backendSource`, AI provider/model allowlists,
-  `historyRetention`, session controls. Then the cross-scope FLOOR semantics — a lower scope may only TIGHTEN (a
-  project restricts further, never loosens the org egress allow-list) — folded into the scope resolver.
+- **Slice 7b · migrate the security-classified slices.** With the gate in place, each registers its predicate in
+  `SECURITY_CONFIGS`, adds a route, and repoints readers + the SPA off `PATCH /settings`.
+  - **`errorTelemetry` ✅ (first security-config migration, end-to-end).** The admin opt-in for internal
+    client-error reporting left `SettingsState` for the `error-telemetry` config def. `security-config` registers
+    the directional predicate (enabling relaxes → sign-off; disabling immediate); `scoped-config.resolveErrorTelemetry`
+    reads org def → `ERROR_TELEMETRY` env default → false (env kept as the deploy-time BASE layer, not compat); a
+    dedicated `routes/error-telemetry` (GET any-authed; PUT admin → 202-on-enable via the floor gate) replaces the
+    settings slice; `routes/client-errors` reads the resolver. Removed from settings (field + descriptor + the
+    `SECURITY_SETTINGS` classification) and from the OpenAPI `Settings`/`SettingsUpdate` schemas (codegen + the
+    embedded bundle regenerated). SPA: hand-written `error-telemetry-api` hooks (`useErrorTelemetry` /
+    `useSaveErrorTelemetry`, which surfaces the 202 `pending` in the toast) repoint `ErrorTelemetrySync` (read) and
+    `ErrorTelemetrySettings` (write) off `useGetSettings`/`useUpdateSettings`. New route test + config-guard cover
+    the gate; SPA tests reseed the new query key. Full suite green.
+  - **Remaining (NEXT).** `loggingSync`, `brokerUrl`/`backendSource`, AI provider/model allowlists,
+    `historyRetention`, session controls. Then the cross-scope FLOOR semantics — a lower scope may only TIGHTEN (a
+    project restricts further, never loosens the org egress allow-list) — folded into the scope resolver.
 
 ### Phase D — artifacts' template/schema layer (content stays sealed data, zero-at-rest)
 - **Slice 8 · schema families.** proof-annotation kinds, invoice-line schema, goal key-result kinds,

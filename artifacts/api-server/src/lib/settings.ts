@@ -16,7 +16,7 @@ import type { GovernanceRule } from "./governance-rules";
 import { validatePredicate } from "./predicate";
 import { isValidCadence, type SnapshotCadence } from "../history/cadence";
 import { logger } from "./logger";
-import { isTruthy, envInt } from "./env-config";
+import { envInt } from "./env-config";
 import { validateFieldRouting, FieldRoutingError, type FieldRoute } from "./field-routing";
 import { validateApprovalChains, ApprovalChainError, type ChainDef } from "./approval-chain";
 import { validateApprovalBindings, ApprovalBindingError, type ApprovalBinding } from "./approval-binding";
@@ -522,13 +522,6 @@ export interface UserConfig {
 export interface PlatformConfig {
   /** Deployment context chosen in the setup wizard (relaxes enterprise couplings by choice). */
   deploymentProfile?: DeploymentProfile;
-  /**
-   * Admin opt-in: when true, the SPA reports uncaught render errors (message + component
-   * stack + page, never user/project data) to `POST /api/client-errors`, which records them
-   * to the INTERNAL audit log. OFF by default — the same deliberate no-external-telemetry
-   * posture as the rest of the app; nothing is auto-reported until an admin turns this on.
-   */
-  errorTelemetry: boolean;
   /** Skills matrix + demand for the skills-capacity report (planning config, admin/PMO edited). */
   skillsPlanning: SkillsPlanningSettings;
 }
@@ -983,14 +976,6 @@ const FIELD_DESCRIPTORS: { [K in keyof SettingsState]: FieldDescriptor<K> } = {
     },
   },
   oidcIssuerUrl: { seed: () => process.env["OIDC_ISSUER_URL"] ?? null, validate: urlField("oidcIssuerUrl") },
-  errorTelemetry: {
-    // Off unless an admin opts in (or the env seeds it for a fresh boot).
-    seed: () => isTruthy(process.env["ERROR_TELEMETRY"]),
-    validate: (value) => {
-      if (typeof value !== "boolean") throw new SettingsValidationError("errorTelemetry must be a boolean");
-      return value;
-    },
-  },
   fieldRouting: {
     // Anti-collision (one source → one UI element, both ways) lives in field-routing; surface its error
     // as the standard settings 400, and persist the normalised (trimmed) map.

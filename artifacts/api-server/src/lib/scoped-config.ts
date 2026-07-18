@@ -18,6 +18,7 @@
  */
 import { mergeValue } from "@workspace/backend-catalogue";
 import { listDefs, listSystemDefs, getDef, putDef, type StoredDef } from "./def-import";
+import { isTruthy } from "./env-config";
 
 /** Which programme/project/user scopes to consult when resolving a config (org + system are always included). */
 export interface ConfigScopes { projectId?: string; programmeId?: string; sub?: string }
@@ -110,6 +111,15 @@ export function orgConfigCollectionId(configId: string): string {
 export const METHODOLOGY_COMPOSITION_ID = "methodology-composition";
 export function resolveMethodologyComposition(scopes: ConfigScopes = {}): string[] | null {
   return readConfigCollection<string[] | null>(METHODOLOGY_COMPOSITION_ID, null, scopes);
+}
+
+/** ERROR TELEMETRY — the admin opt-in for internal client-error reporting (§0 security-classified: enabling it
+ *  is the relaxation, held for a sign-off — see `security-config`). A config-def-backed boolean whose deploy-time
+ *  BASE layer is the `ERROR_TELEMETRY` env (so a fresh boot honours the operator's default), beneath the org def.
+ *  Resolution: org config def → env default → false. */
+export const ERROR_TELEMETRY_CONFIG_ID = "error-telemetry";
+export function resolveErrorTelemetry(scopes: ConfigScopes = {}): boolean {
+  return readConfigCollection<boolean>(ERROR_TELEMETRY_CONFIG_ID, isTruthy(process.env["ERROR_TELEMETRY"]), scopes);
 }
 
 // ── Scheduling: the first migrated config (working-time policy) ──────────────────────────────────────────────

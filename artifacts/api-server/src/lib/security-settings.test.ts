@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { SECURITY_SETTINGS, CHOICE_SETTINGS, CLASSIFIED_KEYS, relaxingKeys } from "./security-settings";
+import { relaxingConfig } from "./security-config";
 import { getSettings } from "./settings";
 
 test("DRIFT GUARD: every SettingsState key is classified (choice or security)", () => {
@@ -49,12 +50,19 @@ test("egress keys are DIRECTIONAL: opening/redirecting relaxes, removing/deactiv
   assert.deepEqual(relaxingKeys({ federatedPeers: [] }, { federatedPeers: [peer("https://eu")] }), ["federatedPeers"]);
   assert.deepEqual(relaxingKeys({ federatedPeers: [peer("https://eu")] }, { federatedPeers: [] }), []);
 
-  // loggingSync / errorTelemetry: turning egress ON relaxes; OFF is immediate.
+  // loggingSync: turning egress ON relaxes; OFF is immediate.
   assert.deepEqual(relaxingKeys({ loggingSync: { enabled: false } }, { loggingSync: { enabled: true, url: "https://logs" } }), ["loggingSync"]);
   assert.deepEqual(relaxingKeys({ loggingSync: { enabled: true, url: "https://logs" } }, { loggingSync: { enabled: false, url: null } }), []);
   assert.deepEqual(relaxingKeys({ loggingSync: { enabled: true, url: "https://a" } }, { loggingSync: { enabled: true, url: "https://b" } }), ["loggingSync"]); // redirect → relax
-  assert.deepEqual(relaxingKeys({ errorTelemetry: false }, { errorTelemetry: true }), ["errorTelemetry"]);
-  assert.deepEqual(relaxingKeys({ errorTelemetry: true }, { errorTelemetry: false }), []);
+});
+
+test("error-telemetry is a SECURITY config (floor gate): enabling relaxes, disabling is immediate", () => {
+  // errorTelemetry left SettingsState for the `error-telemetry` config def (Phase C 7b); its relaxation
+  // predicate now lives in SECURITY_CONFIGS, evaluated on the config path via relaxingConfig.
+  assert.equal(relaxingConfig("error-telemetry", false, true), true);
+  assert.equal(relaxingConfig("error-telemetry", true, false), false);
+  assert.equal(relaxingConfig("error-telemetry", null, true), true); // unset → on ⇒ relax
+  assert.equal(relaxingConfig("__a-choice-config", false, true), false); // unregistered ⇒ never a relaxation
 });
 
 test("capabilityStates is DIRECTIONAL on the exposure ladder (off < user-defined < public) + egress endpoint", () => {

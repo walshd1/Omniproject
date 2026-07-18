@@ -54,7 +54,6 @@ export const SECURITY_SETTINGS: Record<string, RelaxPredicate> = {
   // Egress TOGGLES have a clear direction too: turning egress ON (or redirecting where it goes) is the
   // relaxation; turning it OFF strengthens and applies immediately. So these are directional, not
   // fail-closed `changed` — a disable is never gated.
-  errorTelemetry: (o, n) => n === true && o !== true, // enabling external error telemetry only
   loggingSync: (o, n) => {
     const on = (v: Val): boolean => !!(v && typeof v === "object" && (v as { enabled?: unknown }).enabled === true);
     const dest = (v: Val): unknown => (v && typeof v === "object" ? (v as { url?: unknown }).url : undefined);
