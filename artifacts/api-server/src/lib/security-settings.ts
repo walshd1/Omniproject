@@ -86,13 +86,8 @@ export const SECURITY_SETTINGS: Record<string, RelaxPredicate> = {
     return false;
   },
   // Audit retention has a CLEAR scale: a shorter window loses audit trail (relax); longer strengthens (free).
-  historyRetention: (o, n) => {
-    const days = (v: Val): number => {
-      const d = (v as { retentionDays?: unknown } | null | undefined)?.retentionDays;
-      return typeof d === "number" ? d : Number.POSITIVE_INFINITY; // absent/null ⇒ "keep forever"
-    };
-    return days(n) < days(o); // shortening retention is the only relaxation
-  },
+  // (`historyRetention` moved to the `history-retention` config def — its shortening-is-a-relaxation predicate
+  //  lives in `security-config`, evaluated by the floor gate. Roadmap Phase C.)
 };
 
 /** Keys with NO security dimension — a "just a choice". Changes apply immediately, never gated. */

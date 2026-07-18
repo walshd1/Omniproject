@@ -115,3 +115,24 @@ test("PUT /history/retention rejects an invalid cadence (400)", async () => {
   const r = await h.req("/history/retention", { method: "PUT", cookie: ADMIN, body: { orgDefault: { kind: "interval", everyHours: -5 } } });
   assert.equal(r.status, 400);
 });
+
+test("PUT /history/retention SHORTENING the disposal window is held for a signed sign-off (202); LENGTHENING applies immediately", async () => {
+  const { writeOrgConfigCollection } = await import("../lib/scoped-config");
+  // Seed a finite window directly (bypass the gate) so a change either way is measurable.
+  writeOrgConfigCollection("history-retention", "History retention", { orgDefault: { kind: "manual" }, programme: {}, project: {}, retentionDays: 365, legalHolds: [] });
+  try {
+    // Shortening 365 → 30 loses audit trail ⇒ held.
+    const shorten = await h.req("/history/retention", { method: "PUT", cookie: ADMIN, body: { retentionDays: 30 } });
+    assert.equal(shorten.status, 202);
+    assert.ok(((await shorten.json()) as { pending?: { proposalId?: string } }).pending?.proposalId);
+    // Still 365 — the shortening is pending, not applied.
+    assert.equal(((await (await h.req("/history/retention", { cookie: ADMIN })).json()) as { retentionDays: number }).retentionDays, 365);
+
+    // Lengthening 365 → 730 strengthens ⇒ applies immediately.
+    const lengthen = await h.req("/history/retention", { method: "PUT", cookie: ADMIN, body: { retentionDays: 730 } });
+    assert.equal(lengthen.status, 200);
+    assert.equal(((await lengthen.json()) as { config: { retentionDays: number } }).config.retentionDays, 730);
+  } finally {
+    writeOrgConfigCollection("history-retention", "History retention", { orgDefault: { kind: "interval", everyHours: 24 }, programme: {}, project: {} });
+  }
+});

@@ -28,6 +28,16 @@ export const SECURITY_CONFIGS: Record<string, RelaxPredicate> = {
     const dest = (v: unknown): unknown => (v && typeof v === "object" ? (v as { url?: unknown }).url : undefined);
     return on(n) && (!on(o) || dest(o) !== dest(n));
   },
+  // History-retention disposal window — SHORTENING it loses audit trail (a relaxation, held for a sign-off);
+  // lengthening / infinite strengthens and applies immediately. Cadence-only edits carry no retentionDays
+  // change, so they're never a relaxation. Verbatim from the old `SECURITY_SETTINGS` predicate.
+  "history-retention": (o, n) => {
+    const days = (v: unknown): number => {
+      const d = (v as { retentionDays?: unknown } | null | undefined)?.retentionDays;
+      return typeof d === "number" ? d : Number.POSITIVE_INFINITY; // absent/null ⇒ "keep forever"
+    };
+    return days(n) < days(o);
+  },
 };
 
 /** TRUE when moving `configId` from `oldValue`→`newValue` relaxes the posture. FALSE for a choice config (not

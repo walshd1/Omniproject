@@ -29,11 +29,14 @@ test("relaxingKeys flags a change to a fail-closed security setting, ignores cho
   assert.deepEqual(relaxingKeys(current, { brokerUrl: "https://evil" }), ["brokerUrl"]);
 });
 
-test("historyRetention has a real scale: shortening relaxes, lengthening strengthens (free)", () => {
-  const current = { historyRetention: { retentionDays: 365 } };
-  assert.deepEqual(relaxingKeys(current, { historyRetention: { retentionDays: 30 } }), ["historyRetention"]); // shorten → relax
-  assert.deepEqual(relaxingKeys(current, { historyRetention: { retentionDays: 730 } }), []); // lengthen → strengthen, immediate
-  assert.deepEqual(relaxingKeys(current, { historyRetention: { retentionDays: 365 } }), []); // no change
+test("history-retention (config def) has a real scale: shortening relaxes, lengthening strengthens (free)", () => {
+  // historyRetention left SettingsState for the `history-retention` config def (Phase C); its shortening-is-a-
+  // relaxation predicate now lives in SECURITY_CONFIGS, evaluated on the config path via relaxingConfig.
+  const cur = { retentionDays: 365 };
+  assert.equal(relaxingConfig("history-retention", cur, { retentionDays: 30 }), true); // shorten → relax
+  assert.equal(relaxingConfig("history-retention", cur, { retentionDays: 730 }), false); // lengthen → immediate
+  assert.equal(relaxingConfig("history-retention", cur, { retentionDays: 365 }), false); // no change
+  assert.equal(relaxingConfig("history-retention", cur, { retentionDays: null }), false); // → infinite → strengthen
 });
 
 test("egress keys are DIRECTIONAL: opening/redirecting relaxes, removing/deactivating is immediate", () => {

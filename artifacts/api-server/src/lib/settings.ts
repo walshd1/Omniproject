@@ -14,7 +14,6 @@ import { settingsPreset } from "./settings-presets";
 import type { BackendFieldMap } from "../broker/types";
 import type { GovernanceRule } from "./governance-rules";
 import { validatePredicate } from "./predicate";
-import { isValidCadence, type SnapshotCadence } from "../history/cadence";
 import { logger } from "./logger";
 import { envInt } from "./env-config";
 import { validateFieldRouting, FieldRoutingError, type FieldRoute } from "./field-routing";
@@ -188,32 +187,6 @@ function digestDeliveryFromEnv(): DigestDeliveryConfig {
  * gated by admin (the org default) + PMO (per-programme/project overrides)** — see history/cadence.
  * Config only (cadence policy), never project data; rides the snapshot/export bundle.
  */
-export interface HistoryRetentionSettings {
-  /** Admin: org-wide default cadence. */
-  orgDefault: SnapshotCadence;
-  /** PMO: per-programme cadence overrides, keyed by programmeId. */
-  programme: Record<string, SnapshotCadence>;
-  /** PMO/PM: per-project cadence overrides, keyed by projectId. */
-  project: Record<string, SnapshotCadence>;
-  /**
-   * DISPOSAL window in days: snapshots/journal older than this become prunable by the disposal job
-   * (`POST /history/dispose`). Absent/null ⇒ INFINITE retention — the historical default, so an
-   * existing config is unchanged. Set a positive integer to satisfy a storage-limitation policy.
-   */
-  retentionDays?: number | null;
-  /**
-   * LEGAL-HOLD keys (`"entity#id"`) that are exempt from BOTH disposal and erasure until explicitly
-   * released — a litigation/investigation hold that overrides the retention window and any DSAR delete.
-   */
-  legalHolds?: string[];
-}
-
-const DEFAULT_HISTORY_RETENTION: HistoryRetentionSettings = {
-  orgDefault: { kind: "interval", everyHours: 24 },
-  programme: {},
-  project: {},
-};
-
 /**
  * Skills matrix + demand — PLANNING CONFIG (like rate cards / cost rules / priority weights): the
  * resource→skill proficiencies and the role/skill demand requests the skills-capacity report matches.
@@ -373,12 +346,9 @@ export interface IntegrationConfig {
   selfHost: SelfHostConfig;
 }
 
-/** Durable snapshot retention. (State-history egress `loggingSync` moved to the `logging-sync` config def —
- *  see lib/logging-sync — roadmap Phase C.) */
-export interface HistoryConfig {
-  /** Snapshot cadence for durable history retention (admin org default + PMO scope overrides). */
-  historyRetention: HistoryRetentionSettings;
-}
+// (State-history egress `loggingSync` and the snapshot-cadence/retention config `historyRetention` both moved
+//  to the composition model — see lib/logging-sync and lib/history-retention — roadmap Phase C. The former
+//  `HistoryConfig` sub-config is now empty and dropped from the SettingsState composition.)
 
 /** Feature governance: the opt-out/opt-in feature sets and the PMO org/programme/project mandates. */
 export interface GovernanceConfig {
@@ -527,7 +497,6 @@ export interface SettingsState
     AiConfig,
     FinancialConfig,
     IntegrationConfig,
-    HistoryConfig,
     GovernanceConfig,
     PresentationConfig,
     UserConfig,
@@ -987,7 +956,6 @@ const FIELD_DESCRIPTORS: { [K in keyof SettingsState]: FieldDescriptor<K> } = {
   webhooks: { seed: () => webhooksFromEnv(), validate: shapeChecked(validateWebhooks) },
   federatedPeers: { seed: () => peersFromEnv(), validate: shapeChecked(validateFederatedPeers) },
   selfHost: { seed: () => ({ ...DEFAULT_SELF_HOST }), validate: shapeChecked(validateSelfHost) },
-  historyRetention: { seed: () => ({ ...DEFAULT_HISTORY_RETENTION }), validate: shapeChecked(validateHistoryRetention) },
   digestDelivery: { seed: () => digestDeliveryFromEnv(), validate: shapeChecked(validateDigestDelivery) },
   skillsPlanning: { seed: () => ({ matrix: [], demand: [] }), validate: shapeChecked(validateSkillsPlanning) },
   fieldOverrides: { seed: () => ({ fields: {}, entities: {} }), validate: shapeChecked(validateFieldOverrides) },
@@ -1519,34 +1487,6 @@ function validateDigestDelivery(value: unknown): void {
   for (const r of emailRecipients as string[]) {
     if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(r.trim())) {
       throw new SettingsValidationError(`digestDelivery.emailRecipients contains an invalid email address: ${r}`);
-    }
-  }
-}
-
-/** Validate the history-retention config: a valid org-default cadence plus per-scope override maps of
- *  valid cadences. Retention is infinite by policy, so there's no window to validate — only cadence. */
-function validateHistoryRetention(value: unknown): void {
-  if (!value || typeof value !== "object") throw new SettingsValidationError("historyRetention must be an object");
-  const { orgDefault, programme, project } = value as Record<string, unknown>;
-  if (!isValidCadence(orgDefault)) {
-    throw new SettingsValidationError("historyRetention.orgDefault must be a valid cadence (onWrite | manual | interval{everyHours})");
-  }
-  for (const [name, map] of [["programme", programme], ["project", project]] as const) {
-    if (map === undefined) continue;
-    if (!map || typeof map !== "object") throw new SettingsValidationError(`historyRetention.${name} must be an object`);
-    for (const [key, cadence] of Object.entries(map as Record<string, unknown>)) {
-      if (!isValidCadence(cadence)) throw new SettingsValidationError(`historyRetention.${name}.${key} must be a valid cadence`);
-    }
-  }
-  const { retentionDays, legalHolds } = value as Record<string, unknown>;
-  if (retentionDays !== undefined && retentionDays !== null) {
-    if (typeof retentionDays !== "number" || !Number.isInteger(retentionDays) || retentionDays < 1) {
-      throw new SettingsValidationError("historyRetention.retentionDays must be a positive integer (or null for infinite retention)");
-    }
-  }
-  if (legalHolds !== undefined) {
-    if (!Array.isArray(legalHolds) || legalHolds.some((k) => typeof k !== "string")) {
-      throw new SettingsValidationError("historyRetention.legalHolds must be an array of \"entity#id\" strings");
     }
   }
 }

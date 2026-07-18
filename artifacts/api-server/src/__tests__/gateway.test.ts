@@ -959,7 +959,6 @@ const SAMPLE_SETTINGS = {
   webhooks: [],
   federatedPeers: [],
   selfHost: { mode: "off" as const, adopted: [], acknowledgedDataResponsibility: false },
-  historyRetention: { orgDefault: { kind: "interval" as const, everyHours: 24 }, programme: {}, project: {} },
   digestDelivery: { emailRecipients: [] },
   skillsPlanning: { matrix: [], demand: [] },
   fieldOverrides: { fields: {}, entities: {} },

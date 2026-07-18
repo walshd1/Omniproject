@@ -1,7 +1,12 @@
 import { Router, type Request } from "express";
 import { getBroker, contextFromReq, respondBrokerError } from "../broker";
-import { getSettings, updateSettings, SettingsValidationError } from "../lib/settings";
+import { getSettings, SettingsValidationError } from "../lib/settings";
 import { isTimeTravelEnabled } from "../lib/logging-sync";
+import { resolveHistoryRetention, sanitizeHistoryRetention, HISTORY_RETENTION_CONFIG_ID } from "../lib/history-retention";
+import { applyConfigCollectionGuarded } from "../lib/config-guard";
+import { artifactStoreEnabled } from "../lib/artifact-store";
+import { captureVersion } from "../lib/config-store";
+import { getSession } from "./auth";
 import { requireRole, requireAnyRole, hasRole, scopeForReq } from "../lib/rbac";
 import { requireStepUp } from "../lib/step-up";
 import { recordRequestAudit } from "../lib/audit";
@@ -171,7 +176,7 @@ router.get("/history/trends/:metric", async (req, res) => {
 /** GET /history/retention — the cadence config, the resolved cadence for an (optional) scope, and the
  *  DISPOSAL window + legal holds (governance state). `retention` reflects the real window now. */
 router.get("/history/retention", requireAnyRole("admin", "pmo"), (req, res) => {
-  const config = getSettings().historyRetention;
+  const config = resolveHistoryRetention();
   const programmeId = (req.query["programmeId"] as string | undefined)?.trim() || null;
   const projectId = (req.query["projectId"] as string | undefined)?.trim() || null;
   res.json({
@@ -188,9 +193,10 @@ router.get("/history/retention", requireAnyRole("admin", "pmo"), (req, res) => {
  * scope); a PMO may set programme/project overrides but NOT the org default. Validation (valid
  * cadences) happens in updateSettings; the org-default authority check is here.
  */
-router.put("/history/retention", requireAnyRole("admin", "pmo"), (req, res) => {
+router.put("/history/retention", requireAnyRole("admin", "pmo"), async (req, res) => {
+  if (!artifactStoreEnabled()) { res.status(501).json({ error: "no encrypted-JSON store is configured on this deployment" }); return; }
   const body = (req.body ?? {}) as Record<string, unknown>;
-  const current = getSettings().historyRetention;
+  const current = resolveHistoryRetention();
   const isAdmin = hasRole(req, "admin");
   if ("orgDefault" in body && !isAdmin) {
     res.status(403).json({ error: "Only an admin can set the org-default cadence." });
@@ -208,13 +214,22 @@ router.put("/history/retention", requireAnyRole("admin", "pmo"), (req, res) => {
     ...(("retentionDays" in body ? { retentionDays: body["retentionDays"] } : current.retentionDays != null ? { retentionDays: current.retentionDays } : {})),
     ...(("legalHolds" in body ? { legalHolds: body["legalHolds"] } : current.legalHolds ? { legalHolds: current.legalHolds } : {})),
   };
+  let sanitized;
   try {
-    updateSettings({ historyRetention: next });
+    sanitized = sanitizeHistoryRetention(next);
   } catch (err) {
     res.status(400).json({ error: err instanceof SettingsValidationError ? err.message : "invalid history-retention config" });
     return;
   }
-  res.json({ config: getSettings().historyRetention });
+  // Governing invariant (§0): SHORTENING the disposal window loses audit trail — a relaxation held for a signed
+  // sign-off. Lengthening / cadence-only edits apply immediately.
+  const guarded = await applyConfigCollectionGuarded(HISTORY_RETENTION_CONFIG_ID, "History retention", sanitized, getSession(req)?.sub ?? "admin");
+  if (!guarded.applied) {
+    res.status(202).json({ pending: guarded.pending, message: "Shortening the retention window reduces the security posture and needs a signed sign-off before it applies. See /api/approvals/inbox." });
+    return;
+  }
+  captureVersion("history retention updated");
+  res.json({ config: resolveHistoryRetention() });
 });
 
 /**

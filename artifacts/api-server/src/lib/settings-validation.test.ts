@@ -2,6 +2,7 @@ import { test, afterEach } from "node:test";
 import assert from "node:assert/strict";
 import { updateSettings, getSettings, redactSettingsForRead, SettingsValidationError, validateSavedViews } from "./settings";
 import { sanitizeLoggingSync } from "./logging-sync";
+import { sanitizeHistoryRetention } from "./history-retention";
 
 /**
  * Settings patch validation — updateSettings runs an untrusted patch through validatePatch,
@@ -171,14 +172,13 @@ test("selfHost: valid mode + string[] adopted; a non-off mode needs the data-res
   updateSettings({ selfHost: { mode: "off", adopted: [], acknowledgedDataResponsibility: false } });
 });
 
-test("historyRetention: valid org-default + scope cadence maps; bad cadences rejected", () => {
-  throws({ historyRetention: "nope" });
-  throws({ historyRetention: { orgDefault: { kind: "bogus" } } });
-  throws({ historyRetention: { orgDefault: { kind: "interval", everyHours: 0 } } });
-  throws({ historyRetention: { orgDefault: { kind: "onWrite" }, programme: { P1: { kind: "interval", everyHours: -1 } } } });
-  assert.doesNotThrow(() => updateSettings({ historyRetention: { orgDefault: { kind: "interval", everyHours: 12 }, programme: { P1: { kind: "onWrite" } }, project: {} } }));
-  // Reset back to the default so it doesn't leak into other tests.
-  updateSettings({ historyRetention: { orgDefault: { kind: "interval", everyHours: 24 }, programme: {}, project: {} } });
+test("historyRetention: sanitizeHistoryRetention — valid org-default + scope cadence maps; bad cadences rejected (the `history-retention` config def)", () => {
+  const bad = (v: unknown) => assert.throws(() => sanitizeHistoryRetention(v), SettingsValidationError);
+  bad("nope");
+  bad({ orgDefault: { kind: "bogus" } });
+  bad({ orgDefault: { kind: "interval", everyHours: 0 } });
+  bad({ orgDefault: { kind: "onWrite" }, programme: { P1: { kind: "interval", everyHours: -1 } } });
+  assert.doesNotThrow(() => sanitizeHistoryRetention({ orgDefault: { kind: "interval", everyHours: 12 }, programme: { P1: { kind: "onWrite" } }, project: {} }));
 });
 
 test("skillsPlanning: validates the matrix (proficiency 1–5, non-negative capacity) + demand", () => {
