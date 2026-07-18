@@ -27,6 +27,7 @@ export * from "./persona-catalogue";
 export * from "./methodology-rulesets";
 export * from "./drill-to";
 export * from "./def-compose";
+export * from "./def-constraints";
 export * from "./def-refs";
 export * from "./report-catalogue";
 export * from "./mapping-catalogue";

@@ -18,7 +18,7 @@ import { validateScreenDefs } from "./screen-def";
 import { validateForms } from "./form-def";
 import { sanitizeMapping } from "./mapping";
 import { validateCustomFieldDef } from "./custom-fields";
-import { validatePrimitiveDef, shippedDefRefs, shippedDefs, extendsLineage, composeExtends } from "@workspace/backend-catalogue";
+import { validatePrimitiveDef, shippedDefRefs, shippedDefs, extendsLineage, composeExtends, composedConstraintErrors } from "@workspace/backend-catalogue";
 
 /** A user-definable JSON kind the importer accepts. */
 export type DefKind = "primitive" | "screen" | "form" | "report" | "dashboard" | "businessRule" | "methodology" | "mapping" | "customField" | "theme" | "font" | "jsonDef";
@@ -331,16 +331,26 @@ function descendantsOf(rootId: string, byId: Map<string, Record<string, unknown>
   return out;
 }
 
-/** Compose `id` over its ancestors in `byId` and validate the flattened WHOLE against its kind. Returns an error
- *  message, or null when it composes AND validates. A broken chain (missing parent / cycle) is an error. */
+/** Compose `id` over its ancestors in `byId` and validate the flattened WHOLE — against its kind AND against the
+ *  declarative CONSTRAINTS inherited down its lineage (policy child-wins, floors conjoin tighten-only; see
+ *  def-constraints). Returns an error message, or null when it composes, validates AND satisfies its constraints.
+ *  A broken chain (missing parent / cycle) is an error. */
 function composedValidity(kind: DefKind, id: string, byId: Map<string, Record<string, unknown>>): string | null {
   let composed: (Record<string, unknown> & { lineage: string[] }) | undefined;
   try { composed = composeExtends(id, (k) => byId.get(k) as (Record<string, unknown> & { id: string; extends?: string }) | undefined); }
   catch (e) { return e instanceof Error ? e.message : `def "${id}": broken extends chain`; }
   if (!composed) return `def "${id}" not found`;
   const { lineage: _l, ...flat } = composed;
+  const errors: string[] = [];
   const check = validateDef(kind, flat);
-  return check.ok ? null : check.errors.join("; ");
+  if (!check.ok) errors.push(...check.errors);
+  // The constraints introduced at each node of the lineage (ROOT → leaf), evaluated against the composed whole.
+  const perNode = [...composed.lineage].reverse().map((cid) => {
+    const p = byId.get(cid);
+    return p && Array.isArray(p["constraints"]) ? (p["constraints"] as unknown[]) : [];
+  });
+  errors.push(...composedConstraintErrors(flat, perNode));
+  return errors.length ? errors.join("; ") : null;
 }
 
 /** On EDIT, the identity of the row being rewritten: its storage id (so the STALE stored payload is excluded

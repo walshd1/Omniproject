@@ -229,6 +229,42 @@ test("Tier 1: a customer can FORK a shipped dashboard/businessRule (extends a sy
   assert.match(((await bad.json()) as { error: string }).error, /does not exist/);
 });
 
+test("CONSTRAINTS: floors are inherited + tighten-only, policy is relaxable — enforced on the composed whole", async () => {
+  // A base def introduces a title-cardinality FLOOR + a value-cap FLOOR + a value-min POLICY. (jsonDef has no
+  // bespoke validator, so this exercises the constraint layer in isolation.)
+  const base = {
+    id: "cn-base", value: 5, tags: [{ id: "t1", role: "title" }],
+    constraints: [
+      { id: "one-title", kind: "floor", type: "cardinality", path: "tags", where: { field: "role", eq: "title" }, min: 1, max: 1 },
+      { id: "val-cap", kind: "floor", type: "bound", path: "value", max: 10 },
+      { id: "val-min", kind: "policy", type: "bound", path: "value", min: 3 },
+    ],
+  };
+  assert.equal((await req("/defs", { method: "POST", body: { kind: "jsonDef", storage: "user", name: "Base", payload: base } })).status, 201);
+
+  // (a) A thin fork that inherits everything and satisfies the floors → 201.
+  const ok = { id: "cn-ok", extends: "cn-base", value: 8 };
+  assert.equal((await req("/defs", { method: "POST", body: { kind: "jsonDef", storage: "user", name: "OK", payload: ok } })).status, 201);
+
+  // Inherited POLICY still bites when not relaxed: value 1 < inherited min 3 → 400.
+  const tooLow = { id: "cn-low", extends: "cn-base", value: 1 };
+  assert.equal((await req("/defs", { method: "POST", body: { kind: "jsonDef", storage: "user", name: "Low", payload: tooLow } })).status, 400);
+
+  // (b) A fork may RELAX a policy (child-wins): re-declare val-min ≥ 0, then value 1 is fine → 201.
+  const relax = { id: "cn-relax", extends: "cn-base", value: 1, constraints: [{ id: "val-min", kind: "policy", type: "bound", path: "value", min: 0 }] };
+  assert.equal((await req("/defs", { method: "POST", body: { kind: "jsonDef", storage: "user", name: "Relax", payload: relax } })).status, 201);
+
+  // (c) A fork may NOT loosen a FLOOR: re-declaring val-cap at 100 (value itself fine) → 400, "branch above".
+  const loosen = { id: "cn-loosen", extends: "cn-base", value: 5, constraints: [{ id: "val-cap", kind: "floor", type: "bound", path: "value", max: 100 }] };
+  const bad = await req("/defs", { method: "POST", body: { kind: "jsonDef", storage: "user", name: "Loosen", payload: loosen } });
+  assert.equal(bad.status, 400);
+  assert.match(((await bad.json()) as { error: string }).error, /relax floor|branch above/);
+
+  // (d) A fork may TIGHTEN a floor: cap 10 → 5, value 5 satisfies it → 201.
+  const tighten = { id: "cn-tighten", extends: "cn-base", value: 5, constraints: [{ id: "val-cap", kind: "floor", type: "bound", path: "value", max: 5 }] };
+  assert.equal((await req("/defs", { method: "POST", body: { kind: "jsonDef", storage: "user", name: "Tighten", payload: tighten } })).status, 201);
+});
+
 test("DELETE is BLOCKED (409) when another def is built on the target, then succeeds once the dependant is gone", async () => {
   const root = { id: "del-root", label: "DelRoot", category: "chart", chartType: "bar", description: "d", params: [{ key: "data", label: "Rows", type: "rows", required: true, description: "d" }] };
   const rootRow = (await (await req("/defs", { method: "POST", body: { kind: "primitive", storage: "user", name: "DelRoot", payload: root } })).json()) as { id: string };
