@@ -106,6 +106,12 @@ function readFile(abs: string, rel: string): FileRoutes {
           routes.push({ method: "PUT", routePath: p, gate: ["requireAuth", writeGate].filter(Boolean).join(" + "), doc: "Replace the collection (write-guarded)." });
         }
       }
+      // allowlistRoutes("/ai/x-allowlist", "key", "label", …) → GET (open, floor-resolved) + PUT (admin, org ceiling)
+      else if (ts.isIdentifier(callee) && callee.text === "allowlistRoutes" && node.arguments.length && ts.isStringLiteral(node.arguments[0]!)) {
+        const p = base + (node.arguments[0] as ts.StringLiteral).text;
+        routes.push({ method: "GET", routePath: p, gate: "", doc: "Read the floor-resolved allowlist (any authed; the pickers read it)." });
+        routes.push({ method: "PUT", routePath: p, gate: "requireRole(admin)", doc: "Set the ORG allowlist ceiling (a lower scope may only narrow it)." });
+      }
     }
     ts.forEachChild(node, visit);
   };
