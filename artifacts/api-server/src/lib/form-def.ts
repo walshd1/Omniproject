@@ -8,7 +8,7 @@
  * Same "JSON def in the encrypted config store, rendered by a generic primitive" pattern as screen defs and
  * the RACI / stakeholder registers.
  */
-import { ISSUE_WRITE_TARGETS, FORM_FIELD_TYPES, LIKERT_DEFAULT_OPTIONS, ADDRESS_SUBFIELDS, type FormDefinition, type FormFieldDef, type FormFieldType, type FormTargetDef } from "@workspace/backend-catalogue";
+import { ISSUE_WRITE_TARGETS, FORM_FIELD_TYPES, LIKERT_DEFAULT_OPTIONS, ADDRESS_SUBFIELDS, FORM_CONTAINER_CONSTRAINTS, evaluateConstraints, type FormDefinition, type FormFieldDef, type FormFieldType, type FormTargetDef } from "@workspace/backend-catalogue";
 
 export class FormDefError extends Error {
   constructor(message: string) { super(message); this.name = "FormDefError"; }
@@ -112,6 +112,18 @@ export function validateForms(value: unknown): FormDef[] {
     if (Array.isArray(o["methodologies"])) def.methodologies = (o["methodologies"] as unknown[]).map(str).filter(Boolean);
     return def;
   });
+}
+
+/**
+ * Validate a form DEFINITION's container invariants (≥1 field, exactly one title, distinct scalar targets) by
+ * running the shared engine floors against it — the SAME rules the importer enforces on a form's composed whole.
+ * Called at the point of USE (submission) so the submission path validates the RESOLVED def through the one
+ * engine rather than trusting an authoring-time validator: single source of truth, and it catches a def that a
+ * scope override may have drifted. Returns one message per broken invariant ([] = sound). Value validation
+ * (types / options / required) stays in `validateSubmission`.
+ */
+export function formContainerErrors(def: FormDef): string[] {
+  return evaluateConstraints(def as unknown as Record<string, unknown>, FORM_CONTAINER_CONSTRAINTS);
 }
 
 /**

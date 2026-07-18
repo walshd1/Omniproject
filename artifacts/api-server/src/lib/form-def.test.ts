@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { validateForms, validateSubmission, issueWriteFromSubmission, filterIssueWriteToWritable, unwritableMapFields, FormDefError, type FormDef } from "./form-def";
+import { validateForms, formContainerErrors, validateSubmission, issueWriteFromSubmission, filterIssueWriteToWritable, unwritableMapFields, FormDefError, type FormDef } from "./form-def";
 
 /**
  * Intake form defs — the shape validator, per-submission validation/coercion, and the submission→IssueWrite
@@ -26,6 +26,17 @@ test("validateForms accepts a well-formed form and preserves its shape", () => {
   assert.equal(forms[0]!.target.projectId, "proj-001");
   assert.equal(forms[0]!.fields.length, 4);
   assert.equal(forms[0]!.fields[0]!.mapTo, "title");
+});
+
+test("formContainerErrors: the submission-time engine check accepts a sound def, rejects a drifted one", () => {
+  const good = validateForms(GOOD)[0]!;
+  assert.deepEqual(formContainerErrors(good), []);
+  // A def that lost its title source (e.g. drifted by a scope override) is caught at the point of use.
+  const noTitle = { ...good, fields: good.fields.filter((f) => f.mapTo !== "title") } as FormDef;
+  assert.ok(formContainerErrors(noTitle).length >= 1);
+  // A def with two title sources is caught too.
+  const twoTitle = { ...good, fields: [...good.fields, { key: "t2", label: "T2", type: "text" as const, mapTo: "title" }] } as FormDef;
+  assert.ok(formContainerErrors(twoTitle).length >= 1);
 });
 
 test("validateForms allows an untargeted template (no projectId)", () => {
