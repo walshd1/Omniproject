@@ -186,6 +186,37 @@ export const PRIMITIVE_CATALOGUE: PrimitiveDef[] = [
     ],
   },
   {
+    id: "register",
+    label: "Editable register",
+    category: "table",
+    // COMPOSITION: a `table` that you can also edit in place. Thin child — inherits `columns`, ALTERS `rows`
+    // (now sourced, not authored), and ADDS the editable-source params. Its new functionality vs `table` is the
+    // add/edit/delete + Save round-trip. Renders via the `register` panel.
+    extends: "table",
+    description: "A data table you can complete and update in place — add / edit / delete rows and Save. Rows come from a settings collection or a generic mapping slot; the server owns the write.",
+    params: [
+      { key: "rows", label: "Rows", type: "rows", required: false, description: "Rows come from the bound source (a settings collection or a mapping slot), not authored inline." },
+      { key: "collection", label: "Settings collection", type: "string", required: false, description: "Settings field key to read/write (settings-collection source)." },
+      { key: "endpoint", label: "Endpoint", type: "string", required: false, description: "PUT target for the settings-collection source." },
+      { key: "slot", label: "Slot", type: "string", required: false, description: "Mapping slot to read/write via the generic surface (slot source); mutually exclusive with collection." },
+      { key: "addLabel", label: "Add-button label", type: "string", required: false, description: "Caption on the add-row button." },
+      { key: "defaultEditRole", label: "Edit role", type: "enum", required: false, description: "Minimum role allowed to edit; anyone below sees it read-only.", options: ["contributor", "manager", "pmo", "admin", "readonly"] },
+    ],
+  },
+  {
+    id: "data-slot",
+    label: "Data-slot register",
+    category: "table",
+    // COMPOSITION: a `register` specialised to the generic mapping-slot source. The thinnest possible child —
+    // it ONLY alters `slot` to required. Its genuinely-new functionality: a register over ANY mapping slot
+    // (epics, sprints, raid, milestones, …) as a pure screen def, no bespoke endpoint. Renders via `register`.
+    extends: "register",
+    description: "An editable register bound to a generic mapping slot — rows read/written through the same generic mapping surface every slot uses, so a register/board over any slot is a pure JSON screen def.",
+    params: [
+      { key: "slot", label: "Slot", type: "string", required: true, description: "The mapping slot this register is bound to (its one added constraint over a plain register)." },
+    ],
+  },
+  {
     id: "stat-tile",
     label: "Stat tile",
     category: "tile",
@@ -228,4 +259,64 @@ export function chartPrimitives(): PrimitiveDef[] {
  *  source the backend seeds into the read-only `system` def store. */
 export function primitiveCatalogue(): PrimitiveDef[] {
   return [...PRIMITIVE_CATALOGUE];
+}
+
+/** A primitive with its `extends` chain executed: params flattened property-by-property (child wins) plus the
+ *  provenance to trace back what it is built from. */
+export interface ResolvedPrimitive extends PrimitiveDef {
+  /** The composition chain, leaf → root, e.g. `["data-slot", "register", "table"]`. */
+  lineage: string[];
+  /** Per effective param key → the def in the lineage that supplied the WINNING value. */
+  provenance: Record<string, string>;
+}
+
+/**
+ * Execute a primitive's composition: walk `extends` to a root, then merge each ancestor's params by KEY from
+ * root → leaf so a thin child ADDS new params and ALTERS ones it re-declares (child wins), while inheriting the
+ * rest. Returns the flattened def PLUS its `lineage` and per-param `provenance`, so from any leaf you can trace
+ * every def + field it is built from. Throws on a missing parent or an `extends` cycle (fail-closed — a broken
+ * chain is a data error, not a silently-partial primitive). Undefined when `id` is unknown.
+ */
+export function resolvePrimitive(id: string, catalogue: PrimitiveDef[] = PRIMITIVE_CATALOGUE): ResolvedPrimitive | undefined {
+  const byId = new Map(catalogue.map((p) => [p.id, p]));
+  const chain: PrimitiveDef[] = [];
+  const seen = new Set<string>();
+  let cur = byId.get(id);
+  if (!cur) return undefined;
+  while (cur) {
+    if (seen.has(cur.id)) throw new Error(`primitive "${id}": extends cycle at "${cur.id}"`);
+    seen.add(cur.id);
+    chain.push(cur);
+    if (!cur.extends) break;
+    const parent = byId.get(cur.extends);
+    if (!parent) throw new Error(`primitive "${cur.id}": extends "${cur.extends}" which is not in the catalogue`);
+    cur = parent;
+  }
+  // Merge root → leaf so the leaf's re-declared params win but keep their first-seen position.
+  const merged = new Map<string, { param: PrimitiveParam; from: string }>();
+  for (let i = chain.length - 1; i >= 0; i--) {
+    const d = chain[i]!;
+    for (const p of d.params) merged.set(p.key, { param: p, from: d.id });
+  }
+  const params: PrimitiveParam[] = [];
+  const provenance: Record<string, string> = {};
+  for (const { param, from } of merged.values()) { params.push(param); provenance[param.key] = from; }
+  const leaf = chain[0]!;
+  return {
+    id: leaf.id,
+    label: leaf.label,
+    category: leaf.category,
+    description: leaf.description,
+    ...(leaf.chartType ? { chartType: leaf.chartType } : {}),
+    ...(leaf.extends ? { extends: leaf.extends } : {}),
+    params,
+    lineage: chain.map((d) => d.id),
+    provenance,
+  };
+}
+
+/** The root primitives — those built on nothing (no `extends`). We keep these few and generic; everything else
+ *  composes from them. */
+export function rootPrimitives(): PrimitiveDef[] {
+  return PRIMITIVE_CATALOGUE.filter((p) => !p.extends).map((p) => ({ ...p }));
 }
