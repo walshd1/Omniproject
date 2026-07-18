@@ -2098,3 +2098,70 @@ external infrastructure a CI sandbox can't reach (so they are execution/attestat
   already ships, the agentic execution rails already exist (`lib/autonomous-grant`), and one-click deploy
   templates (Railway/Helm/compose) already ship — only the hosted tier is missing. Corrected inline with file
   evidence; the other 21 items verified as genuine gaps.
+
+---
+
+## Model migration — settings & artifacts into the composition model
+
+The composition model is now complete: scope resolution (system < org < programme < project < user,
+nearest-wins per field), an `extends` composition axis for defs, a declarative constraint engine (**policy** =
+child-wins / **floor** = tighten-only, introducible at any node, escape only by branching above it), the
+importer as the single validated write path, and bidirectional integrity + cascade guards. Every dimension a
+settings slice or artifact needs already has a home in that model, so the remaining work is **re-expressing the
+last bespoke subsystems as scoped-config defs** — repetition of the proven forms/screens/reports convergence,
+not new invention.
+
+Key unification: the existing **CHOICE vs SECURITY** settings classification (`lib/security-settings`) IS the
+**policy vs floor** axis. A choice setting → a policy value (freely scope-overridable). A security setting → a
+floor (the existing `relaxingKeys` / `applySettingsGuarded` sign-off gate to relax it is exactly "you can't
+loosen a floor without approval / branching above"). Migrating settings is therefore mostly reclassification +
+wiring onto one resolver, not new concepts.
+
+**Recipe (every slice):** ① scope-resolve the value (reuse the mapping/def resolver) → ② classify each field
+policy or floor → ③ move the write onto the importer choke point → ④ consumers read the RESOLVED value → ⑤
+drain the legacy settings slice to read-only (never delete until the resolved path is proven green) → ⑥ tests +
+full backstop + commit.
+
+### Phase A — prove the pattern (pure policy, low blast radius)
+- **Slice 1 · `scheduling`.** Smallest self-contained choice slice (hours/day, working week, holidays), one
+  consumer (the client scheduler already reads a resolved slice). **Extract the reusable
+  `resolveScopedConfig(field, scopes)` helper here** — the foundation emerges from the first real slice, not
+  built speculatively.
+- **Slice 2 · accessibility.** Fold the org-default-under-user-leaf (already built) into that generic resolver
+  so programme/project can also default; proves the per-user leaf inside the mechanism.
+- **Slice 3 · `branding` + `labelOverrides` + `priorityLabels`.** Presentation policy; proves deep object merge
+  and nested scope override.
+
+### Phase B — the larger choice slices (more consumers)
+- **Slice 4 · `screenLayouts` + `hiddenFields` + `savedViews`.** View/presentation policy (already partly
+  scope-aware).
+- **Slice 5 · `collectionEditRoles` + `disabledScreens`/`disabledFeatures`.** Access/visibility policy —
+  classify carefully (edit-roles borders on authz; today "choice", so policy, but tighten-only is the safer read).
+- **Slice 6 · `automations` + `templates` + `raci` + `stakeholders` + `methodologyComposition`.** Remaining
+  choice content slices.
+
+### Phase C — security/floor slices (introduce the floor + sign-off wiring)
+- **Slice 7 · the floor gate.** Wire "relaxing a floor config needs sign-off" onto the existing `relaxingKeys` /
+  `applySettingsGuarded` gate (it already DETECTS a relaxation; the floor model names it), then migrate the
+  security-classified slices — webhooks/egress, `brokerUrl`, AI provider/model allowlists, `historyRetention`,
+  session controls — as floors where a lower scope may only TIGHTEN (a project restricts further, never loosens
+  the org egress allow-list).
+
+### Phase D — artifacts' template/schema layer (content stays sealed data, zero-at-rest)
+- **Slice 8 · schema families.** proof-annotation kinds, invoice-line schema, goal key-result kinds,
+  canvas/whiteboard element schema, wiki block schema — already primitive FAMILIES; make them composable defs
+  (extends + constraints) so an org can define a custom annotation/line type. The CONTENT stays sealed data.
+- **Slice 9 · artifact templates.** starter wiki page, invoice layout, whiteboard template → composable shipped
+  defs (like the Tier-1 dashboards), forkable at any scope.
+
+### Phase E — unify + retire
+- **Slice 10.** Once every slice is a scoped-config def, retire the bespoke settings PUT/resolution: `settings.ts`
+  becomes a thin READ-VIEW over resolved config. One resolver, one write path, one governance model. Fold
+  `CHOICE_SETTINGS`/`SECURITY_SETTINGS` into the per-field policy/floor classification so the settings drift
+  guard and the constraint model become the same thing.
+
+### Sequencing guardrails
+- Slice 1 fully (incl. extracting `resolveScopedConfig`) before parallelizing — everything after is thin.
+- **Never migrate a security slice before Slice 7** (the floor + sign-off wiring exists).
+- Each slice independently shippable + REVERSIBLE — drain, don't delete, until the resolved path is proven.
+- Full backstop every slice — the settings drift guards are the safety net; keep running them.
