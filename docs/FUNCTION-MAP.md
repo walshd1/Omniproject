@@ -2600,6 +2600,14 @@ Methodology RAG — persona SELECTION for the portfolio copilot.
 | `personaById` | A persona by id, or undefined. |
 | `selectPersonas` | Retrieve the most relevant persona(s) for a question. |
 
+### `artifacts/api-server/src/lib/portfolio-financials.ts`
+
+Portfolio financials fan-out — the server-side half of the Portfolio Financials report.
+
+| Function | What it does |
+| --- | --- |
+| `computePortfolioFinancials` | Compute the consolidated portfolio financials for one reporting currency (a `?currency=` override, else the org default → FX base → GBP). |
+
 ### `artifacts/api-server/src/lib/portfolio-reads.ts`
 
 Shared portfolio-wide issue fan-out — was duplicated verbatim (and unbounded) in both routes/export.ts and routes/odata.ts: every xlsx/csv/json/md/pdf export and every OData `/Issues` feed poll fired one `getIssues` call PER PROJECT via a bare `Promise.all`, which is a 200-way concurrent hit on the backend at the 60/200-project target (Power BI/SAP feed polls make this recur on every poll interval, not just on demand).

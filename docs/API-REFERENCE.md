@@ -675,6 +675,7 @@ Portfolio analytics endpoints — portfolio-wide RAG/health and resource-capacit
 | --- | --- | --- | --- |
 | GET | `/api/portfolio/health` | — | GET /api/portfolio/health — portfolio-wide multi-project aggregation. |
 | GET | `/api/portfolio/summary` | — | than a bearer token, no new cross-instance auth scheme. |
+| GET | `/api/portfolio/financials` | — | this endpoint instead of a bespoke client renderer. |
 
 ### `artifacts/api-server/src/routes/presence.ts`
 
