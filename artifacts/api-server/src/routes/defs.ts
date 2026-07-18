@@ -13,7 +13,7 @@ import {
 } from "../lib/artifact-store";
 import {
   sanitizeDef, sanitizeDefUpdate, validateDef, newStoredDef, updateStoredDef, storedDefMeta,
-  listDefs, listSystemDefs, getDef, putDef, deleteDef, DefError, DEF_KINDS,
+  listDefs, listSystemDefs, getDef, putDef, deleteDef, DefError, DEF_KINDS, checkImportAncestry,
   type DefKind, type StoredDef, type StoredDefMeta,
 } from "../lib/def-import";
 import defBindingsRouter from "./def-bindings";
@@ -161,6 +161,10 @@ router.post("/defs", requireRole("contributor"), (req, res) => {
     if (!(await runDefWriteHook(req, res, input.kind, input.payload))) return;
     if (!artifactStoreEnabled()) { res.status(501).json({ error: "no encrypted-JSON store is configured on this deployment" }); return; }
     const ctx = contextFromReq(req);
+    // COMPOSITION: reject a def whose `extends` ancestor is missing or cyclic (checked against the shipped
+    // catalogue + every scope the author can see + this def).
+    const ancestryErr = checkImportAncestry(input.kind, input.payload, { ...(projectId ? { projectId } : {}), ...(programmeId ? { programmeId } : {}), ...(ctx.sub ? { sub: ctx.sub } : {}) });
+    if (ancestryErr) { res.status(400).json({ error: ancestryErr }); return; }
     const ownerId = storage === "programme" ? programmeId : projectId;
     const id = makeScopedId(storage, crypto.randomUUID(), ownerId);
     const scope = scopeFromParsed({ storage, ...(projectId ? { projectId } : {}), ...(programmeId ? { programmeId } : {}) }, ctx.sub);
@@ -187,6 +191,9 @@ router.put("/defs/:id", requireRole("contributor"), (req, res) =>
     let upd;
     try { upd = sanitizeDefUpdate(existing.kind, req.body); }
     catch (e) { if (e instanceof DefError) { res.status(400).json({ error: e.message }); return; } throw e; }
+    // COMPOSITION: re-check the extends ancestry on edit (an edit can introduce a broken/cyclic parent).
+    const ancestryErr = checkImportAncestry(existing.kind, upd.payload, { ...(parsed.projectId ? { projectId: parsed.projectId } : {}), ...(parsed.programmeId ? { programmeId: parsed.programmeId } : {}), ...(ctx.sub ? { sub: ctx.sub } : {}) });
+    if (ancestryErr) { res.status(400).json({ error: ancestryErr }); return; }
     if (!(await runDefWriteHook(req, res, existing.kind, upd.payload))) return;
     const row = updateStoredDef(existing, upd, new Date().toISOString());
     putDef(scope, row);

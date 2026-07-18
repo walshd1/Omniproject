@@ -18,7 +18,7 @@ import { validateScreenDefs } from "./screen-def";
 import { validateForms } from "./form-def";
 import { sanitizeMapping } from "./mapping";
 import { validateCustomFieldDef } from "./custom-fields";
-import { validatePrimitiveDef } from "@workspace/backend-catalogue";
+import { validatePrimitiveDef, shippedDefRefs, extendsLineage } from "@workspace/backend-catalogue";
 
 /** A user-definable JSON kind the importer accepts. */
 export type DefKind = "primitive" | "screen" | "form" | "report" | "dashboard" | "businessRule" | "methodology" | "mapping" | "customField" | "theme" | "font" | "jsonDef";
@@ -225,6 +225,47 @@ export function storedDefMeta(a: StoredDef): StoredDefMeta {
 // ── Scoped store helpers ─────────────────────────────────────────────────────────────────────────────────
 export const listDefs = (scope: ArtifactScope): StoredDef[] => listArtifacts<StoredDef>(DEF_ARTIFACT, scope);
 export const getDef = (scope: ArtifactScope, id: string): StoredDef | null => getArtifact<StoredDef>(DEF_ARTIFACT, scope, id);
+
+// ── COMPOSITION ancestry check (the `extends` model) ─────────────────────────────────────────────────────────
+// A def can be a THIN child that `extends` a parent def of the SAME kind (see def-compose). The importer is the
+// choke point, so it must reject a def whose `extends` parent is MISSING ("broken ancestor") or would CYCLE —
+// checked against the shipped catalogue PLUS every scoped def the author can see (system + org + programme +
+// project + user). Logical ids (`payload.id` / slot / report id / …), not storage ids, form the graph.
+
+/** The `{ id, extends }` of a StoredDef, from its payload (the logical id the graph is keyed on). */
+function defRefOf(d: StoredDef): { id: string; extends?: string } | null {
+  const p = (d.payload ?? {}) as Record<string, unknown>;
+  const id = typeof p["id"] === "string" ? p["id"] : "";
+  if (!id) return null;
+  return typeof p["extends"] === "string" && p["extends"] ? { id, extends: p["extends"] } : { id };
+}
+
+/** Which programme/project/user scopes to consult for visible ancestors when importing. */
+export interface AncestryScopes { projectId?: string; programmeId?: string; sub?: string }
+
+/**
+ * Reject an import whose `extends` chain is broken. Returns an error MESSAGE (for a 400) or null when the def
+ * has no `extends` or its chain resolves. Fail-closed: a missing parent or a cycle is an error, never a
+ * silently-partial def. Considers the shipped catalogue + all scoped defs the author can see + the def itself.
+ */
+export function checkImportAncestry(kind: DefKind, payload: unknown, scopes: AncestryScopes): string | null {
+  const p = (payload ?? {}) as Record<string, unknown>;
+  const ext = typeof p["extends"] === "string" ? p["extends"] : "";
+  if (!ext) return null;                                   // not a child → nothing to trace
+  const selfId = typeof p["id"] === "string" ? p["id"] : "";
+  if (!selfId) return null;                                // no logical id → the per-kind validator handles it
+  const byId = new Map<string, { id: string; extends?: string }>();
+  for (const r of shippedDefRefs(kind)) byId.set(r.id, r);
+  const addStored = (rows: StoredDef[]) => { for (const d of rows) if (d.kind === kind) { const r = defRefOf(d); if (r) byId.set(r.id, r); } };
+  addStored(listSystemDefs());
+  addStored(listDefs({ kind: "org" }));
+  if (scopes.programmeId) addStored(listDefs({ kind: "programme", programmeId: scopes.programmeId }));
+  if (scopes.projectId) addStored(listDefs({ kind: "project", projectId: scopes.projectId }));
+  if (scopes.sub) addStored(listDefs({ kind: "user", sub: scopes.sub }));
+  byId.set(selfId, { id: selfId, extends: ext });          // the def being imported (may override a lower scope)
+  try { extendsLineage(selfId, (k) => byId.get(k)); return null; }
+  catch (e) { return e instanceof Error ? e.message : "broken extends ancestry"; }
+}
 export const putDef = (scope: ArtifactScope, a: StoredDef): void => putArtifact(DEF_ARTIFACT, scope, a);
 export const deleteDef = (scope: ArtifactScope, id: string): boolean => deleteArtifact(DEF_ARTIFACT, scope, id);
 

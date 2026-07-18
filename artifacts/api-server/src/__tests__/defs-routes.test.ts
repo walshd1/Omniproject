@@ -169,3 +169,25 @@ test("org target: a contributor can't write it, a pmo/admin can (default org gat
     }
   }
 });
+
+test("importer REJECTS a def whose extends ancestor is missing (broken ancestor) and ACCEPTS a valid one", async () => {
+  // A thin child extending a SHIPPED root ("table" primitive) is accepted — the ancestor resolves.
+  const okChild = { id: "my-editable-table", label: "My editable table", category: "table", description: "d", extends: "table", params: [] };
+  assert.equal((await req("/defs", { method: "POST", body: { kind: "primitive", storage: "user", name: "Child", payload: okChild } })).status, 201);
+  // Extending a parent that exists in NO scope is rejected 400 (fail-closed).
+  const orphan = { id: "orphan-prim", label: "Orphan", category: "table", description: "d", extends: "ghost-parent", params: [] };
+  const bad = await req("/defs", { method: "POST", body: { kind: "primitive", storage: "user", name: "Orphan", payload: orphan } });
+  assert.equal(bad.status, 400);
+  assert.match(((await bad.json()) as { error: string }).error, /does not exist/);
+});
+
+test("importer REJECTS an edit that would CYCLE the extends chain", async () => {
+  const root = { id: "cyc-a", label: "A", category: "table", description: "d", params: [{ key: "x", label: "X", type: "string", required: true, description: "d" }] };
+  const a = (await (await req("/defs", { method: "POST", body: { kind: "primitive", storage: "user", name: "A", payload: root } })).json()) as { id: string };
+  const child = { id: "cyc-b", label: "B", category: "table", description: "d", extends: "cyc-a", params: [] };
+  assert.equal((await req("/defs", { method: "POST", body: { kind: "primitive", storage: "user", name: "B", payload: child } })).status, 201);
+  // Edit A to extend B → A→B→A cycle → 400.
+  const put = await req(`/defs/${encodeURIComponent(a.id)}`, { method: "PUT", body: { name: "A", payload: { ...root, extends: "cyc-b" } } });
+  assert.equal(put.status, 400);
+  assert.match(((await put.json()) as { error: string }).error, /cycle/);
+});
