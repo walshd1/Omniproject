@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { sanitizeUserPrefs, getUserPrefs, setUserPrefs, hasUserPrefs, DEFAULT_USER_PREFS } from "./user-prefs";
+import { sanitizeUserPrefs, sanitizePartialUserPrefs, orgAccessibilityDefaults, effectiveDefaultPrefs, getUserPrefs, setUserPrefs, hasUserPrefs, DEFAULT_USER_PREFS } from "./user-prefs";
+import { updateSettings } from "./settings";
 
 /**
  * Per-user prefs persist server-side keyed by sub, JSON with code defaults.
@@ -89,4 +90,32 @@ test("get/set/has round-trip per user; unknown user ⇒ defaults", () => {
   assert.deepEqual(getUserPrefs(sub), saved);
   // a different user is unaffected
   assert.equal(hasUserPrefs(`${sub}-other`), false);
+});
+
+test("sanitizePartialUserPrefs keeps ONLY the provided valid keys (no defaults filled)", () => {
+  assert.deepEqual(sanitizePartialUserPrefs({}), {});
+  assert.deepEqual(sanitizePartialUserPrefs({ highContrast: true, fontScale: 1.25 }), { highContrast: true, fontScale: 1.25 });
+  assert.deepEqual(sanitizePartialUserPrefs({ backgroundColor: "navy" }), { backgroundColor: null }); // present but coerced
+  assert.equal("reduceMotion" in sanitizePartialUserPrefs({ fontScale: 1.1 }), false);               // omitted → not present
+});
+
+test("ORG accessibility DEFAULT sits beneath a user with no leaf; the user leaf always wins (user-final policy)", () => {
+  try {
+    updateSettings({ accessibilityDefaults: { highContrast: true, fontScale: 1.25 } });
+    assert.deepEqual(orgAccessibilityDefaults(), { highContrast: true, fontScale: 1.25 });
+    // A user with NO saved prefs inherits the org default over the code defaults, per field.
+    const eff = effectiveDefaultPrefs();
+    assert.equal(eff.highContrast, true);        // from org
+    assert.equal(eff.fontScale, 1.25);           // from org
+    assert.equal(eff.reduceMotion, DEFAULT_USER_PREFS.reduceMotion); // untouched → code default
+    const fresh = `acc-${Math.round(performance.now())}`;
+    assert.equal(getUserPrefs(fresh).highContrast, true); // no leaf → inherits the org default
+
+    // A user who HAS a leaf overrides the org default — the org may only DEFAULT, never floor.
+    setUserPrefs(fresh, { ...DEFAULT_USER_PREFS, highContrast: false, fontScale: 1 });
+    assert.equal(getUserPrefs(fresh).highContrast, false); // user-final, org default does NOT win back
+    assert.equal(getUserPrefs(fresh).fontScale, 1);
+  } finally {
+    updateSettings({ accessibilityDefaults: {} }); // reset global settings for other tests
+  }
 });

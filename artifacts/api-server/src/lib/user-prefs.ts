@@ -116,10 +116,36 @@ export function sanitizeUserPrefs(input: unknown): UserPrefs {
   };
 }
 
-/** A user's stored prefs, or the code defaults when they have none. Reads their own vault
- *  first, then the legacy settings map (migration bridge), then falls back to the defaults. */
+/**
+ * Coerce arbitrary input to a PARTIAL prefs — only the keys actually PRESENT (and valid) are kept, none are
+ * filled from defaults. This is the shape of the org accessibility DEFAULT: it overrides the code default only
+ * for the fields it names, and everything it omits falls through. Used for the org layer beneath the user leaf.
+ */
+export function sanitizePartialUserPrefs(input: unknown): Partial<UserPrefs> {
+  const o = (input ?? {}) as Record<string, unknown>;
+  const has = (k: string) => Object.prototype.hasOwnProperty.call(o, k) && o[k] != null;
+  const full = sanitizeUserPrefs(o); // per-field coerced against the same rules as a user's own prefs
+  const out: Partial<UserPrefs> = {};
+  for (const k of Object.keys(DEFAULT_USER_PREFS) as (keyof UserPrefs)[]) if (has(k)) (out as Record<string, unknown>)[k] = full[k];
+  return out;
+}
+
+/** The org-wide accessibility DEFAULTS (a partial), sanitised on read from the presentation settings. */
+export function orgAccessibilityDefaults(): Partial<UserPrefs> {
+  return sanitizePartialUserPrefs(getSettings().accessibilityDefaults);
+}
+
+/** The effective DEFAULT for a user with no saved prefs: the org's accessibility defaults over the code
+ *  defaults (per field). The user leaf, when present, still wins over this — the org may only DEFAULT, not lock. */
+export function effectiveDefaultPrefs(): UserPrefs {
+  return { ...DEFAULT_USER_PREFS, ...orgAccessibilityDefaults() };
+}
+
+/** A user's stored prefs, or the effective DEFAULT (org defaults over code defaults) when they have none. Reads
+ *  their own vault first, then the legacy settings map (migration bridge), then the org/code default. The user's
+ *  own leaf ALWAYS wins where it exists — accessibility is user-final policy, never floored by a higher scope. */
 export function getUserPrefs(sub: string): UserPrefs {
-  return vaultPrefs(sub) ?? getSettings().userPrefs[sub] ?? DEFAULT_USER_PREFS;
+  return vaultPrefs(sub) ?? getSettings().userPrefs[sub] ?? effectiveDefaultPrefs();
 }
 
 /** Has this user saved prefs? (Lets the client tell "stored" from "defaults".)
