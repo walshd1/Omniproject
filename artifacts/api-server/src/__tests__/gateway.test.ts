@@ -996,7 +996,6 @@ const SAMPLE_SETTINGS = {
   raci: [],
   stakeholders: [],
   collectionEditRoles: {},
-  accessibilityDefaults: {},
   panelViews: [],
   forms: [],
   automations: [],

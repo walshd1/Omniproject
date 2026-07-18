@@ -435,14 +435,8 @@ export interface GovernanceConfig {
 export interface PresentationConfig {
   /** White-label branding overrides (null/empty → product defaults). */
   branding: BrandingConfig | null;
-  /**
-   * ORG-wide accessibility DEFAULTS — a PARTIAL {@link UserPrefs} the org sets as the starting point for
-   * everyone (e.g. a default font, reduced motion for a sensitive environment). It sits BENEATH each user's own
-   * accessibility leaf: a user who hasn't personalised inherits it; a user who has always wins. It is POLICY,
-   * never a floor — the org can only DEFAULT an accessibility value, never LOCK one, so a user can always
-   * override it (make text larger, raise contrast). Presentation config → rides the snapshot/export.
-   */
-  accessibilityDefaults: Partial<UserPrefs>;
+  // NB the org-wide accessibility DEFAULTS are NOT a settings key — they moved into the composition model as a
+  // scope-layered `accessibility-defaults` config def (see lib/scoped-config + lib/user-prefs + routes/accessibility).
   /** Company-nomenclature label overrides, keyed by i18n key. */
   labelOverrides: Record<string, string>;
   /** Admin/PMO custom display names for the canonical priority levels (canonical → label). Empty
@@ -1213,18 +1207,6 @@ const FIELD_DESCRIPTORS: { [K in keyof SettingsState]: FieldDescriptor<K> } = {
         out[k] = v;
       }
       return out;
-    },
-  },
-  accessibilityDefaults: {
-    seed: () => ({}),
-    validate: (value) => {
-      // Lenient here (object + proto-key strip); the real per-field coercion happens on READ in
-      // `user-prefs.sanitizePartialUserPrefs`, matching how a user's own prefs are sanitised out of their vault.
-      if (value == null) return {};
-      if (typeof value !== "object" || Array.isArray(value)) throw new SettingsValidationError("accessibilityDefaults must be an object");
-      const out: Record<string, unknown> = {};
-      for (const [k, v] of Object.entries(value as Record<string, unknown>)) if (!isForbiddenKey(k)) out[k] = v;
-      return out as Partial<UserPrefs>;
     },
   },
   panelViews: { seed: () => [], validate: shapeChecked(validatePanelViews) },

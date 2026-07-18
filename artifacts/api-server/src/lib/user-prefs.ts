@@ -1,5 +1,7 @@
 import { getSettings, updateSettings, type UserPrefs, type ScopedThemeOverride } from "./settings";
-import { artifactStoreEnabled, getArtifact, putArtifact } from "./artifact-store";
+import { artifactStoreEnabled, getArtifact, putArtifact, makeScopedId } from "./artifact-store";
+import { configDefLayers, resolveScopedConfig, type ConfigScopes } from "./scoped-config";
+import { getDef, putDef, type StoredDef } from "./def-import";
 
 /**
  * Per-user UI/accessibility preferences, persisted server-side keyed by the user's
@@ -126,26 +128,53 @@ export function sanitizePartialUserPrefs(input: unknown): Partial<UserPrefs> {
   const has = (k: string) => Object.prototype.hasOwnProperty.call(o, k) && o[k] != null;
   const full = sanitizeUserPrefs(o); // per-field coerced against the same rules as a user's own prefs
   const out: Partial<UserPrefs> = {};
-  for (const k of Object.keys(DEFAULT_USER_PREFS) as (keyof UserPrefs)[]) if (has(k)) (out as Record<string, unknown>)[k] = full[k];
+  // Keep only fields that are PRESENT and coerce to a non-null value. A field that coerces to null (an invalid
+  // or empty nullable field) is NOT a meaningful default — dropping it keeps the partial minimal + IDEMPOTENT,
+  // so a value that round-trips through the config-def store resolves to the same partial.
+  for (const k of Object.keys(DEFAULT_USER_PREFS) as (keyof UserPrefs)[]) if (has(k) && full[k] != null) (out as Record<string, unknown>)[k] = full[k];
   return out;
 }
 
-/** The org-wide accessibility DEFAULTS (a partial), sanitised on read from the presentation settings. */
-export function orgAccessibilityDefaults(): Partial<UserPrefs> {
-  return sanitizePartialUserPrefs(getSettings().accessibilityDefaults);
+// ── Accessibility DEFAULTS: a scope-layered config def (NOT a settings key) ──────────────────────────────────
+// The org-wide accessibility default is an `accessibility-defaults` config def (partial UserPrefs), scope-layered
+// system < org < programme < project. The USER scope is deliberately NOT a layer here — a user's own values are
+// their sealed vault, which wins ON TOP (user-final policy), never a "default". The org may only DEFAULT, never
+// LOCK. Singleton org row → stable storage id, updated in place.
+export const ACCESSIBILITY_CONFIG_ID = "accessibility-defaults";
+export const ORG_ACCESSIBILITY_ID = makeScopedId("org", `config-${ACCESSIBILITY_CONFIG_ID}`);
+
+/** The org (+ programme/project when scoped) accessibility DEFAULTS (a partial), folded across scopes and
+ *  sanitised. No user layer — the user's vault is the leaf that wins over this. */
+export function orgAccessibilityDefaults(scopes: Omit<ConfigScopes, "sub"> = {}): Partial<UserPrefs> {
+  const merged = resolveScopedConfig<Record<string, unknown>>({}, configDefLayers(ACCESSIBILITY_CONFIG_ID, scopes));
+  return sanitizePartialUserPrefs(merged);
+}
+
+/** Persist the ORG-scope accessibility defaults as a config def (partial UserPrefs). Returns the sanitised
+ *  partial that was stored. Store must be enabled. */
+export function setOrgAccessibilityDefaults(input: unknown, createdBy: string | null = null): Partial<UserPrefs> {
+  const values = sanitizePartialUserPrefs(input);
+  const payload = { id: ACCESSIBILITY_CONFIG_ID, values };
+  const existing = getDef({ kind: "org" }, ORG_ACCESSIBILITY_ID);
+  const now = new Date().toISOString();
+  const row: StoredDef = existing
+    ? { ...existing, payload, updatedAt: now, rowVersion: (existing.rowVersion ?? 1) + 1 }
+    : { id: ORG_ACCESSIBILITY_ID, kind: "config", name: "Accessibility defaults", payload, createdBy, createdAt: now, updatedAt: now, rowVersion: 1 };
+  putDef({ kind: "org" }, row);
+  return values;
 }
 
 /** The effective DEFAULT for a user with no saved prefs: the org's accessibility defaults over the code
  *  defaults (per field). The user leaf, when present, still wins over this — the org may only DEFAULT, not lock. */
-export function effectiveDefaultPrefs(): UserPrefs {
-  return { ...DEFAULT_USER_PREFS, ...orgAccessibilityDefaults() };
+export function effectiveDefaultPrefs(scopes: Omit<ConfigScopes, "sub"> = {}): UserPrefs {
+  return { ...DEFAULT_USER_PREFS, ...orgAccessibilityDefaults(scopes) };
 }
 
 /** A user's stored prefs, or the effective DEFAULT (org defaults over code defaults) when they have none. Reads
  *  their own vault first, then the legacy settings map (migration bridge), then the org/code default. The user's
  *  own leaf ALWAYS wins where it exists — accessibility is user-final policy, never floored by a higher scope. */
-export function getUserPrefs(sub: string): UserPrefs {
-  return vaultPrefs(sub) ?? getSettings().userPrefs[sub] ?? effectiveDefaultPrefs();
+export function getUserPrefs(sub: string, scopes: Omit<ConfigScopes, "sub"> = {}): UserPrefs {
+  return vaultPrefs(sub) ?? getSettings().userPrefs[sub] ?? effectiveDefaultPrefs(scopes);
 }
 
 /** Has this user saved prefs? (Lets the client tell "stored" from "defaults".)

@@ -2142,8 +2142,18 @@ full backstop + commit.
   re-validated on round-trip; test added). NB the deviation from recipe step ⑤ (drain-don't-delete): scheduling
   had no deployed legacy data to strand, and the directive was explicit, so it was a clean removal rather than a
   read-only drain.
-- **Slice 2 · accessibility.** Fold the org-default-under-user-leaf (already built) into that generic resolver
-  so programme/project can also default; proves the per-user leaf inside the mechanism.
+- **Slice 2 · accessibility ✅ (org defaults → `accessibility-defaults` config def, no compat).** The org-wide
+  accessibility default (partial UserPrefs) moved OUT of `settings.accessibilityDefaults` (field +
+  FIELD_DESCRIPTORS + `security-settings` CHOICE classification all removed) into a scope-layered
+  `accessibility-defaults` config def, folded system < org < programme < project via the generic resolver — so
+  programme/project can ALSO default now, not just org. The USER scope is deliberately not a config layer: a
+  user's own values are their sealed vault, which wins ON TOP (user-final policy — the org may only DEFAULT,
+  never LOCK). `lib/user-prefs`: `orgAccessibilityDefaults(scopes)` / `effectiveDefaultPrefs(scopes)` /
+  `getUserPrefs(sub, scopes)` gained optional scope args (default = org-level, callers unchanged);
+  `setOrgAccessibilityDefaults` writes the singleton org config def. Dedicated admin/PMO route
+  `GET`/`PUT /api/accessibility-defaults` (no SPA writer existed, so backend-only). Also made
+  `sanitizePartialUserPrefs` drop null-coerced fields so the partial is idempotent across the config-def
+  round-trip (a null default is not a default). `/api/me/prefs` still surfaces `orgDefaults`, now config-sourced.
 - **Slice 3 · `branding` + `labelOverrides` + `priorityLabels`.** Presentation policy; proves deep object merge
   and nested scope override.
 
