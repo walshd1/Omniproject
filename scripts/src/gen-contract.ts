@@ -26,6 +26,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { escapeTableCell } from "./lib/markdown";
+import { parseSourceFile } from "./lib/ts-ast";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, "../..");
@@ -59,8 +60,7 @@ interface MethodSig {
 const brokerMethods: MethodSig[] = [];
 
 function read(rel: string): ts.SourceFile {
-  const full = path.join(SRC_DIR, rel);
-  return ts.createSourceFile(full, fs.readFileSync(full, "utf8"), ts.ScriptTarget.Latest, true);
+  return parseSourceFile(path.join(SRC_DIR, rel));
 }
 
 function jsdoc(node: ts.Node): string {

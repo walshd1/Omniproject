@@ -20,6 +20,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { walkFiles } from "./lib/walk-files";
 import { escapeTableCell } from "./lib/markdown";
+import { parseSourceFile } from "./lib/ts-ast";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, "../..");
@@ -141,7 +142,7 @@ function fileTitle(sf: ts.SourceFile, fullText: string): string {
 /** Extract the title + exported functions from one source file. */
 function readFile(abs: string, rel: string): FileEntry {
   const fullText = fs.readFileSync(abs, "utf8");
-  const sf = ts.createSourceFile(abs, fullText, ts.ScriptTarget.Latest, true);
+  const sf = parseSourceFile(abs, fullText);
   const fns: FnEntry[] = [];
 
   for (const stmt of sf.statements) {

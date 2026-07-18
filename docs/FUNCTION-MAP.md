@@ -5083,6 +5083,7 @@ Generic JSON-asset registry generator.
 | `loadGroup` | Read, validate (schema + filename===id + unique) and id-sort one group. |
 | `emitRegistry` | Emit a generated module: the header comment, the type imports, then one const per group. |
 | `runSingleAssetGenerator` | Run one single-group JSON-asset generator end-to-end: resolve the asset paths, read + validate the group, emit its `lib/backend-catalogue/src/<label>.generated.ts`, and log the summary. |
+| `runArrayAssetGenerator` | Run one array-source asset generator: compute the rows, validate each against its schema, and emit the `<label>.generated.ts`. |
 
 ### `scripts/src/lib/guard-harness.ts`
 
@@ -5121,6 +5122,14 @@ The canonical field superset = the base vocabulary (assets/fields.json) UNION ev
 | --- | --- |
 | `loadSuperset` | The merged superset: base fields first, then each backend's contributed `fields[]`. |
 | `backendFieldRefs` | The canonical field keys each backend REFERENCES (its `fieldKeys[]`), per file. |
+
+### `scripts/src/lib/ts-ast.ts`
+
+Compiler-API helper shared by the AST-driven generators (gen-contract, gen-api-reference, gen-function-map): the single place that opens a source file into a `ts.SourceFile`, so all three parse with the same options (`ScriptTarget.Latest`, parent pointers set) rather than re-typing the `ts.createSourceFile(...)` boilerplate.
+
+| Function | What it does |
+| --- | --- |
+| `parseSourceFile` | Parse a TS/JS file into a `ts.SourceFile` with parent pointers set (`setParentNodes: true`), reading from disk unless `text` is supplied (callers that already have the file contents pass them to avoid a second read). |
 
 ### `scripts/src/lib/ts-source.ts`
 
