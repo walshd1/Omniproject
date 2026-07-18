@@ -2328,8 +2328,10 @@ settings key/classification) plus a store-enabled route test.
     `sanitizeAiProviderAllowlist`. `routes/ai-allowlist` authors the ORG ceiling (admin PUT; lower scopes narrow
     via their own imported config defs); the SELECTION gate lives in `routes/settings` — a `PATCH /settings` that
     picks a provider outside the resolved allowlist is rejected 400 before the write. Route test covers GET/PUT +
-    the enforcement + "none"/unrestricted. **SPA follow-up (noted):** filter the provider picker to the resolved
-    allowlist + an admin authoring panel — server enforcement is already authoritative, so this is UX only.
+    the enforcement + "none"/unrestricted. **SPA ✅:** `ai-allowlist-api` hooks; the System-Configuration provider
+    picker filters its options to the resolved allowlist (keeping "none" + the current selection visible), and a
+    new `AiProviderAllowlistAdmin` panel (registered in `ADMIN_PANELS` + `SETTINGS_PANEL_KEYS`) authors the org
+    ceiling. Panel + helper + picker-filter tests green.
 
   **Phase C sensible-subset complete.** The floor gate (7a) + four security-key migrations (errorTelemetry,
   loggingSync, historyRetention, selfHost) + the cross-scope floor resolver + the AI-provider allowlist floor are

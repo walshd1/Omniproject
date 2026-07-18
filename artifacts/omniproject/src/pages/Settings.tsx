@@ -15,6 +15,7 @@ import { settingsAnchorId } from "../lib/settings-panels";
 import { useToast } from "@/hooks/use-toast";
 import { fetchAiStatus, type AiStatus } from "../lib/ai";
 import { useSettingLocks } from "../lib/setting-locks";
+import { useAiProviderAllowlist, providerSelectable } from "../lib/ai-allowlist-api";
 import { SettingsPresetPicker } from "../components/settings/SettingsPresetPicker";
 import { fetchBackendIds } from "../lib/setup";
 import { PremiumAdmin } from "../components/PremiumAdmin";
@@ -44,6 +45,7 @@ import { UsageLimitsAdmin } from "../components/settings/UsageLimitsAdmin";
 import { GovernanceAdmin } from "../components/settings/GovernanceAdmin";
 import { ActionCatalogue } from "../components/settings/ActionCatalogue";
 import { AiProvidersAdmin } from "../components/settings/AiProvidersAdmin";
+import { AiProviderAllowlistAdmin } from "../components/settings/AiProviderAllowlistAdmin";
 import { GovernanceDashboard } from "../components/settings/GovernanceDashboard";
 import { DeploymentProfile } from "../components/settings/DeploymentProfile";
 import { FeatureModulesAdmin } from "../components/settings/FeatureModulesAdmin";
@@ -166,6 +168,7 @@ const ADMIN_PANELS: AdminPanel[] = [
   { key: "customRoles", Component: CustomRolesAdmin },
   { key: "defPolicy", Component: DefPolicyAdmin },
   { key: "aiProviders", Component: AiProvidersAdmin },
+  { key: "aiProviderAllowlist", Component: AiProviderAllowlistAdmin },
   { key: "actionCatalogue", Component: ActionCatalogue },
   { key: "a11y", Component: A11yControls, wrap: "bare" },
   { key: "calendarPush", Component: CalendarPushConsent, wrap: "bare" },
@@ -198,6 +201,9 @@ export const ADMIN_PANEL_KEYS: string[] = ADMIN_PANELS.map((p) => p.key);
 export function Settings() {
   const { data: settings, isLoading, isError, error, refetch } = useGetSettings();
   const updateSettings = useUpdateSettings();
+  // AI provider allowlist (governance FLOOR, Phase C): the picker only offers providers the org permits
+  // (a lower scope may only narrow it). `null` = unrestricted. The server also rejects a forbidden selection.
+  const { data: aiAllowlist } = useAiProviderAllowlist();
   // Command-palette jump: when the palette routed here targeting a panel, scroll it into view (once),
   // then clear the one-shot signal. A tick lets the (lazy) panels mount before we measure.
   const settingsJump = useStore((s) => s.settingsJump);
@@ -422,11 +428,17 @@ export function Settings() {
                 <SelectValue placeholder="Select provider" />
               </SelectTrigger>
               <SelectContent className="rounded-none border-border font-mono uppercase">
-                <SelectItem value="none">None</SelectItem>
-                <SelectItem value="ollama">Local — Ollama</SelectItem>
-                <SelectItem value="openrouter">Public — OpenRouter</SelectItem>
-                <SelectItem value="openai">OpenAI</SelectItem>
-                <SelectItem value="anthropic">Anthropic</SelectItem>
+                {/* Filtered to the org's AI-provider allowlist; "none" is always available, and the
+                    currently-selected value stays visible even if the org tightened the allowlist after it. */}
+                {[
+                  { id: "none", label: "None" },
+                  { id: "ollama", label: "Local — Ollama" },
+                  { id: "openrouter", label: "Public — OpenRouter" },
+                  { id: "openai", label: "OpenAI" },
+                  { id: "anthropic", label: "Anthropic" },
+                ]
+                  .filter((o) => providerSelectable(o.id, aiAllowlist) || o.id === formData.aiProvider)
+                  .map((o) => <SelectItem key={o.id} value={o.id}>{o.label}</SelectItem>)}
               </SelectContent>
             </Select>
             <p className="text-xs text-muted-foreground">
