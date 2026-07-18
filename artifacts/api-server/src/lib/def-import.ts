@@ -283,21 +283,26 @@ export function checkImportAncestry(kind: DefKind, payload: unknown, scopes: Anc
 const SCOPE_RANK: Record<string, number> = { system: 0, org: 1, programme: 2, project: 3, user: 4 };
 const scopeRank = (s: ArtifactScope): number => SCOPE_RANK[s.kind] ?? 5;
 
-/** The composition graph for a kind — logical id → the payload that supplies it — with the shipped catalogue
- *  beneath EVERY deployment scope (org / programme / project / user), read across the whole store and folded by
- *  override precedence (nearest scope wins on an id clash). `extends` edges are kept intact (a shipped child
- *  extends a shipped root, both present), so the graph reflects the real ancestry across the deployment. An
- *  `overlay` replaces one id with an in-flight edit; an `excludeStorageId` simulates a delete (that stored row is
- *  skipped, so the id falls back to any lower scope that still provides it). */
-function defGraph(kind: DefKind, opts: { overlay?: Record<string, unknown>; excludeStorageId?: string } = {}): Map<string, Record<string, unknown>> {
+/** One decrypt of the whole def store: every stored collection across the deployment, sorted base → nearest by
+ *  scope precedence. This is the EXPENSIVE step (AES-decrypt + JSON.parse of every sealed collection), so a
+ *  single write reads it ONCE and folds it into as many graph views as it needs (before/after) in memory —
+ *  `defGraphFrom` does the cheap folds. Kept separate so the costly I/O is never repeated per fold. */
+type DefCollections = { scope: ArtifactScope; items: StoredDef[] }[];
+function collectDefCollections(): DefCollections {
+  return listAllArtifactCollections<StoredDef>(DEF_ARTIFACT).sort((a, b) => scopeRank(a.scope) - scopeRank(b.scope));
+}
+
+/** Fold pre-read collections into the composition graph for a kind — logical id → the payload that supplies it —
+ *  with the shipped catalogue beneath every deployment scope, folded by override precedence (nearest wins on an
+ *  id clash). `extends` edges are kept intact. An `overlay` replaces one id with an in-flight edit; an
+ *  `excludeStorageId` simulates a delete (that stored row is skipped, so the id falls back to any lower scope).
+ *  PURE + in-memory over the already-decrypted `collections`, so the SAME read feeds `before` and `after`. */
+function defGraphFrom(collections: DefCollections, kind: DefKind, opts: { overlay?: Record<string, unknown>; excludeStorageId?: string } = {}): Map<string, Record<string, unknown>> {
   const byId = new Map<string, Record<string, unknown>>();
   for (const d of shippedDefs(kind)) {
     const id = typeof d["id"] === "string" ? d["id"] : "";
     if (id) byId.set(id, d);
   }
-  // Every stored def collection across the deployment, base → nearest, so a branch at ANY scope is in the graph.
-  const collections = listAllArtifactCollections<StoredDef>(DEF_ARTIFACT)
-    .sort((a, b) => scopeRank(a.scope) - scopeRank(b.scope));
   for (const { items } of collections) {
     for (const d of items) {
       if (d.kind !== kind) continue;
@@ -372,10 +377,11 @@ export function checkImportIntegrity(kind: DefKind, payload: unknown, edit?: Edi
   const p = (payload ?? {}) as Record<string, unknown>;
   const selfId = typeof p["id"] === "string" ? p["id"] : "";
   if (!selfId) return null;                                 // no logical id → per-kind validator already ran
-  const before = defGraph(kind);                            // the world as it is (deployment-wide)
+  const cols = collectDefCollections();                     // ONE decrypt of the store; both folds reuse it
+  const before = defGraphFrom(cols, kind);                  // the world as it is (deployment-wide)
   // The world with this change applied: overlay the new payload and, on edit, drop the row's stale stored copy
   // so a rename doesn't leave the old logical id behind.
-  const after = defGraph(kind, { overlay: p, ...(edit ? { excludeStorageId: edit.storageId } : {}) });
+  const after = defGraphFrom(cols, kind, { overlay: p, ...(edit ? { excludeStorageId: edit.storageId } : {}) });
   const own = composedValidity(kind, selfId, after);
   if (own) return `this definition does not hold against its ancestors: ${own}`;
   // Descendants of the def under its NEW id, plus — on a rename — those still built on its OLD id (now orphaned).
@@ -397,8 +403,9 @@ export function checkImportIntegrity(kind: DefKind, payload: unknown, edit?: Edi
  */
 export function checkDeleteIntegrity(kind: DefKind, storageId: string, logicalId: string): string | null {
   if (!logicalId) return null;
-  const before = defGraph(kind);
-  const after = defGraph(kind, { excludeStorageId: storageId });
+  const cols = collectDefCollections();                     // ONE decrypt; before/after both fold it in memory
+  const before = defGraphFrom(cols, kind);
+  const after = defGraphFrom(cols, kind, { excludeStorageId: storageId });
   for (const child of descendantsOf(logicalId, before)) {
     const wasOk = composedValidity(kind, child, before) === null;
     const nowErr = composedValidity(kind, child, after);
