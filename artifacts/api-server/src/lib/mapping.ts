@@ -35,6 +35,9 @@ export interface Mapping {
   fields: Record<string, FieldRef>;
   /** Consumer-specific literal defaults (e.g. WBS `currency`) — passthrough, not routed. */
   defaults?: Record<string, string>;
+  /** COMPOSITION: the slot of a parent mapping this one is built on (see def-compose). The resolver folds the
+   *  parent's fields underneath (child fields win, per key), so a mapping is a thin extension of a base. */
+  extends?: string;
 }
 
 /** The mapping's DECLARED home (broker and/or backend). Absent halves stay absent — there is no implicit
@@ -90,6 +93,12 @@ export function sanitizeMapping(raw: unknown): Mapping {
     if (typeof o["joinField"] !== "string" || isForbiddenKey(o["joinField"])) throw new MappingError("mapping.joinField must be a safe field name");
     out.joinField = (o["joinField"] as string).trim();
   }
+  if (o["extends"] !== undefined && o["extends"] !== null && o["extends"] !== "") {
+    if (typeof o["extends"] !== "string" || isForbiddenKey(o["extends"])) throw new MappingError("mapping.extends must be a safe slot id");
+    const ext = (o["extends"] as string).trim();
+    if (ext === out.id) throw new MappingError("mapping.extends must not be the mapping's own slot");
+    out.extends = ext;
+  }
   const fields = o["fields"];
   if (fields !== undefined && fields !== null) {
     if (typeof fields !== "object" || Array.isArray(fields)) throw new MappingError("mapping.fields must be an object of semanticKey → address");
@@ -129,6 +138,7 @@ export function mergeMappings(layers: Mapping[]): Mapping {
     if (layer.broker !== undefined) out.broker = layer.broker;
     if (layer.backend !== undefined) out.backend = layer.backend;
     if (layer.joinField !== undefined) out.joinField = layer.joinField;
+    if (layer.extends !== undefined) out.extends = layer.extends;
     for (const [k, v] of Object.entries(layer.fields)) out.fields[k] = v;
     if (layer.defaults) for (const [k, v] of Object.entries(layer.defaults)) defaults[k] = v;
   }

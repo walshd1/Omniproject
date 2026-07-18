@@ -60,10 +60,22 @@ export function storedMappingLayers(ctx: MappingCtx, slot: string): Mapping[] {
 }
 
 /**
- * Resolve the effective GENERIC mapping for a slot — the merged store layers (no consumer-specific core).
- * Returns null when no layer supplies the slot (the caller decides whether that's a 404 or an empty surface).
+ * Resolve the effective GENERIC mapping for a slot — the merged store layers (no consumer-specific core), with
+ * COMPOSITION executed: if the merged mapping declares `extends`, the parent slot is resolved and folded
+ * underneath (child fields win per key), so a slot can be a thin extension of a base mapping. Returns null when
+ * no layer supplies the slot. Throws on an `extends` cycle (fail-closed).
  */
-export function resolveMapping(ctx: MappingCtx, slot: string): Mapping | null {
+export function resolveMapping(ctx: MappingCtx, slot: string, seen: Set<string> = new Set()): Mapping | null {
+  if (seen.has(slot)) throw new Error(`mapping "${slot}": extends cycle`);
+  seen.add(slot);
   const layers = storedMappingLayers(ctx, slot);
-  return layers.length ? mergeMappings(layers) : null;
+  if (!layers.length) return null;
+  const merged = mergeMappings(layers);
+  if (merged.extends) {
+    const parent = resolveMapping(ctx, merged.extends, seen);
+    // Fold the parent underneath: child (merged) fields win per key. Force the CHILD's slot id (mergeMappings
+    // takes the first layer's id, which would be the parent's) and drop `extends` from the result (executed).
+    if (parent) { const { extends: _drop, ...child } = merged; const folded = mergeMappings([parent, child]); folded.id = merged.id; delete folded.extends; return folded; }
+  }
+  return merged;
 }

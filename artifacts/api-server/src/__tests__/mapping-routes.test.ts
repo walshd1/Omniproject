@@ -23,6 +23,9 @@ before(async () => {
   seedSystemDef("mapping", "Risk register mapping", { id: "risk", broker: "builtin", backend: "sidecar", fields: { id: "id", title: "title", severity: "severity" } }, "2026-01-01T00:00:00.000Z");
   // A mapping with NO declared home — its fields are homeless until an admin gives them one.
   seedSystemDef("mapping", "Homeless-fields mapping", { id: "gap", fields: { id: "id", note: "note" } }, "2026-01-01T00:00:00.000Z");
+  // COMPOSITION (extends): a base register mapping + a thin child that extends it and adds one field.
+  seedSystemDef("mapping", "Base register", { id: "base-register", broker: "builtin", backend: "sidecar", fields: { id: "id", name: "name", status: "status" } }, "2026-01-01T00:00:00.000Z");
+  seedSystemDef("mapping", "Risks register", { id: "risks", extends: "base-register", broker: "builtin", backend: "sidecar", fields: { severity: "severity" } }, "2026-01-01T00:00:00.000Z");
 });
 after(() => { h?.close(); fs.rmSync(process.env["OMNI_CONFIG_DIR"]!, { recursive: true, force: true }); });
 
@@ -128,6 +131,14 @@ test("DELETE /mapping/:slot/:rowId removes a row (completes the generic CRUD)", 
   assert.equal(del.status, 204);
   const after = ((await (await h.req(`/projects/${PID}/mapping/risk/rows`, { cookie: ADMIN })).json()) as { rows: { id: string }[] }).rows;
   assert.ok(!after.some((r) => r.id === "R-DEL"));
+});
+
+test("a mapping EXTENDS a base: the child folds the parent's fields underneath (composition executed)", async () => {
+  const m = (await (await h.req(`/projects/${PID}/mapping/risks`, { cookie: ADMIN })).json()) as { id: string; fields: Record<string, unknown>; homeless: string[] };
+  assert.equal(m.id, "risks");
+  // Inherited from base-register (id/name/status) + the child's own (severity), all homed on the sidecar.
+  assert.deepEqual([...Object.keys(m.fields)].sort(), ["id", "name", "severity", "status"]);
+  assert.deepEqual(m.homeless, []);
 });
 
 test("the dependency graph is a SHIPPED generic slot — no bespoke entity/route (roadmap §5.5)", async () => {

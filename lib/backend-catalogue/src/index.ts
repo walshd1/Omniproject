@@ -26,6 +26,7 @@ export * from "./methodology-catalogue";
 export * from "./persona-catalogue";
 export * from "./methodology-rulesets";
 export * from "./drill-to";
+export * from "./def-compose";
 export * from "./report-catalogue";
 export * from "./mapping-catalogue";
 export * from "./form-catalogue";
