@@ -1,11 +1,12 @@
 import { Router } from "express";
-import { getSettings } from "../lib/settings";
+import { normalisedBy } from "../lib/settings";
 import { settingsCollectionRouter } from "../lib/settings-collection-router";
+import { readConfigCollection } from "../lib/scoped-config";
 import { requireAnyRole, requireRole } from "../lib/rbac";
 import { getBroker, contextFromReq, withBrokerErrors } from "../broker";
 import type { IssueWrite } from "../broker/types";
-import { planInstantiation } from "../lib/project-template";
-import { resolveProjectTemplate } from "@workspace/backend-catalogue";
+import { planInstantiation, validateTemplates, TemplateError } from "../lib/project-template";
+import { resolveProjectTemplate, type ProjectTemplate } from "@workspace/backend-catalogue";
 import { randomUUID } from "node:crypto";
 
 /**
@@ -21,7 +22,7 @@ router.post("/templates/:id/instantiate", requireRole("manager"), async (req, re
   const id = String((req.params as { id?: unknown }).id ?? "");
   // Resolve from the shipped catalogue merged with the org's overrides (default JSON + org override), so a
   // built-in template is instantiable directly and an org customisation of the same id wins.
-  const template = resolveProjectTemplate(id, getSettings().templates ?? []);
+  const template = resolveProjectTemplate(id, readConfigCollection<ProjectTemplate[]>("templates", []));
   if (!template) { res.status(404).json({ error: "Template not found" }); return; }
 
   const body = (req.body ?? {}) as { name?: unknown; programmeId?: unknown };
@@ -46,7 +47,9 @@ router.post("/templates/:id/instantiate", requireRole("manager"), async (req, re
 // The template definitions store — read open (the SPA lists them), write gated to admin/PMO.
 router.use(settingsCollectionRouter({
   path: "/templates",
-  settingsKey: "templates",
+  responseKey: "templates",
+  configId: "templates", // config-def-backed (CHOICE) — no longer a settings key
+  validate: normalisedBy((v) => validateTemplates(v), TemplateError),
   versionLabel: "templates updated",
   writeGuards: [requireAnyRole("admin", "pmo")],
 }));

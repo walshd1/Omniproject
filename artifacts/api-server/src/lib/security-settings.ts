@@ -124,9 +124,6 @@ export const CHOICE_SETTINGS: readonly string[] = [
   // stakeholder register content. None is a fail-closed security control (edit access is content
   // authorization, tuned freely by admins), so each is a choice, not a sign-off-gated security setting.
   "screenDefs", "forms",
-  // Automation recipes — authored config; the security of what they DO is enforced at authoring + run time
-  // (RBAC gate + the workflow runner's no-silent-mutation invariant), not at the edit gate.
-  "automations", "templates",
   // UserConfig
   "userPrefs",
   // PlatformConfig

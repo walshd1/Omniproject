@@ -988,8 +988,6 @@ const SAMPLE_SETTINGS = {
   budgetPlans: [],
   screenDefs: [],
   forms: [],
-  automations: [],
-  templates: [],
 };
 
 test("redactSettingsForRead: masks webhook signing secrets (never leaked over GET)", async () => {

@@ -26,9 +26,6 @@ import { validateResourceAllocations, ResourceAllocationError, type ResourceAllo
 import { validateBudgetPlans, BudgetPlanError, type BudgetPlan } from "./budget-plan";
 import { validateScreenDefs, ScreenDefError, type OrgScreenDef } from "./screen-def";
 import { FormDefError, type FormDef } from "./form-def";
-import { validateAutomations, AutomationError } from "./automation";
-import { validateTemplates, TemplateError } from "./project-template";
-import type { AutomationRecipe, ProjectTemplate } from "@workspace/backend-catalogue";
 import { reportCatalogue, type ReportDefinition } from "@workspace/backend-catalogue";
 import { validateCustomFields, validateCustomFieldSources, CustomFieldError, type CustomField } from "./custom-fields";
 import { sanitizeUserPrefs } from "./user-prefs";
@@ -484,12 +481,9 @@ export interface PresentationConfig {
   /** Intake / request FORMS — admin/PMO-authored forms (typed fields + a target project); the `form` panel
    *  renders them and each submission becomes a work item through the broker. See routes/forms. */
   forms: FormDef[];
-  /** Automation RECIPES — user-authored "when X, do Y" rules that compile to the workflow engine. Authoring
-   *  and execution are RBAC-gated to what the author may edit. See routes/automations. */
-  automations: AutomationRecipe[];
-  /** Project TEMPLATES — reusable project blueprints (defaults + seed work items) instantiated via the
-   *  broker. See routes/templates. */
-  templates: ProjectTemplate[];
+  // NB automation recipes + project templates are NOT settings keys — they moved into the composition model as
+  // config-def-backed collections (`automations` / `templates`, via settingsCollectionRouter's config mode; see
+  // routes/automations + routes/templates).
   /** Org-authored SCREEN DEFINITIONS — a PMO's built-from-scratch or modified screens, stored in the
    *  (encrypted) deployment config to OVERRIDE a shipped default (matched by id) or add net-new screens;
    *  also the delivery vehicle for a new-methodology JSON bundle. The SPA merges these over its built-in
@@ -1095,8 +1089,6 @@ const FIELD_DESCRIPTORS: { [K in keyof SettingsState]: FieldDescriptor<K> } = {
   budgetPlans: { seed: () => [], validate: normalisedBy((v) => validateBudgetPlans(v), BudgetPlanError) },
   screenDefs: { seed: () => [], validate: normalisedBy((v) => validateScreenDefs(v), ScreenDefError) },
   forms: { seed: () => [], validate: normalisedBy((v) => { if (!Array.isArray(v)) throw new FormDefError("forms must be an array"); return v as FormDef[]; }, FormDefError) },
-  automations: { seed: () => [], validate: normalisedBy((v) => validateAutomations(v), AutomationError) },
-  templates: { seed: () => [], validate: normalisedBy((v) => validateTemplates(v), TemplateError) },
   methodologyComposition: {
     seed: () => null,
     validate: (value) => {
