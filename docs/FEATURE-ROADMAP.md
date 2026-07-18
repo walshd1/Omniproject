@@ -2242,11 +2242,30 @@ settings key/classification) plus a store-enabled route test.
   toggle/registry keys still read module-wide (`disabledFeatures`, `reports`, …). Next milestone: Phase C floor gate.
 
 ### Phase C — security/floor slices (introduce the floor + sign-off wiring)
-- **Slice 7 · the floor gate.** Wire "relaxing a floor config needs sign-off" onto the existing `relaxingKeys` /
-  `applySettingsGuarded` gate (it already DETECTS a relaxation; the floor model names it), then migrate the
-  security-classified slices — webhooks/egress, `brokerUrl`, AI provider/model allowlists, `historyRetention`,
-  session controls — as floors where a lower scope may only TIGHTEN (a project restricts further, never loosens
-  the org egress allow-list).
+- **Slice 7a · the floor-gate MECHANISM ✅ (built + proven; no real key migrated yet).** The config-def analogue
+  of `settings-guard`, so a security-classified collection can leave settings and STILL be governed by the §0
+  invariant (a relaxation is held for a signed sign-off). Mirrors how Phase B shipped the "master seam" before
+  any flip.
+  - **`lib/security-config`** — `SECURITY_CONFIGS: Record<configId, RelaxPredicate>`, the config-def analogue of
+    `SECURITY_SETTINGS`. A config is guarded IFF registered here (starts empty; each Phase C migration slice adds
+    its predicate). `relaxingConfig(configId, old, new)` / `isSecurityConfig(configId)`.
+  - **`lib/config-guard`** — `applyConfigCollectionGuarded(configId, name, value, proposedBy)`: reads the current
+    resolved value, and if the (already-validated) `value` relaxes the posture, SEALS the write (config-crypto,
+    so a secret never sits plaintext in the shared queue) and raises a proposal on a new `config.relax` action
+    (bound dual-control chain, or the solo confirm+sign degrade) — applied by the registered executor only once
+    signed. A strengthening/neutral write, or a non-security config, applies immediately. A line-for-line analogue
+    of `settings-guard` but persisting via `writeOrgConfigCollection`.
+  - **`settings-collection-router` config mode** now consults `isSecurityConfig(configId)`: a security config
+    writes through the gate (202 + `pending` on relax, exactly like `applySettingsGuarded`), a choice config
+    writes directly. No new option — the classification alone flips the behaviour, mirroring settings.
+  - Tests: `config-guard.test` (strengthen→immediate, relax→held→applied-on-sign-off, non-security→immediate,
+    driving the real passkey sign-off ceremony) + `settings-collection-guard-routes.test` (the router's 202/200
+    branches over a real Express app). Full suite green.
+- **Slice 7b · migrate the security-classified slices (NEXT).** With the gate in place, each is a thin flip
+  (register the predicate in `SECURITY_CONFIGS`, add a route, repoint readers + the SPA off `PATCH /settings`):
+  egress toggles (`errorTelemetry`, `loggingSync`), `brokerUrl`/`backendSource`, AI provider/model allowlists,
+  `historyRetention`, session controls. Then the cross-scope FLOOR semantics — a lower scope may only TIGHTEN (a
+  project restricts further, never loosens the org egress allow-list) — folded into the scope resolver.
 
 ### Phase D — artifacts' template/schema layer (content stays sealed data, zero-at-rest)
 - **Slice 8 · schema families.** proof-annotation kinds, invoice-line schema, goal key-result kinds,

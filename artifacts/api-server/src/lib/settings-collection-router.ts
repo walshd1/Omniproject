@@ -4,6 +4,8 @@ import { captureVersion } from "./config-store";
 import { applySettingsGuarded } from "./settings-guard";
 import { actorForAudit } from "./audit";
 import { readConfigCollection, writeOrgConfigCollection } from "./scoped-config";
+import { isSecurityConfig } from "./security-config";
+import { applyConfigCollectionGuarded } from "./config-guard";
 
 /**
  * Factory for the recurring "settings collection" route shape: a GET that reads one
@@ -41,9 +43,9 @@ export interface SettingsCollectionOptions {
   /**
    * Opt-in: persist to a scope-layered `config` DEF (org scope) with this logical id, INSTEAD of a
    * `SettingsState` key — the settings→composition-model migration. The collection leaves settings entirely, so
-   * `settingsKey` becomes just the response-key hint. CHOICE collections ONLY: config-def mode does NOT run
-   * `applySettingsGuarded`, so a security-classified collection (one whose relaxation needs a sign-off) must
-   * stay settings-backed until the floor gate is wired onto this path (roadmap Phase C). Requires `validate`.
+   * `settingsKey` becomes just the response-key hint. A CHOICE config writes immediately; a config registered in
+   * `SECURITY_CONFIGS` is guarded by the floor gate — a relaxation is held for a signed sign-off (§0), exactly as
+   * `applySettingsGuarded` guards a settings key. Requires `validate`.
    */
   configId?: string;
   /** Validator for config-def mode — settings validation lives in `updateSettings`, so off settings we carry
@@ -71,11 +73,21 @@ export function settingsCollectionRouter(opts: SettingsCollectionOptions): Route
   const write: RequestHandler = async (req, res) => {
     const value = (req.body as Record<string, unknown> | undefined)?.[responseKey];
     try {
-      // CONFIG-DEF MODE: validate with the carried sanitiser, then persist as the org config def. CHOICE-only
-      // (no security sign-off gate on this path yet — see the `configId` doc), so no `applySettingsGuarded`.
+      // CONFIG-DEF MODE: validate with the carried sanitiser, then persist as the org config def. A CHOICE
+      // config writes immediately; a SECURITY-classified config (registered in `SECURITY_CONFIGS`) goes through
+      // the floor gate — a relaxation is held for a signed sign-off, exactly as `applySettingsGuarded` does for
+      // a settings key. The gate reads the current resolved value itself, so it's the same governing invariant.
       if (configId) {
         const normalised = validate ? validate(value) : value;
-        writeOrgConfigCollection(configId, versionLabel, normalised);
+        if (isSecurityConfig(configId)) {
+          const guarded = await applyConfigCollectionGuarded(configId, versionLabel, normalised, actorForAudit(req)?.sub ?? "admin");
+          if (!guarded.applied) {
+            res.status(202).json({ pending: guarded.pending, message: "This change reduces the security posture and needs a signed sign-off before it applies. See /api/approvals/inbox." });
+            return;
+          }
+        } else {
+          writeOrgConfigCollection(configId, versionLabel, normalised);
+        }
         captureVersion(versionLabel);
         res.json({ [responseKey]: readConfigCollection(configId, fallback) });
         return;
