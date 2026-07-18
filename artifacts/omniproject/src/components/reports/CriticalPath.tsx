@@ -4,14 +4,15 @@ import { useMemo } from "react";
 import { useGetProjectIssues, getGetProjectIssuesQueryKey, type Issue } from "@workspace/api-client-react";
 import { criticalPath, type CpmEdge, type CpmNode } from "../../lib/critical-path";
 import { loadEdges, type DependencyEdge } from "../../lib/dependencies";
+import { useProjectDependencies } from "../../lib/project-dependencies";
 import { useSchedulingSettings } from "../../lib/scheduling-settings";
 import { DataState } from "../DataState";
 import { PathChain } from "../charts/PathChain";
 
 /**
  * Critical Path (CPM) report. STATELESS: activity durations are derived from the live
- * issues (estimate or start→due span) and the precedence edges come from the existing
- * dependency overlay (volatile/exportable, never server-stored). It runs the standard
+ * issues (estimate or start→due span) and the precedence edges come from the durable brokered
+ * graph (SoR-provided or our sidecar, §5.5) merged with the volatile/exportable overlay. It runs the standard
  * forward/backward pass to surface the project's critical chain and each activity's float.
  * Nothing is persisted here — given the same issues + edges it always computes the same plan.
  */
@@ -54,7 +55,10 @@ export function CriticalPath({ projectId, edges }: { projectId: string; edges?: 
   const { data: issues, isLoading, isError, error, refetch } = useGetProjectIssues(projectId, {
     query: { queryKey: getGetProjectIssuesQueryKey(projectId) },
   });
-  const allEdges = useMemo(() => edges ?? loadEdges(), [edges]);
+  // Durable brokered edges (SoR-provided or sidecar) merged with the browser-volatile overlay. An explicit
+  // `edges` prop overrides both (tests / callers that supply their own set).
+  const { data: brokered } = useProjectDependencies(projectId);
+  const allEdges = useMemo(() => edges ?? [...loadEdges(), ...(brokered ?? [])], [edges, brokered]);
   const { hoursPerDay } = useSchedulingSettings();
 
   const { nodes, cpmEdges, titleOf } = useMemo(() => {

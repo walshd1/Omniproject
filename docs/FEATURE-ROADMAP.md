@@ -1854,8 +1854,14 @@ The single highest-leverage contract change — four concepts that are vocabular
   - **Slice 2 ✅ (sidecar fallback).** `lib/dependency-sidecar` — AES-256-GCM sealed per-project edge store, the
     built-in home for backends that front no native link API. The three routes prefer the broker method and fall
     back to the sealed store (write/delete 501 only when the store is off), idempotent on from·kind·to.
-  - **Next (slice 3):** migrate the SPA's browser-volatile `lib/dependencies` + GanttChart cascade to consume the
-    brokered endpoint — the interactive-Gantt-links + live-CPM payoff. (Today the SPA graph is client-only.)
+  - **Slice 3 ✅ (SPA consumes durable edges).** `lib/project-dependencies` — `useProjectDependencies(projectId)`
+    fetches `GET /api/projects/:id/dependencies` and `brokeredToScheduleEdges` adapts each `{fromId,toId,kind}`
+    link into the SAME `DependencyEdge` shape the schedulers already consume. Critical Path, the auto-schedule
+    forecast, and the Gantt drag-cascade now MERGE durable brokered edges (SoR-provided or sidecar) with the
+    browser-volatile overlay — so live CPM + cascade run on real precedence, not just this session's ad-hoc links.
+    Write/remove mutation hooks (`useWriteProjectDependency`/`useRemoveProjectDependency`) are ready for a UI.
+  - **Next (slice 4):** an in-project link editor (create/delete durable edges from the Gantt/board) + the
+    network-diagram view. Sprints/epics/milestones as entities (below) are the sibling contract additions.
 - ✳ **Sprints / iterations as entities** — open/close/carry-over, sprint goals, real velocity history (derived from labels/fields today).
 - ✳ **Epics / work-item hierarchy** — epic→story→subtask in the contract (`parentTaskId` on GTD tasks only today).
 - ✳ **Milestones & baselines as entities** — versioned baselines + variance-to-baseline over time (`baseline()` read exists; milestones are date fields).
