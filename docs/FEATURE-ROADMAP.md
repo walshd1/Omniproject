@@ -2213,9 +2213,16 @@ settings key/classification) plus a store-enabled route test.
   settings key for now (it's the feature-module toggle read all over `feature-modules`; a later slice). Full
   suite green.
 - **Slice 6 · `automations` + `templates` + `raci` + `stakeholders` + `methodologyComposition`.** Remaining
-  choice content slices. `raci`/`stakeholders` have standalone validators (`validateRaci`/`validateStakeholders`
-  from `lib/raci`/`lib/stakeholder`) + a `/rows` read to repoint; `automations`/`templates` similar. Clean flips
-  once tackled.
+  choice content slices.
+  - **`raci` + `stakeholders` ✅ (batch flip, no compat).** Both register stores flipped to config-def
+    collections (`raci` / `stakeholders`) via the seam; settings keys + FIELD_DESCRIPTORS + CHOICE removed, and
+    the now-unused `validateRaci`/`validateStakeholders` imports dropped from `lib/settings`. The routes pass
+    `normalisedBy(validate…, …Error)` as the config-mode `validate`; the `/raci/rows` + `/stakeholders/rows`
+    endpoints repointed to `readConfigCollection(…)`. Route contracts unchanged (SPA untouched); the route test
+    is store-enabled and drives both registers + the edit-policy via `writeOrgConfigCollection`.
+  - **`automations` + `templates` + `methodologyComposition` — pending.** `automations`/`templates` have
+    standalone validators + their own `Error` classes (clean `normalisedBy` flips); `methodologyComposition` is
+    a simple `string[]|null`. Next up.
 
 ### Phase C — security/floor slices (introduce the floor + sign-off wiring)
 - **Slice 7 · the floor gate.** Wire "relaxing a floor config needs sign-off" onto the existing `relaxingKeys` /

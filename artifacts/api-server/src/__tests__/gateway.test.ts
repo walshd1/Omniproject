@@ -987,8 +987,6 @@ const SAMPLE_SETTINGS = {
   resourceAllocations: [],
   budgetPlans: [],
   screenDefs: [],
-  raci: [],
-  stakeholders: [],
   forms: [],
   automations: [],
   templates: [],

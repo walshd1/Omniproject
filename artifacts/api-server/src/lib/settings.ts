@@ -25,8 +25,6 @@ import { validateWorkflowAcceptances, ResponsibilityAcceptanceError, type Workfl
 import { validateResourceAllocations, ResourceAllocationError, type ResourceAllocation } from "./resource-allocation";
 import { validateBudgetPlans, BudgetPlanError, type BudgetPlan } from "./budget-plan";
 import { validateScreenDefs, ScreenDefError, type OrgScreenDef } from "./screen-def";
-import { validateRaci, RaciError, type RaciEntry } from "./raci";
-import { validateStakeholders, StakeholderError, type Stakeholder } from "./stakeholder";
 import { FormDefError, type FormDef } from "./form-def";
 import { validateAutomations, AutomationError } from "./automation";
 import { validateTemplates, TemplateError } from "./project-template";
@@ -480,11 +478,9 @@ export interface PresentationConfig {
   /** Multi-year / period budget PLANS — an editable time-phased budget per project (the planning side of
    *  financials, above actuals + forecast). Stored as JSON. See routes/budget-plans. */
   budgetPlans: BudgetPlan[];
-  /** RACI register — flat (task, role, responsibility) assignments; the RACI screen renders them. */
-  raci: RaciEntry[];
-  /** Stakeholder register — flat (name, role, influence, interest, engagement) rows; the Stakeholders
-   *  screen renders them. */
-  stakeholders: Stakeholder[];
+  // NB the RACI + stakeholder registers are NOT settings keys — they moved into the composition model as
+  // config-def-backed collections (`raci` / `stakeholders`, via settingsCollectionRouter's config mode; see
+  // routes/raci + routes/stakeholders).
   /** Intake / request FORMS — admin/PMO-authored forms (typed fields + a target project); the `form` panel
    *  renders them and each submission becomes a work item through the broker. See routes/forms. */
   forms: FormDef[];
@@ -1101,8 +1097,6 @@ const FIELD_DESCRIPTORS: { [K in keyof SettingsState]: FieldDescriptor<K> } = {
   forms: { seed: () => [], validate: normalisedBy((v) => { if (!Array.isArray(v)) throw new FormDefError("forms must be an array"); return v as FormDef[]; }, FormDefError) },
   automations: { seed: () => [], validate: normalisedBy((v) => validateAutomations(v), AutomationError) },
   templates: { seed: () => [], validate: normalisedBy((v) => validateTemplates(v), TemplateError) },
-  raci: { seed: () => [], validate: normalisedBy((v) => validateRaci(v), RaciError) },
-  stakeholders: { seed: () => [], validate: normalisedBy((v) => validateStakeholders(v), StakeholderError) },
   methodologyComposition: {
     seed: () => null,
     validate: (value) => {

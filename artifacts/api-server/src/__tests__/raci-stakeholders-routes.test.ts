@@ -19,9 +19,9 @@ const ADMIN = adminCookie();
 before(async () => { h = await startHarness(); });
 after(() => { h?.close(); fs.rmSync(CONFIG_DIR, { recursive: true, force: true }); });
 afterEach(async () => {
-  const { updateSettings } = await import("../lib/settings");
   const { writeOrgConfigCollection } = await import("../lib/scoped-config");
-  updateSettings({ raci: [], stakeholders: [] });
+  writeOrgConfigCollection("raci", "RACI", []);
+  writeOrgConfigCollection("stakeholders", "Stakeholders", []);
   writeOrgConfigCollection("collection-edit-roles", "Collection edit roles", {});
 });
 const req = (p: string, o: Parameters<Harness["req"]>[1] = {}) => h.req(p, { cookie: ADMIN, ...o });
