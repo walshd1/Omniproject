@@ -2,7 +2,7 @@ import { DEV_PERSIST_FILE, saveState, loadState } from "../lib/dev-persist";
 import { INDICATIVE_FX_RATES } from "../lib/fx-fallback";
 import { configuredBrokerUrl } from "../lib/broker-url";
 import { CANONICAL_STATUS, CANONICAL_PRIORITY, isDone } from "./vocabulary";
-import type { Row, FxRates, Project, Issue, PortfolioRow, WbsElement, WbsFinancials, DependencyLink } from "./types";
+import type { Row, FxRates, Project, Issue, PortfolioRow, WbsElement, WbsFinancials, DependencyLink, Sprint } from "./types";
 
 /**
  * Demo dataset — the canned data the DemoBroker serves. Lives entirely under the
@@ -63,6 +63,16 @@ export const SAMPLE_DEPENDENCIES: Record<string, DependencyLink[]> = {
     { fromId: "iss-002", toId: "iss-001", kind: "depends_on", note: "API contract before client" },
     { fromId: "iss-003", toId: "iss-002", kind: "depends_on" },
     { fromId: "iss-004", toId: "iss-001", kind: "blocks" },
+  ],
+};
+
+/** Demo sprints/iterations (roadmap §5.5) — one active + one planned iteration over proj-001's sample issues,
+ *  so the sprint board / velocity surfaces have live data. The demo broker keeps a MUTABLE copy so writes
+ *  round-trip. */
+export const SAMPLE_SPRINTS: Record<string, Sprint[]> = {
+  "proj-001": [
+    { id: "spr-001", name: "Sprint 1", goal: "Ship the API contract + auth", startDate: "2026-07-06", endDate: "2026-07-17", state: "active", itemIds: ["iss-001", "iss-002"] },
+    { id: "spr-002", name: "Sprint 2", goal: "Client integration", startDate: "2026-07-20", endDate: "2026-07-31", state: "planned", itemIds: ["iss-003"] },
   ],
 };
 

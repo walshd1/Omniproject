@@ -10,7 +10,7 @@ import {
   SAMPLE_PROJECTS, SAMPLE_ISSUES, SAMPLE_RAID, SAMPLE_CAPACITY, SAMPLE_FINANCIALS,
   SAMPLE_PORTFOLIO, DEMO_FX, sampleActivity, sampleNotifications, persistDemoState,
   resetDemoDataToSeed, shouldAutoResetDemo, demoResetIntervalMinutes,
-  SAMPLE_WBS, SAMPLE_WBS_FINANCIALS, SAMPLE_DEPENDENCIES,
+  SAMPLE_WBS, SAMPLE_WBS_FINANCIALS, SAMPLE_DEPENDENCIES, SAMPLE_SPRINTS,
 } from "./demo-data";
 import {
   BrokerError,
@@ -28,6 +28,7 @@ import {
   type WbsElement,
   type WbsFinancials,
   type DependencyLink,
+  type Sprint,
   type TaskComment,
   type TaskCommentWrite,
   type TaskAttachment,
@@ -447,6 +448,26 @@ export class DemoBroker implements Broker {
   async removeDependency(_ctx: ActorContext, projectId: string, fromId: string, toId: string, kind: DependencyLink["kind"]): Promise<void> {
     const edges = this.deps[projectId];
     if (edges) this.deps[projectId] = edges.filter((e) => !DemoBroker.sameEdge(e, fromId, toId, kind));
+  }
+
+  // ── Sprints / iterations (roadmap §5.5) — the demo broker stands in for a SoR that holds native sprints. A
+  //    MUTABLE per-project sprint set so writes/removes round-trip within the session.
+  private sprints: Record<string, Sprint[]> = Object.fromEntries(
+    Object.entries(SAMPLE_SPRINTS).map(([p, list]) => [p, list.map((s) => ({ ...s, itemIds: [...s.itemIds] }))]),
+  );
+  async listSprints(_ctx: ActorContext, projectId: string): Promise<Sprint[]> {
+    return (this.sprints[projectId] ?? []).map((s) => ({ ...s, itemIds: [...s.itemIds] }));
+  }
+  async writeSprint(_ctx: ActorContext, projectId: string, sprint: Sprint): Promise<Sprint> {
+    const list = (this.sprints[projectId] ??= []);
+    const stored: Sprint = { ...sprint, itemIds: [...sprint.itemIds] };
+    const idx = list.findIndex((s) => s.id === sprint.id);
+    if (idx >= 0) list[idx] = stored; else list.push(stored); // upsert by id
+    return { ...stored, itemIds: [...stored.itemIds] };
+  }
+  async removeSprint(_ctx: ActorContext, projectId: string, sprintId: string): Promise<void> {
+    const list = this.sprints[projectId];
+    if (list) this.sprints[projectId] = list.filter((s) => s.id !== sprintId);
   }
 
   // ── Tasks (GTD actionable next-actions) ──────────────────────────────────────

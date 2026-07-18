@@ -821,6 +821,39 @@ export interface Broker {
   writeDependency?(ctx: ActorContext, projectId: string, link: DependencyLink): Promise<DependencyLink>;
   /** Remove a dependency edge (no-op if absent). */
   removeDependency?(ctx: ActorContext, projectId: string, fromId: string, toId: string, kind: DependencyKind): Promise<void>;
+
+  // ── Sprints / iterations (roadmap §5.5) — OPTIONAL. Time-boxed iterations with a goal + a membership set of
+  //    work items, brokered from the SoR (native sprints where the backend supports them; our sidecar otherwise).
+  //    Zero-at-rest: a sprint carries its own metadata (name/goal/dates/state) + member ids only — never item
+  //    CONTENT. Unlocks sprint boards, velocity, and burndown on live entities instead of label conventions.
+  /** The sprints/iterations in a project. Empty when none / unsupported. */
+  listSprints?(ctx: ActorContext, projectId: string): Promise<Sprint[]>;
+  /** Create or update a sprint (upsert by `id`). Returns the stored sprint. */
+  writeSprint?(ctx: ActorContext, projectId: string, sprint: Sprint): Promise<Sprint>;
+  /** Remove a sprint (no-op if absent). Members are unassigned, not deleted. */
+  removeSprint?(ctx: ActorContext, projectId: string, sprintId: string): Promise<void>;
+}
+
+/** A sprint's lifecycle state. `active` is the one in flight; a project should hold at most one `active`. */
+export type SprintState = "planned" | "active" | "closed";
+
+/**
+ * A time-boxed iteration in a project (roadmap §5.5). Brokered from the system of record — the sprint's own
+ * metadata plus its membership as work-item ids, never a content copy of those items. This is the contract
+ * entity that graduates sprint-by-label conventions to a first-class iteration, so velocity and burndown read
+ * real membership. `itemIds` is the zero-at-rest membership set (ids only).
+ */
+export interface Sprint {
+  id: string;
+  name: string;
+  /** The sprint goal — the only free-text field carried. */
+  goal?: string;
+  /** ISO date (yyyy-mm-dd) the iteration opens / closes. */
+  startDate?: string;
+  endDate?: string;
+  state: SprintState;
+  /** Member work-item ids (zero-at-rest: ids only, never item content). */
+  itemIds: string[];
 }
 
 /** The relationship a {@link DependencyLink} expresses. `depends_on`/`blocks` drive scheduling (CPM, cascade);

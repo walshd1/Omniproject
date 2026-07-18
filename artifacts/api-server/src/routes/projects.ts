@@ -22,7 +22,7 @@ import {
   CreateTaskItemBody,
   ListProjectMembersParams,
 } from "@workspace/api-zod";
-import { getBroker, contextFromReq, withBrokerErrors } from "../broker";
+import { getBroker, contextFromReq, withBrokerErrors, type Sprint } from "../broker";
 import { resolveCapabilities } from "../lib/capabilities";
 import { validateEntityInput, type FieldDescriptor } from "../lib/field-registry";
 import { getSettings, updateSettings } from "../lib/settings";
@@ -643,6 +643,75 @@ router.delete("/projects/:projectId/dependencies", requireRole("contributor"), a
     if (broker.removeDependency) await broker.removeDependency(contextFromReq(req), projectId, link.fromId, link.toId, link.kind);
     else removeSidecarDependency(projectId, link.fromId, link.toId, link.kind);
     recordAudit({ ts: new Date().toISOString(), category: "admin", action: `remove_dependency:${link.fromId}->${link.toId}`, projectId, result: "success", status: 200 });
+    res.status(204).end();
+  }, { projectId });
+});
+
+// ── Sprints / iterations (roadmap §5.5) — time-boxed iterations with a goal + a work-item membership set,
+//    brokered from the SoR (zero-at-rest: the sprint's own metadata + member ids, never item content). Read is
+//    project-scope-gated; write/delete are contributor+. 501 when the backend fronts no sprints (a sidecar
+//    fallback is the next slice, as with the dependency graph).
+const SPRINT_STATES = new Set(["planned", "active", "closed"]);
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+/** Validate a sprint write body: an id + name, a known state, optional ISO dates + goal, distinct member ids. */
+function sanitizeSprint(body: unknown): Sprint | null {
+  const b = (body ?? {}) as Record<string, unknown>;
+  const id = typeof b["id"] === "string" ? b["id"].trim() : "";
+  const name = typeof b["name"] === "string" ? b["name"].trim().slice(0, 120) : "";
+  const state = typeof b["state"] === "string" ? b["state"] : "";
+  if (!id || !name || !SPRINT_STATES.has(state)) return null;
+  const startDate = typeof b["startDate"] === "string" && ISO_DATE.test(b["startDate"]) ? b["startDate"] : undefined;
+  const endDate = typeof b["endDate"] === "string" && ISO_DATE.test(b["endDate"]) ? b["endDate"] : undefined;
+  if (startDate && endDate && endDate < startDate) return null;
+  const goal = typeof b["goal"] === "string" ? b["goal"].slice(0, 280) : undefined;
+  const rawItems = Array.isArray(b["itemIds"]) ? b["itemIds"] : [];
+  const itemIds = [...new Set(rawItems.filter((x): x is string => typeof x === "string" && !!x.trim()).map((x) => x.trim()))];
+  return {
+    id, name, state: state as Sprint["state"], itemIds,
+    ...(goal ? { goal } : {}), ...(startDate ? { startDate } : {}), ...(endDate ? { endDate } : {}),
+  };
+}
+
+router.get("/projects/:projectId/sprints", async (req, res) => {
+  const params = parseRouteParams(GetProjectSummaryParams, req, res, "Invalid project id");
+  if (!params) return;
+  const { projectId } = params;
+  await withBrokerErrors(req, res, "list_sprints failed", async () => {
+    if (!(await guardProjectScope(req, res, projectId))) return;
+    const broker = getBroker();
+    if (!broker.listSprints) { res.status(501).json({ error: "this backend does not expose sprints" }); return; }
+    res.json({ sprints: await broker.listSprints(contextFromReq(req), projectId) });
+  }, { projectId });
+});
+
+router.post("/projects/:projectId/sprints", requireRole("contributor"), async (req, res) => {
+  const params = parseRouteParams(GetProjectSummaryParams, req, res, "Invalid project id");
+  if (!params) return;
+  const { projectId } = params;
+  await withBrokerErrors(req, res, "write_sprint failed", async () => {
+    if (!(await guardProjectScope(req, res, projectId))) return;
+    const sprint = sanitizeSprint(req.body);
+    if (!sprint) { res.status(400).json({ error: "a sprint needs an id + name and a valid state (planned | active | closed); dates must be ISO yyyy-mm-dd with end ≥ start" }); return; }
+    const broker = getBroker();
+    if (!broker.writeSprint) { res.status(501).json({ error: "this backend does not accept sprints" }); return; }
+    const saved = await broker.writeSprint(contextFromReq(req), projectId, sprint);
+    recordAudit({ ts: new Date().toISOString(), category: "admin", action: `write_sprint:${sprint.id}`, projectId, result: "success", status: 200 });
+    res.status(201).json(saved);
+  }, { projectId });
+});
+
+router.delete("/projects/:projectId/sprints/:sprintId", requireRole("contributor"), async (req, res) => {
+  const params = parseRouteParams(GetProjectSummaryParams, req, res, "Invalid project id");
+  if (!params) return;
+  const { projectId } = params;
+  const sprintId = String(req.params["sprintId"] ?? "").trim();
+  await withBrokerErrors(req, res, "remove_sprint failed", async () => {
+    if (!(await guardProjectScope(req, res, projectId))) return;
+    if (!sprintId) { res.status(400).json({ error: "a sprint delete needs a sprintId" }); return; }
+    const broker = getBroker();
+    if (!broker.removeSprint) { res.status(501).json({ error: "this backend does not accept sprints" }); return; }
+    await broker.removeSprint(contextFromReq(req), projectId, sprintId);
+    recordAudit({ ts: new Date().toISOString(), category: "admin", action: `remove_sprint:${sprintId}`, projectId, result: "success", status: 200 });
     res.status(204).end();
   }, { projectId });
 });

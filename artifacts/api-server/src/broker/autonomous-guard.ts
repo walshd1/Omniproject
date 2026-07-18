@@ -71,6 +71,10 @@ const WRITE_CLASSIFIERS = {
   // removeDependency(ctx, projectId, from, to, kind) mutate the project's edge set — guard them project-scoped.
   writeDependency: (args, now): WriteRequest => ({ action: "write_dependency", projectId: str(args[1]), fields: Object.keys(rec(args[2])), now }),
   removeDependency: (args, now): WriteRequest => ({ action: "remove_dependency", projectId: str(args[1]), now }),
+  // Sprint/iteration writes (roadmap §5.5): writeSprint(ctx, projectId, sprint) upserts a sprint;
+  // removeSprint(ctx, projectId, sprintId) deletes one — both mutate the project's iteration set, guard project-scoped.
+  writeSprint: (args, now): WriteRequest => ({ action: "write_sprint", projectId: str(args[1]), fields: Object.keys(rec(args[2])), now }),
+  removeSprint: (args, now): WriteRequest => ({ action: "remove_sprint", projectId: str(args[1]), now }),
 } satisfies Record<string, (args: unknown[], now: number) => WriteRequest>;
 
 /** A broker method the autonomous gate must run authorization for. */

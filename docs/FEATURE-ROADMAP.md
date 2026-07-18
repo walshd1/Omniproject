@@ -1862,7 +1862,14 @@ The single highest-leverage contract change — four concepts that are vocabular
     Write/remove mutation hooks (`useWriteProjectDependency`/`useRemoveProjectDependency`) are ready for a UI.
   - **Next (slice 4):** an in-project link editor (create/delete durable edges from the Gantt/board) + the
     network-diagram view. Sprints/epics/milestones as entities (below) are the sibling contract additions.
-- ✳ **Sprints / iterations as entities** — open/close/carry-over, sprint goals, real velocity history (derived from labels/fields today).
+- 🚧 **Sprints / iterations as entities** — open/close/carry-over, sprint goals, real velocity history (derived from labels/fields today).
+  - **Slice 1 ✅ (brokered sprints).** `Sprint {id, name, goal?, startDate?, endDate?, state: planned|active|closed,
+    itemIds[]}` on the `Broker` contract (`listSprints`/`writeSprint`/`removeSprint`, capability-gated, guarded);
+    `GET /projects/:id/sprints`, `POST /projects/:id/sprints` (upsert by id), `DELETE /projects/:id/sprints/:sprintId`
+    (read project-scope-gated, write/delete contributor+, audited); demo broker fixtures (one active + one planned).
+    Zero-at-rest — a sprint carries its own metadata + member ids, never item content.
+  - **Next:** sidecar fallback (backends without native sprints, mirroring the dependency graph's slice 2); then
+    the SPA sprint board + velocity/burndown on real membership.
 - ✳ **Epics / work-item hierarchy** — epic→story→subtask in the contract (`parentTaskId` on GTD tasks only today).
 - ✳ **Milestones & baselines as entities** — versioned baselines + variance-to-baseline over time (`baseline()` read exists; milestones are date fields).
 - ✳ **Per-entry worklog model** — time tracking is aggregate `loggedHours` + timesheets; no per-entry worklog.
