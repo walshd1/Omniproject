@@ -4,8 +4,12 @@ import {
   type FxRates, type Settings,
 } from "@workspace/api-client-react";
 import { useT } from "./i18n";
+// The pure FX/currency primitives live in @workspace/backend-catalogue (shared with the gateway's
+// portfolio-financials consolidation); imported for local use + re-exported so SPA importers keep this path.
+import { convertAmount, isConvertible, currencyList, DEFAULT_CURRENCY, LocalTracker } from "@workspace/backend-catalogue";
 
 export type { FxRates };
+export { convertAmount, isConvertible, currencyList, DEFAULT_CURRENCY, LocalTracker };
 
 /**
  * Multi-currency rates, read-through from the backend/ERP via the broker. `asOf` (ISO date),
@@ -26,54 +30,6 @@ export function resolveFxAsOf(settings: Pick<Settings, "fxRatePolicy" | "fxRateA
   if (!settings || !settings.fxRatePolicy || settings.fxRatePolicy === "spot") return undefined;
   return settings.fxRateAsOfDate || undefined;
 }
-
-/** Convert between currencies via a base-anchored rate table. Falls back to the
- *  original amount if a rate is missing (so the UI never shows NaN). */
-export function convertAmount(amount: number, from: string, to: string, rates?: Record<string, number>): number {
-  if (!rates || from === to) return amount;
-  // Own-property + finite guards: a currency code like "__proto__"/"constructor" would otherwise
-  // read an inherited Object.prototype member (an object/function), and `amount * {}` = NaN would
-  // reach a rendered figure. Missing or non-finite rate ⇒ pass the amount through unchanged.
-  const rFrom = Object.hasOwn(rates, from) ? rates[from] : undefined;
-  const rTo = Object.hasOwn(rates, to) ? rates[to] : undefined;
-  if (!Number.isFinite(rFrom) || !Number.isFinite(rTo) || rTo === 0) return amount;
-  return (amount * (rFrom as number)) / (rTo as number);
-}
-
-/** Whether `from` can actually be converted to `to` with these rates. `convertAmount` passes the
- *  amount through unchanged when a rate is missing (to avoid NaN in the UI) — callers that SUM across
- *  currencies must use this to exclude unconvertible rows, or a raw foreign amount corrupts the total. */
-export function isConvertible(from: string, to: string, rates?: Record<string, number>): boolean {
-  if (from === to) return true;
-  if (!rates) return false;
-  const rFrom = Object.hasOwn(rates, from) ? rates[from] : undefined;
-  const rTo = Object.hasOwn(rates, to) ? rates[to] : undefined;
-  return Number.isFinite(rFrom) && Number.isFinite(rTo) && rTo !== 0;
-}
-
-export function currencyList(rates?: Record<string, number>): string[] {
-  return rates ? Object.keys(rates).sort() : [];
-}
-
-/** Track whether every project folded into a currency roll-up row so far shares one source
- *  currency, so the row can show a `local` (un-converted) figure alongside the consolidated
- *  total. Once a second currency shows up the row is "mixed" and only the consolidated total
- *  applies. Shared by every portfolio roll-up (financials, income, benefits). */
-export class LocalTracker {
-  currency: string | null = null;
-  private seen = new Set<string>();
-
-  /** Fold one more project's currency in; returns true while the row is still single-currency. */
-  add(currency: string): boolean {
-    this.seen.add(currency);
-    this.currency = this.seen.size === 1 ? currency : null;
-    return this.seen.size === 1;
-  }
-}
-
-/** The display currency assumed when nothing else resolves one (no item currency, no FX base,
- *  no configured reporting currency). Kept in one place so every financial surface agrees. */
-export const DEFAULT_CURRENCY = "GBP";
 
 /** The first currency seen across a set of items, falling back to a default (e.g. for a report's display). */
 export function firstCurrency(items: readonly { currency?: string | null }[] | undefined, fallback = DEFAULT_CURRENCY): string {

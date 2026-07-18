@@ -32,6 +32,7 @@ export * from "./field-primitive-catalogue";
 export * from "./container-constraints";
 export * from "./def-refs";
 export * from "./report-catalogue";
+export * from "./finance-consolidation";
 export * from "./mapping-catalogue";
 export * from "./form-catalogue";
 export * from "./automation-catalogue";
