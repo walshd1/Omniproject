@@ -7,7 +7,7 @@ import { captureVersion } from "../lib/config-store";
 import { resetBroker } from "../broker";
 import { getSession } from "./auth";
 import { applySettingsGuarded } from "../lib/settings-guard";
-import { aiProviderAllowed } from "../lib/ai-allowlist";
+import { aiProviderAllowed, aiModelAllowed, sttProviderAllowed } from "../lib/ai-allowlist";
 
 /**
  * Gateway-local settings (the broker URL, AI provider, …). Control-plane, never
@@ -59,10 +59,19 @@ router.patch("/settings", requireRole("admin"), async (req, res) => {
       return;
     }
   }
-  // FLOOR gate (§0, roadmap Phase C): the selected AI provider must be within the org's `ai-provider-allowlist`
-  // (a lower scope may only narrow it). "none" (AI off) is always allowed. Rejected before the write.
+  // FLOOR gate (§0, roadmap Phase C): a selected AI provider / model / STT engine must be within the org's
+  // corresponding allowlist (a lower scope may only narrow it). "none" (off) and the empty model (provider
+  // default) are always allowed. Rejected before the write.
   if ("aiProvider" in body && typeof body["aiProvider"] === "string" && !aiProviderAllowed(body["aiProvider"])) {
     res.status(400).json({ error: `AI provider "${body["aiProvider"]}" is not permitted by this deployment's AI provider allowlist` });
+    return;
+  }
+  if ("aiModel" in body && typeof body["aiModel"] === "string" && !aiModelAllowed(body["aiModel"])) {
+    res.status(400).json({ error: `AI model "${body["aiModel"]}" is not permitted by this deployment's AI model allowlist` });
+    return;
+  }
+  if ("sttProvider" in body && typeof body["sttProvider"] === "string" && !sttProviderAllowed(body["sttProvider"])) {
+    res.status(400).json({ error: `STT provider "${body["sttProvider"]}" is not permitted by this deployment's STT provider allowlist` });
     return;
   }
   try {

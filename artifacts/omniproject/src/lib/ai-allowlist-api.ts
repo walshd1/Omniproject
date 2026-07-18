@@ -2,36 +2,58 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { getJson, sendJson } from "./api";
 
 /**
- * Client read/write for the AI-provider allowlist — the org's governance FLOOR over which providers may be
- * selected (roadmap Phase C), exposed at `/api/ai/provider-allowlist`. `null` = unrestricted (every provider is
- * selectable). A lower scope may only narrow the org ceiling; the value here is already the floor-resolved set.
- * The provider picker filters to it, and the server rejects a `PATCH /settings` that selects a forbidden provider.
+ * Client read/write for the AI selection allowlists — the org's governance FLOORS over which providers / models
+ * / STT engines may be selected (roadmap Phase C), at `/api/ai/{provider,model,stt-provider}-allowlist`. `null`
+ * = unrestricted. A lower scope may only narrow the org ceiling; the value here is already the floor-resolved set.
+ * The pickers filter to it, and the server rejects a `PATCH /settings` that selects a forbidden value.
  */
-export const aiProviderAllowlistKey = ["ai-provider-allowlist"] as const;
+interface AllowlistSpec { path: string; key: string; queryKey: readonly [string]; label: string }
+const PROVIDER: AllowlistSpec = { path: "/api/ai/provider-allowlist", key: "aiProviderAllowlist", queryKey: ["ai-provider-allowlist"], label: "AI provider allowlist" };
+const MODEL: AllowlistSpec = { path: "/api/ai/model-allowlist", key: "aiModelAllowlist", queryKey: ["ai-model-allowlist"], label: "AI model allowlist" };
+const STT: AllowlistSpec = { path: "/api/ai/stt-provider-allowlist", key: "sttProviderAllowlist", queryKey: ["stt-provider-allowlist"], label: "STT provider allowlist" };
 
-/** The floor-resolved allowed provider set, or `null` (unrestricted). */
-export function useAiProviderAllowlist() {
+function useAllowlist(spec: AllowlistSpec) {
   const { data } = useQuery({
-    queryKey: aiProviderAllowlistKey,
-    queryFn: () => getJson<{ aiProviderAllowlist: string[] | null }>("/api/ai/provider-allowlist"),
+    queryKey: spec.queryKey,
+    queryFn: () => getJson<Record<string, string[] | null>>(spec.path),
     staleTime: 15_000,
   });
-  return { data: data?.aiProviderAllowlist ?? null };
+  return { data: (data?.[spec.key] as string[] | null | undefined) ?? null };
 }
 
-/** PUT the ORG allowlist ceiling (admin). `null` clears the restriction. */
-export function useSaveAiProviderAllowlist() {
+function useSaveAllowlist(spec: AllowlistSpec) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (aiProviderAllowlist: string[] | null) =>
-      sendJson<{ aiProviderAllowlist: string[] | null }>(
-        "/api/ai/provider-allowlist", { aiProviderAllowlist }, "PUT", "Failed to save the AI provider allowlist",
-      ),
-    onSuccess: () => qc.invalidateQueries({ queryKey: aiProviderAllowlistKey }),
+    mutationFn: (value: string[] | null) =>
+      sendJson<Record<string, string[] | null>>(spec.path, { [spec.key]: value }, "PUT", `Failed to save the ${spec.label}`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: spec.queryKey }),
   });
 }
 
-/** Whether `provider` may be SELECTED given the resolved allowlist. `"none"` (AI off) is always allowed. */
-export function providerSelectable(provider: string, allowlist: string[] | null): boolean {
-  return provider === "none" || allowlist == null || allowlist.includes(provider);
+export const aiProviderAllowlistKey = PROVIDER.queryKey;
+export const aiModelAllowlistKey = MODEL.queryKey;
+export const sttProviderAllowlistKey = STT.queryKey;
+
+/** The floor-resolved allowed set (or `null` = unrestricted) for each selection. */
+export const useAiProviderAllowlist = () => useAllowlist(PROVIDER);
+export const useAiModelAllowlist = () => useAllowlist(MODEL);
+export const useSttProviderAllowlist = () => useAllowlist(STT);
+
+/** PUT the ORG ceiling (admin). `null` clears the restriction. */
+export const useSaveAiProviderAllowlist = () => useSaveAllowlist(PROVIDER);
+export const useSaveAiModelAllowlist = () => useSaveAllowlist(MODEL);
+export const useSaveSttProviderAllowlist = () => useSaveAllowlist(STT);
+
+/** Whether `value` may be SELECTED given the resolved allowlist. `alwaysOk` (e.g. "none", or an empty model) is
+ *  always allowed; otherwise the value must be within the allowlist (or the allowlist must be unrestricted). */
+export function selectable(value: string, allowlist: string[] | null, alwaysOk: (v: string) => boolean = () => false): boolean {
+  return alwaysOk(value) || allowlist == null || allowlist.includes(value);
 }
+
+/** A provider (or STT engine) is selectable when unrestricted, allowlisted, or `"none"` (off). */
+export const providerSelectable = (provider: string, allowlist: string[] | null): boolean =>
+  selectable(provider, allowlist, (v) => v === "none");
+
+/** A model is selectable when unrestricted, allowlisted, or empty (= use the provider default). */
+export const modelSelectable = (model: string, allowlist: string[] | null): boolean =>
+  selectable(model, allowlist, (v) => v.trim() === "");

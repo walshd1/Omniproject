@@ -19,15 +19,18 @@ let h: Harness;
 before(async () => { h = await startHarness(); });
 after(() => { h?.close(); fs.rmSync(CONFIG_DIR, { recursive: true, force: true }); });
 afterEach(async () => {
-  const { writeOrgAiProviderAllowlist } = await import("../lib/ai-allowlist");
+  const { writeOrgAiProviderAllowlist, writeOrgAiModelAllowlist, writeOrgSttProviderAllowlist } = await import("../lib/ai-allowlist");
   writeOrgAiProviderAllowlist(null); // back to unrestricted
+  writeOrgAiModelAllowlist(null);
+  writeOrgSttProviderAllowlist(null);
   const { updateSettings } = await import("../lib/settings");
-  updateSettings({ aiProvider: "none" });
+  updateSettings({ aiProvider: "none", aiModel: null, sttProvider: "none" });
 });
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const json = async (r: Response): Promise<any> => r.json();
-const setProvider = (aiProvider: string) => h.req("/settings", { method: "PATCH", cookie: adminCookie(), body: { aiProvider } });
+const patch = (body: Record<string, unknown>) => h.req("/settings", { method: "PATCH", cookie: adminCookie(), body });
+const setProvider = (aiProvider: string) => patch({ aiProvider });
 
 test("GET without a cookie → 401", async () => {
   assert.equal((await h.req("/ai/provider-allowlist")).status, 401);
@@ -69,4 +72,32 @@ test("an unrestricted (null) allowlist permits any provider", async () => {
   const { writeOrgAiProviderAllowlist } = await import("../lib/ai-allowlist");
   writeOrgAiProviderAllowlist(null);
   assert.notEqual((await setProvider("openai")).status, 400);
+});
+
+// ── AI model allowlist ──────────────────────────────────────────────────────────────────────
+test("model allowlist: GET defaults null; PUT round-trips; a forbidden model → 400, an allowed one + empty pass", async () => {
+  assert.equal((await json(await h.req("/ai/model-allowlist", { cookie: adminCookie() }))).aiModelAllowlist, null);
+
+  const put = await h.req("/ai/model-allowlist", { method: "PUT", cookie: adminCookie(), body: { aiModelAllowlist: ["gpt-4o"] } });
+  assert.equal(put.status, 200);
+  assert.deepEqual((await json(put)).aiModelAllowlist, ["gpt-4o"]);
+
+  // A model outside the allowlist → 400; the allowed one passes; an empty model (provider default) always passes.
+  assert.equal((await patch({ aiModel: "gpt-3.5" })).status, 400);
+  assert.notEqual((await patch({ aiModel: "gpt-4o" })).status, 400);
+  assert.notEqual((await patch({ aiModel: "" })).status, 400);
+});
+
+// ── STT provider allowlist ──────────────────────────────────────────────────────────────────
+test("stt allowlist: GET defaults null; PUT round-trips; a forbidden engine → 400, an allowed one + none pass", async () => {
+  assert.equal((await json(await h.req("/ai/stt-provider-allowlist", { cookie: adminCookie() }))).sttProviderAllowlist, null);
+
+  const put = await h.req("/ai/stt-provider-allowlist", { method: "PUT", cookie: adminCookie(), body: { sttProviderAllowlist: ["browser"] } });
+  assert.equal(put.status, 200);
+  assert.deepEqual((await json(put)).sttProviderAllowlist, ["browser"]);
+
+  // "whisper" (egress) is forbidden; the on-device "browser" passes; "none" (STT off) always passes.
+  assert.equal((await patch({ sttProvider: "whisper" })).status, 400);
+  assert.notEqual((await patch({ sttProvider: "browser" })).status, 400);
+  assert.notEqual((await patch({ sttProvider: "none" })).status, 400);
 });

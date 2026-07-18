@@ -2321,23 +2321,24 @@ settings key/classification) plus a store-enabled route test.
     `tightenAllowlist` (the allowlist tighten step: `null` = no restriction; both present ⇒ intersection, so a
     lower scope can drop an allowed id but never add a forbidden one). Distinct from the default nearest-wins
     `resolveScopedConfig`. Unit-tested (intersection, widen-is-a-no-op, null inheritance).
-  - **AI provider allowlist ✅ (first FLOOR config; net-new governance).** There was no existing allowlist
-    setting — `aiProvider`/`aiModel` are the *selections* — so this ADDS a governance floor rather than migrating
-    a key. `lib/ai-allowlist` holds the `ai-provider-allowlist` config def resolved with the floor fold
-    (`resolveAiProviderAllowlist`), `aiProviderAllowed` (with `"none"`/AI-off always permitted), and
-    `sanitizeAiProviderAllowlist`. `routes/ai-allowlist` authors the ORG ceiling (admin PUT; lower scopes narrow
-    via their own imported config defs); the SELECTION gate lives in `routes/settings` — a `PATCH /settings` that
-    picks a provider outside the resolved allowlist is rejected 400 before the write. Route test covers GET/PUT +
-    the enforcement + "none"/unrestricted. **SPA ✅:** `ai-allowlist-api` hooks; the System-Configuration provider
-    picker filters its options to the resolved allowlist (keeping "none" + the current selection visible), and a
-    new `AiProviderAllowlistAdmin` panel (registered in `ADMIN_PANELS` + `SETTINGS_PANEL_KEYS`) authors the org
-    ceiling. Panel + helper + picker-filter tests green.
+  - **AI selection allowlists ✅ (FLOOR configs; net-new governance) — provider + model + STT.** There was no
+    existing allowlist setting — `aiProvider`/`aiModel`/`sttProvider` are the *selections* — so these ADD governance
+    floors rather than migrating keys. `lib/ai-allowlist` holds three config defs (`ai-provider-allowlist`,
+    `ai-model-allowlist`, `stt-provider-allowlist`), each resolved with the floor fold, with `aiProviderAllowed` /
+    `aiModelAllowed` / `sttProviderAllowed` (`"none"`/off and the empty/default model always permitted).
+    `routes/ai-allowlist` authors the ORG ceilings (admin PUT; lower scopes narrow via their own imported config
+    defs); the SELECTION gate lives in `routes/settings` — a `PATCH /settings` that picks a provider/model/STT
+    engine outside the resolved allowlist is rejected 400 before the write. Route test covers GET/PUT + the three
+    enforcement gates + off/default/unrestricted. **SPA ✅:** `ai-allowlist-api` hooks; the System-Configuration
+    provider + STT pickers filter to their allowlists (keeping off + the current value visible), the model input
+    becomes a dropdown of allowed models when restricted (free-text otherwise), and one `AiAllowlistsAdmin` panel
+    (registered in `ADMIN_PANELS` + `SETTINGS_PANEL_KEYS` as `aiAllowlists`) authors all three ceilings —
+    provider/STT as checkbox sets, models as a free-text list. Panel + helper + picker-filter tests green.
 
   **Phase C sensible-subset complete.** The floor gate (7a) + four security-key migrations (errorTelemetry,
-  loggingSync, historyRetention, selfHost) + the cross-scope floor resolver + the AI-provider allowlist floor are
-  in. The boot-time trust roots and the passkey/step-up security machinery stay in `SettingsState` by design
-  (documented above). Remaining optional polish: `aiModel`/`sttProvider` allowlists (same pattern) and the AI
-  allowlist SPA surface.
+  loggingSync, historyRetention, selfHost) + the cross-scope floor resolver + the AI provider/model/STT allowlist
+  floors (server enforcement + SPA) are all in. The boot-time trust roots and the passkey/step-up security
+  machinery stay in `SettingsState` by design (documented above). Phase C is done.
 
 ### Phase D — artifacts' template/schema layer (content stays sealed data, zero-at-rest)
 - **Slice 8 · schema families.** proof-annotation kinds, invoice-line schema, goal key-result kinds,

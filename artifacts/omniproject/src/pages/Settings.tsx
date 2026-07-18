@@ -15,7 +15,7 @@ import { settingsAnchorId } from "../lib/settings-panels";
 import { useToast } from "@/hooks/use-toast";
 import { fetchAiStatus, type AiStatus } from "../lib/ai";
 import { useSettingLocks } from "../lib/setting-locks";
-import { useAiProviderAllowlist, providerSelectable } from "../lib/ai-allowlist-api";
+import { useAiProviderAllowlist, useAiModelAllowlist, useSttProviderAllowlist, providerSelectable } from "../lib/ai-allowlist-api";
 import { SettingsPresetPicker } from "../components/settings/SettingsPresetPicker";
 import { fetchBackendIds } from "../lib/setup";
 import { PremiumAdmin } from "../components/PremiumAdmin";
@@ -45,7 +45,7 @@ import { UsageLimitsAdmin } from "../components/settings/UsageLimitsAdmin";
 import { GovernanceAdmin } from "../components/settings/GovernanceAdmin";
 import { ActionCatalogue } from "../components/settings/ActionCatalogue";
 import { AiProvidersAdmin } from "../components/settings/AiProvidersAdmin";
-import { AiProviderAllowlistAdmin } from "../components/settings/AiProviderAllowlistAdmin";
+import { AiAllowlistsAdmin } from "../components/settings/AiAllowlistsAdmin";
 import { GovernanceDashboard } from "../components/settings/GovernanceDashboard";
 import { DeploymentProfile } from "../components/settings/DeploymentProfile";
 import { FeatureModulesAdmin } from "../components/settings/FeatureModulesAdmin";
@@ -168,7 +168,7 @@ const ADMIN_PANELS: AdminPanel[] = [
   { key: "customRoles", Component: CustomRolesAdmin },
   { key: "defPolicy", Component: DefPolicyAdmin },
   { key: "aiProviders", Component: AiProvidersAdmin },
-  { key: "aiProviderAllowlist", Component: AiProviderAllowlistAdmin },
+  { key: "aiAllowlists", Component: AiAllowlistsAdmin },
   { key: "actionCatalogue", Component: ActionCatalogue },
   { key: "a11y", Component: A11yControls, wrap: "bare" },
   { key: "calendarPush", Component: CalendarPushConsent, wrap: "bare" },
@@ -201,9 +201,12 @@ export const ADMIN_PANEL_KEYS: string[] = ADMIN_PANELS.map((p) => p.key);
 export function Settings() {
   const { data: settings, isLoading, isError, error, refetch } = useGetSettings();
   const updateSettings = useUpdateSettings();
-  // AI provider allowlist (governance FLOOR, Phase C): the picker only offers providers the org permits
-  // (a lower scope may only narrow it). `null` = unrestricted. The server also rejects a forbidden selection.
+  // AI selection allowlists (governance FLOORS, Phase C): the pickers only offer providers / models / STT engines
+  // the org permits (a lower scope may only narrow it). `null` = unrestricted. The server also rejects a
+  // forbidden selection.
   const { data: aiAllowlist } = useAiProviderAllowlist();
+  const { data: aiModelAllowlist } = useAiModelAllowlist();
+  const { data: sttAllowlist } = useSttProviderAllowlist();
   // Command-palette jump: when the palette routed here targeting a panel, scroll it into view (once),
   // then clear the one-shot signal. A tick lets the (lazy) panels mount before we measure.
   const settingsJump = useStore((s) => s.settingsJump);
@@ -449,12 +452,28 @@ export function Settings() {
           {isAiSelected && (
             <div className="space-y-2">
               <label className="text-sm font-bold uppercase tracking-wider text-muted-foreground block">MODEL</label>
-              <Input
-                value={formData.aiModel}
-                onChange={(e) => setFormData((p) => ({ ...p, aiModel: e.target.value }))}
-                placeholder={AI_MODEL_HINT[formData.aiProvider] || "Default model"}
-                className="rounded-none border-border font-mono h-12"
-              />
+              {/* Free text when unrestricted; when the org restricts models, a dropdown of the allowed set
+                  (plus the provider-default "" option, and the current value if it's since been disallowed). */}
+              {aiModelAllowlist == null ? (
+                <Input
+                  value={formData.aiModel}
+                  onChange={(e) => setFormData((p) => ({ ...p, aiModel: e.target.value }))}
+                  placeholder={AI_MODEL_HINT[formData.aiProvider] || "Default model"}
+                  className="rounded-none border-border font-mono h-12"
+                />
+              ) : (
+                <Select
+                  value={formData.aiModel || "__default__"}
+                  onValueChange={(v) => setFormData((p) => ({ ...p, aiModel: v === "__default__" ? "" : v }))}
+                >
+                  <SelectTrigger className="rounded-none border-border h-12 font-mono"><SelectValue placeholder="Default model" /></SelectTrigger>
+                  <SelectContent className="rounded-none border-border font-mono">
+                    <SelectItem value="__default__">Default model</SelectItem>
+                    {[...aiModelAllowlist, ...(formData.aiModel && !aiModelAllowlist.includes(formData.aiModel) ? [formData.aiModel] : [])]
+                      .map((m) => <SelectItem key={m} value={m}>{m}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              )}
               <div className="flex items-center gap-3 pt-1">
                 <Button
                   type="button"
@@ -484,9 +503,14 @@ export function Settings() {
                 <SelectValue placeholder="Select engine" />
               </SelectTrigger>
               <SelectContent className="rounded-none border-border font-mono uppercase">
-                <SelectItem value="none">None</SelectItem>
-                <SelectItem value="browser">On-device — Browser (no egress)</SelectItem>
-                <SelectItem value="whisper">AI-assisted — Whisper</SelectItem>
+                {/* Filtered to the org's STT allowlist; "none" is always available, and the current value stays visible. */}
+                {[
+                  { id: "none", label: "None" },
+                  { id: "browser", label: "On-device — Browser (no egress)" },
+                  { id: "whisper", label: "AI-assisted — Whisper" },
+                ]
+                  .filter((o) => providerSelectable(o.id, sttAllowlist) || o.id === formData.sttProvider)
+                  .map((o) => <SelectItem key={o.id} value={o.id}>{o.label}</SelectItem>)}
               </SelectContent>
             </Select>
             <p className="text-xs text-muted-foreground">
