@@ -2,8 +2,8 @@ import { ReportEmpty } from "./ReportEmpty";
 import type { ReactNode } from "react";
 import { useMemo, useState } from "react";
 import { Link } from "wouter";
-import { useGetPortfolioHealth } from "@workspace/api-client-react";
-import { componentsFor } from "@workspace/backend-catalogue";
+import { useGetPortfolioHealth, useListProjects, useGetPortfolioFinancials, getGetPortfolioFinancialsQueryKey, useGetSettings } from "@workspace/api-client-react";
+import { componentsFor, currencyList } from "@workspace/backend-catalogue";
 import { buildExecHealth, execHeadline, type ExecException, type Rag } from "../../lib/exec-pack";
 import { resolveHealthDrills, type ResolvedDrillTo } from "../../lib/drill-to";
 import { useT } from "../../lib/i18n";
@@ -12,7 +12,7 @@ import { StatCard } from "./StatCard";
 import { SnapshotButton } from "./SnapshotControls";
 import { LibraryComponentView } from "../library/LibraryComponentView";
 import { resolveLibraryComponent } from "../../lib/component-library";
-import { usePortfolioFinancials } from "./use-portfolio-financials";
+import { useFxRates } from "../../lib/currency";
 
 /**
  * Executive / board reporting pack — one consolidated, board-ready view across the whole portfolio:
@@ -122,7 +122,18 @@ type ExceptionView = ExecException;
 
 export function ExecBoardPack() {
   const { formatCurrency } = useT();
-  const { projects, consolidated: financials, target, setReporting, options, projLoading, isError: projErr, error: projError, refetch, settings, fx } = usePortfolioFinancials();
+  const { data: projects, isLoading: projLoading, isError: projErr, error: projError, refetch } = useListProjects();
+  // Financials are consolidated SERVER-SIDE (GET /api/portfolio/financials); the reporting-currency
+  // select re-requests the endpoint. FX rates (picker options) + settings (footnote) are cheap reads.
+  const [currency, setCurrency] = useState("");
+  const finParams = currency ? { currency } : undefined;
+  const { data: finData } = useGetPortfolioFinancials(finParams, { query: { queryKey: getGetPortfolioFinancialsQueryKey(finParams), retry: false } });
+  const { data: fxRates } = useFxRates();
+  const { data: settings } = useGetSettings();
+  const target = finData?.reportingCurrency ?? "";
+  const setReporting = setCurrency;
+  const options = currencyList(fxRates?.rates);
+  const fx = finData?.fx ?? null;
   const health = useGetPortfolioHealth();
   // Extra library components chosen for THIS board pack, on top of the fixed sections below —
   // componentsFor("export") is the same unified library the Reports page + dashboards draw from.
@@ -139,13 +150,13 @@ export function ExecBoardPack() {
   const money = (n: number) => formatCurrency(n, target);
   const programmeCount = new Set((projects ?? []).map((p) => p.programmeId ?? p.id)).size;
   const hasData = execHealth.total > 0;
-  const fin = financials.portfolio;
-  const hasFinancials = fin.projects > 0;
+  const fin = finData?.portfolio ?? null;
+  const hasFinancials = !!fin && fin.projects > 0;
 
   const snapshotData = {
     asOf: fx?.asOf ?? null, reportingCurrency: target, fxRatePolicy: settings?.fxRatePolicy ?? "spot",
     health: { rag: execHealth.rag, atRiskPct: execHealth.atRiskPct, totalBlockers: execHealth.totalBlockers, worstSlipDays: execHealth.worstSlipDays },
-    financials: hasFinancials ? { budget: fin.budget, actual: fin.actual, forecast: fin.forecast, variance: fin.variance } : null,
+    financials: hasFinancials && fin ? { budget: fin.budget, actual: fin.actual, forecast: fin.forecast, variance: fin.variance } : null,
     exceptions: execHealth.exceptions,
     // Which extra library components were chosen for THIS pack (id + label only — their own figures
     // aren't reduced to JSON here; they render live below and are captured by their own export path).
@@ -167,7 +178,7 @@ export function ExecBoardPack() {
                 <label className="text-xs flex items-center gap-1">
                   <span className="text-muted-foreground">Reporting currency</span>
                   <select aria-label="Reporting currency" className="rounded-none border-2 border-foreground bg-background px-2 py-1 text-xs font-mono"
-                    value={target} onChange={(e) => setReporting(e.target.value)}>
+                    value={currency || target} onChange={(e) => setReporting(e.target.value)}>
                     {options.map((c) => <option key={c} value={c}>{c}</option>)}
                   </select>
                 </label>
