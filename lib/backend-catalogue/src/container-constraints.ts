@@ -1,5 +1,6 @@
 import type { DefConstraint } from "./def-constraints";
 import { FORM_AGGREGATING_TARGETS } from "./form-catalogue";
+import { validateFormFields } from "./field-primitive-catalogue";
 
 /**
  * KIND-ROOT CONSTRAINTS — the container-primitive floors that bind a WHOLE kind, expressed as declarative data
@@ -17,6 +18,7 @@ export const FORM_CONTAINER_CONSTRAINTS: DefConstraint[] = [
   { id: "form-min-fields", kind: "floor", type: "cardinality", path: "fields", min: 1, message: "a form needs at least one field" },
   { id: "form-one-title", kind: "floor", type: "cardinality", path: "fields", where: { field: "mapTo", eq: "title" }, min: 1, max: 1, message: 'a form must have exactly one field mapping to "title"' },
   { id: "form-unique-targets", kind: "floor", type: "unique", path: "fields", field: "mapTo", except: [...FORM_AGGREGATING_TARGETS], message: "each field must map to a distinct target (only description/labels may be shared)" },
+  { id: "form-unique-keys", kind: "floor", type: "unique", path: "fields", field: "key", message: "field keys must be unique" },
 ];
 
 /**
@@ -26,4 +28,16 @@ export const FORM_CONTAINER_CONSTRAINTS: DefConstraint[] = [
  */
 export function kindRootConstraints(kind: string): DefConstraint[] {
   return kind === "form" ? FORM_CONTAINER_CONSTRAINTS : [];
+}
+
+/**
+ * The PER-ELEMENT validation for a kind whose children are primitive instances — beyond the container floors,
+ * each child is validated against its own primitive. For a `form` that's each `fields[]` entry against its field
+ * primitive (type known, required params present, the inherited `mapTo` allow-list floor, choice options). Run on
+ * the COMPOSED whole at import and on the RESOLVED def at submission — the single engine-owned per-field check
+ * that lets the monolithic form validator retire without losing the allow-list. Empty for kinds with no
+ * primitive-instance children.
+ */
+export function kindElementErrors(kind: string, def: Record<string, unknown>): string[] {
+  return kind === "form" ? validateFormFields(def["fields"]) : [];
 }

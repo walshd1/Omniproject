@@ -83,6 +83,33 @@ test("a unique rule with no keying field is rejected as malformed", () => {
   assert.equal(coerceConstraint({ id: "u", kind: "floor", type: "unique", path: "fields" }), null);
 });
 
+test("enum: value must be in the allowed set; absent is skipped (presence is enforced elsewhere)", () => {
+  const c = { id: "maptarget", kind: "floor", type: "enum", path: "mapTo", values: ["title", "description"] };
+  const { effective } = foldConstraints([[c]]);
+  assert.deepEqual(evaluateConstraints({ mapTo: "title" }, effective), []);
+  assert.equal(evaluateConstraints({ mapTo: "secretField" }, effective).length, 1);
+  assert.deepEqual(evaluateConstraints({}, effective), []); // absent → not this rule's job
+  assert.equal(coerceConstraint({ id: "e", kind: "floor", type: "enum", path: "mapTo" }), null); // no values → malformed
+});
+
+test("enum floor: a descendant may SHRINK the allowed set but not ADD to it", () => {
+  const base = { id: "maptarget", kind: "floor", type: "enum", path: "mapTo", values: ["title", "description", "priority"] };
+  const shrink = { id: "maptarget", kind: "floor", type: "enum", path: "mapTo", values: ["title"] };
+  assert.deepEqual(foldConstraints([[base], [shrink]]).errors, []);
+  const grow = { id: "maptarget", kind: "floor", type: "enum", path: "mapTo", values: ["title", "assignee"] };
+  const g = foldConstraints([[base], [grow]]);
+  assert.equal(g.errors.length, 1);
+  assert.match(g.errors[0]!, /relax floor|branch above/);
+});
+
+test("bound skips an ABSENT optional value (only bites when present)", () => {
+  const c = { id: "cap", kind: "policy", type: "bound", path: "maxLength", min: 1 };
+  const { effective } = foldConstraints([[c]]);
+  assert.deepEqual(evaluateConstraints({}, effective), []);            // no maxLength → fine
+  assert.deepEqual(evaluateConstraints({ maxLength: 200 }, effective), []);
+  assert.equal(evaluateConstraints({ maxLength: 0 }, effective).length, 1); // present + invalid → bites
+});
+
 test("composedConstraintErrors folds a lineage and evaluates the whole in one call", () => {
   // root introduces the title floor + value cap; leaf tightens the cap and satisfies both.
   const root = [cardTitle, capValue];

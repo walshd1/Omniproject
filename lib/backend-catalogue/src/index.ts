@@ -28,6 +28,7 @@ export * from "./methodology-rulesets";
 export * from "./drill-to";
 export * from "./def-compose";
 export * from "./def-constraints";
+export * from "./field-primitive-catalogue";
 export * from "./container-constraints";
 export * from "./def-refs";
 export * from "./report-catalogue";

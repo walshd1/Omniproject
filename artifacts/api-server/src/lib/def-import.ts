@@ -18,7 +18,7 @@ import { validateScreenDefs } from "./screen-def";
 import { validateForms } from "./form-def";
 import { sanitizeMapping } from "./mapping";
 import { validateCustomFieldDef } from "./custom-fields";
-import { validatePrimitiveDef, shippedDefRefs, shippedDefs, extendsLineage, composeExtends, composedConstraintErrors, kindRootConstraints } from "@workspace/backend-catalogue";
+import { validatePrimitiveDef, shippedDefRefs, shippedDefs, extendsLineage, composeExtends, composedConstraintErrors, kindRootConstraints, kindElementErrors } from "@workspace/backend-catalogue";
 
 /** A user-definable JSON kind the importer accepts. */
 export type DefKind = "primitive" | "screen" | "form" | "report" | "dashboard" | "businessRule" | "methodology" | "mapping" | "customField" | "theme" | "font" | "jsonDef";
@@ -357,6 +357,9 @@ function composedValidity(kind: DefKind, id: string, byId: Map<string, Record<st
     perNode.push(p && Array.isArray(p["constraints"]) ? (p["constraints"] as unknown[]) : []);
   }
   errors.push(...composedConstraintErrors(flat, perNode));
+  // Per-element validation: each primitive-instance child (a form's fields) validated against its own primitive
+  // — type known, required params present, the inherited `mapTo` allow-list floor, choice options.
+  errors.push(...kindElementErrors(kind, flat));
   return errors.length ? errors.join("; ") : null;
 }
 

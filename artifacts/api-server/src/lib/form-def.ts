@@ -8,7 +8,7 @@
  * Same "JSON def in the encrypted config store, rendered by a generic primitive" pattern as screen defs and
  * the RACI / stakeholder registers.
  */
-import { ISSUE_WRITE_TARGETS, FORM_FIELD_TYPES, LIKERT_DEFAULT_OPTIONS, ADDRESS_SUBFIELDS, FORM_CONTAINER_CONSTRAINTS, evaluateConstraints, type FormDefinition, type FormFieldDef, type FormFieldType, type FormTargetDef } from "@workspace/backend-catalogue";
+import { ISSUE_WRITE_TARGETS, FORM_FIELD_TYPES, LIKERT_DEFAULT_OPTIONS, ADDRESS_SUBFIELDS, FORM_CONTAINER_CONSTRAINTS, evaluateConstraints, validateFormFields, type FormDefinition, type FormFieldDef, type FormFieldType, type FormTargetDef } from "@workspace/backend-catalogue";
 
 export class FormDefError extends Error {
   constructor(message: string) { super(message); this.name = "FormDefError"; }
@@ -123,7 +123,10 @@ export function validateForms(value: unknown): FormDef[] {
  * (types / options / required) stays in `validateSubmission`.
  */
 export function formContainerErrors(def: FormDef): string[] {
-  return evaluateConstraints(def as unknown as Record<string, unknown>, FORM_CONTAINER_CONSTRAINTS);
+  return [
+    ...evaluateConstraints(def as unknown as Record<string, unknown>, FORM_CONTAINER_CONSTRAINTS),
+    ...validateFormFields((def as unknown as Record<string, unknown>)["fields"]),
+  ];
 }
 
 /**
