@@ -126,6 +126,10 @@ export const ISSUE_WRITE_TARGETS = [
   "storyPoints", "estimateHours", "budget", "impact", "urgency", "riskLevel", "healthStatus",
 ] as const;
 
+/** The targets that AGGREGATE several fields (many-to-one) — every other target is scalar (one field each).
+ *  Single source of truth for the form uniqueness rule (the `except` set of its unique constraint). */
+export const FORM_AGGREGATING_TARGETS = ["description", "labels"] as const;
+
 const byId = new Map(FORMS.map((f) => [f.id, f]));
 
 /** One form template by id, or undefined. */

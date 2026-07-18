@@ -18,7 +18,7 @@ import { validateScreenDefs } from "./screen-def";
 import { validateForms } from "./form-def";
 import { sanitizeMapping } from "./mapping";
 import { validateCustomFieldDef } from "./custom-fields";
-import { validatePrimitiveDef, shippedDefRefs, shippedDefs, extendsLineage, composeExtends, composedConstraintErrors } from "@workspace/backend-catalogue";
+import { validatePrimitiveDef, shippedDefRefs, shippedDefs, extendsLineage, composeExtends, composedConstraintErrors, kindRootConstraints } from "@workspace/backend-catalogue";
 
 /** A user-definable JSON kind the importer accepts. */
 export type DefKind = "primitive" | "screen" | "form" | "report" | "dashboard" | "businessRule" | "methodology" | "mapping" | "customField" | "theme" | "font" | "jsonDef";
@@ -344,11 +344,13 @@ function composedValidity(kind: DefKind, id: string, byId: Map<string, Record<st
   const errors: string[] = [];
   const check = validateDef(kind, flat);
   if (!check.ok) errors.push(...check.errors);
-  // The constraints introduced at each node of the lineage (ROOT → leaf), evaluated against the composed whole.
-  const perNode = [...composed.lineage].reverse().map((cid) => {
+  // The constraints binding this def, ROOT → leaf: the kind's implicit container floors (bind the whole kind),
+  // then those introduced at each node of its extends lineage. Evaluated against the composed whole.
+  const perNode: unknown[][] = [kindRootConstraints(kind)];
+  for (const cid of [...composed.lineage].reverse()) {
     const p = byId.get(cid);
-    return p && Array.isArray(p["constraints"]) ? (p["constraints"] as unknown[]) : [];
-  });
+    perNode.push(p && Array.isArray(p["constraints"]) ? (p["constraints"] as unknown[]) : []);
+  }
   errors.push(...composedConstraintErrors(flat, perNode));
   return errors.length ? errors.join("; ") : null;
 }

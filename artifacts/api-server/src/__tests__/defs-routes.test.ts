@@ -265,6 +265,39 @@ test("CONSTRAINTS: floors are inherited + tighten-only, policy is relaxable — 
   assert.equal((await req("/defs", { method: "POST", body: { kind: "jsonDef", storage: "user", name: "Tighten", payload: tighten } })).status, 201);
 });
 
+test("FORM container floors are engine-enforced: a fork may compose but may NOT relax exactly-one-title", async () => {
+  const base = {
+    id: "bf-req", label: "Base request", target: { kind: "issue" },
+    fields: [
+      { key: "summary", label: "Summary", type: "text", mapTo: "title", required: true },
+      { key: "details", label: "Details", type: "textarea", mapTo: "description" },
+    ],
+  };
+  assert.equal((await req("/defs", { method: "POST", body: { kind: "form", storage: "user", name: "Base", payload: base } })).status, 201);
+
+  // A complete, valid fork composes fine → 201.
+  const okFork = {
+    id: "ff-ok", label: "Fork", extends: "bf-req", target: { kind: "issue" },
+    fields: [
+      { key: "summary", label: "Summary", type: "text", mapTo: "title", required: true },
+      { key: "prio", label: "Priority", type: "select", mapTo: "priority", options: ["low", "high"] },
+    ],
+  };
+  assert.equal((await req("/defs", { method: "POST", body: { kind: "form", storage: "user", name: "OK fork", payload: okFork } })).status, 201);
+
+  // A fork that re-declares the container floor to allow TWO titles is rejected — a floor is tighten-only, you
+  // must branch above the form container to escape it. (The fork is itself a valid single-title form, so this
+  // isolates the engine floor-protection, not a per-field check.)
+  const relaxFork = {
+    id: "ff-relax", label: "Relax fork", extends: "bf-req", target: { kind: "issue" },
+    fields: [{ key: "summary", label: "Summary", type: "text", mapTo: "title", required: true }],
+    constraints: [{ id: "form-one-title", kind: "floor", type: "cardinality", path: "fields", where: { field: "mapTo", eq: "title" }, min: 1, max: 2 }],
+  };
+  const bad = await req("/defs", { method: "POST", body: { kind: "form", storage: "user", name: "Relax fork", payload: relaxFork } });
+  assert.equal(bad.status, 400);
+  assert.match(((await bad.json()) as { error: string }).error, /relax floor|branch above/);
+});
+
 test("DELETE is BLOCKED (409) when another def is built on the target, then succeeds once the dependant is gone", async () => {
   const root = { id: "del-root", label: "DelRoot", category: "chart", chartType: "bar", description: "d", params: [{ key: "data", label: "Rows", type: "rows", required: true, description: "d" }] };
   const rootRow = (await (await req("/defs", { method: "POST", body: { kind: "primitive", storage: "user", name: "DelRoot", payload: root } })).json()) as { id: string };
