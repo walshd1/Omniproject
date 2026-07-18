@@ -76,6 +76,36 @@ export function resolveConfig<T>(configId: string, base: T, scopes: ConfigScopes
   return resolveScopedConfig(base, configDefLayers(configId, scopes));
 }
 
+// ── Cross-scope FLOOR resolution (roadmap Phase C — "a lower scope may only TIGHTEN") ─────────────────────────
+// The default scope fold (`resolveScopedConfig`) lets a nearer scope OVERRIDE a broader one either way. A FLOOR
+// config is different: the org sets the ceiling and a lower scope (programme/project/user) may only RESTRICT it
+// FURTHER, never loosen it — a project can drop an allowed AI provider the org permits, but can't add one the
+// org forbade. `resolveFloorConfig` folds base→leaf clamping each child to be no looser than the accumulator via
+// a `tighten(parent, child)` step; the topmost (org) layer sets the ceiling and every lower layer can only lower
+// it. Pure, and independent of any specific key so any floor config reuses it.
+
+/** Fold `base` then every `layer`, base→leaf, clamping each layer to be no looser than what it inherits via
+ *  `tighten(parent, child)` (which returns the child narrowed to the parent's ceiling). */
+export function resolveFloorConfig<T>(base: T, layers: ReadonlyArray<T>, tighten: (parent: T, child: T) => T): T {
+  let acc = base;
+  for (const layer of layers) acc = tighten(acc, layer);
+  return acc;
+}
+
+/**
+ * The FLOOR tighten step for an ALLOWLIST (a set of permitted ids, or `null` = "no restriction / allow all").
+ *   - parent `null` (allow-all) → the child stands as the new ceiling (the org, or a higher scope, opened it up);
+ *   - child `null` (this scope adds no restriction) → inherit the parent unchanged;
+ *   - both present → INTERSECTION: the child keeps only ids the parent already allowed (it can drop, never add).
+ * So a lower scope can only ever NARROW the allowed set. Order-preserving on the surviving ids.
+ */
+export function tightenAllowlist(parent: readonly string[] | null, child: readonly string[] | null): string[] | null {
+  if (child == null) return parent == null ? null : [...parent];
+  if (parent == null) return [...child];
+  const allowed = new Set(parent);
+  return child.filter((id) => allowed.has(id));
+}
+
 // ── Config-def-backed "collection" (the settings-collection migration vehicle) ───────────────────────────────
 // A settings-collection field (an array/object like `hiddenFields`, `savedViews`, `raci`, …) becomes a config
 // def whose `values` wraps the collection under a single `value` key (so an array collection still fits the

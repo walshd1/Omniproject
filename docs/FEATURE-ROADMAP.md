@@ -2315,9 +2315,27 @@ settings key/classification) plus a store-enabled route test.
     `featureGovernance`, `governanceRules` are the security MACHINERY itself (dedicated passkey/step-up routes,
     fail-closed governance controls) — not "choices with a floor". Roadmap "session controls" has no concrete
     settings keys. These stay in `SettingsState`.
-  - **Cross-scope FLOOR semantics (NEXT).** A lower scope may only TIGHTEN (a project restricts further, never
-    loosens the org egress allow-list) — folded into the scope resolver, so a security config def's lower-scope
-    layer can only narrow the org's.
+  - **Cross-scope FLOOR resolver ✅ (the "lower scope may only TIGHTEN" mechanism).** `lib/scoped-config` gained
+    `resolveFloorConfig(base, layers, tighten)` — folds scope layers base→leaf clamping each to be no looser than
+    what it inherits, so the org sets the ceiling and every lower scope can only restrict further — plus
+    `tightenAllowlist` (the allowlist tighten step: `null` = no restriction; both present ⇒ intersection, so a
+    lower scope can drop an allowed id but never add a forbidden one). Distinct from the default nearest-wins
+    `resolveScopedConfig`. Unit-tested (intersection, widen-is-a-no-op, null inheritance).
+  - **AI provider allowlist ✅ (first FLOOR config; net-new governance).** There was no existing allowlist
+    setting — `aiProvider`/`aiModel` are the *selections* — so this ADDS a governance floor rather than migrating
+    a key. `lib/ai-allowlist` holds the `ai-provider-allowlist` config def resolved with the floor fold
+    (`resolveAiProviderAllowlist`), `aiProviderAllowed` (with `"none"`/AI-off always permitted), and
+    `sanitizeAiProviderAllowlist`. `routes/ai-allowlist` authors the ORG ceiling (admin PUT; lower scopes narrow
+    via their own imported config defs); the SELECTION gate lives in `routes/settings` — a `PATCH /settings` that
+    picks a provider outside the resolved allowlist is rejected 400 before the write. Route test covers GET/PUT +
+    the enforcement + "none"/unrestricted. **SPA follow-up (noted):** filter the provider picker to the resolved
+    allowlist + an admin authoring panel — server enforcement is already authoritative, so this is UX only.
+
+  **Phase C sensible-subset complete.** The floor gate (7a) + four security-key migrations (errorTelemetry,
+  loggingSync, historyRetention, selfHost) + the cross-scope floor resolver + the AI-provider allowlist floor are
+  in. The boot-time trust roots and the passkey/step-up security machinery stay in `SettingsState` by design
+  (documented above). Remaining optional polish: `aiModel`/`sttProvider` allowlists (same pattern) and the AI
+  allowlist SPA surface.
 
 ### Phase D — artifacts' template/schema layer (content stays sealed data, zero-at-rest)
 - **Slice 8 · schema families.** proof-annotation kinds, invoice-line schema, goal key-result kinds,

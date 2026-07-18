@@ -7,6 +7,7 @@ import { captureVersion } from "../lib/config-store";
 import { resetBroker } from "../broker";
 import { getSession } from "./auth";
 import { applySettingsGuarded } from "../lib/settings-guard";
+import { aiProviderAllowed } from "../lib/ai-allowlist";
 
 /**
  * Gateway-local settings (the broker URL, AI provider, …). Control-plane, never
@@ -57,6 +58,12 @@ router.patch("/settings", requireRole("admin"), async (req, res) => {
       res.status(400).json({ error: `${key} is managed via ${STEP_UP_ONLY_KEYS[key]} (step-up required), not PATCH /settings` });
       return;
     }
+  }
+  // FLOOR gate (§0, roadmap Phase C): the selected AI provider must be within the org's `ai-provider-allowlist`
+  // (a lower scope may only narrow it). "none" (AI off) is always allowed. Rejected before the write.
+  if ("aiProvider" in body && typeof body["aiProvider"] === "string" && !aiProviderAllowed(body["aiProvider"])) {
+    res.status(400).json({ error: `AI provider "${body["aiProvider"]}" is not permitted by this deployment's AI provider allowlist` });
+    return;
   }
   try {
     const before = getSettings().backendSource;
