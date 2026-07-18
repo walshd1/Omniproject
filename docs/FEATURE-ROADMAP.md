@@ -1787,7 +1787,7 @@ multi-tenancy → managed offering (§5.4).
 - ✳ **Interactive Gantt dependency editing** — dependency arrows, link create/edit, bar-resize handles,
   critical-path overlay ON the timeline. *Note: cascade-reschedule (move a bar + every dependent it pushes)
   already ships (`lib/cascade-reschedule`, `gantt-cascade-toggle`); the four named interactions are the gap.*
-  Blocked further on the `dependsOn[]` contract entity (§5.5). Extends §4.10.
+  Now unblocked by the durable `dependencies` slot (§5.5) — the create/edit/delete hooks exist. Extends §4.10.
 - ✳ **Kanban swimlanes + WIP-limit enforcement** — swimlane grouping (assignee/epic/priority) + board-level
   `wipLimit` enforcement (the methodology packs already declare the concept).
 - ⚠ **Binary attachments** — filename+URL references only today (zero-at-rest by design). State-respecting path:
@@ -1842,36 +1842,33 @@ multi-tenancy → managed offering (§5.4).
   audit-chain head, presence rooms, **the 200-entry governance log — flagged compliance gap**) onto the existing
   Redis/file-backed shared-state seam. Cross-refs TECH-DEBT §2.
 
-### 5.5 Domain-model entities in the contract (bar: B1 / B2)
-The single highest-leverage contract change — four concepts that are vocabulary strings today, not entities:
-- 🚧 **Explicit dependency graph (`dependsOn[]`)** — readable/writable edges through the broker. **The review's
-  #2 priority:** one addition unlocks interactive Gantt links, network diagrams, true critical path on live
-  data, and cascade-reschedule.
-  - **Slice 1 ✅ (brokered edges).** `DependencyLink {fromId, toId, kind: blocks|depends_on|relates_to, note?}`
-    on the `Broker` contract (`listDependencies`/`writeDependency`/`removeDependency`, capability-gated, guarded);
-    `GET/POST/DELETE /projects/:projectId/dependencies` (read project-scope-gated, write/delete contributor+,
-    audited); demo broker fixtures. Zero-at-rest — only id→id/kind crosses the seam, never item content.
-  - **Slice 2 ✅ (sidecar fallback).** `lib/dependency-sidecar` — AES-256-GCM sealed per-project edge store, the
-    built-in home for backends that front no native link API. The three routes prefer the broker method and fall
-    back to the sealed store (write/delete 501 only when the store is off), idempotent on from·kind·to.
-  - **Slice 3 ✅ (SPA consumes durable edges).** `lib/project-dependencies` — `useProjectDependencies(projectId)`
-    fetches `GET /api/projects/:id/dependencies` and `brokeredToScheduleEdges` adapts each `{fromId,toId,kind}`
-    link into the SAME `DependencyEdge` shape the schedulers already consume. Critical Path, the auto-schedule
-    forecast, and the Gantt drag-cascade now MERGE durable brokered edges (SoR-provided or sidecar) with the
-    browser-volatile overlay — so live CPM + cascade run on real precedence, not just this session's ad-hoc links.
-    Write/remove mutation hooks (`useWriteProjectDependency`/`useRemoveProjectDependency`) are ready for a UI.
-  - **Next (slice 4):** an in-project link editor (create/delete durable edges from the Gantt/board) + the
-    network-diagram view. Sprints/epics/milestones as entities (below) are the sibling contract additions.
-- 🚧 **Sprints / iterations as entities** — open/close/carry-over, sprint goals, real velocity history (derived from labels/fields today).
-  - **Slice 1 ✅ (brokered sprints).** `Sprint {id, name, goal?, startDate?, endDate?, state: planned|active|closed,
-    itemIds[]}` on the `Broker` contract (`listSprints`/`writeSprint`/`removeSprint`, capability-gated, guarded);
-    `GET /projects/:id/sprints`, `POST /projects/:id/sprints` (upsert by id), `DELETE /projects/:id/sprints/:sprintId`
-    (read project-scope-gated, write/delete contributor+, audited); demo broker fixtures (one active + one planned).
-    Zero-at-rest — a sprint carries its own metadata + member ids, never item content.
-  - **Next:** sidecar fallback (backends without native sprints, mirroring the dependency graph's slice 2); then
-    the SPA sprint board + velocity/burndown on real membership.
-- ✳ **Epics / work-item hierarchy** — epic→story→subtask in the contract (`parentTaskId` on GTD tasks only today).
-- ✳ **Milestones & baselines as entities** — versioned baselines + variance-to-baseline over time (`baseline()` read exists; milestones are date fields).
+### 5.5 Domain-model entities — DEFS over the generic slot surface, NOT engine code (bar: B1 / B2)
+**Architecture correction (this session).** These are *not* bespoke `Broker` entities with their own PUT
+methods — that would bake a methodology (agile) into the engine and duplicate the generic mapping/sidecar
+surface. Each is a **row in a generic mapping slot** (`GET /mapping/:slot/rows`, `PUT`/`DELETE /mapping/:slot/:rowId`)
+plus, where it has a UI, a screen/report **def** authored through the importer. The engine stays methodology-neutral.
+- 🚧 **Explicit dependency graph** — durable directed edges. **The review's #2 priority:** unlocks interactive
+  Gantt links, network diagrams, true critical path on live data, and cascade-reschedule.
+  - **✅ Generic-slot model.** A dependency edge is a row in the shipped `dependencies` mapping slot
+    (`{fromId, toId, kind: blocks|depends_on|relates_to, note?}`, id = composite `from·kind·to`), homed on the
+    built-in sidecar by default (an admin can remap any field to a backend's native link API). CRUD via the SAME
+    generic surface every slot uses; the one enabling addition was a generic **row DELETE**
+    (`DELETE /mapping/:slot/:rowId` + `removeSidecarRow`) that completes read/upsert/delete for *all* slots.
+    No `dependsOn[]` on the `Broker` contract, no `/dependencies` routes — those were removed. Zero-at-rest.
+  - **✅ SPA consumes durable edges.** `lib/project-dependencies` reads `GET /api/projects/:id/mapping/dependencies/rows`
+    and adapts each row into the `DependencyEdge` shape the schedulers already consume. Critical Path, the
+    auto-schedule forecast, and the Gantt drag-cascade MERGE the durable slot rows with the browser-volatile
+    overlay — live CPM + cascade run on real precedence. Write/remove hooks PUT/DELETE through the generic slot.
+  - **Next:** an in-project link editor (create/delete edges from the Gantt/board — the hooks exist) + the
+    network-diagram view.
+- ✳ **Sprints / iterations** — a `sprints` mapping slot (`{id, name, goal, startDate, endDate, state, itemIds}`)
+  + a sprint-board screen def + a velocity/burndown report def, all authored through the importer (agile-only,
+  loosely coupled). No engine entity. (A bespoke `Sprint` broker entity was prototyped, then reverted in favour
+  of this def-based model.)
+- ✳ **Epics / work-item hierarchy** — a `parentId` field/relationship on the work-item mapping (epic→story→subtask),
+  authored as a def; no new contract entity.
+- ✳ **Milestones & baselines** — a `milestones` mapping slot + the existing `baseline()` read; variance-to-baseline
+  is a report def.
 - ✳ **Per-entry worklog model** — time tracking is aggregate `loggedHours` + timesheets; no per-entry worklog.
 - 🔌 **Live FX feed** — the fallback rate table is `provenance: "sample"`; broker a live FX source (ENTERPRISE-READINESS roadmap #1).
 
@@ -2070,7 +2067,7 @@ external infrastructure a CI sandbox can't reach (so they are execution/attestat
 - _2026-07-17_ — **Phase 5 added — SOTA parity gaps (July 2026 review):** captured everything possible-but-
   not-done from `docs/archive/reviews/SOTA-PARITY-2026-07.md` (five gap clusters + proof) plus the field-
   mapping last mile — §5.1 collaboration UX, §5.2 AI capability half, §5.3 in-product automation, §5.4 platform
-  plumbing, §5.5 domain-model entities (`dependsOn[]` the #2 priority), §5.6 proof (external verification).
+  plumbing, §5.5 domain-model entities (the dependency graph the #2 priority — now a generic slot, not a contract entity), §5.6 proof (external verification).
   Disposition-tagged; the review's closing sequence recorded. Also logged: the exploration replica-workbench
   dirty-flag data-loss bug is FIXED (per-source dirty tracking, commit `f565521`).
 - _2026-07-17_ — **Phase 5 reconciled against the code.** A read-audit of all 27 parity-review gap claims found

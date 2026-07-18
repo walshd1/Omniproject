@@ -5,7 +5,7 @@ import { getGetProjectIssuesQueryKey, type Issue } from "@workspace/api-client-r
 import type { DependencyEdge, DependencyType } from "../../lib/dependencies";
 import { renderWithProviders } from "../../test/utils";
 import { CriticalPath, durationDays, toCpmEdges } from "./CriticalPath";
-import { projectDependenciesQueryKey, type BrokeredDependency } from "../../lib/project-dependencies";
+import { projectDependenciesQueryKey, type DependencyRow } from "../../lib/project-dependencies";
 
 function issue(over: Partial<Issue> = {}): Issue {
   return { id: "i", projectId: "p1", title: "Task", status: "todo", priority: "high", labels: [], source: "jira", ...over } as Issue;
@@ -86,11 +86,11 @@ describe("CriticalPath", () => {
     expect(screen.getByTestId("cpm-cycle")).toBeInTheDocument();
   });
 
-  it("derives the chain from the durable brokered graph when no edges prop is supplied (§5.5 slice 3)", () => {
-    // Seed the brokered-dependencies query (raw {fromId,toId,kind}) — the component adapts + merges it.
+  it("derives the chain from the durable dependencies slot when no edges prop is supplied (§5.5)", () => {
+    // Seed the generic dependencies-slot rows query ({fromId,toId,kind}) — the component adapts + merges it.
     const client = seed(issues);
-    const brokered: BrokeredDependency[] = [{ fromId: "a", toId: "b", kind: "blocks" }, { fromId: "b", toId: "c", kind: "blocks" }];
-    client.setQueryData(projectDependenciesQueryKey("p1"), { edges: brokered });
+    const rows: DependencyRow[] = [{ fromId: "a", toId: "b", kind: "blocks" }, { fromId: "b", toId: "c", kind: "blocks" }];
+    client.setQueryData(projectDependenciesQueryKey("p1"), { rows });
     renderWithProviders(<CriticalPath projectId="p1" />, { client });
     expect(screen.getByTestId("cpm-duration")).toHaveTextContent("8");
     const chain = screen.getByTestId("cpm-chain");

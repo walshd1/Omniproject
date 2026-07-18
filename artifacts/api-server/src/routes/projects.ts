@@ -22,7 +22,7 @@ import {
   CreateTaskItemBody,
   ListProjectMembersParams,
 } from "@workspace/api-zod";
-import { getBroker, contextFromReq, withBrokerErrors, type Sprint } from "../broker";
+import { getBroker, contextFromReq, withBrokerErrors } from "../broker";
 import { resolveCapabilities } from "../lib/capabilities";
 import { validateEntityInput, type FieldDescriptor } from "../lib/field-registry";
 import { getSettings, updateSettings } from "../lib/settings";
@@ -39,8 +39,7 @@ import { planWbsWrite } from "../lib/wbs-write";
 import { artifactStoreEnabled } from "../lib/artifact-store";
 import { resolveMapping } from "../lib/mapping-resolve";
 import { projectMappingRows, planMappingWrite, resolveMappingTargets } from "../lib/mapping";
-import { getSidecarRows, upsertSidecarRow } from "../lib/mapping-sidecar";
-import { getSidecarDependencies, upsertSidecarDependency, removeSidecarDependency } from "../lib/dependency-sidecar";
+import { getSidecarRows, upsertSidecarRow, removeSidecarRow } from "../lib/mapping-sidecar";
 import { resolveLiveSuperset } from "../lib/capabilities";
 import { deriveMappingValidation } from "../lib/superset";
 import { poolMap } from "../lib/concurrency-pool";
@@ -581,141 +580,6 @@ router.get("/projects/:projectId/wbs/:wbsId/financials", async (req, res) => {
   }, { projectId });
 });
 
-// ── Dependency graph (roadmap §5.5) — directed edges between work items, brokered from the SoR (zero-at-rest:
-//    only id→id relationships, never item content). Read is project-scope-gated; write/delete are contributor+.
-const DEP_KINDS = new Set(["blocks", "depends_on", "relates_to"]);
-/** Validate a dependency-edge write body: two non-empty ids, a known kind, an optional short note. */
-function sanitizeDependency(body: unknown): { fromId: string; toId: string; kind: "blocks" | "depends_on" | "relates_to"; note?: string } | null {
-  const b = (body ?? {}) as Record<string, unknown>;
-  const fromId = typeof b["fromId"] === "string" ? b["fromId"].trim() : "";
-  const toId = typeof b["toId"] === "string" ? b["toId"].trim() : "";
-  const kind = typeof b["kind"] === "string" ? b["kind"] : "";
-  if (!fromId || !toId || fromId === toId || !DEP_KINDS.has(kind)) return null;
-  const note = typeof b["note"] === "string" ? b["note"].slice(0, 280) : undefined;
-  return { fromId, toId, kind: kind as "blocks" | "depends_on" | "relates_to", ...(note ? { note } : {}) };
-}
-
-router.get("/projects/:projectId/dependencies", async (req, res) => {
-  const params = parseRouteParams(GetProjectSummaryParams, req, res, "Invalid project id");
-  if (!params) return;
-  const { projectId } = params;
-  await withBrokerErrors(req, res, "list_dependencies failed", async () => {
-    if (!(await guardProjectScope(req, res, projectId))) return;
-    const broker = getBroker();
-    // Prefer the backend's own link API; fall back to our sealed sidecar (the built-in home) when it fronts none.
-    const edges = broker.listDependencies
-      ? await broker.listDependencies(contextFromReq(req), projectId)
-      : getSidecarDependencies(projectId);
-    res.json({ edges });
-  }, { projectId });
-});
-
-router.post("/projects/:projectId/dependencies", requireRole("contributor"), async (req, res) => {
-  const params = parseRouteParams(GetProjectSummaryParams, req, res, "Invalid project id");
-  if (!params) return;
-  const { projectId } = params;
-  await withBrokerErrors(req, res, "write_dependency failed", async () => {
-    if (!(await guardProjectScope(req, res, projectId))) return;
-    const link = sanitizeDependency(req.body);
-    if (!link) { res.status(400).json({ error: "a dependency needs distinct fromId + toId and a valid kind (blocks | depends_on | relates_to)" }); return; }
-    const broker = getBroker();
-    // Prefer the backend's own link API; otherwise the built-in home needs the sealed store enabled to persist.
-    if (!broker.writeDependency && !artifactStoreEnabled()) { res.status(501).json({ error: "this backend does not accept dependency edges" }); return; }
-    const saved = broker.writeDependency
-      ? await broker.writeDependency(contextFromReq(req), projectId, link)
-      : upsertSidecarDependency(projectId, link);
-    recordAudit({ ts: new Date().toISOString(), category: "admin", action: `write_dependency:${link.fromId}->${link.toId}`, projectId, result: "success", status: 200 });
-    res.status(201).json(saved);
-  }, { projectId });
-});
-
-router.delete("/projects/:projectId/dependencies", requireRole("contributor"), async (req, res) => {
-  const params = parseRouteParams(GetProjectSummaryParams, req, res, "Invalid project id");
-  if (!params) return;
-  const { projectId } = params;
-  await withBrokerErrors(req, res, "remove_dependency failed", async () => {
-    if (!(await guardProjectScope(req, res, projectId))) return;
-    const link = sanitizeDependency(req.body);
-    if (!link) { res.status(400).json({ error: "a dependency delete needs fromId + toId + kind" }); return; }
-    const broker = getBroker();
-    // Prefer the backend's own link API; otherwise remove from the sealed sidecar (a no-op when the store is off).
-    if (!broker.removeDependency && !artifactStoreEnabled()) { res.status(501).json({ error: "this backend does not accept dependency edges" }); return; }
-    if (broker.removeDependency) await broker.removeDependency(contextFromReq(req), projectId, link.fromId, link.toId, link.kind);
-    else removeSidecarDependency(projectId, link.fromId, link.toId, link.kind);
-    recordAudit({ ts: new Date().toISOString(), category: "admin", action: `remove_dependency:${link.fromId}->${link.toId}`, projectId, result: "success", status: 200 });
-    res.status(204).end();
-  }, { projectId });
-});
-
-// ── Sprints / iterations (roadmap §5.5) — time-boxed iterations with a goal + a work-item membership set,
-//    brokered from the SoR (zero-at-rest: the sprint's own metadata + member ids, never item content). Read is
-//    project-scope-gated; write/delete are contributor+. 501 when the backend fronts no sprints (a sidecar
-//    fallback is the next slice, as with the dependency graph).
-const SPRINT_STATES = new Set(["planned", "active", "closed"]);
-const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
-/** Validate a sprint write body: an id + name, a known state, optional ISO dates + goal, distinct member ids. */
-function sanitizeSprint(body: unknown): Sprint | null {
-  const b = (body ?? {}) as Record<string, unknown>;
-  const id = typeof b["id"] === "string" ? b["id"].trim() : "";
-  const name = typeof b["name"] === "string" ? b["name"].trim().slice(0, 120) : "";
-  const state = typeof b["state"] === "string" ? b["state"] : "";
-  if (!id || !name || !SPRINT_STATES.has(state)) return null;
-  const startDate = typeof b["startDate"] === "string" && ISO_DATE.test(b["startDate"]) ? b["startDate"] : undefined;
-  const endDate = typeof b["endDate"] === "string" && ISO_DATE.test(b["endDate"]) ? b["endDate"] : undefined;
-  if (startDate && endDate && endDate < startDate) return null;
-  const goal = typeof b["goal"] === "string" ? b["goal"].slice(0, 280) : undefined;
-  const rawItems = Array.isArray(b["itemIds"]) ? b["itemIds"] : [];
-  const itemIds = [...new Set(rawItems.filter((x): x is string => typeof x === "string" && !!x.trim()).map((x) => x.trim()))];
-  return {
-    id, name, state: state as Sprint["state"], itemIds,
-    ...(goal ? { goal } : {}), ...(startDate ? { startDate } : {}), ...(endDate ? { endDate } : {}),
-  };
-}
-
-router.get("/projects/:projectId/sprints", async (req, res) => {
-  const params = parseRouteParams(GetProjectSummaryParams, req, res, "Invalid project id");
-  if (!params) return;
-  const { projectId } = params;
-  await withBrokerErrors(req, res, "list_sprints failed", async () => {
-    if (!(await guardProjectScope(req, res, projectId))) return;
-    const broker = getBroker();
-    if (!broker.listSprints) { res.status(501).json({ error: "this backend does not expose sprints" }); return; }
-    res.json({ sprints: await broker.listSprints(contextFromReq(req), projectId) });
-  }, { projectId });
-});
-
-router.post("/projects/:projectId/sprints", requireRole("contributor"), async (req, res) => {
-  const params = parseRouteParams(GetProjectSummaryParams, req, res, "Invalid project id");
-  if (!params) return;
-  const { projectId } = params;
-  await withBrokerErrors(req, res, "write_sprint failed", async () => {
-    if (!(await guardProjectScope(req, res, projectId))) return;
-    const sprint = sanitizeSprint(req.body);
-    if (!sprint) { res.status(400).json({ error: "a sprint needs an id + name and a valid state (planned | active | closed); dates must be ISO yyyy-mm-dd with end ≥ start" }); return; }
-    const broker = getBroker();
-    if (!broker.writeSprint) { res.status(501).json({ error: "this backend does not accept sprints" }); return; }
-    const saved = await broker.writeSprint(contextFromReq(req), projectId, sprint);
-    recordAudit({ ts: new Date().toISOString(), category: "admin", action: `write_sprint:${sprint.id}`, projectId, result: "success", status: 200 });
-    res.status(201).json(saved);
-  }, { projectId });
-});
-
-router.delete("/projects/:projectId/sprints/:sprintId", requireRole("contributor"), async (req, res) => {
-  const params = parseRouteParams(GetProjectSummaryParams, req, res, "Invalid project id");
-  if (!params) return;
-  const { projectId } = params;
-  const sprintId = String(req.params["sprintId"] ?? "").trim();
-  await withBrokerErrors(req, res, "remove_sprint failed", async () => {
-    if (!(await guardProjectScope(req, res, projectId))) return;
-    if (!sprintId) { res.status(400).json({ error: "a sprint delete needs a sprintId" }); return; }
-    const broker = getBroker();
-    if (!broker.removeSprint) { res.status(501).json({ error: "this backend does not accept sprints" }); return; }
-    await broker.removeSprint(contextFromReq(req), projectId, sprintId);
-    recordAudit({ ts: new Date().toISOString(), category: "admin", action: `remove_sprint:${sprintId}`, projectId, result: "success", status: 200 });
-    res.status(204).end();
-  }, { projectId });
-});
-
 // ── Generic mapping surface (roadmap §4.6, "across the board") — the SAME (broker, backend) addressing +
 //    sidecar the WBS cost screen uses, exposed for ANY slot so a form / report / custom screen JSON can bind a
 //    mapped, sidecar-backed table with no bespoke code. WBS keeps its own richer endpoints (financial roll-ups).
@@ -788,6 +652,30 @@ router.put("/projects/:projectId/mapping/:slot/:rowId", requireRole("contributor
       homeless: plan.homeless,
       unmapped: plan.unmapped,
     });
+  }, { projectId });
+});
+
+// DELETE /projects/:projectId/mapping/:slot/:rowId — remove one row from a slot's sidecar store. Completes the
+// generic slot CRUD (read/upsert/delete) so any slot — form, report, the dependency graph — deletes a row with
+// no bespoke endpoint. The row id key is the mapping's join field (default "id"), matching the PUT.
+router.delete("/projects/:projectId/mapping/:slot/:rowId", requireRole("contributor"), async (req, res) => {
+  const params = parseRouteParams(GetProjectSummaryParams, req, res, "Invalid project id");
+  if (!params) return;
+  const { projectId } = params;
+  const slot = String(req.params["slot"] ?? "");
+  const rowId = String(req.params["rowId"] ?? "");
+  await withBrokerErrors(req, res, "mapping_delete failed", async () => {
+    if (!(await guardProjectScope(req, res, projectId))) return;
+    if (!rowId) { res.status(400).json({ error: "a row id is required" }); return; }
+    if (!artifactStoreEnabled()) { res.status(501).json({ error: "no encrypted-JSON store is configured on this deployment" }); return; }
+    const ctx = contextFromReq(req);
+    const mapping = resolveMapping({ projectId, ...(ctx.sub ? { sub: ctx.sub } : {}) }, slot);
+    if (!mapping) { res.status(404).json({ error: `no mapping for slot "${slot}"` }); return; }
+    // Use the SAME id field the write path keys on (join field, else the id key's native name), so a delete
+    // always targets the row an upsert created.
+    removeSidecarRow(projectId, slot, planMappingWrite(mapping, {}).sidecarIdField, rowId);
+    recordAudit({ ts: new Date().toISOString(), category: "admin", action: `mapping_delete:${slot}:${rowId}`, projectId, result: "success", status: 200 });
+    res.status(204).end();
   }, { projectId });
 });
 

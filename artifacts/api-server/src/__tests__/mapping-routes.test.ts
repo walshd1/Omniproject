@@ -119,3 +119,34 @@ test("a UI field inherits its backend's REGEX (email shape) — enforced on writ
   const ok = await h.req(`/projects/${PID}/mapping/contact/E-1`, { method: "PUT", cookie: ADMIN, body: { fields: { Email: "a@b.co" } } });
   assert.equal(ok.status, 200);
 });
+
+test("DELETE /mapping/:slot/:rowId removes a row (completes the generic CRUD)", async () => {
+  await h.req(`/projects/${PID}/mapping/risk/R-DEL`, { method: "PUT", cookie: ADMIN, body: { fields: { title: "Transient", severity: "low" } } });
+  const before = ((await (await h.req(`/projects/${PID}/mapping/risk/rows`, { cookie: ADMIN })).json()) as { rows: { id: string }[] }).rows;
+  assert.ok(before.some((r) => r.id === "R-DEL"));
+  const del = await h.req(`/projects/${PID}/mapping/risk/R-DEL`, { method: "DELETE", cookie: ADMIN });
+  assert.equal(del.status, 204);
+  const after = ((await (await h.req(`/projects/${PID}/mapping/risk/rows`, { cookie: ADMIN })).json()) as { rows: { id: string }[] }).rows;
+  assert.ok(!after.some((r) => r.id === "R-DEL"));
+});
+
+test("the dependency graph is a SHIPPED generic slot — no bespoke entity/route (roadmap §5.5)", async () => {
+  // `dependencies` resolves out of the box (CORE mapping), homed on the built-in sidecar. An edge is just a row.
+  const m = (await (await h.req(`/projects/${PID}/mapping/dependencies`, { cookie: ADMIN })).json()) as { id: string; fields: Record<string, unknown>; homeless: string[] };
+  assert.equal(m.id, "dependencies");
+  assert.deepEqual([...Object.keys(m.fields)].sort(), ["fromId", "id", "kind", "note", "toId"]);
+  assert.deepEqual(m.homeless, []);   // all fields homed on the sidecar by default
+
+  // Assert an edge via the generic PUT (rowId = composite from·kind·to), read it back, delete it.
+  const rowId = "iss-002__depends_on__iss-001";
+  const put = await h.req(`/projects/${PID}/mapping/dependencies/${rowId}`, { method: "PUT", cookie: ADMIN, body: { fields: { fromId: "iss-002", toId: "iss-001", kind: "depends_on", note: "API before client" } } });
+  assert.equal(put.status, 200);
+  const rows = ((await (await h.req(`/projects/${PID}/mapping/dependencies/rows`, { cookie: ADMIN })).json()) as { rows: { id: string; fromId: string; toId: string; kind: string }[] }).rows;
+  const edge = rows.find((r) => r.id === rowId)!;
+  assert.equal(edge.fromId, "iss-002");
+  assert.equal(edge.kind, "depends_on");
+  const del = await h.req(`/projects/${PID}/mapping/dependencies/${rowId}`, { method: "DELETE", cookie: ADMIN });
+  assert.equal(del.status, 204);
+  const after = ((await (await h.req(`/projects/${PID}/mapping/dependencies/rows`, { cookie: ADMIN })).json()) as { rows: { id: string }[] }).rows;
+  assert.ok(!after.some((r) => r.id === rowId));
+});

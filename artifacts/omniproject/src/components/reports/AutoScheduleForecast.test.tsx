@@ -6,7 +6,7 @@ import type { DependencyEdge, DependencyType } from "../../lib/dependencies";
 import { saveEdges } from "../../lib/dependencies";
 import { renderWithProviders } from "../../test/utils";
 import { AutoScheduleForecast } from "./AutoScheduleForecast";
-import { projectDependenciesQueryKey, type BrokeredDependency } from "../../lib/project-dependencies";
+import { projectDependenciesQueryKey, type DependencyRow } from "../../lib/project-dependencies";
 
 /**
  * The auto-schedule forecast report — renders the pure engine's projection over live issues + the
@@ -51,13 +51,13 @@ describe("AutoScheduleForecast", () => {
     expect(screen.getByTestId("forecast-violations")).toHaveTextContent("0");
   });
 
-  it("drives the forecast from durable brokered edges, not just the volatile overlay (§5.5 slice 3)", () => {
-    withEdges([]); // no volatile edges — the precedence comes purely from the brokered graph
+  it("drives the forecast from the durable dependencies slot, not just the volatile overlay (§5.5)", () => {
+    withEdges([]); // no volatile edges — the precedence comes purely from the durable slot rows
     const client = seed(issues);
-    const brokered: BrokeredDependency[] = [{ fromId: "a", toId: "b", kind: "blocks" }];
-    client.setQueryData(projectDependenciesQueryKey("p1"), { edges: brokered });
+    const rows: DependencyRow[] = [{ fromId: "a", toId: "b", kind: "blocks" }];
+    client.setQueryData(projectDependenciesQueryKey("p1"), { rows });
     renderWithProviders(<AutoScheduleForecast projectId="p1" />, { client });
-    expect(screen.getByTestId("forecast-row-b")).toHaveTextContent("Design"); // B driven by A via the brokered edge
+    expect(screen.getByTestId("forecast-row-b")).toHaveTextContent("Design"); // B driven by A via the durable edge
   });
 
   it("shows the empty state when there is no work to forecast", () => {

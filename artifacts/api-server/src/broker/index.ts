@@ -297,5 +297,5 @@ export function respondBrokerError(res: Response, err: unknown): void {
 export { BrokerError } from "./types";
 export type {
   Broker, ActorContext, Project, Issue, IssueWrite, Summary, HistoryPoint, HistoryState, Baseline,
-  PortfolioRow, FxRates, CapabilityFlags, VerifyReport, Row, BrokerErrorCode, Sprint,
+  PortfolioRow, FxRates, CapabilityFlags, VerifyReport, Row, BrokerErrorCode,
 } from "./types";

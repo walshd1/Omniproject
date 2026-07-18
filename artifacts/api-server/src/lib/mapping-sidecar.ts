@@ -54,3 +54,11 @@ export function upsertSidecarRow(projectId: string, slot: string, idField: strin
   else rows.push({ ...patch, [idField]: id });
   return setSidecarRows(projectId, slot, rows);
 }
+
+/** Remove one row by its `idField` value (a no-op when absent / store off). Completes the generic slot CRUD
+ *  so any slot — a form, a report, the dependency graph — can delete a row without a bespoke endpoint. */
+export function removeSidecarRow(projectId: string, slot: string, idField: string, id: string): SidecarRow[] {
+  if (!artifactStoreEnabled()) return [];
+  const rows = getSidecarRows(projectId, slot).filter((r) => String(r[idField] ?? "") !== id);
+  return setSidecarRows(projectId, slot, rows);
+}

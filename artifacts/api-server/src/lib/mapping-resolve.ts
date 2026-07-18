@@ -1,6 +1,7 @@
 import { getSettings } from "./settings";
 import { listDefs, listSystemDefs, type StoredDef } from "./def-import";
 import { sanitizeMapping, mergeMappings, mappingFromFieldRoutes, type Mapping } from "./mapping";
+import { BUILTIN_BROKER, SIDECAR_BACKEND } from "./field-target";
 
 /**
  * MAPPING RESOLUTION (roadmap §4.6) — the scope layering shared by EVERY mapped surface (WBS today; screens /
@@ -25,6 +26,25 @@ function mappingDefsForSlot(rows: StoredDef[], slot: string): Mapping[] {
   return out;
 }
 
+/** Shipped CORE mapping defs, keyed by slot — the base layer for a slot that OmniProject ships a default for,
+ *  so it resolves out of the box (org/programme/project/user layers still override per field). The dependency
+ *  graph is a `dependencies` slot: `{fromId, toId, kind, note}` rows homed on the built-in broker's sidecar by
+ *  default (an admin can remap any field to a backend's native link API). No engine entity — just a def. */
+const SIDECAR_HOME = { broker: BUILTIN_BROKER, backend: SIDECAR_BACKEND } as const;
+const CORE_MAPPINGS: Record<string, Mapping> = {
+  dependencies: {
+    id: "dependencies",
+    joinField: "id",
+    fields: {
+      id: { ...SIDECAR_HOME, field: "id" },
+      fromId: { ...SIDECAR_HOME, field: "fromId" },
+      toId: { ...SIDECAR_HOME, field: "toId" },
+      kind: { ...SIDECAR_HOME, field: "kind" },
+      note: { ...SIDECAR_HOME, field: "note" },
+    },
+  },
+};
+
 /** The caller's resolution context — which programme/project/user layers to consult. */
 export interface MappingCtx { projectId?: string; programmeId?: string; sub?: string }
 
@@ -35,6 +55,7 @@ export interface MappingCtx { projectId?: string; programmeId?: string; sub?: st
  */
 export function storedMappingLayers(ctx: MappingCtx, slot: string): Mapping[] {
   const layers: Mapping[] = [];
+  if (CORE_MAPPINGS[slot]) layers.push(CORE_MAPPINGS[slot]);
   layers.push(...mappingDefsForSlot(listSystemDefs(), slot));
   const routes = getSettings().fieldRouting;
   if (Array.isArray(routes) && routes.length) layers.push(mappingFromFieldRoutes(routes, slot));
