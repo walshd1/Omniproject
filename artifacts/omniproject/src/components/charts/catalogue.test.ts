@@ -42,20 +42,21 @@ describe("primitive catalogue", () => {
     }
   });
 
-  it("composition: extends resolves property-by-property with a traceable lineage (data-slot ← register ← table)", () => {
+  it("composition: extends resolves property-by-property with a traceable lineage (data-slot ← register ← table ← canvas)", () => {
     const ds = resolvePrimitive("data-slot")!;
-    expect(ds.lineage).toEqual(["data-slot", "register", "table"]);
+    expect(ds.lineage).toEqual(["data-slot", "register", "table", "canvas"]);
     // Fields trace back to the def that supplied them: columns from table, an editable prop from register,
     // and the one it adds/alters (slot, now required) from data-slot itself.
     expect(ds.provenance["columns"]).toBe("table");
     expect(ds.provenance["collection"]).toBe("register");
     expect(ds.provenance["slot"]).toBe("data-slot");
     expect(ds.params.find((p) => p.key === "slot")?.required).toBe(true); // the child ALTERS slot → required
-    // Roots are few and generic — register/data-slot are NOT roots.
+    // `canvas` is THE recipe-tree root — the semantic surfaces (table→register→data-slot) descend from it.
     const rootIds = rootPrimitives().map((r) => r.id);
+    expect(rootIds).toContain("canvas");
+    expect(rootIds).not.toContain("table");
     expect(rootIds).not.toContain("register");
     expect(rootIds).not.toContain("data-slot");
-    expect(rootIds).toContain("table");
   });
 
   it("declares options for every enum param", () => {
