@@ -1,4 +1,4 @@
-import { reportCatalogue, formCatalogue, dashboardDefCatalogue, referenceRulesetCatalogue, methodologyCatalogue, screenDefCatalogue, primitiveCatalogue, mappingCatalogue, workVocabularyValues } from "@workspace/backend-catalogue";
+import { reportCatalogue, formCatalogue, dashboardDefCatalogue, referenceRulesetCatalogue, methodologyCatalogue, screenDefCatalogue, methodologyArtifacts, primitiveCatalogue, mappingCatalogue, workVocabularyValues } from "@workspace/backend-catalogue";
 import { WORK_VOCABULARY_CONFIG_ID } from "./work-vocabulary-config";
 import { artifactStoreEnabled } from "./artifact-store";
 import { buildSystemDefRow, replaceSystemDefs, listSystemDefs, type StoredDef } from "./def-import";
@@ -29,6 +29,9 @@ export function buildSystemDefaultRows(): StoredDef[] {
   for (const m of methodologyCatalogue()) rows.push(buildSystemDefRow("methodology", m.label, m, SEED_AT));
   for (const d of dashboardDefCatalogue()) rows.push(buildSystemDefRow("dashboard", d.name, d, SEED_AT));
   for (const s of screenDefCatalogue()) rows.push(buildSystemDefRow("screen", String(s.label), s, SEED_AT));
+  // The canonical methodology artifacts — one read-only overview screen per methodology, authored PURELY from the
+  // primitive taxonomy (a canvas + atom-composable panels). Seeded as `screen` defs, forkable per scope like any other.
+  for (const a of methodologyArtifacts()) rows.push(buildSystemDefRow("screen", String(a.label), a, SEED_AT));
   for (const p of primitiveCatalogue()) rows.push(buildSystemDefRow("primitive", p.label, p, SEED_AT));
   // The shipped CORE field mappings (roadmap §4.6) — authored as JSON under assets/mappings/, seeded into the
   // system store, overridable by org/programme/project/user through the importer. The SAME catalogue the

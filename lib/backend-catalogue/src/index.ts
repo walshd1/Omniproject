@@ -54,6 +54,7 @@ export * from "./widget-catalogue";
 export * from "./component-library";
 export * from "./screen-catalogue";
 export * from "./screen-def-catalogue";
+export * from "./methodology-artifacts";
 export * from "./plane-verifier";
 export * from "./vendor-schema";
 export * from "./vendor-overlay";

@@ -32,6 +32,10 @@ test("seedSystemDefaultsIfEmpty installs the bundled defaults once; applySystemD
   // The shipped screens + primitives are seeded (relocated into the shared catalogue — X.11).
   assert.ok(defs.some((d) => d.kind === "screen" && (d.payload as { id?: unknown }).id === "home"), "the Home screen is a shipped system default");
   assert.ok(defs.some((d) => d.kind === "primitive" && (d.payload as { id?: unknown }).id === "bar"), "the bar-chart primitive is a shipped system default");
+  // The canonical methodology artifacts — one atom-composed overview screen per methodology — are seeded as
+  // read-only `screen` defs (built purely from the primitive taxonomy; forkable per scope like any other def).
+  assert.ok(defs.some((d) => d.kind === "screen" && (d.payload as { id?: unknown }).id === "scrum-overview"), "the Scrum overview artifact is a shipped system default");
+  assert.ok(defs.some((d) => d.kind === "screen" && (d.payload as { id?: unknown }).id === "kanban-overview"), "the Kanban overview artifact is a shipped system default");
   // Every shipped default is a read-only system row authored by "system".
   assert.ok(defs.every((d) => d.id.startsWith("system~") && d.createdBy === "system"));
   // The canonical work-item vocabulary is seeded as a read-only system `config` def (statuses + priorities),
