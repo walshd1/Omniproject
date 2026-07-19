@@ -36,3 +36,11 @@ export function currencyList(rates?: Record<string, number>): string[] {
 
 /** The display currency assumed when nothing else resolves one. One place so every surface agrees. */
 export const DEFAULT_CURRENCY = "GBP";
+
+/** Tally the distinct source currencies across a set of rows (so a UI can say "consolidated from N
+ *  currencies"), most-common first. Data-agnostic — it only counts currency codes. */
+export function currencyMix(currencies: readonly string[]): Array<{ currency: string; projects: number }> {
+  const mix = new Map<string, number>();
+  for (const c of currencies) mix.set(c, (mix.get(c) ?? 0) + 1);
+  return [...mix.entries()].map(([currency, projects]) => ({ currency, projects })).sort((a, b) => b.projects - a.projects);
+}

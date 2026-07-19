@@ -9,7 +9,7 @@ import {
 import { buildRoadmap, roadmapKey, type RoadmapProject, type RoadmapIssue } from "./roadmap";
 import { buildExecHealth } from "./exec-pack";
 import { rollupByProgramme, type ProjectCapacity } from "./capacity-rollup";
-import { consolidateFinancials, type ProjectFin } from "./portfolio-finance";
+import { consolidateByGroup, consolidationSpec, type ConsolidationInput } from "@workspace/backend-catalogue";
 import { rollupBySpec, type ProjectItems } from "./portfolio-value";
 
 /**
@@ -183,10 +183,11 @@ describe("programme rollups — grouping + deterministic equal-key ordering", ()
   });
 
   it("finance consolidation: equal-variance programmes order deterministically", () => {
-    const fin = { currency: "GBP", budgetAllocated: 100, actualBurn: 50, earnedValue: 50, cpi: 1, spi: 1, financialHealth: "on_track", forecastCostAtCompletion: 100 };
-    const mk = (pid: string): ProjectFin => ({ projectId: `x-${pid}`, projectName: pid, programmeId: pid, programmeName: pid, fin: fin as ProjectFin["fin"] });
-    const first = consolidateFinancials([mk("prog-b"), mk("prog-a")], "GBP").programmes.map((p) => p.key);
-    const second = consolidateFinancials([mk("prog-a"), mk("prog-b")], "GBP").programmes.map((p) => p.key);
+    const fin = { currency: "GBP", budgetAllocated: 100, actualBurn: 50, earnedValue: 50, forecastCostAtCompletion: 100 };
+    const mk = (pid: string): ConsolidationInput => ({ groupKey: pid, groupLabel: pid, currency: "GBP", items: [fin] });
+    const spec = consolidationSpec("financials");
+    const first = consolidateByGroup([mk("prog-b"), mk("prog-a")], spec, "GBP").groups.map((r) => r.key);
+    const second = consolidateByGroup([mk("prog-a"), mk("prog-b")], spec, "GBP").groups.map((r) => r.key);
     expect(first).toEqual(second);
     expect(first).toEqual(["prog-a", "prog-b"]); // equal variance ⇒ tiebreak by key
   });

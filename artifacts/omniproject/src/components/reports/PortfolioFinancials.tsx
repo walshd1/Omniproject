@@ -20,7 +20,7 @@ const FX_POLICY_LABEL: Record<string, string> = {
  * Portfolio Financials (consolidated) — budget vs actual vs forecast across the whole portfolio, with
  * every project's local-currency figures converted into ONE reporting currency and rolled up by
  * programme. The consolidation now happens SERVER-SIDE (`GET /api/portfolio/financials?currency=`, the
- * shared `consolidateFinancials`), so this renderer is a thin view over one call — the reporting-currency
+ * shared consolidation engine), so this renderer is a thin view over one call — the reporting-currency
  * select re-requests the endpoint (the query key carries the `currency` param). STATELESS — read-through,
  * nothing stored.
  */

@@ -15,12 +15,30 @@ import { getFxRates } from "./currency";
 import { createConcurrencyLimiter } from "./concurrency-pool";
 import { resolveCapabilities } from "./capabilities";
 import {
-  consolidateFinancials, DEFAULT_CURRENCY,
-  type ProjectFin, type FinanceRollup, type CurrencyMix,
+  consolidateByGroup, consolidationSpec, flattenRow, currencyMix, DEFAULT_CURRENCY,
+  type ConsolidationInput,
 } from "@workspace/backend-catalogue";
 
 /** Bound the per-project financials fan-out (see portfolio-summary.ts for the same rationale). */
 const FANOUT_LIMIT = 10;
+
+/** A consolidated financial row of this endpoint's wire contract (mirrors the OpenAPI FinanceRollup
+ *  schema). The field names ARE the `financials` consolidation spec's measure/derived keys — the endpoint
+ *  is where the generic roll-up is bound to this named shape. */
+export interface FinanceRollup {
+  key: string;
+  label: string;
+  projects: number;
+  budget: number;
+  actual: number;
+  forecast: number;
+  earnedValue: number;
+  variance: number;
+  cpi: number | null;
+  localCurrency: string | null;
+  local: { budget: number; actual: number; forecast: number; earnedValue: number } | null;
+  excludedForFx: number;
+}
 
 /** The consolidated portfolio-financials payload `GET /api/portfolio/financials` returns. */
 export interface PortfolioFinancials {
@@ -31,7 +49,7 @@ export interface PortfolioFinancials {
   /** The whole-portfolio total. */
   portfolio: FinanceRollup;
   /** Distinct source currencies seen (for the "consolidated from N currencies" note). */
-  currencyMix: CurrencyMix[];
+  currencyMix: Array<{ currency: string; projects: number }>;
   /** The FX table's provenance for the footnote, or null when no rates were available. */
   fx: { base: string; provenance: string | null; asOf: string | null } | null;
 }
@@ -71,29 +89,25 @@ export async function computePortfolioFinancials(req: Request, currencyRaw?: unk
     ? []
     : await Promise.all(projects.map((p) => run(() => broker.projectFinancials(ctx, p.id).catch(() => null))));
 
-  const fins: ProjectFin[] = projects
+  // Bind each project's financials to the generic consolidation engine, grouped by programme. The
+  // `financials` spec (data) says which fields to fold and derive; `flattenRow` hoists the resulting
+  // metrics to this endpoint's named wire shape. No finance-specific fold code lives here.
+  const inputs: ConsolidationInput[] = projects
     .map((p, i) => ({ p, fin: rows[i] as Row | null | undefined }))
     .filter((x): x is { p: Project; fin: Row } => !!x.fin)
     .map(({ p, fin }) => ({
-      projectId: p.id,
-      projectName: String((p as Row)["name"] ?? p.id),
-      programmeId: (p.programmeId ?? null) as string | null,
-      programmeName: ((p as Row)["programmeName"] as string | null | undefined) ?? null,
-      fin: {
-        currency: String(fin["currency"] ?? ""),
-        budgetAllocated: fin["budgetAllocated"],
-        actualBurn: fin["actualBurn"],
-        forecastCostAtCompletion: fin["forecastCostAtCompletion"],
-        earnedValue: fin["earnedValue"],
-      },
+      groupKey: (p.programmeId ?? "__standalone__") as string,
+      groupLabel: p.programmeId ? String(((p as Row)["programmeName"] as string | null) ?? p.programmeId) : "Standalone",
+      currency: String(fin["currency"] ?? ""),
+      items: [fin],
     }));
 
-  const { programmes, portfolio, currencyMix } = consolidateFinancials(fins, target, fx?.rates);
+  const { groups, total } = consolidateByGroup(inputs, consolidationSpec("financials"), target, fx?.rates);
   return {
     reportingCurrency: target,
-    programmes,
-    portfolio,
-    currencyMix,
+    programmes: groups.map(flattenRow) as unknown as FinanceRollup[],
+    portfolio: flattenRow(total) as unknown as FinanceRollup,
+    currencyMix: currencyMix(inputs.map((i) => i.currency)),
     fx: fx ? { base: fx.base, provenance: fx.provenance, asOf: fx.asOf } : null,
   };
 }

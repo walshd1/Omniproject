@@ -34,7 +34,6 @@ export * from "./def-refs";
 export * from "./report-catalogue";
 export * from "./currency";
 export * from "./consolidation";
-export * from "./financials";
 export * from "./mapping-catalogue";
 export * from "./form-catalogue";
 export * from "./automation-catalogue";

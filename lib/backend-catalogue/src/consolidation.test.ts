@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { consolidateByGroup, consolidationSpec, CONSOLIDATIONS, type ConsolidationInput, type ConsolidationSpec } from "./consolidation";
+import { consolidateByGroup, consolidationSpec, flattenRow, CONSOLIDATIONS, type ConsolidationInput, type ConsolidationSpec } from "./consolidation";
+import { currencyMix } from "./currency";
 
 const income = consolidationSpec("income");
 
@@ -121,6 +122,29 @@ test("count / countWhere / ratioPctOrNull power the capacity consolidation", () 
   // null utilisation sorts to the low end (most-utilised first).
   assert.deepEqual(groups.map((g) => g.key), ["p1", "p2"]);
   assert.equal(total.metrics["allocations"], 3);
+});
+
+test("flattenRow hoists a row's metrics to top-level fields (the wire shape)", () => {
+  const { total } = consolidateByGroup(
+    [{ groupKey: "a", groupLabel: "A", currency: "GBP", items: [{ revenue: 100, invoicedAmount: 40 }] }],
+    consolidationSpec("income"),
+    "GBP",
+  );
+  const flat = flattenRow(total);
+  assert.equal(flat["key"], "__portfolio__");
+  assert.equal(flat["projects"], 1);
+  assert.equal(flat["projected"], 100); // metric hoisted to top level
+  assert.equal(flat["invoiced"], 40);
+  assert.equal(flat["unbilled"], 60);
+  assert.equal(flat["localCurrency"], "GBP");
+});
+
+test("currencyMix tallies distinct currencies most-common first", () => {
+  assert.deepEqual(currencyMix(["GBP", "USD", "GBP", "EUR", "GBP", "USD"]), [
+    { currency: "GBP", projects: 3 },
+    { currency: "USD", projects: 2 },
+    { currency: "EUR", projects: 1 },
+  ]);
 });
 
 test("weightedSum applies the per-item weight, its scale, default and clamp", () => {

@@ -283,6 +283,15 @@ export function consolidateByGroup(
   return { groups: rows, total: finalise(grand, spec) };
 }
 
+/**
+ * Present a consolidated row as a FLAT record: the fixed fields plus every metric hoisted to a top-level
+ * key. The generic shape any wire contract or table binds to — the field names are the spec's measure /
+ * derived keys (data), never hardcoded here. Callers cast the result to their own named contract type.
+ */
+export function flattenRow(row: ConsolidatedRow): Record<string, unknown> {
+  return { key: row.key, label: row.label, projects: row.projects, ...row.metrics, localCurrency: row.localCurrency, local: row.local, excludedForFx: row.excludedForFx };
+}
+
 /** The shipped consolidation specs, authored as JSON under assets/consolidations/ and embedded by
  *  gen-consolidations (drift-guarded), id-sorted for a stable order. */
 export const CONSOLIDATIONS: ConsolidationSpec[] = [...CONSOLIDATIONS_DATA].sort((a, b) => a.id.localeCompare(b.id));
