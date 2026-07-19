@@ -29,6 +29,8 @@ export interface ViewRecord<T = unknown> {
 export interface BoardColumn {
   status: string;
   label: string;
+  /** Optional accent colour (hex) for the column header — the status's resolved swatch. */
+  color?: string;
 }
 
 /** A named set of board columns. GTD, kanban-flow, etc. are all just presets. */
@@ -79,10 +81,16 @@ export interface EntityDescriptor<T = unknown> {
   doneStatus: string;
   /** Status a record moves back to when reopened from the list checkbox. */
   reopenStatus: string;
-  /** Fetch the records for a scope (a hook). */
-  useRecords: (scope: ViewScope) => { records: ViewRecord<T>[]; isLoading: boolean; error: unknown };
+  /** Fetch the records for a scope (a hook). `refetch` (when supplied) powers the engine's retry
+   *  affordance on an error state. */
+  useRecords: (scope: ViewScope) => { records: ViewRecord<T>[]; isLoading: boolean; error: unknown; refetch?: () => void };
   /** A status-mover (a hook returning `(record, status) => void`). */
   useMove: () => (record: ViewRecord<T>, status: string) => void;
   /** Display label for a canonical priority value (a hook returning the mapper). */
   usePriorityLabel: () => (p: string | null | undefined) => string;
+  /** OPTIONAL: the resolved board columns (a hook), preferred over `presets` when present — lets the
+   *  board's columns/labels/colours come from the org's scope-resolved vocabulary rather than a static preset. */
+  useBoardColumns?: () => BoardColumn[];
+  /** OPTIONAL: display label for a status value (a hook returning the mapper). */
+  useStatusLabel?: () => (s: string | null | undefined) => string;
 }

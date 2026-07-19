@@ -26,7 +26,7 @@ function project(over: Partial<Project> = {}): Project {
 function seed(projects: Project[], projectId: string): QueryClient {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } });
   qc.setQueryData(getListProjectsQueryKey(), projects);
-  // Pre-seed the board's issues so AgileBoard renders without a network call.
+  // Pre-seed the board's issues so the generic issue board renders without a network call.
   qc.setQueryData(getGetProjectIssuesQueryKey(projectId), []);
   return qc;
 }

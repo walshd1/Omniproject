@@ -1,7 +1,7 @@
 import { useListProjects, useGetProjectIssues, useGetCapabilities, getGetProjectIssuesQueryKey } from "@workspace/api-client-react";
 import { Link, useSearch } from "wouter";
 import { useEffect, useState } from "react";
-import { AgileBoard } from "../components/board/AgileBoard";
+import { IssueBoardView } from "../components/views/IssueEngineView";
 import { IssueGrid } from "../components/grid/IssueGrid";
 import { useFeatures, featureEnabled } from "../lib/features";
 import { useRecentItems } from "../lib/recent-items";
@@ -109,7 +109,7 @@ export function ProjectDetail({ projectId }: { projectId: string }) {
             ))}
           </div>
         )}
-        {activeView === "grid" ? <IssueGrid projectId={projectId} /> : <AgileBoard projectId={projectId} />}
+        {activeView === "grid" ? <IssueGrid projectId={projectId} /> : <IssueBoardView projectId={projectId} />}
       </div>
     </div>
   );
