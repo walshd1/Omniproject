@@ -10,15 +10,7 @@
  * that single source of truth. Kept free of any React / api-client dependency (structural input type) so
  * both packages import it.
  */
-
-/** Coerce a possibly-dirty numeric field to a finite number (string/null/NaN/±Infinity → 0). */
-const num = (v: unknown): number => {
-  const n = typeof v === "number" ? v : Number(v);
-  return Number.isFinite(n) ? n : 0;
-};
-
-/** Round to 2 decimal places (money). */
-const round2 = (n: number): number => Math.round(n * 100) / 100;
+import { consolidateByGroup, consolidationSpec, type ConsolidatedRow, type ConsolidationInput } from "./consolidation";
 
 /**
  * Convert between currencies via a base-anchored rate table. Falls back to the original amount if a rate
@@ -125,71 +117,23 @@ export interface CurrencyMix {
   projects: number;
 }
 
-/** A roll-up row mid-fold: carries the tracker of source currencies seen so far. */
-interface WorkingRollup extends FinanceRollup {
-  _tracker: LocalTracker;
-}
-
-function blank(key: string, label: string): WorkingRollup {
-  return { key, label, projects: 0, budget: 0, actual: 0, forecast: 0, earnedValue: 0, variance: 0, cpi: null, localCurrency: null, local: null, excludedForFx: 0, _tracker: new LocalTracker() };
-}
-
-/** Fold one project's financials (converted to the reporting currency) into a roll-up row, tracking
- *  the row's un-converted `local` totals too — for as long as every project folded shares one currency. */
-function fold(acc: WorkingRollup, p: ProjectFin, target: string, rates?: Record<string, number>): void {
-  const currency = String(p.fin.currency ?? "");
-  // Amounts come from the untrusted read model — coerce BEFORE converting/summing so a
-  // string/null/NaN budget can't propagate a NaN through the whole consolidated total.
-  const raw = {
-    budget: num(p.fin.budgetAllocated),
-    actual: num(p.fin.actualBurn),
-    forecast: num(p.fin.forecastCostAtCompletion),
-    earnedValue: num(p.fin.earnedValue),
-  };
-  const conv = (n: number) => convertAmount(n, currency, target, rates);
-  acc.projects += 1;
-  // Only fold into the consolidated (target-currency) total when the row can actually be converted;
-  // convertAmount passes the amount through UNCHANGED when a rate is missing, so summing an
-  // unconvertible row would add a raw foreign amount to the total.
-  if (isConvertible(currency, target, rates)) {
-    acc.budget += conv(raw.budget);
-    acc.actual += conv(raw.actual);
-    acc.forecast += conv(raw.forecast);
-    acc.earnedValue += conv(raw.earnedValue);
-  } else {
-    acc.excludedForFx += 1;
-  }
-
-  if (acc._tracker.add(currency)) {
-    const local = acc.local ?? { budget: 0, actual: 0, forecast: 0, earnedValue: 0 };
-    local.budget += raw.budget;
-    local.actual += raw.actual;
-    local.forecast += raw.forecast;
-    local.earnedValue += raw.earnedValue;
-    acc.local = local;
-  } else {
-    // A second distinct currency showed up — the row is mixed, a single local figure no longer applies.
-    acc.local = null;
-  }
-  acc.localCurrency = acc._tracker.currency;
-}
-
-/** Finalise the derived fields (variance + consolidated CPI) and round the money, in both the
- *  consolidated and (when present) local currency. */
-function finalise(r: WorkingRollup): FinanceRollup {
+/** Re-label a generic consolidated row (from the `financials` spec) as a `FinanceRollup`. The spec's
+ *  measure/derived keys (budget/actual/forecast/earnedValue/variance/cpi) map 1:1 onto the named fields. */
+function toFinanceRollup(r: ConsolidatedRow): FinanceRollup {
+  const m = r.metrics;
   return {
     key: r.key,
     label: r.label,
     projects: r.projects,
-    budget: round2(r.budget),
-    actual: round2(r.actual),
-    forecast: round2(r.forecast),
-    earnedValue: round2(r.earnedValue),
-    variance: round2(r.budget - r.forecast),
-    cpi: r.actual > 0 ? Math.round((r.earnedValue / r.actual) * 100) / 100 : null,
+    budget: (m["budget"] as number) ?? 0,
+    actual: (m["actual"] as number) ?? 0,
+    forecast: (m["forecast"] as number) ?? 0,
+    earnedValue: (m["earnedValue"] as number) ?? 0,
+    variance: (m["variance"] as number) ?? 0,
+    cpi: (m["cpi"] as number | null) ?? null,
     localCurrency: r.localCurrency,
     local: r.local
-      ? { budget: round2(r.local.budget), actual: round2(r.local.actual), forecast: round2(r.local.forecast), earnedValue: round2(r.local.earnedValue) }
+      ? { budget: r.local["budget"] ?? 0, actual: r.local["actual"] ?? 0, forecast: r.local["forecast"] ?? 0, earnedValue: r.local["earnedValue"] ?? 0 }
       : null,
     excludedForFx: r.excludedForFx,
   };
@@ -198,26 +142,29 @@ function finalise(r: WorkingRollup): FinanceRollup {
 /**
  * Consolidate projects into programme roll-ups + a portfolio total, all in `reportingCurrency`. Standalone
  * projects share a "Standalone" group; programmes are returned worst-variance first so overspend surfaces.
+ *
+ * This is now a thin caller of the generic `consolidateByGroup` engine driven by the `financials`
+ * consolidation spec — the group → FX-convert → local-track → derive fold is no longer re-implemented here.
+ * (`consolidation.ts` imports the FX primitives above; the spec lookup is lazy to keep that cycle init-safe.)
+ * The currency mix is a plain tally the engine doesn't produce, so it stays.
  */
 export function consolidateFinancials(
   projects: ProjectFin[],
   reportingCurrency: string,
   rates?: Record<string, number>,
 ): { programmes: FinanceRollup[]; portfolio: FinanceRollup; currencyMix: CurrencyMix[] } {
-  const groups = new Map<string, WorkingRollup>();
-  const portfolio = blank("__portfolio__", "Portfolio");
+  const spec = consolidationSpec("financials");
+  const inputs: ConsolidationInput[] = projects.map((p) => ({
+    groupKey: p.programmeId ?? "__standalone__",
+    groupLabel: p.programmeId ? (p.programmeName ?? p.programmeId) : "Standalone",
+    currency: String(p.fin.currency ?? ""),
+    items: [p.fin as unknown as Record<string, unknown>],
+  }));
+  const { groups, total } = consolidateByGroup(inputs, spec, reportingCurrency, rates);
+
   const mix = new Map<string, number>();
-  for (const p of projects) {
-    const key = p.programmeId ?? "__standalone__";
-    const label = p.programmeId ? (p.programmeName ?? p.programmeId) : "Standalone";
-    const row = groups.get(key) ?? blank(key, label);
-    fold(row, p, reportingCurrency, rates);
-    groups.set(key, row);
-    fold(portfolio, p, reportingCurrency, rates);
-    mix.set(p.fin.currency, (mix.get(p.fin.currency) ?? 0) + 1);
-  }
-  // key (the programmeId) is unique per group ⇒ deterministic order for equal variance.
-  const programmes = [...groups.values()].map(finalise).sort((a, b) => a.variance - b.variance || a.key.localeCompare(b.key));
+  for (const p of projects) mix.set(p.fin.currency, (mix.get(p.fin.currency) ?? 0) + 1);
   const currencyMix = [...mix.entries()].map(([currency, n]) => ({ currency, projects: n })).sort((a, b) => b.projects - a.projects);
-  return { programmes, portfolio: finalise(portfolio), currencyMix };
+
+  return { programmes: groups.map(toFinanceRollup), portfolio: toFinanceRollup(total), currencyMix };
 }

@@ -74,6 +74,49 @@ export const CONSOLIDATIONS_DATA: ConsolidationSpec[] = [
     }
   },
   {
+    "id": "financials",
+    "measures": [
+      {
+        "key": "budget",
+        "agg": "sum",
+        "field": "budgetAllocated"
+      },
+      {
+        "key": "actual",
+        "agg": "sum",
+        "field": "actualBurn"
+      },
+      {
+        "key": "forecast",
+        "agg": "sum",
+        "field": "forecastCostAtCompletion"
+      },
+      {
+        "key": "earnedValue",
+        "agg": "sum",
+        "field": "earnedValue"
+      }
+    ],
+    "derived": [
+      {
+        "key": "variance",
+        "op": "diff",
+        "a": "budget",
+        "b": "forecast"
+      },
+      {
+        "key": "cpi",
+        "op": "ratioOrNull",
+        "a": "earnedValue",
+        "b": "actual"
+      }
+    ],
+    "sort": {
+      "key": "variance",
+      "dir": "asc"
+    }
+  },
+  {
     "id": "income",
     "measures": [
       {
