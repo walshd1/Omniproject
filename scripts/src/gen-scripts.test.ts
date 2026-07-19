@@ -86,6 +86,7 @@ const CASES: GenCase[] = [
   { name: "gen-methodology-rulesets", script: "src/gen-methodology-rulesets.ts", outputs: [`${BC}/methodology-rulesets.generated.ts`] },
   { name: "gen-consolidations", script: "src/gen-consolidations.ts", outputs: [`${BC}/consolidations.generated.ts`] },
   { name: "gen-work-vocabulary", script: "src/gen-work-vocabulary.ts", outputs: [`${BC}/work-vocabulary.generated.ts`] },
+  { name: "gen-priority-weights", script: "src/gen-priority-weights.ts", outputs: [`${BC}/priority-weights.generated.ts`] },
 ];
 
 for (const c of CASES) {

@@ -23,6 +23,7 @@
     "gen-mappings": "tsx ./src/gen-mappings.ts",
     "gen-consolidations": "tsx ./src/gen-consolidations.ts",
     "gen-work-vocabulary": "tsx ./src/gen-work-vocabulary.ts",
+    "gen-priority-weights": "tsx ./src/gen-priority-weights.ts",
     "gen-widgets": "tsx ./src/gen-widgets.ts",
     "gen-dashboard-presets": "tsx ./src/gen-dashboard-presets.ts",
     "gen-screens": "tsx ./src/gen-screens.ts",
