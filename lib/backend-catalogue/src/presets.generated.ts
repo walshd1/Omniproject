@@ -5,6 +5,22 @@ import type { Preset } from "./preset-catalogue";
 
 export const PRESETS_DATA: Preset[] = [
   {
+    "id": "enterprise-scrum",
+    "label": "Enterprise Scrum",
+    "description": "Scrum for a governed, at-scale org: the enterprise-PMO posture (governance, currency, priority model) plus the Scrum methodology curated in, its reference ruleset applied, a starter sprint project, and an executive delivery dashboard — so a new enterprise team lands on a governed, working Scrum setup in one step.",
+    "methodology": "scrum",
+    "settingsPreset": "enterprise-pmo",
+    "referenceRuleset": "scrum",
+    "projectTemplate": "scrum-starter",
+    "dashboardPreset": "head-of-projects-today",
+    "tags": [
+      "agile",
+      "scrum",
+      "enterprise"
+    ],
+    "order": 20
+  },
+  {
     "id": "scrum-team",
     "label": "Scrum team",
     "description": "A sprint-ready Scrum setup: the Scrum methodology curated in, its reference ruleset applied, and a starter sprint project seeded with the ceremonies as work items — so a new team lands on a working board, backlog, burndown and velocity in one step.",

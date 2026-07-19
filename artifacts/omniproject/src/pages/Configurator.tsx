@@ -6,6 +6,7 @@ import { useConfiguratorMode, ConfiguratorModeProvider } from "../lib/configurat
 import { LoadingState } from "../components/LoadingState";
 import { DataState } from "../components/DataState";
 import { ProfileStep } from "../components/setup/ProfileStep";
+import { PresetStep } from "../components/setup/PresetStep";
 import { SettingsPresetPicker } from "../components/settings/SettingsPresetPicker";
 import { IdpStep } from "../components/setup/IdpStep";
 import { StatusStep } from "../components/setup/StatusStep";
@@ -129,6 +130,7 @@ export function Configurator() {
             </div>
           )}
 
+          <PresetStep isAdmin={isAdmin} />
           <ProfileStep isAdmin={isAdmin} />
           <SettingsPresetPicker isAdmin={isAdmin} />
           {showAdvanced && isAdmin && <IdpStep />}
