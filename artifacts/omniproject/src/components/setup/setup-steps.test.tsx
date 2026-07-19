@@ -19,21 +19,44 @@ describe("OrgIdentityStep", () => {
   afterEach(() => vi.restoreAllMocks());
   beforeEach(() => { branding = { appName: "OmniProject", entitled: true, locked: false }; });
 
-  it("when entitled, names the org via PUT /api/branding", async () => {
-    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(null, { status: 200 }));
+  /** GET /api/org-identity seeds the field; the PUT under test writes back the ungated name. */
+  const mockFetch = () => vi.spyOn(globalThis, "fetch").mockImplementation(async (url) => {
+    if (String(url) === "/api/org-identity") return new Response(JSON.stringify({ identity: { id: "org_x", name: "" } }), { status: 200 });
+    return new Response(null, { status: 200 });
+  });
+
+  it("names the org (ungated) via PUT /api/org-identity", async () => {
+    const fetchSpy = mockFetch();
+    wrap(<OrgIdentityStep isAdmin />);
+    fireEvent.change(screen.getByTestId("org-name-input"), { target: { value: "Acme Inc." } });
+    fireEvent.click(screen.getByTestId("org-name-save"));
+    await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith("/api/org-identity", expect.objectContaining({ method: "PUT" })));
+    const putCall = fetchSpy.mock.calls.find((c) => c[0] === "/api/org-identity" && (c[1] as RequestInit | undefined)?.method === "PUT");
+    expect(JSON.parse((putCall![1] as RequestInit).body as string)).toEqual({ name: "Acme Inc." });
+  });
+
+  it("when entitled, ALSO mirrors the name into premium branding (header/title)", async () => {
+    const fetchSpy = mockFetch();
     wrap(<OrgIdentityStep isAdmin />);
     fireEvent.change(screen.getByTestId("org-name-input"), { target: { value: "Acme Inc." } });
     fireEvent.click(screen.getByTestId("org-name-save"));
     await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith("/api/branding", expect.objectContaining({ method: "PUT" })));
-    const body = JSON.parse((fetchSpy.mock.calls[0]![1] as RequestInit).body as string);
-    expect(body).toEqual({ appName: "Acme Inc." });
+    const brandCall = fetchSpy.mock.calls.find((c) => c[0] === "/api/branding" && (c[1] as RequestInit | undefined)?.method === "PUT");
+    expect(JSON.parse((brandCall![1] as RequestInit).body as string)).toEqual({ appName: "Acme Inc." });
   });
 
-  it("when NOT entitled, shows the branding upsell instead of an input", () => {
+  it("when NOT entitled, naming still works and only the logo/white-label branding is noted as premium", async () => {
     branding = { appName: "OmniProject", entitled: false, locked: true };
+    const fetchSpy = mockFetch();
     wrap(<OrgIdentityStep isAdmin />);
-    expect(screen.queryByTestId("org-name-input")).toBeNull();
-    expect(screen.getByTestId("org-name-locked")).toHaveTextContent(/Branding/i);
+    // The input is present (naming is ungated) and a note explains branding is the paid part.
+    expect(screen.getByTestId("org-name-input")).toBeTruthy();
+    expect(screen.getByTestId("org-name-branding-note")).toHaveTextContent(/Branding/i);
+    fireEvent.change(screen.getByTestId("org-name-input"), { target: { value: "Small Co" } });
+    fireEvent.click(screen.getByTestId("org-name-save"));
+    await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith("/api/org-identity", expect.objectContaining({ method: "PUT" })));
+    // …and NO branding PUT is attempted when unentitled.
+    expect(fetchSpy.mock.calls.some((c) => c[0] === "/api/branding" && (c[1] as RequestInit | undefined)?.method === "PUT")).toBe(false);
   });
 });
 

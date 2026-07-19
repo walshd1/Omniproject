@@ -41,6 +41,7 @@ import { brokerKind } from "./broker";
 import { getSettings, updateSettings } from "./lib/settings";
 import { restoreActiveEnvironment } from "./lib/config-store";
 import { seedSystemDefaultsIfEmpty } from "./lib/system-defs";
+import { ensureOrgIdentity } from "./lib/org-identity";
 import { invalidateDefIndex } from "./lib/def-index";
 import { SAMPLE_PROGRAMME_REGISTRY } from "./broker/demo-data";
 
@@ -109,6 +110,10 @@ export async function bootstrap(): Promise<void> {
   // system def store, sourced from the bundled catalogues. One-shot; no-op when already installed or the store
   // is off. Runtime UPDATES go through the admin-gated approved-update route, not this.
   seedSystemDefaultsIfEmpty();
+  // Mint the org's canonical identity (a stable id + placeholder name) as the FIRST row of the org-level JSON, so
+  // "org id at the top of the org JSON" holds from first boot. Idempotent — an already-minted id is never
+  // rewritten, and it's a no-op when the encrypted store is disabled. The name is set later in first-run setup.
+  ensureOrgIdentity({ sub: "system", name: "system" }, new Date().toISOString());
   // Rebuild-on-doubt: drop the composition child-edge index at boot so a crash that stranded a stale index can't
   // let the importer's fast path wrongly skip a cascade. It is rebuilt from a full scan on first use.
   invalidateDefIndex();
