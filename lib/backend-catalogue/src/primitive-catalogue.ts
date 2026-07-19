@@ -18,6 +18,69 @@ const LEGEND_PARAM: PrimitiveParam = { key: "legend", label: "Legend", type: "bo
 const HEIGHT_PARAM: PrimitiveParam = { key: "height", label: "Height", type: "number", required: false, description: "Pixel height, or a percent string for responsive containers." };
 
 export const PRIMITIVE_CATALOGUE: PrimitiveDef[] = [
+  // ── GEOMETRY — the fundamental atoms of the drawable plane ──────────────────────────────────────
+  // The true building blocks: a line, a rectangle, a text run, a point. Every chart/diagram/gantt and
+  // every visual grid composes UP from these; each instance's geometry (coordinates/size) and style
+  // (colour, thickness) is supplied from system JSON. These are roots (no `extends`) — the smallest
+  // set everything drawable is built on. The semantic plane (tables/tiles) is NOT drawn from these.
+  {
+    id: "line",
+    label: "Line",
+    category: "geometry",
+    description: "A straight line segment between two points — the atom behind axes, gridlines, connectors and any drawn rule. Length is the distance between its endpoints.",
+    params: [
+      { key: "x1", label: "Start X", type: "number", required: true, description: "First endpoint, x (canvas units)." },
+      { key: "y1", label: "Start Y", type: "number", required: true, description: "First endpoint, y (canvas units)." },
+      { key: "x2", label: "End X", type: "number", required: true, description: "Second endpoint, x (canvas units)." },
+      { key: "y2", label: "End Y", type: "number", required: true, description: "Second endpoint, y (canvas units)." },
+      { key: "stroke", label: "Stroke", type: "string", required: false, description: "Line colour as a hex string (defaults to the current foreground)." },
+      { key: "thickness", label: "Thickness", type: "number", required: false, description: "Stroke width in canvas units (default 1)." },
+      { key: "dash", label: "Dash", type: "string", required: false, description: "SVG dash pattern, e.g. \"4 4\" for a dashed line (solid when unset)." },
+    ],
+  },
+  {
+    id: "rect",
+    label: "Rectangle",
+    category: "geometry",
+    description: "An axis-aligned rectangle — the atom behind bars, gantt spans, allocation blocks, tiles' frames and grid cells.",
+    params: [
+      { key: "x", label: "X", type: "number", required: true, description: "Top-left corner, x (canvas units)." },
+      { key: "y", label: "Y", type: "number", required: true, description: "Top-left corner, y (canvas units)." },
+      { key: "width", label: "Width", type: "number", required: true, description: "Rectangle width (canvas units)." },
+      { key: "height", label: "Height", type: "number", required: true, description: "Rectangle height (canvas units)." },
+      { key: "fill", label: "Fill", type: "string", required: false, description: "Fill colour as a hex string (none when unset)." },
+      { key: "stroke", label: "Stroke", type: "string", required: false, description: "Border colour as a hex string." },
+      { key: "thickness", label: "Thickness", type: "number", required: false, description: "Border stroke width (default 1)." },
+      { key: "radius", label: "Corner radius", type: "number", required: false, description: "Rounded-corner radius (0 = square)." },
+    ],
+  },
+  {
+    id: "text",
+    label: "Text",
+    category: "geometry",
+    description: "A single run of text positioned on the canvas — the atom behind axis labels, data labels and legends on the drawable plane.",
+    params: [
+      { key: "x", label: "X", type: "number", required: true, description: "Anchor point, x (canvas units)." },
+      { key: "y", label: "Y", type: "number", required: true, description: "Anchor point, y (canvas units)." },
+      { key: "content", label: "Content", type: "string", required: true, description: "The text to draw." },
+      { key: "size", label: "Font size", type: "number", required: false, description: "Font size in canvas units (default 12)." },
+      { key: "fill", label: "Fill", type: "string", required: false, description: "Text colour as a hex string." },
+      { key: "weight", label: "Weight", type: "enum", required: false, description: "Font weight.", options: ["normal", "bold"] },
+      { key: "anchor", label: "Anchor", type: "enum", required: false, description: "Horizontal anchoring of the text to (x, y).", options: ["start", "middle", "end"] },
+    ],
+  },
+  {
+    id: "point",
+    label: "Point",
+    category: "geometry",
+    description: "A single marked point (a small filled circle) — the atom behind scatter marks, network nodes and line-chart vertices.",
+    params: [
+      { key: "x", label: "X", type: "number", required: true, description: "Centre, x (canvas units)." },
+      { key: "y", label: "Y", type: "number", required: true, description: "Centre, y (canvas units)." },
+      { key: "r", label: "Radius", type: "number", required: false, description: "Marker radius in canvas units (default 2)." },
+      { key: "fill", label: "Fill", type: "string", required: false, description: "Marker colour as a hex string." },
+    ],
+  },
   {
     id: "bar",
     label: "Bar chart",
@@ -33,7 +96,7 @@ export const PRIMITIVE_CATALOGUE: PrimitiveDef[] = [
     ],
   },
   {
-    id: "line",
+    id: "line-chart",
     label: "Line chart",
     category: "chart",
     chartType: "line",
