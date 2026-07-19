@@ -45,8 +45,8 @@ describe("ListView", () => {
     expect(screen.getByText("Bravo task")).toBeInTheDocument();
     expect(screen.getByText("Ada")).toBeInTheDocument();
     // Status/priority labels.
-    expect(screen.getByText("IN PROGRESS")).toBeInTheDocument();
-    expect(screen.getByText("HIGH")).toBeInTheDocument();
+    expect(screen.getByText("In progress")).toBeInTheDocument();
+    expect(screen.getByText("High")).toBeInTheDocument();
     expect(screen.getByRole("columnheader", { name: /Title/i })).toBeInTheDocument();
   });
 

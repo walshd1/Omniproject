@@ -101,7 +101,7 @@ describe("AgileBoard interactions", () => {
 
   it("opens the create-issue dialog with the clicked column's status pre-selected", async () => {
     renderWithProviders(<AgileBoard projectId="proj-1" />, { client: seeded([]) });
-    fireEvent.click(screen.getByRole("button", { name: "New issue in IN REVIEW" }));
+    fireEvent.click(screen.getByRole("button", { name: "New issue in In review" }));
     expect(await screen.findByText("NEW ISSUE")).toBeInTheDocument();
     expect(screen.getByLabelText("Status")).toHaveTextContent("IN REVIEW");
   });

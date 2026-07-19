@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { useGetProjectIssues, type Issue } from "@workspace/api-client-react";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
-import { STATUS_LABELS } from "../../lib/constants";
+import { useWorkVocabulary } from "../../lib/work-vocabulary";
 import { inActiveSprint, storyPoints, isDone, SPRINT_COLUMNS } from "../../lib/methodology";
 import { IssueDialog } from "../IssueDialog";
 import { DataState } from "../DataState";
@@ -47,6 +47,7 @@ function Burndown({ committed, remaining }: { committed: number; remaining: numb
 
 export function ScrumView({ projectId }: { projectId: string }) {
   const { data: issues, isLoading, isError, error, refetch } = useGetProjectIssues(projectId);
+  const { statusLabel } = useWorkVocabulary();
   const [editing, setEditing] = useState<Issue | null>(null);
 
   const model = useMemo(() => {
@@ -92,7 +93,7 @@ export function ScrumView({ projectId }: { projectId: string }) {
               return (
                 <div key={status} className="w-72 shrink-0 flex flex-col bg-card border border-border">
                   <div className="p-3 border-b border-border bg-background flex items-center justify-between">
-                    <span className="font-bold text-sm tracking-wider">{STATUS_LABELS[status]}</span>
+                    <span className="font-bold text-sm tracking-wider">{statusLabel(status)}</span>
                     <span className="text-xs bg-muted text-muted-foreground px-2 py-0.5 font-mono">{col.length} · {pts}p</span>
                   </div>
                   <div className="flex-1 p-3 flex flex-col gap-2 overflow-y-auto min-h-24">

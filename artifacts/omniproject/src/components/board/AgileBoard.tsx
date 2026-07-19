@@ -8,11 +8,7 @@ import {
 } from "@workspace/api-client-react";
 import { useInvalidateIssueQueries } from "../../hooks/use-invalidate-issue-queries";
 import { Plus } from "lucide-react";
-import {
-  STATUS_ORDER,
-  statusLabel,
-  statusAccent,
-} from "../../lib/constants";
+import { useWorkVocabulary } from "../../lib/work-vocabulary";
 import { PriorityDot } from "../StatusDot";
 import { IssueDialog } from "../IssueDialog";
 import { DataState } from "../DataState";
@@ -78,6 +74,8 @@ export function AgileBoard({ projectId }: { projectId: string }) {
   const queryClient = useQueryClient();
   const invalidateIssueQueries = useInvalidateIssueQueries();
   const { toast } = useToast();
+  // Board columns, labels + accent colours come from the org's resolved vocabulary (scope/i18n/a11y folded).
+  const { statusOrder, statusLabel, statusColor } = useWorkVocabulary();
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingIssue, setEditingIssue] = useState<Issue | null>(null);
@@ -155,10 +153,9 @@ export function AgileBoard({ projectId }: { projectId: string }) {
   // present in the data, so non-conventional statuses still get a column rather
   // than being silently dropped (OmniProject is backend-agnostic).
   const columns = useMemo(() => {
-    const known = STATUS_ORDER as readonly string[];
-    const extra = [...new Set((issues ?? []).map((i) => i.status).filter((s) => !known.includes(s)))];
-    return [...STATUS_ORDER, ...extra];
-  }, [issues]);
+    const extra = [...new Set((issues ?? []).map((i) => i.status).filter((s) => !statusOrder.includes(s)))];
+    return [...statusOrder, ...extra];
+  }, [issues, statusOrder]);
 
   // Group issues by status once per issues change (preserving issues order) so each column is
   // an O(1) lookup rather than re-filtering the whole list on every render (incl. every drag-over).
@@ -179,7 +176,7 @@ export function AgileBoard({ projectId }: { projectId: string }) {
   if (isLoading) {
     return (
       <div className="flex gap-6 h-full min-w-max pb-4">
-        {STATUS_ORDER.map((s) => (
+        {statusOrder.map((s) => (
           <div key={s} className="w-80 h-full bg-card border border-border animate-pulse" />
         ))}
       </div>
@@ -208,9 +205,10 @@ export function AgileBoard({ projectId }: { projectId: string }) {
                 const dragged = issues?.find((i) => i.id === id);
                 if (dragged) moveIssue(dragged, status);
               }}
-              className={`w-80 flex flex-col shrink-0 bg-card border-t-4 ${statusAccent(status)} border-x border-b transition-colors ${
+              className={`w-80 flex flex-col shrink-0 bg-card border-t-4 border-x border-b transition-colors ${
                 isDragOver ? "border-primary bg-primary/5" : "border-border"
               }`}
+              style={{ borderTopColor: statusColor(status) }}
               data-testid={`column-${status}`}
             >
               <div className="p-3 border-b border-border bg-background flex items-center justify-between">
