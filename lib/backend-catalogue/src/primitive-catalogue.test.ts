@@ -8,7 +8,7 @@ import { PRIMITIVE_CATALOGUE, getPrimitive, primitivesByCategory, resolvePrimiti
  * JSON) and the id split that freed `line` for the atom (the line CHART is now `line-chart`).
  */
 
-const GEOMETRY_ATOMS = ["line", "rect", "text", "point"];
+const GEOMETRY_ATOMS = ["line", "rect", "text", "point", "path"];
 
 test("ships the four geometry atoms, all in the geometry category", () => {
   const geom = primitivesByCategory("geometry").map((p) => p.id).sort();

@@ -78,6 +78,14 @@ function Atom({ s }: { s: GeometryShape }) {
           fill={strOr(s["fill"], FOREGROUND)}
         />
       );
+    case "path":
+      return (
+        <path
+          d={strOr(s["d"], "")}
+          fill={strOr(s["fill"], "none")}
+          {...(typeof s["stroke"] === "string" && s["stroke"] ? { stroke: s["stroke"] as string, strokeWidth: numOr(s["thickness"], 1) } : {})}
+        />
+      );
     default:
       return null;
   }

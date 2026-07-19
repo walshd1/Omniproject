@@ -67,6 +67,15 @@ describe("GeometryCanvas", () => {
     expect(c.getAttribute("r")).toBe("2");
   });
 
+  it("draws a path atom with its data + fill (the curve/filled-region atom)", () => {
+    const svg = draw([{ type: "path", d: "M0 0 L10 0 L10 10 Z", fill: "#2563eb" }]);
+    const path = svg.querySelector("path")!;
+    expect(path.getAttribute("d")).toBe("M0 0 L10 0 L10 10 Z");
+    expect(path.getAttribute("fill")).toBe("#2563eb");
+    // No stroke attrs unless a stroke is given.
+    expect(path.getAttribute("stroke")).toBeNull();
+  });
+
   it("tolerates stringly-typed JSON params (coerces numbers)", () => {
     const svg = draw([{ type: "line", x1: "0", y1: "0", x2: "12", y2: "0", thickness: "3" } as unknown as GeometryShape]);
     const line = svg.querySelector("line")!;

@@ -82,6 +82,18 @@ export const PRIMITIVE_CATALOGUE: PrimitiveDef[] = [
     ],
   },
   {
+    id: "path",
+    label: "Path",
+    category: "geometry",
+    description: "An arbitrary SVG path — the atom behind CURVES and FILLED regions the straight-edged atoms can't express: pie/donut arcs, area-chart fills, smooth trend lines.",
+    params: [
+      { key: "d", label: "Path data", type: "string", required: true, description: "SVG path commands (the `d` attribute), e.g. \"M0 0 L10 10 …\"." },
+      { key: "fill", label: "Fill", type: "string", required: false, description: "Fill colour as a hex string (none when unset — a stroked outline)." },
+      { key: "stroke", label: "Stroke", type: "string", required: false, description: "Outline colour as a hex string." },
+      { key: "thickness", label: "Thickness", type: "number", required: false, description: "Outline stroke width (default 1)." },
+    ],
+  },
+  {
     id: "bar",
     label: "Bar chart",
     category: "chart",
