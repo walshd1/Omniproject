@@ -93,20 +93,19 @@ export const PRIMITIVE_CATALOGUE: PrimitiveDef[] = [
       { key: "thickness", label: "Thickness", type: "number", required: false, description: "Outline stroke width (default 1)." },
     ],
   },
-  // ── THE SURFACE TREE — canvas is the ROOT of every recipe ────────────────────────────────────────
-  // Everything the product renders is a `canvas` made more specific. It branches to the drawable spine
-  // (geometry-canvas ← chart ← interactive-chart) AND to the semantic surfaces (screen, report, table).
-  // Each level DOWN is a thinner def (it declares only what it adds/overrides) and MORE specific; the
-  // resolved def gets richer as it inherits everything above. An interactive chart HAS every chart +
-  // geometry-canvas + canvas property; a screen HAS every canvas property plus its panels; and so on.
+  // ── THE DRAWABLE RENDER-SURFACE SPINE ───────────────────────────────────────────────────────────
+  // An inheritance chain, not a flag: canvas ← geometry-canvas ← chart ← interactive-chart. Each level
+  // INHERITS the one below and adds its own capability, so an interactive chart HAS every chart
+  // property, a chart HAS every geometry-canvas property, and so on down to the bare surface. Concrete
+  // charts (bar/line/…) extend `chart`; an interactive variant extends `interactive-chart`.
   {
     id: "canvas",
     label: "Canvas",
-    category: "surface",
-    description: "The root surface — a bounded space with content and layout that EVERYTHING renders on. A screen, a chart and a report are all a canvas specialized. The single root of the recipe tree.",
+    category: "geometry",
+    description: "The bare drawing surface — a coordinate space everything drawable sits on. The root of the render-surface lineage.",
     params: [
-      { key: "width", label: "Width", type: "number", required: false, description: "Surface width (user units for a drawing; grid columns for a layout). Scales to its container." },
-      { key: "height", label: "Height", type: "number", required: false, description: "Surface height (user units), where meaningful." },
+      { key: "width", label: "Width", type: "number", required: false, description: "Coordinate-space width (user units); the surface scales to its container." },
+      { key: "height", label: "Height", type: "number", required: false, description: "Coordinate-space height (user units)." },
     ],
   },
   {
@@ -114,29 +113,9 @@ export const PRIMITIVE_CATALOGUE: PrimitiveDef[] = [
     label: "Geometry canvas",
     category: "geometry",
     extends: "canvas",
-    description: "A canvas that draws GEOMETRY ATOMS (line/rect/text/point/path). Inherits the surface; adds the shapes it renders. The drawable branch of the tree.",
+    description: "A canvas that draws GEOMETRY ATOMS (line/rect/text/point/path). Inherits the surface; adds the shapes it renders.",
     params: [
       { key: "shapes", label: "Shapes", type: "rows", required: false, description: "The geometry-atom instances to draw (each an atom `type` + its params)." },
-    ],
-  },
-  {
-    id: "screen",
-    label: "Screen",
-    category: "surface",
-    extends: "canvas",
-    description: "A canvas laid out as a grid of PANELS — the semantic (DOM) surface behind every screen. Inherits the surface; adds the panels and their layout. The semantic branch, rendered as accessible DOM, not drawn shapes.",
-    params: [
-      { key: "panels", label: "Panels", type: "rows", required: true, description: "The panels on the screen (each a `kind` + its config), placed on the layout grid." },
-    ],
-  },
-  {
-    id: "report",
-    label: "Report",
-    category: "surface",
-    extends: "canvas",
-    description: "A canvas composed of ordered SECTIONS (metrics, tables, charts, prose) — the surface behind every report. Inherits the surface; adds the sections. Rendered as accessible DOM.",
-    params: [
-      { key: "sections", label: "Sections", type: "rows", required: true, description: "The report's ordered sections (each a kind + its content)." },
     ],
   },
   {
@@ -330,8 +309,7 @@ export const PRIMITIVE_CATALOGUE: PrimitiveDef[] = [
     id: "table",
     label: "Data table",
     category: "table",
-    extends: "canvas",
-    description: "A canvas rendered as generic sortable columns and rows (accessible DOM) with per-column rendering and an optional footer — the base of the semantic table branch. Inherits the surface; adds columns + rows.",
+    description: "Generic sortable columns and rows with per-column rendering and an optional footer.",
     params: [
       { key: "columns", label: "Columns", type: "columns", required: true, description: "Column key, label, alignment, and render." },
       { key: "rows", label: "Rows", type: "rows", required: true, description: "One object per row." },

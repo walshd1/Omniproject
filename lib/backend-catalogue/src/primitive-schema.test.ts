@@ -20,7 +20,7 @@ const GOOD = {
 };
 
 test("closed sets are the expected values", () => {
-  assert.deepEqual([...PRIMITIVE_CATEGORIES], ["surface", "geometry", "chart", "graphic", "table", "tile"]);
+  assert.deepEqual([...PRIMITIVE_CATEGORIES], ["geometry", "chart", "graphic", "table", "tile"]);
   assert.deepEqual([...CHART_VIEW_TYPES], ["bar", "line", "area", "pie", "donut", "scatter", "treemap", "gantt"]);
   assert.ok(PRIMITIVE_PARAM_TYPES.includes("rows") && PRIMITIVE_PARAM_TYPES.includes("enum"));
 });

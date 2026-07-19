@@ -20,20 +20,19 @@ test("every primitive's extends chain resolves — no dangling parent, no cycle 
 
 test("roots are FEW and generic; composed primitives are not roots", () => {
   const roots = rootPrimitives().map((r) => r.id);
-  // `canvas` is THE root of the recipe tree; the semantic surfaces compose from it.
-  assert.ok(roots.includes("canvas"), "canvas is the recipe-tree root");
-  assert.ok(!roots.includes("table"), "table composes from canvas");
+  // The editable register + its slot specialisation compose from `table` — they are never roots.
   assert.ok(!roots.includes("register"), "register composes from table");
   assert.ok(!roots.includes("data-slot"), "data-slot composes from register");
+  assert.ok(roots.includes("table"), "table is a root");
   // A root defines its own params (it is built on nothing).
   for (const r of rootPrimitives()) assert.ok(r.params.length > 0, `root "${r.id}" must define its params`);
 });
 
-test("data-slot ← register ← table ← canvas: params flatten property-by-property with a traceable provenance", () => {
+test("data-slot ← register ← table: params flatten property-by-property with a traceable provenance", () => {
   const ds = resolvePrimitive("data-slot")!;
-  assert.deepEqual(ds.lineage, ["data-slot", "register", "table", "canvas"]);
+  assert.deepEqual(ds.lineage, ["data-slot", "register", "table"]);
   // Inherited, added, and altered fields each trace to the def that supplied the winning value.
-  assert.equal(ds.provenance["columns"], "table");      // inherited from the table branch base
+  assert.equal(ds.provenance["columns"], "table");      // inherited from the root
   assert.equal(ds.provenance["collection"], "register"); // inherited from the middle
   assert.equal(ds.provenance["slot"], "data-slot");      // altered by the leaf (register's optional slot → required)
   assert.equal(ds.params.find((p) => p.key === "slot")?.required, true);

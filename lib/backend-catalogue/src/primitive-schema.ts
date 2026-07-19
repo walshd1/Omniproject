@@ -12,14 +12,13 @@
 
 /**
  * The category a primitive is grouped under (mirrors the SPA `PrimitiveCategory`).
- * `surface` is the ROOT tier — `canvas` and the recipe surfaces (screen / report) that everything
- * else specializes from: a screen, a chart and a report are all a canvas made more specific.
- * `geometry` is the FUNDAMENTAL mark tier of the drawable plane — the true atoms (line / rect / text /
- * point / path) that every chart, diagram, gantt and visual grid composes up from. The semantic plane
- * (table / tile) stays accessible DOM and composes via the `extends` lineage, NOT by drawing shapes.
+ * `geometry` is the FUNDAMENTAL tier of the drawable plane — the true atoms (line / rect / text /
+ * point) that every chart, diagram, gantt and visual grid composes up from, each instance's geometry
+ * and style supplied from system JSON. The semantic plane (table / tile) stays accessible DOM and
+ * composes via the `extends` lineage, NOT by drawing shapes.
  */
-export type PrimitiveCategory = "surface" | "geometry" | "chart" | "graphic" | "table" | "tile";
-export const PRIMITIVE_CATEGORIES: readonly PrimitiveCategory[] = ["surface", "geometry", "chart", "graphic", "table", "tile"];
+export type PrimitiveCategory = "geometry" | "chart" | "graphic" | "table" | "tile";
+export const PRIMITIVE_CATEGORIES: readonly PrimitiveCategory[] = ["geometry", "chart", "graphic", "table", "tile"];
 
 /** The kind of value a primitive parameter carries (mirrors the SPA `PrimitiveParamType`). */
 export type PrimitiveParamType =

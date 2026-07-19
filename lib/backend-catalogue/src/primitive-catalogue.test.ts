@@ -10,24 +10,10 @@ import { PRIMITIVE_CATALOGUE, getPrimitive, primitivesByCategory, resolvePrimiti
 
 const GEOMETRY_ATOMS = ["line", "rect", "text", "point", "path"];
 
-test("the geometry atoms + geometry-canvas are the geometry category; canvas is the surface root", () => {
+test("ships the geometry atoms + the surface spine (canvas/geometry-canvas), all geometry category", () => {
   const geom = new Set(primitivesByCategory("geometry").map((p) => p.id));
   for (const a of GEOMETRY_ATOMS) assert.ok(geom.has(a), `${a} is a geometry atom`);
-  assert.ok(geom.has("geometry-canvas"), "geometry-canvas is the drawable surface (geometry)");
-  const surfaces = new Set(primitivesByCategory("surface").map((p) => p.id));
-  assert.ok(surfaces.has("canvas") && surfaces.has("screen") && surfaces.has("report"), "canvas/screen/report are surfaces");
-});
-
-test("canvas is the single recipe-tree root: every surface branch traces back to it", () => {
-  assert.equal(getPrimitive("canvas")!.extends, undefined); // the root
-  // The drawable branch and the semantic branches all descend from canvas.
-  assert.deepEqual(resolvePrimitive("screen")!.lineage, ["screen", "canvas"]);
-  assert.deepEqual(resolvePrimitive("report")!.lineage, ["report", "canvas"]);
-  assert.deepEqual(resolvePrimitive("table")!.lineage, ["table", "canvas"]);
-  assert.deepEqual(resolvePrimitive("geometry-canvas")!.lineage, ["geometry-canvas", "canvas"]);
-  // A chart is a canvas made specific through the drawable branch; a screen through the semantic branch.
-  assert.equal(resolvePrimitive("bar")!.lineage.at(-1), "canvas");
-  assert.equal(resolvePrimitive("data-slot")!.lineage.at(-1), "canvas");
+  assert.ok(geom.has("canvas") && geom.has("geometry-canvas"), "the surface spine is geometry too");
 });
 
 test("the drawable render-surface spine inherits linearly: canvas ← geometry-canvas ← chart ← interactive-chart", () => {
