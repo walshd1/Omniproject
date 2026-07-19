@@ -60,6 +60,20 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
       { title: "Risk register set-up", status: "todo", priority: "medium", labels: ["raid"] },
     ],
   },
+  {
+    id: "kanban-starter",
+    label: "Task board",
+    description: "A ready-to-use task board with a few example cards — the simplest way to start tracking work.",
+    methodology: "kanban",
+    methodologies: ["kanban", "agile"],
+    project: { description: "A simple task board created from a template." },
+    seedIssues: [
+      { title: "Add your first task", status: "todo", priority: "medium" },
+      { title: "Drag a card to In Progress", status: "todo", priority: "low", labels: ["example"] },
+      { title: "This one's in progress", status: "in_progress", priority: "low", labels: ["example"] },
+      { title: "And this one's done", status: "done", priority: "low", labels: ["example"] },
+    ],
+  },
 ];
 
 const byId = new Map(PROJECT_TEMPLATES.map((t) => [t.id, t]));

@@ -50,5 +50,20 @@ export const PRESETS_DATA: Preset[] = [
       "self-hosted"
     ],
     "order": 30
+  },
+  {
+    "id": "simple-tasks",
+    "label": "Simple task manager",
+    "description": "The smallest way to start: a Kanban task board with a few example cards, nothing else. No sprints, no ceremonies, no governance — just a to-do board you can start using immediately, and grow into more later.",
+    "methodology": "kanban",
+    "referenceRuleset": "kanban",
+    "projectTemplate": "kanban-starter",
+    "dashboardPreset": "project-manager-today",
+    "tags": [
+      "kanban",
+      "starter",
+      "simple"
+    ],
+    "order": 1
   }
 ];
