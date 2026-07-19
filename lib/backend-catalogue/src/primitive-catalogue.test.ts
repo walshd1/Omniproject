@@ -25,10 +25,24 @@ test("the VISUALS tree is rooted at canvas: screen/form/report/table + the drawa
   }
   // The drawable branch also bottoms out at canvas.
   assert.equal(resolvePrimitive("bar")!.lineage.at(-1), "canvas");
-  // Control atoms + tiles are their OWN roots (materials placed into visuals, not canvas descendants).
-  for (const id of ["switch", "label", "stat-tile", "badge"]) {
+  // Control atoms + tiles + field are their OWN roots (materials placed into ANY visual, not canvas
+  // descendants — a tile/field goes on a report, a chart or a screen alike).
+  for (const id of ["switch", "label", "field", "stat-tile", "badge"]) {
     assert.equal(getPrimitive(id)!.extends, undefined, `${id} is an atomic primitive (a root)`);
   }
+});
+
+test("the settings tree: a `decision` defines the TYPE that drives the visual `field`", () => {
+  const decision = getPrimitive("decision")!;
+  assert.equal(decision.category, "setting");
+  // The decision TYPE is a fixed, closed set of decision kinds.
+  const typeParam = decision.params.find((p) => p.key === "type")!;
+  assert.equal(typeParam.required, true);
+  assert.deepEqual(typeParam.options, ["boolean", "single-choice", "multi-choice", "number", "text"]);
+  // The field (visual, control) binds to a decision via `source` — the data→visual seam.
+  const field = getPrimitive("field")!;
+  assert.equal(field.category, "control");
+  assert.ok(field.params.some((p) => p.key === "source"), "a field binds to a decision it renders");
 });
 
 test("the drawable render-surface spine inherits linearly: canvas ← geometry-canvas ← chart ← interactive-chart", () => {

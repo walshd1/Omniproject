@@ -418,6 +418,32 @@ export const PRIMITIVE_CATALOGUE: PrimitiveDef[] = [
     ],
   },
   {
+    id: "field",
+    label: "Field",
+    category: "control",
+    description: "A labelled input placed on ANY visual (form/screen/report) — a reusable atom like a tile. Binds to a `decision` (its `source`): the decision's TYPE tells the field which control to render (toggle / select / number / text) and with what options.",
+    params: [
+      { key: "label", label: "Label", type: "string", required: true, description: "The field's caption." },
+      { key: "source", label: "Decision", type: "string", required: false, description: "Id of the decision this field renders; its type drives the control shown. Omit to configure inline." },
+      { key: "value", label: "Value", type: "string", required: false, description: "The current value (the chosen position/option/number/text)." },
+    ],
+  },
+  // ── SETTINGS TREE — the DECISION (data), which drives the visual control ─────────────────────────
+  // A setting is a DECISION with a TYPE (boolean / single-choice / … ) and its options. This is DATA,
+  // like a record-set; a `field` (visual) binds to it and the decision's type tells the field what to
+  // render and with what options — the same data→visual seam as record-set → table.
+  {
+    id: "decision",
+    label: "Decision",
+    category: "setting",
+    description: "A setting to be decided — its TYPE (boolean, single-choice, multi-choice, number, text) plus options and current value. Pure DATA (the settings tree); a `field` visual binds to it and renders the control its type calls for.",
+    params: [
+      { key: "type", label: "Decision type", type: "enum", required: true, description: "What kind of decision this is — drives which control the visual renders.", options: ["boolean", "single-choice", "multi-choice", "number", "text"] },
+      { key: "options", label: "Options", type: "items", required: false, description: "The allowed choices (for single-choice / multi-choice); ignored for boolean/number/text." },
+      { key: "value", label: "Value", type: "string", required: false, description: "The current/default decision value." },
+    ],
+  },
+  {
     id: "stat-tile",
     label: "Stat tile",
     category: "tile",

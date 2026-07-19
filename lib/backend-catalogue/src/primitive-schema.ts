@@ -22,9 +22,9 @@
  *    `control` inputs (switch/label) — settings/forms are composed from these atoms.
  */
 export type PrimitiveCategory =
-  | "surface" | "geometry" | "chart" | "graphic" | "control" | "data-structure" | "table" | "tile";
+  | "surface" | "geometry" | "chart" | "graphic" | "control" | "setting" | "data-structure" | "table" | "tile";
 export const PRIMITIVE_CATEGORIES: readonly PrimitiveCategory[] = [
-  "surface", "geometry", "chart", "graphic", "control", "data-structure", "table", "tile",
+  "surface", "geometry", "chart", "graphic", "control", "setting", "data-structure", "table", "tile",
 ];
 
 /** The kind of value a primitive parameter carries (mirrors the SPA `PrimitiveParamType`). */
