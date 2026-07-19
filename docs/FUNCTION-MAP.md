@@ -4463,6 +4463,8 @@ Generic group consolidation engine — the ONE fold behind every "consolidate a 
 
 | Function | What it does |
 | --- | --- |
+| `measureValue` | Extract one measure's value from a set of items per its spec — the generic "sum field X" / "weighted-sum field X by Y" action, with every field name coming from the spec. |
+| `extractMeasures` | Extract every measure's value from a group's items — the `{ measureKey: amount }` map the fold folds. |
 | `consolidateByGroup` | Run a consolidation spec over a set of project contributions: group them, fold each into its group + the grand total, then finalise (round measures, compute derived, settle local) and sort. |
 | `consolidationSpec` | Look up a consolidation spec by id, or throw — a report binds to its spec by a stable id. |
 

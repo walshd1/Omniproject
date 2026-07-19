@@ -1,6 +1,10 @@
 {
   "id": "benefits",
-  "measures": ["planned", "actual", "expected"],
+  "measures": [
+    { "key": "planned", "agg": "sum", "field": "plannedBenefitValue" },
+    { "key": "actual", "agg": "sum", "field": "actualBenefitValue" },
+    { "key": "expected", "agg": "weightedSum", "field": "plannedBenefitValue", "weightField": "benefitConfidence", "weightScale": 0.01, "weightDefault": 100, "weightMax": 100 }
+  ],
   "derived": [
     { "key": "realisation", "op": "ratioPct", "a": "actual", "b": "planned" }
   ],

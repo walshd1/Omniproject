@@ -28,6 +28,29 @@ export type DerivedOp =
   | "ratioPct" // b>0 ? a/b×100 (1dp) : 0 (e.g. invoiced/projected = billed %)
   | "ratioOrNull"; // b>0 ? a/b (2dp) : null (e.g. earnedValue/actual = CPI)
 
+/** How a measure is extracted from a group's items — the field name is DATA, read by the engine. */
+export type MeasureAgg =
+  | "sum" // Σ item[field]
+  | "weightedSum"; // Σ item[field] × weight, weight from item[weightField] (clamped, scaled, defaulted)
+
+/** One measure: sum (or weighted-sum) a named field across a group's items into `key`. The engine never
+ *  hardcodes a field name — it reads `field` / `weightField` from here, exactly as the drill-down resolver
+ *  reads its predicate fields from a `DrillTo` descriptor. */
+export interface MeasureSpec {
+  key: string;
+  agg: MeasureAgg;
+  /** The item field summed into this measure. */
+  field: string;
+  /** weightedSum: the item field carrying the per-item weight (e.g. a confidence %). */
+  weightField?: string;
+  /** weightedSum: multiply the (clamped) weight by this before applying (e.g. 0.01 to turn a % into a fraction). */
+  weightScale?: number;
+  /** weightedSum: the weight to use when `weightField` is absent/null (in the same units as the raw field). */
+  weightDefault?: number;
+  /** weightedSum: clamp the raw weight to [0, weightMax] before scaling (e.g. 100 for a percentage). */
+  weightMax?: number;
+}
+
 /** One derived metric: apply `op` to two measure (or earlier-declared) keys, storing the result under `key`. */
 export interface DerivedMetric {
   key: string;
@@ -45,15 +68,16 @@ export interface ConsolidationSort {
 /** A consolidation spec — authored as JSON under assets/consolidations/<id>.json. */
 export interface ConsolidationSpec {
   id: string;
-  /** The measure keys to accumulate (each summed across a group's projects, then FX-converted). */
-  measures: string[];
+  /** How to extract each measure from a group's items (field name + aggregation) — data, not code. */
+  measures: MeasureSpec[];
   /** Derived metrics computed from the RAW (un-rounded) measure sums at finalise. */
   derived: DerivedMetric[];
   /** Row ordering. */
   sort: ConsolidationSort;
 }
 
-/** One project's contribution to a consolidation: its group, its currency, and its measure values. */
+/** One project's contribution to a consolidation: its group, its currency, and its raw items. The engine
+ *  extracts the measure values from `items` per the spec — no field name is baked into the caller. */
 export interface ConsolidationInput {
   /** Grouping key (e.g. a programmeId, or a "standalone" sentinel). */
   groupKey: string;
@@ -61,8 +85,32 @@ export interface ConsolidationInput {
   groupLabel: string;
   /** The project's source currency (drives FX conversion + local-currency tracking). */
   currency: string;
-  /** Raw per-measure amounts, keyed by the spec's measure keys (already extracted from the read model). */
-  values: Record<string, number>;
+  /** The project's work items — the engine reads each measure's `field` off these. */
+  items: readonly Record<string, unknown>[];
+}
+
+/** Extract one measure's value from a set of items per its spec — the generic "sum field X" /
+ *  "weighted-sum field X by Y" action, with every field name coming from the spec. */
+export function measureValue(items: readonly Record<string, unknown>[], m: MeasureSpec): number {
+  let total = 0;
+  for (const it of items) {
+    const base = num(it[m.field]);
+    if (m.agg === "weightedSum") {
+      const scale = m.weightScale ?? 1;
+      const wf = m.weightField;
+      const rawWeight = wf != null && it[wf] != null ? num(it[wf]) : (m.weightDefault ?? 1 / scale);
+      const weight = Math.min(m.weightMax ?? Infinity, Math.max(0, rawWeight));
+      total += base * weight * scale;
+    } else {
+      total += base;
+    }
+  }
+  return total;
+}
+
+/** Extract every measure's value from a group's items — the `{ measureKey: amount }` map the fold folds. */
+export function extractMeasures(items: readonly Record<string, unknown>[], measures: MeasureSpec[]): Record<string, number> {
+  return Object.fromEntries(measures.map((m) => [m.key, measureValue(items, m)]));
 }
 
 /** A consolidated row (a group, or the grand total). Measures + derived metrics land in `metrics`. */
@@ -106,25 +154,27 @@ interface WorkingRow {
 }
 
 function blank(spec: ConsolidationSpec, key: string, label: string): WorkingRow {
-  const zero = () => Object.fromEntries(spec.measures.map((m) => [m, 0]));
+  const zero = () => Object.fromEntries(spec.measures.map((m) => [m.key, 0]));
   return { key, label, projects: 0, sums: zero(), localSums: zero(), local: false, tracker: new LocalTracker(), excludedForFx: 0 };
 }
 
-/** Fold one project into a row: FX-convert its measures into the total (gated on convertibility), and
- *  accumulate the raw amounts as the row's local figure for as long as one currency is shared. */
+/** Fold one project into a row: extract its measure values from its items, FX-convert them into the total
+ *  (gated on convertibility), and accumulate the raw amounts as the row's local figure while one currency
+ *  is shared. */
 function fold(acc: WorkingRow, p: ConsolidationInput, spec: ConsolidationSpec, target: string, rates?: Record<string, number>): void {
   acc.projects += 1;
   const currency = String(p.currency ?? "");
+  const values = extractMeasures(p.items, spec.measures);
   // convertAmount passes an amount through UNCHANGED when a rate is missing, so a raw foreign amount
   // would corrupt the consolidated total — only fold measures in when the row can actually be converted.
   const convertible = isConvertible(currency, target, rates);
   if (convertible) {
-    for (const m of spec.measures) acc.sums[m] = (acc.sums[m] ?? 0) + convertAmount(num(p.values[m]), currency, target, rates);
+    for (const m of spec.measures) acc.sums[m.key] = (acc.sums[m.key] ?? 0) + convertAmount(values[m.key] ?? 0, currency, target, rates);
   } else {
     acc.excludedForFx += 1;
   }
   if (acc.tracker.add(currency)) {
-    for (const m of spec.measures) acc.localSums[m] = (acc.localSums[m] ?? 0) + num(p.values[m]);
+    for (const m of spec.measures) acc.localSums[m.key] = (acc.localSums[m.key] ?? 0) + (values[m.key] ?? 0);
     acc.local = true;
   } else {
     acc.local = false; // a second currency showed up — a single local figure no longer applies
@@ -134,7 +184,7 @@ function fold(acc: WorkingRow, p: ConsolidationInput, spec: ConsolidationSpec, t
 /** Round the measures, derive the ratios from the RAW sums, and settle the local figure. */
 function finalise(acc: WorkingRow, spec: ConsolidationSpec): ConsolidatedRow {
   const metrics: Record<string, number | null> = {};
-  for (const m of spec.measures) metrics[m] = round2(acc.sums[m] ?? 0);
+  for (const m of spec.measures) metrics[m.key] = round2(acc.sums[m.key] ?? 0);
   // Derived metrics read the RAW (un-rounded) sums, matching the hand-written roll-ups they replace.
   for (const d of spec.derived) metrics[d.key] = applyDerived(d.op, acc.sums[d.a] ?? 0, acc.sums[d.b] ?? 0);
   return {
@@ -143,7 +193,7 @@ function finalise(acc: WorkingRow, spec: ConsolidationSpec): ConsolidatedRow {
     projects: acc.projects,
     metrics,
     localCurrency: acc.tracker.currency,
-    local: acc.local ? Object.fromEntries(spec.measures.map((m) => [m, round2(acc.localSums[m] ?? 0)])) : null,
+    local: acc.local ? Object.fromEntries(spec.measures.map((m) => [m.key, round2(acc.localSums[m.key] ?? 0)])) : null,
     excludedForFx: acc.excludedForFx,
   };
 }

@@ -4,17 +4,21 @@ import { consolidateByGroup, consolidationSpec, CONSOLIDATIONS, type Consolidati
 
 const income = consolidationSpec("income");
 
-function inputs(...rows: Array<[group: string, currency: string, projected: number, invoiced: number]>): ConsolidationInput[] {
-  return rows.map(([g, currency, projected, invoiced]) => ({ groupKey: g, groupLabel: g, currency, values: { projected, invoiced } }));
+// The income spec extracts `projected` from item.revenue and `invoiced` from item.invoicedAmount — so a
+// test row supplies those raw fields, exactly as a real work item would.
+function inputs(...rows: Array<[group: string, currency: string, revenue: number, invoicedAmount: number]>): ConsolidationInput[] {
+  return rows.map(([g, currency, revenue, invoicedAmount]) => ({ groupKey: g, groupLabel: g, currency, items: [{ revenue, invoicedAmount }] }));
 }
 
 test("shipped specs all validate against the engine's expectations", () => {
   for (const spec of CONSOLIDATIONS) {
     assert.ok(spec.measures.length > 0, `${spec.id} needs measures`);
+    const measureKeys = spec.measures.map((m) => m.key);
+    for (const m of spec.measures) assert.ok(m.field, `${spec.id}.${m.key} declares a source field`);
     for (const d of spec.derived) {
-      assert.ok(spec.measures.includes(d.a) && spec.measures.includes(d.b), `${spec.id}.${d.key} references a measure`);
+      assert.ok(measureKeys.includes(d.a) && measureKeys.includes(d.b), `${spec.id}.${d.key} references a measure`);
     }
-    const sortKeys = [...spec.measures, ...spec.derived.map((d) => d.key)];
+    const sortKeys = [...measureKeys, ...spec.derived.map((d) => d.key)];
     assert.ok(sortKeys.includes(spec.sort.key), `${spec.id} sorts on a known key`);
   }
 });
@@ -66,10 +70,32 @@ test("a row that mixes currencies drops its single local figure", () => {
 test("ratioOrNull yields null when the denominator is 0", () => {
   const spec: ConsolidationSpec = {
     id: "cpi-probe",
-    measures: ["earnedValue", "actual"],
+    measures: [
+      { key: "earnedValue", agg: "sum", field: "ev" },
+      { key: "actual", agg: "sum", field: "burn" },
+    ],
     derived: [{ key: "cpi", op: "ratioOrNull", a: "earnedValue", b: "actual" }],
     sort: { key: "cpi", dir: "asc" },
   };
-  const { total } = consolidateByGroup([{ groupKey: "a", groupLabel: "a", currency: "GBP", values: { earnedValue: 10, actual: 0 } }], spec, "GBP");
+  const { total } = consolidateByGroup([{ groupKey: "a", groupLabel: "a", currency: "GBP", items: [{ ev: 10, burn: 0 }] }], spec, "GBP");
   assert.equal(total.metrics["cpi"], null);
+});
+
+test("weightedSum applies the per-item weight, its scale, default and clamp", () => {
+  // benefits' `expected` = Σ plannedBenefitValue × clamp(confidence,0,100) × 0.01, confidence defaulting to 100.
+  const spec: ConsolidationSpec = {
+    id: "weighted-probe",
+    measures: [{ key: "expected", agg: "weightedSum", field: "planned", weightField: "conf", weightScale: 0.01, weightDefault: 100, weightMax: 100 }],
+    derived: [],
+    sort: { key: "expected", dir: "asc" },
+  };
+  const { total } = consolidateByGroup([{
+    groupKey: "a", groupLabel: "a", currency: "GBP",
+    items: [
+      { planned: 100, conf: 50 }, // 100 × 0.5 = 50
+      { planned: 100 }, // no conf → default 100 → 100 × 1 = 100
+      { planned: 100, conf: 250 }, // clamped to 100 → 100 × 1 = 100
+    ],
+  }], spec, "GBP");
+  assert.equal(total.metrics["expected"], 250);
 });

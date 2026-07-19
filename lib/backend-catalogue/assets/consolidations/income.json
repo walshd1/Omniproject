@@ -1,6 +1,9 @@
 {
   "id": "income",
-  "measures": ["projected", "invoiced"],
+  "measures": [
+    { "key": "projected", "agg": "sum", "field": "revenue" },
+    { "key": "invoiced", "agg": "sum", "field": "invoicedAmount" }
+  ],
   "derived": [
     { "key": "unbilled", "op": "diffFloor0", "a": "projected", "b": "invoiced" },
     { "key": "billedPct", "op": "ratioPct", "a": "invoiced", "b": "projected" }

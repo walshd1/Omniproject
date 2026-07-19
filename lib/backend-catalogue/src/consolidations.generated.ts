@@ -7,9 +7,25 @@ export const CONSOLIDATIONS_DATA: ConsolidationSpec[] = [
   {
     "id": "benefits",
     "measures": [
-      "planned",
-      "actual",
-      "expected"
+      {
+        "key": "planned",
+        "agg": "sum",
+        "field": "plannedBenefitValue"
+      },
+      {
+        "key": "actual",
+        "agg": "sum",
+        "field": "actualBenefitValue"
+      },
+      {
+        "key": "expected",
+        "agg": "weightedSum",
+        "field": "plannedBenefitValue",
+        "weightField": "benefitConfidence",
+        "weightScale": 0.01,
+        "weightDefault": 100,
+        "weightMax": 100
+      }
     ],
     "derived": [
       {
@@ -27,8 +43,16 @@ export const CONSOLIDATIONS_DATA: ConsolidationSpec[] = [
   {
     "id": "income",
     "measures": [
-      "projected",
-      "invoiced"
+      {
+        "key": "projected",
+        "agg": "sum",
+        "field": "revenue"
+      },
+      {
+        "key": "invoiced",
+        "agg": "sum",
+        "field": "invoicedAmount"
+      }
     ],
     "derived": [
       {

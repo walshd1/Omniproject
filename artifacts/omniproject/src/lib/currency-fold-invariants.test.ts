@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { check, gen, type Rng } from "../test/proptest";
-import { rollupIncome, rollupBenefits, type ProjectItems } from "./portfolio-value";
+import { rollupBySpec, type ProjectItems } from "./portfolio-value";
 import { realisationPipeline } from "./benefits-realisation";
 import { scorePortfolio, type ProjectPriorityInput } from "./portfolio-priority";
 
@@ -55,20 +55,20 @@ function scenario(make: (r: Rng, currency: string) => ProjectItems) {
 describe("cross-currency fold invariant: unconvertible rows never change the money total", () => {
   it("rollupIncome — portfolio projected/invoiced are unchanged by unconvertible projects", () => {
     check(scenario(incomeProject), ({ target, convertible, unconvertible }) => {
-      const base = rollupIncome(convertible, target, RATES).portfolio;
-      const withUnconv = rollupIncome([...convertible, ...unconvertible], target, RATES).portfolio;
-      expect(withUnconv.projected).toBeCloseTo(base.projected, 6);
-      expect(withUnconv.invoiced).toBeCloseTo(base.invoiced, 6);
+      const base = rollupBySpec("income", convertible, target, RATES).portfolio;
+      const withUnconv = rollupBySpec("income", [...convertible, ...unconvertible], target, RATES).portfolio;
+      expect(withUnconv.metrics["projected"]).toBeCloseTo(base.metrics["projected"], 6);
+      expect(withUnconv.metrics["invoiced"]).toBeCloseTo(base.metrics["invoiced"], 6);
       expect(withUnconv.excludedForFx).toBe(base.excludedForFx + unconvertible.length);
     });
   });
 
   it("rollupBenefits — portfolio planned/actual are unchanged by unconvertible projects", () => {
     check(scenario(benefitProject), ({ target, convertible, unconvertible }) => {
-      const base = rollupBenefits(convertible, target, RATES).portfolio;
-      const withUnconv = rollupBenefits([...convertible, ...unconvertible], target, RATES).portfolio;
-      expect(withUnconv.planned).toBeCloseTo(base.planned, 6);
-      expect(withUnconv.actual).toBeCloseTo(base.actual, 6);
+      const base = rollupBySpec("benefits", convertible, target, RATES).portfolio;
+      const withUnconv = rollupBySpec("benefits", [...convertible, ...unconvertible], target, RATES).portfolio;
+      expect(withUnconv.metrics["planned"]).toBeCloseTo(base.metrics["planned"], 6);
+      expect(withUnconv.metrics["actual"]).toBeCloseTo(base.metrics["actual"], 6);
       expect(withUnconv.excludedForFx).toBe(base.excludedForFx + unconvertible.length);
     });
   });

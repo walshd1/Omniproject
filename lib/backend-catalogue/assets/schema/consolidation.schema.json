@@ -13,8 +13,21 @@
     },
     "measures": {
       "type": "array",
-      "description": "Measure keys accumulated per group (each summed across its projects, then FX-converted).",
-      "items": { "type": "string", "pattern": "^[a-zA-Z0-9]+$" }
+      "description": "How each measure is extracted from a group's items (field + aggregation), then FX-converted.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["key", "agg", "field"],
+        "properties": {
+          "key": { "type": "string", "pattern": "^[a-zA-Z0-9]+$" },
+          "agg": { "type": "string", "enum": ["sum", "weightedSum"] },
+          "field": { "type": "string", "pattern": "^[a-zA-Z0-9_]+$" },
+          "weightField": { "type": "string", "pattern": "^[a-zA-Z0-9_]+$" },
+          "weightScale": { "type": "number" },
+          "weightDefault": { "type": "number" },
+          "weightMax": { "type": "number" }
+        }
+      }
     },
     "derived": {
       "type": "array",

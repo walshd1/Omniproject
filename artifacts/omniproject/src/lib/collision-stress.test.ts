@@ -10,7 +10,7 @@ import { buildRoadmap, roadmapKey, type RoadmapProject, type RoadmapIssue } from
 import { buildExecHealth } from "./exec-pack";
 import { rollupByProgramme, type ProjectCapacity } from "./capacity-rollup";
 import { consolidateFinancials, type ProjectFin } from "./portfolio-finance";
-import { rollupIncome, rollupBenefits, type ProjectItems } from "./portfolio-value";
+import { rollupBySpec, type ProjectItems } from "./portfolio-value";
 
 /**
  * LOGIC & COLLISION STRESS HARNESS (SPA / derivations side).
@@ -193,11 +193,11 @@ describe("programme rollups — grouping + deterministic equal-key ordering", ()
 
   it("income/benefits rollups: equal-metric programmes order deterministically", () => {
     const mk = (pid: string): ProjectItems => ({ projectId: `x-${pid}`, projectName: pid, programmeId: pid, programmeName: pid, currency: "GBP", items: [] });
-    const inc1 = rollupIncome([mk("prog-b"), mk("prog-a")], "GBP").programmes.map((p) => p.key);
-    const inc2 = rollupIncome([mk("prog-a"), mk("prog-b")], "GBP").programmes.map((p) => p.key);
+    const inc1 = rollupBySpec("income", [mk("prog-b"), mk("prog-a")], "GBP").programmes.map((p) => p.key);
+    const inc2 = rollupBySpec("income", [mk("prog-a"), mk("prog-b")], "GBP").programmes.map((p) => p.key);
     expect(inc1).toEqual(inc2);
-    const ben1 = rollupBenefits([mk("prog-b"), mk("prog-a")], "GBP").programmes.map((p) => p.key);
-    const ben2 = rollupBenefits([mk("prog-a"), mk("prog-b")], "GBP").programmes.map((p) => p.key);
+    const ben1 = rollupBySpec("benefits", [mk("prog-b"), mk("prog-a")], "GBP").programmes.map((p) => p.key);
+    const ben2 = rollupBySpec("benefits", [mk("prog-a"), mk("prog-b")], "GBP").programmes.map((p) => p.key);
     expect(ben1).toEqual(ben2);
   });
 });
