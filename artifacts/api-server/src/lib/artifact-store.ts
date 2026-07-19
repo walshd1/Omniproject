@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { SealedFile } from "./sealed-file";
 import { safeParseJson } from "./safe-json";
+import { cachedDecryptedRead } from "./sealed-read-cache";
 
 /**
  * SCOPED ENCRYPTED-JSON ARTIFACT STORE — the canonical home for user-authored artifacts (whiteboards,
@@ -144,7 +145,10 @@ export function requireArtifactStore(res: { status(code: number): { json(body: u
 function readCollection<T>(type: string, scope: ArtifactScope): T[] {
   const f = fileFor(type, scope);
   if (!f) return [];
-  const raw = new SealedFile(() => f, `artifact:${type}`).read();
+  // The decrypted string is memoised per (path, mtime, size) when SEALED_READ_CACHE is on (SCALING.md §4);
+  // parse still runs per call so every caller gets a FRESH array (no shared-mutable-state — read-modify-write
+  // callers like putArtifact/deleteArtifact mutate their own copy). A write bumps mtime → the next read misses.
+  const raw = cachedDecryptedRead(f, () => new SealedFile(() => f, `artifact:${type}`).read());
   if (raw === null) return [];
   const parsed = safeParseJson(raw);
   return Array.isArray(parsed) ? (parsed as T[]) : [];

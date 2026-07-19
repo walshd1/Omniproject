@@ -8,6 +8,8 @@ import { resolveCapabilities } from "./capabilities";
 import { createConcurrencyLimiter, poolMapWith, type Limiter } from "./concurrency-pool";
 import { summariseTasks, type TaskSummary } from "./task-summary";
 import { planProjectSources, type SourcePlan } from "./closed-projects";
+import { getReadCache } from "./read-cache";
+import { actorKey } from "../broker/cache";
 
 /**
  * Portfolio-wide AGGREGATE summary — the one shape allowed to cross an instance boundary for
@@ -233,6 +235,14 @@ async function summaryCapacity(broker: Broker, ctx: Ctx, caps: Caps, projects: P
   return all.length ? foldCapacity(all) : null;
 }
 
+/** The read-cache key for a portfolio summary — the caller's identity+data-scope (`actorKey`, the scope-safe
+ *  fingerprint the broker cache uses) plus the reporting-currency posture. Exported + pure so the
+ *  no-cross-scope-collision property is unit-testable: two callers differing only in data scope MUST get
+ *  different keys, or an all-scope admin's rollup could be served to a programme-scoped token. */
+export function portfolioSummaryCacheKey(ctx: Ctx, settings: ReturnType<typeof getSettings>): string {
+  return `portfolio-summary:${actorKey(ctx)}:cur=${settings.reportingCurrency || ""}:fx=${resolveFxAsOf(settings) ?? "spot"}`;
+}
+
 async function summaryTasks(broker: Broker, ctx: Ctx): Promise<TaskSummary | null> {
   // Only when the active backend actually models tasks (an optional broker capability).
   if (!broker.listTasks) return null;
@@ -246,6 +256,18 @@ async function summaryTasks(broker: Broker, ctx: Ctx): Promise<TaskSummary | nul
 export async function computeLocalPortfolioSummary(req: Request): Promise<PortfolioSummary> {
   const broker = getBroker();
   const ctx = contextFromReq(req);
+  // SCALING.md §3: org-wide this fans one broker call per project (up to N round-trips). When the shared
+  // read cache is opted in (`READ_CACHE_TTL_MS`), memoise the whole computed summary for the TTL — keyed by
+  // the caller's IDENTITY+DATA SCOPE (`actorKey`, the same scope-safe key the broker cache uses, so an
+  // all-scope admin's rollup is never served to a programme-scoped token) and the reporting-currency posture
+  // (so a currency switch can't serve a wrong-currency total). Off by default ⇒ a pass-through (recomputes).
+  const key = portfolioSummaryCacheKey(ctx, getSettings());
+  return getReadCache().wrap(key, () => computeFreshPortfolioSummary(req, broker, ctx));
+}
+
+/** The uncached fold: fan the four sections out over the broker and reduce them. Split from the cached entry
+ *  point above so the fan-out logic has one home whether or not the read cache is enabled. */
+async function computeFreshPortfolioSummary(req: Request, broker: Broker, ctx: Ctx): Promise<PortfolioSummary> {
   // Capabilities and the project list are independent — fetch them concurrently.
   const [caps, projects] = await Promise.all([
     resolveCapabilities(req).catch(() => null),

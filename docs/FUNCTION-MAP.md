@@ -2677,6 +2677,7 @@ Portfolio-wide AGGREGATE summary — the one shape allowed to cross an instance 
 | `summarizeHealth` | Summarise portfolio-health rows (the existing `GET /portfolio/health` aggregate) into portfolio-wide counts — no per-project id/name survives. |
 | `foldFinance` | Fold per-project financials (the existing `GET /projects/:id/financials` rows) into ONE portfolio total in `target` currency — the portfolio-only reduction of `consolidateFinancials`. |
 | `foldCapacity` | Fold every project's resource rows (the existing `GET /projects/:id/capacity` rows, flattened across the portfolio) into ONE portfolio total — the portfolio-only reduction of `rollupByProgramme`. |
+| `portfolioSummaryCacheKey` | The read-cache key for a portfolio summary — the caller's identity+data-scope (`actorKey`, the scope-safe fingerprint the broker cache uses) plus the reporting-currency posture. |
 | `computeLocalPortfolioSummary` | Build the portfolio rollup for this request by fanning the four sections (health, finance, capacity, tasks) out in parallel over the broker, then folding them into one summary. |
 
 ### `artifacts/api-server/src/lib/predicate.ts`
@@ -3313,6 +3314,16 @@ One home for the "durable state file, sealed at rest" pattern.
 | Function | What it does |
 | --- | --- |
 | `resolveConfigFile` | Resolve a config file path: an explicit env override wins; otherwise `defaultName` under OMNI_CONFIG_DIR (or null if neither is set, meaning "no persistence"). |
+
+### `artifacts/api-server/src/lib/sealed-read-cache.ts`
+
+MTIME-KEYED DECRYPTED-READ CACHE for the sealed artifact/def stores (SCALING.md §4).
+
+| Function | What it does |
+| --- | --- |
+| `sealedReadCacheEnabled` | True only when an operator has opted in (`SEALED_READ_CACHE=true`). |
+| `cachedDecryptedRead` | Return the decrypted contents of sealed file `file`, serving a cached copy when the file is unchanged (same mtime + size) since it was last read. |
+| `_resetSealedReadCache` | Test-only: drop the whole cache so a subsequent read re-decrypts. |
 
 ### `artifacts/api-server/src/lib/security-check.ts`
 
