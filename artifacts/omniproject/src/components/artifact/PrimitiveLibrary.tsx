@@ -11,7 +11,9 @@ import { primitiveTree, primitiveTreeWith, primitiveFromResolved, type Primitive
 function useActivatedPrimitives(enabled: boolean, projectId?: string, programmeId?: string): Primitive[] {
   const resolved = useResolvedDefs<ResolvedPrimitive["payload"]>("primitive", projectId, programmeId, enabled);
   return useMemo(
-    () => (resolved.data ?? []).map((d) => primitiveFromResolved({ id: d.id, payload: d.payload })),
+    // Defensive: the resolved endpoint yields an array, but never trust the wire — a non-array (error body,
+    // stubbed fetch) must degrade to "no activated primitives", not crash the palette.
+    () => (Array.isArray(resolved.data) ? resolved.data : []).map((d) => primitiveFromResolved({ id: d.id, payload: d.payload })),
     [resolved.data],
   );
 }
