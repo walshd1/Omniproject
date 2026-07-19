@@ -152,8 +152,11 @@ export function OrgIdentityStep({ isAdmin = true }: { isAdmin?: boolean }) {
       </div>
 
       {!brand.entitled && (
-        <p className="mt-3 flex items-center gap-1.5 text-xs text-muted-foreground" data-testid="org-name-branding-note">
-          <Lock className="w-3 h-3" />White-label <strong>Branding</strong> (replacing the product name/logo in the header itself) is on a paid plan — naming and badging your organisation is always free.
+        <p className="mt-3 flex items-start gap-1.5 text-xs text-muted-foreground" data-testid="org-name-branding-note">
+          <Lock className="w-3 h-3 mt-0.5 shrink-0" />
+          <span>
+            This names <em>your&nbsp;organisation on OmniProject</em> — free on every plan. The paid <strong>Branding</strong> add-on is a full <strong>whitebox</strong>: the product name itself becomes yours (e.g. “Acme&nbsp;Ltd PPM&nbsp;&amp; Resource Management System”), with no OmniProject shown anywhere.
+          </span>
         </p>
       )}
     </section>
