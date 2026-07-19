@@ -24,10 +24,12 @@ export const ORG_WORK_VOCABULARY_ID = makeScopedId("org", `config-${WORK_VOCABUL
 
 const MAX_LABEL = 40;
 const ID_RE = /^[a-z][a-z0-9_]*$/;
+const HEX_RE = /^#[0-9a-fA-F]{6}$/;
 const LIFECYCLES = new Set<StatusClass>(["open", "active", "done", "cancelled"]);
 const isStr = (v: unknown): v is string => typeof v === "string";
 const isIntGe0 = (v: unknown): v is number => typeof v === "number" && Number.isInteger(v) && v >= 0;
 const cleanLabel = (v: unknown): string | null => (isStr(v) && v.trim() ? v.trim().slice(0, MAX_LABEL) : null);
+const cleanColor = (v: unknown): string | null => (isStr(v) && HEX_RE.test(v) ? v : null);
 const cleanMethodologies = (v: unknown): string[] => (Array.isArray(v) && v.length && v.every(isStr) ? (v as string[]) : ["*"]);
 
 /** The effective vocabulary at the given scopes — the shipped default with every scope layer folded on,
@@ -54,8 +56,9 @@ function projectStatuses(folded: unknown): ResolvedStatus[] {
     const label = cleanLabel(e["label"]);
     const lifecycle = isStr(e["lifecycle"]) && LIFECYCLES.has(e["lifecycle"] as StatusClass) ? (e["lifecycle"] as StatusClass) : null;
     if (!label || !lifecycle || !isIntGe0(e["order"])) continue;
+    const color = cleanColor(e["color"]);
     seen.add(id);
-    out.push({ id, label, order: e["order"] as number, lifecycle, methodologies: cleanMethodologies(e["methodologies"]) });
+    out.push({ id, label, order: e["order"] as number, lifecycle, methodologies: cleanMethodologies(e["methodologies"]), ...(color ? { color } : {}) });
   }
   return out.sort((a, b) => a.order - b.order);
 }
@@ -69,15 +72,16 @@ function projectPriorities(folded: unknown): ResolvedPriority[] {
   return base
     .map((p) => {
       const o = over.get(p.id);
-      return { id: p.id, label: cleanLabel(o?.["label"]) ?? p.label, order: isIntGe0(o?.["order"]) ? (o!["order"] as number) : p.order };
+      const color = cleanColor(o?.["color"]) ?? p.color;
+      return { id: p.id, label: cleanLabel(o?.["label"]) ?? p.label, order: isIntGe0(o?.["order"]) ? (o!["order"] as number) : p.order, ...(color ? { color } : {}) };
     })
     .sort((a, b) => a.order - b.order);
 }
 
 /** One sanitised status override entry — a partial for an existing status, a full def for a new one, or a
  *  `{id, removed}` tombstone. */
-export interface StatusOverride { id: string; label?: string; order?: number; lifecycle?: StatusClass; methodologies?: string[]; removed?: true }
-export interface PriorityOverride { id: string; label?: string; order?: number }
+export interface StatusOverride { id: string; label?: string; order?: number; lifecycle?: StatusClass; methodologies?: string[]; color?: string; removed?: true }
+export interface PriorityOverride { id: string; label?: string; order?: number; color?: string }
 
 /**
  * Validate + normalise a PUT body into the config-def `values` to store. Throws {@link Error} (→ 400) on a
@@ -128,10 +132,15 @@ function cleanStatusOverrides(list: unknown, baseIds: Set<string>): StatusOverri
       if (!Array.isArray(e["methodologies"]) || !e["methodologies"].every(isStr)) throw new Error(`status "${id}" methodologies must be an array of strings`);
       entry.methodologies = e["methodologies"] as string[];
     }
+    if (e["color"] !== undefined && e["color"] !== null && e["color"] !== "") {
+      const c = cleanColor(e["color"]);
+      if (!c) throw new Error(`status "${id}" color must be a 6-digit hex like #3b82f6`);
+      entry.color = c;
+    }
     if (isNew && (entry.label === undefined || entry.lifecycle === undefined || entry.order === undefined)) {
       throw new Error(`new status "${id}" needs a label, a lifecycle class and an order`);
     }
-    if (entry.label !== undefined || entry.order !== undefined || entry.lifecycle !== undefined || entry.methodologies !== undefined) out.push(entry);
+    if (entry.label !== undefined || entry.order !== undefined || entry.lifecycle !== undefined || entry.methodologies !== undefined || entry.color !== undefined) out.push(entry);
   }
   return out;
 }
@@ -156,7 +165,12 @@ function cleanPriorityOverrides(list: unknown, allowed: Set<string>): PriorityOv
       if (!isIntGe0(e["order"])) throw new Error(`priority "${id}" order must be a non-negative integer`);
       entry.order = e["order"] as number;
     }
-    if (entry.label !== undefined || entry.order !== undefined) out.push(entry);
+    if (e["color"] !== undefined && e["color"] !== null && e["color"] !== "") {
+      const c = cleanColor(e["color"]);
+      if (!c) throw new Error(`priority "${id}" color must be a 6-digit hex like #ef4444`);
+      entry.color = c;
+    }
+    if (entry.label !== undefined || entry.order !== undefined || entry.color !== undefined) out.push(entry);
   }
   return out;
 }

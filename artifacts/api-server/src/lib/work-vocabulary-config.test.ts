@@ -38,6 +38,11 @@ test("sanitizer: a NEW status must carry label + lifecycle + order", () => {
   assert.throws(() => sanitizeWorkVocabularyOverride({ statuses: [{ id: "frozen", label: "Frozen", lifecycle: "slushy", order: 9 }] }), /lifecycle must be one of/);
 });
 
+test("sanitizer: a colour must be a 6-digit hex", () => {
+  assert.deepEqual(sanitizeWorkVocabularyOverride({ statuses: [{ id: "done", color: "#123abc" }] }).statuses, [{ id: "done", color: "#123abc" }]);
+  assert.throws(() => sanitizeWorkVocabularyOverride({ statuses: [{ id: "done", color: "red" }] }), /must be a 6-digit hex/);
+});
+
 test("sanitizer: priorities are relabel/reorder only — no add/remove", () => {
   const out = sanitizeWorkVocabularyOverride({ priorities: [{ id: "urgent", label: "P0" }] });
   assert.deepEqual(out.priorities, [{ id: "urgent", label: "P0" }]);
@@ -54,6 +59,7 @@ test("resolver: an org can add, remove and relabel statuses; methodology tags fi
 
   const base = resolveWorkVocabulary();
   assert.deepEqual(base.statuses.map((s) => s.id), ["backlog", "todo", "in_progress", "in_review", "done", "cancelled"]);
+  assert.equal(base.statuses.find((s) => s.id === "done")!.color, "#22c55e"); // shipped hex colour
 
   const now = new Date().toISOString();
   putDef({ kind: "org" }, {

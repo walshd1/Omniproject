@@ -9,66 +9,76 @@ export const WORK_VOCABULARY_DATA: WorkVocabEntry[] = [
     "id": "backlog",
     "label": "Backlog",
     "order": 0,
-    "lifecycle": "open"
+    "lifecycle": "open",
+    "color": "#71717a"
   },
   {
     "kind": "status",
     "id": "todo",
     "label": "Todo",
     "order": 1,
-    "lifecycle": "open"
+    "lifecycle": "open",
+    "color": "#3b82f6"
   },
   {
     "kind": "status",
     "id": "in_progress",
     "label": "In progress",
     "order": 2,
-    "lifecycle": "active"
+    "lifecycle": "active",
+    "color": "#f59e0b"
   },
   {
     "kind": "status",
     "id": "in_review",
     "label": "In review",
     "order": 3,
-    "lifecycle": "active"
+    "lifecycle": "active",
+    "color": "#a855f7"
   },
   {
     "kind": "status",
     "id": "done",
     "label": "Done",
     "order": 4,
-    "lifecycle": "done"
+    "lifecycle": "done",
+    "color": "#22c55e"
   },
   {
     "kind": "status",
     "id": "cancelled",
     "label": "Cancelled",
     "order": 5,
-    "lifecycle": "cancelled"
+    "lifecycle": "cancelled",
+    "color": "#ef4444"
   },
   {
     "kind": "priority",
     "id": "urgent",
     "label": "Urgent",
-    "order": 0
+    "order": 0,
+    "color": "#ef4444"
   },
   {
     "kind": "priority",
     "id": "high",
     "label": "High",
-    "order": 1
+    "order": 1,
+    "color": "#f97316"
   },
   {
     "kind": "priority",
     "id": "medium",
     "label": "Medium",
-    "order": 2
+    "order": 2,
+    "color": "#eab308"
   },
   {
     "kind": "priority",
     "id": "low",
     "label": "Low",
-    "order": 3
+    "order": 3,
+    "color": "#71717a"
   },
   {
     "kind": "priority",

@@ -21,6 +21,8 @@ export interface WorkVocabEntry {
   label: string;
   order: number;
   lifecycle?: StatusClass;
+  /** Swatch colour as a 6-digit hex, rendered via inline style (absent ⇒ a neutral swatch). */
+  color?: string;
   /** Methodology tags this token belongs to ("*" = neutral / all). Absent ⇒ neutral. Lets each
    *  methodology carry its own normal status nomenclature (surfaced by {@link statusesForMethodology}). */
   methodologies?: string[];
@@ -74,8 +76,8 @@ export function workVocabulary(): WorkVocabEntry[] {
 /** The scope-layerable shape of the vocabulary: statuses + priorities grouped by kind. This is BOTH the
  *  `values` seeded into the system `work-vocabulary` config def AND the base a scope resolver folds
  *  org/programme/project/user overrides onto — one source of truth for the shipped default. */
-export interface ResolvedStatus { id: string; label: string; order: number; lifecycle: StatusClass; methodologies: string[] }
-export interface ResolvedPriority { id: string; label: string; order: number }
+export interface ResolvedStatus { id: string; label: string; order: number; lifecycle: StatusClass; methodologies: string[]; color?: string }
+export interface ResolvedPriority { id: string; label: string; order: number; color?: string }
 export interface WorkVocabularyValues {
   statuses: ResolvedStatus[];
   priorities: ResolvedPriority[];
@@ -84,8 +86,8 @@ export interface WorkVocabularyValues {
 /** Build the shipped-default {@link WorkVocabularyValues} from the canonical entries. */
 export function workVocabularyValues(): WorkVocabularyValues {
   return {
-    statuses: statusEntries.map((e) => ({ id: e.id, label: e.label, order: e.order, lifecycle: e.lifecycle ?? "open", methodologies: vocabMethodologies(e) })),
-    priorities: priorityEntries.map((e) => ({ id: e.id, label: e.label, order: e.order })),
+    statuses: statusEntries.map((e) => ({ id: e.id, label: e.label, order: e.order, lifecycle: e.lifecycle ?? "open", methodologies: vocabMethodologies(e), ...(e.color ? { color: e.color } : {}) })),
+    priorities: priorityEntries.map((e) => ({ id: e.id, label: e.label, order: e.order, ...(e.color ? { color: e.color } : {}) })),
   };
 }
 
