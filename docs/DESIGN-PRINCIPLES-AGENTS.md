@@ -61,10 +61,13 @@ Format: each principle is a RULE + how to CHECK it + the usual FIX.
 ## 8. Auth tiers only tighten (no silent downgrade)
 - RULE: Tiers, weak→strong: demo → in-app local passwords → external/self-hosted identity → OIDC/SAML/SCIM.
   Once a stronger SSO is configured, in-app passwords are auto-disabled (`localPasswordsAllowed()` gates login,
-  bootstrap, `/auth/me`, the users plane). Recovery (`LOCAL_PASSWORD_RECOVERY`) is deliberately DESTRUCTIVE —
-  it re-keys the credential domain (`user-credentials.credKey`), invalidating existing local credentials.
-- CHECK: A local-auth surface that doesn't consult `localPasswordsAllowed()`; a recovery path that preserves
-  the credential key.
+  bootstrap, `/auth/me`, the users plane). Recovery (`LOCAL_PASSWORD_RECOVERY`) both (a) re-keys the credential
+  domain (`user-credentials.credKey`) and (b) redirects every sealed store to an isolated `recovery/` dir at
+  boot (`recovery-mode.engageRecoveryConfigDir`, called first in `bootstrap()`), so the box runs BLANK — no
+  original data is loaded (reversible: original dir is never written to). Restore from backup INTO the recovery
+  dir, or start afresh.
+- CHECK: A local-auth surface that doesn't consult `localPasswordsAllowed()`; a boot path that reads a sealed
+  store before `engageRecoveryConfigDir()`; a recovery path that writes to the original config dir.
 
 ## 9. Separately-keyed secret stores; fail closed
 - RULE: Secret stores are keyed in their OWN domain (config key ≠ AI vault key ≠ `usercreds:v1` credential

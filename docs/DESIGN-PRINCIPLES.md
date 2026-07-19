@@ -108,11 +108,15 @@ Two hard rules make this safe:
 
 - **No silent downgrade.** The moment a stronger tier (real SSO) is configured, in-app passwords are
   **automatically disabled**. A box-level attacker can't fall back to a local password to get around SSO.
-- **Recovery is deliberately destructive.** The only way to re-enable local passwords while SSO is configured
-  is a host-side break-glass — and flicking it **re-keys the credential store**, invalidating the existing
-  local credentials. You start afresh or restore from backup. The cost is the point: recovery can never be a
-  stealth downgrade, and re-enabling privileged local access on a compromised box yields **no readable
-  credential data**.
+- **Recovery isolates the data.** The only way to re-enable local passwords while SSO is configured is a
+  host-side break-glass (`LOCAL_PASSWORD_RECOVERY`). Engaging it does two things: it **re-keys the credential
+  store** (existing local passwords are invalidated), and it **redirects every sealed store to an isolated
+  `recovery/` directory** so the whole system runs **blank** — the original org data stays on disk, untouched,
+  but is never loaded. So re-enabling privileged local access on a compromised box yields **no readable data**:
+  you create a new local admin from scratch, or **restore from backup into the recovery instance**. It's
+  reversible (disengage recovery to return to the original data), so a false trigger doesn't destroy anything —
+  the guarantee is "not exposed while engaged", not "irreversibly wiped". The cost is the point: recovery can
+  never be a stealth downgrade past SSO.
 
 ## 9. Privileged actions demand strong, separated auth
 

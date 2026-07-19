@@ -42,6 +42,7 @@ import { getSettings, updateSettings } from "./lib/settings";
 import { restoreActiveEnvironment } from "./lib/config-store";
 import { seedSystemDefaultsIfEmpty } from "./lib/system-defs";
 import { ensureOrgIdentity } from "./lib/org-identity";
+import { engageRecoveryConfigDir } from "./lib/recovery-mode";
 import { invalidateDefIndex } from "./lib/def-index";
 import { SAMPLE_PROGRAMME_REGISTRY } from "./broker/demo-data";
 
@@ -94,6 +95,11 @@ runDevModeGuard(process.env, logger);
  * app without calling bootstrap() still work.
  */
 export async function bootstrap(): Promise<void> {
+  // FIRST, before any sealed store is read: if the LOCAL_PASSWORD_RECOVERY break-glass is engaged, redirect
+  // OMNI_CONFIG_DIR to an isolated `recovery/` dir so the whole system runs BLANK (original data preserved but
+  // not loaded). Re-enabling local passwords on a compromised box then yields no readable data — restore from
+  // backup or start afresh. Reversible: disengaging recovery returns to the original data.
+  engageRecoveryConfigDir();
   await initKms();
   loadSecurityState();
   await hydrateVault();
