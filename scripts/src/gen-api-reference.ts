@@ -22,6 +22,7 @@ import { REPO_ROOT as ROOT } from "./lib/repo-root";
 import { walkFiles } from "./lib/walk-files";
 import { escapeTableCell } from "./lib/markdown";
 import { parseSourceFile } from "./lib/ts-ast";
+import { firstSentence } from "./lib/comment-summary";
 
 const ROUTES_DIR = path.join(ROOT, "artifacts/api-server/src/routes");
 const OUT_MD = path.join(ROOT, "docs/API-REFERENCE.md");
@@ -41,23 +42,12 @@ const APP_ROOT_FILES = new Set(["well-known.ts"]);
 interface RouteEntry { method: string; routePath: string; gate: string; doc: string }
 interface FileRoutes { rel: string; title: string; routes: RouteEntry[] }
 
-/** First sentence of a leading comment run (mirrors the function-map summariser, minimally). */
-function firstLine(comment: string): string {
-  const body = comment
-    .replace(/^\/\*+/, "").replace(/\*+\/$/, "")
-    .split("\n").map((l) => l.replace(/^\s*[/*]+/, "").replace(/─+/g, "").trim());
-  const lead: string[] = [];
-  for (const l of body) { if (!l) { if (lead.length) break; else continue; } lead.push(l); }
-  const text = lead.join(" ").replace(/\s+/g, " ").trim();
-  const m = /(?<!\b(?:e\.g|i\.e|etc|vs|cf))\. /.exec(text);
-  return m ? text.slice(0, m.index + 1) : text;
-}
-
 function leadingComment(fullText: string, node: ts.Node): string {
   const ranges = ts.getLeadingCommentRanges(fullText, node.getFullStart()) ?? [];
   if (!ranges.length) return "";
   const last = ranges[ranges.length - 1]!;
-  return firstLine(fullText.slice(last.pos, last.end));
+  // `stripRules` drops the box-drawing separators (─) some route comments use as visual rules.
+  return firstSentence(fullText.slice(last.pos, last.end), { stripRules: true });
 }
 
 /** Collect the gate label for a route from its middleware arguments. */
@@ -81,7 +71,7 @@ function readFile(abs: string, rel: string): FileRoutes {
   const routes: RouteEntry[] = [];
   let title = "";
   for (const stmt of sf.statements) {
-    if (!title) { const r = ts.getLeadingCommentRanges(fullText, stmt.getFullStart()) ?? []; if (r.length) title = firstLine(fullText.slice(r[0]!.pos, r[0]!.end)); }
+    if (!title) { const r = ts.getLeadingCommentRanges(fullText, stmt.getFullStart()) ?? []; if (r.length) title = firstSentence(fullText.slice(r[0]!.pos, r[0]!.end), { stripRules: true }); }
   }
 
   const visit = (node: ts.Node): void => {

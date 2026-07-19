@@ -5081,6 +5081,15 @@ Backend-catalogue growth freeze.
 | --- | --- |
 | `checkCatalogueFreeze` | Throws if the catalogue has grown past its baseline while any flagship backend is still unverified. |
 
+### `scripts/src/lib/comment-summary.ts`
+
+Reduce a raw leading-comment block to a one-line summary — the single shared summariser behind the documentation generators (`gen-function-map`, `gen-api-reference`), which each need "first sentence of the comment above this symbol" and were carrying their own near-identical copy.
+
+| Function | What it does |
+| --- | --- |
+| `leadParagraph` | Strip the comment delimiters (`/**`, leading `*`/`/`), drop blank-line-separated trailing paragraphs and flow the lead paragraph into a single line of prose. |
+| `firstSentence` | Collapse a raw comment block to its first complete sentence (the summary): the lead paragraph clipped at its first sentence-ending period, ignoring abbreviation dots (`e.g.`, `i.e.`, `etc.`) and single-letter initials so a legitimate mid-sentence dot doesn't truncate it early. |
+
 ### `scripts/src/lib/coverage.ts`
 
 "Every declared item is built" — the pure core of the coverage guard.
