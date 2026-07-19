@@ -20,10 +20,13 @@ test("every primitive's extends chain resolves — no dangling parent, no cycle 
 
 test("roots are FEW and generic; composed primitives are not roots", () => {
   const roots = rootPrimitives().map((r) => r.id);
-  // The editable register + its slot specialisation compose from `table` — they are never roots.
-  assert.ok(!roots.includes("register"), "register composes from table");
+  // `canvas` roots the VISUALS tree; `record-set` roots the DATA tree. The visual `table` is a canvas
+  // made specific, and the editable data structures compose from record-set — none of them are roots.
+  assert.ok(roots.includes("canvas"), "canvas is the visuals root");
+  assert.ok(roots.includes("record-set"), "record-set is the data-structures root");
+  assert.ok(!roots.includes("table"), "table (visual) composes from canvas");
+  assert.ok(!roots.includes("register"), "register composes from record-set");
   assert.ok(!roots.includes("data-slot"), "data-slot composes from register");
-  assert.ok(roots.includes("table"), "table is a root");
   // A root defines its own params (it is built on nothing).
   for (const r of rootPrimitives()) assert.ok(r.params.length > 0, `root "${r.id}" must define its params`);
 });

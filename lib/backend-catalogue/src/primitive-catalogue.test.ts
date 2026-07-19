@@ -10,10 +10,25 @@ import { PRIMITIVE_CATALOGUE, getPrimitive, primitivesByCategory, resolvePrimiti
 
 const GEOMETRY_ATOMS = ["line", "rect", "text", "point", "path"];
 
-test("ships the geometry atoms + the surface spine (canvas/geometry-canvas), all geometry category", () => {
+test("geometry atoms + geometry-canvas are the geometry category; the visual surfaces are `surface`", () => {
   const geom = new Set(primitivesByCategory("geometry").map((p) => p.id));
   for (const a of GEOMETRY_ATOMS) assert.ok(geom.has(a), `${a} is a geometry atom`);
-  assert.ok(geom.has("canvas") && geom.has("geometry-canvas"), "the surface spine is geometry too");
+  assert.ok(geom.has("geometry-canvas"), "geometry-canvas is the drawable surface");
+  const surfaces = new Set(primitivesByCategory("surface").map((p) => p.id));
+  for (const s of ["canvas", "screen", "form", "report"]) assert.ok(surfaces.has(s), `${s} is a visual surface`);
+});
+
+test("the VISUALS tree is rooted at canvas: screen/form/report/table + the drawable branch all descend from it", () => {
+  assert.equal(getPrimitive("canvas")!.extends, undefined); // the visuals root
+  for (const id of ["screen", "form", "report", "table"]) {
+    assert.deepEqual(resolvePrimitive(id)!.lineage, [id, "canvas"], `${id} is a canvas made specific`);
+  }
+  // The drawable branch also bottoms out at canvas.
+  assert.equal(resolvePrimitive("bar")!.lineage.at(-1), "canvas");
+  // Control atoms + tiles are their OWN roots (materials placed into visuals, not canvas descendants).
+  for (const id of ["switch", "label", "stat-tile", "badge"]) {
+    assert.equal(getPrimitive(id)!.extends, undefined, `${id} is an atomic primitive (a root)`);
+  }
 });
 
 test("the drawable render-surface spine inherits linearly: canvas ← geometry-canvas ← chart ← interactive-chart", () => {

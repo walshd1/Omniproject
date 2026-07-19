@@ -93,19 +93,20 @@ export const PRIMITIVE_CATALOGUE: PrimitiveDef[] = [
       { key: "thickness", label: "Thickness", type: "number", required: false, description: "Outline stroke width (default 1)." },
     ],
   },
-  // ── THE DRAWABLE RENDER-SURFACE SPINE ───────────────────────────────────────────────────────────
-  // An inheritance chain, not a flag: canvas ← geometry-canvas ← chart ← interactive-chart. Each level
-  // INHERITS the one below and adds its own capability, so an interactive chart HAS every chart
-  // property, a chart HAS every geometry-canvas property, and so on down to the bare surface. Concrete
-  // charts (bar/line/…) extend `chart`; an interactive variant extends `interactive-chart`.
+  // ── THE VISUALS TREE — canvas is the root of everything the user SEES ────────────────────────────
+  // `canvas` is an abstract surface (content + layout). Everything visual is a canvas made specific: the
+  // DRAWABLE branch (geometry-canvas ← chart ← interactive-chart ← bar/line/…), and the DOM surfaces
+  // (screen / form / report / table). Each level DOWN is a thinner def and more specific; the resolved
+  // def gets richer as it inherits. The atomic building blocks placed INTO these visuals — geometry
+  // marks, tiles, and controls (switch/label) — are their own primitives, not ancestors of canvas.
   {
     id: "canvas",
     label: "Canvas",
-    category: "geometry",
-    description: "The bare drawing surface — a coordinate space everything drawable sits on. The root of the render-surface lineage.",
+    category: "surface",
+    description: "The abstract visual surface — a bounded space with content and layout that EVERY visual specializes. A screen, a chart, a form and a report are all a canvas made specific. The root of the visuals tree.",
     params: [
-      { key: "width", label: "Width", type: "number", required: false, description: "Coordinate-space width (user units); the surface scales to its container." },
-      { key: "height", label: "Height", type: "number", required: false, description: "Coordinate-space height (user units)." },
+      { key: "width", label: "Width", type: "number", required: false, description: "Surface width (user units for a drawing; grid columns for a layout). Scales to its container." },
+      { key: "height", label: "Height", type: "number", required: false, description: "Surface height (user units), where meaningful." },
     ],
   },
   {
@@ -113,9 +114,39 @@ export const PRIMITIVE_CATALOGUE: PrimitiveDef[] = [
     label: "Geometry canvas",
     category: "geometry",
     extends: "canvas",
-    description: "A canvas that draws GEOMETRY ATOMS (line/rect/text/point/path). Inherits the surface; adds the shapes it renders.",
+    description: "A canvas that draws GEOMETRY ATOMS (line/rect/text/point/path). Inherits the surface; adds the shapes it renders. The drawable branch of the visuals tree.",
     params: [
       { key: "shapes", label: "Shapes", type: "rows", required: false, description: "The geometry-atom instances to draw (each an atom `type` + its params)." },
+    ],
+  },
+  {
+    id: "screen",
+    label: "Screen",
+    category: "surface",
+    extends: "canvas",
+    description: "A canvas laid out as a grid of PANELS — the DOM visual behind every screen. Inherits the surface; adds the panels and their layout. Rendered as accessible DOM, composed from tiles/controls/tables/charts.",
+    params: [
+      { key: "panels", label: "Panels", type: "rows", required: true, description: "The panels on the screen (each a `kind` + its config), placed on the layout grid." },
+    ],
+  },
+  {
+    id: "form",
+    label: "Form",
+    category: "surface",
+    extends: "canvas",
+    description: "A canvas of input FIELDS — the DOM visual behind every form/intake. Inherits the surface; adds the fields, which are composed from `control` atoms (switch, label, …). A submission creates a work item via the broker.",
+    params: [
+      { key: "fields", label: "Fields", type: "rows", required: true, description: "The form's fields, each a control (switch/label/input) + its binding." },
+    ],
+  },
+  {
+    id: "report",
+    label: "Report",
+    category: "surface",
+    extends: "canvas",
+    description: "A canvas composed of ordered SECTIONS (metrics, tables, charts, prose) — the DOM visual behind every report. Inherits the surface; adds the sections.",
+    params: [
+      { key: "sections", label: "Sections", type: "rows", required: true, description: "The report's ordered sections (each a kind + its content)." },
     ],
   },
   {
@@ -323,7 +354,8 @@ export const PRIMITIVE_CATALOGUE: PrimitiveDef[] = [
     id: "table",
     label: "Data table",
     category: "table",
-    description: "The VISUAL that renders a record set as generic sortable columns and rows (accessible DOM) with per-column rendering and an optional footer. Binds to a record set via `source`, or takes inline columns/rows.",
+    extends: "canvas",
+    description: "The VISUAL that renders a record set as generic sortable columns and rows (accessible DOM) with per-column rendering and an optional footer — a canvas made specific. Binds to a record set via `source`, or takes inline columns/rows.",
     params: [
       { key: "source", label: "Record set", type: "string", required: false, description: "Id of the record set to render (binds the visual to a data structure); omit to supply columns/rows inline." },
       { key: "columns", label: "Columns", type: "columns", required: true, description: "Display columns: key, label, alignment, and render." },
@@ -359,6 +391,30 @@ export const PRIMITIVE_CATALOGUE: PrimitiveDef[] = [
     description: "An editable register bound to a generic mapping slot — rows read/written through the same generic mapping surface every slot uses, so a register/board over any slot is a pure JSON screen def.",
     params: [
       { key: "slot", label: "Slot", type: "string", required: true, description: "The mapping slot this register is bound to (its one added constraint over a plain register)." },
+    ],
+  },
+  // ── CONTROL ATOMS — the building blocks of settings & forms ──────────────────────────────────────
+  // A setting is atomic: a SWITCH (the input) with a LABEL (the caption). Forms and the settings tree
+  // compose from these — expressed as primitives, not bespoke UI. They are placed INTO visuals
+  // (screens/forms), not ancestors of canvas.
+  {
+    id: "label",
+    label: "Label",
+    category: "control",
+    description: "A caption for a control or value — the atom that names a setting/field. Pure text, optionally bound to the control it labels.",
+    params: [
+      { key: "text", label: "Text", type: "string", required: true, description: "The caption text." },
+      { key: "for", label: "For", type: "string", required: false, description: "Id of the control this labels (accessible association)." },
+    ],
+  },
+  {
+    id: "switch",
+    label: "Switch",
+    category: "control",
+    description: "A control that selects a state — the input atom every setting is built from (a switch + a label). A boolean toggle by default; supply `positions` for a multi-position switch.",
+    params: [
+      { key: "value", label: "Value", type: "string", required: true, description: "The current position (\"on\"/\"off\" for a toggle, or one of `positions`)." },
+      { key: "positions", label: "Positions", type: "items", required: false, description: "The allowed positions for a multi-position switch; omit for a boolean on/off toggle." },
     ],
   },
   {

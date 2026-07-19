@@ -52,11 +52,14 @@ describe("primitive catalogue", () => {
     expect(ds.provenance["collection"]).toBe("register");
     expect(ds.provenance["slot"]).toBe("data-slot");
     expect(ds.params.find((p) => p.key === "slot")?.required).toBe(true); // the child ALTERS slot → required
-    // Roots are few and generic — register/data-slot are NOT roots.
+    // Roots are the tree roots: `canvas` (visuals) and `record-set` (data). The visual table and the
+    // editable data structures descend from them — none are roots.
     const rootIds = rootPrimitives().map((r) => r.id);
+    expect(rootIds).toContain("canvas");
+    expect(rootIds).toContain("record-set");
+    expect(rootIds).not.toContain("table");
     expect(rootIds).not.toContain("register");
     expect(rootIds).not.toContain("data-slot");
-    expect(rootIds).toContain("table");
   });
 
   it("declares options for every enum param", () => {

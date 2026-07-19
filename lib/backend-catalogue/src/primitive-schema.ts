@@ -12,14 +12,20 @@
 
 /**
  * The category a primitive is grouped under (mirrors the SPA `PrimitiveCategory`). These map onto
- * several TREES: `geometry`/`chart`/`graphic` are the VISUALS tree (rooted at the geometry canvas —
- * how things are drawn); `data-structure` is the DATA-STRUCTURES tree (the shape of data — a record
- * set and its editable specialisations, independent of how it's shown); `table`/`tile` are semantic
- * DOM VISUALS that render a data structure. A `table` VISUAL binds to a `record-set` DATA STRUCTURE:
- * the two halves of the old, overloaded "table" now live in their own trees.
+ * several TREES:
+ *  - VISUALS (root `canvas`, category `surface`): the composed visual surfaces — canvas, screen, form,
+ *    report, plus the drawable branch (`geometry`/`chart`/`graphic`) and the `table` grid. Everything
+ *    the user SEES is a canvas made specific.
+ *  - DATA STRUCTURES (root `record-set`, category `data-structure`): the shape of data, apart from how
+ *    it's shown. A `table` VISUAL binds to a `record-set` DATA STRUCTURE.
+ *  - ATOMIC building blocks placed INTO the visuals: `geometry` marks (line/rect/…), `tile` KPIs, and
+ *    `control` inputs (switch/label) — settings/forms are composed from these atoms.
  */
-export type PrimitiveCategory = "geometry" | "chart" | "graphic" | "data-structure" | "table" | "tile";
-export const PRIMITIVE_CATEGORIES: readonly PrimitiveCategory[] = ["geometry", "chart", "graphic", "data-structure", "table", "tile"];
+export type PrimitiveCategory =
+  | "surface" | "geometry" | "chart" | "graphic" | "control" | "data-structure" | "table" | "tile";
+export const PRIMITIVE_CATEGORIES: readonly PrimitiveCategory[] = [
+  "surface", "geometry", "chart", "graphic", "control", "data-structure", "table", "tile",
+];
 
 /** The kind of value a primitive parameter carries (mirrors the SPA `PrimitiveParamType`). */
 export type PrimitiveParamType =
