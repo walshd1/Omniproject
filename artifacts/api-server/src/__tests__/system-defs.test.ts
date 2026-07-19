@@ -32,6 +32,9 @@ test("seedSystemDefaultsIfEmpty installs the bundled defaults once; applySystemD
   // The shipped screens + primitives are seeded (relocated into the shared catalogue — X.11).
   assert.ok(defs.some((d) => d.kind === "screen" && (d.payload as { id?: unknown }).id === "home"), "the Home screen is a shipped system default");
   assert.ok(defs.some((d) => d.kind === "primitive" && (d.payload as { id?: unknown }).id === "bar"), "the bar-chart primitive is a shipped system default");
+  // The `blank` bootstrap base is seeded into the SYSTEM base layer, so it shows through at the root of EVERY
+  // org's tree by default (inherited, inert) — an org "updates" it via a copy-and-override to start a family.
+  assert.ok(defs.some((d) => d.kind === "primitive" && (d.payload as { id?: unknown }).id === "blank" && d.createdBy === "system"), "the blank bootstrap base is inherited by every org");
   // The methodology overview screens are ordinary catalogue screens (built purely from atom panels) — they seed
   // through the same `screen` path as every other screen, alongside their ancestor primitive defs.
   assert.ok(defs.some((d) => d.kind === "screen" && (d.payload as { id?: unknown }).id === "scrum-overview"), "the Scrum overview screen is a shipped system default");
