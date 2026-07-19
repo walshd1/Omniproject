@@ -12,6 +12,7 @@ import { ComponentPanel } from "./panels/ComponentPanel";
 import { WidgetPanel } from "./panels/WidgetPanel";
 import { RegisterPanel } from "./panels/RegisterPanel";
 import { FormPanel } from "./panels/FormPanel";
+import { GeometryPanel } from "./panels/GeometryPanel";
 
 /**
  * Panel-renderer registry — maps a panel `kind` to the ONE component that renders
@@ -43,6 +44,9 @@ export const PANEL_RENDERERS: Partial<Record<PanelKind, PanelComponent>> = {
   widget: WidgetPanel,
   // An intake/request FORM authored in org config; a submission creates a work item via the broker.
   form: FormPanel,
+  // A drawing built from the fundamental GEOMETRY atoms (line/rect/text/point) — how a recipe embeds
+  // a bespoke visual composed from primitives rather than a hardwired chart component.
+  geometry: GeometryPanel,
 };
 
 /** Whether a renderer exists for a panel kind (else it degrades to a placeholder). */
