@@ -29,8 +29,10 @@ export function buildSystemDefaultRows(): StoredDef[] {
   for (const m of methodologyCatalogue()) rows.push(buildSystemDefRow("methodology", m.label, m, SEED_AT));
   for (const d of dashboardDefCatalogue()) rows.push(buildSystemDefRow("dashboard", d.name, d, SEED_AT));
   for (const s of screenDefCatalogue()) rows.push(buildSystemDefRow("screen", String(s.label), s, SEED_AT));
-  // The canonical methodology artifacts — one read-only overview screen per methodology, authored PURELY from the
-  // primitive taxonomy (a canvas + atom-composable panels). Seeded as `screen` defs, forkable per scope like any other.
+  // The canonical methodology artifacts — one read-only overview screen per methodology, authored as JSON recipes
+  // and RENDERED + checked against the canonical standard before commit. methodologyArtifacts() is fail-closed: it
+  // throws unless every recipe matches, so ONLY canonically-valid recipes are seeded here. Their ANCESTOR primitive
+  // recipes are committed alongside — they are a subset of primitiveCatalogue() below, in this same sealed write.
   for (const a of methodologyArtifacts()) rows.push(buildSystemDefRow("screen", String(a.label), a, SEED_AT));
   for (const p of primitiveCatalogue()) rows.push(buildSystemDefRow("primitive", p.label, p, SEED_AT));
   // The shipped CORE field mappings (roadmap §4.6) — authored as JSON under assets/mappings/, seeded into the
