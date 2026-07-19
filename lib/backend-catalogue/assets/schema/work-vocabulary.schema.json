@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://omniproject.dev/assets/work-vocabulary.schema.json",
+  "title": "OmniProject work-item vocabulary entry",
+  "description": "One canonical work-item vocabulary token — a status or a priority — authored as a single JSON array (assets/work-vocabulary.json), validated element-by-element against this schema and embedded by gen-work-vocabulary. The lifecycle class applies to statuses only.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["kind", "id", "label", "order"],
+  "properties": {
+    "kind": { "enum": ["status", "priority"] },
+    "id": { "type": "string", "pattern": "^[a-z][a-z_]*$" },
+    "label": { "type": "string", "minLength": 1 },
+    "order": { "type": "integer", "minimum": 0 },
+    "lifecycle": { "enum": ["open", "active", "done", "cancelled"] }
+  }
+}

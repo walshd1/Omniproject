@@ -10,22 +10,13 @@
 
 // ── Status ───────────────────────────────────────────────────────────────────
 
-/** Canonical work-item statuses a backend's native value normalises into. */
-export const CANONICAL_STATUS = ["backlog", "todo", "in_progress", "in_review", "done", "cancelled"] as const;
-export type CanonicalStatus = (typeof CANONICAL_STATUS)[number];
-
-/** The lifecycle class a status falls in — what the completion maths key off. */
-export type StatusClass = "open" | "active" | "done" | "cancelled";
-
-/** Canonical status → lifecycle class. */
-export const STATUS_CLASS: Record<CanonicalStatus, StatusClass> = {
-  backlog: "open",
-  todo: "open",
-  in_progress: "active",
-  in_review: "active",
-  done: "done",
-  cancelled: "cancelled",
-};
+// The canonical status list + lifecycle class are shared reference data, sourced from the
+// backend-catalogue work-vocabulary asset (assets/work-vocabulary.json) so the gateway and the SPA
+// can't drift on WHICH statuses exist. Re-exported here so this module stays the gateway's single
+// import surface for status vocabulary; the native⇄canonical synonym/dialect behaviour below stays
+// above the seam.
+import { CANONICAL_STATUS, STATUS_CLASS, type CanonicalStatus, type StatusClass } from "@workspace/backend-catalogue";
+export { CANONICAL_STATUS, STATUS_CLASS, type CanonicalStatus, type StatusClass };
 
 // Common native synonyms seen across backends, folded onto a canonical status so
 // completion detection works without a per-backend mapping. A backend can still

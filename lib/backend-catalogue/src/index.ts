@@ -34,6 +34,7 @@ export * from "./def-refs";
 export * from "./report-catalogue";
 export * from "./num";
 export * from "./priority-weights";
+export * from "./work-vocabulary";
 export * from "./currency";
 export * from "./consolidation";
 export * from "./mapping-catalogue";

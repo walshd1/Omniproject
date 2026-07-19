@@ -1,0 +1,13 @@
+[
+  { "kind": "status", "id": "backlog", "label": "Backlog", "order": 0, "lifecycle": "open" },
+  { "kind": "status", "id": "todo", "label": "Todo", "order": 1, "lifecycle": "open" },
+  { "kind": "status", "id": "in_progress", "label": "In progress", "order": 2, "lifecycle": "active" },
+  { "kind": "status", "id": "in_review", "label": "In review", "order": 3, "lifecycle": "active" },
+  { "kind": "status", "id": "done", "label": "Done", "order": 4, "lifecycle": "done" },
+  { "kind": "status", "id": "cancelled", "label": "Cancelled", "order": 5, "lifecycle": "cancelled" },
+  { "kind": "priority", "id": "urgent", "label": "Urgent", "order": 0 },
+  { "kind": "priority", "id": "high", "label": "High", "order": 1 },
+  { "kind": "priority", "id": "medium", "label": "Medium", "order": 2 },
+  { "kind": "priority", "id": "low", "label": "Low", "order": 3 },
+  { "kind": "priority", "id": "none", "label": "None", "order": 4 }
+]
