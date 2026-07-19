@@ -208,6 +208,95 @@ when an invariant slips.
 The through-line: **continuous improvement *is* the security model.** The crypto, the auth tiers and the
 hard-data seam are only ever as strong as the discipline that keeps them from eroding.
 
+## 14. One function, one job — write it once, call it everywhere
+
+Every distinct task has exactly **one** implementation, and everything that needs it **calls that one**. This
+is DRY stated as a design rule, and it is the general form of principle 3 (one validated writer per boundary):
+the choke points are its security-critical instances, but the rule is broader.
+
+- **A behaviour lives in one place.** `aesGcmSeal`/`aesGcmOpen` is the *only* AES-GCM implementation;
+  `establishSession` the only session mint; `mergeValue` the only merge algebra (shared by the composition
+  axis *and* the scope-override axis); the shared coercion module the only place junk input is tamed. When two
+  call sites need the same thing, they share the function — they do not each grow their own copy.
+- **Why it isn't just tidiness:** a rule that exists once can be *fixed* once. A GCM tag-handling tweak, a
+  tighter allowlist match, a scope-precedence correction — each lands in a single function and every caller
+  inherits it. Two copies mean a fix to one silently misses the other; that is exactly how a half-enforced
+  security rule is born.
+- **A function does one job, and its name says which.** If you can't name it without "and", it's two
+  functions. Small, single-purpose, honestly-named units compose; god-functions don't.
+- **Reuse over re-derivation.** Before writing a helper, look for the existing one (`coerce`, `scope`,
+  `crypto-*`, `def-compose`, `scoped-config`). Duplicated logic is drift waiting to happen — the JSON-vs-TS
+  guard, the `no-unsafe-json-parse` allowlist and the architecture-guard exist precisely to catch copies
+  diverging from the canon.
+
+## 15. The JSON tree: scoped stores, forking, and inheritance
+
+Almost everything configurable in OmniProject is a **definition** ("def") — a small JSON document: a screen,
+report, form, dashboard, mapping, methodology, theme, config, or a primitive — and every def lives in a
+**scoped, sealed JSON store**. Understanding the tree explains forking, inheritance, RBAC and primitives all
+at once.
+
+**The scopes (the tree).** One AES-256-GCM–sealed JSON collection per (kind, scope), stacked broadest to
+narrowest:
+
+```
+system  →  org  →  programme  →  project  →  user
+(ours,      (the customer's own layers)         (a person's
+ read-only)                                       private area)
+```
+
+- **`system`** holds the defaults *we* ship (default screens, reports, rulesets, and the primitive
+  vocabulary). It is **read-only** to every customer — deliberately *not* a storage target, so the
+  importer/editor can never write it; only the product's own seeder populates it.
+- **`org` / `programme` / `project` / `user`** are the customer's own sealed stores. A user's area is
+  structurally private (their own `sub` is always used, so cross-user reads are impossible); the others are
+  permission-gated by the route before a scope is chosen.
+
+**Forking a system artifact = copy-and-override, never edit-in-place.** Because `system` is read-only, an org
+that wants to change a shipped screen doesn't mutate ours — it **writes a def with the same `id` into its own
+scope**. At render time the resolver reads the tree **leaf-first** (user → project → programme → org → system)
+and the **nearest scope wins by id**. So the org's copy shadows the shipped one *for that org*, while every
+other deployment still gets our default and our later updates to the untouched parts still flow through. That
+is the "copy-and-override anything we ship without forking the product" promise made literal: your fork is a
+thin overlay in *your* tree, not a divergent branch of ours.
+
+**Two inheritance axes, one merge algebra.** Nothing is copied wholesale unless you want it to be:
+
+- **Scope-override (across the tree):** the same logical id authored at several scopes is folded base→leaf,
+  nearest wins property-by-property (`resolveScopedConfig` / `configDefLayers`). This is how a shipped default,
+  an org tweak and a project tweak combine into one resolved value.
+- **Composition (`extends`, within a kind):** a def can `extends` a parent and override it property-by-property;
+  the whole graph is integrity-checked on every write, so a change to a root can never silently break a
+  descendant. Screens, reports, tables and charts all bottom out in the same atom tree.
+
+Both axes use the **same `mergeValue` algebra** (objects deep-merge, id-keyed arrays merge by id, scalars
+replace) — one merge rule, two uses (principle 14 in action).
+
+**Primitives are the locked roots of the tree.** Primitives are the vocabulary every richer def is composed
+from, so they are **vendor-controlled**: shipped in `system`, and the *only* kind the importer refuses to write
+at any customer scope. An org can compose recipes *from* primitives endlessly, but it can never redefine a
+building block out from under its own descendants (or ours). The sanctioned way to get a *new* org-level
+building block is the **registry**: submit → admin approval → per-scope activation, which surfaces the approved
+primitive into the builder for the chosen programme/project — a governed promotion, not a silent fork.
+
+**RBAC over the tree.** Who may read or write each node is enforced on two axes, both fixed in code
+(principle 7):
+
+- **Write authority** — the route gates a def write by scope: org/programme defs need governance authority
+  (pmo / a programme's manager), a project def needs project-manage rights, a user def only the user; and
+  `def-policy` governs *which kinds* a given role may author. Admin/PMO authority additionally requires strong
+  auth (passkey step-up).
+- **Read / data scope** — orthogonally, `resolveScope` bounds *which rows* a principal sees (`all` for
+  pmo/admin, a manager's owned programmes, a user's own resources, a guest's single project), fail-closed for
+  anything unattributable.
+
+So the tree answers "what is the winning def here?" and RBAC answers "…and are you allowed to see or change
+it?" — separately, and by the same rules everywhere.
+
+The payoff: presets, org branding, a customer's bespoke screen and our monthly default update are all **the
+same mechanism at different layers of one sealed JSON tree** — no per-customer code, no forked product, and
+every override diffable, validated, and revocable.
+
 ---
 
 ## Operational implications (read this if you run OmniProject)

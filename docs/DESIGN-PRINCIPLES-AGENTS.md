@@ -123,6 +123,31 @@ Format: each principle is a RULE + how to CHECK it + the usual FIX.
 - CHECK: A new invariant with no guard test; a "temporary" workaround with no follow-up; drift stepped over in
   a file you edited.
 
+## 15. One function, one job — write once, call everywhere (DRY)
+- RULE: Each behaviour has ONE implementation; every call site uses it (the general form of §3's choke points).
+  Canonical singletons: `aesGcmSeal`/`aesGcmOpen` (all AES-GCM), `establishSession` (all session mints),
+  `mergeValue` (both inheritance axes), the shared `coerce` module (all untrusted-input taming).
+- RULE: A function does one job and its name says which — if you need "and" to name it, split it. Look for the
+  existing helper (`coerce` / `scope` / `crypto-*` / `def-compose` / `scoped-config`) before writing a new one.
+- CHECK: A hand-rolled second copy (GCM / cookie / merge / coercion); a helper duplicating one in a shared lib.
+- WHY: one impl can be fixed once — two copies let a security fix miss the other.
+
+## 16. The JSON tree: scoped sealed stores, forking, inheritance
+- MODEL: Every def (screen / report / form / dashboard / mapping / methodology / theme / config / primitive)
+  lives in an AES-GCM-sealed JSON collection per (kind, scope). Scopes broad→narrow: `system` (OURS, READ-ONLY
+  — not a StorageTarget, seeder-only) → `org` → `programme` → `project` → `user` (private; caller's own `sub`).
+- RESOLVE: Renderers read leaf-first (user→project→programme→org→system); NEAREST scope wins BY ID. "Forking" a
+  shipped artifact = write a def with the SAME id into your scope (copy-and-override). Never edit `system`.
+- INHERIT: Two axes, one algebra (`mergeValue`): scope-override across the tree (`resolveScopedConfig` /
+  `configDefLayers`, nearest-wins) and composition within a kind (`extends`, integrity-checked whole on write).
+- PRIMITIVES: vendor-controlled roots (`VENDOR_CONTROLLED_KINDS`) — shipped in `system`, importer REFUSES them
+  at any customer scope. A new org building block = registry submit → approve → per-scope activation, not a def
+  write.
+- RBAC: route gates writes by scope + `def-policy` by kind (admin/pmo need strong auth); `resolveScope` bounds
+  readable rows (fail-closed). Tree answers "winning def?"; RBAC answers "may you see/change it?".
+- CHECK: A path writing the `system` scope; a resolver not honouring nearest-wins-by-id; the importer accepting
+  a `primitive` at org/project/user.
+
 ---
 
 ## Workflow rules
