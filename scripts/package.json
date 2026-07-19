@@ -30,6 +30,7 @@
     "gen-methodologies": "tsx ./src/gen-methodologies.ts",
     "gen-personas": "tsx ./src/gen-personas.ts",
     "gen-methodology-rulesets": "tsx ./src/gen-methodology-rulesets.ts",
+    "gen-presets": "tsx ./src/gen-presets.ts",
     "verify-broker": "tsx ./src/verify-broker-contract.ts",
     "e2e-smoke": "tsx ./src/e2e-smoke.ts",
     "stress": "tsx ./src/stress-test.ts",
