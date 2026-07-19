@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { PRIMITIVES, primitiveStore, primitivesByFamily, primitivesFor, getPrimitive, primitiveTree, categoriesFor, allTags, primitivesByTag } from "./primitive-store";
+import { PRIMITIVES, primitiveStore, primitivesByFamily, primitivesFor, getPrimitive, primitiveTree, primitiveTreeWith, primitiveFromResolved, categoriesFor, allTags, primitivesByTag } from "./primitive-store";
 import { PANEL_RENDERERS } from "../components/screen/registry";
 import { PRIMITIVE_LIBRARY } from "../definitions/primitives";
 import { FORM_FIELD_TYPES, DOC_BLOCK_TYPES, CANVAS_ELEMENT_TYPES, ANNOTATION_TYPES, KEY_RESULT_KINDS, INVOICE_LINE_KINDS, EXTENSION_CONTRIBUTION_KINDS, REGISTRY_ITEM_KINDS, componentLibrary } from "@workspace/backend-catalogue";
@@ -156,5 +156,40 @@ describe("primitive-store (single shared store)", () => {
     expect(editable.some((p) => p.id === "form")).toBe(true);
     expect(primitivesByTag("timeseries").some((p) => p.family === "viz")).toBe(true);
     expect(primitivesByTag("nonexistent-tag")).toEqual([]);
+  });
+
+  describe("activated (customer-authored) primitives fold into the palette", () => {
+    it("maps a resolved primitive def → a viz palette item, tagged by its origin scope", () => {
+      const org = primitiveFromResolved({ id: "org~reg-abc", payload: { id: "acme-tile", label: "Acme tile", category: "tile" } });
+      expect(org).toMatchObject({ id: "acme-tile", family: "viz", label: "Acme tile", category: "tile" });
+      expect(org.tags).toEqual(["org", "activated"]);
+      expect(org.placeableIn).toContain("report");
+      // A project-scoped activation is tagged by its project origin.
+      expect(primitiveFromResolved({ id: "project~p1~reg-x", payload: { id: "p-tile" } }).tags).toEqual(["project", "activated"]);
+      // A shipped system primitive carries no origin tag (it's already in the static store), and falls back to a
+      // title-cased label + a "custom" folder when the payload omits them.
+      const sys = primitiveFromResolved({ id: "system~bar", payload: { id: "some-thing" } });
+      expect(sys.tags).toEqual([]);
+      expect(sys.label).toBe("Some Thing");
+      expect(sys.category).toBe("custom");
+    });
+
+    it("primitiveTreeWith folds NEW activated primitives into the viz family, de-duped against the static store", () => {
+      const activated = [
+        primitiveFromResolved({ id: "org~reg-abc", payload: { id: "acme-tile", label: "Acme tile", category: "custom" } }),
+        primitiveFromResolved({ id: "system~bar", payload: { id: "bar", label: "Bar", category: "chart" } }), // already shipped → dropped
+      ];
+      const tree = primitiveTreeWith(activated, "report");
+      const viz = tree.find((t) => t.family === "viz")!;
+      const all = viz.folders.flatMap((f) => f.primitives.map((p) => p.id));
+      expect(all).toContain("acme-tile");                 // the new org primitive appears …
+      expect(all.filter((id) => id === "bar")).toHaveLength(1); // … and the shipped `bar` is NOT duplicated
+      // The activated primitive lands in its declared category subfolder.
+      expect(viz.folders.find((f) => f.category === "custom")?.primitives.some((p) => p.id === "acme-tile")).toBe(true);
+    });
+
+    it("primitiveTreeWith with no activated primitives equals the plain tree", () => {
+      expect(primitiveTreeWith([], "report")).toEqual(primitiveTree("report"));
+    });
   });
 });

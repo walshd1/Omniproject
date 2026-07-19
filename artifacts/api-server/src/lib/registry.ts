@@ -7,6 +7,7 @@
  * `sanitizeRegistrySubmit` is the single choke point; identity + review + release are stamped server-side.
  */
 import type { ActorContext } from "../broker/types";
+import type { ActivationScope } from "./def-import";
 import { listArtifacts, getArtifact, putArtifact, deleteArtifact, type ArtifactScope } from "./artifact-store";
 import { sanitizeText as cleanText } from "./coerce";
 import { actorLabel } from "./actor";
@@ -60,6 +61,10 @@ export interface RegistryItem {
   releasedAt: string | null;
   /** The id the community marketplace assigned on publish, when a remote is connected (else null). */
   communityRef: string | null;
+  /** For an APPROVED primitive: the scope its def was activated into (org-wide by default, or a programme/project
+   *  it was confined to) — recorded so reject/delete can undo the activation at the exact scope it was written to.
+   *  Null/absent for a non-primitive item, or a primitive not (yet) activated. */
+  activatedScope?: ActivationScope | null;
   updatedAt: string;
   rowVersion: number;
 }
@@ -142,6 +147,8 @@ export function reviewRegistryItem(existing: RegistryItem, decision: "approved" 
     visibility: decision === "rejected" ? "internal" : existing.visibility,
     releasedAt: decision === "rejected" ? null : existing.releasedAt,
     communityRef: decision === "rejected" ? null : existing.communityRef,
+    // A rejected primitive is deactivated (route-side), so its recorded activation scope is cleared.
+    activatedScope: decision === "rejected" ? null : existing.activatedScope ?? null,
     updatedAt: now,
     rowVersion: (existing.rowVersion ?? 1) + 1,
   };

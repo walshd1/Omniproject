@@ -167,6 +167,35 @@ test("org PRIMITIVE authoring: submit is safety-checked, approve ACTIVATES it as
   assert.ok(!after.some((d) => d.payload.id === "acme-tile"), "a rejected primitive stops resolving");
 });
 
+test("PER-SCOPE activation: an org primitive can be approved INTO a project (confined, downward-only)", async () => {
+  const good = { kind: "primitive", name: "Proj tile", publisher: "Acme", version: "1.0.0",
+    payload: { id: "proj-tile", label: "Proj tile", category: "tile", description: "a project-scoped tile", extends: "tile", params: [] } };
+  const item = (await (await req("/registry", { method: "POST", body: good, cookie: CONTRIBUTOR })).json()) as { id: string };
+
+  // A malformed target is refused up front (scope=project needs a projectId).
+  assert.equal((await req(`/registry/${item.id}/review`, { method: "POST", body: { decision: "approved", scope: "project" } })).status, 400);
+
+  // Approve INTO one project — the activated def is confined to that project's scope.
+  const approved = await req(`/registry/${item.id}/review`, { method: "POST", body: { decision: "approved", scope: "project", projectId: "proj-x" } });
+  assert.equal(approved.status, 200);
+  assert.deepEqual(((await approved.json()) as { activatedScope: unknown }).activatedScope, { kind: "project", projectId: "proj-x" });
+
+  // It resolves WITHIN that project (id is project-scoped) …
+  const inProject = (await req("/defs/resolved/primitive?projectId=proj-x").then((x) => x.json())) as Array<{ id: string; payload: { id: string } }>;
+  const live = inProject.find((d) => d.payload.id === "proj-tile");
+  assert.ok(live, "the primitive resolves inside the project it was activated into");
+  assert.match(live!.id, /^project~proj-x~reg-/, "the def id is confined to that project's scope");
+
+  // … but it is NOT org-wide (downward-only — a project activation never leaks up to the org layer).
+  const orgWide = (await req("/defs/resolved/primitive").then((x) => x.json())) as Array<{ payload: { id: string } }>;
+  assert.ok(!orgWide.some((d) => d.payload.id === "proj-tile"), "a project-confined primitive is not visible org-wide");
+
+  // Deleting the registry item undoes the activation at the exact scope it landed in.
+  assert.equal((await req(`/registry/${item.id}`, { method: "DELETE" })).status, 204);
+  const gone = (await req("/defs/resolved/primitive?projectId=proj-x").then((x) => x.json())) as Array<{ payload: { id: string } }>;
+  assert.ok(!gone.some((d) => d.payload.id === "proj-tile"), "deleting the item deactivates the project-scoped def");
+});
+
 test("RBAC: a viewer can't submit; a non-admin can't review or release", async () => {
   const draft = await (await req("/registry", { method: "POST", body: { ...SUBMIT, name: "For rbac" }, cookie: CONTRIBUTOR })).json() as { id: string };
 
