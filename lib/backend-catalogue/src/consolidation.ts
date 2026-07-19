@@ -11,6 +11,7 @@
  * ratioOrNull) — never an evaluated expression string — so a spec can't smuggle in executable code.
  */
 import { convertAmount, isConvertible } from "./currency";
+import { numLoose as num, round1, round2 } from "./num";
 import { CONSOLIDATIONS_DATA } from "./consolidations.generated";
 
 /**
@@ -30,13 +31,6 @@ export class LocalTracker {
   }
 }
 
-/** Coerce a possibly-dirty numeric value to a finite number (string/null/NaN/±Infinity → 0). */
-const num = (v: unknown): number => {
-  const n = typeof v === "number" ? v : Number(v);
-  return Number.isFinite(n) ? n : 0;
-};
-const round2 = (n: number): number => Math.round(n * 100) / 100;
-const round1 = (n: number): number => Math.round(n * 10) / 10;
 
 /** The closed set of derived-metric operations a consolidation spec may name. */
 export type DerivedOp =

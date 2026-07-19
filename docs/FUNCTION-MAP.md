@@ -1313,7 +1313,8 @@ Tiny bounded-concurrency pool — the `p-limit` pattern without adding a depende
 | Function | What it does |
 | --- | --- |
 | `createConcurrencyLimiter` | A limiter: call `run(fn)` any number of times; at most `limit` of the wrapped calls are ever in flight concurrently. |
-| `poolMap` | Map `items` through the async `fn`, keeping at most `limit` calls in flight at once. |
+| `poolMapWith` | Fan `items` out through an EXISTING limiter — the generic bounded fan-out. |
+| `poolMap` | Map `items` through the async `fn`, keeping at most `limit` calls in flight at once (its own fresh limiter). |
 
 ### `artifacts/api-server/src/lib/concurrency.ts`
 
@@ -4601,7 +4602,6 @@ INVOICING model — the neutral, primitive-built shape for OmniProject's generat
 
 | Function | What it does |
 | --- | --- |
-| `round2` | Round a money amount to 2 decimal places (banker-free, half-up). |
 | `invoiceLineAmount` | The signed amount of a line by its kind: `quantity × unitPrice`, forced ≤ 0 for a `discount` (so a discount always reduces the total regardless of how its inputs were entered). |
 | `formatMoney` | Format a money amount with an ISO-4217 currency code as a prefix (e.g. "USD 1,000.00"). |
 
@@ -4724,6 +4724,21 @@ NOTIFICATION ROUTING — the generic, above-the-seam DISPATCH engine: given an e
 | `notificationRoutesForMethodology` | Notification routes canonical to a methodology — those carrying its tag, plus the neutral (`"*"`) ones. |
 | `routeMatches` | Does a route's predicate match an event? ("*" in kinds = any kind.) |
 | `routeNotification` | The dispatch decision: the de-duplicated set of delivery intents for an event. |
+
+### `lib/backend-catalogue/src/num.ts`
+
+Numeric coercion + rounding — the ONE shared home for the "read a possibly-dirty number off an untrusted read model and don't let a string/null/NaN/±Infinity poison a sum" idiom.
+
+| Function | What it does |
+| --- | --- |
+| `numLoose` | Coerce a possibly-dirty unknown to a finite number, else 0 (string/null/undefined/NaN/±Infinity → 0). |
+| `num` | Coerce a typed optional number to a finite number, else 0 — the strict-typed sibling of {@link numLoose}. |
+| `optNum` | A finite number from a possibly-dirty field, or null when it is absent / blank / non-numeric. |
+| `round2` | Round to 2 decimal places (money / percentages). |
+| `round1` | Round to 1 decimal place (utilisation / health / flow percentages). |
+| `clamp` | Clamp `n` to the inclusive range [lo, hi]. |
+| `finiteValues` | The finite values from a list (drops null/undefined/NaN/±Infinity) — the input to a safe mean. |
+| `finiteAvg` | Mean of the finite values, or 0 when there are none — the divide-by-zero-safe average. |
 
 ### `lib/backend-catalogue/src/output-catalogue.ts`
 

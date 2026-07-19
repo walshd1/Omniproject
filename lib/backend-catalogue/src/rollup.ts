@@ -6,6 +6,7 @@
  * JSON report definition, a chart primitive, an export — draws on the fly. "Man-hours by programme", "booked
  * hours by resource", "budget by year" are all the same call with different fields.
  */
+import { numLoose as num } from "./num";
 
 export type Agg = "sum" | "avg" | "count" | "min" | "max";
 
@@ -27,10 +28,6 @@ export interface RollupSpec {
 
 type Row = Record<string, unknown>;
 
-const num = (v: unknown): number => {
-  const n = typeof v === "number" ? v : typeof v === "string" && v.trim() !== "" ? Number(v) : NaN;
-  return Number.isFinite(n) ? n : 0;
-};
 const key = (v: unknown): string => (v === null || v === undefined || v === "" ? "—" : String(v));
 const metricName = (m: Metric): string => m.as ?? (m.agg === "count" ? "count" : m.field);
 
