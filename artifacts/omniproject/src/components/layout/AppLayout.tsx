@@ -17,6 +17,7 @@ import { ReportProblemDialog } from "../ReportProblemDialog";
 import { useNavShelves, type NavItem } from "../../lib/nav";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { useAuth, logout } from "../../lib/auth";
+import { shouldGateToSetup, firstRunDismissed } from "../../lib/first-run";
 import { usePublicSetupStatus } from "../../lib/setup";
 import { useT } from "../../lib/i18n";
 import { useOnline, connectivityState } from "../../lib/connectivity";
@@ -104,6 +105,18 @@ export function AppLayout({ children }: { children: ReactNode }) {
       setLocation("/portal");
     }
   }, [auth, authLoading, setLocation]);
+
+  // First-run front door: a new, UNCONFIGURED instance sends the first qualifying admin who lands on the home
+  // page into the setup wizard (the preset-driven Configurator), so setup isn't something to go hunting for.
+  // Only from the landing route (never mid-task), only for admins, only until a backend is connected or the
+  // operator has dismissed it ("skip for now"). The predicate is pure + unit-tested; here we just fire it.
+  useEffect(() => {
+    if (authLoading || !auth?.authenticated) return;
+    const segment = location.split("/")[1] || "";
+    if (shouldGateToSetup({ role: auth.role, brokerConfigured: !!setup?.broker.configured, dismissed: firstRunDismissed(), segment })) {
+      setLocation("/configurator");
+    }
+  }, [auth, authLoading, setup, location, setLocation]);
 
   // Two-key "chord" navigation (g then d/p/r/s, like Gmail/GitHub): pressing 'g'
   // arms a one-shot listener for the destination key; it auto-disarms after the

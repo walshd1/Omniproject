@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useLocation } from "wouter";
 import { useSetupStatus } from "../lib/setup";
 import { useAuth, roleAtLeast, isPmoOrAdmin } from "../lib/auth";
 import { useT } from "../lib/i18n";
@@ -7,7 +8,10 @@ import { LoadingState } from "../components/LoadingState";
 import { DataState } from "../components/DataState";
 import { ProfileStep } from "../components/setup/ProfileStep";
 import { PresetStep } from "../components/setup/PresetStep";
+import { OrgIdentityStep } from "../components/setup/OrgIdentityStep";
+import { InviteTeamStep } from "../components/setup/InviteTeamStep";
 import { SettingsPresetPicker } from "../components/settings/SettingsPresetPicker";
+import { dismissFirstRun } from "../lib/first-run";
 import { IdpStep } from "../components/setup/IdpStep";
 import { StatusStep } from "../components/setup/StatusStep";
 import { ConnectStep } from "../components/setup/ConnectStep";
@@ -22,6 +26,7 @@ import { SelfHostDbStep } from "../components/setup/SelfHostDbStep";
 
 export function Configurator() {
   const { t } = useT();
+  const [, setLocation] = useLocation();
   const { data: auth, isLoading: authLoading } = useAuth();
   const allowed = isPmoOrAdmin(auth?.role);
   // The gateway route carries live broker/backend/licensing state and is gated to
@@ -120,17 +125,31 @@ export function Configurator() {
               <p className="mt-2 text-xs text-muted-foreground">
                 Making it permanent, staff accounts, backups, sandboxes — things you'll want <em>later</em>.
               </p>
-              <button
-                type="button"
-                onClick={() => setShowRest((v) => !v)}
-                className="mt-3 text-xs font-black uppercase tracking-widest text-primary underline"
-              >
-                {showRest ? "Hide the rest of the setup" : "Show the rest of the setup"}
-              </button>
+              <div className="mt-3 flex flex-wrap items-center gap-4">
+                <button
+                  type="button"
+                  onClick={() => setShowRest((v) => !v)}
+                  className="text-xs font-black uppercase tracking-widest text-primary underline"
+                >
+                  {showRest ? "Hide the rest of the setup" : "Show the rest of the setup"}
+                </button>
+                {/* Escape hatch for the first-run gate: remember the skip so a deliberate demo/explore user isn't
+                    redirected here again on every landing. */}
+                <button
+                  type="button"
+                  data-testid="setup-skip"
+                  onClick={() => { dismissFirstRun(); setLocation("/"); }}
+                  className="text-xs font-bold uppercase tracking-widest text-muted-foreground underline hover:text-foreground"
+                >
+                  Skip for now
+                </button>
+              </div>
             </div>
           )}
 
           <PresetStep isAdmin={isAdmin} />
+          <OrgIdentityStep isAdmin={isAdmin} />
+          <InviteTeamStep authMode={status?.auth?.mode} />
           <ProfileStep isAdmin={isAdmin} />
           <SettingsPresetPicker isAdmin={isAdmin} />
           {showAdvanced && isAdmin && <IdpStep />}
