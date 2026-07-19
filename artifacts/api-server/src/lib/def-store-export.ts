@@ -1,7 +1,7 @@
 import {
   listAllArtifactCollections, replaceArtifacts, artifactStoreEnabled, type ArtifactScope,
 } from "./artifact-store";
-import { DEF_ARTIFACT, validateDef, DEF_KINDS, type StoredDef, type DefKind } from "./def-import";
+import { DEF_ARTIFACT, validateDef, DEF_KINDS, isVendorControlledKind, type StoredDef, type DefKind } from "./def-import";
 import { BINDING_ARTIFACT } from "./def-binding";
 import { EXTENSION_ARTIFACT, isImportableExtension } from "./extension";
 import { REGISTRY_ARTIFACT, isImportableRegistryItem } from "./registry";
@@ -158,9 +158,11 @@ export function applyDefStoreExport(input: unknown): ApplyReport {
       const clean: StoredDef[] = [];
       for (const it of rawItems) {
         const def = cleanDef(it);
-        if (def) clean.push(def); else { skipped++; }
+        // Vendor-controlled kinds (primitives) can never live at a customer scope — drop any that a backup carries
+        // (e.g. from before the lockdown) rather than re-introducing a fork on migration.
+        if (def && !isVendorControlledKind(def.kind)) clean.push(def); else { skipped++; }
       }
-      if (clean.length < rawItems.length) warnings.push(`dropped ${rawItems.length - clean.length} invalid def(s) in ${describeScope(scope)}`);
+      if (clean.length < rawItems.length) warnings.push(`dropped ${rawItems.length - clean.length} invalid or vendor-controlled def(s) in ${describeScope(scope)}`);
       replaceArtifacts(DEF_ARTIFACT, scope, clean);
       written.push({ type, scope, count: clean.length });
     } else {

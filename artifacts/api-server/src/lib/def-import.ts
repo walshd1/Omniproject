@@ -26,6 +26,15 @@ import { validatePrimitiveDef, shippedDefRefs, shippedDefs, extendsLineage, comp
 export type DefKind = "primitive" | "screen" | "form" | "report" | "dashboard" | "businessRule" | "methodology" | "mapping" | "customField" | "theme" | "font" | "config" | "jsonDef";
 export const DEF_KINDS: readonly DefKind[] = ["primitive", "screen", "form", "report", "dashboard", "businessRule", "methodology", "mapping", "customField", "theme", "font", "config", "jsonDef"];
 
+/**
+ * VENDOR-CONTROLLED kinds — WE control these; an org composes recipes FROM them but can never adjust them. They
+ * are shipped read-only in the system store and may ONLY be written by the product's own seeder (never the user
+ * importer, at any customer scope). `primitive` is the vocabulary every recipe is built on, so a fork would let
+ * an org silently redefine the building blocks; it is locked to system.
+ */
+export const VENDOR_CONTROLLED_KINDS: ReadonlySet<DefKind> = new Set(["primitive"]);
+export const isVendorControlledKind = (kind: DefKind): boolean => VENDOR_CONTROLLED_KINDS.has(kind);
+
 /** The artifact-store type key: one sealed collection per scope holds every stored def. */
 export const DEF_ARTIFACT = "def";
 
@@ -490,6 +499,10 @@ export function checkDeleteIntegrity(kind: DefKind, storageId: string, logicalId
   return null;
 }
 export const putDef = (scope: ArtifactScope, a: StoredDef): void => {
+  // Vendor-controlled kinds (primitives) are NEVER writable at a customer scope — `putDef` only ever targets
+  // user/project/programme/org (system is written by the seeder via putArtifact, not here). Fail closed so no
+  // code path can fork a primitive, even one that skipped the route-level check.
+  if (isVendorControlledKind(a.kind)) throw new DefError(`${a.kind} definitions are vendor-controlled and cannot be written to a customer scope`);
   putArtifact(DEF_ARTIFACT, scope, a);
   // Keep the child-edge index current write-through (additive → only ever over-reports, which is safe). Any
   // failure invalidates the whole index so it is rebuilt from a full scan on next use (rebuild-on-doubt).

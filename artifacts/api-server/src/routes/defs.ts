@@ -11,7 +11,7 @@ import { artifactStoreEnabled, makeScopedId, parseScopedId, scopeFromParsed, isS
 import {
   sanitizeDef, sanitizeDefUpdate, validateDef, newStoredDef, updateStoredDef, storedDefMeta,
   listDefs, listSystemDefs, getDef, putDef, deleteDef, DefError, DEF_KINDS, checkImportAncestry,
-  checkImportIntegrity, checkDeleteIntegrity,
+  checkImportIntegrity, checkDeleteIntegrity, isVendorControlledKind,
   type DefKind, type StoredDef, type StoredDefMeta,
 } from "../lib/def-import";
 import defBindingsRouter from "./def-bindings";
@@ -154,6 +154,10 @@ router.post("/defs", requireRole("contributor"), (req, res) => {
   try { input = sanitizeDef(req.body); }
   catch (e) { if (e instanceof DefError) { res.status(400).json({ error: e.message }); return; } throw e; }
 
+  // Primitives (and any vendor-controlled kind) are OURS — an org composes recipes FROM them but cannot author
+  // or fork one. There is no customer scope at which a primitive may be written.
+  if (isVendorControlledKind(input.kind)) { res.status(403).json({ error: `${input.kind} definitions are vendor-controlled and cannot be authored` }); return; }
+
   return withBrokerErrors(req, res, "def import failed", async () => {
     if (!(await authorizeDefWrite(req, res, storage, { projectId, programmeId }))) return;
     if (!(await runDefWriteHook(req, res, input.kind, input.payload))) return;
@@ -190,6 +194,8 @@ router.put("/defs/:id", requireRole("contributor"), (req, res) =>
     const scope = scopeFromParsed(parsed, ctx.sub);
     const existing = scope ? getDef(scope, id) : null;
     if (!existing || !scope) { res.status(404).json({ error: "Not found" }); return; }
+    // A vendor-controlled kind (primitive) can never be edited at a customer scope — it can't exist there.
+    if (isVendorControlledKind(existing.kind)) { res.status(403).json({ error: `${existing.kind} definitions are vendor-controlled and cannot be edited` }); return; }
     let upd;
     try { upd = sanitizeDefUpdate(existing.kind, req.body); }
     catch (e) { if (e instanceof DefError) { res.status(400).json({ error: e.message }); return; } throw e; }

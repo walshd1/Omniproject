@@ -18,10 +18,10 @@ const { putRegistryItem } = await import("./registry");
 const { buildDefStoreExport, applyDefStoreExport, DEF_STORE_EXPORT_SCHEMA } = await import("./def-store-export");
 
 const now = "2026-07-17T00:00:00.000Z";
-const PRIMITIVE = { id: "grouped-column", label: "Grouped columns", category: "chart", chartType: "bar",
-  description: "compare series", params: [{ key: "data", label: "Rows", type: "rows", required: true, description: "rows" }] };
-const orgDef = { id: "org~d1", kind: "primitive" as const, name: "Chart", createdBy: "a", createdAt: now, updatedAt: now, rowVersion: 1,
-  payload: PRIMITIVE };
+// A forkable customer-authored def (a dashboard) — primitives are vendor-controlled and never live at a customer scope.
+const DASHBOARD = { id: "exec-dash", name: "Exec", widgets: [{ id: "w1", type: "portfolioHealth" }] };
+const orgDef = { id: "org~d1", kind: "dashboard" as const, name: "Exec", createdBy: "a", createdAt: now, updatedAt: now, rowVersion: 1,
+  payload: DASHBOARD };
 const userDef = { id: "user~d2", kind: "theme" as const, name: "Dark", createdBy: "u", createdAt: now, updatedAt: now, rowVersion: 1,
   payload: { id: "dark", colors: { primary: "#000" } } };
 
@@ -78,15 +78,18 @@ test("import RE-VALIDATES defs: a tampered/invalid payload is dropped, not writt
   const bundle = {
     schema: DEF_STORE_EXPORT_SCHEMA, version: 1, createdAt: now,
     collections: [{ type: "def", scope: { kind: "org" }, items: [
-      { id: "org~good", kind: "primitive", name: "Good", payload: PRIMITIVE },
-      { id: "org~bad", kind: "primitive", name: "Bad", payload: { not: "a valid primitive" } },
+      { id: "org~good", kind: "dashboard", name: "Good", payload: DASHBOARD },
+      { id: "org~bad", kind: "dashboard", name: "Bad", payload: { not: "a valid dashboard" } },
+      // A vendor-controlled kind can never live at a customer scope — a backup carrying one is dropped on import.
+      { id: "org~prim", kind: "primitive", name: "Forked prim", payload: { id: "grouped-column", label: "x", category: "chart", params: [{ key: "data", label: "Rows", type: "rows", required: true, description: "d" }] } },
     ] }],
   };
   const report = applyDefStoreExport(bundle);
   const ids = listArtifacts<{ id: string }>("def", { kind: "org" }).map((d) => d.id);
   assert.ok(ids.includes("org~good"));
   assert.ok(!ids.includes("org~bad"), "the invalid def must be dropped");
-  assert.ok(report.skipped >= 1);
+  assert.ok(!ids.includes("org~prim"), "a vendor-controlled primitive must be dropped on migration");
+  assert.ok(report.skipped >= 2);
 });
 
 test("import rejects an unrecognised schema", () => {
