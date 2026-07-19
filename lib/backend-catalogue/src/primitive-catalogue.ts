@@ -452,7 +452,7 @@ export const PRIMITIVE_CATALOGUE: PrimitiveDef[] = [
     category: "setting",
     description: "A setting to be decided — its TYPE (boolean, single-choice, multi-choice, number, text) plus options and current value. Pure DATA (the settings tree); a `field` visual binds to it and renders the control its type calls for.",
     params: [
-      { key: "type", label: "Decision type", type: "enum", required: true, description: "What kind of decision this is — drives which control the visual renders.", options: ["boolean", "single-choice", "multi-choice", "number", "text"] },
+      { key: "type", label: "Decision type", type: "enum", required: true, description: "What kind of decision this is — drives which control the visual renders. `label` is display-only (no input).", options: ["boolean", "single-choice", "multi-choice", "number", "text", "label"] },
       { key: "options", label: "Options", type: "items", required: false, description: "The allowed choices (for single-choice / multi-choice); ignored for boolean/number/text." },
       { key: "value", label: "Value", type: "string", required: false, description: "The current/default decision value." },
     ],

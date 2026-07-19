@@ -51,6 +51,14 @@ describe("FieldControl (decision type drives the control)", () => {
     expect(onChange).toHaveBeenCalledWith("there");
   });
 
+  it("label → display-only, no control", () => {
+    render(<FieldControl label="Section header" decision={{ type: "label" }} />);
+    expect(screen.getByText("Section header")).toBeInTheDocument();
+    expect(screen.queryByRole("switch")).toBeNull();
+    expect(screen.queryByRole("textbox")).toBeNull();
+    expect(screen.queryByRole("combobox")).toBeNull();
+  });
+
   it("falls back to the decision's default value when uncontrolled", () => {
     render(<FieldControl label="S" decision={{ type: "single-choice", options: ["x", "y"], value: "y" }} />);
     expect((screen.getByRole("combobox") as HTMLSelectElement).value).toBe("y");

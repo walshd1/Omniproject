@@ -13,7 +13,7 @@ function toDecision(raw: unknown): { label: string; decision: Decision } | null 
   if (!raw || typeof raw !== "object") return null;
   const o = raw as Record<string, unknown>;
   const type = o["type"];
-  if (type !== "boolean" && type !== "single-choice" && type !== "multi-choice" && type !== "number" && type !== "text") return null;
+  if (type !== "boolean" && type !== "single-choice" && type !== "multi-choice" && type !== "number" && type !== "text" && type !== "label") return null;
   return {
     label: String(o["label"] ?? ""),
     decision: {

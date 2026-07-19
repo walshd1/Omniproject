@@ -9,9 +9,9 @@ import { useId } from "react";
  * `value` + `onChange`, or let it show the decision's default read-only.
  */
 
-/** The DATA half — a decision to be made (mirrors the `decision` primitive). */
+/** The DATA half — a decision to be made (mirrors the `decision` primitive). `label` is display-only. */
 export interface Decision {
-  type: "boolean" | "single-choice" | "multi-choice" | "number" | "text";
+  type: "boolean" | "single-choice" | "multi-choice" | "number" | "text" | "label";
   /** The allowed choices for single-/multi-choice. */
   options?: string[];
   /** The current/default value. */
@@ -35,6 +35,11 @@ export function FieldControl({
   const v = value ?? decision.value ?? "";
   const options = decision.options ?? [];
   const emit = (next: string) => onChange?.(next);
+
+  // A display-only field — just its label (a caption / section heading), no control.
+  if (decision.type === "label") {
+    return <div className="py-1.5 text-sm font-semibold">{label}</div>;
+  }
 
   let control: React.ReactNode;
   switch (decision.type) {

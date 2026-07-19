@@ -53,7 +53,7 @@ test("the settings tree: a `decision` defines the TYPE that drives the visual `f
   // The decision TYPE is a fixed, closed set of decision kinds.
   const typeParam = decision.params.find((p) => p.key === "type")!;
   assert.equal(typeParam.required, true);
-  assert.deepEqual(typeParam.options, ["boolean", "single-choice", "multi-choice", "number", "text"]);
+  assert.deepEqual(typeParam.options, ["boolean", "single-choice", "multi-choice", "number", "text", "label"]);
   // The field (visual, control) binds to a decision via `source` — the data→visual seam.
   const field = getPrimitive("field")!;
   assert.equal(field.category, "control");
