@@ -148,6 +148,20 @@ Format: each principle is a RULE + how to CHECK it + the usual FIX.
 - CHECK: A path writing the `system` scope; a resolver not honouring nearest-wins-by-id; the importer accepting
   a `primitive` at org/project/user.
 
+## 17. Documented, tested, mapped (the readability contract)
+- RULE: Every source file opens with a TITLE block comment; every EXPORTED FUNCTION carries a comment saying
+  what it does (JSDoc above, or a `//`/section header over the group). Enforced by `readability-guard.test.ts`
+  — an undocumented file/export fails the build.
+- RULE: New/changed behaviour ships WITH its unit tests in the same slice. Run the affected suites + `tsc
+  --noEmit` before claiming done. A failing test is the AUTHOR's job to fix NOW, before other work — never walk
+  past red. A genuinely pre-existing failure is stated plainly, not silently inherited (§10).
+- RULE: `docs/FUNCTION-MAP.md` is GENERATED from the code comments and CI-drift-guarded — never hand-edit.
+  Improve the comment in the code and regenerate: `pnpm --filter @workspace/scripts run gen-function-map`.
+  Regenerate in the SAME change whenever you add/rename a file or an exported function (like a `*.generated.ts`
+  after its JSON asset, §2).
+- CHECK: An undocumented file/export; a code change with no test; a red test left for later; a stale
+  FUNCTION-MAP (drift guard fails).
+
 ---
 
 ## Workflow rules

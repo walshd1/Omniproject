@@ -297,6 +297,34 @@ The payoff: presets, org branding, a customer's bespoke screen and our monthly d
 same mechanism at different layers of one sealed JSON tree** — no per-customer code, no forked product, and
 every override diffable, validated, and revocable.
 
+## 16. Documented, tested, and mapped — the readability contract
+
+Code is read far more than it is written, and an author's output — human or agent — is only trustworthy if the
+next reader can audit it quickly. Three habits are **enforced**, not merely encouraged:
+
+- **Every file has a title; every exported function has a comment.** A block comment at the top of each file
+  says what the file does (the one thing it does); every exported function carries a comment saying what it
+  does — a JSDoc directly above it, or a section/`//` header over a documented group. This is not decoration:
+  it is the source the function map is built from. The `readability-guard` test fails the build when a file or
+  an exported function is undocumented, so the rule can't quietly rot.
+- **Every change ships with unit tests, and you fix what they find.** New or changed behaviour lands *with* the
+  tests that pin it — in the same slice, not as a someday follow-up. Run the affected suites (and typecheck the
+  package) before you call the work done. If a test surfaces an error, fixing it is the author's job **now**,
+  before moving on to anything else — a red test you walked past is a regression you shipped. "It's unrelated"
+  is a claim to verify, not a licence to skip; a genuinely pre-existing failure gets **stated plainly**
+  (principle 10 / faithful reporting), never silently left for the next person to inherit.
+- **Keep the function map honest.** `docs/FUNCTION-MAP.md` is a *generated*, one-screen-per-package index of
+  every file and exported function, collated from those same code comments and kept current by a CI drift guard
+  — so it can never lie about the code. You don't hand-edit it; you improve the comment in the code and
+  regenerate (`pnpm --filter @workspace/scripts run gen-function-map`). After adding or renaming a file or an
+  exported function, regenerate the map **in the same change**, exactly as you regenerate a `*.generated.ts`
+  after editing its JSON asset (principle 2). A stale map is a broken build, by design.
+
+Why bundle these three: together they are the guarantee that the codebase stays **auditable by skimming** — a
+good developer, or an agent picking up where another left off, can learn how the whole system is put together
+from the map and the comments, trust that behaviour is pinned by tests, and never inherit a known-red state
+someone chose not to fix.
+
 ---
 
 ## Operational implications (read this if you run OmniProject)

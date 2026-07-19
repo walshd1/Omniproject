@@ -939,7 +939,10 @@ Is the gateway running in DEMO auth mode — i.e. NO real authentication method 
 | Function | What it does |
 | --- | --- |
 | `isDemoAuthFrom` | Pure decision: is this env a DEMO (no-real-auth, every-session-admin) deployment? Returns false as soon as ANY real method is configured — legacy OIDC, named OIDC, OAuth2, SAML, or magic-link. |
-| `isDemoAuth` | Runtime gate: is the live process in demo auth mode? Delegates to the pure `isDemoAuthFrom` so the gate and the boot-time blocker share one definition and can never drift. |
+| `isDemoAuth` | Runtime gate: is the live process in demo auth mode? Starts from the pure env decision (shared with the boot self-check) AND additionally turns demo OFF once ≥1 active local user exists — so creating the first in-app admin in the setup wizard immediately stops "no IdP = everyone admin", without needing an env change. |
+| `strongerAuthConfigured` | True when a STRONGER-than-local real SSO method (legacy/named OIDC, OAuth2, or SAML) is configured. |
+| `localPasswordRecovery` | The host-side RECOVERY break-glass: force local passwords back on despite a configured SSO. |
+| `localPasswordsAllowed` | Whether local (in-app password) sign-in is ALLOWED at all: only when no stronger SSO is configured, UNLESS the destructive recovery break-glass is engaged. |
 
 ### `artifacts/api-server/src/lib/automation.ts`
 
@@ -1621,6 +1624,8 @@ DEF SELECTION BINDINGS (roadmap X.12).
 
 | Function | What it does |
 | --- | --- |
+| `primitiveSlot` | The binding slot key for a primitive family (namespaced, so it never collides with a screen/report slot). |
+| `isPrimitiveSlot` | Whether a slot addresses a primitive selection (vs a screen/report/methodology slot). |
 | `resolveDefBinding` | Resolve the effective binding for `slot` given the caller's scope. |
 | `canRebind` | Whether a principal at `level` may CHANGE the selection for `slot` — i.e. no higher scope has locked it. |
 | `getScopeBindings` | The slot→binding map stored at one scope (empty when unset / store off). |
@@ -1633,6 +1638,7 @@ THE DEFINITION IMPORTER — the single validated write-path for ANY user-defined
 
 | Function | What it does |
 | --- | --- |
+| `isVendorControlledKind` | — |
 | `defMethodologies` | An OPTIONAL, loose methodology tag any artifact def may carry in its JSON (`methodologies: string[]`) — the same convention the shipped screen/report/view catalogues use, generalised to every kind so ANY def can be softly associated with one or more methodologies (an untagged def is neutral — it applies everywhere). |
 | `validateDef` | Validate a payload against its kind using the REAL product validators — the same ones the individual def routes enforce — so a stored def can never be a shape the product would reject. |
 | `sanitizeDef` | The single choke point: validate the whole import request (kind, name, payload size + shape). |
@@ -1647,6 +1653,10 @@ THE DEFINITION IMPORTER — the single validated write-path for ANY user-defined
 | `checkDeleteIntegrity` | Guard a DELETE: removing a def that others are BUILT ON orphans them. |
 | `putDef` | — |
 | `deleteDef` | — |
+| `approvedPrimitiveDefId` | The def storage id for a primitive activated from a registry item at a target scope (deterministic, so reject/delete can undo). |
+| `approvedPrimitiveErrors` | Validate a customer primitive for activation: shape ({@link validatePrimitiveDef}) + the customer-only safety bounds/render-safety ({@link primitiveSafetyErrors}) + `extends` ancestry resolving (system + org + the target scope) + the bidirectional integrity check. |
+| `activateApprovedPrimitive` | PRIVILEGED: activate an APPROVED customer primitive into a customer def scope (org-wide by default, or confined to a programme/project). |
+| `deactivateApprovedPrimitive` | Remove an activated approved primitive from its scope (on reject / retract / delete). |
 | `makeSystemDefId` | A system def id: `system~<localId>`. |
 | `listSystemDefs` | The shipped-default defs (read-only). |
 | `buildSystemDefRow` | Build (validate + stamp) one shipped-default row WITHOUT writing — the row for the read-only system store. |
@@ -1673,7 +1683,7 @@ DEFINITION SCOPE POLICY — the admin-configurable answer to "who may WRITE a de
 | Function | What it does |
 | --- | --- |
 | `satisfiesDefGate` | Does the request satisfy a scope gate? |
-| `getDefScopePolicy` | The current policy (the org config artifact, or the defaults when unset / store disabled). |
+| `getDefScopePolicy` | The current policy: the system-JSON baseline (the seeded `def-scope-policy` config def), copy-and-overridden by the org's stored policy (per key). |
 | `setDefScopePolicy` | Merge a partial patch over the current policy and persist it (org config). |
 | `authorizeDefWrite` | WRITE authorization for a def op at a storage target: the configured per-scope gate, plus the caller's project scope for `project`. |
 
@@ -2168,6 +2178,31 @@ Portfolio AI INSIGHTS — read-only, model-written narrative over the portfolio 
 | `insightMessages` | Build the insight messages: a hardening system frame + the fixed brief + the delimited DATA. |
 | `generatePortfolioInsight` | Produce a portfolio insight. |
 
+### `artifacts/api-server/src/lib/instance-backup.ts`
+
+PORTABLE BACKUP — the complete instance backup (settings + def store + secret stores) sealed under the INSTANCE RECOVERY KEY (lib/instance-key), NOT the deployment's config key.
+
+| Function | What it does |
+| --- | --- |
+| `buildPortableBackup` | Build the complete backup and seal it under the raw IRK. |
+| `isPortableBackup` | True when `input` looks like a portable-backup envelope (so a restore route can branch/validate). |
+| `openPortableBackup` | Open a portable backup with the raw IRK the operator supplies, returning the two halves for the caller to apply (`applySnapshot` / `applyDefStoreExport` / `applyExtraStores`, with `allowSecrets` since the AES-GCM tag has authenticated the bundle). |
+
+### `artifacts/api-server/src/lib/instance-key.ts`
+
+INSTANCE RECOVERY KEY (IRK) — the portable secret an operator SAVES on first setup and needs to open an encrypted backup on a fresh box.
+
+| Function | What it does |
+| --- | --- |
+| `instanceKeyEnabled` | Whether the instance-key store can persist (a path resolves). |
+| `_resetInstanceKeyCache` | Test-only: drop the in-memory cache so an env/path change is re-read. |
+| `getInstanceKey` | Unwrap the stored IRK to raw bytes, or null (absent / unreadable / no matching wrap key). |
+| `ensureInstanceKey` | Ensure an IRK exists, minting + wrapping + persisting one if absent. |
+| `rotateInstanceKey` | Rotate to a fresh IRK (mint + wrap + persist), resetting the reveal gate. |
+| `isInstanceKeyRevealed` | Whether the current IRK has been revealed to an admin (the one-time export gate). |
+| `markInstanceKeyRevealed` | Mark the current IRK revealed (called after a successful one-time reveal). |
+| `instanceKeyFingerprint` | A non-secret fingerprint of the current IRK — confirm which key a backup needs without revealing it. |
+
 ### `artifacts/api-server/src/lib/invoice.ts`
 
 INVOICE server logic (roadmap 3.3) — the authoritative sanitiser + storage access for first-class generated invoices.
@@ -2528,6 +2563,21 @@ Runtime-optional dependency loader — the shared shape behind every "this packa
 | --- | --- |
 | `loadOptionalDependency` | Runtime-optional dependency loader — the shared shape behind every "this package isn't a committed dependency, load it if present, degrade to a no-op if not" seam (Redis clients, the SAML library, geoip-lite, …): dynamic `import()` by a variable specifier (so bundlers/tsc never statically resolve it), extract the piece the caller needs, and on absence/mismatch log ONE warning and resolve to `null` — never throw. |
 
+### `artifacts/api-server/src/lib/org-identity.ts`
+
+ORG IDENTITY — the canonical, first-class record of WHO this deployment belongs to: a stable org `id` and a human `name`.
+
+| Function | What it does |
+| --- | --- |
+| `mintOrgId` | A fresh, unique org id. |
+| `readOrgIdentity` | The org identity as it currently stands — the stored id (or `""` when not yet minted) and the stored name (or the default placeholder). |
+| `resolveOrgIdentity` | The effective org identity at a scope: the stored org-scope identity with any config-def layers folded on top (an org id can never be overridden lower down, but this keeps the read consistent with every other config). |
+| `ensureOrgIdentity` | Ensure the org has a stable id, minting one (and persisting the identity at the top of the org JSON) if it doesn't yet. |
+| `sanitizeOrgName` | Sanitise a proposed org name: single line, trimmed, capped. |
+| `sanitizeOrgLogo` | Sanitise a proposed org logo. |
+| `updateOrgIdentity` | Apply an (ungated) patch to the org identity — name, logo and/or the show-logo opt-in — minting the id first if needed. |
+| `setOrgName` | Set the org NAME (ungated), minting the id first if needed. |
+
 ### `artifacts/api-server/src/lib/origin-allowlist.ts`
 
 The set of origins this deployment trusts for cross-origin browser interaction — shared by CORS (which cross-origin page's JS may read our responses) and, via CSRF_TRUSTED_ORIGINS, the CSRF guard (which Origin/Referer a cookie-bearing mutation may announce).
@@ -2668,6 +2718,24 @@ Live collaboration presence hub (Server-Sent Events).
 | `presenceStats` | Diagnostics for dev mode: how many rooms / connections are live right now (LOCAL sockets only — the authoritative in-process view; remote mirror entries are not counted). |
 | `closeAllPresence` | Close every live presence stream and forget them — used on graceful shutdown. |
 | `_resetPresenceForTest` | Test reset hook — drop all presence state (local + remote mirror + publishers) without touching connections. |
+
+### `artifacts/api-server/src/lib/preset-apply.ts`
+
+PRESET APPLY — the plan for landing an org on a quick-load preset in one action.
+
+| Function | What it does |
+| --- | --- |
+| `planPresetApply` | Resolve an (already scope-resolved) preset into an apply plan. |
+
+### `artifacts/api-server/src/lib/preset-config.ts`
+
+SCOPE-OVERRIDABLE presets — the resolver behind the presets route.
+
+| Function | What it does |
+| --- | --- |
+| `presetConfigValues` | The seeded `values` for the system `presets` config def — the shipped catalogue under a `list` key. |
+| `resolvePresets` | The effective presets at the given scopes: shipped base (`presetCatalogue`) with system→org→programme→ project→user config-def layers folded on top (nearest wins, list merges by id). |
+| `resolvePreset` | One resolved preset by id (system + overrides), or undefined. |
 
 ### `artifacts/api-server/src/lib/primitive-studio.ts`
 
@@ -2941,6 +3009,15 @@ Agentic REBALANCING — the AI proposes a short, ordered list of corrective acti
 | `rebalanceMessages` | Build the rebalance messages: a hardening frame + the ALLOWED tool catalogue + the delimited untrusted snapshot. |
 | `parseSteps` | Defensively parse the model's reply into raw steps (before catalogue validation). |
 | `proposeRebalance` | Ask the model for a rebalancing plan and return only the steps that VALIDATE against the approved tool catalogue. |
+
+### `artifacts/api-server/src/lib/recovery-mode.ts`
+
+RECOVERY MODE — the data-isolation half of the local-password break-glass.
+
+| Function | What it does |
+| --- | --- |
+| `recoveryConfigDir` | The isolated config directory recovery runs from — a `recovery/` child of the real OMNI_CONFIG_DIR. |
+| `engageRecoveryConfigDir` | If the recovery break-glass is engaged AND an OMNI_CONFIG_DIR is set, redirect it to the isolated recovery subdirectory (creating it) so every sealed store runs blank. |
 
 ### `artifacts/api-server/src/lib/recurrence.ts`
 
@@ -3371,7 +3448,7 @@ Known-good settings blueprints for common customer archetypes — a starting poi
 
 | Function | What it does |
 | --- | --- |
-| `listSettingsPresets` | The known-good settings blueprints, newest posture first (stable order). |
+| `listSettingsPresets` | The known-good settings blueprints, in display order. |
 | `settingsPreset` | One blueprint by id, or null. |
 
 ### `artifacts/api-server/src/lib/settings.ts`
@@ -3599,6 +3676,38 @@ External-API USAGE METER — counts the calls (and, where known, tokens) OmniPro
 | `warningLevel` | Map a fraction-of-limit to a warning band (default 50% notice, 75% warn, 90% critical, ≥100% over; the notice/warn/critical thresholds are tunable via USAGE_WARN_BANDS). |
 | `limitStatus` | Resolve a vendor's limit status for the current period (null when no limit is configured). |
 | `pointCost` | Money cost of a usage point under a cost policy (0 when no cost is configured). |
+
+### `artifacts/api-server/src/lib/user-credentials.ts`
+
+LOCAL-USER CREDENTIAL STORE — password secrets for in-app (non-IdP) users, in a SEPARATELY-KEYED sealed store, isolated from the config store and the AI vault.
+
+| Function | What it does |
+| --- | --- |
+| `credentialsEnabled` | Whether the credential store can persist (a path resolves). |
+| `_resetCredentialCache` | Reset the in-memory cache — test-only, so an env/path change is re-read. |
+| `assertPasswordPolicy` | Validate a proposed password. |
+| `setPassword` | Set (or replace) a user's password. |
+| `hasPassword` | Whether a user has a stored password. |
+| `removePassword` | Remove a user's credential (on delete). |
+| `verifyPassword` | Verify a password against a user's stored credential, constant-time. |
+
+### `artifacts/api-server/src/lib/user-directory.ts`
+
+LOCAL USER DIRECTORY — the in-app roster of native (non-IdP) users, so a deployment can manage its own accounts and assign roles WITHOUT an external identity provider (while OIDC/SAML/SCIM still work alongside).
+
+| Function | What it does |
+| --- | --- |
+| `userDirectoryEnabled` | Whether the roster can persist (the org artifact store is configured). |
+| `localAdminRequiresPasskey` | Policy: must a local user ALSO hold a passkey to exercise admin/PMO? The product PREFERS passkey-gated admin, but that requires a passkey step-up that upgrades the session to strong auth — a capability an org opts into. |
+| `listUsers` | All users (public projection), sorted by userName. |
+| `getUser` | One user by id, or null. |
+| `getActiveUserByUserName` | One ACTIVE user by login handle (case-insensitive), or null — the login lookup. |
+| `localUsersActive` | Whether ≥1 active local user exists — the signal that turns the runtime demo gate off. |
+| `anyUserExists` | Whether ANY user (active or not) exists — used by the first-run "claim first admin" bootstrap gate. |
+| `createUser` | Create a user. |
+| `updateUser` | Update a user's profile / groups / active flag. |
+| `deleteUser` | Delete a user AND their credential. |
+| `getUserView` | Public view of one user, or null. |
 
 ### `artifacts/api-server/src/lib/user-prefs.ts`
 
@@ -4104,6 +4213,10 @@ The notify-plane dispatch decision, traced/capturable like the broker seam.
 
 OData v4 read service — so SAP / Dynamics / Oracle / Power BI can pull OmniProject data in their native feed format (read-only API token works).
 
+### `artifacts/api-server/src/routes/org-identity.ts`
+
+ORG IDENTITY — the org's canonical id + name (see lib/org-identity).
+
 ### `artifacts/api-server/src/routes/panel-views.ts`
 
 Org-saved PANEL VIEWS store.
@@ -4127,6 +4240,10 @@ Portfolio analytics endpoints — portfolio-wide RAG/health and resource-capacit
 ### `artifacts/api-server/src/routes/presence.ts`
 
 Live-collaboration presence routes (the "presence" feature module).
+
+### `artifacts/api-server/src/routes/presets.ts`
+
+QUICK-LOAD PRESETS — land an org on a way of working in one action.
 
 ### `artifacts/api-server/src/routes/priority-labels.ts`
 
@@ -4170,7 +4287,7 @@ Rate card + hashed identity→role map + project types, and the server-side staf
 
 ### `artifacts/api-server/src/routes/registry.ts`
 
-ORG REGISTRY routes (org-wide store of approved bespoke items), behind the default-off `registry` module.
+Parse the activation target from a review body — org-wide by default, or a programme/project to CONFINE the activated primitive to (downward-only).
 
 ### `artifacts/api-server/src/routes/report-overrides.ts`
 
@@ -4283,6 +4400,10 @@ Capability governance plane — the admin-set deployment state (off / user-defin
 ### `artifacts/api-server/src/routes/usage.ts`
 
 External-API USAGE + LIMITS surface.
+
+### `artifacts/api-server/src/routes/users.ts`
+
+NATIVE USER MANAGEMENT (admin) — create/manage in-app users + assign their groups (which map to roles the same way IdP claims do), so a deployment can run WITHOUT an external IdP.
 
 ### `artifacts/api-server/src/routes/views.ts`
 
@@ -4571,7 +4692,7 @@ ENTITY RESOLUTION — stateless helpers for reconciling the SAME real-world enti
 
 ### `lib/backend-catalogue/src/field-primitive-catalogue.ts`
 
-FIELD PRIMITIVES — `field` is a ROOT primitive (sibling to `table` / `bar`).
+DERIVED field primitives — everything that COMPOSES from the `field` root (`extends`) is DATA, authored as JSON recipes under field-primitives/ (the same rule the visual primitives, screens, reports and mappings follow).
 
 | Function | What it does |
 | --- | --- |
@@ -4579,6 +4700,21 @@ FIELD PRIMITIVES — `field` is a ROOT primitive (sibling to `table` / `bar`).
 | `fieldPrimitive` | One field primitive by id, or undefined. |
 | `validateFieldInstance` | Validate ONE form-field instance against its field primitive — the type is a concrete (never an abstract ancestor used raw), its required params are present, and it satisfies the composed constraints (incl. |
 | `validateFormFields` | Validate a form's `fields[]` as field-primitive instances (the per-element half of form validation). |
+
+### `lib/backend-catalogue/src/field-validation.ts`
+
+FIELD VALIDATION + SANITISATION — the single policy engine every field instance runs through.
+
+| Function | What it does |
+| --- | --- |
+| `isLabelType` | — |
+| `resolveFieldPolicy` | Merge an author's overrides ONTO the type default — overrides tighten the floor (a longer maxLength than the default is allowed; the sanitise steps are the union so an author can add but not drop a step). |
+| `sanitiseKeystroke` | The PER-KEYSTROKE character filter — drops characters that can NEVER be valid for the field type, so the in-progress value stays clean as it is typed (or pasted). |
+| `sanitiseValue` | Apply a sanitise policy to a raw string value, steps in order. |
+| `sanitiseForStore` | STORAGE sanitisation — apply only the normalising steps (never escaping), so the result is round-trip safe: the value stored/emitted stays editable and un-mangled. |
+| `validateValue` | Validate an already-sanitised value against its validation spec. |
+| `applyFieldPolicy` | Sanitise THEN validate a raw value in one call — the runtime entry point. |
+| `assertFieldHasPolicy` | The CONTRACT CHECK the def validators call: a non-label field MUST resolve to a non-empty sanitise policy. |
 
 ### `lib/backend-catalogue/src/field-vocabulary.ts`
 
@@ -4597,6 +4733,10 @@ FORM registry — intake / request forms OmniProject can render.
 | `getForm` | One form template by id, or undefined. |
 | `formCatalogue` | All form templates (a defensive copy). |
 | `formsForMethodology` | The form templates tagged for a methodology (neutral tags always match). |
+
+### `lib/backend-catalogue/src/forms.generated.ts`
+
+GENERATED by scripts/src/gen-forms.ts — do not edit.
 
 ### `lib/backend-catalogue/src/goal-catalogue.ts`
 
@@ -4795,9 +4935,24 @@ The PLANES meta-registry — the seven integration planes OmniProject models, al
 | `getPlane` | Look up a single plane descriptor by its id. |
 | `planeCatalogue` | All plane descriptors (a defensive copy). |
 
+### `lib/backend-catalogue/src/preset-catalogue.ts`
+
+PRESET catalogue — the QUICK-LOAD presets that configure an org for a way of working in ONE action.
+
+| Function | What it does |
+| --- | --- |
+| `getPreset` | One preset by id. |
+| `presetCatalogue` | All presets (a defensive copy). |
+| `presetReferenceErrors` | Validate a preset's REFERENCES resolve against the catalogues this package owns (methodology, reference ruleset, project template, dashboard preset). |
+| `isPresetConsistent` | Whether a preset's references all resolve. |
+
+### `lib/backend-catalogue/src/presets.generated.ts`
+
+GENERATED by scripts/src/gen-presets.ts — do not edit.
+
 ### `lib/backend-catalogue/src/primitive-catalogue.ts`
 
-THE SHIPPED PRIMITIVE CATALOGUE — a data-only library of every rendering primitive the product ships, so the view/report/chart builders (and the def store) can discover what artifacts compose from.
+DERIVED primitives — everything that COMPOSES from a root (`extends`) is DATA, authored as JSON recipes under primitives/ (like screens/reports/mappings).
 
 | Function | What it does |
 | --- | --- |
@@ -4807,6 +4962,15 @@ THE SHIPPED PRIMITIVE CATALOGUE — a data-only library of every rendering primi
 | `primitiveCatalogue` | The shipped primitive defs (a fresh array each call, so a caller can't mutate the catalogue). |
 | `resolvePrimitive` | Execute a primitive's composition: walk `extends` to a root, then merge each ancestor's params by KEY from root → leaf so a thin child ADDS new params and ALTERS ones it re-declares (child wins), while inheriting the rest. |
 | `rootPrimitives` | The root primitives — those built on nothing (no `extends`). |
+
+### `lib/backend-catalogue/src/primitive-safety.ts`
+
+PRIMITIVE SAFETY — the extra guardrails a CUSTOMER-authored primitive must clear on top of the shape check ({@link validatePrimitiveDef}).
+
+| Function | What it does |
+| --- | --- |
+| `primitiveSafetyErrors` | The safety violations for a CUSTOMER-authored primitive def (empty = safe to activate). |
+| `isPrimitiveSafe` | Convenience: safe ⇔ no violations. |
 
 ### `lib/backend-catalogue/src/primitive-schema.ts`
 
@@ -4884,7 +5048,7 @@ SCREEN registry — the SPA views OmniProject ships.
 
 ### `lib/backend-catalogue/src/screen-def-catalogue.ts`
 
-THE SHIPPED SCREEN-DEFINITION catalogue — the panel-bearing screen ARTIFACTS the generic builder renders, authored as pure JSON (NOT React).
+Methodology overview screens — ordinary screens, each built PURELY from atom-composable primitive panels (a canvas + chart/table/register/metric/text panels that resolve to the primitive tree).
 
 | Function | What it does |
 | --- | --- |
@@ -4894,6 +5058,19 @@ THE SHIPPED SCREEN-DEFINITION catalogue — the panel-bearing screen ARTIFACTS t
 ### `lib/backend-catalogue/src/screens.generated.ts`
 
 GENERATED by scripts/src/gen-screens.ts — do not edit.
+
+### `lib/backend-catalogue/src/settings-preset-catalogue.ts`
+
+SETTINGS-PRESET archetypes — known-good posture blueprints an operator loads in setup and then tweaks (enterprise-pmo, growth-business, nonprofit, agency-services, regulated-selfhost, demo-trial).
+
+| Function | What it does |
+| --- | --- |
+| `settingsPresetCatalogue` | The known-good settings blueprints, in display order. |
+| `getSettingsPreset` | One blueprint by id, or undefined. |
+
+### `lib/backend-catalogue/src/settings-presets.generated.ts`
+
+GENERATED by scripts/src/gen-settings-presets.ts — do not edit.
 
 ### `lib/backend-catalogue/src/template-catalogue.ts`
 
@@ -4906,6 +5083,10 @@ PROJECT TEMPLATE catalogue — reusable project blueprints for the "spin up a pr
 | `projectTemplatesForMethodology` | Templates tagged for a methodology (neutral tags always match). |
 | `resolveProjectTemplates` | The EFFECTIVE template set: the shipped default catalogue with the org's stored templates merged over it — an org template with the same id OVERRIDES the built-in, a new id is appended. |
 | `resolveProjectTemplate` | Resolve one template by id from the merged set (org override wins over the shipped default). |
+
+### `lib/backend-catalogue/src/templates.generated.ts`
+
+GENERATED by scripts/src/gen-templates.ts — do not edit.
 
 ### `lib/backend-catalogue/src/vendor-overlay.ts`
 
@@ -5032,6 +5213,10 @@ Dashboard-preset catalogue generator.
 
 Canonical field-vocabulary generator.
 
+### `scripts/src/gen-forms.ts`
+
+Form catalogue generator.
+
 ### `scripts/src/gen-function-map.ts`
 
 Function-map generator.
@@ -5060,6 +5245,10 @@ gen-openapi-bundle — embed the consumer (northbound) OpenAPI spec into a TS mo
 
 Copilot persona catalogue generator.
 
+### `scripts/src/gen-presets.ts`
+
+Preset catalogue generator.
+
 ### `scripts/src/gen-priority-weights.ts`
 
 Prioritisation-weights generator.
@@ -5071,6 +5260,14 @@ Report catalogue generator.
 ### `scripts/src/gen-screens.ts`
 
 Screen catalogue generator.
+
+### `scripts/src/gen-settings-presets.ts`
+
+Settings-preset (archetype blueprint) generator.
+
+### `scripts/src/gen-templates.ts`
+
+Project-template catalogue generator.
 
 ### `scripts/src/gen-vendors.ts`
 
