@@ -1,13 +1,20 @@
-import { convertAmount, isConvertible, LocalTracker } from "./currency";
-import { round2 } from "./num";
+import {
+  consolidateByGroup,
+  consolidationSpec,
+  type ConsolidatedRow,
+  type ConsolidationInput,
+} from "@workspace/backend-catalogue";
 import { summariseIncome, type IncomeInput } from "./income";
 import { summariseBenefits, type BenefitInput } from "./benefits";
 
 /**
  * Portfolio value roll-ups — consolidate each project's INCOME (projected vs invoiced) and BENEFITS
- * (planned vs realised) into one reporting currency and group by programme. Pure and derive-only: the
- * caller supplies each project's work items + currency + the FX table; nothing is stored. Mirrors the
- * financial-consolidation pattern so income/benefit roll-ups read identically to the budget one.
+ * (planned vs realised) into one reporting currency and group by programme. The consolidation itself (the
+ * group → FX-convert → local-track → derive → sort fold) is the shared, JSON-spec-driven `consolidateByGroup`
+ * engine; the roll-up SHAPE (which measures, the derived metric, the sort) is authored as data under
+ * assets/consolidations/. This module only extracts each project's measure values from its work items (the
+ * income/benefit summarisers) and re-labels the generic result into the report's named row type. Pure and
+ * derive-only: nothing is stored.
  */
 
 /** One project's work items, tagged with programme + currency for grouping and conversion. */
@@ -22,8 +29,15 @@ export interface ProjectItems {
 
 const STANDALONE = "__standalone__";
 
-function groupKeyLabel(p: ProjectItems): { key: string; label: string } {
-  return p.programmeId ? { key: p.programmeId, label: p.programmeName ?? p.programmeId } : { key: STANDALONE, label: "Standalone" };
+/** Build the generic consolidation inputs — group key/label + currency + the per-measure values a
+ *  project contributes (extracted from its work items by `measures`). */
+function toInputs(projects: ProjectItems[], measures: (p: ProjectItems) => Record<string, number>): ConsolidationInput[] {
+  return projects.map((p) => ({
+    groupKey: p.programmeId ?? STANDALONE,
+    groupLabel: p.programmeId ? (p.programmeName ?? p.programmeId) : "Standalone",
+    currency: p.currency,
+    values: measures(p),
+  }));
 }
 
 // ── Income roll-up ───────────────────────────────────────────────────────────
@@ -53,64 +67,32 @@ export interface IncomeRollup {
   excludedForFx: number;
 }
 
-interface WorkingIncomeRollup extends IncomeRollup {
-  _tracker: LocalTracker;
-}
+const INCOME_SPEC = consolidationSpec("income");
 
-function blankIncome(key: string, label: string): WorkingIncomeRollup {
-  return { key, label, projects: 0, projected: 0, invoiced: 0, unbilled: 0, billedPct: 0, localCurrency: null, local: null, excludedForFx: 0, _tracker: new LocalTracker() };
-}
-
-function finaliseIncome(r: WorkingIncomeRollup): IncomeRollup {
+/** Re-label a generic consolidated row as an income roll-up. */
+function toIncomeRollup(r: ConsolidatedRow): IncomeRollup {
   return {
     key: r.key,
     label: r.label,
     projects: r.projects,
-    projected: round2(r.projected),
-    invoiced: round2(r.invoiced),
-    unbilled: round2(Math.max(0, r.projected - r.invoiced)),
-    billedPct: r.projected > 0 ? Math.round((r.invoiced / r.projected) * 1000) / 10 : 0,
-    localCurrency: r._tracker.currency,
-    local: r.local ? { projected: round2(r.local.projected), invoiced: round2(r.local.invoiced) } : null,
+    projected: (r.metrics["projected"] as number) ?? 0,
+    invoiced: (r.metrics["invoiced"] as number) ?? 0,
+    unbilled: (r.metrics["unbilled"] as number) ?? 0,
+    billedPct: (r.metrics["billedPct"] as number) ?? 0,
+    localCurrency: r.localCurrency,
+    local: r.local ? { projected: r.local["projected"] ?? 0, invoiced: r.local["invoiced"] ?? 0 } : null,
     excludedForFx: r.excludedForFx,
   };
 }
 
 /** Consolidate projects' income into programme roll-ups + portfolio total, in `reportingCurrency`. */
 export function rollupIncome(projects: ProjectItems[], reportingCurrency: string, rates?: Record<string, number>): { programmes: IncomeRollup[]; portfolio: IncomeRollup } {
-  const groups = new Map<string, WorkingIncomeRollup>();
-  const portfolio = blankIncome("__portfolio__", "Portfolio");
-  for (const p of projects) {
+  const inputs = toInputs(projects, (p) => {
     const s = summariseIncome(p.items);
-    const conv = (n: number) => convertAmount(n, p.currency, reportingCurrency, rates);
-    // Only fold into the consolidated (reporting-currency) total when the row can actually be
-    // converted — convertAmount passes an amount through UNCHANGED when a rate is missing, so summing
-    // it would add a raw foreign amount to the total (matches fold in portfolio-finance / the backend).
-    const convertible = isConvertible(p.currency, reportingCurrency, rates);
-    const { key, label } = groupKeyLabel(p);
-    const row = groups.get(key) ?? blankIncome(key, label);
-    for (const acc of [row, portfolio]) {
-      acc.projects += 1;
-      if (convertible) {
-        acc.projected += conv(s.projected);
-        acc.invoiced += conv(s.invoiced);
-      } else {
-        acc.excludedForFx += 1;
-      }
-      if (acc._tracker.add(p.currency)) {
-        const local = acc.local ?? { projected: 0, invoiced: 0 };
-        local.projected += s.projected;
-        local.invoiced += s.invoiced;
-        acc.local = local;
-      } else {
-        acc.local = null;
-      }
-    }
-    groups.set(key, row);
-  }
-  // key (the programmeId) is unique per group ⇒ deterministic order for equal unbilled value.
-  const programmes = [...groups.values()].map(finaliseIncome).sort((a, b) => b.unbilled - a.unbilled || a.key.localeCompare(b.key));
-  return { programmes, portfolio: finaliseIncome(portfolio) };
+    return { projected: s.projected, invoiced: s.invoiced };
+  });
+  const { groups, total } = consolidateByGroup(inputs, INCOME_SPEC, reportingCurrency, rates);
+  return { programmes: groups.map(toIncomeRollup), portfolio: toIncomeRollup(total) };
 }
 
 // ── Benefits roll-up ─────────────────────────────────────────────────────────
@@ -142,62 +124,30 @@ export interface BenefitsRollup {
   excludedForFx: number;
 }
 
-interface WorkingBenefitsRollup extends BenefitsRollup {
-  _tracker: LocalTracker;
-}
+const BENEFITS_SPEC = consolidationSpec("benefits");
 
-function blankBenefits(key: string, label: string): WorkingBenefitsRollup {
-  return { key, label, projects: 0, planned: 0, actual: 0, expected: 0, realisation: 0, localCurrency: null, local: null, excludedForFx: 0, _tracker: new LocalTracker() };
-}
-
-function finaliseBenefits(r: WorkingBenefitsRollup): BenefitsRollup {
+/** Re-label a generic consolidated row as a benefits roll-up. */
+function toBenefitsRollup(r: ConsolidatedRow): BenefitsRollup {
   return {
     key: r.key,
     label: r.label,
     projects: r.projects,
-    planned: round2(r.planned),
-    actual: round2(r.actual),
-    expected: round2(r.expected),
-    realisation: r.planned > 0 ? Math.round((r.actual / r.planned) * 1000) / 10 : 0,
-    localCurrency: r._tracker.currency,
-    local: r.local ? { planned: round2(r.local.planned), actual: round2(r.local.actual), expected: round2(r.local.expected) } : null,
+    planned: (r.metrics["planned"] as number) ?? 0,
+    actual: (r.metrics["actual"] as number) ?? 0,
+    expected: (r.metrics["expected"] as number) ?? 0,
+    realisation: (r.metrics["realisation"] as number) ?? 0,
+    localCurrency: r.localCurrency,
+    local: r.local ? { planned: r.local["planned"] ?? 0, actual: r.local["actual"] ?? 0, expected: r.local["expected"] ?? 0 } : null,
     excludedForFx: r.excludedForFx,
   };
 }
 
 /** Consolidate projects' benefits into programme roll-ups + portfolio total, in `reportingCurrency`. */
 export function rollupBenefits(projects: ProjectItems[], reportingCurrency: string, rates?: Record<string, number>): { programmes: BenefitsRollup[]; portfolio: BenefitsRollup } {
-  const groups = new Map<string, WorkingBenefitsRollup>();
-  const portfolio = blankBenefits("__portfolio__", "Portfolio");
-  for (const p of projects) {
+  const inputs = toInputs(projects, (p) => {
     const s = summariseBenefits(p.items);
-    const conv = (n: number) => convertAmount(n, p.currency, reportingCurrency, rates);
-    // Drop FX-unconvertible rows from the consolidated total (see the income roll-up above).
-    const convertible = isConvertible(p.currency, reportingCurrency, rates);
-    const { key, label } = groupKeyLabel(p);
-    const row = groups.get(key) ?? blankBenefits(key, label);
-    for (const acc of [row, portfolio]) {
-      acc.projects += 1;
-      if (convertible) {
-        acc.planned += conv(s.totalPlanned);
-        acc.actual += conv(s.totalActual);
-        acc.expected += conv(s.expectedValue);
-      } else {
-        acc.excludedForFx += 1;
-      }
-      if (acc._tracker.add(p.currency)) {
-        const local = acc.local ?? { planned: 0, actual: 0, expected: 0 };
-        local.planned += s.totalPlanned;
-        local.actual += s.totalActual;
-        local.expected += s.expectedValue;
-        acc.local = local;
-      } else {
-        acc.local = null;
-      }
-    }
-    groups.set(key, row);
-  }
-  // Worst realisation first so shortfall surfaces; key breaks ties deterministically.
-  const programmes = [...groups.values()].map(finaliseBenefits).sort((a, b) => a.realisation - b.realisation || a.key.localeCompare(b.key));
-  return { programmes, portfolio: finaliseBenefits(portfolio) };
+    return { planned: s.totalPlanned, actual: s.totalActual, expected: s.expectedValue };
+  });
+  const { groups, total } = consolidateByGroup(inputs, BENEFITS_SPEC, reportingCurrency, rates);
+  return { programmes: groups.map(toBenefitsRollup), portfolio: toBenefitsRollup(total) };
 }

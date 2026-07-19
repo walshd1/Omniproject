@@ -1,0 +1,44 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://omniproject.dev/assets/consolidation.schema.json",
+  "title": "OmniProject consolidation spec",
+  "description": "A group-consolidation spec: which per-project measures to sum, the derived metrics, and the row sort. One file per spec under assets/consolidations/<id>.json. Run by the consolidateByGroup engine.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["id", "measures", "derived", "sort"],
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z0-9-]+$"
+    },
+    "measures": {
+      "type": "array",
+      "description": "Measure keys accumulated per group (each summed across its projects, then FX-converted).",
+      "items": { "type": "string", "pattern": "^[a-zA-Z0-9]+$" }
+    },
+    "derived": {
+      "type": "array",
+      "description": "Derived metrics computed from the raw measure sums by a named, closed-vocabulary operation.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["key", "op", "a", "b"],
+        "properties": {
+          "key": { "type": "string", "pattern": "^[a-zA-Z0-9]+$" },
+          "op": { "type": "string", "enum": ["diff", "diffFloor0", "ratioPct", "ratioOrNull"] },
+          "a": { "type": "string", "pattern": "^[a-zA-Z0-9]+$" },
+          "b": { "type": "string", "pattern": "^[a-zA-Z0-9]+$" }
+        }
+      }
+    },
+    "sort": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["key", "dir"],
+      "properties": {
+        "key": { "type": "string", "pattern": "^[a-zA-Z0-9]+$" },
+        "dir": { "type": "string", "enum": ["asc", "desc"] }
+      }
+    }
+  }
+}

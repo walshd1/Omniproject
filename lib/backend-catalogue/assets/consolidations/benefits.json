@@ -1,0 +1,8 @@
+{
+  "id": "benefits",
+  "measures": ["planned", "actual", "expected"],
+  "derived": [
+    { "key": "realisation", "op": "ratioPct", "a": "actual", "b": "planned" }
+  ],
+  "sort": { "key": "realisation", "dir": "asc" }
+}
