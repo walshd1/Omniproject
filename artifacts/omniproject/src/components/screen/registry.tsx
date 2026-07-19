@@ -14,6 +14,7 @@ import { RegisterPanel } from "./panels/RegisterPanel";
 import { FormPanel } from "./panels/FormPanel";
 import { GeometryPanel } from "./panels/GeometryPanel";
 import { FieldPanel } from "./panels/FieldPanel";
+import { TilePanel } from "./panels/TilePanel";
 
 /**
  * Panel-renderer registry — maps a panel `kind` to the ONE component that renders
@@ -51,6 +52,8 @@ export const PANEL_RENDERERS: Partial<Record<PanelKind, PanelComponent>> = {
   // A settings FIELD (or group) bound to decisions — the decision's TYPE drives which control renders
   // (toggle / select / checkboxes / number / text). The runtime of the decision→field seam.
   field: FieldPanel,
+  // The base TILE atom — content with a size/colour/shape, static or (additively) clickable.
+  tile: TilePanel,
 };
 
 /** Whether a renderer exists for a panel kind (else it degrades to a placeholder). */
