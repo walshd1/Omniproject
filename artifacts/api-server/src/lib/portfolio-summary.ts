@@ -1,4 +1,5 @@
 import type { Request } from "express";
+import { consolidateByGroup, consolidationSpec } from "@workspace/backend-catalogue";
 import { getBroker, contextFromReq, type PortfolioRow, type Row, type Project } from "../broker";
 import { getSettings } from "./settings";
 import { getFxRates } from "./currency";
@@ -86,22 +87,6 @@ function num(v: unknown): number {
 }
 
 const round1 = (n: number) => Math.round(n * 10) / 10;
-const round2 = (n: number) => Math.round(n * 100) / 100;
-
-/** The multiplicative factor to convert `from`→`to` via a base-anchored rate table, or `null` when
- *  the conversion is impossible (a foreign currency with no rate). Returns 1 for a same-currency
- *  row (no rate table needed), so target-currency projects always fold correctly even when the FX
- *  fetch failed. A `null` here means "cannot faithfully convert" — the caller EXCLUDES the row
- *  rather than summing a raw foreign amount as if it were the target currency, which would silently
- *  corrupt the portfolio total (e.g. ₩1,000,000,000 added straight into a GBP rollup). */
-function conversionFactor(from: string, to: string, rates: Record<string, number> | undefined): number | null {
-  if (!from || from === to) return 1;
-  if (!rates) return null;
-  const rFrom = rates[from];
-  const rTo = rates[to];
-  if (!rFrom || !rTo) return null;
-  return rFrom / rTo;
-}
 
 /** The result of folding per-project financials: the portfolio-total wire row plus how the fold was
  *  composed, so the caller can tell a complete total from a partial one. */
@@ -146,30 +131,29 @@ export function summarizeHealth(rows: PortfolioRow[]): HealthTotals {
  *  A row whose currency can't be converted to the target is EXCLUDED (counted in `droppedForFx`),
  *  never summed as-is — mixing currencies would silently produce a wildly wrong total. */
 export function foldFinance(rows: Row[], target: string, rates?: Record<string, number>): FinanceFold {
-  let budget = 0, actual = 0, forecast = 0, earnedValue = 0;
-  let includedRows = 0, droppedForFx = 0;
-  for (const p of rows) {
-    const currency = String(p["currency"] ?? target);
-    const factor = conversionFactor(currency, target, rates);
-    if (factor === null) { droppedForFx++; continue; }
-    includedRows++;
-    budget += num(p["budgetAllocated"]) * factor;
-    actual += num(p["actualBurn"]) * factor;
-    forecast += num(p["forecastCostAtCompletion"]) * factor;
-    earnedValue += num(p["earnedValue"]) * factor;
-  }
+  // The org-scope reduction of the `financials` consolidation: every row in ONE group. The engine's
+  // measures/derived/FX-exclusion ARE this fold — an absent currency defaults to the target so it always
+  // converts, matching the previous behaviour. `excludedForFx` is the dropped-for-FX count.
+  const inputs = rows.map((p) => ({
+    groupKey: "__portfolio__",
+    groupLabel: "Portfolio",
+    currency: String(p["currency"] ?? target),
+    items: [p],
+  }));
+  const { total } = consolidateByGroup(inputs, consolidationSpec("financials"), target, rates);
+  const m = total.metrics;
   return {
     totals: {
       currency: target,
-      budget: round2(budget),
-      actual: round2(actual),
-      forecast: round2(forecast),
-      earnedValue: round2(earnedValue),
-      variance: round2(budget - forecast),
-      cpi: actual > 0 ? round2(earnedValue / actual) : null,
+      budget: (m["budget"] as number) ?? 0,
+      actual: (m["actual"] as number) ?? 0,
+      forecast: (m["forecast"] as number) ?? 0,
+      earnedValue: (m["earnedValue"] as number) ?? 0,
+      variance: (m["variance"] as number) ?? 0,
+      cpi: (m["cpi"] as number | null) ?? null,
     },
-    includedRows,
-    droppedForFx,
+    includedRows: total.projects - total.excludedForFx,
+    droppedForFx: total.excludedForFx,
   };
 }
 
