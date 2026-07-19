@@ -4987,6 +4987,7 @@ Canonical WORK-ITEM vocabulary — the single source of truth for the statuses a
 | Function | What it does |
 | --- | --- |
 | `vocabMethodologies` | A token's methodology tags, defaulting to neutral ("*") when untagged. |
+| `localeLabel` | The label a viewer in `locale` sees: an exact locale match, else the base language ("de-DE" → "de"), else the default `label`. |
 | `vocabAppliesTo` | True when a token applies to `methodologyId` — neutral ("*") tokens always apply. |
 | `workVocabulary` | The full vocabulary (a defensive copy) — for a consumer that needs the raw entries. |
 | `workVocabularyValues` | Build the shipped-default {@link WorkVocabularyValues} from the canonical entries. |

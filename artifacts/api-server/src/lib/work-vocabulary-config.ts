@@ -25,12 +25,23 @@ export const ORG_WORK_VOCABULARY_ID = makeScopedId("org", `config-${WORK_VOCABUL
 const MAX_LABEL = 40;
 const ID_RE = /^[a-z][a-z0-9_]*$/;
 const HEX_RE = /^#[0-9a-fA-F]{6}$/;
+const LOCALE_RE = /^[a-z]{2}(-[A-Za-z0-9]{2,8})?$/;
 const LIFECYCLES = new Set<StatusClass>(["open", "active", "done", "cancelled"]);
 const isStr = (v: unknown): v is string => typeof v === "string";
 const isIntGe0 = (v: unknown): v is number => typeof v === "number" && Number.isInteger(v) && v >= 0;
 const cleanLabel = (v: unknown): string | null => (isStr(v) && v.trim() ? v.trim().slice(0, MAX_LABEL) : null);
 const cleanColor = (v: unknown): string | null => (isStr(v) && HEX_RE.test(v) ? v : null);
 const cleanMethodologies = (v: unknown): string[] => (Array.isArray(v) && v.length && v.every(isStr) ? (v as string[]) : ["*"]);
+/** Keep only well-formed locale→text pairs (BCP-47-ish key, non-blank capped value); null when none survive. */
+const cleanLabels = (v: unknown): Record<string, string> | null => {
+  if (!v || typeof v !== "object" || Array.isArray(v)) return null;
+  const out: Record<string, string> = {};
+  for (const [k, val] of Object.entries(v as Record<string, unknown>)) {
+    const l = cleanLabel(val);
+    if (LOCALE_RE.test(k) && l) out[k] = l;
+  }
+  return Object.keys(out).length ? out : null;
+};
 
 /** The effective vocabulary at the given scopes — the shipped default with every scope layer folded on,
  *  then projected: statuses validated (lifecycle-required, tombstones removed) and sorted; priorities
@@ -65,15 +76,16 @@ function projectTokens(folded: unknown, requireLifecycle: boolean): Array<Resolv
       if (!lifecycle) continue;
     }
     const color = cleanColor(e["color"]);
+    const labels = cleanLabels(e["labels"]);
     seen.add(id);
-    out.push({ id, label, order: e["order"] as number, methodologies: cleanMethodologies(e["methodologies"]), ...(lifecycle ? { lifecycle } : {}), ...(color ? { color } : {}) } as ResolvedStatus | ResolvedPriority);
+    out.push({ id, label, order: e["order"] as number, methodologies: cleanMethodologies(e["methodologies"]), ...(lifecycle ? { lifecycle } : {}), ...(labels ? { labels } : {}), ...(color ? { color } : {}) } as ResolvedStatus | ResolvedPriority);
   }
   return out.sort((a, b) => a.order - b.order);
 }
 
 /** One sanitised status override entry — a partial for an existing status, a full def for a new one, or a
  *  `{id, removed}` tombstone. */
-export interface TokenOverride { id: string; label?: string; order?: number; lifecycle?: StatusClass; methodologies?: string[]; color?: string; removed?: true }
+export interface TokenOverride { id: string; label?: string; labels?: Record<string, string>; order?: number; lifecycle?: StatusClass; methodologies?: string[]; color?: string; removed?: true }
 
 /**
  * Validate + normalise a PUT body into the config-def `values` to store. Throws {@link Error} (→ 400) on a
@@ -127,6 +139,12 @@ function cleanTokenOverrides(list: unknown, baseIds: Set<string>, allowLifecycle
       if (!Array.isArray(e["methodologies"]) || !e["methodologies"].every(isStr)) throw new Error(`${kind} "${id}" methodologies must be an array of strings`);
       entry.methodologies = e["methodologies"] as string[];
     }
+    if (e["labels"] !== undefined && e["labels"] !== null) {
+      if (typeof e["labels"] !== "object" || Array.isArray(e["labels"])) throw new Error(`${kind} "${id}" labels must be an object of locale→text`);
+      for (const k of Object.keys(e["labels"] as Record<string, unknown>)) if (!LOCALE_RE.test(k)) throw new Error(`${kind} "${id}" label locale "${k}" is not a valid locale (e.g. "de" or "en-GB")`);
+      const cl = cleanLabels(e["labels"]);
+      if (cl) entry.labels = cl;
+    }
     if (e["color"] !== undefined && e["color"] !== null && e["color"] !== "") {
       const c = cleanColor(e["color"]);
       if (!c) throw new Error(`${kind} "${id}" color must be a 6-digit hex like #3b82f6`);
@@ -135,7 +153,7 @@ function cleanTokenOverrides(list: unknown, baseIds: Set<string>, allowLifecycle
     if (isNew && (entry.label === undefined || entry.order === undefined || (allowLifecycle && entry.lifecycle === undefined))) {
       throw new Error(`new ${kind} "${id}" needs a label${allowLifecycle ? ", a lifecycle class" : ""} and an order`);
     }
-    if (entry.label !== undefined || entry.order !== undefined || entry.lifecycle !== undefined || entry.methodologies !== undefined || entry.color !== undefined) out.push(entry);
+    if (entry.label !== undefined || entry.labels !== undefined || entry.order !== undefined || entry.lifecycle !== undefined || entry.methodologies !== undefined || entry.color !== undefined) out.push(entry);
   }
   return out;
 }

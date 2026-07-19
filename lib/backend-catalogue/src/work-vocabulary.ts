@@ -18,7 +18,10 @@ export type StatusClass = "open" | "active" | "done" | "cancelled";
 export interface WorkVocabEntry {
   kind: "status" | "priority";
   id: string;
+  /** The base/default label (the authoring language). */
   label: string;
+  /** Optional per-locale translations (BCP-47 key → text). A viewer sees {@link localeLabel}. */
+  labels?: Record<string, string>;
   order: number;
   lifecycle?: StatusClass;
   /** Swatch colour as a 6-digit hex, rendered via inline style (absent ⇒ a neutral swatch). */
@@ -31,6 +34,16 @@ export interface WorkVocabEntry {
 /** A token's methodology tags, defaulting to neutral ("*") when untagged. */
 export const vocabMethodologies = (e: Pick<WorkVocabEntry, "methodologies">): string[] =>
   e.methodologies && e.methodologies.length ? e.methodologies : ["*"];
+
+/** The label a viewer in `locale` sees: an exact locale match, else the base language ("de-DE" → "de"),
+ *  else the default `label`. So one screen renders in each user's language without a re-fetch. */
+export const localeLabel = (token: { label: string; labels?: Record<string, string> }, locale?: string | null): string => {
+  if (!locale || !token.labels) return token.label;
+  const exact = token.labels[locale];
+  if (exact) return exact;
+  const lang = locale.split("-")[0];
+  return (lang && token.labels[lang]) || token.label;
+};
 
 /** True when a token applies to `methodologyId` — neutral ("*") tokens always apply. */
 export const vocabAppliesTo = (e: Pick<WorkVocabEntry, "methodologies">, methodologyId: string): boolean => {
@@ -76,8 +89,8 @@ export function workVocabulary(): WorkVocabEntry[] {
 /** The scope-layerable shape of the vocabulary: statuses + priorities grouped by kind. This is BOTH the
  *  `values` seeded into the system `work-vocabulary` config def AND the base a scope resolver folds
  *  org/programme/project/user overrides onto — one source of truth for the shipped default. */
-export interface ResolvedStatus { id: string; label: string; order: number; lifecycle: StatusClass; methodologies: string[]; color?: string }
-export interface ResolvedPriority { id: string; label: string; order: number; methodologies: string[]; color?: string }
+export interface ResolvedStatus { id: string; label: string; labels?: Record<string, string>; order: number; lifecycle: StatusClass; methodologies: string[]; color?: string }
+export interface ResolvedPriority { id: string; label: string; labels?: Record<string, string>; order: number; methodologies: string[]; color?: string }
 export interface WorkVocabularyValues {
   statuses: ResolvedStatus[];
   priorities: ResolvedPriority[];
@@ -86,8 +99,8 @@ export interface WorkVocabularyValues {
 /** Build the shipped-default {@link WorkVocabularyValues} from the canonical entries. */
 export function workVocabularyValues(): WorkVocabularyValues {
   return {
-    statuses: statusEntries.map((e) => ({ id: e.id, label: e.label, order: e.order, lifecycle: e.lifecycle ?? "open", methodologies: vocabMethodologies(e), ...(e.color ? { color: e.color } : {}) })),
-    priorities: priorityEntries.map((e) => ({ id: e.id, label: e.label, order: e.order, methodologies: vocabMethodologies(e), ...(e.color ? { color: e.color } : {}) })),
+    statuses: statusEntries.map((e) => ({ id: e.id, label: e.label, order: e.order, lifecycle: e.lifecycle ?? "open", methodologies: vocabMethodologies(e), ...(e.labels ? { labels: e.labels } : {}), ...(e.color ? { color: e.color } : {}) })),
+    priorities: priorityEntries.map((e) => ({ id: e.id, label: e.label, order: e.order, methodologies: vocabMethodologies(e), ...(e.labels ? { labels: e.labels } : {}), ...(e.color ? { color: e.color } : {}) })),
   };
 }
 

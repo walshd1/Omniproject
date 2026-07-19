@@ -38,6 +38,16 @@ test("sanitizer: a NEW status must carry label + lifecycle + order", () => {
   assert.throws(() => sanitizeWorkVocabularyOverride({ statuses: [{ id: "frozen", label: "Frozen", lifecycle: "slushy", order: 9 }] }), /lifecycle must be one of/);
 });
 
+test("sanitizer: per-locale translations validate locale keys; resolver localises", async () => {
+  const out = sanitizeWorkVocabularyOverride({ statuses: [{ id: "done", labels: { de: "Erledigt", "en-GB": "Done" } }] });
+  assert.deepEqual(out.statuses, [{ id: "done", labels: { de: "Erledigt", "en-GB": "Done" } }]);
+  assert.throws(() => sanitizeWorkVocabularyOverride({ statuses: [{ id: "done", labels: { German: "Erledigt" } }] }), /not a valid locale/);
+  const { localeLabel } = await import("@workspace/backend-catalogue");
+  const done = { label: "Done", labels: { de: "Erledigt" } };
+  assert.equal(localeLabel(done, "de-DE"), "Erledigt"); // language fallback (de-DE → de)
+  assert.equal(localeLabel(done, "fr"), "Done"); // missing locale → base label
+});
+
 test("sanitizer: a colour must be a 6-digit hex", () => {
   assert.deepEqual(sanitizeWorkVocabularyOverride({ statuses: [{ id: "done", color: "#123abc" }] }).statuses, [{ id: "done", color: "#123abc" }]);
   assert.throws(() => sanitizeWorkVocabularyOverride({ statuses: [{ id: "done", color: "red" }] }), /must be a 6-digit hex/);
