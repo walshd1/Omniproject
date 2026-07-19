@@ -82,6 +82,9 @@ export interface RegistryItemMeta {
   submittedBy: string | null;
   submittedAt: string;
   updatedAt: string;
+  /** For an approved primitive: where its def was activated (org / programme / project). Surfaced so the UI can
+   *  badge the scope without fetching the full item. Absent for non-primitives / not-yet-activated items. */
+  activatedScope?: ActivationScope | null;
 }
 
 export interface SanitizedRegistrySubmit {
@@ -170,6 +173,7 @@ export function registryItemMeta(it: RegistryItem): RegistryItemMeta {
     id: it.id, kind: it.kind, name: it.name, publisher: it.publisher, version: it.version,
     approvalStatus: it.approvalStatus ?? "draft", visibility: it.visibility ?? "internal",
     tags: it.tags ?? [], submittedBy: it.submittedBy ?? null, submittedAt: it.submittedAt, updatedAt: it.updatedAt,
+    ...(it.activatedScope ? { activatedScope: it.activatedScope } : {}),
   };
 }
 

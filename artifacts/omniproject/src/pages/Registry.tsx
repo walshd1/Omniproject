@@ -5,7 +5,7 @@ import { useAuth, roleAtLeast } from "../lib/auth";
 import {
   useRegistry, useCommunityStatus,
   useSubmitRegistryItem, useReviewRegistryItem, useReleaseRegistryItem, useRetractRegistryItem, useDeleteRegistryItem,
-  registryItemKindLabel, type RegistryItemMeta,
+  registryItemKindLabel, type RegistryItemMeta, type ActivationScope,
 } from "../lib/registry";
 import { safeParseJson } from "../lib/safe-json";
 import { useToast } from "@/hooks/use-toast";
@@ -26,6 +26,13 @@ const STATUS_TONE: Record<RegistryItemMeta["approvalStatus"], string> = {
 
 function StatusBadge({ status }: { status: RegistryItemMeta["approvalStatus"] }) {
   return <span className={`text-[10px] font-bold uppercase tracking-widest border px-1.5 py-0.5 ${STATUS_TONE[status]}`}>{status}</span>;
+}
+
+/** Human label for the scope an approved primitive was activated into. */
+function scopeLabel(s: ActivationScope): string {
+  if (s.kind === "programme") return `Programme ${s.programmeId}`;
+  if (s.kind === "project") return `Project ${s.projectId}`;
+  return "Org-wide";
 }
 
 function SubmitForm({ onDone }: { onDone: () => void }) {
@@ -70,6 +77,21 @@ function ItemRow({ item, isAdmin }: { item: RegistryItemMeta; isAdmin: boolean }
   const retract = useRetractRegistryItem();
   const del = useDeleteRegistryItem();
   const { toast } = useToast();
+  // Primitive approvals can be CONFINED to a scope (downward-only): org-wide (default), or a programme/project
+  // the approver holds. Non-primitives ignore this.
+  const [scope, setScope] = useState<"org" | "programme" | "project">("org");
+  const [scopeId, setScopeId] = useState("");
+  const isPrimitive = item.kind === "primitive";
+
+  const approve = () => {
+    const args = isPrimitive && scope !== "org"
+      ? { id: item.id, decision: "approved" as const, scope, ...(scope === "programme" ? { programmeId: scopeId.trim() } : { projectId: scopeId.trim() }) }
+      : { id: item.id, decision: "approved" as const };
+    review.mutate(args, {
+      onSuccess: () => toast({ title: "APPROVED", description: item.name }),
+      onError: () => toast({ title: "APPROVAL FAILED", description: "The scope may be out of your authority, or the primitive isn't safe to activate." }),
+    });
+  };
 
   return (
     <div data-testid={`registry-row-${item.id}`} className="border border-border p-3 flex items-center justify-between gap-3">
@@ -80,13 +102,28 @@ function ItemRow({ item, isAdmin }: { item: RegistryItemMeta; isAdmin: boolean }
           <span className="text-[10px] text-muted-foreground uppercase tracking-widest">{registryItemKindLabel(item.kind)}</span>
           <StatusBadge status={item.approvalStatus} />
           {item.visibility === "community" && <span data-testid={`registry-community-${item.id}`} className="text-[10px] font-bold uppercase tracking-widest border px-1.5 py-0.5 text-blue-600 border-blue-500/40 bg-blue-500/10 inline-flex items-center gap-1"><Globe className="w-3 h-3" />Community</span>}
+          {isPrimitive && item.approvalStatus === "approved" && item.activatedScope && (
+            <span data-testid={`registry-activated-scope-${item.id}`} className="text-[10px] font-bold uppercase tracking-widest border px-1.5 py-0.5 text-purple-600 border-purple-500/40 bg-purple-500/10">{scopeLabel(item.activatedScope)}</span>
+          )}
         </div>
         {item.tags.length > 0 && <div className="text-[10px] text-muted-foreground mt-0.5">{item.tags.join(" · ")}</div>}
       </div>
       <div className="flex items-center gap-2 shrink-0">
         {isAdmin && item.approvalStatus === "draft" && (
           <>
-            <button type="button" onClick={() => review.mutate({ id: item.id, decision: "approved" }, { onSuccess: () => toast({ title: "APPROVED", description: item.name }) })} data-testid={`registry-approve-${item.id}`} className="inline-flex items-center gap-1 border border-green-500/50 text-green-700 px-2 py-1 text-xs font-black uppercase tracking-widest hover:bg-green-500/10"><Check className="w-3 h-3" />Approve</button>
+            {isPrimitive && (
+              <div className="flex items-center gap-1" data-testid={`registry-scope-picker-${item.id}`}>
+                <select value={scope} onChange={(e) => setScope(e.target.value as "org" | "programme" | "project")} data-testid={`registry-scope-${item.id}`} className="border border-border bg-background px-1 py-1 text-[10px] uppercase tracking-widest">
+                  <option value="org">Org-wide</option>
+                  <option value="programme">Programme</option>
+                  <option value="project">Project</option>
+                </select>
+                {scope !== "org" && (
+                  <input value={scopeId} onChange={(e) => setScopeId(e.target.value)} placeholder={scope === "programme" ? "programme id" : "project id"} data-testid={`registry-scope-id-${item.id}`} className="border border-border bg-background px-1 py-1 text-[10px] w-24" />
+                )}
+              </div>
+            )}
+            <button type="button" onClick={approve} disabled={isPrimitive && scope !== "org" && !scopeId.trim()} data-testid={`registry-approve-${item.id}`} className="inline-flex items-center gap-1 border border-green-500/50 text-green-700 px-2 py-1 text-xs font-black uppercase tracking-widest hover:bg-green-500/10 disabled:opacity-40"><Check className="w-3 h-3" />Approve</button>
             <button type="button" onClick={() => review.mutate({ id: item.id, decision: "rejected" }, { onSuccess: () => toast({ title: "REJECTED", description: item.name }) })} data-testid={`registry-reject-${item.id}`} className="inline-flex items-center gap-1 border border-red-500/50 text-red-700 px-2 py-1 text-xs font-black uppercase tracking-widest hover:bg-red-500/10"><X className="w-3 h-3" />Reject</button>
           </>
         )}

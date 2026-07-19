@@ -1,10 +1,11 @@
-import { describe, it, expect } from "vitest";
-import { screen, fireEvent } from "@testing-library/react";
+import { describe, it, expect, vi, afterEach } from "vitest";
+import { screen, fireEvent, waitFor } from "@testing-library/react";
 import { QueryClient } from "@tanstack/react-query";
 import { renderWithProviders } from "../test/utils";
 import type { Role } from "../lib/auth";
 import { registryKey, communityStatusKey, type RegistryItemMeta, type CommunityStatus } from "../lib/registry";
 import { Registry } from "./Registry";
+import * as api from "../lib/api";
 
 /** The Registry page: item list, admin review queue, release control, and the submit form's JSON guard. */
 function seed(opts: { items?: RegistryItemMeta[]; role?: Role; community?: CommunityStatus } = {}): QueryClient {
@@ -54,5 +55,46 @@ describe("Registry page", () => {
   it("shows the empty state when there are no items", () => {
     renderWithProviders(<Registry />, { client: seed({ items: [] }) });
     expect(screen.getByText(/No registry items yet/i)).toBeInTheDocument();
+  });
+
+  describe("per-scope primitive approval", () => {
+    afterEach(() => vi.restoreAllMocks());
+
+    it("shows a scope picker ONLY for a primitive draft, and approves into the chosen project", async () => {
+      const sendJson = vi.spyOn(api, "sendJson").mockResolvedValue({});
+      renderWithProviders(<Registry />, { client: seed({ items: [
+        item({ id: "p1", name: "Acme tile", kind: "primitive" }),
+        item({ id: "r1", name: "Burn rate", kind: "report" }),
+      ] }) });
+      // The report draft has no scope picker; the primitive draft does.
+      expect(screen.queryByTestId("registry-scope-picker-r1")).not.toBeInTheDocument();
+      expect(screen.getByTestId("registry-scope-picker-p1")).toBeInTheDocument();
+      // Org-wide by default: no id field, approve enabled.
+      expect(screen.queryByTestId("registry-scope-id-p1")).not.toBeInTheDocument();
+      // Choose project → an id field appears; approve is gated until it's filled.
+      fireEvent.change(screen.getByTestId("registry-scope-p1"), { target: { value: "project" } });
+      expect(screen.getByTestId("registry-approve-p1")).toBeDisabled();
+      fireEvent.change(screen.getByTestId("registry-scope-id-p1"), { target: { value: "proj-x" } });
+      fireEvent.click(screen.getByTestId("registry-approve-p1"));
+      await waitFor(() => expect(sendJson).toHaveBeenCalledWith(
+        "/api/registry/p1/review",
+        expect.objectContaining({ decision: "approved", scope: "project", projectId: "proj-x" }),
+        "POST",
+      ));
+    });
+
+    it("approves a primitive org-wide with no scope in the body", async () => {
+      const sendJson = vi.spyOn(api, "sendJson").mockResolvedValue({});
+      renderWithProviders(<Registry />, { client: seed({ items: [item({ id: "p1", name: "Acme tile", kind: "primitive" })] }) });
+      fireEvent.click(screen.getByTestId("registry-approve-p1"));
+      await waitFor(() => expect(sendJson).toHaveBeenCalledWith("/api/registry/p1/review", { decision: "approved" }, "POST"));
+    });
+
+    it("badges an approved primitive with the scope it was activated into", () => {
+      renderWithProviders(<Registry />, { client: seed({ items: [
+        item({ id: "p1", name: "Acme tile", kind: "primitive", approvalStatus: "approved", activatedScope: { kind: "project", projectId: "proj-x" } }),
+      ] }) });
+      expect(screen.getByTestId("registry-activated-scope-p1")).toHaveTextContent(/Project proj-x/i);
+    });
   });
 });
