@@ -44,6 +44,7 @@ export * from "./form-catalogue";
 export * from "./automation-catalogue";
 export * from "./template-catalogue";
 export * from "./preset-catalogue";
+export * from "./settings-preset-catalogue";
 export * from "./wiki-catalogue";
 export * from "./canvas-catalogue";
 export * from "./proof-catalogue";

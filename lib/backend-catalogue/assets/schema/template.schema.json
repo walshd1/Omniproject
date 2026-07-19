@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://omniproject.dev/assets/template.schema.json",
+  "title": "OmniProject project template",
+  "description": "A reusable project blueprint: project defaults + seed work items + a methodology tag, instantiated through the broker. One file per template under assets/templates/<id>.json.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["id", "label"],
+  "properties": {
+    "id": { "type": "string", "pattern": "^[a-z0-9-]+$" },
+    "label": { "type": "string", "minLength": 1 },
+    "description": { "type": "string" },
+    "methodology": { "type": "string", "pattern": "^[a-z0-9-]+$" },
+    "project": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "status": { "type": "string" }
+      }
+    },
+    "seedIssues": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["title"],
+        "properties": {
+          "title": { "type": "string", "minLength": 1 },
+          "status": { "type": "string" },
+          "priority": { "type": "string" },
+          "labels": { "type": "array", "items": { "type": "string" } }
+        }
+      }
+    },
+    "methodologies": { "type": "array", "items": { "type": "string" } }
+  }
+}
