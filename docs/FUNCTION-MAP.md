@@ -4801,6 +4801,10 @@ PRIMITIVE BUNDLE SCHEMA + validator — the shared, closed-set definition of wha
 | --- | --- |
 | `validatePrimitiveDef` | Validate a primitive-bundle payload against the shared schema. |
 
+### `lib/backend-catalogue/src/priority-weights.ts`
+
+Portfolio-prioritisation weights — the SHARED shape + shipped default for the composite ranking score, the single source of truth for BOTH planes (the api-server seeds/validates the saved config against it; the SPA falls back to it while the saved weights load and runs the scoring maths on it).
+
 ### `lib/backend-catalogue/src/proof-catalogue.ts`
 
 PROOFING / deliverable review model — the neutral, primitive-built shape for OmniProject's creative-review surface (roadmap 2.4).

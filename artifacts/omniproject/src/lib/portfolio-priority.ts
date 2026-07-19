@@ -1,6 +1,11 @@
 import { num, round1 } from "./num";
 import { convertAmount, isConvertible } from "./currency";
 import { summariseBenefits, type BenefitInput } from "./benefits";
+import { DEFAULT_PRIORITY_WEIGHTS, type PriorityWeights } from "@workspace/backend-catalogue";
+
+// Re-export the shared shape + default so this module stays the SPA's single import surface for
+// prioritisation (priority-weights-api.ts and the report hooks import them from here).
+export { DEFAULT_PRIORITY_WEIGHTS, type PriorityWeights };
 
 /**
  * Portfolio prioritisation scoring — a pure, STATELESS rank score per project, blending the existing
@@ -25,19 +30,6 @@ export interface PriorityInput extends BenefitInput {
   moscow?: string | null;
   strategicContribution?: number | null;
 }
-
-/** Admin-configurable dimension weights (settings JSON — see routes/portfolio-priority-weights).
- *  Values are relative, not required to sum to 100: the composite renormalises over whichever
- *  dimensions a project actually has data for. A weight of 0 switches a dimension off entirely. */
-export interface PriorityWeights {
-  rice: number;
-  wsjf: number;
-  moscow: number;
-  strategic: number;
-  benefit: number;
-}
-
-export const DEFAULT_PRIORITY_WEIGHTS: PriorityWeights = { rice: 25, wsjf: 25, moscow: 15, strategic: 15, benefit: 20 };
 
 /** One project's inputs to the ranking: its work items (for RICE/WSJF/MoSCoW/strategic/benefit fields)
  *  plus the cost + capacity context to weight against, both pre-converted/pre-summed by the caller

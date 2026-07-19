@@ -25,7 +25,10 @@ import { validateResourceAllocations, ResourceAllocationError, type ResourceAllo
 import { validateBudgetPlans, BudgetPlanError, type BudgetPlan } from "./budget-plan";
 import { validateScreenDefs, ScreenDefError, type OrgScreenDef } from "./screen-def";
 import { FormDefError, type FormDef } from "./form-def";
-import { reportCatalogue, type ReportDefinition } from "@workspace/backend-catalogue";
+import { reportCatalogue, type ReportDefinition, DEFAULT_PRIORITY_WEIGHTS, type PriorityWeights } from "@workspace/backend-catalogue";
+
+// Re-export the shared prioritisation shape + default so existing `./settings` importers are unaffected.
+export { DEFAULT_PRIORITY_WEIGHTS, type PriorityWeights };
 import { validateCustomFields, validateCustomFieldSources, CustomFieldError, type CustomField } from "./custom-fields";
 import { sanitizeUserPrefs } from "./user-prefs";
 import { sanitizeGrant } from "./calendar-push";
@@ -485,19 +488,6 @@ export interface SettingsState
     PresentationConfig,
     UserConfig,
     PlatformConfig {}
-
-/** Relative weights for the five prioritisation dimensions — not required to sum to 100 (the scorer
- *  renormalises over whichever dimensions a project actually reports). Mirrored in the SPA's
- *  lib/portfolio-priority.ts (no shared package between the two apps, same as CustomReportDef). */
-export interface PriorityWeights {
-  rice: number;
-  wsjf: number;
-  moscow: number;
-  strategic: number;
-  benefit: number;
-}
-
-export const DEFAULT_PRIORITY_WEIGHTS: PriorityWeights = { rice: 25, wsjf: 25, moscow: 15, strategic: 15, benefit: 20 };
 
 /** A named saved view: which columns, sort, filters and grouping to apply (all optional, so a view
  *  can capture just a column set or just a sort). `scope` ties it to a surface (e.g. "grid"). */
