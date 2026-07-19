@@ -3,7 +3,9 @@ import assert from "node:assert/strict";
 import {
   resolveFieldPolicy,
   sanitiseValue,
+  sanitiseForStore,
   sanitiseKeystroke,
+  escapeForOutput,
   validateValue,
   applyFieldPolicy,
   assertFieldHasPolicy,
@@ -32,16 +34,24 @@ test("EVERY non-label field type resolves to a non-empty sanitise policy", () =>
   }
 });
 
-test("the per-keystroke filter keeps only safe characters by type", () => {
-  // Free text: tag delimiters and control chars can never be held live.
-  assert.equal(sanitiseKeystroke("a<b>c", "text"), "abc");
+test("the per-keystroke filter drops only never-valid characters (keeps legitimate < >)", () => {
+  // Free text keeps < > (they are legitimate; they get ESCAPED at output, not stripped) — only control chars go.
+  assert.equal(sanitiseKeystroke("a<b>c", "text"), "a<b>c");
   assert.equal(sanitiseKeystroke("x\tyz", "text"), "xyz"); // control chars (tab) stripped always
   // Number: only numeric characters survive each keystroke.
   assert.equal(sanitiseKeystroke("12a3.5x", "number"), "123.5");
   // Email/url: no whitespace.
   assert.equal(sanitiseKeystroke("foo @bar.com", "email"), "foo@bar.com");
-  // A label is display-only — nothing typed, only control chars stripped.
-  assert.equal(sanitiseKeystroke("keep <this>", "label"), "keep <this>");
+});
+
+test("storage sanitisation NORMALISES but never escapes; escaping is an output-boundary job", () => {
+  // Storage keeps < > (round-trip safe) — it only trims/normalises.
+  assert.equal(sanitiseForStore("  a <b> c  ", resolveFieldPolicy("text").sanitise), "a <b> c");
+  // The invariant "unescaped chars are never parsed" is enforced by escaping at OUTPUT.
+  assert.equal(escapeForOutput("a <b> c"), "a &lt;b&gt; c");
+  // Re-storing an already-stored value does not mangle it (no double-encoding).
+  const once = sanitiseForStore("a <b> c", resolveFieldPolicy("text").sanitise);
+  assert.equal(sanitiseForStore(once, resolveFieldPolicy("text").sanitise), once);
 });
 
 test("free text sanitises HTML and trims", () => {

@@ -64,19 +64,19 @@ describe("FieldControl (decision type drives the control)", () => {
     expect((screen.getByRole("combobox") as HTMLSelectElement).value).toBe("y");
   });
 
-  it("strips unsafe characters on EVERY keystroke — tag delimiters never enter free text", () => {
+  it("keeps legitimate characters (< >) live — they are escaped at output, not stripped", () => {
     const onChange = renderField({ type: "text" }, "");
-    fireEvent.change(screen.getByRole("textbox"), { target: { value: "<b>hi" } });
-    expect(onChange).toHaveBeenCalledWith("bhi"); // '<' and '>' stripped live
+    fireEvent.change(screen.getByRole("textbox"), { target: { value: "a < b" } });
+    expect(onChange).toHaveBeenCalledWith("a < b"); // natural typing; React escapes on render, so it's never parsed raw
   });
 
-  it("commits the fully-sanitised whole string on Enter", () => {
+  it("storage-sanitises the whole string on Enter (trim, no escaping — round-trip safe)", () => {
     const onChange = renderField({ type: "text" }, "");
-    fireEvent.keyDown(screen.getByRole("textbox"), { key: "Enter", target: { value: "  hi there  " } });
-    expect(onChange).toHaveBeenCalledWith("hi there"); // trimmed on commit
+    fireEvent.keyDown(screen.getByRole("textbox"), { key: "Enter", target: { value: "  a <b> c  " } });
+    expect(onChange).toHaveBeenCalledWith("a <b> c"); // trimmed, NOT escaped
   });
 
-  it("commits the sanitised whole string on blur", () => {
+  it("storage-sanitises the whole string on blur", () => {
     const onChange = renderField({ type: "text" }, "");
     fireEvent.blur(screen.getByRole("textbox"), { target: { value: "  hello  " } });
     expect(onChange).toHaveBeenCalledWith("hello");

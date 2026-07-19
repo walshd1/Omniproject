@@ -1,5 +1,5 @@
 import { useId, useMemo, useState } from "react";
-import { resolveFieldPolicy, sanitiseValue, sanitiseKeystroke, validateValue, type FieldValidation, type SanitisePolicy } from "@workspace/backend-catalogue";
+import { resolveFieldPolicy, sanitiseForStore, sanitiseKeystroke, validateValue, type FieldValidation, type SanitisePolicy } from "@workspace/backend-catalogue";
 
 /**
  * FieldControl — the runtime binding of the `decision` → `field` seam. A DECISION (settings tree) is pure
@@ -56,19 +56,20 @@ export function FieldControl({
     return <div className="py-1.5 text-sm font-semibold">{label}</div>;
   }
 
-  // Two-phase sanitisation. PER KEYSTROKE: strip characters that could never be valid/safe for the type, so the
-  // in-progress value is safe char-by-char as it is typed (or pasted). ON COMMIT (Enter/blur): run the full
-  // sanitise policy over the whole string and validate it.
+  // Sanitisation. PER KEYSTROKE: drop only never-valid characters (control chars; a number narrows to numerics) —
+  // legitimate characters like < > are KEPT so text stays natural to type. ON COMMIT (Enter/blur): STORAGE-
+  // sanitise the whole string (normalise, no escaping) and validate. Escaping is an OUTPUT concern: React text
+  // nodes escape by default, so no unescaped character is ever parsed — the value can be stored raw-but-clean.
 
-  /** Live: each keystroke keeps only safe characters, then validates the would-be committed form for feedback. */
+  /** Live: keystroke-clean the value, validate the would-be stored form for feedback. */
   const onType = (raw: string) => {
     const safe = sanitiseKeystroke(raw, decision.type);
-    setErrors(validateValue(sanitiseValue(safe, policy.sanitise), policy.validation, label));
+    setErrors(validateValue(sanitiseForStore(safe, policy.sanitise), policy.validation, label));
     onChange?.(safe);
   };
-  /** Commit: keystroke-safe THEN full policy over the whole string, validated — the at-rest value is always clean. */
+  /** Commit: keystroke-clean THEN storage-sanitise the whole string, validated — round-trip safe (no escape-at-rest). */
   const commit = (raw: string) => {
-    const clean = sanitiseValue(sanitiseKeystroke(raw, decision.type), policy.sanitise);
+    const clean = sanitiseForStore(sanitiseKeystroke(raw, decision.type), policy.sanitise);
     setErrors(validateValue(clean, policy.validation, label));
     onChange?.(clean);
   };

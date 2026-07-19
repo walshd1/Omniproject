@@ -10,9 +10,17 @@
  * ALWAYS sanitises and ALWAYS validates. `assertFieldHasPolicy` is the contract check the def validators call
  * to prove a field can never be instantiated without a policy.
  *
- * Sanitisation is TWO-PHASE: {@link sanitiseKeystroke} runs on EVERY keystroke to keep only characters that
- * could ever be valid/safe for the type (so the in-progress value is safe char-by-char as it is typed), and the
- * full {@link sanitiseValue} + {@link validateValue} run over the whole string on commit (Enter/blur).
+ * SANITISE vs ESCAPE — two different jobs:
+ *   - STORAGE sanitisation ({@link sanitiseForStore}) NORMALISES a value for storage: strips control chars, trims,
+ *     collapses whitespace, narrows a number, lower-cases an email. It is round-trip safe (re-editing a stored
+ *     value never mangles it) and it NEVER escapes — legitimate characters like `<`/`>` are kept as typed.
+ *   - OUTPUT escaping ({@link escapeForOutput}, the `escape-html` step) is applied at the RENDER/PARSE boundary.
+ * The security invariant is UNESCAPED CHARACTERS ARE NEVER PARSED: a value is escaped at every point it would be
+ * fed to a parser (HTML/SVG string building, etc.), so it can be stored raw-but-clean and stay editable. React
+ * text nodes escape by default; non-React parse contexts must call {@link escapeForOutput} / {@link sanitiseValue}.
+ *
+ * Live typing: {@link sanitiseKeystroke} drops only never-valid characters per keystroke (control chars; a number
+ * narrows to numerics); the whole string is storage-sanitised + validated on commit (Enter/blur).
  *
  * Shared by the backend field-primitive validator (import-time) and the SPA `FieldControl` (runtime), so the
  * same rules apply whether a field is checked on import or typed into live — one source, no drift.
@@ -122,14 +130,24 @@ export function resolveFieldPolicy(
 const escapeHtml = (s: string): string =>
   s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
 
+/** Escape a value for a PARSE/OUTPUT boundary (HTML/SVG string building) — the canonical enforcer of the
+ *  "unescaped characters are never parsed" invariant. Apply this at any point a value is fed to a parser. */
+export const escapeForOutput = escapeHtml;
+
+/** The sanitise steps that NORMALISE for storage (round-trip safe, never escape). The rest (`escape-html`,
+ *  `strip-html`) are OUTPUT-time transforms applied at a parse boundary, not baked into the stored value. */
+const STORAGE_STEPS: ReadonlySet<SanitiseStep> = new Set(["trim", "collapse-whitespace", "lowercase", "numeric"]);
+
 /** Control characters are never valid or safe in a field value — stripped from every keystroke. */
 const CONTROL_CHARS = /[\u0000-\u001F\u007F]/g;
 
 /**
- * The PER-KEYSTROKE character filter — keeps only characters that can ever be valid for the field type, so the
- * in-progress value is safe char-by-char AS IT IS TYPED (or pasted): control chars go always; markup delimiters
- * (`<`/`>`) can never be entered into free text; a number keeps only numeric characters; an email/url keeps no
- * whitespace. This is the live half; the full {@link sanitiseValue} + {@link validateValue} still run on commit.
+ * The PER-KEYSTROKE character filter — drops characters that can NEVER be valid for the field type, so the
+ * in-progress value stays clean as it is typed (or pasted). It removes control characters always, and narrows a
+ * number to numeric characters / an email/url to no-whitespace. It does NOT strip legitimate free-text
+ * characters like `<`/`>` — those are kept so text stays natural to type; the security guarantee is that they
+ * are ESCAPED (never stripped) before anything parses them: the invariant is UNESCAPED CHARS ARE NEVER PARSED,
+ * enforced by the `escape-html` step in {@link sanitiseValue} on commit and by escaping at any render/output.
  */
 export function sanitiseKeystroke(raw: string, type: string): string {
   const v = raw.replace(CONTROL_CHARS, "");
@@ -138,7 +156,7 @@ export function sanitiseKeystroke(raw: string, type: string): string {
     case "number": return v.replace(/[^0-9.\-]/g, "");
     case "email":
     case "url": return v.replace(/\s/g, "");
-    default: return v.replace(/[<>]/g, ""); // free text — no tag delimiters ever held live
+    default: return v; // free text — legitimate characters kept; escaped (not stripped) before any parse
   }
 }
 
@@ -156,6 +174,12 @@ export function sanitiseValue(raw: string, policy: SanitisePolicy): string {
     }
   }
   return v;
+}
+
+/** STORAGE sanitisation — apply only the normalising steps (never escaping), so the result is round-trip safe:
+ *  the value stored/emitted stays editable and un-mangled. Escaping happens at output ({@link escapeForOutput}). */
+export function sanitiseForStore(raw: string, policy: SanitisePolicy): string {
+  return sanitiseValue(raw, policy.filter((s) => STORAGE_STEPS.has(s)));
 }
 
 /** Validate an already-sanitised value against its validation spec. Returns human-readable errors (empty = ok). */
