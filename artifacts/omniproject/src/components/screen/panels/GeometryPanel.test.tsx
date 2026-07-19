@@ -52,4 +52,22 @@ describe("GeometryPanel", () => {
     expect(svg.firstElementChild!.tagName.toLowerCase()).toBe("line");
     expect(svg.lastElementChild!.tagName.toLowerCase()).toBe("circle");
   });
+
+  it("expands a declarative `chart` (column) into atom rects/lines/text", () => {
+    const panel: Panel = {
+      id: "g4",
+      kind: "geometry",
+      config: {
+        width: 200,
+        height: 100,
+        chart: { type: "column", data: [{ label: "A", value: 10 }, { label: "B", value: 20 }] },
+      },
+    };
+    const { container } = render(<GeometryPanel panel={panel} />);
+    const svg = container.querySelector("svg")!;
+    // Two positive bars → two rects; plus axis/gridlines and labels — all atoms, no <foreignObject>.
+    expect(svg.querySelectorAll("rect").length).toBe(2);
+    expect(svg.querySelectorAll("line").length).toBeGreaterThan(0);
+    expect(svg.querySelectorAll("text").length).toBeGreaterThan(0);
+  });
 });
