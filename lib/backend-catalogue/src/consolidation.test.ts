@@ -14,7 +14,8 @@ test("shipped specs all validate against the engine's expectations", () => {
   for (const spec of CONSOLIDATIONS) {
     assert.ok(spec.measures.length > 0, `${spec.id} needs measures`);
     const measureKeys = spec.measures.map((m) => m.key);
-    for (const m of spec.measures) assert.ok(m.field, `${spec.id}.${m.key} declares a source field`);
+    // Every measure except `count` (which counts rows, field-free) declares a source field.
+    for (const m of spec.measures) assert.ok(m.agg === "count" || m.field, `${spec.id}.${m.key} declares a source field`);
     for (const d of spec.derived) {
       assert.ok(measureKeys.includes(d.a) && measureKeys.includes(d.b), `${spec.id}.${d.key} references a measure`);
     }
@@ -96,6 +97,30 @@ test("the shipped income/benefits/costs specs are all the same consolidation sha
   assert.equal(total.metrics["actual"], 1100);
   assert.equal(total.metrics["variance"], 400);
   assert.equal(total.metrics["pctConsumed"], Math.round((1100 / 1500) * 1000) / 10);
+});
+
+test("count / countWhere / ratioPctOrNull power the capacity consolidation", () => {
+  const spec = consolidationSpec("capacity");
+  const rows = (over: Array<Record<string, number>>) => over;
+  const { groups, total } = consolidateByGroup(
+    [
+      { groupKey: "p1", groupLabel: "P1", currency: "GBP", items: rows([{ allocationPercentage: 120, assignedHours: 40, availableHours: 40 }, { allocationPercentage: 50, assignedHours: 20, availableHours: 40 }]) },
+      { groupKey: "p2", groupLabel: "P2", currency: "GBP", items: rows([{ allocationPercentage: 0, assignedHours: 0, availableHours: 0 }]) },
+    ],
+    spec,
+    "GBP",
+  );
+  const p1 = groups.find((g) => g.key === "p1")!;
+  assert.equal(p1.metrics["allocations"], 2); // count of rows
+  assert.equal(p1.metrics["overAllocated"], 1); // countWhere allocationPercentage > 100
+  assert.equal(p1.metrics["assignedHours"], 60);
+  assert.equal(p1.metrics["availableHours"], 80);
+  assert.equal(p1.metrics["utilisation"], 75); // ratioPct(60, 80)
+  const p2 = groups.find((g) => g.key === "p2")!;
+  assert.equal(p2.metrics["utilisation"], null); // no availability ⇒ null, not 0
+  // null utilisation sorts to the low end (most-utilised first).
+  assert.deepEqual(groups.map((g) => g.key), ["p1", "p2"]);
+  assert.equal(total.metrics["allocations"], 3);
 });
 
 test("weightedSum applies the per-item weight, its scale, default and clamp", () => {

@@ -41,6 +41,44 @@ export const CONSOLIDATIONS_DATA: ConsolidationSpec[] = [
     }
   },
   {
+    "id": "capacity",
+    "measures": [
+      {
+        "key": "allocations",
+        "agg": "count"
+      },
+      {
+        "key": "overAllocated",
+        "agg": "countWhere",
+        "field": "allocationPercentage",
+        "op": "gt",
+        "value": 100
+      },
+      {
+        "key": "assignedHours",
+        "agg": "sum",
+        "field": "assignedHours"
+      },
+      {
+        "key": "availableHours",
+        "agg": "sum",
+        "field": "availableHours"
+      }
+    ],
+    "derived": [
+      {
+        "key": "utilisation",
+        "op": "ratioPctOrNull",
+        "a": "assignedHours",
+        "b": "availableHours"
+      }
+    ],
+    "sort": {
+      "key": "utilisation",
+      "dir": "desc"
+    }
+  },
+  {
     "id": "costs",
     "measures": [
       {

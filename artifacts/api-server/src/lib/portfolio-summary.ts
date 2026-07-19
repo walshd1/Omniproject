@@ -160,19 +160,17 @@ export function foldFinance(rows: Row[], target: string, rates?: Record<string, 
 /** Fold every project's resource rows (the existing `GET /projects/:id/capacity` rows, flattened
  *  across the portfolio) into ONE portfolio total — the portfolio-only reduction of `rollupByProgramme`. */
 export function foldCapacity(rows: Row[]): CapacityTotals {
-  let allocations = 0, overAllocated = 0, assignedHours = 0, availableHours = 0;
-  for (const r of rows) {
-    allocations += 1;
-    if (num(r["allocationPercentage"]) > 100) overAllocated += 1;
-    assignedHours += num(r["assignedHours"]);
-    availableHours += num(r["availableHours"]);
-  }
+  // The org-scope reduction of the `capacity` consolidation: every resource row in ONE group, with a
+  // nominal single currency so the engine's FX pass is inert (capacity has no money dimension).
+  const inputs = rows.map((r) => ({ groupKey: "__portfolio__", groupLabel: "Portfolio", currency: "•", items: [r] }));
+  const { total } = consolidateByGroup(inputs, consolidationSpec("capacity"), "•");
+  const m = total.metrics;
   return {
-    allocations,
-    overAllocated,
-    assignedHours: round1(assignedHours),
-    availableHours: round1(availableHours),
-    utilisation: availableHours > 0 ? Math.round((assignedHours / availableHours) * 1000) / 10 : null,
+    allocations: (m["allocations"] as number) ?? 0,
+    overAllocated: (m["overAllocated"] as number) ?? 0,
+    assignedHours: (m["assignedHours"] as number) ?? 0,
+    availableHours: (m["availableHours"] as number) ?? 0,
+    utilisation: (m["utilisation"] as number | null) ?? null,
   };
 }
 

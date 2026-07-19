@@ -17,15 +17,17 @@
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["key", "agg", "field"],
+        "required": ["key", "agg"],
         "properties": {
           "key": { "type": "string", "pattern": "^[a-zA-Z0-9]+$" },
-          "agg": { "type": "string", "enum": ["sum", "weightedSum"] },
+          "agg": { "type": "string", "enum": ["sum", "weightedSum", "count", "countWhere"] },
           "field": { "type": "string", "pattern": "^[a-zA-Z0-9_]+$" },
           "weightField": { "type": "string", "pattern": "^[a-zA-Z0-9_]+$" },
           "weightScale": { "type": "number" },
           "weightDefault": { "type": "number" },
-          "weightMax": { "type": "number" }
+          "weightMax": { "type": "number" },
+          "op": { "type": "string", "enum": ["gt", "gte", "lt", "lte", "eq"] },
+          "value": { "type": "number" }
         }
       }
     },
@@ -38,7 +40,7 @@
         "required": ["key", "op", "a", "b"],
         "properties": {
           "key": { "type": "string", "pattern": "^[a-zA-Z0-9]+$" },
-          "op": { "type": "string", "enum": ["diff", "diffFloor0", "ratioPct", "ratioOrNull"] },
+          "op": { "type": "string", "enum": ["diff", "diffFloor0", "ratioPct", "ratioPctOrNull", "ratioOrNull"] },
           "a": { "type": "string", "pattern": "^[a-zA-Z0-9]+$" },
           "b": { "type": "string", "pattern": "^[a-zA-Z0-9]+$" }
         }

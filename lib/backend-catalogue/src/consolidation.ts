@@ -26,21 +26,27 @@ export type DerivedOp =
   | "diff" // a − b (e.g. budget − forecast = variance)
   | "diffFloor0" // max(0, a − b) (e.g. projected − invoiced = unbilled, clamped)
   | "ratioPct" // b>0 ? a/b×100 (1dp) : 0 (e.g. invoiced/projected = billed %)
+  | "ratioPctOrNull" // b>0 ? a/b×100 (1dp) : null (e.g. assigned/available = utilisation, null when none)
   | "ratioOrNull"; // b>0 ? a/b (2dp) : null (e.g. earnedValue/actual = CPI)
 
 /** How a measure is extracted from a group's items — the field name is DATA, read by the engine. */
 export type MeasureAgg =
   | "sum" // Σ item[field]
-  | "weightedSum"; // Σ item[field] × weight, weight from item[weightField] (clamped, scaled, defaulted)
+  | "weightedSum" // Σ item[field] × weight, weight from item[weightField] (clamped, scaled, defaulted)
+  | "count" // number of items (field ignored)
+  | "countWhere"; // number of items whose item[field] satisfies `op value` (e.g. allocation% > 100)
 
-/** One measure: sum (or weighted-sum) a named field across a group's items into `key`. The engine never
- *  hardcodes a field name — it reads `field` / `weightField` from here, exactly as the drill-down resolver
- *  reads its predicate fields from a `DrillTo` descriptor. */
+/** The comparison a `countWhere` measure applies to `item[field]`. */
+export type CompareOp = "gt" | "gte" | "lt" | "lte" | "eq";
+
+/** One measure: aggregate a named field across a group's items into `key`. The engine never hardcodes a
+ *  field name — it reads `field` / `weightField` from here, exactly as the drill-down resolver reads its
+ *  predicate fields from a `DrillTo` descriptor. */
 export interface MeasureSpec {
   key: string;
   agg: MeasureAgg;
-  /** The item field summed into this measure. */
-  field: string;
+  /** The item field aggregated into this measure. Ignored for `count`. */
+  field?: string;
   /** weightedSum: the item field carrying the per-item weight (e.g. a confidence %). */
   weightField?: string;
   /** weightedSum: multiply the (clamped) weight by this before applying (e.g. 0.01 to turn a % into a fraction). */
@@ -49,6 +55,10 @@ export interface MeasureSpec {
   weightDefault?: number;
   /** weightedSum: clamp the raw weight to [0, weightMax] before scaling (e.g. 100 for a percentage). */
   weightMax?: number;
+  /** countWhere: the comparison operator applied to `item[field]`. */
+  op?: CompareOp;
+  /** countWhere: the value `item[field]` is compared against. */
+  value?: number;
 }
 
 /** One derived metric: apply `op` to two measure (or earlier-declared) keys, storing the result under `key`. */
@@ -92,9 +102,18 @@ export interface ConsolidationInput {
 /** Extract one measure's value from a set of items per its spec — the generic "sum field X" /
  *  "weighted-sum field X by Y" action, with every field name coming from the spec. */
 export function measureValue(items: readonly Record<string, unknown>[], m: MeasureSpec): number {
+  if (m.agg === "count") return items.length;
+  const field = m.field ?? "";
+  if (m.agg === "countWhere") {
+    const op = m.op ?? "gt";
+    const value = m.value ?? 0;
+    let n = 0;
+    for (const it of items) if (compare(num(it[field]), op, value)) n += 1;
+    return n;
+  }
   let total = 0;
   for (const it of items) {
-    const base = num(it[m.field]);
+    const base = num(it[field]);
     if (m.agg === "weightedSum") {
       const scale = m.weightScale ?? 1;
       const wf = m.weightField;
@@ -137,8 +156,26 @@ function applyDerived(op: DerivedOp, a: number, b: number): number | null {
       return round2(Math.max(0, a - b));
     case "ratioPct":
       return b > 0 ? round1((a / b) * 100) : 0;
+    case "ratioPctOrNull":
+      return b > 0 ? round1((a / b) * 100) : null;
     case "ratioOrNull":
       return b > 0 ? round2(a / b) : null;
+  }
+}
+
+/** Whether `v` satisfies `op value` — the `countWhere` predicate. */
+function compare(v: number, op: CompareOp, value: number): boolean {
+  switch (op) {
+    case "gt":
+      return v > value;
+    case "gte":
+      return v >= value;
+    case "lt":
+      return v < value;
+    case "lte":
+      return v <= value;
+    case "eq":
+      return v === value;
   }
 }
 
@@ -220,9 +257,11 @@ export function consolidateByGroup(
   const sortKey = spec.sort.key;
   const dir = spec.sort.dir === "desc" ? -1 : 1;
   const rows = [...groups.values()].map((r) => finalise(r, spec)).sort((a, b) => {
-    const av = a.metrics[sortKey] ?? 0;
-    const bv = b.metrics[sortKey] ?? 0;
-    return dir * (av - bv) || a.key.localeCompare(b.key);
+    // A null metric (e.g. utilisation with no availability, CPI with no spend) sorts to the low end.
+    const an = a.metrics[sortKey] ?? Number.NEGATIVE_INFINITY;
+    const bn = b.metrics[sortKey] ?? Number.NEGATIVE_INFINITY;
+    const cmp = an === bn ? 0 : dir * (an - bn);
+    return cmp || a.key.localeCompare(b.key);
   });
   return { groups: rows, total: finalise(grand, spec) };
 }
