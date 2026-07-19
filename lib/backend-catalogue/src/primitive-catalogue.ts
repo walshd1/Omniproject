@@ -443,11 +443,30 @@ export const PRIMITIVE_CATALOGUE: PrimitiveDef[] = [
       { key: "value", label: "Value", type: "string", required: false, description: "The current/default decision value." },
     ],
   },
+  // ── TILE — a cross-cutting atom (goes on a screen, a report, a chart) ────────────────────────────
+  // A tile has a size, a colour, a shape and a content field; it's STATIC by default and INTERACTIVE
+  // when `clickable` (the additive interactivity level, as for charts). The specific tiles (stat-tile,
+  // badge) are thinner children that add their own content shape.
+  {
+    id: "tile",
+    label: "Tile",
+    category: "tile",
+    description: "A bounded content block placed on ANY visual (screen/report/chart) — has a size, colour, shape and a content field. Static by default; set `clickable` to make it interactive (the additive interactivity level). The base every specific tile specializes.",
+    params: [
+      { key: "content", label: "Content", type: "string", required: false, description: "The tile's content (text, or a reference resolved by the renderer)." },
+      { key: "size", label: "Size", type: "enum", required: false, description: "Tile size.", options: ["small", "medium", "large"] },
+      { key: "color", label: "Colour", type: "string", required: false, description: "Fill/accent colour as a hex string or theme token." },
+      { key: "shape", label: "Shape", type: "enum", required: false, description: "Tile shape.", options: ["square", "rounded", "pill", "circle"] },
+      { key: "clickable", label: "Clickable", type: "boolean", required: false, description: "Make the tile interactive — clickable, with an optional `action`." },
+      { key: "action", label: "Action", type: "string", required: false, description: "What a click does (route / command); only meaningful when clickable." },
+    ],
+  },
   {
     id: "stat-tile",
     label: "Stat tile",
     category: "tile",
-    description: "A KPI tile — a headline value with a label, optional hint, and tone.",
+    extends: "tile",
+    description: "A KPI tile — a headline value with a label, optional hint, and tone. A tile specialized for a metric.",
     params: [
       { key: "label", label: "Label", type: "string", required: true, description: "What the number measures." },
       { key: "value", label: "Value", type: "string", required: true, description: "The headline figure." },
@@ -459,7 +478,8 @@ export const PRIMITIVE_CATALOGUE: PrimitiveDef[] = [
     id: "badge",
     label: "Badge",
     category: "tile",
-    description: "A small status pill — a labelled chip toned for genuine state.",
+    extends: "tile",
+    description: "A small status pill — a labelled chip toned for genuine state. A tile specialized as a compact status marker.",
     params: [
       { key: "children", label: "Text", type: "string", required: true, description: "The pill label." },
       { key: "tone", label: "Tone", type: "enum", required: false, description: "State colour.", options: ["neutral", "good", "warn", "bad", "info"] },

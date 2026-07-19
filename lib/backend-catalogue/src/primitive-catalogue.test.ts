@@ -25,11 +25,26 @@ test("the VISUALS tree is rooted at canvas: screen/form/report/table + the drawa
   }
   // The drawable branch also bottoms out at canvas.
   assert.equal(resolvePrimitive("bar")!.lineage.at(-1), "canvas");
-  // Control atoms + tiles + field are their OWN roots (materials placed into ANY visual, not canvas
-  // descendants — a tile/field goes on a report, a chart or a screen alike).
-  for (const id of ["switch", "label", "field", "stat-tile", "badge"]) {
+  // Control atoms + the base tile are their OWN roots (materials placed into ANY visual — a tile/field
+  // goes on a report, a chart or a screen alike). Specific tiles specialize the base tile.
+  for (const id of ["switch", "label", "field", "tile"]) {
     assert.equal(getPrimitive(id)!.extends, undefined, `${id} is an atomic primitive (a root)`);
   }
+  assert.deepEqual(resolvePrimitive("stat-tile")!.lineage, ["stat-tile", "tile"]);
+  assert.deepEqual(resolvePrimitive("badge")!.lineage, ["badge", "tile"]);
+});
+
+test("the base tile carries size / colour / shape / content and the additive `clickable` interactivity", () => {
+  const tile = getPrimitive("tile")!;
+  const keys = new Set(tile.params.map((p) => p.key));
+  for (const k of ["content", "size", "color", "shape", "clickable"]) assert.ok(keys.has(k), `tile has ${k}`);
+  // Static by default: clickable is optional (interactivity is additive).
+  assert.equal(tile.params.find((p) => p.key === "clickable")!.required, false);
+  // A specific tile inherits all of that and adds its own content shape.
+  const stat = resolvePrimitive("stat-tile")!;
+  const statKeys = new Set(stat.params.map((p) => p.key));
+  assert.ok(statKeys.has("size") && statKeys.has("clickable"), "stat-tile inherits the base tile's props");
+  assert.ok(statKeys.has("value"), "stat-tile adds its metric value");
 });
 
 test("the settings tree: a `decision` defines the TYPE that drives the visual `field`", () => {
