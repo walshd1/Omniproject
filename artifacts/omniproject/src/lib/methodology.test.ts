@@ -134,7 +134,8 @@ describe("static tables", () => {
   it("SPRINT_COLUMNS, WIP_LIMITS, PRINCE2_STAGES", () => {
     expect(SPRINT_COLUMNS).toEqual(["todo", "in_progress", "in_review", "done"]);
     expect(WIP_LIMITS).toEqual({ in_progress: 4, in_review: 3 });
-    expect(PRINCE2_STAGES).toEqual(["Initiation", "Delivery", "Closure"]);
+    // Single source of truth: the PRINCE2 methodology asset's tools.states (no second hardcoded list).
+    expect(PRINCE2_STAGES).toEqual(["starting-up", "initiating", "delivering", "closing"]);
   });
 });
 
@@ -143,13 +144,13 @@ describe("prince2Stage", () => {
     expect(prince2Stage(issue({ status: "done", labels: ["stage:Custom"] }))).toBe("Custom");
   });
 
-  it("maps status to a stage", () => {
-    expect(prince2Stage(issue({ status: "backlog" }))).toBe("Initiation");
-    expect(prince2Stage(issue({ status: "todo" }))).toBe("Initiation");
-    expect(prince2Stage(issue({ status: "in_progress" }))).toBe("Delivery");
-    expect(prince2Stage(issue({ status: "in_review" }))).toBe("Delivery");
-    expect(prince2Stage(issue({ status: "done" }))).toBe("Closure");
-    expect(prince2Stage(issue({ status: "cancelled" }))).toBe("Closure");
+  it("maps status onto the asset's ordered stages", () => {
+    expect(prince2Stage(issue({ status: "backlog" }))).toBe("starting-up");
+    expect(prince2Stage(issue({ status: "todo" }))).toBe("initiating");
+    expect(prince2Stage(issue({ status: "in_progress" }))).toBe("delivering");
+    expect(prince2Stage(issue({ status: "in_review" }))).toBe("delivering");
+    expect(prince2Stage(issue({ status: "done" }))).toBe("closing");
+    expect(prince2Stage(issue({ status: "cancelled" }))).toBe("closing");
   });
 });
 
