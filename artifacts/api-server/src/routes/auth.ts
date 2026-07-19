@@ -30,7 +30,8 @@ import {
 } from "../lib/oauth2";
 import { magicLinkEnabled, isValidEmail, mintMagicToken, verifyMagicToken, consumeMagicToken, sendMagicLink, guestPortalEnabled } from "../lib/magic-link";
 import { isDevMode } from "../lib/dev-mode";
-import { isDemoAuth, isDemoAuthFrom, localPasswordsAllowed } from "../lib/auth-config";
+import { isDemoAuthFrom, localPasswordsAllowed } from "../lib/auth-config";
+import { isDemoAuth } from "../lib/auth-runtime";
 import { getActiveUserByUserName, createUser, anyUserExists, userDirectoryEnabled, localAdminRequiresPasskey } from "../lib/user-directory";
 import { credentialsFor, getCredential, issueChallenge, consumeChallenge, verifyWebAuthnAssertion, AssertionError } from "../lib/passkey";
 import { verifyPassword, setPassword, credentialsEnabled, assertPasswordPolicy } from "../lib/user-credentials";

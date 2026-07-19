@@ -2,7 +2,7 @@ import type { Request, Response, NextFunction } from "express";
 import { getSession } from "../routes/auth";
 import { directoryDecision } from "./scim";
 import { parseCommaSet } from "./env";
-import { isDemoAuth } from "./auth-config";
+import { isDemoAuth } from "./auth-runtime";
 import { localAdminRequiresPasskey } from "./user-directory";
 import { resolveScope, type Scope } from "./scope";
 import { matchApiToken } from "./api-token";

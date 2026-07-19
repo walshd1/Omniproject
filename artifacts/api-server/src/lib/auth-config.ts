@@ -1,5 +1,4 @@
 import { isTruthy } from "./env-config";
-import { localUsersActive } from "./user-directory";
 
 /**
  * Is the gateway running in DEMO auth mode — i.e. NO real authentication method is configured at all?
@@ -92,15 +91,9 @@ export function isDemoAuthFrom(env: Env): boolean {
   return true;
 }
 
-/**
- * Runtime gate: is the live process in demo auth mode? Starts from the pure env decision (shared with the boot
- * self-check) AND additionally turns demo OFF once ≥1 active local user exists — so creating the first in-app
- * admin in the setup wizard immediately stops "no IdP = everyone admin", without needing an env change.
- */
-export function isDemoAuth(): boolean {
-  if (!isDemoAuthFrom(process.env)) return false;
-  return !localUsersActive();
-}
+// The RUNTIME `isDemoAuth()` (which additionally consults the live local-user directory) lives in
+// `auth-runtime.ts`, NOT here — so this module stays a PURE env-only leaf that the offline tooling/typecheck
+// (the setup wizard's security-check) can import without pulling in the sealed artifact-store subgraph.
 
 // ── In-app (local password) tier gating — downgrade prevention ────────────────────────────────────────────────
 // Native in-app users are the ENTRY tier (solo/homelab), BELOW an external-container backend and BELOW enterprise

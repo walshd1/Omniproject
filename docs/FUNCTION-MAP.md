@@ -939,10 +939,17 @@ Is the gateway running in DEMO auth mode — i.e. NO real authentication method 
 | Function | What it does |
 | --- | --- |
 | `isDemoAuthFrom` | Pure decision: is this env a DEMO (no-real-auth, every-session-admin) deployment? Returns false as soon as ANY real method is configured — legacy OIDC, named OIDC, OAuth2, SAML, or magic-link. |
-| `isDemoAuth` | Runtime gate: is the live process in demo auth mode? Starts from the pure env decision (shared with the boot self-check) AND additionally turns demo OFF once ≥1 active local user exists — so creating the first in-app admin in the setup wizard immediately stops "no IdP = everyone admin", without needing an env change. |
 | `strongerAuthConfigured` | True when a STRONGER-than-local real SSO method (legacy/named OIDC, OAuth2, or SAML) is configured. |
 | `localPasswordRecovery` | The host-side RECOVERY break-glass: force local passwords back on despite a configured SSO. |
 | `localPasswordsAllowed` | Whether local (in-app password) sign-in is ALLOWED at all: only when no stronger SSO is configured, UNLESS the destructive recovery break-glass is engaged. |
+
+### `artifacts/api-server/src/lib/auth-runtime.ts`
+
+RUNTIME auth-mode gate — the one auth predicate that depends on live STORE state (the local-user directory), split out from the otherwise PURE `auth-config` module.
+
+| Function | What it does |
+| --- | --- |
+| `isDemoAuth` | Runtime gate: is the live process in demo auth mode? Starts from the pure env decision (shared with the boot self-check `isDemoAuthFrom`) AND additionally turns demo OFF once ≥1 active local user exists — so creating the first in-app admin in the setup wizard immediately stops "no IdP = everyone admin", without needing an env change. |
 
 ### `artifacts/api-server/src/lib/automation.ts`
 

@@ -12,7 +12,8 @@ delete process.env["OIDC_ISSUER_URL"];
 delete process.env["OIDC_PROVIDERS"];
 process.env["MAGIC_LINK_ENABLED"] = "true";
 
-const { isDemoAuth, isDemoAuthFrom, strongerAuthConfigured, localPasswordsAllowed } = await import("./auth-config");
+const { isDemoAuthFrom, strongerAuthConfigured, localPasswordsAllowed } = await import("./auth-config");
+const { isDemoAuth } = await import("./auth-runtime");
 
 test("downgrade prevention: local passwords are DISABLED once stronger SSO is configured", () => {
   // No SSO → local passwords allowed (the entry tier).
