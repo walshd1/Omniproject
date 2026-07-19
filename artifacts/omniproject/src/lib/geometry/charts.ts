@@ -72,7 +72,9 @@ export function buildColumnChart(spec: ColumnChartSpec): GeometryShape[] {
       const bx = plotLeft + i * slot + (slot - barW) / 2;
       const top = y(v);
       const barH = Math.max(0, plotBottom - top);
-      if (barH > 0) shapes.push({ type: "rect", x: bx, y: top, width: barW, height: barH, fill: barColor });
+      // The bar carries its own data label as `hover` — the interactive canvas turns that into a
+      // tooltip + accessible announcement, so the chart is interactive with no charting library.
+      if (barH > 0) shapes.push({ type: "rect", x: bx, y: top, width: barW, height: barH, fill: barColor, hover: `${d.label}: ${v}` });
       shapes.push({ type: "text", x: bx + barW / 2, y: plotBottom + 10, content: d.label, size: 8, fill: AXIS, anchor: "middle" });
     });
   }

@@ -12,9 +12,12 @@ import { numLoose } from "../../lib/num";
  * accessible DOM and composes via the def `extends` lineage.
  */
 
-/** One geometry-atom instance to draw: the atom's `type` plus its params (as they arrive from JSON). */
+/** One geometry-atom instance to draw: the atom's `type` plus its params (as they arrive from JSON).
+ *  `hover` (optional) is tooltip/accessible text used ONLY by the interactive canvas — the static
+ *  renderer ignores it, so a chart's shapes carry their own data label without a separate channel. */
 export interface GeometryShape {
   type: string;
+  hover?: string;
   [key: string]: unknown;
 }
 
@@ -29,8 +32,9 @@ function strOr(v: unknown, fallback: string): string {
 
 const FOREGROUND = "currentColor";
 
-/** Render one atom instance as an SVG element. Unknown types render nothing (fail-soft). */
-function Atom({ s }: { s: GeometryShape }) {
+/** Render one atom instance as an SVG element. Unknown types render nothing (fail-soft). Exported so
+ *  the interactive canvas can wrap the same atoms with hover/focus behaviour. */
+export function GeometryAtom({ s }: { s: GeometryShape }) {
   switch (s.type) {
     case "line":
       return (
@@ -121,7 +125,7 @@ export function GeometryCanvas({
     >
       {title && <title>{title}</title>}
       {shapes.map((s, i) => (
-        <Atom key={i} s={s} />
+        <GeometryAtom key={i} s={s} />
       ))}
     </svg>
   );

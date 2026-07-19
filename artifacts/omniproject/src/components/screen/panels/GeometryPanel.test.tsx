@@ -48,9 +48,10 @@ describe("GeometryPanel", () => {
     const svg = container.querySelector("svg")!;
     expect(svg.querySelectorAll("line").length).toBe(6);
     expect(svg.querySelectorAll("circle").length).toBe(1);
-    // The grid is drawn first (beneath) so the explicit point sits on top.
-    expect(svg.firstElementChild!.tagName.toLowerCase()).toBe("line");
-    expect(svg.lastElementChild!.tagName.toLowerCase()).toBe("circle");
+    // The grid is drawn first (beneath) so the explicit point sits on top. Each atom is wrapped in a
+    // <g> by the interactive canvas, so look one level in.
+    expect(svg.firstElementChild!.firstElementChild!.tagName.toLowerCase()).toBe("line");
+    expect(svg.lastElementChild!.firstElementChild!.tagName.toLowerCase()).toBe("circle");
   });
 
   it("expands a declarative `chart` (column) into atom rects/lines/text", () => {

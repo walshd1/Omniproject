@@ -1,6 +1,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { Panel } from "../../../lib/screen";
-import { GeometryCanvas, type GeometryShape } from "../../geometry/GeometryCanvas";
+import type { GeometryShape } from "../../geometry/GeometryCanvas";
+import { InteractiveGeometryCanvas } from "../../geometry/InteractiveGeometryCanvas";
 import { buildGrid, type GridSpec } from "../../../lib/geometry/grid";
 import { buildColumnChart, buildSparkline, type ColumnDatum } from "../../../lib/geometry/charts";
 
@@ -55,7 +56,7 @@ export function GeometryPanel({ panel }: { panel: Panel }) {
         {shapes.length === 0 ? (
           <p className="text-sm text-muted-foreground">Nothing to draw.</p>
         ) : (
-          <GeometryCanvas shapes={shapes} width={width} height={height} className="w-full h-auto text-foreground" {...(panel.title ? { title: panel.title } : {})} />
+          <InteractiveGeometryCanvas shapes={shapes} width={width} height={height} className="w-full text-foreground" {...(panel.title ? { title: panel.title } : {})} />
         )}
       </CardContent>
     </Card>
