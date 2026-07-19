@@ -31,6 +31,10 @@ export interface AuthState {
   localSignInEnabled?: boolean;
   /** Fresh, IdP-less deployment with no users yet → show the "claim first admin" form. */
   needsFirstAdmin?: boolean;
+  /** Whether this session already holds strong (hardware-MFA / passkey) auth. */
+  strongAuth?: boolean;
+  /** Whether this is a native in-app (local password) session. */
+  local?: boolean;
   /** Present ONLY for a guest principal: the single project it's confined to and its access tier. The SPA
    *  uses this to route a guest to the client portal and nowhere else. */
   guest?: { projectId: string; tier: "read" | "comment" };

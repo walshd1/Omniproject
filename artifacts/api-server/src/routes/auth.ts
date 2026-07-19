@@ -17,7 +17,7 @@ import {
   type Session,
   type Impersonation,
 } from "../lib/oidc";
-import { roleForReq } from "../lib/rbac";
+import { roleForReq, hasStrongAuth } from "../lib/rbac";
 import { isSamlConfigured, samlConfigStatus, samlLoginUrl, validateSamlResponse, samlMetadata } from "../lib/saml";
 import {
   isOAuth2Configured,
@@ -32,6 +32,7 @@ import { magicLinkEnabled, isValidEmail, mintMagicToken, verifyMagicToken, consu
 import { isDevMode } from "../lib/dev-mode";
 import { isDemoAuth, isDemoAuthFrom, localPasswordsAllowed } from "../lib/auth-config";
 import { getActiveUserByUserName, createUser, anyUserExists, userDirectoryEnabled, localAdminRequiresPasskey } from "../lib/user-directory";
+import { credentialsFor, getCredential, issueChallenge, consumeChallenge, verifyWebAuthnAssertion, AssertionError } from "../lib/passkey";
 import { verifyPassword, setPassword, credentialsEnabled, assertPasswordPolicy } from "../lib/user-credentials";
 import { getRoleMap, setRoleMap } from "../lib/rbac";
 import { effectiveSession } from "../lib/impersonation";
@@ -305,6 +306,10 @@ router.get("/auth/me", (req, res) => {
       mode: isOidcConfigured ? "oidc" : "demo",
       user: { sub: session.sub, name: session.name, email: session.email },
       role: roleForReq(req),
+      // Whether this session already holds strong (hardware-MFA) auth. When false AND the caller is a local
+      // password user whose group would confer admin/PMO, the SPA offers a passkey step-up to unlock it.
+      strongAuth: hasStrongAuth(session),
+      local: session.local === true,
       // A guest principal's confinement, so the SPA knows to show ONLY the portal for this project.
       ...(session.guest ? { guest: { projectId: session.guest.projectId, tier: session.guest.tier } } : {}),
       // Lets the SPA warn before, and redirect on, an idle/absolute timeout.
@@ -690,6 +695,55 @@ router.post("/auth/local/bootstrap", async (req, res) => {
   establishSession(res, { sub: user.id, name: user.displayName, email: user.email || undefined, roles: user.groups, accessToken: "local", amr: ["pwd"], local: true });
   recordAudit({ ts: now, category: "request", action: "auth.local.bootstrap", actor: { sub: user.id }, write: true, result: "success", meta: { adminGroup } });
   res.status(201).json({ ok: true, user });
+});
+
+// ── Passkey STEP-UP (upgrade a session to strong auth) ────────────────────────────
+// A local password session is amr:["pwd"] — NOT strong — so with LOCAL_ADMIN_REQUIRE_PASSKEY on it can't hold
+// admin/PMO until the user proves a hardware-bound passkey. This WebAuthn step-up verifies an assertion from a
+// passkey the user has already ENROLLED (via /approvals/passkey — one credential store) and, on success,
+// re-issues the session with a strong `amr` (hwk) + a fresh `stepUpAt`, so `hasStrongAuth` (rbac) now passes.
+// General-purpose: any session (local or IdP) can strengthen itself this way. The passkey is bound to the sub,
+// so only its holder can elevate; the challenge is one-time + bound into the signed clientData (replay-safe).
+const webauthnRpId = (): string => process.env["WEBAUTHN_RP_ID"]?.trim() || "localhost";
+const webauthnOrigin = (): string => process.env["WEBAUTHN_ORIGIN"]?.trim() || `https://${webauthnRpId()}`;
+const stepUpScope = (sub: string): string => `auth-stepup:${sub}`;
+
+router.post("/auth/passkey/step-up/challenge", async (req, res) => {
+  const s = readSession(req);
+  if (!s) { res.status(401).json({ error: "Not signed in." }); return; }
+  const creds = await credentialsFor(s.sub);
+  if (!creds.length) { res.status(409).json({ error: "No passkey is enrolled for this account. Enrol one first.", needsEnrolment: true }); return; }
+  const challenge = await issueChallenge(stepUpScope(s.sub), s.sub);
+  res.json({ challenge, rpId: webauthnRpId(), credentialIds: creds.map((c) => c.credentialId) });
+});
+
+router.post("/auth/passkey/step-up", async (req, res) => {
+  const s = readSession(req);
+  if (!s) { res.status(401).json({ error: "Not signed in." }); return; }
+  const body = (req.body ?? {}) as { credentialId?: unknown; clientDataJSON?: unknown; authenticatorData?: unknown; signature?: unknown; challenge?: unknown };
+  const str = (v: unknown): string => (typeof v === "string" ? v : "");
+  const credentialId = str(body.credentialId), challenge = str(body.challenge);
+  if (!credentialId || !challenge || !str(body.clientDataJSON) || !str(body.authenticatorData) || !str(body.signature)) {
+    res.status(400).json({ error: "Incomplete passkey assertion." }); return;
+  }
+  const cred = await getCredential(s.sub, credentialId);
+  if (!cred) { res.status(400).json({ error: "That passkey isn't registered to this account." }); return; }
+  // Consume the one-time challenge BEFORE verifying, so a replay can't re-use it even on a verification error.
+  if (!(await consumeChallenge(stepUpScope(s.sub), challenge))) { res.status(400).json({ error: "This step-up challenge is invalid or has expired." }); return; }
+  try {
+    verifyWebAuthnAssertion({
+      credential: cred, clientDataJSON: str(body.clientDataJSON), authenticatorData: str(body.authenticatorData),
+      signature: str(body.signature), expectedChallenge: challenge, rpId: webauthnRpId(), origin: webauthnOrigin(),
+    });
+  } catch (err) {
+    recordAudit({ ts: new Date().toISOString(), category: "request", action: "auth.passkey.stepup", actor: actorForAudit(req), write: true, result: "error", status: 401 });
+    res.status(401).json({ error: err instanceof AssertionError ? err.message : "Passkey verification failed." }); return;
+  }
+  // Strengthen the session: add the hardware-key AMR (default member of STRONG_AMR) + stamp step-up freshness.
+  const amr = Array.from(new Set([...(s.amr ?? []), "hwk"]));
+  setSession(res, { ...s, amr, stepUpAt: Date.now() });
+  recordAudit({ ts: new Date().toISOString(), category: "request", action: "auth.passkey.stepup", actor: actorForAudit(req), write: true, result: "success" });
+  res.json({ ok: true, strongAuth: true });
 });
 
 // ── POST /api/auth/logout ─────────────────────────────────────────────────────

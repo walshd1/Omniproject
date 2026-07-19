@@ -165,7 +165,7 @@ router.use(scimRouter);
 
 // Strict, per-IP throttle on login / step-up initiation (brute-force / flow-cookie
 // spam) — tighter than the general apiLimiter and applied just to these endpoints.
-router.use(["/auth/login", "/auth/step-up", "/auth/saml/login", "/auth/oauth2/login", "/auth/magic/request", "/auth/local", "/auth/local/bootstrap", "/break-glass/lockdown", "/break-glass/release", "/break-glass/status"], loginLimiter);
+router.use(["/auth/login", "/auth/step-up", "/auth/saml/login", "/auth/oauth2/login", "/auth/magic/request", "/auth/local", "/auth/local/bootstrap", "/auth/passkey/step-up", "/break-glass/lockdown", "/break-glass/release", "/break-glass/status"], loginLimiter);
 router.use(authRouter);
 
 // Break-glass containment — the IdP-INDEPENDENT panic button for admin impersonation. Self-authed by
