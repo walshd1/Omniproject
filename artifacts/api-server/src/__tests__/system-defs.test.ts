@@ -45,6 +45,11 @@ test("seedSystemDefaultsIfEmpty installs the bundled defaults once; applySystemD
   const values = (vocab!.payload as { values: { statuses: Array<{ id: string }>; priorities: Array<{ id: string }> } }).values;
   assert.deepEqual(values.statuses.map((s) => s.id), ["backlog", "todo", "in_progress", "in_review", "done", "cancelled"]);
   assert.deepEqual(values.priorities.map((p) => p.id), ["urgent", "high", "medium", "low", "none"]);
+  // The definition-write POLICY LEVELS are seeded as a system `config` def (levels are data; enforcement is code),
+  // scope-overridable via copy-and-override like any other config.
+  const policy = defs.find((d) => d.kind === "config" && (d.payload as { id?: unknown }).id === "def-scope-policy");
+  assert.ok(policy, "the def-scope-policy config is a shipped system default");
+  assert.deepEqual((policy!.payload as { values: unknown }).values, { user: "contributor", project: "manager", programme: "programmeManager", org: "pmoOrAdmin" });
   // The dashboard presets were adapted to the real Dashboard shape (each widget gets a synthesised id).
   const dash = defs.find((d) => d.kind === "dashboard")!;
   const widgets = (dash.payload as { widgets: Array<{ id: string; type: string }> }).widgets;
