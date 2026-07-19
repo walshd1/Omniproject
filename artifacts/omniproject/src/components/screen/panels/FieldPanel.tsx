@@ -20,6 +20,10 @@ function toDecision(raw: unknown): { label: string; decision: Decision } | null 
       type,
       ...(Array.isArray(o["options"]) ? { options: (o["options"] as unknown[]).map(String) } : {}),
       ...(o["value"] != null ? { value: String(o["value"]) } : {}),
+      // Carry the field's validation + sanitise policy through so the runtime field enforces it (the type's
+      // secure default applies even when these are absent — the seam is never left unvalidated).
+      ...(o["validation"] && typeof o["validation"] === "object" ? { validation: o["validation"] as NonNullable<Decision["validation"]> } : {}),
+      ...(Array.isArray(o["sanitise"]) ? { sanitise: o["sanitise"] as NonNullable<Decision["sanitise"]> } : {}),
     },
   };
 }

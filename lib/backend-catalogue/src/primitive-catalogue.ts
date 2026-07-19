@@ -450,11 +450,13 @@ export const PRIMITIVE_CATALOGUE: PrimitiveDef[] = [
     id: "decision",
     label: "Decision",
     category: "setting",
-    description: "A setting to be decided — its TYPE (boolean, single-choice, multi-choice, number, text) plus options and current value. Pure DATA (the settings tree); a `field` visual binds to it and renders the control its type calls for.",
+    description: "A setting to be decided — its TYPE (boolean, single-choice, multi-choice, number, text) plus options and current value. Pure DATA (the settings tree); a `field` visual binds to it and renders the control its type calls for. Every non-`label` decision carries a validation + sanitise policy (defaulted securely by type), so the field it drives always cleans and checks input.",
     params: [
       { key: "type", label: "Decision type", type: "enum", required: true, description: "What kind of decision this is — drives which control the visual renders. `label` is display-only (no input).", options: ["boolean", "single-choice", "multi-choice", "number", "text", "label"] },
       { key: "options", label: "Options", type: "items", required: false, description: "The allowed choices (for single-choice / multi-choice); ignored for boolean/number/text." },
       { key: "value", label: "Value", type: "string", required: false, description: "The current/default decision value." },
+      { key: "validation", label: "Validation", type: "string", required: false, description: "Validation floor for a non-label field (required/min/max/pattern/options). Tightens the secure default the type provides; every non-label field is validated either way." },
+      { key: "sanitise", label: "Sanitise", type: "items", required: false, description: "Extra sanitise steps ADDED to the secure default (trim/escape/…). A non-label field is always sanitised before its value is stored; these can only tighten, never remove, the floor." },
     ],
   },
   // ── TILE — a cross-cutting atom (goes on a screen, a report, a chart) ────────────────────────────

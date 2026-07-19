@@ -1,5 +1,6 @@
 import { FORM_FIELD_TYPES, ISSUE_WRITE_TARGETS } from "./form-catalogue";
 import { evaluateConstraints, type DefConstraint } from "./def-constraints";
+import { assertFieldHasPolicy, type FieldValidation, type SanitisePolicy } from "./field-validation";
 
 /**
  * FIELD PRIMITIVES — `field` is a ROOT primitive (sibling to `table` / `bar`). Per the model, a root is the MOST
@@ -54,7 +55,11 @@ const FORM_FIELD: FieldPrimitive = {
   extends: "field",
   label: "Form field",
   abstract: true,
-  params: [{ key: "mapTo", required: true }],
+  // `validation`/`sanitise` are first-class field config (author OVERRIDES that tighten the secure default the
+  // field-validation policy engine gives every non-label field for free). They are not `required` params
+  // because the floor is guaranteed by the engine, not by the author spelling it out — see the policy check
+  // in validateFieldInstance, which proves every non-label field resolves to a sanitise policy.
+  params: [{ key: "mapTo", required: true }, { key: "validation" }, { key: "sanitise" }],
   constraints: [
     { id: "form-field-target", kind: "floor", type: "enum", path: "mapTo", values: [...ISSUE_WRITE_TARGETS], message: "a field must map to a writable issue field" },
     { id: "form-field-maxlength", kind: "policy", type: "bound", path: "maxLength", min: 1, message: "maxLength must be a positive number" },
@@ -124,6 +129,14 @@ export function validateFieldInstance(field: Record<string, unknown>): string[] 
     if (!present) errors.push(`"${label}" is missing required "${key}"`);
   }
   errors.push(...evaluateConstraints(field, effectiveFieldConstraints(type)));
+  // SECURITY FLOOR: a field that captures input (not a display-only `label`) must resolve to a sanitise policy
+  // + validation. The policy engine guarantees this for every input type, so this proves the invariant holds
+  // (and would catch a future field type shipped without one).
+  const overrides: { validation?: FieldValidation; sanitise?: SanitisePolicy; options?: unknown } = { options: field["options"] };
+  if (field["validation"] !== undefined) overrides.validation = field["validation"] as FieldValidation;
+  if (field["sanitise"] !== undefined) overrides.sanitise = field["sanitise"] as SanitisePolicy;
+  const policyError = assertFieldHasPolicy(type, overrides, label);
+  if (policyError) errors.push(policyError);
   return errors;
 }
 
