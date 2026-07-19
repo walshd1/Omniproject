@@ -81,6 +81,23 @@ test("ratioOrNull yields null when the denominator is 0", () => {
   assert.equal(total.metrics["cpi"], null);
 });
 
+test("the shipped income/benefits/costs specs are all the same consolidation shape", () => {
+  for (const id of ["income", "benefits", "costs"]) {
+    const spec = consolidationSpec(id);
+    assert.ok(spec.measures.every((m) => m.field), `${id} measures all declare a source field`);
+  }
+  // costs = sum(budget) + sum(actualCost), variance = budget − actual, pctConsumed = actual/budget%.
+  const { total } = consolidateByGroup(
+    [{ groupKey: "a", groupLabel: "a", currency: "GBP", items: [{ budget: 1000, actualCost: 600 }, { budget: 500, actualCost: 500 }] }],
+    consolidationSpec("costs"),
+    "GBP",
+  );
+  assert.equal(total.metrics["budget"], 1500);
+  assert.equal(total.metrics["actual"], 1100);
+  assert.equal(total.metrics["variance"], 400);
+  assert.equal(total.metrics["pctConsumed"], Math.round((1100 / 1500) * 1000) / 10);
+});
+
 test("weightedSum applies the per-item weight, its scale, default and clamp", () => {
   // benefits' `expected` = Σ plannedBenefitValue × clamp(confidence,0,100) × 0.01, confidence defaulting to 100.
   const spec: ConsolidationSpec = {

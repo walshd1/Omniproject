@@ -49,6 +49,29 @@ describe("rollupIncome", () => {
   });
 });
 
+describe("scope — same consolidation, different grouping of the data", () => {
+  const projects = [
+    proj({ projectId: "a", programmeId: "p1", programmeName: "Platform", items: [{ id: "1", title: "t", budget: 1000, actualCost: 400 }] }),
+    proj({ projectId: "b", programmeId: "p1", programmeName: "Platform", items: [{ id: "2", title: "t", budget: 500, actualCost: 500 }] }),
+    proj({ projectId: "c", programmeId: "p2", programmeName: "Mobile", items: [{ id: "3", title: "t", budget: 800, actualCost: 300 }] }),
+  ];
+
+  it("groups costs by project, programme or org from the one call", () => {
+    const byProject = rollupBySpec("costs", projects, "GBP", RATES, "project");
+    expect(byProject.programmes.map((r) => r.key).sort()).toEqual(["a", "b", "c"]);
+
+    const byProgramme = rollupBySpec("costs", projects, "GBP", RATES, "programme");
+    expect(byProgramme.programmes.map((r) => r.key).sort()).toEqual(["p1", "p2"]);
+
+    const byOrg = rollupBySpec("costs", projects, "GBP", RATES, "org");
+    expect(byOrg.programmes.map((r) => r.key)).toEqual(["__org__"]);
+    // the single org group equals the grand total.
+    expect(byOrg.programmes[0]!.metrics["budget"]).toBe(2300);
+    expect(byOrg.portfolio.metrics["budget"]).toBe(2300);
+    expect(byOrg.portfolio.metrics["variance"]).toBe(2300 - 1200);
+  });
+});
+
 describe("rollupBenefits", () => {
   it("consolidates planned vs realised and sorts worst-realisation first", () => {
     const { programmes, portfolio } = rollupBySpec("benefits", [
