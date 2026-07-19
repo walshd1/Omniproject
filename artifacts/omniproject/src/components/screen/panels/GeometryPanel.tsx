@@ -1,7 +1,6 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { Panel } from "../../../lib/screen";
-import type { GeometryShape } from "../../geometry/GeometryCanvas";
-import { InteractiveGeometryCanvas } from "../../geometry/InteractiveGeometryCanvas";
+import { GeometryCanvas, type GeometryShape } from "../../geometry/GeometryCanvas";
 import { buildGrid, type GridSpec } from "../../../lib/geometry/grid";
 import { buildColumnChart, buildSparkline, type ColumnDatum } from "../../../lib/geometry/charts";
 
@@ -26,7 +25,8 @@ function chartShapesFor(cfg: unknown, width: number, height: number): GeometrySh
  * Geometry panel — draws a list of geometry ATOMS (line/rect/text/point) on a canvas, straight from
  * the panel's JSON config. This is how a recipe (screen/report) embeds a bespoke drawing built from
  * the fundamental primitives rather than a bespoke chart component.
- * config: { grid?: GridSpec, chart?: {type:"column"|"sparkline", …}, shapes?: GeometryShape[], width?, height? }.
+ * config: { grid?: GridSpec, chart?: {type:"column"|"sparkline", …}, shapes?: GeometryShape[], interactive?: boolean, width?, height? }.
+ * `interactive` (a def key) additively enables tooltips over the drawing's hover-carrying atoms.
  * A `grid` spec is expanded to `line` atoms via buildGrid; a `chart` is expanded to atoms via the
  * atom-composed chart builders — both drawn UNDER any explicit `shapes`, so a recipe gets graph-paper,
  * axes or a whole bar chart from one line of JSON, every mark tracing back to a fundamental atom.
@@ -44,6 +44,8 @@ export function GeometryPanel({ panel }: { panel: Panel }) {
   // A declarative `chart` (column/sparkline) is expanded to atoms via the atom-composed builders.
   const chartShapes = chartShapesFor(panel.config?.["chart"], width, height);
   const shapes = [...gridShapes, ...chartShapes, ...explicit];
+  // Interactivity is an additive taxonomy level, opted into by a def key — not all drawings need it.
+  const interactive = panel.config?.["interactive"] === true;
 
   return (
     <Card>
@@ -56,7 +58,7 @@ export function GeometryPanel({ panel }: { panel: Panel }) {
         {shapes.length === 0 ? (
           <p className="text-sm text-muted-foreground">Nothing to draw.</p>
         ) : (
-          <InteractiveGeometryCanvas shapes={shapes} width={width} height={height} className="w-full text-foreground" {...(panel.title ? { title: panel.title } : {})} />
+          <GeometryCanvas shapes={shapes} width={width} height={height} interactive={interactive} className="w-full text-foreground" {...(panel.title ? { title: panel.title } : {})} />
         )}
       </CardContent>
     </Card>

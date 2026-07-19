@@ -1,7 +1,8 @@
 import { describe, it, expect } from "vitest";
-import { render } from "@testing-library/react";
+import { render, screen, fireEvent } from "@testing-library/react";
 import { GeometryCanvas, type GeometryShape } from "./GeometryCanvas";
 import { buildGrid } from "../../lib/geometry/grid";
+import { buildColumnChart } from "../../lib/geometry/charts";
 
 /**
  * The geometry atom renderer draws the four fundamentals (line/rect/text/point) straight from their
@@ -111,5 +112,43 @@ describe("GeometryCanvas", () => {
     const svg = draw(buildGrid({ width: 100, height: 100, rowGap: 25, colGap: 50, stroke: "#e5e7eb" }));
     expect(svg.querySelectorAll("line").length).toBe(8);
     expect(svg.querySelector("line")!.getAttribute("stroke")).toBe("#e5e7eb");
+  });
+});
+
+describe("GeometryCanvas — the additive interaction layer (interactive def key)", () => {
+  const hovered: GeometryShape[] = [
+    { type: "rect", x: 0, y: 0, width: 10, height: 10, fill: "#2563eb", hover: "A: 10" },
+    { type: "line", x1: 0, y1: 0, x2: 10, y2: 0 }, // no hover → never interactive
+  ];
+
+  it("stays STATIC by default: hover data is ignored, no focusable regions, no tooltip", () => {
+    const { container } = render(<GeometryCanvas shapes={hovered} width={20} height={20} />);
+    expect(container.querySelectorAll("g[tabindex]").length).toBe(0);
+    fireEvent.mouseEnter(container.querySelector("rect")!);
+    expect(screen.queryByRole("tooltip")).toBeNull();
+  });
+
+  it("when interactive, reveals a tooltip on hover and on keyboard focus, and announces the label", () => {
+    render(<GeometryCanvas shapes={hovered} width={20} height={20} interactive />);
+    const region = screen.getByLabelText("A: 10");
+    expect(region).toHaveAttribute("tabindex", "0");
+    fireEvent.mouseEnter(region);
+    expect(screen.getByRole("tooltip")).toHaveTextContent("A: 10");
+    fireEvent.mouseLeave(region);
+    expect(screen.queryByRole("tooltip")).toBeNull();
+    fireEvent.focus(region);
+    expect(screen.getByRole("tooltip")).toHaveTextContent("A: 10");
+  });
+
+  it("only wraps hover-carrying atoms when interactive (the plain line stays plain)", () => {
+    const { container } = render(<GeometryCanvas shapes={hovered} width={20} height={20} interactive />);
+    expect(container.querySelectorAll("g[tabindex]").length).toBe(1);
+  });
+
+  it("makes an atom-composed bar chart interactive only when the def opts in", () => {
+    const bars = buildColumnChart({ data: [{ label: "A", value: 10 }, { label: "B", value: 20 }], width: 200, height: 100 });
+    render(<GeometryCanvas shapes={bars} width={200} height={100} interactive title="Bars" />);
+    fireEvent.mouseEnter(screen.getByLabelText("B: 20"));
+    expect(screen.getByRole("tooltip")).toHaveTextContent("B: 20");
   });
 });

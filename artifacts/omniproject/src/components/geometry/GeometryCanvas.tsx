@@ -1,12 +1,19 @@
+import { useState } from "react";
 import { numLoose } from "../../lib/num";
 
 /**
  * GeometryCanvas — the read-only SVG renderer for the GEOMETRY atom tier (roadmap: keep primitives
- * fundamental, compose up). It draws the four drawable-plane atoms — `line`, `rect`, `text`, `point`
- * — straight from their JSON params (the same param keys the shared primitive catalogue declares), so
- * a chart / gantt / diagram / visual grid can be expressed as a list of atom instances and rendered
- * here with no bespoke component. Every param is read tolerantly (system JSON is stringly-typed at the
- * edges) with the catalogue's documented defaults; an unknown `type` is skipped rather than throwing.
+ * fundamental, compose up). It draws the drawable-plane atoms — `line`, `rect`, `text`, `point`,
+ * `path` — straight from their JSON params (the same keys the shared primitive catalogue declares), so
+ * a chart / gantt / diagram / visual grid is just a list of atom instances rendered here with no
+ * bespoke component. Params are read tolerantly (system JSON is stringly-typed at the edges) with the
+ * catalogue's documented defaults; an unknown `type` is skipped rather than throwing.
+ *
+ * INTERACTIVITY is an ADDITIVE layer, not a separate canvas: the taxonomy is canvas → atoms →
+ * composition → interaction. All charts sit on the canvas; not all are interactive, so `interactive`
+ * is a declarative key (from the def) — when true, any atom carrying a `hover` string becomes a
+ * focusable region with a pointer/keyboard tooltip, announced to assistive tech; when false the very
+ * same atoms render statically. No charting library, no resize observers (the viewBox scales).
  *
  * This is the DRAWABLE plane only. The semantic plane (tables/tiles) is NOT drawn here — it stays
  * accessible DOM and composes via the def `extends` lineage.
@@ -98,7 +105,8 @@ export function GeometryAtom({ s }: { s: GeometryShape }) {
 /**
  * Draw a list of geometry-atom instances in a responsive SVG viewport (`0 0 width height` user units).
  * Give a `title` when the drawing conveys meaning (rendered as an accessible label); omit it for a
- * purely decorative drawing, which is then hidden from assistive tech.
+ * purely decorative drawing, which is then hidden from assistive tech. Set `interactive` (the def's
+ * key) to additively enable the hover/focus tooltip layer over any atom that carries a `hover` string.
  */
 export function GeometryCanvas({
   shapes,
@@ -106,6 +114,7 @@ export function GeometryCanvas({
   height = 100,
   className,
   title,
+  interactive = false,
 }: {
   shapes: GeometryShape[];
   /** Coordinate-space width (user units); the SVG scales to its container. */
@@ -114,19 +123,59 @@ export function GeometryCanvas({
   className?: string;
   /** Accessible label for a meaningful drawing; when omitted the SVG is aria-hidden (decorative). */
   title?: string;
+  /** ADDITIVE interaction layer (a declarative def key): tooltips on the atoms' `hover` text. */
+  interactive?: boolean;
 }) {
+  // Tooltip state is only ever set on the interactive path; it stays null for a static canvas.
+  const [tip, setTip] = useState<{ x: number; y: number; text: string } | null>(null);
+
+  const show = (text: string) => (e: React.MouseEvent<SVGGElement> | React.FocusEvent<SVGGElement>) => {
+    const host = e.currentTarget.closest("[data-geometry-host]") as HTMLElement | null;
+    const box = e.currentTarget.getBoundingClientRect();
+    const hostBox = host?.getBoundingClientRect();
+    setTip({ x: hostBox ? box.left - hostBox.left + box.width / 2 : 0, y: hostBox ? box.top - hostBox.top : 0, text });
+  };
+  const hide = () => setTip(null);
+
   return (
-    <svg
-      viewBox={`0 0 ${width} ${height}`}
-      preserveAspectRatio="xMidYMid meet"
-      className={className}
-      data-testid="geometry-canvas"
-      {...(title ? { role: "img", "aria-label": title } : { "aria-hidden": true })}
-    >
-      {title && <title>{title}</title>}
-      {shapes.map((s, i) => (
-        <GeometryAtom key={i} s={s} />
-      ))}
-    </svg>
+    <div className={`relative ${className ?? ""}`.trim()} data-geometry-host>
+      <svg
+        viewBox={`0 0 ${width} ${height}`}
+        preserveAspectRatio="xMidYMid meet"
+        className="w-full h-auto"
+        data-testid="geometry-canvas"
+        {...(title ? { role: "img", "aria-label": title } : { "aria-hidden": true })}
+      >
+        {title && <title>{title}</title>}
+        {shapes.map((s, i) =>
+          interactive && typeof s.hover === "string" && s.hover ? (
+            <g
+              key={i}
+              tabIndex={0}
+              role="img"
+              aria-label={s.hover}
+              onMouseEnter={show(s.hover)}
+              onMouseLeave={hide}
+              onFocus={show(s.hover)}
+              onBlur={hide}
+              className="outline-none [&:focus-visible>*]:opacity-80"
+            >
+              <GeometryAtom s={s} />
+            </g>
+          ) : (
+            <GeometryAtom key={i} s={s} />
+          ),
+        )}
+      </svg>
+      {tip && (
+        <div
+          role="tooltip"
+          className="pointer-events-none absolute z-10 -translate-x-1/2 -translate-y-full whitespace-nowrap border border-border bg-popover px-2 py-1 text-xs font-medium text-popover-foreground shadow"
+          style={{ left: tip.x, top: tip.y }}
+        >
+          {tip.text}
+        </div>
+      )}
+    </div>
   );
 }
