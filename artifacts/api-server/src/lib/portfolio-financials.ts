@@ -12,7 +12,7 @@ import type { Request } from "express";
 import { getBroker, contextFromReq, type Row, type Project } from "../broker";
 import { getSettings } from "./settings";
 import { getFxRates } from "./currency";
-import { createConcurrencyLimiter } from "./concurrency-pool";
+import { poolMap } from "./concurrency-pool";
 import { resolveCapabilities } from "./capabilities";
 import {
   consolidateByGroup, consolidationSpec, flattenRow, currencyMix, DEFAULT_CURRENCY,
@@ -84,10 +84,9 @@ export async function computePortfolioFinancials(req: Request, currencyRaw?: unk
   const target = sanitizeCurrency(currencyRaw) || settings.reportingCurrency || fx?.base || DEFAULT_CURRENCY;
 
   const financialsOff = !!caps && !caps.financials;
-  const run = createConcurrencyLimiter(FANOUT_LIMIT);
   const rows = financialsOff || !projects.length
     ? []
-    : await Promise.all(projects.map((p) => run(() => broker.projectFinancials(ctx, p.id).catch(() => null))));
+    : await poolMap(projects, FANOUT_LIMIT, (p) => broker.projectFinancials(ctx, p.id).catch(() => null));
 
   // Bind each project's financials to the generic consolidation engine, grouped by programme. The
   // `financials` spec (data) says which fields to fold and derive; `flattenRow` hoists the resulting

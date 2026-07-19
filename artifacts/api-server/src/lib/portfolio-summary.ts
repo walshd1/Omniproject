@@ -4,7 +4,7 @@ import { getBroker, contextFromReq, type PortfolioRow, type Row, type Project } 
 import { getSettings } from "./settings";
 import { getFxRates } from "./currency";
 import { resolveCapabilities } from "./capabilities";
-import { createConcurrencyLimiter } from "./concurrency-pool";
+import { createConcurrencyLimiter, poolMapWith, type Limiter } from "./concurrency-pool";
 import { summariseTasks, type TaskSummary } from "./task-summary";
 import { planProjectSources, type SourcePlan } from "./closed-projects";
 
@@ -198,7 +198,6 @@ function resolveFxAsOf(settings: ReturnType<typeof getSettings>): string | undef
 type Broker = ReturnType<typeof getBroker>;
 type Ctx = ReturnType<typeof contextFromReq>;
 type Caps = Awaited<ReturnType<typeof resolveCapabilities>> | null;
-type Limiter = ReturnType<typeof createConcurrencyLimiter>;
 
 async function summaryHealth(broker: Broker, ctx: Ctx, caps: Caps): Promise<HealthTotals | null> {
   if (caps && !caps.portfolio) return null;
@@ -211,7 +210,7 @@ async function summaryFinance(req: Request, broker: Broker, ctx: Ctx, caps: Caps
   const settings = getSettings();
   // FX is independent of the financials rows (needed only at fold time) — fetch it alongside the fan-out.
   const [rows, fx] = await Promise.all([
-    Promise.all(projects.map((p) => run(() => broker.projectFinancials(ctx, p.id).catch(() => null)))),
+    poolMapWith(run, projects, (p) => broker.projectFinancials(ctx, p.id).catch(() => null)),
     getFxRates(req, resolveFxAsOf(settings)).catch(() => null),
   ]);
   const valid = rows.filter((r): r is Row => !!r);
@@ -237,7 +236,7 @@ async function summaryFinance(req: Request, broker: Broker, ctx: Ctx, caps: Caps
 
 async function summaryCapacity(broker: Broker, ctx: Ctx, caps: Caps, projects: Project[], run: Limiter): Promise<CapacityTotals | null> {
   if ((caps && !caps.resources) || !projects.length) return null;
-  const lists = await Promise.all(projects.map((p) => run(() => broker.resourceCapacity(ctx, p.id).catch(() => [] as Row[]))));
+  const lists = await poolMapWith(run, projects, (p) => broker.resourceCapacity(ctx, p.id).catch(() => [] as Row[]));
   const all = lists.flat();
   return all.length ? foldCapacity(all) : null;
 }
