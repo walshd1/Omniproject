@@ -64,6 +64,13 @@ export function useResolvedDefs<T = unknown>(kind: DefKind, projectId?: string, 
   });
 }
 
+/** The binding slot key for a primitive family — namespaced so a primitive selection never collides with a
+ *  same-named screen/report slot. Mirrors the server's `primitiveSlot` (lib/def-binding). Locking this slot at a
+ *  scope mandates the primitive down that subtree (a descendant can't re-fork or re-select it). */
+export function primitiveSlot(primitiveId: string): string {
+  return `primitive:${primitiveId}`;
+}
+
 /** A stored selection for one slot (mirrors the server's `DefBinding`): the chosen def + whether the choice is
  *  LOCKED so lower scopes can't override it. */
 export interface DefBinding { defId: string; locked?: boolean }

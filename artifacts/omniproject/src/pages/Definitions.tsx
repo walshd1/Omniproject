@@ -1,13 +1,14 @@
 import { useEffect, useState } from "react";
-import { Database, Trash2, Check, AlertTriangle, Save, ShieldCheck, Pencil } from "lucide-react";
+import { Database, Trash2, Check, AlertTriangle, Save, ShieldCheck, Pencil, Lock } from "lucide-react";
 import { DataState } from "../components/DataState";
 import {
-  useDefs, useDef, useValidateDef, useImportDef, useUpdateDef, useDeleteDef,
+  useDefs, useDef, useValidateDef, useImportDef, useUpdateDef, useDeleteDef, useResolvedDefs, primitiveSlot,
   DEF_KINDS, type DefKind, type DefStorage, type StoredDefMeta,
 } from "../lib/defs";
 import { useDefPolicy, writableDefScopes } from "../lib/def-policy";
 import { useAuth } from "../lib/auth";
 import { safeParseJson } from "../lib/safe-json";
+import { DefBindingControl } from "../components/defs/DefBindingControl";
 import { useToast } from "@/hooks/use-toast";
 
 /**
@@ -214,6 +215,40 @@ function DefRow({ meta, onEdit }: { meta: StoredDefMeta; onEdit: (id: string) =>
   );
 }
 
+/** Governance: SELECT + LOCK the primitive in use for each org-authored (activated) primitive family. Locking a
+ *  primitive slot at a scope mandates it down that subtree — a descendant can't re-fork or re-select it (the
+ *  binding resolver is the same one screens/reports use). Shows only CUSTOMER-activated primitives (a shipped
+ *  `system~` primitive has nothing to override); the control surfaces the server-resolved winner + any lock. */
+function PrimitiveLocks() {
+  const { data: resolved } = useResolvedDefs<{ id?: unknown; label?: unknown }>("primitive");
+  const rows = Array.isArray(resolved) ? resolved : [];
+  // The activated (non-shipped) primitives, deduped by logical id — one lock control per family.
+  const families = new Map<string, string>();
+  for (const d of rows) {
+    if (d.id.startsWith("system~")) continue; // shipped baseline — nothing to lock over
+    const logicalId = typeof d.payload?.id === "string" ? d.payload.id : "";
+    if (!logicalId || families.has(logicalId)) continue;
+    families.set(logicalId, typeof d.payload?.label === "string" ? d.payload.label : logicalId);
+  }
+  if (families.size === 0) return null;
+
+  return (
+    <div className="space-y-2" data-testid="primitive-locks">
+      <div className="flex items-center gap-2">
+        <Lock className="w-4 h-4" />
+        <h2 className="text-sm font-black uppercase tracking-widest">Primitive selection &amp; locks</h2>
+      </div>
+      <p className="text-xs text-muted-foreground">
+        Choose which activated primitive is in use for a family, and — at a project/programme/org scope — LOCK it so
+        lower scopes can't re-fork or swap it. A lock needs a fresh step-up.
+      </p>
+      {[...families.entries()].map(([id, label]) => (
+        <DefBindingControl key={id} slot={primitiveSlot(id)} kind="primitive" label={`${label} (${id})`} />
+      ))}
+    </div>
+  );
+}
+
 export function Definitions() {
   const { data: defs, isLoading, isError, error, refetch } = useDefs();
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -227,6 +262,8 @@ export function Definitions() {
       </div>
 
       {editingId ? <EditPanel id={editingId} onDone={() => setEditingId(null)} /> : <ImportPanel />}
+
+      <PrimitiveLocks />
 
       <DataState isLoading={isLoading} isError={isError} error={error} onRetry={() => refetch()} className="min-h-32">
         <div className="space-y-2" data-testid="def-list">

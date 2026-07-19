@@ -66,6 +66,34 @@ describe("Definitions page", () => {
     expect(options).toEqual(["user"]);
   });
 
+  it("surfaces a SELECT + LOCK control for each activated (non-shipped) primitive family, but not shipped ones", () => {
+    const client = seed();
+    // The resolved-primitive set: one org-ACTIVATED primitive (lockable) + one shipped `system~` baseline (not).
+    client.setQueryData([...defsKey, "resolved", "primitive", null, null], [
+      { id: "org~reg-abc", kind: "primitive", name: "Acme tile", storage: "org", createdBy: null, createdAt: "", updatedAt: "", rowVersion: 1, payload: { id: "acme-tile", label: "Acme tile" } },
+      { id: "system~bar", kind: "primitive", name: "Bar", storage: "system", createdBy: "system", createdAt: "", updatedAt: "", rowVersion: 1, payload: { id: "bar", label: "Bar" } },
+    ]);
+    client.setQueryData([...defsKey, "active", null, null], {});
+    renderWithProviders(<Definitions />, { client });
+    expect(screen.getByTestId("primitive-locks")).toBeInTheDocument();
+    // A lock control for the activated primitive, keyed on its namespaced slot …
+    expect(screen.getByTestId("def-binding-primitive:acme-tile")).toBeInTheDocument();
+    // … but none for the shipped `bar` (nothing to override).
+    expect(screen.queryByTestId("def-binding-primitive:bar")).not.toBeInTheDocument();
+    // Choosing an org scope (admin) reveals the LOCK — mandate it down the subtree.
+    fireEvent.change(screen.getByTestId("def-binding-scope-primitive:acme-tile"), { target: { value: "org" } });
+    expect(screen.getByTestId("def-binding-lock-primitive:acme-tile")).toBeInTheDocument();
+  });
+
+  it("hides the primitive-locks panel entirely when no primitives are activated", () => {
+    const client = seed();
+    client.setQueryData([...defsKey, "resolved", "primitive", null, null], [
+      { id: "system~bar", kind: "primitive", name: "Bar", storage: "system", createdBy: "system", createdAt: "", updatedAt: "", rowVersion: 1, payload: { id: "bar", label: "Bar" } },
+    ]);
+    renderWithProviders(<Definitions />, { client });
+    expect(screen.queryByTestId("primitive-locks")).not.toBeInTheDocument();
+  });
+
   it("opens the editor for a row and seeds it with the def's payload", async () => {
     const client = seed([meta({ id: "user~e1", name: "Editable" })]);
     client.setQueryData(defKey("user~e1"), {
