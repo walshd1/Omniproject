@@ -81,14 +81,17 @@ export function TablePanel({ panel }: { panel: Panel }) {
             {shown.map((row, ri) => {
               const drill = drillTo ? resolveDrillTo(drillTo, records[ri] ?? {}) : null;
               return (
+                // Keyboard-operable drill: a resolved row is focusable (tabIndex), announced (role) and
+                // fired by Enter/Space as well as click — the props are written as literal JSX attributes
+                // (not a conditional spread) so the interactive-parity guard can see the keyboard support.
                 <tr
                   key={ri}
                   className={`border-b border-border/50 ${drill ? "cursor-pointer hover:bg-muted/50" : ""}`}
-                  {...(drill ? {
-                    role: "button", tabIndex: 0, "data-testid": `table-drill-${ri}`, title: drill.label,
-                    onClick: () => navigate(drill.href),
-                    onKeyDown: (e: React.KeyboardEvent) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); navigate(drill.href); } },
-                  } : {})}
+                  {...(drill && { "data-testid": `table-drill-${ri}`, title: drill.label })}
+                  role={drill ? "button" : undefined}
+                  tabIndex={drill ? 0 : undefined}
+                  onClick={drill ? () => navigate(drill.href) : undefined}
+                  onKeyDown={drill ? (e: React.KeyboardEvent) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); navigate(drill.href); } } : undefined}
                 >
                   {row.map((cell, ci) => (
                     <td key={ci} className="py-1 pr-4 tabular-nums">{String(cell)}</td>
