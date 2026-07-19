@@ -10,8 +10,25 @@
  * The derived metrics are a CLOSED vocabulary of named operations (diff / diffFloor0 / ratioPct /
  * ratioOrNull) — never an evaluated expression string — so a spec can't smuggle in executable code.
  */
-import { convertAmount, isConvertible, LocalTracker } from "./finance-consolidation";
+import { convertAmount, isConvertible } from "./currency";
 import { CONSOLIDATIONS_DATA } from "./consolidations.generated";
+
+/**
+ * Track whether every project folded into a roll-up row so far shares one source currency, so the row can
+ * show a `local` (un-converted) figure alongside the consolidated total. Once a second currency appears the
+ * row is "mixed" and only the consolidated total applies.
+ */
+export class LocalTracker {
+  currency: string | null = null;
+  private seen = new Set<string>();
+
+  /** Fold one more project's currency in; returns true while the row is still single-currency. */
+  add(currency: string): boolean {
+    this.seen.add(currency);
+    this.currency = this.seen.size === 1 ? currency : null;
+    return this.seen.size === 1;
+  }
+}
 
 /** Coerce a possibly-dirty numeric value to a finite number (string/null/NaN/±Infinity → 0). */
 const num = (v: unknown): number => {

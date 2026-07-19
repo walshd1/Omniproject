@@ -1,64 +1,11 @@
 /**
- * Portfolio financial consolidation — the ONE pure, dependency-free implementation shared by the SPA
- * (the Portfolio Financials report + Exec Board Pack) and the gateway (the `/api/portfolio/financials`
- * fan-out). Convert each project's budget / actual / forecast into ONE reporting currency via a
- * base-anchored FX table and roll them up by programme and across the portfolio. Derive-only: the caller
- * supplies each project's financials + the FX rates; nothing is stored.
- *
- * Previously this lived only in the SPA (`lib/portfolio-finance.ts`) with a hand-kept "twin" in the
- * gateway (`lib/portfolio-summary.ts` `foldFinance`) that the two had to keep in sync by comment. This is
- * that single source of truth. Kept free of any React / api-client dependency (structural input type) so
- * both packages import it.
+ * Financials binding — the finance-specific layer over the generic consolidation engine: it names the
+ * budget / actual / forecast / earned-value fields the `/api/portfolio/financials` wire contract exposes and
+ * maps a generic consolidated row onto them. The FOLD is not here (that is `consolidation.ts` run with the
+ * `financials` spec); this is only the data-specific binding — the field names live in the spec + this
+ * contract shape, not in a re-implemented roll-up. Shared by the SPA report and the gateway fan-out.
  */
 import { consolidateByGroup, consolidationSpec, type ConsolidatedRow, type ConsolidationInput } from "./consolidation";
-
-/**
- * Convert between currencies via a base-anchored rate table. Falls back to the original amount if a rate
- * is missing (so a UI never shows NaN) — callers that SUM must gate on {@link isConvertible} first.
- */
-export function convertAmount(amount: number, from: string, to: string, rates?: Record<string, number>): number {
-  if (!rates || from === to) return amount;
-  // Own-property + finite guards: a code like "__proto__" would otherwise read an inherited member.
-  const rFrom = Object.hasOwn(rates, from) ? rates[from] : undefined;
-  const rTo = Object.hasOwn(rates, to) ? rates[to] : undefined;
-  if (!Number.isFinite(rFrom) || !Number.isFinite(rTo) || rTo === 0) return amount;
-  return (amount * (rFrom as number)) / (rTo as number);
-}
-
-/** Whether `from` can actually be converted to `to` with these rates — callers that SUM across
- *  currencies must use this to exclude unconvertible rows, or a raw foreign amount corrupts the total. */
-export function isConvertible(from: string, to: string, rates?: Record<string, number>): boolean {
-  if (from === to) return true;
-  if (!rates) return false;
-  const rFrom = Object.hasOwn(rates, from) ? rates[from] : undefined;
-  const rTo = Object.hasOwn(rates, to) ? rates[to] : undefined;
-  return Number.isFinite(rFrom) && Number.isFinite(rTo) && rTo !== 0;
-}
-
-/** The sorted list of currency codes a rate table can convert between. */
-export function currencyList(rates?: Record<string, number>): string[] {
-  return rates ? Object.keys(rates).sort() : [];
-}
-
-/** The display currency assumed when nothing else resolves one. One place so every surface agrees. */
-export const DEFAULT_CURRENCY = "GBP";
-
-/**
- * Track whether every project folded into a roll-up row so far shares one source currency, so the row
- * can show a `local` (un-converted) figure alongside the consolidated total. Once a second currency
- * appears the row is "mixed" and only the consolidated total applies.
- */
-export class LocalTracker {
-  currency: string | null = null;
-  private seen = new Set<string>();
-
-  /** Fold one more project's currency in; returns true while the row is still single-currency. */
-  add(currency: string): boolean {
-    this.seen.add(currency);
-    this.currency = this.seen.size === 1 ? currency : null;
-    return this.seen.size === 1;
-  }
-}
 
 /** The subset of a project's financials the consolidation reads — structural, so no api-client/zod dep. */
 export interface ProjectFinancialsLike {
@@ -143,10 +90,9 @@ function toFinanceRollup(r: ConsolidatedRow): FinanceRollup {
  * Consolidate projects into programme roll-ups + a portfolio total, all in `reportingCurrency`. Standalone
  * projects share a "Standalone" group; programmes are returned worst-variance first so overspend surfaces.
  *
- * This is now a thin caller of the generic `consolidateByGroup` engine driven by the `financials`
- * consolidation spec — the group → FX-convert → local-track → derive fold is no longer re-implemented here.
- * (`consolidation.ts` imports the FX primitives above; the spec lookup is lazy to keep that cycle init-safe.)
- * The currency mix is a plain tally the engine doesn't produce, so it stays.
+ * A thin caller of the generic `consolidateByGroup` engine driven by the `financials` consolidation spec —
+ * the group → FX-convert → local-track → derive fold is not re-implemented here. The currency mix is a plain
+ * tally the engine doesn't produce, so it stays.
  */
 export function consolidateFinancials(
   projects: ProjectFin[],
