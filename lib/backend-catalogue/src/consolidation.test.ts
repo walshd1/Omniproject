@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { consolidateByGroup, consolidationSpec, flattenRow, CONSOLIDATIONS, type ConsolidationInput, type ConsolidationSpec } from "./consolidation";
+import { consolidateByGroup, consolidationSpec, consolidationFields, flattenRow, CONSOLIDATIONS, type ConsolidationInput, type ConsolidationSpec } from "./consolidation";
 import { currencyMix } from "./currency";
 
 const income = consolidationSpec("income");
@@ -23,6 +23,16 @@ test("shipped specs all validate against the engine's expectations", () => {
     const sortKeys = [...measureKeys, ...spec.derived.map((d) => d.key)];
     assert.ok(sortKeys.includes(spec.sort.key), `${spec.id} sorts on a known key`);
   }
+});
+
+test("consolidationFields returns the union of measure field/weightField across specs (blanks dropped)", () => {
+  // financials fields + costs fields, deduped; the `count` measure (no field) contributes nothing.
+  assert.deepEqual(
+    [...consolidationFields(["financials", "costs"])].sort(),
+    ["actualBurn", "actualCost", "budget", "budgetAllocated", "earnedValue", "forecastCostAtCompletion"],
+  );
+  // benefits' weightField (benefitConfidence) is included alongside the summed fields.
+  assert.ok(consolidationFields(["benefits"]).includes("benefitConfidence"));
 });
 
 test("groups by key, sums measures and computes the derived metrics + grand total", () => {

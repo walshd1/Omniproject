@@ -4469,6 +4469,7 @@ Generic group consolidation engine — the ONE fold behind every "consolidate a 
 | `consolidateByGroup` | Run a consolidation spec over a set of project contributions: group them, fold each into its group + the grand total, then finalise (round measures, compute derived, settle local) and sort. |
 | `flattenRow` | Present a consolidated row as a FLAT record: the fixed fields plus every metric hoisted to a top-level key. |
 | `consolidationSpec` | Look up a consolidation spec by id, or throw — a report binds to its spec by a stable id. |
+| `consolidationFields` | The RAW row fields the named consolidation specs read — every measure's `field` and `weightField`, deduped, blanks dropped. |
 
 ### `lib/backend-catalogue/src/consolidations.generated.ts`
 

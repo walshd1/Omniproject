@@ -296,3 +296,17 @@ export function consolidationSpec(id: string): ConsolidationSpec {
   if (!spec) throw new Error(`Unknown consolidation spec "${id}" (known: ${CONSOLIDATIONS.map((c) => c.id).join(", ")})`);
   return spec;
 }
+
+/** The RAW row fields the named consolidation specs read — every measure's `field` and `weightField`,
+ *  deduped, blanks dropped. A row sanitiser derives WHICH numeric fields to coerce from this instead of
+ *  a hand-kept list, so adding a measure field to a spec automatically extends the sanitiser (no drift). */
+export function consolidationFields(ids: readonly string[]): string[] {
+  const out = new Set<string>();
+  for (const id of ids) {
+    for (const m of consolidationSpec(id).measures) {
+      if (m.field) out.add(m.field);
+      if (m.weightField) out.add(m.weightField);
+    }
+  }
+  return [...out];
+}
