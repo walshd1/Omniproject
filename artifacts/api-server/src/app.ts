@@ -43,6 +43,7 @@ import { restoreActiveEnvironment } from "./lib/config-store";
 import { seedSystemDefaultsIfEmpty } from "./lib/system-defs";
 import { ensureOrgIdentity } from "./lib/org-identity";
 import { engageRecoveryConfigDir } from "./lib/recovery-mode";
+import { ensureInstanceKey } from "./lib/instance-key";
 import { invalidateDefIndex } from "./lib/def-index";
 import { SAMPLE_PROGRAMME_REGISTRY } from "./broker/demo-data";
 
@@ -120,6 +121,9 @@ export async function bootstrap(): Promise<void> {
   // "org id at the top of the org JSON" holds from first boot. Idempotent — an already-minted id is never
   // rewritten, and it's a no-op when the encrypted store is disabled. The name is set later in first-run setup.
   ensureOrgIdentity({ sub: "system", name: "system" }, new Date().toISOString());
+  // Mint the INSTANCE RECOVERY KEY (wrapped at rest) so first-setup always has a key to reveal + save offline.
+  // Idempotent; no-op when the encrypted store is disabled.
+  ensureInstanceKey(new Date().toISOString());
   // Rebuild-on-doubt: drop the composition child-edge index at boot so a crash that stranded a stale index can't
   // let the importer's fast path wrongly skip a cascade. It is rebuilt from a full scan on first use.
   invalidateDefIndex();

@@ -60,6 +60,7 @@ import { ScreensAdmin } from "../components/settings/ScreensAdmin";
 import { RoleMapAdmin } from "../components/settings/RoleMapAdmin";
 import { UsersAdmin } from "../components/settings/UsersAdmin";
 import { PasskeySecurity } from "../components/settings/PasskeySecurity";
+import { RecoveryKeyAdmin } from "../components/settings/RecoveryKeyAdmin";
 import { CustomRolesAdmin } from "../components/settings/CustomRolesAdmin";
 import { DefPolicyAdmin } from "../components/settings/DefPolicyAdmin";
 import { RaciAdmin } from "../components/settings/RaciAdmin";
@@ -168,6 +169,7 @@ const ADMIN_PANELS: AdminPanel[] = [
   { key: "governance", Component: GovernanceAdmin },
   { key: "users", Component: UsersAdmin },
   { key: "passkeySecurity", Component: PasskeySecurity },
+  { key: "recoveryKey", Component: RecoveryKeyAdmin },
   { key: "roleMap", Component: RoleMapAdmin },
   { key: "customRoles", Component: CustomRolesAdmin },
   { key: "defPolicy", Component: DefPolicyAdmin },

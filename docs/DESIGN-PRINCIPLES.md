@@ -140,8 +140,15 @@ Two hard rules make this safe:
 
 ## Operational implications (read this if you run OmniProject)
 
+- **Save your recovery key on first setup, and keep it offline.** A fresh instance mints an **Instance Recovery
+  Key** (IRK) — a portable secret shown to the admin **once** (Settings → Recovery key), stored *wrapped* on
+  the box (never plaintext, never a bare env var; KMS-preferred). It is the ONLY thing that opens an encrypted
+  **portable backup** on a different box, so save it somewhere separate — a password manager, or printed and
+  locked away. **Restore** is: upload the portable backup + paste the old key → it decrypts, reloads, and the
+  instance **rotates to a fresh key it then reveals** (save that one too). Lose the key and its backups can't be
+  opened — that's the zero-at-rest guarantee cutting both ways.
 - **Back up regularly, and keep a copy offline.** Because the system is zero-at-rest and several stores are
-  *separately keyed*, your encrypted config backup + your keys **are** your recoverability. Recovery
+  *separately keyed*, your encrypted backup + your recovery key **are** your recoverability. Recovery
   break-glass and total key loss both resolve to "start afresh or restore from backup". A regular, offline
   (air-gapped or otherwise out-of-band) backup is the difference between a bad afternoon and a data-loss
   event. Test your restores.
