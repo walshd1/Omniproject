@@ -150,11 +150,14 @@ test("org PRIMITIVE authoring: submit is safety-checked, approve ACTIVATES it as
 
   // Admin approves → the primitive is ACTIVATED into the org def scope and now resolves.
   assert.equal((await req(`/registry/${item.id}/review`, { method: "POST", body: { decision: "approved" } })).status, 200);
-  const live = (await req("/defs/resolved/primitive").then((x) => x.json())) as Array<{ kind: string; payload: { id: string; extends?: string } }>;
+  const live = (await req("/defs/resolved/primitive").then((x) => x.json())) as Array<{ id: string; kind: string; createdBy: string | null; payload: { id: string; extends?: string } }>;
   const activated = live.find((d) => d.payload.id === "acme-tile");
   assert.ok(activated, "an approved primitive is live in the org scope");
   assert.equal(activated!.kind, "primitive");
   assert.equal(activated!.payload.extends, "tile");
+  // DOWNWARD-ONLY: it is activated at the ORG (customer) level, never above — its def id is org-scoped, so the
+  // shadow only flows DOWN (org → programme → project → user); it never mutates the system primitive above it.
+  assert.match(activated!.id, /^org~/, "the org primitive lives at the org scope, not above");
 
   // Rejecting it removes the activated def again.
   assert.equal((await req(`/registry/${item.id}/review`, { method: "POST", body: { decision: "rejected" } })).status, 200);
