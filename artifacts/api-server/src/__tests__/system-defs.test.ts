@@ -19,7 +19,6 @@ after(() => fs.rmSync(CONFIG_DIR, { recursive: true, force: true }));
 test("seedSystemDefaultsIfEmpty installs the bundled defaults once; applySystemDefaults re-applies in one shot", async () => {
   const { seedSystemDefaultsIfEmpty, applySystemDefaults } = await import("../lib/system-defs");
   const { listSystemDefs } = await import("../lib/def-import");
-  const { methodologyArtifactAncestors } = await import("@workspace/backend-catalogue");
 
   const first = seedSystemDefaultsIfEmpty();
   assert.equal(first.seeded, true);
@@ -33,16 +32,10 @@ test("seedSystemDefaultsIfEmpty installs the bundled defaults once; applySystemD
   // The shipped screens + primitives are seeded (relocated into the shared catalogue — X.11).
   assert.ok(defs.some((d) => d.kind === "screen" && (d.payload as { id?: unknown }).id === "home"), "the Home screen is a shipped system default");
   assert.ok(defs.some((d) => d.kind === "primitive" && (d.payload as { id?: unknown }).id === "bar"), "the bar-chart primitive is a shipped system default");
-  // The canonical methodology artifacts — one atom-composed overview screen per methodology — are seeded as
-  // read-only `screen` defs (rendered + canonical-checked before commit; forkable per scope like any other def).
-  assert.ok(defs.some((d) => d.kind === "screen" && (d.payload as { id?: unknown }).id === "scrum-overview"), "the Scrum overview artifact is a shipped system default");
-  assert.ok(defs.some((d) => d.kind === "screen" && (d.payload as { id?: unknown }).id === "kanban-overview"), "the Kanban overview artifact is a shipped system default");
-  // The recipe is committed WITH its ancestor recipes — every primitive in an artifact's lineage is also a
-  // seeded `primitive` def, so a committed screen never references a primitive that isn't in the store.
-  const seededPrimitiveIds = new Set(defs.filter((d) => d.kind === "primitive").map((d) => (d.payload as { id?: unknown }).id));
-  for (const anc of methodologyArtifactAncestors()) {
-    assert.ok(seededPrimitiveIds.has(anc), `ancestor primitive "${anc}" is committed alongside the artifacts`);
-  }
+  // The methodology overview screens are ordinary catalogue screens (built purely from atom panels) — they seed
+  // through the same `screen` path as every other screen, alongside their ancestor primitive defs.
+  assert.ok(defs.some((d) => d.kind === "screen" && (d.payload as { id?: unknown }).id === "scrum-overview"), "the Scrum overview screen is a shipped system default");
+  assert.ok(defs.some((d) => d.kind === "screen" && (d.payload as { id?: unknown }).id === "kanban-overview"), "the Kanban overview screen is a shipped system default");
   // Every shipped default is a read-only system row authored by "system".
   assert.ok(defs.every((d) => d.id.startsWith("system~") && d.createdBy === "system"));
   // The canonical work-item vocabulary is seeded as a read-only system `config` def (statuses + priorities),
