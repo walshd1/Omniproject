@@ -42,21 +42,22 @@ describe("primitive catalogue", () => {
     }
   });
 
-  it("composition: extends resolves property-by-property with a traceable lineage (data-slot ← register ← record-set)", () => {
+  it("composition: extends resolves property-by-property with a traceable lineage (data-slot ← register ← record-set ← record)", () => {
     const ds = resolvePrimitive("data-slot")!;
-    // register/data-slot are DATA STRUCTURES — they descend from record-set, not the visual table.
-    expect(ds.lineage).toEqual(["data-slot", "register", "record-set"]);
-    // Fields trace back to the def that supplied them: columns from the record-set (schema), an editable
+    // register/data-slot are DATA STRUCTURES — they descend from record (via record-set), not the table.
+    expect(ds.lineage).toEqual(["data-slot", "register", "record-set", "record"]);
+    // Fields trace back to the def that supplied them: columns (schema) from the record, an editable
     // prop from register, and the one it adds/alters (slot, now required) from data-slot itself.
-    expect(ds.provenance["columns"]).toBe("record-set");
+    expect(ds.provenance["columns"]).toBe("record");
     expect(ds.provenance["collection"]).toBe("register");
     expect(ds.provenance["slot"]).toBe("data-slot");
     expect(ds.params.find((p) => p.key === "slot")?.required).toBe(true); // the child ALTERS slot → required
-    // Roots are the tree roots: `canvas` (visuals) and `record-set` (data). The visual table and the
-    // editable data structures descend from them — none are roots.
+    // Roots are the tree roots: `canvas` (visuals) and `record` (data — all records belong to a set,
+    // so record-set extends record). The visuals and data structures descend from them — none are roots.
     const rootIds = rootPrimitives().map((r) => r.id);
     expect(rootIds).toContain("canvas");
-    expect(rootIds).toContain("record-set");
+    expect(rootIds).toContain("record");
+    expect(rootIds).not.toContain("record-set");
     expect(rootIds).not.toContain("table");
     expect(rootIds).not.toContain("register");
     expect(rootIds).not.toContain("data-slot");

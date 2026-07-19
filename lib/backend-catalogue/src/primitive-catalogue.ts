@@ -340,14 +340,28 @@ export const PRIMITIVE_CATALOGUE: PrimitiveDef[] = [
   // `record-set` is the root: a set of typed records (columns/fields + rows). Its editable
   // specialisations (register → data-slot) are DATA, not visuals — they're bound to a store and own
   // CRUD. A VISUAL that shows a record set (the `table` below) BINDS to one; it does not extend it.
+  // ── DATA-STRUCTURES TREE — root is `record`; all records belong to a set ─────────────────────────
+  // A `record` is the atomic data structure (its typed fields). But a record never lives alone — it
+  // belongs to a `record-set`, which extends `record` by adding the collection (rows) over that
+  // schema. The editable sets (register → data-slot) specialise the set. A VISUAL (table) binds to a
+  // record-set to show it. Lineage: data-slot → register → record-set → record.
+  {
+    id: "record",
+    label: "Record",
+    category: "data-structure",
+    description: "The atomic data structure — a single record's typed fields (its schema). Pure DATA. A record never stands alone: it belongs to a `record-set`.",
+    params: [
+      { key: "columns", label: "Fields", type: "columns", required: true, description: "The record's typed fields: key, label, type/alignment. Its schema." },
+    ],
+  },
   {
     id: "record-set",
     label: "Record set",
     category: "data-structure",
-    description: "A structured set of records — typed columns/fields plus rows. A pure DATA STRUCTURE, independent of how it's displayed; a visual (table/board/chart) binds to it to show it.",
+    extends: "record",
+    description: "The SET a record belongs to — a record's schema (inherited fields) plus the collection of records (rows). The working data structure; a visual (table/board/chart) binds to it to show it.",
     params: [
-      { key: "columns", label: "Columns", type: "columns", required: true, description: "The fields/columns: key, label, type/alignment. The record set's schema." },
-      { key: "rows", label: "Rows", type: "rows", required: true, description: "One object per record." },
+      { key: "rows", label: "Rows", type: "rows", required: true, description: "One object per record — the set's records." },
     ],
   },
   {
