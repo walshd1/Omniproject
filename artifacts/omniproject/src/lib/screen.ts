@@ -9,7 +9,7 @@
  * mode. Capability gating hides a panel whose backend domain isn't available.
  */
 
-export type PanelKind = "metric" | "text" | "table" | "list" | "view" | "board" | "chart" | "timeline" | "register" | "graph" | "map" | "component" | "widget" | "form" | "geometry";
+export type PanelKind = "metric" | "text" | "table" | "list" | "view" | "board" | "chart" | "timeline" | "register" | "graph" | "map" | "component" | "widget" | "form" | "geometry" | "field";
 
 export interface Panel {
   id: string;

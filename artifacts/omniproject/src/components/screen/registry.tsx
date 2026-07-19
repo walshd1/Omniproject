@@ -13,6 +13,7 @@ import { WidgetPanel } from "./panels/WidgetPanel";
 import { RegisterPanel } from "./panels/RegisterPanel";
 import { FormPanel } from "./panels/FormPanel";
 import { GeometryPanel } from "./panels/GeometryPanel";
+import { FieldPanel } from "./panels/FieldPanel";
 
 /**
  * Panel-renderer registry — maps a panel `kind` to the ONE component that renders
@@ -47,6 +48,9 @@ export const PANEL_RENDERERS: Partial<Record<PanelKind, PanelComponent>> = {
   // A drawing built from the fundamental GEOMETRY atoms (line/rect/text/point) — how a recipe embeds
   // a bespoke visual composed from primitives rather than a hardwired chart component.
   geometry: GeometryPanel,
+  // A settings FIELD (or group) bound to decisions — the decision's TYPE drives which control renders
+  // (toggle / select / checkboxes / number / text). The runtime of the decision→field seam.
+  field: FieldPanel,
 };
 
 /** Whether a renderer exists for a panel kind (else it degrades to a placeholder). */
