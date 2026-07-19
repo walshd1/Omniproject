@@ -30,7 +30,7 @@ describe("primitive catalogue", () => {
     // The render-surface SPINE (canvas ← geometry-canvas ← chart ← interactive-chart) are ABSTRACT
     // composition bases — never instantiated directly by the builder, so they legitimately expose only
     // optional params; concrete descendants get their required params from their own data shape.
-    const ABSTRACT_BASES = new Set(["canvas", "geometry-canvas", "chart", "interactive-chart", "tile"]);
+    const ABSTRACT_BASES = new Set(["canvas", "geometry-canvas", "chart", "interactive-chart", "tile", "blank"]);
     for (const p of PRIMITIVE_CATALOGUE) {
       expect(p.label.length, p.id).toBeGreaterThan(0);
       expect(p.description.length, p.id).toBeGreaterThan(0);

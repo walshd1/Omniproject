@@ -20,11 +20,14 @@
  *    it's shown. A `table` VISUAL binds to a `record-set` DATA STRUCTURE.
  *  - ATOMIC building blocks placed INTO the visuals: `geometry` marks (line/rect/…), `tile` KPIs, and
  *    `control` inputs (switch/label) — settings/forms are composed from these atoms.
+ *  - CUSTOM (root `blank`): a neutral, unconnected base that belongs to no tree. It exists only so a bespoke
+ *    primitive that doesn't specialise an existing family has a SYSTEM root to extend — the bootstrap anchor
+ *    for org-authored primitives (keeps "a customer primitive always sits below a system primitive" true).
  */
 export type PrimitiveCategory =
-  | "surface" | "geometry" | "chart" | "graphic" | "control" | "setting" | "data-structure" | "table" | "tile";
+  | "surface" | "geometry" | "chart" | "graphic" | "control" | "setting" | "data-structure" | "table" | "tile" | "custom";
 export const PRIMITIVE_CATEGORIES: readonly PrimitiveCategory[] = [
-  "surface", "geometry", "chart", "graphic", "control", "setting", "data-structure", "table", "tile",
+  "surface", "geometry", "chart", "graphic", "control", "setting", "data-structure", "table", "tile", "custom",
 ];
 
 /** The kind of value a primitive parameter carries (mirrors the SPA `PrimitiveParamType`). */

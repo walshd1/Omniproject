@@ -1,13 +1,27 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { PRIMITIVE_CATALOGUE, rootPrimitives, resolvePrimitive } from "./primitive-catalogue";
+import { PRIMITIVE_CATALOGUE, rootPrimitives, resolvePrimitive, getPrimitive } from "./primitive-catalogue";
 import { validatePrimitiveDef } from "./primitive-schema";
+import { primitiveSafetyErrors } from "./primitive-safety";
 
 /**
  * THE SOURCE BOUNDARY: only ROOT primitives (built on nothing — no `extends`) are code (TypeScript). Every
  * DERIVED primitive (it `extends` an ancestor) is DATA, authored as a JSON recipe under primitives/. This
  * pins that rule: the split is roots-only-in-TS, and every derived recipe is a valid, resolvable primitive.
  */
+
+test("`blank` is the system bootstrap root a bespoke primitive can extend", () => {
+  const blank = getPrimitive("blank");
+  assert.ok(blank, "the blank base is shipped");
+  assert.equal(blank!.extends, undefined, "blank is a root");
+  assert.equal(blank!.category, "custom");
+  assert.ok(rootPrimitives().some((p) => p.id === "blank"));
+  // A bespoke primitive that starts a fresh family by extending `blank` is a well-formed, safe customer primitive.
+  const bespoke = { id: "acme-widget", label: "Acme widget", category: "custom" as const, extends: "blank", description: "a new bespoke family", params: [] };
+  assert.equal(validatePrimitiveDef(bespoke).ok, true);
+  assert.deepEqual(primitiveSafetyErrors(validatePrimitiveDef(bespoke).def!), []);
+  assert.equal(resolvePrimitive("blank")!.lineage.at(-1), "blank");
+});
 
 test("a primitive is a ROOT (no extends) or a DERIVED recipe (extends) — nothing in between", () => {
   const roots = PRIMITIVE_CATALOGUE.filter((p) => !p.extends);

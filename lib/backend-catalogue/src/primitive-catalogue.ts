@@ -279,6 +279,20 @@ const ROOT_PRIMITIVES: PrimitiveDef[] = [
       { key: "action", label: "Action", type: "string", required: false, description: "What a click does (route / command); only meaningful when clickable." },
     ],
   },
+  // ── CUSTOM — the bootstrap anchor for org-authored primitives ─────────────────────────────────────
+  // A neutral, UNCONNECTED root belonging to no tree. It exists only so a bespoke primitive that doesn't
+  // specialise an existing family still has a SYSTEM root to extend — an org authors `my-thing extends blank`
+  // to start a fresh primitive family while keeping "a customer primitive always sits below a system
+  // primitive" true. Empty by design: it carries a single free-form `props` bag the bespoke child defines.
+  {
+    id: "blank",
+    label: "Blank",
+    category: "custom",
+    description: "A neutral, unconnected base — the SYSTEM root a bespoke primitive extends when it doesn't specialise an existing family. The bootstrap anchor for org-authored primitives; it renders nothing on its own.",
+    params: [
+      { key: "props", label: "Properties", type: "items", required: false, description: "The free-form properties the bespoke primitive that extends this defines." },
+    ],
+  },
 ];
 
 /** The DERIVED primitives — authored as JSON recipes (each `extends` a root/ancestor), in catalogue order. */
