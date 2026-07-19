@@ -7,8 +7,12 @@
  * The guarantee is built in, not left to authors: {@link resolveFieldPolicy} returns SECURE DEFAULTS by type
  * (trim + HTML-escape for free text, an email/url/number/date shape check, an options allow-list for choices),
  * and an author's `validation`/`sanitise` overrides tighten — never remove — that floor. So a non-label field
- * ALWAYS sanitises before its value is emitted/stored and ALWAYS validates. `assertFieldHasPolicy` is the
- * contract check the def validators call to prove a field can never be instantiated without a policy.
+ * ALWAYS sanitises and ALWAYS validates. `assertFieldHasPolicy` is the contract check the def validators call
+ * to prove a field can never be instantiated without a policy.
+ *
+ * Sanitisation is TWO-PHASE: {@link sanitiseKeystroke} runs on EVERY keystroke to keep only characters that
+ * could ever be valid/safe for the type (so the in-progress value is safe char-by-char as it is typed), and the
+ * full {@link sanitiseValue} + {@link validateValue} run over the whole string on commit (Enter/blur).
  *
  * Shared by the backend field-primitive validator (import-time) and the SPA `FieldControl` (runtime), so the
  * same rules apply whether a field is checked on import or typed into live — one source, no drift.
@@ -117,6 +121,26 @@ export function resolveFieldPolicy(
 
 const escapeHtml = (s: string): string =>
   s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+
+/** Control characters are never valid or safe in a field value — stripped from every keystroke. */
+const CONTROL_CHARS = /[\u0000-\u001F\u007F]/g;
+
+/**
+ * The PER-KEYSTROKE character filter — keeps only characters that can ever be valid for the field type, so the
+ * in-progress value is safe char-by-char AS IT IS TYPED (or pasted): control chars go always; markup delimiters
+ * (`<`/`>`) can never be entered into free text; a number keeps only numeric characters; an email/url keeps no
+ * whitespace. This is the live half; the full {@link sanitiseValue} + {@link validateValue} still run on commit.
+ */
+export function sanitiseKeystroke(raw: string, type: string): string {
+  const v = raw.replace(CONTROL_CHARS, "");
+  if (isLabelType(type)) return v;
+  switch (type) {
+    case "number": return v.replace(/[^0-9.\-]/g, "");
+    case "email":
+    case "url": return v.replace(/\s/g, "");
+    default: return v.replace(/[<>]/g, ""); // free text — no tag delimiters ever held live
+  }
+}
 
 /** Apply a sanitise policy to a raw string value, steps in order. Pure; safe on the client and the server. */
 export function sanitiseValue(raw: string, policy: SanitisePolicy): string {

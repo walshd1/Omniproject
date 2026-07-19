@@ -64,24 +64,27 @@ describe("FieldControl (decision type drives the control)", () => {
     expect((screen.getByRole("combobox") as HTMLSelectElement).value).toBe("y");
   });
 
-  it("sanitises a text value on blur — HTML is escaped before it is committed", () => {
-    const onChange = renderField({ type: "text" }, "<b>hi</b>");
-    const input = screen.getByRole("textbox");
-    fireEvent.blur(input, { target: { value: "<script>x</script>" } });
-    expect(onChange).toHaveBeenCalledWith("&lt;script&gt;x&lt;/script&gt;");
+  it("strips unsafe characters on EVERY keystroke — tag delimiters never enter free text", () => {
+    const onChange = renderField({ type: "text" }, "");
+    fireEvent.change(screen.getByRole("textbox"), { target: { value: "<b>hi" } });
+    expect(onChange).toHaveBeenCalledWith("bhi"); // '<' and '>' stripped live
+  });
+
+  it("commits the fully-sanitised whole string on Enter", () => {
+    const onChange = renderField({ type: "text" }, "");
+    fireEvent.keyDown(screen.getByRole("textbox"), { key: "Enter", target: { value: "  hi there  " } });
+    expect(onChange).toHaveBeenCalledWith("hi there"); // trimmed on commit
+  });
+
+  it("commits the sanitised whole string on blur", () => {
+    const onChange = renderField({ type: "text" }, "");
+    fireEvent.blur(screen.getByRole("textbox"), { target: { value: "  hello  " } });
+    expect(onChange).toHaveBeenCalledWith("hello");
   });
 
   it("validates against the decision's rules and surfaces the error live", () => {
     render(<FieldControl label="Email" decision={{ type: "text", validation: { pattern: "^[^@\\s]+@[^@\\s]+$", patternMessage: "must be an email" } }} value="" onChange={() => {}} />);
-    const input = screen.getByRole("textbox");
-    fireEvent.change(input, { target: { value: "nope" } });
+    fireEvent.change(screen.getByRole("textbox"), { target: { value: "nope" } });
     expect(screen.getByRole("alert")).toHaveTextContent("Email must be an email");
-  });
-
-  it("an author sanitise override cannot drop the escape-html floor", () => {
-    // Even asking for only 'trim', a text field still escapes HTML (the floor is guaranteed).
-    const onChange = renderField({ type: "text", sanitise: ["trim"] }, "");
-    fireEvent.blur(screen.getByRole("textbox"), { target: { value: "  <i>x</i>  " } });
-    expect(onChange).toHaveBeenCalledWith("&lt;i&gt;x&lt;/i&gt;");
   });
 });

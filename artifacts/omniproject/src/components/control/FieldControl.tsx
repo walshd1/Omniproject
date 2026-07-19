@@ -1,5 +1,5 @@
 import { useId, useMemo, useState } from "react";
-import { resolveFieldPolicy, sanitiseValue, validateValue, type FieldValidation, type SanitisePolicy } from "@workspace/backend-catalogue";
+import { resolveFieldPolicy, sanitiseValue, sanitiseKeystroke, validateValue, type FieldValidation, type SanitisePolicy } from "@workspace/backend-catalogue";
 
 /**
  * FieldControl — the runtime binding of the `decision` → `field` seam. A DECISION (settings tree) is pure
@@ -56,16 +56,25 @@ export function FieldControl({
     return <div className="py-1.5 text-sm font-semibold">{label}</div>;
   }
 
-  /** Sanitise + validate then emit — the committed (at-rest) value is always clean. */
+  // Two-phase sanitisation. PER KEYSTROKE: strip characters that could never be valid/safe for the type, so the
+  // in-progress value is safe char-by-char as it is typed (or pasted). ON COMMIT (Enter/blur): run the full
+  // sanitise policy over the whole string and validate it.
+
+  /** Live: each keystroke keeps only safe characters, then validates the would-be committed form for feedback. */
+  const onType = (raw: string) => {
+    const safe = sanitiseKeystroke(raw, decision.type);
+    setErrors(validateValue(sanitiseValue(safe, policy.sanitise), policy.validation, label));
+    onChange?.(safe);
+  };
+  /** Commit: keystroke-safe THEN full policy over the whole string, validated — the at-rest value is always clean. */
   const commit = (raw: string) => {
-    const clean = sanitiseValue(raw, policy.sanitise);
+    const clean = sanitiseValue(sanitiseKeystroke(raw, decision.type), policy.sanitise);
     setErrors(validateValue(clean, policy.validation, label));
     onChange?.(clean);
   };
-  /** Emit the raw value live (so typing stays natural) but validate against the sanitised form. */
-  const emitLive = (raw: string) => {
-    setErrors(validateValue(sanitiseValue(raw, policy.sanitise), policy.validation, label));
-    onChange?.(raw);
+  /** Commit on Enter (a single-line input's "done" signal). */
+  const onKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter") commit(e.currentTarget.value);
   };
 
   let control: React.ReactNode;
@@ -117,10 +126,10 @@ export function FieldControl({
       break;
     }
     case "number":
-      control = <input id={id} type="number" value={v} onChange={(e) => emitLive(e.target.value)} onBlur={(e) => commit(e.target.value)} className="border border-border bg-background px-2 py-1 text-sm w-32" />;
+      control = <input id={id} type="number" value={v} onChange={(e) => onType(e.target.value)} onKeyDown={onKeyDown} onBlur={(e) => commit(e.target.value)} className="border border-border bg-background px-2 py-1 text-sm w-32" />;
       break;
     default:
-      control = <input id={id} type="text" value={v} onChange={(e) => emitLive(e.target.value)} onBlur={(e) => commit(e.target.value)} className="border border-border bg-background px-2 py-1 text-sm" />;
+      control = <input id={id} type="text" value={v} onChange={(e) => onType(e.target.value)} onKeyDown={onKeyDown} onBlur={(e) => commit(e.target.value)} className="border border-border bg-background px-2 py-1 text-sm" />;
       break;
   }
 

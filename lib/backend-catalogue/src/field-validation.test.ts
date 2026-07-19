@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   resolveFieldPolicy,
   sanitiseValue,
+  sanitiseKeystroke,
   validateValue,
   applyFieldPolicy,
   assertFieldHasPolicy,
@@ -29,6 +30,18 @@ test("EVERY non-label field type resolves to a non-empty sanitise policy", () =>
     assert.ok(p.sanitise.length > 0, `${t} must sanitise`);
     assert.equal(assertFieldHasPolicy(t, undefined, t), null, `${t} passes the contract check`);
   }
+});
+
+test("the per-keystroke filter keeps only safe characters by type", () => {
+  // Free text: tag delimiters and control chars can never be held live.
+  assert.equal(sanitiseKeystroke("a<b>c", "text"), "abc");
+  assert.equal(sanitiseKeystroke("x\tyz", "text"), "xyz"); // control chars (tab) stripped always
+  // Number: only numeric characters survive each keystroke.
+  assert.equal(sanitiseKeystroke("12a3.5x", "number"), "123.5");
+  // Email/url: no whitespace.
+  assert.equal(sanitiseKeystroke("foo @bar.com", "email"), "foo@bar.com");
+  // A label is display-only — nothing typed, only control chars stripped.
+  assert.equal(sanitiseKeystroke("keep <this>", "label"), "keep <this>");
 });
 
 test("free text sanitises HTML and trims", () => {
