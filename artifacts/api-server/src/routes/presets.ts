@@ -8,7 +8,8 @@ import { planInstantiation } from "../lib/project-template";
 import { applyRuleset } from "../lib/ruleset";
 import { recordRequestAudit } from "../lib/audit";
 import { planPresetApply, PresetError } from "../lib/preset-apply";
-import { presetCatalogue, getPreset, type ProjectTemplate } from "@workspace/backend-catalogue";
+import { resolvePresets, resolvePreset } from "../lib/preset-config";
+import { type ProjectTemplate } from "@workspace/backend-catalogue";
 
 /**
  * QUICK-LOAD PRESETS — land an org on a way of working in one action. A preset is a first-class bundle that
@@ -21,14 +22,14 @@ import { presetCatalogue, getPreset, type ProjectTemplate } from "@workspace/bac
  */
 const router = Router();
 
-// GET /api/presets — the quick-load preset catalogue.
+// GET /api/presets — the quick-load presets, resolved from system JSON + org overrides (copy-and-override).
 router.get("/presets", requireRole("viewer"), (_req, res) => {
-  res.json(presetCatalogue());
+  res.json(resolvePresets());
 });
 
-// GET /api/presets/:id — one preset.
+// GET /api/presets/:id — one resolved preset.
 router.get("/presets/:id", requireRole("viewer"), (req, res) => {
-  const preset = getPreset(String((req.params as { id?: unknown }).id ?? ""));
+  const preset = resolvePreset(String((req.params as { id?: unknown }).id ?? ""));
   if (!preset) { res.status(404).json({ error: "Preset not found" }); return; }
   res.json(preset);
 });
@@ -37,7 +38,8 @@ router.get("/presets/:id", requireRole("viewer"), (req, res) => {
 router.post("/presets/:id/apply", requireRole("pmo"), (req, res) => {
   let plan;
   try {
-    plan = planPresetApply(String((req.params as { id?: unknown }).id ?? ""), readConfigCollection<ProjectTemplate[]>("templates", []));
+    const preset = resolvePreset(String((req.params as { id?: unknown }).id ?? ""));
+    plan = planPresetApply(preset, readConfigCollection<ProjectTemplate[]>("templates", []));
   } catch (e) {
     if (e instanceof PresetError) { res.status(e.status).json({ error: e.message }); return; }
     throw e;

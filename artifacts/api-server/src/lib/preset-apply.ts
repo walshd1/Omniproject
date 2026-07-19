@@ -1,5 +1,5 @@
 import {
-  getPreset, presetReferenceErrors, getReferenceRuleset, resolveProjectTemplate,
+  presetReferenceErrors, getReferenceRuleset, resolveProjectTemplate,
   type Preset, type ProjectTemplate, type ReferenceRuleset,
 } from "@workspace/backend-catalogue";
 
@@ -36,17 +36,17 @@ export interface PresetApplyPlan {
 }
 
 /**
- * Resolve a preset id into an apply plan. `orgTemplates` are the org's template overrides (so an org
- * customisation of the starter template wins over the shipped one, exactly like the templates route). Throws
- * {@link PresetError} when the preset is unknown (404) or any of its references dangle (400 — should never
- * happen for a shipped preset thanks to the catalogue drift guard, but a stored/imported preset is untrusted).
+ * Resolve an (already scope-resolved) preset into an apply plan. The caller resolves the preset from the
+ * system+org config first (see preset-config `resolvePreset`), so an org's copy-and-override wins; a missing
+ * preset is `undefined` → 404. `orgTemplates` are the org's template overrides (so an org customisation of the
+ * starter template wins over the shipped one, exactly like the templates route). Throws {@link PresetError}
+ * when the preset is unknown (404) or any reference dangles (400 — a stored/imported preset is untrusted).
  */
-export function planPresetApply(presetId: string, orgTemplates: readonly ProjectTemplate[]): PresetApplyPlan {
-  const preset = getPreset(presetId);
-  if (!preset) throw new PresetError(`Preset not found: ${presetId}`, 404);
+export function planPresetApply(preset: Preset | undefined, orgTemplates: readonly ProjectTemplate[]): PresetApplyPlan {
+  if (!preset) throw new PresetError("Preset not found", 404);
 
   const refErrors = presetReferenceErrors(preset);
-  if (refErrors.length) throw new PresetError(`preset "${presetId}" has dangling references: ${refErrors.join("; ")}`, 400);
+  if (refErrors.length) throw new PresetError(`preset "${preset.id}" has dangling references: ${refErrors.join("; ")}`, 400);
 
   const rulesetBundle = preset.referenceRuleset ? getReferenceRuleset(preset.referenceRuleset) ?? null : null;
   const template = preset.projectTemplate ? resolveProjectTemplate(preset.projectTemplate, orgTemplates) ?? null : null;

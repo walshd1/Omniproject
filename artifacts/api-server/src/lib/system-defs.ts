@@ -1,6 +1,7 @@
 import { reportCatalogue, formCatalogue, dashboardDefCatalogue, referenceRulesetCatalogue, methodologyCatalogue, screenDefCatalogue, primitiveCatalogue, mappingCatalogue, workVocabularyValues } from "@workspace/backend-catalogue";
 import { WORK_VOCABULARY_CONFIG_ID } from "./work-vocabulary-config";
 import { DEF_SCOPE_POLICY_CONFIG_ID, DEFAULT_DEF_SCOPE_POLICY } from "./def-policy";
+import { PRESETS_CONFIG_ID, presetConfigValues } from "./preset-config";
 import { artifactStoreEnabled } from "./artifact-store";
 import { buildSystemDefRow, replaceSystemDefs, listSystemDefs, type StoredDef } from "./def-import";
 
@@ -47,6 +48,10 @@ export function buildSystemDefaultRows(): StoredDef[] {
   // `config` def, scope-overridable via copy-and-override (an org tightens/relaxes per key). The ENFORCEMENT
   // stays in code (def-policy.ts); only the levels are data.
   rows.push(buildSystemDefRow("config", "Definition write policy", { id: DEF_SCOPE_POLICY_CONFIG_ID, values: DEFAULT_DEF_SCOPE_POLICY }, SEED_AT));
+  // The quick-load PRESETS — the shipped bundles seeded as the system-scope `presets` config def (a `list` of
+  // presets), the base layer the scope resolver folds org/programme/project/user overrides onto (merge by id).
+  // Presets are DATA in system JSON, copy-and-overridable like every other catalogue (see preset-config).
+  rows.push(buildSystemDefRow("config", "Presets", { id: PRESETS_CONFIG_ID, values: presetConfigValues() }, SEED_AT));
   return rows;
 }
 

@@ -53,6 +53,12 @@ test("seedSystemDefaultsIfEmpty installs the bundled defaults once; applySystemD
   const policy = defs.find((d) => d.kind === "config" && (d.payload as { id?: unknown }).id === "def-scope-policy");
   assert.ok(policy, "the def-scope-policy config is a shipped system default");
   assert.deepEqual((policy!.payload as { values: unknown }).values, { user: "contributor", project: "manager", programme: "programmeManager", org: "pmoOrAdmin" });
+  // The quick-load PRESETS are seeded as a system `config` def (`presets`, a `list` of bundles) — presets are
+  // DATA in system JSON, the base layer an org folds copy-and-override onto (see preset-config).
+  const presets = defs.find((d) => d.kind === "config" && (d.payload as { id?: unknown }).id === "presets");
+  assert.ok(presets, "the presets config is a shipped system default");
+  const presetList = (presets!.payload as { values: { list: Array<{ id: string }> } }).values.list;
+  assert.ok(Array.isArray(presetList) && presetList.some((p) => p.id === "scrum-team"), "the scrum-team preset is seeded in system JSON");
   // The dashboard presets were adapted to the real Dashboard shape (each widget gets a synthesised id).
   const dash = defs.find((d) => d.kind === "dashboard")!;
   const widgets = (dash.payload as { widgets: Array<{ id: string; type: string }> }).widgets;
