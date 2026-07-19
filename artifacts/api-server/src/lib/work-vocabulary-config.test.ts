@@ -43,10 +43,21 @@ test("sanitizer: a colour must be a 6-digit hex", () => {
   assert.throws(() => sanitizeWorkVocabularyOverride({ statuses: [{ id: "done", color: "red" }] }), /must be a 6-digit hex/);
 });
 
-test("sanitizer: priorities are relabel/reorder only — no add/remove", () => {
-  const out = sanitizeWorkVocabularyOverride({ priorities: [{ id: "urgent", label: "P0" }] });
-  assert.deepEqual(out.priorities, [{ id: "urgent", label: "P0" }]);
-  assert.throws(() => sanitizeWorkVocabularyOverride({ priorities: [{ id: "p0", label: "P0" }] }), /not a canonical priority/);
+test("sanitizer: priorities are symmetric with statuses (add/remove/methodology) but have NO lifecycle", () => {
+  const out = sanitizeWorkVocabularyOverride({
+    priorities: [
+      { id: "urgent", label: "P0" }, // relabel existing
+      { id: "blocker", label: "Blocker", order: 5, methodologies: ["kanban"] }, // add new (no lifecycle needed)
+      { id: "low", removed: true }, // remove shipped
+    ],
+  });
+  assert.deepEqual(out.priorities, [
+    { id: "urgent", label: "P0" },
+    { id: "blocker", label: "Blocker", order: 5, methodologies: ["kanban"] },
+    { id: "low", removed: true },
+  ]);
+  assert.throws(() => sanitizeWorkVocabularyOverride({ priorities: [{ id: "blocker", label: "B", order: 5, lifecycle: "open" }] }), /has no lifecycle/);
+  assert.throws(() => sanitizeWorkVocabularyOverride({ priorities: [{ id: "blocker", label: "B" }] }), /needs a label and an order/);
 });
 
 test("resolver: an org can add, remove and relabel statuses; methodology tags filter", async () => {

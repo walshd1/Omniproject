@@ -77,7 +77,7 @@ export function workVocabulary(): WorkVocabEntry[] {
  *  `values` seeded into the system `work-vocabulary` config def AND the base a scope resolver folds
  *  org/programme/project/user overrides onto — one source of truth for the shipped default. */
 export interface ResolvedStatus { id: string; label: string; order: number; lifecycle: StatusClass; methodologies: string[]; color?: string }
-export interface ResolvedPriority { id: string; label: string; order: number; color?: string }
+export interface ResolvedPriority { id: string; label: string; order: number; methodologies: string[]; color?: string }
 export interface WorkVocabularyValues {
   statuses: ResolvedStatus[];
   priorities: ResolvedPriority[];
@@ -87,12 +87,22 @@ export interface WorkVocabularyValues {
 export function workVocabularyValues(): WorkVocabularyValues {
   return {
     statuses: statusEntries.map((e) => ({ id: e.id, label: e.label, order: e.order, lifecycle: e.lifecycle ?? "open", methodologies: vocabMethodologies(e), ...(e.color ? { color: e.color } : {}) })),
-    priorities: priorityEntries.map((e) => ({ id: e.id, label: e.label, order: e.order, ...(e.color ? { color: e.color } : {}) })),
+    priorities: priorityEntries.map((e) => ({ id: e.id, label: e.label, order: e.order, methodologies: vocabMethodologies(e), ...(e.color ? { color: e.color } : {}) })),
   };
 }
 
-/** The statuses that apply to `methodologyId` (its tagged ones plus the neutral "*" ones), in order —
- *  a methodology's normal status nomenclature. Pass the shipped default or a resolved set. */
+/** The tokens (statuses OR priorities) that apply to `methodologyId` — its tagged ones plus the neutral
+ *  ("*") ones — a methodology's normal nomenclature. Pass the shipped default or a resolved set. */
+export function tokensForMethodology<T extends { methodologies: string[] }>(methodologyId: string, tokens: readonly T[]): T[] {
+  return tokens.filter((t) => vocabAppliesTo(t, methodologyId));
+}
+
+/** The statuses that apply to `methodologyId` (thin wrapper over {@link tokensForMethodology}). */
 export function statusesForMethodology(methodologyId: string, statuses: readonly ResolvedStatus[] = workVocabularyValues().statuses): ResolvedStatus[] {
-  return statuses.filter((s) => vocabAppliesTo(s, methodologyId));
+  return tokensForMethodology(methodologyId, statuses);
+}
+
+/** The priorities that apply to `methodologyId` (thin wrapper over {@link tokensForMethodology}). */
+export function prioritiesForMethodology(methodologyId: string, priorities: readonly ResolvedPriority[] = workVocabularyValues().priorities): ResolvedPriority[] {
+  return tokensForMethodology(methodologyId, priorities);
 }

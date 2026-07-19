@@ -37,15 +37,19 @@ const cleanMethodologies = (v: unknown): string[] => (Array.isArray(v) && v.leng
  *  re-projected onto the fixed shipped set with only label/order overrides applied. */
 export function resolveWorkVocabulary(scopes: ConfigScopes = {}): WorkVocabularyValues {
   const folded = resolveConfig<Record<string, unknown>>(WORK_VOCABULARY_CONFIG_ID, workVocabularyValues() as unknown as Record<string, unknown>, scopes);
-  return { statuses: projectStatuses(folded["statuses"]), priorities: projectPriorities(folded["priorities"]) };
+  return {
+    statuses: projectTokens(folded["statuses"], true) as ResolvedStatus[],
+    priorities: projectTokens(folded["priorities"], false) as ResolvedPriority[],
+  };
 }
 
-/** Project a folded status array: keep only well-formed, non-tombstoned entries (a valid status needs a
- *  label, a lifecycle class and an order), dedupe by id, default methodology tags, sort by order. Add/remove
- *  are honoured here — the set is whatever the folded layers say, not a fixed canonical list. */
-function projectStatuses(folded: unknown): ResolvedStatus[] {
+/** Project a folded token array (statuses or priorities): keep only well-formed, non-tombstoned entries
+ *  (a valid token needs a label + an order; a status additionally needs a lifecycle class), dedupe by id,
+ *  default methodology tags, sort by order. Add/remove are honoured — the set is whatever the folded
+ *  layers say, not a fixed list. `requireLifecycle` is the only status/priority difference. */
+function projectTokens(folded: unknown, requireLifecycle: boolean): Array<ResolvedStatus | ResolvedPriority> {
   const arr = Array.isArray(folded) ? folded : [];
-  const out: ResolvedStatus[] = [];
+  const out: Array<ResolvedStatus | ResolvedPriority> = [];
   const seen = new Set<string>();
   for (const raw of arr) {
     if (!raw || typeof raw !== "object") continue;
@@ -54,123 +58,84 @@ function projectStatuses(folded: unknown): ResolvedStatus[] {
     const id = e["id"];
     if (!isStr(id) || !ID_RE.test(id) || seen.has(id)) continue;
     const label = cleanLabel(e["label"]);
-    const lifecycle = isStr(e["lifecycle"]) && LIFECYCLES.has(e["lifecycle"] as StatusClass) ? (e["lifecycle"] as StatusClass) : null;
-    if (!label || !lifecycle || !isIntGe0(e["order"])) continue;
+    if (!label || !isIntGe0(e["order"])) continue;
+    let lifecycle: StatusClass | null = null;
+    if (requireLifecycle) {
+      lifecycle = isStr(e["lifecycle"]) && LIFECYCLES.has(e["lifecycle"] as StatusClass) ? (e["lifecycle"] as StatusClass) : null;
+      if (!lifecycle) continue;
+    }
     const color = cleanColor(e["color"]);
     seen.add(id);
-    out.push({ id, label, order: e["order"] as number, lifecycle, methodologies: cleanMethodologies(e["methodologies"]), ...(color ? { color } : {}) });
+    out.push({ id, label, order: e["order"] as number, methodologies: cleanMethodologies(e["methodologies"]), ...(lifecycle ? { lifecycle } : {}), ...(color ? { color } : {}) } as ResolvedStatus | ResolvedPriority);
   }
   return out.sort((a, b) => a.order - b.order);
 }
 
-/** Project priorities onto the FIXED shipped set: apply only a non-blank label + integer order from the
- *  folded layer, keep the shipped id set + membership, sort by the effective order. */
-function projectPriorities(folded: unknown): ResolvedPriority[] {
-  const base = workVocabularyValues().priorities;
-  const over = new Map<string, Record<string, unknown>>();
-  if (Array.isArray(folded)) for (const e of folded) if (e && typeof e === "object" && isStr((e as { id?: unknown }).id)) over.set((e as { id: string }).id, e as Record<string, unknown>);
-  return base
-    .map((p) => {
-      const o = over.get(p.id);
-      const color = cleanColor(o?.["color"]) ?? p.color;
-      return { id: p.id, label: cleanLabel(o?.["label"]) ?? p.label, order: isIntGe0(o?.["order"]) ? (o!["order"] as number) : p.order, ...(color ? { color } : {}) };
-    })
-    .sort((a, b) => a.order - b.order);
-}
-
 /** One sanitised status override entry — a partial for an existing status, a full def for a new one, or a
  *  `{id, removed}` tombstone. */
-export interface StatusOverride { id: string; label?: string; order?: number; lifecycle?: StatusClass; methodologies?: string[]; color?: string; removed?: true }
-export interface PriorityOverride { id: string; label?: string; order?: number; color?: string }
+export interface TokenOverride { id: string; label?: string; order?: number; lifecycle?: StatusClass; methodologies?: string[]; color?: string; removed?: true }
 
 /**
  * Validate + normalise a PUT body into the config-def `values` to store. Throws {@link Error} (→ 400) on a
- * malformed entry. STATUSES: relabel/reorder an existing status (partial), ADD a new one (id + label +
- * lifecycle + order all required), or REMOVE a shipped one (`{id, removed:true}`). PRIORITIES: relabel/reorder
- * only, canonical ids. No-op entries are dropped.
+ * malformed entry. STATUSES and PRIORITIES are symmetric: relabel/reorder/recolour an existing token, tag it
+ * by methodology, ADD a new one (id + label + order — and a lifecycle class for a status), or REMOVE a shipped
+ * one (`{id, removed:true}`). The ONLY difference is the lifecycle class, which is status-only. No-op entries
+ * are dropped.
  */
-export function sanitizeWorkVocabularyOverride(raw: unknown): { statuses: StatusOverride[]; priorities: PriorityOverride[] } {
+export function sanitizeWorkVocabularyOverride(raw: unknown): { statuses: TokenOverride[]; priorities: TokenOverride[] } {
   if (typeof raw !== "object" || raw === null || Array.isArray(raw)) throw new Error("work vocabulary override must be an object");
   const base = workVocabularyValues();
-  const baseStatusIds = new Set(base.statuses.map((s) => s.id));
-  const priorityIds = new Set(base.priorities.map((p) => p.id));
   const obj = raw as Record<string, unknown>;
-  return { statuses: cleanStatusOverrides(obj["statuses"], baseStatusIds), priorities: cleanPriorityOverrides(obj["priorities"], priorityIds) };
+  return {
+    statuses: cleanTokenOverrides(obj["statuses"], new Set(base.statuses.map((s) => s.id)), true, "status"),
+    priorities: cleanTokenOverrides(obj["priorities"], new Set(base.priorities.map((p) => p.id)), false, "priority"),
+  };
 }
 
-function cleanStatusOverrides(list: unknown, baseIds: Set<string>): StatusOverride[] {
+function cleanTokenOverrides(list: unknown, baseIds: Set<string>, allowLifecycle: boolean, kind: string): TokenOverride[] {
   if (list === undefined) return [];
-  if (!Array.isArray(list)) throw new Error("statuses must be an array");
-  const out: StatusOverride[] = [];
+  if (!Array.isArray(list)) throw new Error(`${kind}es must be an array`);
+  const out: TokenOverride[] = [];
   for (const raw of list) {
-    if (!raw || typeof raw !== "object") throw new Error("each status entry must be an object");
+    if (!raw || typeof raw !== "object") throw new Error(`each ${kind} entry must be an object`);
     const e = raw as Record<string, unknown>;
     const id = e["id"];
-    if (!isStr(id) || !ID_RE.test(id)) throw new Error(`status id "${String(id)}" must be a lower-case slug`);
+    if (!isStr(id) || !ID_RE.test(id)) throw new Error(`${kind} id "${String(id)}" must be a lower-case slug`);
     if (e["removed"] === true) {
-      if (!baseIds.has(id)) throw new Error(`cannot remove unknown status "${id}"`);
+      if (!baseIds.has(id)) throw new Error(`cannot remove unknown ${kind} "${id}"`);
       out.push({ id, removed: true });
       continue;
     }
     const isNew = !baseIds.has(id);
-    const entry: StatusOverride = { id };
+    const entry: TokenOverride = { id };
     if (e["label"] !== undefined && e["label"] !== null && e["label"] !== "") {
+      if (isStr(e["label"]) && (e["label"] as string).trim().length > MAX_LABEL) throw new Error(`${kind} "${id}" label is too long (max ${MAX_LABEL})`);
       const l = cleanLabel(e["label"]);
-      if (!l) throw new Error(`status "${id}" label must be a non-blank string (max ${MAX_LABEL})`);
-      if (isStr(e["label"]) && (e["label"] as string).trim().length > MAX_LABEL) throw new Error(`status "${id}" label is too long (max ${MAX_LABEL})`);
+      if (!l) throw new Error(`${kind} "${id}" label must be a non-blank string`);
       entry.label = l;
     }
     if (e["lifecycle"] !== undefined) {
-      if (!isStr(e["lifecycle"]) || !LIFECYCLES.has(e["lifecycle"] as StatusClass)) throw new Error(`status "${id}" lifecycle must be one of open/active/done/cancelled`);
+      if (!allowLifecycle) throw new Error(`a ${kind} has no lifecycle class`);
+      if (!isStr(e["lifecycle"]) || !LIFECYCLES.has(e["lifecycle"] as StatusClass)) throw new Error(`${kind} "${id}" lifecycle must be one of open/active/done/cancelled`);
       entry.lifecycle = e["lifecycle"] as StatusClass;
     }
     if (e["order"] !== undefined) {
-      if (!isIntGe0(e["order"])) throw new Error(`status "${id}" order must be a non-negative integer`);
+      if (!isIntGe0(e["order"])) throw new Error(`${kind} "${id}" order must be a non-negative integer`);
       entry.order = e["order"] as number;
     }
     if (e["methodologies"] !== undefined) {
-      if (!Array.isArray(e["methodologies"]) || !e["methodologies"].every(isStr)) throw new Error(`status "${id}" methodologies must be an array of strings`);
+      if (!Array.isArray(e["methodologies"]) || !e["methodologies"].every(isStr)) throw new Error(`${kind} "${id}" methodologies must be an array of strings`);
       entry.methodologies = e["methodologies"] as string[];
     }
     if (e["color"] !== undefined && e["color"] !== null && e["color"] !== "") {
       const c = cleanColor(e["color"]);
-      if (!c) throw new Error(`status "${id}" color must be a 6-digit hex like #3b82f6`);
+      if (!c) throw new Error(`${kind} "${id}" color must be a 6-digit hex like #3b82f6`);
       entry.color = c;
     }
-    if (isNew && (entry.label === undefined || entry.lifecycle === undefined || entry.order === undefined)) {
-      throw new Error(`new status "${id}" needs a label, a lifecycle class and an order`);
+    if (isNew && (entry.label === undefined || entry.order === undefined || (allowLifecycle && entry.lifecycle === undefined))) {
+      throw new Error(`new ${kind} "${id}" needs a label${allowLifecycle ? ", a lifecycle class" : ""} and an order`);
     }
     if (entry.label !== undefined || entry.order !== undefined || entry.lifecycle !== undefined || entry.methodologies !== undefined || entry.color !== undefined) out.push(entry);
-  }
-  return out;
-}
-
-function cleanPriorityOverrides(list: unknown, allowed: Set<string>): PriorityOverride[] {
-  if (list === undefined) return [];
-  if (!Array.isArray(list)) throw new Error("priorities must be an array");
-  const out: PriorityOverride[] = [];
-  for (const raw of list) {
-    if (!raw || typeof raw !== "object") throw new Error("each priority entry must be an object");
-    const e = raw as Record<string, unknown>;
-    const id = e["id"];
-    if (!isStr(id) || !allowed.has(id)) throw new Error(`priority id "${String(id)}" is not a canonical priority`);
-    const entry: PriorityOverride = { id };
-    if (e["label"] !== undefined && e["label"] !== null && e["label"] !== "") {
-      const l = cleanLabel(e["label"]);
-      if (!l) throw new Error(`priority "${id}" label must be a non-blank string (max ${MAX_LABEL})`);
-      if (isStr(e["label"]) && (e["label"] as string).trim().length > MAX_LABEL) throw new Error(`priority "${id}" label is too long (max ${MAX_LABEL})`);
-      entry.label = l;
-    }
-    if (e["order"] !== undefined) {
-      if (!isIntGe0(e["order"])) throw new Error(`priority "${id}" order must be a non-negative integer`);
-      entry.order = e["order"] as number;
-    }
-    if (e["color"] !== undefined && e["color"] !== null && e["color"] !== "") {
-      const c = cleanColor(e["color"]);
-      if (!c) throw new Error(`priority "${id}" color must be a 6-digit hex like #ef4444`);
-      entry.color = c;
-    }
-    if (entry.label !== undefined || entry.order !== undefined || entry.color !== undefined) out.push(entry);
   }
   return out;
 }

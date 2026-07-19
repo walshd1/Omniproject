@@ -4990,7 +4990,9 @@ Canonical WORK-ITEM vocabulary — the single source of truth for the statuses a
 | `vocabAppliesTo` | True when a token applies to `methodologyId` — neutral ("*") tokens always apply. |
 | `workVocabulary` | The full vocabulary (a defensive copy) — for a consumer that needs the raw entries. |
 | `workVocabularyValues` | Build the shipped-default {@link WorkVocabularyValues} from the canonical entries. |
-| `statusesForMethodology` | The statuses that apply to `methodologyId` (its tagged ones plus the neutral "*" ones), in order — a methodology's normal status nomenclature. |
+| `tokensForMethodology` | The tokens (statuses OR priorities) that apply to `methodologyId` — its tagged ones plus the neutral ("*") ones — a methodology's normal nomenclature. |
+| `statusesForMethodology` | The statuses that apply to `methodologyId` (thin wrapper over {@link tokensForMethodology}). |
+| `prioritiesForMethodology` | The priorities that apply to `methodologyId` (thin wrapper over {@link tokensForMethodology}). |
 
 ### `lib/backend-catalogue/src/workflow-generator.ts`
 
