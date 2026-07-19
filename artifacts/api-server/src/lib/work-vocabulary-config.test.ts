@@ -108,3 +108,35 @@ test("resolver: an org can add, remove and relabel statuses; methodology tags fi
   assert.ok(!statusesForMethodology("scrum", resolved.statuses).some((s) => s.id === "blocked"));
   assert.ok(statusesForMethodology("scrum", resolved.statuses).some((s) => s.id === "in_progress")); // neutral applies everywhere
 });
+
+test("resolver: a user's accessibility workVocabulary override wins over the org", async () => {
+  const { resolveWorkVocabulary, WORK_VOCABULARY_CONFIG_ID, ORG_WORK_VOCABULARY_ID } = await import("./work-vocabulary-config");
+  const { ACCESSIBILITY_CONFIG_ID } = await import("./user-prefs");
+  const { seedSystemDefaultsIfEmpty } = await import("./system-defs");
+  const { putDef } = await import("./def-import");
+  const { makeScopedId } = await import("./artifact-store");
+
+  seedSystemDefaultsIfEmpty();
+  const SUB = "user-a11y-1";
+  const now = new Date().toISOString();
+
+  // Org recolours "done" green-ish; the user's ACCESSIBILITY config recolours it to a high-contrast value.
+  putDef({ kind: "org" }, {
+    id: ORG_WORK_VOCABULARY_ID, kind: "config", name: "Work vocabulary",
+    payload: { id: WORK_VOCABULARY_CONFIG_ID, values: { statuses: [{ id: "done", color: "#008000" }] } },
+    createdBy: "test", createdAt: now, updatedAt: now, rowVersion: 1,
+  });
+  putDef({ kind: "user", sub: SUB }, {
+    id: makeScopedId("user", `config-${ACCESSIBILITY_CONFIG_ID}`), kind: "config", name: "Accessibility",
+    payload: { id: ACCESSIBILITY_CONFIG_ID, values: { workVocabulary: { statuses: [{ id: "done", color: "#000000", labels: { de: "Fertig" } }] } } },
+    createdBy: "test", createdAt: now, updatedAt: now, rowVersion: 1,
+  });
+
+  // Without the user scope: the org colour wins.
+  assert.equal(resolveWorkVocabulary().statuses.find((s) => s.id === "done")!.color, "#008000");
+  // With the user scope: the user's accessibility override wins (colour + label translation).
+  const forUser = resolveWorkVocabulary({ sub: SUB });
+  const done = forUser.statuses.find((s) => s.id === "done")!;
+  assert.equal(done.color, "#000000");
+  assert.equal(done.labels?.["de"], "Fertig");
+});

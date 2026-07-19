@@ -15,7 +15,8 @@
  * and remove are a status-only capability. Both boundaries are enforced on read (projection) and write.
  */
 import { workVocabularyValues, type StatusClass, type ResolvedStatus, type ResolvedPriority, type WorkVocabularyValues } from "@workspace/backend-catalogue";
-import { resolveConfig, type ConfigScopes } from "./scoped-config";
+import { configDefLayers, resolveScopedConfig, type ConfigScopes } from "./scoped-config";
+import { ACCESSIBILITY_CONFIG_ID } from "./user-prefs";
 import { makeScopedId } from "./artifact-store";
 
 export const WORK_VOCABULARY_CONFIG_ID = "work-vocabulary";
@@ -43,11 +44,21 @@ const cleanLabels = (v: unknown): Record<string, string> | null => {
   return Object.keys(out).length ? out : null;
 };
 
-/** The effective vocabulary at the given scopes — the shipped default with every scope layer folded on,
- *  then projected: statuses validated (lifecycle-required, tombstones removed) and sorted; priorities
- *  re-projected onto the fixed shipped set with only label/order overrides applied. */
+/** The effective vocabulary at the given scopes — the shipped default with every work-vocabulary scope
+ *  layer folded on (system→org→programme→project→user), THEN the accessibility config's `workVocabulary`
+ *  override folded on TOP (same scope order, so the user's own user-level accessibility JSON wins last):
+ *  accessibility is personal and beats the org's colours/labels. The result is projected (statuses
+ *  lifecycle-required + tombstones removed, both token kinds validated + sorted). */
 export function resolveWorkVocabulary(scopes: ConfigScopes = {}): WorkVocabularyValues {
-  const folded = resolveConfig<Record<string, unknown>>(WORK_VOCABULARY_CONFIG_ID, workVocabularyValues() as unknown as Record<string, unknown>, scopes);
+  const layers: unknown[] = [
+    ...configDefLayers(WORK_VOCABULARY_CONFIG_ID, scopes),
+    // Accessibility wins last: each accessibility layer may carry a `workVocabulary` override section,
+    // folded on top in the same system→…→user order, so a user's accessible colours/labels override the org.
+    ...configDefLayers(ACCESSIBILITY_CONFIG_ID, scopes)
+      .map((l) => (l as Record<string, unknown>)["workVocabulary"])
+      .filter((v): v is Record<string, unknown> => !!v && typeof v === "object" && !Array.isArray(v)),
+  ];
+  const folded = resolveScopedConfig<Record<string, unknown>>(workVocabularyValues() as unknown as Record<string, unknown>, layers);
   return {
     statuses: projectTokens(folded["statuses"], true) as ResolvedStatus[],
     priorities: projectTokens(folded["priorities"], false) as ResolvedPriority[],
