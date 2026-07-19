@@ -3793,7 +3793,7 @@ SCOPE-OVERRIDABLE work-item vocabulary — the resolver + write sanitiser behind
 
 | Function | What it does |
 | --- | --- |
-| `resolveWorkVocabulary` | The effective vocabulary at the given scopes — the shipped default with every work-vocabulary scope layer folded on (system→org→programme→project→user), THEN the accessibility config's `workVocabulary` override folded on TOP (same scope order, so the user's own user-level accessibility JSON wins last): accessibility is personal and beats the org's colours/labels. |
+| `resolveWorkVocabulary` | The effective vocabulary at the given scopes. |
 | `sanitizeWorkVocabularyOverride` | Validate + normalise a PUT body into the config-def `values` to store. |
 
 ### `artifacts/api-server/src/lib/workflow-run.ts`

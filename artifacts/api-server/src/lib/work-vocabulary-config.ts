@@ -22,6 +22,9 @@ import { makeScopedId } from "./artifact-store";
 export const WORK_VOCABULARY_CONFIG_ID = "work-vocabulary";
 /** The singleton org-scope override row id (stable, so a save upserts rather than piling rows). */
 export const ORG_WORK_VOCABULARY_ID = makeScopedId("org", `config-${WORK_VOCABULARY_CONFIG_ID}`);
+/** The dedicated i18n config (same scope-layered pattern as accessibility): every user can hold their own
+ *  `i18n` JSON whose `workVocabulary` section overrides labels/translations. Sits just below accessibility. */
+export const I18N_CONFIG_ID = "i18n";
 
 const MAX_LABEL = 40;
 const ID_RE = /^[a-z][a-z0-9_]*$/;
@@ -44,19 +47,24 @@ const cleanLabels = (v: unknown): Record<string, string> | null => {
   return Object.keys(out).length ? out : null;
 };
 
-/** The effective vocabulary at the given scopes — the shipped default with every work-vocabulary scope
- *  layer folded on (system→org→programme→project→user), THEN the accessibility config's `workVocabulary`
- *  override folded on TOP (same scope order, so the user's own user-level accessibility JSON wins last):
- *  accessibility is personal and beats the org's colours/labels. The result is projected (statuses
- *  lifecycle-required + tombstones removed, both token kinds validated + sorted). */
+/** Pull each layer's `workVocabulary` override section for a config id (system→…→user order preserved). */
+function vocabOverrideLayers(configId: string, scopes: ConfigScopes): Record<string, unknown>[] {
+  return configDefLayers(configId, scopes)
+    .map((l) => (l as Record<string, unknown>)["workVocabulary"])
+    .filter((v): v is Record<string, unknown> => !!v && typeof v === "object" && !Array.isArray(v));
+}
+
+/** The effective vocabulary at the given scopes. Layers fold low → high, nearest scope winning within each:
+ *    shipped default → work-vocabulary (system→org→programme→project→user)
+ *      → i18n config's `workVocabulary` (same scope order — a user's own i18n JSON)
+ *      → accessibility config's `workVocabulary` (same scope order — a user's own accessibility JSON, FINAL).
+ *  So a user's accessibility beats their i18n, which beats the org's vocabulary. The result is projected
+ *  (statuses lifecycle-required + tombstones removed, both token kinds validated + sorted). */
 export function resolveWorkVocabulary(scopes: ConfigScopes = {}): WorkVocabularyValues {
   const layers: unknown[] = [
     ...configDefLayers(WORK_VOCABULARY_CONFIG_ID, scopes),
-    // Accessibility wins last: each accessibility layer may carry a `workVocabulary` override section,
-    // folded on top in the same system→…→user order, so a user's accessible colours/labels override the org.
-    ...configDefLayers(ACCESSIBILITY_CONFIG_ID, scopes)
-      .map((l) => (l as Record<string, unknown>)["workVocabulary"])
-      .filter((v): v is Record<string, unknown> => !!v && typeof v === "object" && !Array.isArray(v)),
+    ...vocabOverrideLayers(I18N_CONFIG_ID, scopes), // i18n sits below accessibility
+    ...vocabOverrideLayers(ACCESSIBILITY_CONFIG_ID, scopes), // accessibility is the final (highest) layer
   ];
   const folded = resolveScopedConfig<Record<string, unknown>>(workVocabularyValues() as unknown as Record<string, unknown>, layers);
   return {

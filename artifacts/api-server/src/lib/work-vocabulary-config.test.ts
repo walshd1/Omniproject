@@ -140,3 +140,31 @@ test("resolver: a user's accessibility workVocabulary override wins over the org
   assert.equal(done.color, "#000000");
   assert.equal(done.labels?.["de"], "Fertig");
 });
+
+test("resolver: a user's i18n JSON overrides the org, but accessibility still wins over i18n", async () => {
+  const { resolveWorkVocabulary, I18N_CONFIG_ID } = await import("./work-vocabulary-config");
+  const { ACCESSIBILITY_CONFIG_ID } = await import("./user-prefs");
+  const { seedSystemDefaultsIfEmpty } = await import("./system-defs");
+  const { putDef } = await import("./def-import");
+  const { makeScopedId } = await import("./artifact-store");
+
+  seedSystemDefaultsIfEmpty();
+  const SUB = "user-i18n-1";
+  const now = new Date().toISOString();
+
+  // User i18n JSON sets German for done + in_progress; user accessibility overrides ONLY done's German.
+  putDef({ kind: "user", sub: SUB }, {
+    id: makeScopedId("user", `config-${I18N_CONFIG_ID}`), kind: "config", name: "i18n",
+    payload: { id: I18N_CONFIG_ID, values: { workVocabulary: { statuses: [{ id: "done", labels: { de: "Fertig (i18n)" } }, { id: "in_progress", labels: { de: "Läuft" } }] } } },
+    createdBy: "test", createdAt: now, updatedAt: now, rowVersion: 1,
+  });
+  putDef({ kind: "user", sub: SUB }, {
+    id: makeScopedId("user", `config-${ACCESSIBILITY_CONFIG_ID}`), kind: "config", name: "Accessibility",
+    payload: { id: ACCESSIBILITY_CONFIG_ID, values: { workVocabulary: { statuses: [{ id: "done", labels: { de: "Fertig (a11y)" } }] } } },
+    createdBy: "test", createdAt: now, updatedAt: now, rowVersion: 1,
+  });
+
+  const v = resolveWorkVocabulary({ sub: SUB }).statuses;
+  assert.equal(v.find((s) => s.id === "in_progress")!.labels?.["de"], "Läuft"); // i18n applied (accessibility silent here)
+  assert.equal(v.find((s) => s.id === "done")!.labels?.["de"], "Fertig (a11y)"); // accessibility beats i18n
+});
