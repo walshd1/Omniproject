@@ -91,6 +91,38 @@ Format: each principle is a RULE + how to CHECK it + the usual FIX.
 - RULE: If code bounds coverage (top-N, no-retry, sampling, dropped items), it must `log`/surface what was
   dropped. Silent truncation is a bug.
 
+## 12. The hard-data seam (data/code separation — the third boundary, alongside crypto + auth)
+- RULE: "Hard data" (authoritative records: issues, resources, actuals, financials) lives BELOW the broker
+  seam in the SoR; the gateway is an overlay holding config only. Above `getBroker()` no backend name/shape.
+  Where we persist hard data ourselves it's the EXPLICIT sidecar (addressable, bounded) — never an accidental
+  shadow SoR that drifts into being the source of truth.
+- RULE: Data *shapes* (mappings / field supersets / vocab) are JSON resolved per scope; data *movement* is
+  code behind the contract. A field name or backend quirk in a route is a seam leak — same class as leaking a
+  secret across the crypto boundary.
+- CHECK: A route above the seam hard-coding a backend field/quirk; a store silently becoming the source of
+  truth for hard data; the architecture-guard failing on a backend-ism above the seam.
+- WHY: the clean seam is what makes zero-at-rest meaningful — lose the box, lose config, not the book of record.
+
+## 13. Clean boundaries / SOLID (Uncle Bob)
+- RULE: Dependencies point INWARD. Domain (primitives / composition / scope resolution) imports no
+  framework/backend/KMS; IO lives in edge adapters (broker adapters, KMS providers, sealed-file). An adapter
+  must be swappable without the core moving.
+- RULE: One responsibility per unit — one writer per boundary (§3), one seal/open primitive, one session mint.
+  Split a function that grows a second reason to change. Names state intent + guarantee; code reads without
+  opening the body.
+- RULE: Extend by composition (`extends`, §5), don't fork/modify (open/closed).
+- CHECK: A core module importing an adapter; a second writer for an existing boundary; a function needing a
+  comment because its name misleads.
+
+## 14. Kaizen — security is maintained, not achieved
+- RULE: Ship small, reversible slices; prefer a diff you can roll back. Leave touched files better (boy-scout
+  rule): fix drift (data-in-TS, bare `JSON.parse`, mis-keyed secret) in passing or file it — don't step over it.
+- RULE: Every invariant that matters ships WITH a build-failing guard (JSON-drift guard, `no-unsafe-json-parse`,
+  architecture-guard on seam leaks, strong-auth gate). A principle without a guard is a wish.
+- RULE: Re-audit on cadence (the audit-remediation program); "passed review once" is not a resting state.
+- CHECK: A new invariant with no guard test; a "temporary" workaround with no follow-up; drift stepped over in
+  a file you edited.
+
 ---
 
 ## Workflow rules

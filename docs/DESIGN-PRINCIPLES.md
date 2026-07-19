@@ -136,6 +136,78 @@ Two hard rules make this safe:
 - If a process bounds its work (top-N, no-retry, sampling), it **says so** — silent truncation reads as
   "covered everything" when it didn't.
 
+## 11. The hard-data seam is the third pillar (data and code are separated)
+
+Everyone reaches for two boundaries first — the **crypto** boundary (what's sealed) and the **auth** boundary
+(who may act). A third matters just as much: the **hard-data seam**. "Hard data" is the authoritative,
+load-bearing record — the real issues, resources, actuals and financials that live in the systems of record
+*below* the broker. The gateway is an **overlay**, and the seam (`getBroker()` / the `Broker` contract) is the
+line it must never cross.
+
+Two disciplines keep it honest:
+
+- **Data below the seam, code above it.** Nothing above `getBroker()` may know a backend's name or shape;
+  anything backend-specific is an adapter *below* the seam (the architecture-guard fails the build if a
+  backend-ism leaks upward). The overlay must never quietly become a **shadow system of record** — where we
+  genuinely need to persist hard data ourselves, that is the **sidecar**: an explicit, bounded, addressable
+  store, never an accidental cache that drifts into being the source of truth.
+- **Content is data, logic is code** — principle 2 restated *as a seam*. The *shapes* of hard data (mappings,
+  field supersets, vocabularies) are JSON resolved per scope; the *movement* of hard data is code behind the
+  contract. A field name hard-coded in a route, or a backend quirk leaking upward, is the same class of error
+  as leaking a secret across the crypto boundary.
+
+Why this is a *security* principle and not merely an architectural one: a clean hard-data seam is what makes
+**zero-at-rest** mean something. If project data never lands in the gateway, losing or compromising the box
+exposes *config* — not the organisation's book of record. The seam is the reason "keep your encrypted JSON
+safe and you have your whole system" is also "…and losing the box loses nothing you can't restore."
+
+## 12. Clean boundaries and dependency inversion (the Uncle Bob principles)
+
+The codebase leans on **Clean Architecture / SOLID** habits — not as dogma, but because they are what make the
+seams above *enforceable* rather than aspirational:
+
+- **Dependencies point inward.** The domain (primitives, composition, scope resolution) knows nothing of
+  Express, of any specific backend, or of any specific KMS. IO and frameworks sit at the edges as adapters —
+  the broker adapters, the KMS providers, the sealed-file layer. You can swap Jira for ADO, AWS KMS for Azure,
+  or the demo broker for a real one, and the core does not move. (Dependency inversion; the broker seam is
+  ports-and-adapters made concrete.)
+- **Single responsibility, small units.** One validated writer per boundary (principle 3), one seal/open
+  primitive, one session mint. When a function grows a *second* reason to change, split it — a module that
+  resolves scope *and* seals bytes *and* talks HTTP is three modules wearing one name.
+- **Names carry intent; code reads like prose.** `localPasswordsAllowed()`, `engageRecoveryConfigDir()`,
+  `unwrapCandidates()` — a reader shouldn't have to open the body to know what a thing does or guarantees.
+  Match the surrounding density and idiom; the cheapest documentation is a well-named function.
+- **Open for extension, closed for modification.** `extends` + property-by-property merge (principle 4) is the
+  open/closed principle made concrete: ship a default, let a customer override it, never fork it.
+
+When a change makes one of these *harder* — a core module reaching outward for an adapter, a "quick" second
+writer, a function that needs a comment because its name lies — that's the smell, and the fix is a boundary,
+not a workaround.
+
+## 13. Kaizen: security is maintained, not achieved
+
+Security here is a **practice, not a property**. Nothing in this document stays true on its own; it stays true
+because every change leaves the system a little better than it found it, and because guardrails fail the build
+when an invariant slips.
+
+- **Small, reversible slices.** The system was built — and should keep growing — in narrow, independently
+  verifiable steps. A small diff you can reason about and roll back beats a big one you can only hope about.
+  Recovery mode, the isolated `recovery/` directory, the in-place IRK re-wrap — each was chosen partly because
+  it is reversible.
+- **Leave it better (the boy-scout rule).** When you touch a file and see drift — a data blob in TypeScript, a
+  bare `JSON.parse`, a secret that could be sealed under its own key — fix it in passing or file it; don't step
+  over it. Today's "someone else's problem" is tomorrow's incident.
+- **Guardrails encode the lesson.** Every invariant that matters has a test that fails loudly when it
+  regresses: the JSON-vs-TS drift guard, the `no-unsafe-json-parse` allowlist, the architecture-guard on seam
+  leaks, the strong-auth gate on privileged actions. A principle without a guard is a wish — when you establish
+  a new invariant, add the guard that keeps it.
+- **Assume decay; re-audit on a cadence.** Dependencies age, threat models shift, features accrete. The
+  security posture is revisited (the audit-remediation program), not declared done. "It passed review once" is
+  not a state the system is allowed to rest in.
+
+The through-line: **continuous improvement *is* the security model.** The crypto, the auth tiers and the
+hard-data seam are only ever as strong as the discipline that keeps them from eroding.
+
 ---
 
 ## Operational implications (read this if you run OmniProject)
