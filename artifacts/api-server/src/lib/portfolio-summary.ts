@@ -1,5 +1,5 @@
 import type { Request } from "express";
-import { consolidateByGroup, consolidationSpec } from "@workspace/backend-catalogue";
+import { consolidateByGroup, consolidationSpec, numLoose as num, round1 } from "@workspace/backend-catalogue";
 import { getBroker, contextFromReq, type PortfolioRow, type Row, type Project } from "../broker";
 import { getSettings } from "./settings";
 import { getFxRates } from "./currency";
@@ -78,15 +78,6 @@ export interface PortfolioSummary {
    *  So a roll-up ACCOUNTS for closed/archived projects by GUID rather than silently dropping them. */
   sources: SourcePlan;
 }
-
-/** Coerce a possibly-dirty number (string, null, NaN, Infinity) to a finite number, else 0. Same
- *  defensive coercion the frontend rollups apply — the read model is untrusted. */
-function num(v: unknown): number {
-  const n = typeof v === "number" ? v : Number(v);
-  return Number.isFinite(n) ? n : 0;
-}
-
-const round1 = (n: number) => Math.round(n * 10) / 10;
 
 /** The result of folding per-project financials: the portfolio-total wire row plus how the fold was
  *  composed, so the caller can tell a complete total from a partial one. */

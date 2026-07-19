@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { planPi, type Dependency, type Load, type PiObjective, type Team } from "./pi-planning";
+import { round1 } from "./num";
 
 const teams: Team[] = [
   { id: "t1", name: "Alpha", capacityByIteration: [20, 20, 20] },
