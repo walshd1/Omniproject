@@ -1,23 +1,46 @@
 import type { PrimitiveCategory, PrimitiveParamShape, PrimitiveDefShape } from "./primitive-schema";
+// DERIVED primitives — everything that COMPOSES from a root (`extends`) is DATA, authored as JSON recipes under
+// primitives/ (like screens/reports/mappings). Only the ROOT primitives below stay in TypeScript. A derived
+// primitive is a thin recipe: an id + label + category + `extends` + the params it adds/re-declares.
+import geometryCanvas from "./primitives/geometry-canvas.json";
+import screenPrim from "./primitives/screen.json";
+import formPrim from "./primitives/form.json";
+import reportPrim from "./primitives/report.json";
+import chartPrim from "./primitives/chart.json";
+import interactiveChart from "./primitives/interactive-chart.json";
+import barPrim from "./primitives/bar.json";
+import lineChart from "./primitives/line-chart.json";
+import areaPrim from "./primitives/area.json";
+import piePrim from "./primitives/pie.json";
+import donutPrim from "./primitives/donut.json";
+import scatterPrim from "./primitives/scatter.json";
+import treemapPrim from "./primitives/treemap.json";
+import ganttPrim from "./primitives/gantt.json";
+import recordSet from "./primitives/record-set.json";
+import tablePrim from "./primitives/table.json";
+import registerPrim from "./primitives/register.json";
+import dataSlot from "./primitives/data-slot.json";
+import statTile from "./primitives/stat-tile.json";
+import badgePrim from "./primitives/badge.json";
 
 /**
- * THE SHIPPED PRIMITIVE CATALOGUE — a data-only library of every rendering primitive the product ships, so the
- * view/report/chart builders (and the def store) can discover what artifacts compose from. Relocated here from
- * the SPA (roadmap X.11: "make … primitives system JSON") so ONE source of truth feeds both the BACKEND seeder
- * (system `primitive` defs) and the SPA palette — the React RENDERERS stay engine, only these definitions are
- * data. It is metadata, not components: each entry names a primitive, the shape of data it consumes, and its
- * options; nothing here imports React, so it serialises straight into a def. The shared shapes come from
- * `primitive-schema` (the ONE primitive contract, also used by `validatePrimitiveDef`); `PrimitiveDef` /
- * `PrimitiveParam` are re-exported as the render-facing aliases the SPA already imports.
+ * THE SHIPPED PRIMITIVE CATALOGUE — the library of every rendering primitive the product ships, so the
+ * view/report/chart builders (and the def store) can discover what artifacts compose from. ONE source of truth
+ * feeds both the BACKEND seeder (system `primitive` defs) and the SPA palette — the React RENDERERS stay engine,
+ * only these definitions are data.
+ *
+ * ROOTS vs DERIVED: the ROOT primitives (built on nothing — no `extends`) live in TypeScript below, because a
+ * root is code-level foundation. Everything that COMPOSES from a root (`extends`) is DATA and is authored as a
+ * JSON recipe under primitives/ (the same rule screens/reports/mappings follow) — see the imports above. The
+ * catalogue is roots ⧺ derived. The shared shapes come from `primitive-schema` (the ONE primitive contract, also
+ * used by `validatePrimitiveDef`); `PrimitiveDef` / `PrimitiveParam` are the render-facing aliases.
  */
 export type PrimitiveDef = PrimitiveDefShape;
 export type PrimitiveParam = PrimitiveParamShape;
 
-const PALETTE_PARAM: PrimitiveParam = { key: "palette", label: "Palette", type: "palette", required: false, description: "Ordered hex colours; series/slices take them in turn." };
-const LEGEND_PARAM: PrimitiveParam = { key: "legend", label: "Legend", type: "boolean", required: false, description: "Show the series legend (auto for ≥2 series)." };
 const HEIGHT_PARAM: PrimitiveParam = { key: "height", label: "Height", type: "number", required: false, description: "Pixel height, or a percent string for responsive containers." };
 
-export const PRIMITIVE_CATALOGUE: PrimitiveDef[] = [
+const ROOT_PRIMITIVES: PrimitiveDef[] = [
   // ── GEOMETRY — the fundamental atoms of the drawable plane ──────────────────────────────────────
   // The true building blocks: a line, a rectangle, a text run, a point. Every chart/diagram/gantt and
   // every visual grid composes UP from these; each instance's geometry (coordinates/size) and style
@@ -110,174 +133,6 @@ export const PRIMITIVE_CATALOGUE: PrimitiveDef[] = [
     ],
   },
   {
-    id: "geometry-canvas",
-    label: "Geometry canvas",
-    category: "geometry",
-    extends: "canvas",
-    description: "A canvas that draws GEOMETRY ATOMS (line/rect/text/point/path). Inherits the surface; adds the shapes it renders. The drawable branch of the visuals tree.",
-    params: [
-      { key: "shapes", label: "Shapes", type: "rows", required: false, description: "The geometry-atom instances to draw (each an atom `type` + its params)." },
-    ],
-  },
-  {
-    id: "screen",
-    label: "Screen",
-    category: "surface",
-    extends: "canvas",
-    description: "A canvas laid out as a grid of PANELS — the DOM visual behind every screen. Inherits the surface; adds the panels and their layout. Rendered as accessible DOM, composed from tiles/controls/tables/charts.",
-    params: [
-      { key: "panels", label: "Panels", type: "rows", required: true, description: "The panels on the screen (each a `kind` + its config), placed on the layout grid." },
-    ],
-  },
-  {
-    id: "form",
-    label: "Form",
-    category: "surface",
-    extends: "canvas",
-    description: "A canvas of input FIELDS — the DOM visual behind every form/intake. Inherits the surface; adds the fields, which are composed from `control` atoms (switch, label, …). A submission creates a work item via the broker.",
-    params: [
-      { key: "fields", label: "Fields", type: "rows", required: true, description: "The form's fields, each a control (switch/label/input) + its binding." },
-    ],
-  },
-  {
-    id: "report",
-    label: "Report",
-    category: "surface",
-    extends: "canvas",
-    description: "A canvas composed of ordered SECTIONS (metrics, tables, charts, prose) — the DOM visual behind every report. Inherits the surface; adds the sections.",
-    params: [
-      { key: "sections", label: "Sections", type: "rows", required: true, description: "The report's ordered sections (each a kind + its content)." },
-    ],
-  },
-  {
-    id: "chart",
-    label: "Chart",
-    category: "chart",
-    extends: "geometry-canvas",
-    description: "A geometry-canvas that plots DATA as atoms — the abstract base every concrete chart inherits. Adds presentation (palette, legend); the data shape is added by each concrete chart.",
-    params: [
-      LEGEND_PARAM,
-      PALETTE_PARAM,
-    ],
-  },
-  {
-    id: "interactive-chart",
-    label: "Interactive chart",
-    category: "chart",
-    extends: "chart",
-    description: "A chart WITH interaction — inherits every chart property and adds the interaction layer (hover/focus tooltips). Interactivity is a level in the taxonomy, so an interactive chart is a chart plus this.",
-    params: [
-      { key: "interactive", label: "Interactive", type: "boolean", required: false, description: "Enable the hover/focus tooltip layer over the chart's marks." },
-      { key: "tooltip", label: "Tooltip", type: "string", required: false, description: "Tooltip content template for a mark (defaults to its label + value)." },
-    ],
-  },
-  {
-    id: "bar",
-    label: "Bar chart",
-    category: "chart",
-    extends: "chart",
-    chartType: "bar",
-    description: "Compare a measure across categories; multiple series can be grouped or stacked, horizontal or vertical.",
-    params: [
-      { key: "data", label: "Rows", type: "rows", required: true, description: "One object per category; keys are the plotted fields." },
-      { key: "series", label: "Series", type: "series", required: true, description: "Which row keys to plot and their labels." },
-      { key: "stacked", label: "Stacked", type: "boolean", required: false, description: "Stack series into one bar instead of grouping." },
-      { key: "orientation", label: "Orientation", type: "enum", required: false, description: "Bar direction.", options: ["horizontal", "vertical"] },
-      LEGEND_PARAM, HEIGHT_PARAM, PALETTE_PARAM,
-    ],
-  },
-  {
-    id: "line-chart",
-    label: "Line chart",
-    category: "chart",
-    extends: "chart",
-    chartType: "line",
-    description: "Show change over an ordered axis (usually time) for one or more series.",
-    params: [
-      { key: "data", label: "Rows", type: "rows", required: true, description: "One object per x position." },
-      { key: "series", label: "Series", type: "series", required: true, description: "Which row keys to plot." },
-      { key: "xKey", label: "X key", type: "string", required: false, description: "Row field for the x axis (defaults to name)." },
-      LEGEND_PARAM, HEIGHT_PARAM, PALETTE_PARAM,
-    ],
-  },
-  {
-    id: "area",
-    label: "Area chart",
-    category: "chart",
-    extends: "chart",
-    chartType: "area",
-    description: "A line chart with the area below filled; stack series to show composition over time.",
-    params: [
-      { key: "data", label: "Rows", type: "rows", required: true, description: "One object per x position." },
-      { key: "series", label: "Series", type: "series", required: true, description: "Which row keys to plot." },
-      { key: "stacked", label: "Stacked", type: "boolean", required: false, description: "Stack series to show cumulative composition." },
-      { key: "xKey", label: "X key", type: "string", required: false, description: "Row field for the x axis." },
-      LEGEND_PARAM, HEIGHT_PARAM, PALETTE_PARAM,
-    ],
-  },
-  {
-    id: "pie",
-    label: "Pie chart",
-    category: "chart",
-    extends: "chart",
-    chartType: "pie",
-    description: "Show each category's share of a whole. Best for a handful of slices.",
-    params: [
-      { key: "data", label: "Slices", type: "slices", required: true, description: "{ name, value } per slice." },
-      LEGEND_PARAM, HEIGHT_PARAM, PALETTE_PARAM,
-    ],
-  },
-  {
-    id: "donut",
-    label: "Donut chart",
-    category: "chart",
-    extends: "chart",
-    chartType: "donut",
-    description: "A pie with a hollow centre — the same share-of-whole read, with room for a centre total.",
-    params: [
-      { key: "data", label: "Slices", type: "slices", required: true, description: "{ name, value } per slice." },
-      LEGEND_PARAM, HEIGHT_PARAM, PALETTE_PARAM,
-    ],
-  },
-  {
-    id: "scatter",
-    label: "Scatter plot",
-    category: "chart",
-    extends: "chart",
-    chartType: "scatter",
-    description: "Plot points on two numeric axes to reveal correlation or clustering.",
-    params: [
-      { key: "points", label: "Points", type: "points", required: true, description: "{ x, y, label? } per point." },
-      { key: "xLabel", label: "X label", type: "string", required: false, description: "Axis caption." },
-      { key: "yLabel", label: "Y label", type: "string", required: false, description: "Axis caption." },
-      HEIGHT_PARAM,
-    ],
-  },
-  {
-    id: "treemap",
-    label: "Treemap / work breakdown",
-    category: "chart",
-    extends: "chart",
-    chartType: "treemap",
-    description: "Nested rectangles sized by value — a work-breakdown structure or any part-of-whole hierarchy.",
-    params: [
-      { key: "data", label: "Tree", type: "tree", required: true, description: "{ name, value | children } hierarchy." },
-      HEIGHT_PARAM,
-    ],
-  },
-  {
-    id: "gantt",
-    label: "Gantt chart",
-    category: "chart",
-    extends: "chart",
-    chartType: "gantt",
-    description: "One bar per item positioned by its start/end dates on a shared time axis, with optional progress.",
-    params: [
-      { key: "items", label: "Items", type: "items", required: true, description: "{ label, start, end, progress? } per bar." },
-      HEIGHT_PARAM, PALETTE_PARAM,
-    ],
-  },
-  {
     id: "sparkline",
     label: "Sparkline",
     category: "graphic",
@@ -354,59 +209,6 @@ export const PRIMITIVE_CATALOGUE: PrimitiveDef[] = [
       { key: "columns", label: "Fields", type: "columns", required: true, description: "The record's typed fields: key, label, type/alignment. Its schema." },
     ],
   },
-  {
-    id: "record-set",
-    label: "Record set",
-    category: "data-structure",
-    extends: "record",
-    description: "The SET a record belongs to — a record's schema (inherited fields) plus the collection of records (rows). The working data structure; a visual (table/board/chart) binds to it to show it.",
-    params: [
-      { key: "rows", label: "Rows", type: "rows", required: true, description: "One object per record — the set's records." },
-    ],
-  },
-  {
-    id: "table",
-    label: "Data table",
-    category: "table",
-    extends: "canvas",
-    description: "The VISUAL that renders a record set as generic sortable columns and rows (accessible DOM) with per-column rendering and an optional footer — a canvas made specific. Binds to a record set via `source`, or takes inline columns/rows.",
-    params: [
-      { key: "source", label: "Record set", type: "string", required: false, description: "Id of the record set to render (binds the visual to a data structure); omit to supply columns/rows inline." },
-      { key: "columns", label: "Columns", type: "columns", required: true, description: "Display columns: key, label, alignment, and render." },
-      { key: "rows", label: "Rows", type: "rows", required: true, description: "One object per row (inline, when not bound to a source)." },
-    ],
-  },
-  {
-    id: "register",
-    label: "Editable register",
-    category: "data-structure",
-    // COMPOSITION: an editable `record-set` — a DATA STRUCTURE with CRUD, not a visual. Thin child —
-    // inherits `columns`, ALTERS `rows` (now sourced, not authored), and ADDS the editable-source
-    // params. Its new functionality vs a plain record set is the add/edit/delete + Save round-trip.
-    extends: "record-set",
-    description: "A record set you can complete and update in place — add / edit / delete rows and Save. Rows come from a settings collection or a generic mapping slot; the server owns the write.",
-    params: [
-      { key: "rows", label: "Rows", type: "rows", required: false, description: "Rows come from the bound source (a settings collection or a mapping slot), not authored inline." },
-      { key: "collection", label: "Settings collection", type: "string", required: false, description: "Settings field key to read/write (settings-collection source)." },
-      { key: "endpoint", label: "Endpoint", type: "string", required: false, description: "PUT target for the settings-collection source." },
-      { key: "slot", label: "Slot", type: "string", required: false, description: "Mapping slot to read/write via the generic surface (slot source); mutually exclusive with collection." },
-      { key: "addLabel", label: "Add-button label", type: "string", required: false, description: "Caption on the add-row button." },
-      { key: "defaultEditRole", label: "Edit role", type: "enum", required: false, description: "Minimum role allowed to edit; anyone below sees it read-only.", options: ["contributor", "manager", "pmo", "admin", "readonly"] },
-    ],
-  },
-  {
-    id: "data-slot",
-    label: "Data-slot register",
-    category: "data-structure",
-    // COMPOSITION: a `register` specialised to the generic mapping-slot source. The thinnest possible child —
-    // it ONLY alters `slot` to required. Its genuinely-new functionality: a register over ANY mapping slot
-    // (epics, sprints, raid, milestones, …) as a pure screen def, no bespoke endpoint. Renders via `register`.
-    extends: "register",
-    description: "An editable register bound to a generic mapping slot — rows read/written through the same generic mapping surface every slot uses, so a register/board over any slot is a pure JSON screen def.",
-    params: [
-      { key: "slot", label: "Slot", type: "string", required: true, description: "The mapping slot this register is bound to (its one added constraint over a plain register)." },
-    ],
-  },
   // ── CONTROL ATOMS — the building blocks of settings & forms ──────────────────────────────────────
   // A setting is atomic: a SWITCH (the input) with a LABEL (the caption). Forms and the settings tree
   // compose from these — expressed as primitives, not bespoke UI. They are placed INTO visuals
@@ -477,31 +279,17 @@ export const PRIMITIVE_CATALOGUE: PrimitiveDef[] = [
       { key: "action", label: "Action", type: "string", required: false, description: "What a click does (route / command); only meaningful when clickable." },
     ],
   },
-  {
-    id: "stat-tile",
-    label: "Stat tile",
-    category: "tile",
-    extends: "tile",
-    description: "A KPI tile — a headline value with a label, optional hint, and tone. A tile specialized for a metric.",
-    params: [
-      { key: "label", label: "Label", type: "string", required: true, description: "What the number measures." },
-      { key: "value", label: "Value", type: "string", required: true, description: "The headline figure." },
-      { key: "hint", label: "Hint", type: "string", required: false, description: "Secondary context line." },
-      { key: "tone", label: "Tone", type: "enum", required: false, description: "State colour.", options: ["neutral", "good", "warn", "bad", "info"] },
-    ],
-  },
-  {
-    id: "badge",
-    label: "Badge",
-    category: "tile",
-    extends: "tile",
-    description: "A small status pill — a labelled chip toned for genuine state. A tile specialized as a compact status marker.",
-    params: [
-      { key: "children", label: "Text", type: "string", required: true, description: "The pill label." },
-      { key: "tone", label: "Tone", type: "enum", required: false, description: "State colour.", options: ["neutral", "good", "warn", "bad", "info"] },
-    ],
-  },
 ];
+
+/** The DERIVED primitives — authored as JSON recipes (each `extends` a root/ancestor), in catalogue order. */
+const DERIVED_PRIMITIVES = [
+  geometryCanvas, screenPrim, formPrim, reportPrim, chartPrim, interactiveChart,
+  barPrim, lineChart, areaPrim, piePrim, donutPrim, scatterPrim, treemapPrim, ganttPrim,
+  recordSet, tablePrim, registerPrim, dataSlot, statTile, badgePrim,
+] as unknown as PrimitiveDef[];
+
+/** The whole shipped catalogue: the TypeScript ROOTS ⧺ the JSON-authored DERIVED recipes. */
+export const PRIMITIVE_CATALOGUE: PrimitiveDef[] = [...ROOT_PRIMITIVES, ...DERIVED_PRIMITIVES];
 
 /** Look up a primitive by id. */
 export function getPrimitive(id: string): PrimitiveDef | undefined {

@@ -1,0 +1,16 @@
+{
+  "id": "screen",
+  "label": "Screen",
+  "category": "surface",
+  "extends": "canvas",
+  "description": "A canvas laid out as a grid of PANELS — the DOM visual behind every screen. Inherits the surface; adds the panels and their layout. Rendered as accessible DOM, composed from tiles/controls/tables/charts.",
+  "params": [
+    {
+      "key": "panels",
+      "label": "Panels",
+      "type": "rows",
+      "required": true,
+      "description": "The panels on the screen (each a `kind` + its config), placed on the layout grid."
+    }
+  ]
+}
