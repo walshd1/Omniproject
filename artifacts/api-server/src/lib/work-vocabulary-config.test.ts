@@ -6,8 +6,9 @@ import path from "node:path";
 import { sanitizeWorkVocabularyOverride } from "./work-vocabulary-config";
 
 /**
- * Scope-overridable work vocabulary: the PUT sanitiser (pure) enforces the relabel/reorder-only boundary,
- * and the resolver folds an org override over the shipped default while keeping the canonical set fixed.
+ * Scope-overridable work vocabulary. Statuses are org-owned (relabel/reorder/ADD/REMOVE, methodology-tagged,
+ * lifecycle-required); priorities are a fixed relabel/reorder scale. The sanitiser (pure) enforces those
+ * boundaries; the resolver folds an org override over the shipped default.
  */
 
 process.env["SESSION_SECRET"] = "test-session-secret-do-not-use-in-prod";
@@ -16,60 +17,67 @@ const CONFIG_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "work-vocab-"));
 process.env["OMNI_CONFIG_DIR"] = CONFIG_DIR;
 after(() => fs.rmSync(CONFIG_DIR, { recursive: true, force: true }));
 
-test("sanitizer keeps only canonical ids + label/order overrides, dropping empties", () => {
+test("sanitizer: relabel an existing status, add a new one, remove a shipped one", () => {
   const out = sanitizeWorkVocabularyOverride({
     statuses: [
-      { id: "in_progress", label: "WIP", order: 2 },
-      { id: "backlog", label: "  " }, // blank label ⇒ dropped entirely (no override fields)
+      { id: "in_progress", label: "WIP", order: 2 }, // relabel + reorder existing
+      { id: "blocked", label: "Blocked", lifecycle: "active", order: 3, methodologies: ["kanban"] }, // add
+      { id: "cancelled", removed: true }, // remove shipped
+      { id: "todo" }, // no override fields ⇒ dropped
     ],
-    priorities: [{ id: "urgent", label: "P0" }],
   });
-  assert.deepEqual(out.statuses, [{ id: "in_progress", label: "WIP", order: 2 }]);
+  assert.deepEqual(out.statuses, [
+    { id: "in_progress", label: "WIP", order: 2 },
+    { id: "blocked", label: "Blocked", lifecycle: "active", order: 3, methodologies: ["kanban"] },
+    { id: "cancelled", removed: true },
+  ]);
+});
+
+test("sanitizer: a NEW status must carry label + lifecycle + order", () => {
+  assert.throws(() => sanitizeWorkVocabularyOverride({ statuses: [{ id: "frozen", label: "Frozen" }] }), /needs a label, a lifecycle class and an order/);
+  assert.throws(() => sanitizeWorkVocabularyOverride({ statuses: [{ id: "frozen", label: "Frozen", lifecycle: "slushy", order: 9 }] }), /lifecycle must be one of/);
+});
+
+test("sanitizer: priorities are relabel/reorder only — no add/remove", () => {
+  const out = sanitizeWorkVocabularyOverride({ priorities: [{ id: "urgent", label: "P0" }] });
   assert.deepEqual(out.priorities, [{ id: "urgent", label: "P0" }]);
+  assert.throws(() => sanitizeWorkVocabularyOverride({ priorities: [{ id: "p0", label: "P0" }] }), /not a canonical priority/);
 });
 
-test("sanitizer rejects a non-canonical id", () => {
-  assert.throws(() => sanitizeWorkVocabularyOverride({ statuses: [{ id: "frozen", label: "Frozen" }] }), /not a canonical/);
-});
-
-test("sanitizer rejects a too-long label and a non-integer order", () => {
-  assert.throws(() => sanitizeWorkVocabularyOverride({ statuses: [{ id: "done", label: "x".repeat(41) }] }), /too long/);
-  assert.throws(() => sanitizeWorkVocabularyOverride({ priorities: [{ id: "low", order: 1.5 }] }), /non-negative integer/);
-});
-
-test("resolver folds an org override (relabel + reorder) and keeps the canonical set + lifecycle", async () => {
+test("resolver: an org can add, remove and relabel statuses; methodology tags filter", async () => {
   const { resolveWorkVocabulary, WORK_VOCABULARY_CONFIG_ID, ORG_WORK_VOCABULARY_ID } = await import("./work-vocabulary-config");
+  const { statusesForMethodology } = await import("@workspace/backend-catalogue");
   const { seedSystemDefaultsIfEmpty } = await import("./system-defs");
   const { putDef } = await import("./def-import");
 
   seedSystemDefaultsIfEmpty();
 
-  // Baseline: the shipped canonical vocabulary.
   const base = resolveWorkVocabulary();
   assert.deepEqual(base.statuses.map((s) => s.id), ["backlog", "todo", "in_progress", "in_review", "done", "cancelled"]);
-  assert.equal(base.statuses.find((s) => s.id === "in_progress")!.label, "In progress");
 
-  // Org relabels in_progress → "WIP" and floats it to order 0; a hand-injected bogus status must be ignored.
   const now = new Date().toISOString();
   putDef({ kind: "org" }, {
     id: ORG_WORK_VOCABULARY_ID, kind: "config", name: "Work vocabulary",
-    payload: { id: WORK_VOCABULARY_CONFIG_ID, values: { statuses: [{ id: "in_progress", label: "WIP", order: 0 }, { id: "frozen", label: "Frozen", order: 0 }] } },
+    payload: { id: WORK_VOCABULARY_CONFIG_ID, values: { statuses: [
+      { id: "in_progress", label: "WIP" }, // relabel
+      { id: "blocked", label: "Blocked", lifecycle: "active", order: 25, methodologies: ["kanban"] }, // add (kanban-only)
+      { id: "cancelled", removed: true }, // remove
+    ] } },
     createdBy: "test", createdAt: now, updatedAt: now, rowVersion: 1,
   });
 
   const resolved = resolveWorkVocabulary();
-  const wip = resolved.statuses.find((s) => s.id === "in_progress")!;
-  assert.equal(wip.label, "WIP");
-  assert.equal(wip.order, 0);
-  assert.equal(wip.lifecycle, "active"); // lifecycle stays canonical
-  // Re-sorted by the overridden order: the list is monotonic in `order`, and in_progress (now 0) floated
-  // up from its shipped index (2).
-  const orders = resolved.statuses.map((s) => s.order);
-  assert.deepEqual(orders, [...orders].sort((a, b) => a - b));
-  assert.ok(resolved.statuses.findIndex((s) => s.id === "in_progress") < 2);
-  // The bogus "frozen" status was dropped — the set stays canonical.
-  assert.ok(!resolved.statuses.some((s) => s.id === "frozen"));
-  assert.equal(resolved.statuses.length, 6);
-  // An untouched status keeps its shipped label.
-  assert.equal(resolved.statuses.find((s) => s.id === "done")!.label, "Done");
+  const ids = resolved.statuses.map((s) => s.id);
+  assert.ok(!ids.includes("cancelled"), "removed status is gone");
+  assert.ok(ids.includes("blocked"), "added status is present");
+  assert.equal(resolved.statuses.find((s) => s.id === "in_progress")!.label, "WIP");
+  assert.equal(resolved.statuses.find((s) => s.id === "in_progress")!.lifecycle, "active"); // lifecycle preserved
+  const blocked = resolved.statuses.find((s) => s.id === "blocked")!;
+  assert.equal(blocked.lifecycle, "active");
+  assert.deepEqual(blocked.methodologies, ["kanban"]);
+
+  // Methodology filter: the kanban-tagged "blocked" applies to kanban, not to scrum; neutral statuses apply to both.
+  assert.ok(statusesForMethodology("kanban", resolved.statuses).some((s) => s.id === "blocked"));
+  assert.ok(!statusesForMethodology("scrum", resolved.statuses).some((s) => s.id === "blocked"));
+  assert.ok(statusesForMethodology("scrum", resolved.statuses).some((s) => s.id === "in_progress")); // neutral applies everywhere
 });

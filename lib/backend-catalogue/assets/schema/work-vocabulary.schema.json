@@ -8,9 +8,14 @@
   "required": ["kind", "id", "label", "order"],
   "properties": {
     "kind": { "enum": ["status", "priority"] },
-    "id": { "type": "string", "pattern": "^[a-z][a-z_]*$" },
+    "id": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$" },
     "label": { "type": "string", "minLength": 1 },
     "order": { "type": "integer", "minimum": 0 },
-    "lifecycle": { "enum": ["open", "active", "done", "cancelled"] }
+    "lifecycle": { "enum": ["open", "active", "done", "cancelled"] },
+    "methodologies": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Methodology tags this token belongs to ('*' = neutral / all). Selecting a methodology surfaces its tagged statuses, so each methodology can carry its own normal nomenclature. Absent ⇒ neutral."
+    }
   }
 }

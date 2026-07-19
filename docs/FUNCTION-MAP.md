@@ -3793,8 +3793,8 @@ SCOPE-OVERRIDABLE work-item vocabulary — the resolver + write sanitiser behind
 
 | Function | What it does |
 | --- | --- |
-| `resolveWorkVocabulary` | The effective vocabulary at the given scopes — the shipped default with every scope layer folded on, then re-projected onto the canonical set (label/order overrides applied, lifecycle + membership fixed), each list sorted by its resolved order. |
-| `sanitizeWorkVocabularyOverride` | Validate + normalise a PUT body into the config-def `values` to store: only canonical ids survive, labels are trimmed/capped (blank ⇒ dropped, so the canonical label shows), orders must be non-negative integers. |
+| `resolveWorkVocabulary` | The effective vocabulary at the given scopes — the shipped default with every scope layer folded on, then projected: statuses validated (lifecycle-required, tombstones removed) and sorted; priorities re-projected onto the fixed shipped set with only label/order overrides applied. |
+| `sanitizeWorkVocabularyOverride` | Validate + normalise a PUT body into the config-def `values` to store. |
 
 ### `artifacts/api-server/src/lib/workflow-run.ts`
 
@@ -4986,8 +4986,11 @@ Canonical WORK-ITEM vocabulary — the single source of truth for the statuses a
 
 | Function | What it does |
 | --- | --- |
+| `vocabMethodologies` | A token's methodology tags, defaulting to neutral ("*") when untagged. |
+| `vocabAppliesTo` | True when a token applies to `methodologyId` — neutral ("*") tokens always apply. |
 | `workVocabulary` | The full vocabulary (a defensive copy) — for a consumer that needs the raw entries. |
 | `workVocabularyValues` | Build the shipped-default {@link WorkVocabularyValues} from the canonical entries. |
+| `statusesForMethodology` | The statuses that apply to `methodologyId` (its tagged ones plus the neutral "*" ones), in order — a methodology's normal status nomenclature. |
 
 ### `lib/backend-catalogue/src/workflow-generator.ts`
 

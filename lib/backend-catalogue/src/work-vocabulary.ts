@@ -21,7 +21,20 @@ export interface WorkVocabEntry {
   label: string;
   order: number;
   lifecycle?: StatusClass;
+  /** Methodology tags this token belongs to ("*" = neutral / all). Absent ⇒ neutral. Lets each
+   *  methodology carry its own normal status nomenclature (surfaced by {@link statusesForMethodology}). */
+  methodologies?: string[];
 }
+
+/** A token's methodology tags, defaulting to neutral ("*") when untagged. */
+export const vocabMethodologies = (e: Pick<WorkVocabEntry, "methodologies">): string[] =>
+  e.methodologies && e.methodologies.length ? e.methodologies : ["*"];
+
+/** True when a token applies to `methodologyId` — neutral ("*") tokens always apply. */
+export const vocabAppliesTo = (e: Pick<WorkVocabEntry, "methodologies">, methodologyId: string): boolean => {
+  const tags = vocabMethodologies(e);
+  return tags.includes("*") || tags.includes(methodologyId);
+};
 
 /** The canonical work-item statuses (compile-time contract). The runtime list comes from the asset;
  *  a drift test asserts the two agree. */
@@ -61,15 +74,23 @@ export function workVocabulary(): WorkVocabEntry[] {
 /** The scope-layerable shape of the vocabulary: statuses + priorities grouped by kind. This is BOTH the
  *  `values` seeded into the system `work-vocabulary` config def AND the base a scope resolver folds
  *  org/programme/project/user overrides onto — one source of truth for the shipped default. */
+export interface ResolvedStatus { id: string; label: string; order: number; lifecycle: StatusClass; methodologies: string[] }
+export interface ResolvedPriority { id: string; label: string; order: number }
 export interface WorkVocabularyValues {
-  statuses: Array<{ id: string; label: string; order: number; lifecycle: StatusClass }>;
-  priorities: Array<{ id: string; label: string; order: number }>;
+  statuses: ResolvedStatus[];
+  priorities: ResolvedPriority[];
 }
 
 /** Build the shipped-default {@link WorkVocabularyValues} from the canonical entries. */
 export function workVocabularyValues(): WorkVocabularyValues {
   return {
-    statuses: statusEntries.map((e) => ({ id: e.id, label: e.label, order: e.order, lifecycle: e.lifecycle ?? "open" })),
+    statuses: statusEntries.map((e) => ({ id: e.id, label: e.label, order: e.order, lifecycle: e.lifecycle ?? "open", methodologies: vocabMethodologies(e) })),
     priorities: priorityEntries.map((e) => ({ id: e.id, label: e.label, order: e.order })),
   };
+}
+
+/** The statuses that apply to `methodologyId` (its tagged ones plus the neutral "*" ones), in order —
+ *  a methodology's normal status nomenclature. Pass the shipped default or a resolved set. */
+export function statusesForMethodology(methodologyId: string, statuses: readonly ResolvedStatus[] = workVocabularyValues().statuses): ResolvedStatus[] {
+  return statuses.filter((s) => vocabAppliesTo(s, methodologyId));
 }
