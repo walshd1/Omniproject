@@ -121,6 +121,12 @@ const CLASSIFICATION: Record<string, ScopeClass> = {
   "PUT /scim/v2/Groups/:id": "admin-nontenant",
   "PATCH /scim/v2/Groups/:id": "admin-nontenant",
   "DELETE /scim/v2/Groups/:id": "admin-nontenant",
+  // Native in-app user management — admin-gated; the `:id` names a local user record (roster), not per-tenant
+  // data. Same posture as the SCIM directory above.
+  "PATCH /users/:id": "admin-nontenant",
+  "POST /users/:id/password": "admin-nontenant",
+  "DELETE /users/:id/password": "admin-nontenant",
+  "DELETE /users/:id": "admin-nontenant",
   "DELETE /webhooks/:id": "admin-nontenant",
   "POST /webhooks/:id/test": "admin-nontenant",
   "PUT /governance/:id": "admin-nontenant",

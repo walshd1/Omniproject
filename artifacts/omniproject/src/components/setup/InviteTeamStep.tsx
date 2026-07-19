@@ -15,8 +15,11 @@ export function InviteTeamStep({ authMode }: { authMode?: "oidc" | "demo" | unde
         <h2 className="text-lg font-bold">Add your team</h2>
       </div>
       <p className="mt-1 text-sm text-muted-foreground">
-        People sign in through your <strong>identity provider</strong> — OmniProject never holds passwords. Create
-        accounts (or map groups to roles) in your IdP, or provision users automatically over SCIM.
+        Pick the tier that fits you. <strong>In-app users</strong> (Settings → In-app users) are the entry
+        option — accounts with their own password, no external IdP, best for a solo user or homelab. Stepping up
+        to an <strong>identity provider</strong> (OIDC/SAML) or SCIM is stronger — and once you connect one,
+        in-app passwords switch off automatically to prevent a downgrade. Either way, a person's group confers
+        their role.
       </p>
       {demo && (
         <p className="mt-2 flex items-start gap-1.5 text-xs text-amber-600" data-testid="invite-team-demo-warning">
