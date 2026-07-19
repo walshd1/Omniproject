@@ -168,3 +168,26 @@ test("resolver: a user's i18n JSON overrides the org, but accessibility still wi
   assert.equal(v.find((s) => s.id === "in_progress")!.labels?.["de"], "Läuft"); // i18n applied (accessibility silent here)
   assert.equal(v.find((s) => s.id === "done")!.labels?.["de"], "Fertig (a11y)"); // accessibility beats i18n
 });
+
+test("resolver: i18n also layers at programme + project scope (nearer scope wins)", async () => {
+  const { resolveWorkVocabulary, I18N_CONFIG_ID } = await import("./work-vocabulary-config");
+  const { seedSystemDefaultsIfEmpty } = await import("./system-defs");
+  const { putDef } = await import("./def-import");
+  const { makeScopedId } = await import("./artifact-store");
+
+  seedSystemDefaultsIfEmpty();
+  const PROG = "prog-de", PROJ = "proj-de";
+  const now = new Date().toISOString();
+  const i18nRow = (scope: Parameters<typeof putDef>[0], ownerId: string, de: string) => putDef(scope, {
+    id: makeScopedId(scope.kind as "programme" | "project", `config-${I18N_CONFIG_ID}`, ownerId), kind: "config", name: "i18n",
+    payload: { id: I18N_CONFIG_ID, values: { workVocabulary: { statuses: [{ id: "done", labels: { de } }] } } },
+    createdBy: "test", createdAt: now, updatedAt: now, rowVersion: 1,
+  });
+  i18nRow({ kind: "programme", programmeId: PROG }, PROG, "Fertig (Programm)");
+  i18nRow({ kind: "project", projectId: PROJ }, PROJ, "Fertig (Projekt)");
+
+  // Programme scope only → programme i18n.
+  assert.equal(resolveWorkVocabulary({ programmeId: PROG }).statuses.find((s) => s.id === "done")!.labels?.["de"], "Fertig (Programm)");
+  // Project + programme → the nearer (project) i18n wins.
+  assert.equal(resolveWorkVocabulary({ programmeId: PROG, projectId: PROJ }).statuses.find((s) => s.id === "done")!.labels?.["de"], "Fertig (Projekt)");
+});
