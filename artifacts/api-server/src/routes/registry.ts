@@ -9,6 +9,17 @@ import {
   registryItemMeta, listRegistryItems, getRegistryItem, putRegistryItem, deleteRegistryItem, RegistryError,
   type RegistryItem, type RegistryItemMeta,
 } from "../lib/registry";
+import { activateApprovedPrimitive, deactivateApprovedPrimitive, DefError } from "../lib/def-import";
+import { validatePrimitiveDef, primitiveSafetyErrors } from "@workspace/backend-catalogue";
+
+/** Shape + safety check a primitive submission (the lighter gate at submit time; activation re-checks + resolves
+ *  ancestry on approval). Returns an error string, or null when the payload is a well-formed, safe primitive. */
+function primitiveSubmitError(payload: unknown): string | null {
+  const shape = validatePrimitiveDef(payload);
+  if (!shape.ok || !shape.def) return shape.errors.join("; ") || "invalid primitive";
+  const safety = primitiveSafetyErrors(shape.def);
+  return safety.length ? safety.join("; ") : null;
+}
 
 /**
  * ORG REGISTRY routes (org-wide store of approved bespoke items), behind the default-off `registry` module.
@@ -69,6 +80,12 @@ router.post("/registry", requireRole("contributor"), (req, res) => {
   let input;
   try { input = sanitizeRegistrySubmit(req.body); }
   catch (e) { if (e instanceof RegistryError) { res.status(400).json({ error: e.message }); return; } throw e; }
+  // A primitive submission is shape- + safety-checked up front, so the review queue only ever holds a
+  // well-formed, injection-free primitive (activation on approval re-checks and resolves its ancestry).
+  if (input.kind === "primitive") {
+    const err = primitiveSubmitError(input.payload);
+    if (err) { res.status(400).json({ error: `primitive is not valid: ${err}` }); return; }
+  }
   return withBrokerErrors(req, res, "submit_registry failed", async () => {
     if (!requireArtifactStore(res)) return;
     const row = newRegistryItem(crypto.randomUUID(), input, contextFromReq(req), new Date().toISOString());
@@ -86,7 +103,19 @@ router.post("/registry/:id/review", requireRole("admin"), (req, res) => {
     if (!artifactStoreEnabled()) { res.status(404).json({ error: "Item not found" }); return; }
     const existing = getRegistryItem(String(req.params["id"]));
     if (!existing) { res.status(404).json({ error: "Item not found" }); return; }
-    const row = reviewRegistryItem(existing, decision, contextFromReq(req), note, new Date().toISOString());
+    const now = new Date().toISOString();
+    // ACTIVATION: approving a primitive writes it into the org's def scope (a scoped shadow, safety-re-checked +
+    // ancestry-resolved); rejecting removes any previously-activated def. Activation runs BEFORE the status is
+    // persisted, so a primitive that can't be safely activated is refused (400) and stays a draft.
+    if (existing.kind === "primitive") {
+      if (decision === "approved") {
+        try { activateApprovedPrimitive(existing.id, existing.name, existing.payload, contextFromReq(req), now); }
+        catch (e) { if (e instanceof DefError) { res.status(400).json({ error: e.message }); return; } throw e; }
+      } else {
+        deactivateApprovedPrimitive(existing.id);
+      }
+    }
+    const row = reviewRegistryItem(existing, decision, contextFromReq(req), note, now);
     putRegistryItem(row);
     res.json(row);
   });
@@ -128,6 +157,8 @@ router.delete("/registry/:id", requireRole("contributor"), (req, res) =>
     const isAdmin = hasRole(req, "admin");
     const isOwnDraft = existing.approvalStatus === "draft" && existing.submittedBy === callerLabel(req);
     if (!isAdmin && !isOwnDraft) { res.status(403).json({ error: "only an admin (or the submitter of a draft) can delete this item" }); return; }
+    // Deleting an approved primitive also removes its activated org def, so it stops resolving.
+    if (existing.kind === "primitive") deactivateApprovedPrimitive(existing.id);
     deleteRegistryItem(String(req.params["id"]));
     res.status(204).end();
   }),

@@ -17,7 +17,7 @@ const SECRET = "test-session-secret-do-not-use-in-prod";
 process.env["SESSION_SECRET"] = SECRET;
 process.env["NODE_ENV"] = "production";
 process.env["RATE_LIMIT_DISABLED"] = "true";
-process.env["ENABLED_FEATURES"] = "registry";
+process.env["ENABLED_FEATURES"] = "registry,defImporter";
 process.env["SECURITY_STRICT"] = "off";
 const CONFIG_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "registry-routes-"));
 process.env["OMNI_CONFIG_DIR"] = CONFIG_DIR;
@@ -127,6 +127,39 @@ test("visibility: a viewer sees approved items but not another user's draft", as
       if (val === undefined) delete process.env[k]; else process.env[k] = val;
     }
   }
+});
+
+test("org PRIMITIVE authoring: submit is safety-checked, approve ACTIVATES it as an org def, reject removes it", async () => {
+  // A well-formed org primitive that EXTENDS a shipped one (a scoped tile) — safety-checked at submit.
+  const good = { kind: "primitive", name: "Acme tile", publisher: "Acme", version: "1.0.0",
+    payload: { id: "acme-tile", label: "Acme tile", category: "tile", description: "an org tile", extends: "tile", params: [] } };
+  const draft = await req("/registry", { method: "POST", body: good, cookie: CONTRIBUTOR });
+  assert.equal(draft.status, 201);
+  const item = (await draft.json()) as { id: string };
+
+  // Malformed / unsafe primitive submissions are refused up front (never enter the queue).
+  assert.equal((await req("/registry", { method: "POST", body: { ...good, name: "Bad shape", payload: { id: "Bad Id", category: "nope" } }, cookie: CONTRIBUTOR })).status, 400);
+  assert.equal((await req("/registry", { method: "POST", body: { ...good, name: "Injected", payload: { id: "x-inj", label: "<script>", category: "tile", description: "d", extends: "tile", params: [] } }, cookie: CONTRIBUTOR })).status, 400);
+
+  // Before approval, the primitive does NOT resolve (it's inactive).
+  const before = (await req("/defs/resolved/primitive").then((x) => x.json())) as Array<{ payload: { id: string } }>;
+  assert.ok(!before.some((d) => d.payload.id === "acme-tile"), "an un-approved primitive is not live");
+
+  // A direct import bypass stays blocked — the ONLY activation path is approval.
+  assert.equal((await req("/defs", { method: "POST", body: { kind: "primitive", storage: "org", name: "x", payload: good.payload } })).status, 403);
+
+  // Admin approves → the primitive is ACTIVATED into the org def scope and now resolves.
+  assert.equal((await req(`/registry/${item.id}/review`, { method: "POST", body: { decision: "approved" } })).status, 200);
+  const live = (await req("/defs/resolved/primitive").then((x) => x.json())) as Array<{ kind: string; payload: { id: string; extends?: string } }>;
+  const activated = live.find((d) => d.payload.id === "acme-tile");
+  assert.ok(activated, "an approved primitive is live in the org scope");
+  assert.equal(activated!.kind, "primitive");
+  assert.equal(activated!.payload.extends, "tile");
+
+  // Rejecting it removes the activated def again.
+  assert.equal((await req(`/registry/${item.id}/review`, { method: "POST", body: { decision: "rejected" } })).status, 200);
+  const after = (await req("/defs/resolved/primitive").then((x) => x.json())) as Array<{ payload: { id: string } }>;
+  assert.ok(!after.some((d) => d.payload.id === "acme-tile"), "a rejected primitive stops resolving");
 });
 
 test("RBAC: a viewer can't submit; a non-admin can't review or release", async () => {

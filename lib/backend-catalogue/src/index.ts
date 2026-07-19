@@ -30,6 +30,7 @@ export * from "./def-compose";
 export * from "./def-constraints";
 export * from "./field-primitive-catalogue";
 export * from "./field-validation";
+export * from "./primitive-safety";
 export * from "./container-constraints";
 export * from "./def-refs";
 export * from "./report-catalogue";

@@ -20,7 +20,7 @@ import { readDefIndex, ensureDefIndex, defHasChildren, defIndexAddEdge, invalida
 import { validateScreenDefs } from "./screen-def";
 import { sanitizeMapping } from "./mapping";
 import { validateCustomFieldDef } from "./custom-fields";
-import { validatePrimitiveDef, shippedDefRefs, shippedDefs, extendsLineage, composeExtends, composedConstraintErrors, kindRootConstraints, kindElementErrors, validateFormFields } from "@workspace/backend-catalogue";
+import { validatePrimitiveDef, primitiveSafetyErrors, shippedDefRefs, shippedDefs, extendsLineage, composeExtends, composedConstraintErrors, kindRootConstraints, kindElementErrors, validateFormFields } from "@workspace/backend-catalogue";
 
 /** A user-definable JSON kind the importer accepts. */
 export type DefKind = "primitive" | "screen" | "form" | "report" | "dashboard" | "businessRule" | "methodology" | "mapping" | "customField" | "theme" | "font" | "config" | "jsonDef";
@@ -283,6 +283,8 @@ export function storedDefMeta(a: StoredDef): StoredDefMeta {
 }
 
 // ── Scoped store helpers ─────────────────────────────────────────────────────────────────────────────────
+/** The org def scope — where an approved customer primitive is activated (org-wide). */
+const ORG_SCOPE: ArtifactScope = { kind: "org" };
 export const listDefs = (scope: ArtifactScope): StoredDef[] => listArtifacts<StoredDef>(DEF_ARTIFACT, scope);
 export const getDef = (scope: ArtifactScope, id: string): StoredDef | null => getArtifact<StoredDef>(DEF_ARTIFACT, scope, id);
 
@@ -499,21 +501,69 @@ export function checkDeleteIntegrity(kind: DefKind, storageId: string, logicalId
   return null;
 }
 export const putDef = (scope: ArtifactScope, a: StoredDef): void => {
-  // Vendor-controlled kinds (primitives) are NEVER writable at a customer scope — `putDef` only ever targets
-  // user/project/programme/org (system is written by the seeder via putArtifact, not here). Fail closed so no
-  // code path can fork a primitive, even one that skipped the route-level check.
-  if (isVendorControlledKind(a.kind)) throw new DefError(`${a.kind} definitions are vendor-controlled and cannot be written to a customer scope`);
+  // The PUBLIC importer never authors a vendor-controlled kind (primitive) at a customer scope — a primitive may
+  // only reach a customer scope through the APPROVAL-gated `activateApprovedPrimitive` path below, never here.
+  // Fail closed so an un-approved primitive can't be forked through the direct route.
+  if (isVendorControlledKind(a.kind)) throw new DefError(`${a.kind} definitions can only be authored through the registry approval flow, not the direct importer`);
+  writeDefRow(scope, a);
+};
+export const deleteDef = (scope: ArtifactScope, id: string): boolean => deleteArtifact(DEF_ARTIFACT, scope, id);
+
+/** Write a def row + keep the child-edge index current (write-through; additive → only ever over-reports, which
+ *  is safe). Any failure invalidates the whole index so it is rebuilt from a full scan on next use. The raw store
+ *  write shared by `putDef` and the privileged primitive-activation path. */
+function writeDefRow(scope: ArtifactScope, a: StoredDef): void {
   putArtifact(DEF_ARTIFACT, scope, a);
-  // Keep the child-edge index current write-through (additive → only ever over-reports, which is safe). Any
-  // failure invalidates the whole index so it is rebuilt from a full scan on next use (rebuild-on-doubt).
   try {
     const pl = (a.payload ?? {}) as Record<string, unknown>;
     const child = typeof pl["id"] === "string" ? pl["id"] : "";
     const parent = typeof pl["extends"] === "string" ? pl["extends"] : "";
     if (child && parent) defIndexAddEdge(a.kind, child, parent);
   } catch { invalidateDefIndex(); }
-};
-export const deleteDef = (scope: ArtifactScope, id: string): boolean => deleteArtifact(DEF_ARTIFACT, scope, id);
+}
+
+// ── APPROVED customer primitives (the ONLY path a primitive reaches a customer scope) ───────────────────────
+// Orgs may author primitives, but ONLY through the registry approval queue: a submission is safety-checked, and
+// on admin APPROVAL it is activated here into the org's def scope (a scoped shadow — an org may extend OR override
+// a system primitive; the canonical system primitive is never touched, and the override resolves nearest-wins
+// only within that org). The direct importer (`putDef`) stays closed, so nothing un-approved can activate.
+
+/** The def storage id for a primitive activated from a registry item (deterministic, so reject/delete can undo). */
+export const approvedPrimitiveDefId = (registryItemId: string): string => `org~reg-${registryItemId}`;
+
+/** Validate a customer primitive for activation: shape ({@link validatePrimitiveDef}) + the customer-only safety
+ *  bounds/render-safety ({@link primitiveSafetyErrors}) + `extends` ancestry resolving (system + org) + the
+ *  bidirectional integrity check. Returns an error string, or null when safe to activate. */
+export function approvedPrimitiveErrors(payload: unknown): string | null {
+  const shape = validatePrimitiveDef(payload);
+  if (!shape.ok || !shape.def) return shape.errors.join("; ") || "invalid primitive";
+  const safety = primitiveSafetyErrors(shape.def);
+  if (safety.length) return safety.join("; ");
+  const ancestry = checkImportAncestry("primitive", payload, {});
+  if (ancestry) return ancestry;
+  const integrity = checkImportIntegrity("primitive", payload);
+  if (integrity) return integrity;
+  return null;
+}
+
+/** PRIVILEGED: activate an APPROVED customer primitive into the org def scope. Runs the full safety pipeline
+ *  first ({@link approvedPrimitiveErrors}) and throws {@link DefError} on any violation. This is the sole path a
+ *  primitive may be written at a customer scope. Returns the stored def. */
+export function activateApprovedPrimitive(registryItemId: string, name: string, payload: unknown, ctx: ActorContext, now: string): StoredDef {
+  const err = approvedPrimitiveErrors(payload);
+  if (err) throw new DefError(`primitive is not safe to activate: ${err}`);
+  const row: StoredDef = {
+    id: approvedPrimitiveDefId(registryItemId), kind: "primitive", name: cleanName(name) || "primitive", payload,
+    createdBy: actorLabel(ctx), createdAt: now, updatedAt: now, rowVersion: 1,
+  };
+  writeDefRow(ORG_SCOPE, row);
+  return row;
+}
+
+/** Remove an activated approved primitive from the org scope (on reject / retract / delete). */
+export function deactivateApprovedPrimitive(registryItemId: string): boolean {
+  return deleteArtifact(DEF_ARTIFACT, ORG_SCOPE, approvedPrimitiveDefId(registryItemId));
+}
 
 // ── System (shipped defaults) store ──────────────────────────────────────────────────────────────────────
 // The system scope is one encrypted blob of OUR shipped defaults (default screens/reports/rulesets/dashboards/…).
