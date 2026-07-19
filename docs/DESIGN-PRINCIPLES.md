@@ -142,7 +142,10 @@ Two hard rules make this safe:
 
 - **Save your recovery key on first setup, and keep it offline.** A fresh instance mints an **Instance Recovery
   Key** (IRK) — a portable secret shown to the admin **once** (Settings → Recovery key), stored *wrapped* on
-  the box (never plaintext, never a bare env var; KMS-preferred). It is the ONLY thing that opens an encrypted
+  the box (never plaintext, never a bare env var). When a cloud KMS is configured the IRK is wrapped **directly
+  under the KMS-unwrapped root** — its protection sits in the HSM, exactly like the config and vault roots —
+  and enabling KMS on an existing instance migrates the IRK into the HSM on the next boot (the key value is
+  unchanged). Without KMS the wrap derives from the box master secret. It is the ONLY thing that opens an encrypted
   **portable backup** on a different box, so save it somewhere separate — a password manager, or printed and
   locked away. **Restore** is: upload the portable backup + paste the old key → it decrypts, reloads, and the
   instance **rotates to a fresh key it then reveals** (save that one too). Lose the key and its backups can't be

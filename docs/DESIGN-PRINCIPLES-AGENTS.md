@@ -75,6 +75,11 @@ Format: each principle is a RULE + how to CHECK it + the usual FIX.
   never returned over the API (presence/fingerprint only).
 - RULE: Fail closed — malformed allowlist matches nobody; unresolved scope returns nothing; an undecryptable
   sealed file is NOT overwritten. Atomic writes (temp→fsync→rename) for durable files.
+- RULE: The Instance Recovery Key (`instance-key.ts`) is stored WRAPPED, never plaintext/env. Its wrap key
+  prefers the KMS-unwrapped config root (`deriveKeyFromBytes(kmsConfigKey(), "instance-key:v1")`) when KMS is
+  configured, else derives from the master — same KMS-first pattern as `config-crypto.rawKey()`. Unwrap tries
+  KMS-then-master, and `ensureInstanceKey` re-wraps in place under the preferred key on boot (key value
+  unchanged) so enabling KMS migrates the IRK into the HSM automatically.
 - CHECK: A new secret sealed under the config key; a secret value in a response body; a non-atomic sealed write.
 
 ## 10. Org identity vs branding
