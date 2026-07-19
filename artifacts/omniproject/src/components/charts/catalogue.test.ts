@@ -27,9 +27,14 @@ describe("primitive catalogue", () => {
   });
 
   it("gives every primitive a label, description, and at least one required param (after composition)", () => {
+    // The render-surface SPINE (canvas ← geometry-canvas ← chart ← interactive-chart) are ABSTRACT
+    // composition bases — never instantiated directly by the builder, so they legitimately expose only
+    // optional params; concrete descendants get their required params from their own data shape.
+    const ABSTRACT_BASES = new Set(["canvas", "geometry-canvas", "chart", "interactive-chart"]);
     for (const p of PRIMITIVE_CATALOGUE) {
       expect(p.label.length, p.id).toBeGreaterThan(0);
       expect(p.description.length, p.id).toBeGreaterThan(0);
+      if (ABSTRACT_BASES.has(p.id)) continue;
       // A thin child may add only optional params but INHERITS its parent's required ones — so check the
       // RESOLVED def, which is what the builder consumes.
       const resolved = resolvePrimitive(p.id)!;

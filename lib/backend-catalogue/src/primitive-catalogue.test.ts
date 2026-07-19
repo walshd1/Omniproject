@@ -10,9 +10,34 @@ import { PRIMITIVE_CATALOGUE, getPrimitive, primitivesByCategory, resolvePrimiti
 
 const GEOMETRY_ATOMS = ["line", "rect", "text", "point", "path"];
 
-test("ships the four geometry atoms, all in the geometry category", () => {
-  const geom = primitivesByCategory("geometry").map((p) => p.id).sort();
-  assert.deepEqual(geom, [...GEOMETRY_ATOMS].sort());
+test("ships the geometry atoms + the surface spine (canvas/geometry-canvas), all geometry category", () => {
+  const geom = new Set(primitivesByCategory("geometry").map((p) => p.id));
+  for (const a of GEOMETRY_ATOMS) assert.ok(geom.has(a), `${a} is a geometry atom`);
+  assert.ok(geom.has("canvas") && geom.has("geometry-canvas"), "the surface spine is geometry too");
+});
+
+test("the drawable render-surface spine inherits linearly: canvas ← geometry-canvas ← chart ← interactive-chart", () => {
+  assert.deepEqual(resolvePrimitive("canvas")!.lineage, ["canvas"]); // the root surface
+  assert.deepEqual(resolvePrimitive("geometry-canvas")!.lineage, ["geometry-canvas", "canvas"]);
+  assert.deepEqual(resolvePrimitive("chart")!.lineage, ["chart", "geometry-canvas", "canvas"]);
+  assert.deepEqual(resolvePrimitive("interactive-chart")!.lineage, ["interactive-chart", "chart", "geometry-canvas", "canvas"]);
+  // An interactive chart therefore INHERITS every chart + geometry-canvas + canvas param.
+  const ic = resolvePrimitive("interactive-chart")!;
+  const keys = new Set(ic.params.map((p) => p.key));
+  assert.ok(keys.has("interactive"), "adds its own interaction param");
+  assert.ok(keys.has("legend") && keys.has("palette"), "inherits chart's presentation params");
+  assert.ok(keys.has("shapes"), "inherits geometry-canvas's shapes");
+  assert.ok(keys.has("width") && keys.has("height"), "inherits canvas's surface dims");
+});
+
+test("every concrete chart is a child of `chart` (traces back through geometry-canvas to the canvas)", () => {
+  for (const id of ["bar", "line-chart", "area", "pie", "donut", "scatter", "treemap", "gantt"]) {
+    const r = resolvePrimitive(id)!;
+    assert.ok(r, `${id} present`);
+    assert.deepEqual(r.lineage.slice(-3), ["chart", "geometry-canvas", "canvas"], `${id} extends chart→geometry-canvas→canvas`);
+    // `shapes` is declared ONLY on geometry-canvas, so its presence proves real inheritance up the spine.
+    assert.ok(r.params.some((p) => p.key === "shapes"), `${id} inherits shapes from geometry-canvas`);
+  }
 });
 
 test("geometry atoms are roots — the smallest set everything drawable composes from", () => {

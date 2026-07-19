@@ -93,10 +93,58 @@ export const PRIMITIVE_CATALOGUE: PrimitiveDef[] = [
       { key: "thickness", label: "Thickness", type: "number", required: false, description: "Outline stroke width (default 1)." },
     ],
   },
+  // ── THE DRAWABLE RENDER-SURFACE SPINE ───────────────────────────────────────────────────────────
+  // An inheritance chain, not a flag: canvas ← geometry-canvas ← chart ← interactive-chart. Each level
+  // INHERITS the one below and adds its own capability, so an interactive chart HAS every chart
+  // property, a chart HAS every geometry-canvas property, and so on down to the bare surface. Concrete
+  // charts (bar/line/…) extend `chart`; an interactive variant extends `interactive-chart`.
+  {
+    id: "canvas",
+    label: "Canvas",
+    category: "geometry",
+    description: "The bare drawing surface — a coordinate space everything drawable sits on. The root of the render-surface lineage.",
+    params: [
+      { key: "width", label: "Width", type: "number", required: false, description: "Coordinate-space width (user units); the surface scales to its container." },
+      { key: "height", label: "Height", type: "number", required: false, description: "Coordinate-space height (user units)." },
+    ],
+  },
+  {
+    id: "geometry-canvas",
+    label: "Geometry canvas",
+    category: "geometry",
+    extends: "canvas",
+    description: "A canvas that draws GEOMETRY ATOMS (line/rect/text/point/path). Inherits the surface; adds the shapes it renders.",
+    params: [
+      { key: "shapes", label: "Shapes", type: "rows", required: false, description: "The geometry-atom instances to draw (each an atom `type` + its params)." },
+    ],
+  },
+  {
+    id: "chart",
+    label: "Chart",
+    category: "chart",
+    extends: "geometry-canvas",
+    description: "A geometry-canvas that plots DATA as atoms — the abstract base every concrete chart inherits. Adds presentation (palette, legend); the data shape is added by each concrete chart.",
+    params: [
+      LEGEND_PARAM,
+      PALETTE_PARAM,
+    ],
+  },
+  {
+    id: "interactive-chart",
+    label: "Interactive chart",
+    category: "chart",
+    extends: "chart",
+    description: "A chart WITH interaction — inherits every chart property and adds the interaction layer (hover/focus tooltips). Interactivity is a level in the taxonomy, so an interactive chart is a chart plus this.",
+    params: [
+      { key: "interactive", label: "Interactive", type: "boolean", required: false, description: "Enable the hover/focus tooltip layer over the chart's marks." },
+      { key: "tooltip", label: "Tooltip", type: "string", required: false, description: "Tooltip content template for a mark (defaults to its label + value)." },
+    ],
+  },
   {
     id: "bar",
     label: "Bar chart",
     category: "chart",
+    extends: "chart",
     chartType: "bar",
     description: "Compare a measure across categories; multiple series can be grouped or stacked, horizontal or vertical.",
     params: [
@@ -111,6 +159,7 @@ export const PRIMITIVE_CATALOGUE: PrimitiveDef[] = [
     id: "line-chart",
     label: "Line chart",
     category: "chart",
+    extends: "chart",
     chartType: "line",
     description: "Show change over an ordered axis (usually time) for one or more series.",
     params: [
@@ -124,6 +173,7 @@ export const PRIMITIVE_CATALOGUE: PrimitiveDef[] = [
     id: "area",
     label: "Area chart",
     category: "chart",
+    extends: "chart",
     chartType: "area",
     description: "A line chart with the area below filled; stack series to show composition over time.",
     params: [
@@ -138,6 +188,7 @@ export const PRIMITIVE_CATALOGUE: PrimitiveDef[] = [
     id: "pie",
     label: "Pie chart",
     category: "chart",
+    extends: "chart",
     chartType: "pie",
     description: "Show each category's share of a whole. Best for a handful of slices.",
     params: [
@@ -149,6 +200,7 @@ export const PRIMITIVE_CATALOGUE: PrimitiveDef[] = [
     id: "donut",
     label: "Donut chart",
     category: "chart",
+    extends: "chart",
     chartType: "donut",
     description: "A pie with a hollow centre — the same share-of-whole read, with room for a centre total.",
     params: [
@@ -160,6 +212,7 @@ export const PRIMITIVE_CATALOGUE: PrimitiveDef[] = [
     id: "scatter",
     label: "Scatter plot",
     category: "chart",
+    extends: "chart",
     chartType: "scatter",
     description: "Plot points on two numeric axes to reveal correlation or clustering.",
     params: [
@@ -173,6 +226,7 @@ export const PRIMITIVE_CATALOGUE: PrimitiveDef[] = [
     id: "treemap",
     label: "Treemap / work breakdown",
     category: "chart",
+    extends: "chart",
     chartType: "treemap",
     description: "Nested rectangles sized by value — a work-breakdown structure or any part-of-whole hierarchy.",
     params: [
@@ -184,6 +238,7 @@ export const PRIMITIVE_CATALOGUE: PrimitiveDef[] = [
     id: "gantt",
     label: "Gantt chart",
     category: "chart",
+    extends: "chart",
     chartType: "gantt",
     description: "One bar per item positioned by its start/end dates on a shared time axis, with optional progress.",
     params: [
