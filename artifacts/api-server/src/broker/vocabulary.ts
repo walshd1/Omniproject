@@ -192,6 +192,14 @@ export type CanonicalEnergy = (typeof CANONICAL_ENERGY)[number];
 export const RAG_STATUSES = ["GREEN", "AMBER", "RED"] as const;
 export type RagStatus = (typeof RAG_STATUSES)[number];
 
+/** Normalise a free-form RAG value (any case / surrounding whitespace) to a canonical RagStatus, or
+ *  null when it isn't one of the three — the SINGLE classification action behind every RAG tally,
+ *  replacing the hand-rolled `s === "red" … else` ladders each roll-up used to inline. */
+export function classifyRag(value: unknown): RagStatus | null {
+  const s = String(value ?? "").trim().toUpperCase();
+  return s === "GREEN" || s === "AMBER" || s === "RED" ? (s as RagStatus) : null;
+}
+
 /** RAG from a completion percentage (≥60 green, ≥25 amber, else red). */
 export function ragFor(completionPct: number): RagStatus {
   if (completionPct >= 60) return "GREEN";

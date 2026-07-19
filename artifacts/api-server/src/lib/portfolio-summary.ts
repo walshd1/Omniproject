@@ -1,6 +1,7 @@
 import type { Request } from "express";
 import { consolidateByGroup, consolidationSpec, numLoose as num, round1 } from "@workspace/backend-catalogue";
 import { getBroker, contextFromReq, type PortfolioRow, type Row, type Project } from "../broker";
+import { classifyRag } from "../broker/vocabulary";
 import { getSettings } from "./settings";
 import { getFxRates } from "./currency";
 import { resolveCapabilities } from "./capabilities";
@@ -96,10 +97,10 @@ export function summarizeHealth(rows: PortfolioRow[]): HealthTotals {
   const rag: RagCounts = { green: 0, amber: 0, red: 0, other: 0 };
   let schedSum = 0, schedN = 0, budgetSum = 0, budgetN = 0, blockers = 0;
   for (const r of rows) {
-    const status = String(r.ragStatus ?? "").toLowerCase();
-    if (status === "green") rag.green++;
-    else if (status === "amber") rag.amber++;
-    else if (status === "red") rag.red++;
+    const c = classifyRag(r.ragStatus);
+    if (c === "GREEN") rag.green++;
+    else if (c === "AMBER") rag.amber++;
+    else if (c === "RED") rag.red++;
     else rag.other++;
 
     const sv = r.scheduleVarianceDays;

@@ -513,6 +513,7 @@ Canonical value vocabularies — the cross-backend meanings the gateway reasons 
 | `isActionable` | Is this task an ACTIONABLE next-action right now? (the GTD "what can I do next" filter). |
 | `isTaskClosed` | Is a task finished OR dropped (terminal)? — e.g. excluded from an active GTD list. |
 | `isTaskDone` | Is a task COMPLETED (done), as distinct from dropped? — e.g. the trigger to spawn a recurring task's next occurrence (dropping one should NOT recur). |
+| `classifyRag` | Normalise a free-form RAG value (any case / surrounding whitespace) to a canonical RagStatus, or null when it isn't one of the three — the SINGLE classification action behind every RAG tally, replacing the hand-rolled `s === "red" … else` ladders each roll-up used to inline. |
 | `ragFor` | RAG from a completion percentage (≥60 green, ≥25 amber, else red). |
 | `financialHealthFrom` | RAG from cost performance: prefer CPI when earned value is known, else the spend ratio. |
 | `ragBuckets` | A zeroed RAG tally (e.g. for the Prometheus portfolio gauge). |
