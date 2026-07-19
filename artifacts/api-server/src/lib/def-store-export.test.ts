@@ -80,15 +80,18 @@ test("import RE-VALIDATES defs: a tampered/invalid payload is dropped, not writt
     collections: [{ type: "def", scope: { kind: "org" }, items: [
       { id: "org~good", kind: "dashboard", name: "Good", payload: DASHBOARD },
       { id: "org~bad", kind: "dashboard", name: "Bad", payload: { not: "a valid dashboard" } },
-      // A vendor-controlled kind can never live at a customer scope — a backup carrying one is dropped on import.
-      { id: "org~prim", kind: "primitive", name: "Forked prim", payload: { id: "grouped-column", label: "x", category: "chart", params: [{ key: "data", label: "Rows", type: "rows", required: true, description: "d" }] } },
+      // An APPROVED org primitive (extends a system one, safe) round-trips; a ROOTLESS/unsafe one is dropped —
+      // a customer primitive must sit below a system primitive.
+      { id: "org~okprim", kind: "primitive", name: "Acme tile", payload: { id: "acme-tile", label: "Acme tile", category: "tile", description: "d", extends: "tile", params: [] } },
+      { id: "org~prim", kind: "primitive", name: "Forked root", payload: { id: "grouped-column", label: "x", category: "chart", params: [{ key: "data", label: "Rows", type: "rows", required: true, description: "d" }] } },
     ] }],
   };
   const report = applyDefStoreExport(bundle);
   const ids = listArtifacts<{ id: string }>("def", { kind: "org" }).map((d) => d.id);
   assert.ok(ids.includes("org~good"));
+  assert.ok(ids.includes("org~okprim"), "a valid approved org primitive survives migration");
   assert.ok(!ids.includes("org~bad"), "the invalid def must be dropped");
-  assert.ok(!ids.includes("org~prim"), "a vendor-controlled primitive must be dropped on migration");
+  assert.ok(!ids.includes("org~prim"), "a rootless (new-root) primitive must be dropped on migration");
   assert.ok(report.skipped >= 2);
 });
 

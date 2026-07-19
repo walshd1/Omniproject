@@ -10,6 +10,11 @@ import type { PrimitiveDefShape } from "./primitive-schema";
  * within that org's scope (a scoped shadow), never mutating the canonical system primitive. Scope confinement
  * (the resolver folds system → org nearest-wins per caller) is what keeps an override safe; these checks keep
  * the def itself well-formed and injection-free.
+ *
+ * It also enforces the ROOT rule: a customer primitive must EXTEND an existing primitive — it can't be a new
+ * root. The atomic roots are vendor-controlled (a root defines the render contract, drawn by engine code we
+ * ship). Because a customer primitive always has `extends` and org primitives can never be roots, its chain
+ * necessarily bottoms out at a SYSTEM root — a bespoke primitive always sits BELOW a system primitive.
  */
 
 export const PRIMITIVE_LIMITS = {
@@ -37,6 +42,10 @@ const textUnsafe = (s: unknown): boolean => typeof s === "string" && UNSAFE_TEXT
 export function primitiveSafetyErrors(def: PrimitiveDefShape): string[] {
   const errors: string[] = [];
   const label = def.label || def.id || "a primitive";
+
+  // ROOT rule: a customer primitive must extend an existing (ultimately system) primitive — it can't be a new
+  // root. The atomic roots are vendor-controlled, so a bespoke primitive always sits BELOW a system primitive.
+  if (!def.extends) errors.push(`"${label}" must extend an existing primitive — a customer primitive can't be a new root (the atomic roots are vendor-controlled)`);
 
   if (textUnsafe(def.label)) errors.push(`"${label}" label contains an unsafe character or scheme`);
   if (textUnsafe(def.description)) errors.push(`"${label}" description contains an unsafe character or scheme`);

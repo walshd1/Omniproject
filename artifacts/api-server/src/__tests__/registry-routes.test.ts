@@ -140,6 +140,8 @@ test("org PRIMITIVE authoring: submit is safety-checked, approve ACTIVATES it as
   // Malformed / unsafe primitive submissions are refused up front (never enter the queue).
   assert.equal((await req("/registry", { method: "POST", body: { ...good, name: "Bad shape", payload: { id: "Bad Id", category: "nope" } }, cookie: CONTRIBUTOR })).status, 400);
   assert.equal((await req("/registry", { method: "POST", body: { ...good, name: "Injected", payload: { id: "x-inj", label: "<script>", category: "tile", description: "d", extends: "tile", params: [] } }, cookie: CONTRIBUTOR })).status, 400);
+  // A ROOTLESS primitive (no extends) is refused — a customer primitive must sit BELOW a system primitive.
+  assert.equal((await req("/registry", { method: "POST", body: { ...good, name: "New root", payload: { id: "x-root", label: "X root", category: "chart", description: "d", params: [{ key: "data", label: "Rows", type: "rows", required: true, description: "d" }] } }, cookie: CONTRIBUTOR })).status, 400);
 
   // Before approval, the primitive does NOT resolve (it's inactive).
   const before = (await req("/defs/resolved/primitive").then((x) => x.json())) as Array<{ payload: { id: string } }>;

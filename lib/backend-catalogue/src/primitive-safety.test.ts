@@ -10,13 +10,18 @@ import type { PrimitiveDefShape } from "./primitive-schema";
  */
 
 const base: PrimitiveDefShape = {
-  id: "acme-chart", label: "Acme chart", category: "chart",
+  id: "acme-chart", label: "Acme chart", category: "chart", extends: "chart",
   description: "an org's own chart", params: [{ key: "data", label: "Rows", type: "rows", required: true, description: "the rows" }],
 };
 
-test("a clean org primitive is safe", () => {
+test("a clean org primitive (extends a system one) is safe", () => {
   assert.deepEqual(primitiveSafetyErrors(base), []);
   assert.equal(isPrimitiveSafe(base), true);
+});
+
+test("a customer primitive with NO extends is rejected — it can't be a new root", () => {
+  const { extends: _e, ...rootless } = base;
+  assert.ok(primitiveSafetyErrors(rootless as PrimitiveDefShape).some((e) => /new root/.test(e)));
 });
 
 test("markup / script / data URLs in any text are rejected", () => {
