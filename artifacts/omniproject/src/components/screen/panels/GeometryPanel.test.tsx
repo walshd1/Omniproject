@@ -32,4 +32,24 @@ describe("GeometryPanel", () => {
     render(<GeometryPanel panel={panel} />);
     expect(screen.getByText("Nothing to draw.")).toBeInTheDocument();
   });
+
+  it("expands a declarative `grid` spec to line atoms, drawn under the explicit shapes", () => {
+    const panel: Panel = {
+      id: "g3",
+      kind: "geometry",
+      config: {
+        width: 100,
+        height: 100,
+        grid: { rowGap: 50, colGap: 50 }, // 3 horizontals + 3 verticals = 6 gridlines
+        shapes: [{ type: "point", x: 50, y: 50 }],
+      },
+    };
+    const { container } = render(<GeometryPanel panel={panel} />);
+    const svg = container.querySelector("svg")!;
+    expect(svg.querySelectorAll("line").length).toBe(6);
+    expect(svg.querySelectorAll("circle").length).toBe(1);
+    // The grid is drawn first (beneath) so the explicit point sits on top.
+    expect(svg.firstElementChild!.tagName.toLowerCase()).toBe("line");
+    expect(svg.lastElementChild!.tagName.toLowerCase()).toBe("circle");
+  });
 });

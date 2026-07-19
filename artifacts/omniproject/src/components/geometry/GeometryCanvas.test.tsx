@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { render } from "@testing-library/react";
 import { GeometryCanvas, type GeometryShape } from "./GeometryCanvas";
+import { buildGrid } from "../../lib/geometry/grid";
 
 /**
  * The geometry atom renderer draws the four fundamentals (line/rect/text/point) straight from their
@@ -93,5 +94,13 @@ describe("GeometryCanvas", () => {
   it("sets the coordinate viewport from width/height", () => {
     const svg = draw([], { width: 200, height: 40 });
     expect(svg.getAttribute("viewBox")).toBe("0 0 200 40");
+  });
+
+  it("renders a composed grid (a higher-level drawable built purely from line atoms)", () => {
+    // The end-to-end proof: buildGrid emits atom instances, GeometryCanvas draws them — no bespoke
+    // grid component. 5 horizontals (0/25/50/75/100) + 3 verticals (0/50/100) = 8 lines.
+    const svg = draw(buildGrid({ width: 100, height: 100, rowGap: 25, colGap: 50, stroke: "#e5e7eb" }));
+    expect(svg.querySelectorAll("line").length).toBe(8);
+    expect(svg.querySelector("line")!.getAttribute("stroke")).toBe("#e5e7eb");
   });
 });
