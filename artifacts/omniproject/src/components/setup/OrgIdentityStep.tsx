@@ -1,74 +1,85 @@
-import { useEffect, useState } from "react";
-import { Building2, Lock } from "lucide-react";
+import { useRef, useState } from "react";
+import { Building2, Lock, ImageUp, X } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { useBranding } from "../../lib/branding";
+import { useOrgIdentity, ORG_IDENTITY_QUERY_KEY } from "../../lib/org-identity";
 
 /**
- * "Name your organisation" — the first thing a new instance should ask, and it is UNGATED: naming the org is
- * NOT the premium white-label `appName` (branding). The name is written to the canonical org-identity record
- * (`/api/org-identity`) — the org id + name that sits at the top of the org-level JSON — so every deployment can
- * name itself, licence or none.
+ * "Name your organisation" — the first thing a new instance should ask, and it is UNGATED: the name AND the
+ * org's own logo are written to the canonical org-identity record (`/api/org-identity`), the org id + name +
+ * logo that sit at the top of the org-level JSON. Every deployment can name and badge itself, licence or none.
  *
- * Branding (the white-label logo + `appName` override shown in the header/title) stays premium: when the
- * instance is entitled we ALSO mirror the name into branding so the header reflects it; when it isn't, naming
- * still works and we show a compact note that the logo/white-label override is a paid add-on (no longer a hard
- * gate on the name itself). Admin-gated (the server re-checks).
+ * The logo is the ORG's asset for THEIR deliverables — surfaced on screens/reports/exports when they opt in
+ * (`showLogo`). It is distinct from the premium `branding` feature, which white-labels the PRODUCT chrome
+ * (header/login): when entitled we ALSO mirror the name into branding so the header matches; when not, naming +
+ * the logo still work, and only the product white-label is flagged as a paid add-on.
  */
+
+/** Raster image types we accept for a logo (SVG is excluded server-side — it can carry script). */
+const LOGO_TYPES = ["image/png", "image/jpeg", "image/webp", "image/gif"];
+/** ~192 KB decoded — the server caps the stored (base64) string at 256 KB. */
+const MAX_LOGO_BYTES = 192 * 1024;
+
 export function OrgIdentityStep({ isAdmin = true }: { isAdmin?: boolean }) {
   const brand = useBranding();
+  const org = useOrgIdentity();
   const qc = useQueryClient();
   const { toast } = useToast();
-  const [draft, setDraft] = useState<string | null>(null);
-  const [current, setCurrent] = useState("");
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  const [nameDraft, setNameDraft] = useState<string | null>(null);
+  const [logoDraft, setLogoDraft] = useState<string | null>(null);
+  const [showDraft, setShowDraft] = useState<boolean | null>(null);
   const [saving, setSaving] = useState(false);
 
-  // Seed the field from the canonical org-identity record (falls back to any branding appName already set).
-  useEffect(() => {
-    let live = true;
-    void (async () => {
-      try {
-        const res = await fetch("/api/org-identity", { credentials: "same-origin" });
-        if (!res.ok) return;
-        const body = (await res.json()) as { identity?: { name?: string } };
-        if (live && typeof body.identity?.name === "string") setCurrent(body.identity.name);
-      } catch { /* leave the field empty; the placeholder guides the user */ }
-    })();
-    return () => { live = false; };
-  }, []);
+  const name = nameDraft ?? org?.name ?? "";
+  const logo = logoDraft ?? org?.logo ?? "";
+  const showLogo = showDraft ?? org?.showLogo ?? false;
 
-  const value = draft ?? current ?? "";
+  const pickLogo = (file: File | undefined): void => {
+    if (!file) return;
+    if (!LOGO_TYPES.includes(file.type)) {
+      toast({ title: "UNSUPPORTED IMAGE", description: "Use a PNG, JPEG, WebP or GIF (SVG isn't allowed).", variant: "destructive" });
+      return;
+    }
+    if (file.size > MAX_LOGO_BYTES) {
+      toast({ title: "IMAGE TOO LARGE", description: "Keep the logo under ~190 KB.", variant: "destructive" });
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => { if (typeof reader.result === "string") { setLogoDraft(reader.result); if (showDraft === null) setShowDraft(true); } };
+    reader.readAsDataURL(file);
+  };
 
   const save = async (): Promise<void> => {
     if (!isAdmin || saving) return;
-    const name = value.trim();
+    const trimmed = name.trim();
     setSaving(true);
     try {
-      // Ungated: the canonical org name (the org-identity record). This ALWAYS works.
       const res = await fetch("/api/org-identity", {
         method: "PUT",
         credentials: "same-origin",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name }),
+        body: JSON.stringify({ name: trimmed, logo, showLogo }),
       });
       if (!res.ok) throw new Error(String(res.status));
-      // Premium mirror: when entitled, also update the white-label header/title so it matches. Best-effort —
-      // a failure here never fails the (ungated) naming above.
+      // Premium mirror: when entitled, also update the white-label header/title. Best-effort — a failure here
+      // never fails the (ungated) identity save above.
       if (brand.entitled) {
         try {
           await fetch("/api/branding", {
             method: "PUT",
             credentials: "same-origin",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ appName: name || null }),
+            body: JSON.stringify({ appName: trimmed || null }),
           });
           await qc.invalidateQueries({ queryKey: ["branding"] });
         } catch { /* header stays on the default; the org is still named */ }
       }
-      setCurrent(name);
-      setDraft(null);
-      await qc.invalidateQueries({ queryKey: ["org-identity"] });
-      toast({ title: "ORGANISATION NAMED", description: name || "Reset to the default name" });
+      setNameDraft(null); setLogoDraft(null); setShowDraft(null);
+      await qc.invalidateQueries({ queryKey: ORG_IDENTITY_QUERY_KEY });
+      toast({ title: "ORGANISATION SAVED", description: trimmed || "Reset to the default name" });
     } catch {
       toast({ title: "COULD NOT SAVE", description: "Check your permissions, then try again.", variant: "destructive" });
     } finally {
@@ -82,20 +93,53 @@ export function OrgIdentityStep({ isAdmin = true }: { isAdmin?: boolean }) {
         <Building2 className="w-4 h-4 text-muted-foreground" aria-hidden="true" />
         <h2 className="text-lg font-bold">Name your organisation</h2>
       </div>
-      <p className="mt-1 text-sm text-muted-foreground">Your organisation's name — the canonical identity for this deployment.</p>
+      <p className="mt-1 text-sm text-muted-foreground">Your organisation's name and logo — the canonical identity for this deployment.</p>
 
       <div className="mt-4 flex flex-wrap items-end gap-2">
         <label className="text-xs">
           <span className="block text-muted-foreground mb-1">Organisation name</span>
           <input
             data-testid="org-name-input"
-            value={value}
-            onChange={(e) => setDraft(e.target.value)}
+            value={name}
+            onChange={(e) => setNameDraft(e.target.value)}
             placeholder="Acme Inc."
             disabled={!isAdmin}
             className="border border-border bg-background px-2 py-1.5 text-sm min-w-56"
           />
         </label>
+      </div>
+
+      {/* Org logo (ungated) — the org's own asset, optionally shown on screens/reports/exports. */}
+      <div className="mt-4">
+        <span className="block text-xs text-muted-foreground mb-1">Organisation logo</span>
+        <div className="flex flex-wrap items-center gap-3">
+          {logo ? (
+            <span className="inline-flex items-center gap-2 rounded border border-border bg-background px-2 py-1">
+              <img src={logo} alt="Organisation logo preview" data-testid="org-logo-preview" style={{ maxHeight: 28, width: "auto" }} />
+              <button type="button" data-testid="org-logo-clear" disabled={!isAdmin} onClick={() => setLogoDraft("")} className="text-muted-foreground hover:text-foreground disabled:opacity-40" aria-label="Remove logo">
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </span>
+          ) : (
+            <span className="text-xs text-muted-foreground">No logo yet.</span>
+          )}
+          <input ref={fileRef} type="file" accept={LOGO_TYPES.join(",")} data-testid="org-logo-input" className="hidden" onChange={(e) => pickLogo(e.target.files?.[0])} />
+          <button
+            type="button"
+            disabled={!isAdmin}
+            onClick={() => fileRef.current?.click()}
+            className="inline-flex items-center gap-1.5 border border-border bg-background px-3 py-1.5 text-xs font-bold uppercase tracking-widest disabled:opacity-40"
+          >
+            <ImageUp className="w-3.5 h-3.5" />{logo ? "Replace" : "Upload logo"}
+          </button>
+        </div>
+        <label className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
+          <input type="checkbox" data-testid="org-logo-show" checked={showLogo} disabled={!isAdmin || !logo} onChange={(e) => setShowDraft(e.target.checked)} />
+          Show this logo on screens, reports &amp; exports
+        </label>
+      </div>
+
+      <div className="mt-4">
         <button
           type="button"
           data-testid="org-name-save"
@@ -103,13 +147,13 @@ export function OrgIdentityStep({ isAdmin = true }: { isAdmin?: boolean }) {
           onClick={() => void save()}
           className="border border-primary bg-primary px-3 py-1.5 text-xs font-black uppercase tracking-widest text-primary-foreground disabled:opacity-40"
         >
-          {saving ? "Saving…" : "Save name"}
+          {saving ? "Saving…" : "Save organisation"}
         </button>
       </div>
 
       {!brand.entitled && (
         <p className="mt-3 flex items-center gap-1.5 text-xs text-muted-foreground" data-testid="org-name-branding-note">
-          <Lock className="w-3 h-3" />A custom logo and white-label <strong>Branding</strong> (replacing the product name in the header) are on a paid plan — naming your organisation is always free.
+          <Lock className="w-3 h-3" />White-label <strong>Branding</strong> (replacing the product name/logo in the header itself) is on a paid plan — naming and badging your organisation is always free.
         </p>
       )}
     </section>

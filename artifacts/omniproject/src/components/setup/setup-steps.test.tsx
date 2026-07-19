@@ -32,7 +32,7 @@ describe("OrgIdentityStep", () => {
     fireEvent.click(screen.getByTestId("org-name-save"));
     await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith("/api/org-identity", expect.objectContaining({ method: "PUT" })));
     const putCall = fetchSpy.mock.calls.find((c) => c[0] === "/api/org-identity" && (c[1] as RequestInit | undefined)?.method === "PUT");
-    expect(JSON.parse((putCall![1] as RequestInit).body as string)).toEqual({ name: "Acme Inc." });
+    expect(JSON.parse((putCall![1] as RequestInit).body as string)).toEqual({ name: "Acme Inc.", logo: "", showLogo: false });
   });
 
   it("when entitled, ALSO mirrors the name into premium branding (header/title)", async () => {

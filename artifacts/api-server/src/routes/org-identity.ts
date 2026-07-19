@@ -2,7 +2,7 @@ import { Router } from "express";
 import { requireAnyRole } from "../lib/rbac";
 import { requireArtifactStore } from "../lib/artifact-store";
 import { contextFromReq } from "../broker";
-import { ensureOrgIdentity, setOrgName } from "../lib/org-identity";
+import { ensureOrgIdentity, updateOrgIdentity, type OrgIdentityPatch } from "../lib/org-identity";
 
 /**
  * ORG IDENTITY — the org's canonical id + name (see lib/org-identity). This is the FIRST thing the first-run
@@ -28,12 +28,21 @@ router.get("/org-identity", (req, res) => {
 
 router.put("/org-identity", requireAnyRole("pmo", "admin"), (req, res) => {
   if (!requireArtifactStore(res)) return;
-  const body = (req.body ?? {}) as { name?: unknown };
+  const body = (req.body ?? {}) as { name?: unknown; logo?: unknown; showLogo?: unknown };
   const ctx = contextFromReq(req);
   const now = new Date().toISOString();
-  // A name in the body sets it; an empty PUT just ensures the id exists (mints it if this is the first touch).
-  const identity = body.name !== undefined ? setOrgName(body.name, ctx, now) : ensureOrgIdentity(ctx, now);
-  res.json({ identity });
+  // Build a patch from ONLY the keys the caller supplied (name / logo / showLogo — all ungated); an empty PUT
+  // just ensures the id exists (mints it on first touch). The id is never patchable (immutable).
+  const patch: OrgIdentityPatch = {};
+  if (body.name !== undefined) patch.name = body.name;
+  if (body.logo !== undefined) patch.logo = body.logo;
+  if (body.showLogo !== undefined) patch.showLogo = body.showLogo;
+  try {
+    const identity = Object.keys(patch).length ? updateOrgIdentity(patch, ctx, now) : ensureOrgIdentity(ctx, now);
+    res.json({ identity });
+  } catch (err) {
+    res.status(400).json({ error: err instanceof Error ? err.message : "invalid org identity" });
+  }
 });
 
 export default router;

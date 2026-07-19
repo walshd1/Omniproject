@@ -46,7 +46,22 @@ test("PUT /org-identity sets the ungated name; the id is stable across the write
 
   // The read reflects the new name, same id.
   const after = (await json(await h.req("/org-identity", { cookie: memberCookie() }))).identity;
-  assert.deepEqual(after, { id: before.id, name: "Acme Inc." });
+  assert.deepEqual(after, { id: before.id, name: "Acme Inc.", logo: "", showLogo: false });
+});
+
+test("PUT /org-identity stores an org logo (ungated) + the show-on-surfaces opt-in", async () => {
+  const png = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUg==";
+  const put = await h.req("/org-identity", { method: "PUT", cookie: adminCookie(), body: { logo: png, showLogo: true } });
+  assert.equal(put.status, 200);
+  const identity = (await json(put)).identity;
+  assert.equal(identity.logo, png);
+  assert.equal(identity.showLogo, true);
+  assert.equal(identity.name, "Acme Inc.", "the earlier name is preserved by the logo-only patch");
+
+  // An unsafe logo (inline SVG can carry script) is refused → 400, leaving the stored logo untouched.
+  const bad = await h.req("/org-identity", { method: "PUT", cookie: adminCookie(), body: { logo: "data:image/svg+xml;base64,PHN2Zz4=" } });
+  assert.equal(bad.status, 400);
+  assert.equal((await json(await h.req("/org-identity", { cookie: memberCookie() }))).identity.logo, png, "unchanged after the rejected logo");
 });
 
 test("a caller can NEVER change the immutable id via PUT", async () => {

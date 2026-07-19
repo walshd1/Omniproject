@@ -10,6 +10,7 @@ import { GlobalSearchTrigger } from "../search/GlobalSearchTrigger";
 import { NotificationsBell } from "../NotificationsBell";
 import { DataQualityBadge } from "../DataQualityBadge";
 import { ApiPortalLink } from "../ApiPortalLink";
+import { OrgLogo } from "../OrgLogo";
 import { useStore } from "../../store/useStore";
 import { useListProjects, useHealthCheck, getHealthCheckQueryKey } from "@workspace/api-client-react";
 import { LogOut, Menu, ChevronDown, ShieldCheck, Flag, DownloadCloud } from "lucide-react";
@@ -250,6 +251,11 @@ export function AppLayout({ children }: { children: ReactNode }) {
 
         {navList()}
 
+        {/* The org's OWN logo (ungated), shown here only when the org uploaded one AND opted in — renders
+            nothing otherwise. Distinct from the premium product brandMark above. */}
+        <div className="px-4 pt-3 empty:hidden">
+          <OrgLogo className="opacity-80" maxHeight={28} />
+        </div>
         <div className="p-4 border-t border-border flex items-center justify-between text-xs text-muted-foreground">
           <span>CMD+K TO SEARCH</span>
           <ApiPortalLink />

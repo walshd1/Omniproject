@@ -32,21 +32,37 @@ export interface OrgIdentity {
   id: string;
   /** The org's display name (ungated — set in first-run setup, distinct from the premium `appName`). */
   name: string;
+  /** The org's OWN logo (ungated) — a raster `data:` image URI or an absolute https URL, or `""` when none.
+   *  Distinct from the premium `branding.logoUrl` (which white-labels the PRODUCT chrome): this is the org's
+   *  asset for THEIR deliverables. */
+  logo: string;
+  /** Opt-in to surface the org logo on screens / reports / exports. Off by default (a stored logo is inert
+   *  until the org chooses to show it). */
+  showLogo: boolean;
 }
 
 /** The fallback name before the admin names the org (never persisted as a real name). */
 export const DEFAULT_ORG_NAME = "Your organisation";
 
+/** Max stored logo length. A `data:` URI is base64, so this bounds the decoded image to ~192 KB — comfortably
+ *  within the def payload cap while big enough for a crisp logo. */
+export const MAX_LOGO_LEN = 256 * 1024;
+
 const isStr = (v: unknown): v is string => typeof v === "string" && v.length > 0;
 
-/** The raw `values` of the org-scope org-identity def (`{ id?, name? }`), or `{}` when unset / store off. */
-function orgIdentityValues(): { id?: string; name?: string } {
+/** The raw `values` of the org-scope org-identity def, or `{}` when unset / store off. */
+function orgIdentityValues(): { id?: string; name?: string; logo?: string; showLogo?: boolean } {
   if (!artifactStoreEnabled()) return {};
   const row = getDef({ kind: "org" }, ORG_IDENTITY_DEF_ID);
   const v = (row?.payload as { values?: unknown } | undefined)?.values;
   if (!v || typeof v !== "object" || Array.isArray(v)) return {};
   const o = v as Record<string, unknown>;
-  return { ...(isStr(o["id"]) ? { id: o["id"] } : {}), ...(isStr(o["name"]) ? { name: o["name"] } : {}) };
+  return {
+    ...(isStr(o["id"]) ? { id: o["id"] } : {}),
+    ...(isStr(o["name"]) ? { name: o["name"] } : {}),
+    ...(isStr(o["logo"]) ? { logo: o["logo"] } : {}),
+    ...(typeof o["showLogo"] === "boolean" ? { showLogo: o["showLogo"] } : {}),
+  };
 }
 
 /** A fresh, unique org id. Minted exactly once per deployment (on first ensure/name) and then immutable. */
@@ -61,7 +77,7 @@ export function mintOrgId(): string {
  */
 export function readOrgIdentity(): OrgIdentity {
   const v = orgIdentityValues();
-  return { id: v.id ?? "", name: v.name ?? DEFAULT_ORG_NAME };
+  return { id: v.id ?? "", name: v.name ?? DEFAULT_ORG_NAME, logo: v.logo ?? "", showLogo: v.showLogo ?? false };
 }
 
 /**
@@ -79,10 +95,10 @@ function writeOrgIdentityRow(row: StoredDef): void {
   replaceArtifacts(DEF_ARTIFACT, { kind: "org" }, [row, ...rest]);
 }
 
-/** Build (or update) the org-identity def row for the given identity. `id` listed before `name` in the payload
- *  values, honouring "org id at the top". Preserves the created-at/version of an existing row. */
+/** Build (or update) the org-identity def row for the given identity. `id` listed FIRST in the payload values,
+ *  honouring "org id at the top". Preserves the created-at/version of an existing row. */
 function buildOrgIdentityRow(identity: OrgIdentity, ctx: ActorContext, now: string): StoredDef {
-  const payload = { id: ORG_IDENTITY_CONFIG_ID, values: { id: identity.id, name: identity.name } };
+  const payload = { id: ORG_IDENTITY_CONFIG_ID, values: { id: identity.id, name: identity.name, logo: identity.logo, showLogo: identity.showLogo } };
   const existing = getDef({ kind: "org" }, ORG_IDENTITY_DEF_ID);
   return existing
     ? { ...existing, payload, updatedAt: now, rowVersion: (existing.rowVersion ?? 1) + 1 }
@@ -98,7 +114,7 @@ export function ensureOrgIdentity(ctx: ActorContext, now: string): OrgIdentity {
   if (!artifactStoreEnabled()) return readOrgIdentity();
   const current = readOrgIdentity();
   if (current.id) return current;
-  const minted: OrgIdentity = { id: mintOrgId(), name: current.name };
+  const minted: OrgIdentity = { ...current, id: mintOrgId() };
   writeOrgIdentityRow(buildOrgIdentityRow(minted, ctx, now));
   return minted;
 }
@@ -108,13 +124,50 @@ export function sanitizeOrgName(raw: unknown): string {
   return sanitizeText(raw, 200, { newlines: false, trim: true }) || DEFAULT_ORG_NAME;
 }
 
+/** Raster image `data:` URIs we accept for a logo. Inline SVG is DELIBERATELY excluded — an SVG can carry
+ *  script, so an org logo rendered into a page/report would be an XSS vector; raster formats can't execute. */
+const LOGO_DATA_URI = /^data:image\/(png|jpe?g|webp|gif);base64,[A-Za-z0-9+/=]+$/;
+
 /**
- * Set the org NAME (ungated), minting the id first if needed. The id is immutable — a caller can never change it
- * here. Persists the identity at the top of the org JSON and returns the new identity. Requires the store.
+ * Sanitise a proposed org logo. Accepts an absolute https URL or a RASTER `data:` image URI (png/jpeg/webp/gif),
+ * length-capped. Empty / null clears it. Throws on anything else (a non-string, an SVG/other data URI, an
+ * http/relative URL, or an over-cap blob) so a bad or unsafe logo can never reach a rendered surface.
+ */
+export function sanitizeOrgLogo(raw: unknown): string {
+  if (raw === undefined || raw === null || raw === "") return "";
+  if (typeof raw !== "string") throw new Error("logo must be a string");
+  const v = raw.trim();
+  if (v.length > MAX_LOGO_LEN) throw new Error(`logo is too large (max ${Math.floor(MAX_LOGO_LEN / 1024)} KB)`);
+  if (/^https:\/\//i.test(v)) return v;
+  if (LOGO_DATA_URI.test(v)) return v;
+  throw new Error("logo must be an https URL or a base64 png/jpeg/webp/gif data URI");
+}
+
+/** A partial edit to the org identity (the id is never part of a patch — it is immutable). */
+export interface OrgIdentityPatch { name?: unknown; logo?: unknown; showLogo?: unknown }
+
+/**
+ * Apply an (ungated) patch to the org identity — name, logo and/or the show-logo opt-in — minting the id first
+ * if needed. The id is IMMUTABLE: a caller can never set it here. Only the keys present in `patch` change;
+ * omitted keys are preserved. Persists at the top of the org JSON and returns the new identity. Throws on an
+ * invalid logo. Requires the store.
+ */
+export function updateOrgIdentity(patch: OrgIdentityPatch, ctx: ActorContext, now: string): OrgIdentity {
+  const base = ensureOrgIdentity(ctx, now);
+  const id = base.id || mintOrgId();
+  const next: OrgIdentity = {
+    id,
+    name: patch.name !== undefined ? sanitizeOrgName(patch.name) : base.name,
+    logo: patch.logo !== undefined ? sanitizeOrgLogo(patch.logo) : base.logo,
+    showLogo: patch.showLogo !== undefined ? Boolean(patch.showLogo) : base.showLogo,
+  };
+  writeOrgIdentityRow(buildOrgIdentityRow(next, ctx, now));
+  return next;
+}
+
+/**
+ * Set the org NAME (ungated), minting the id first if needed. Thin wrapper over {@link updateOrgIdentity}.
  */
 export function setOrgName(raw: unknown, ctx: ActorContext, now: string): OrgIdentity {
-  const id = ensureOrgIdentity(ctx, now).id || mintOrgId();
-  const identity: OrgIdentity = { id, name: sanitizeOrgName(raw) };
-  writeOrgIdentityRow(buildOrgIdentityRow(identity, ctx, now));
-  return identity;
+  return updateOrgIdentity({ name: raw }, ctx, now);
 }
