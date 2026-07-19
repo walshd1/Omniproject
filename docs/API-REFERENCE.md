@@ -1235,6 +1235,15 @@ WIKI / collaborative docs (roadmap 2.1).
 | PUT | `/api/wiki/docs/:id` | requireRole(contributor) | PUT /api/wiki/docs/:id — update a document in place (contributor+); the id governs which store is written. |
 | DELETE | `/api/wiki/docs/:id` | requireRole(contributor) | DELETE /api/wiki/docs/:id — remove a document (contributor+; the org target additionally needs manager+). |
 
+### `artifacts/api-server/src/routes/work-vocabulary.ts`
+
+Scope-overridable work-item vocabulary (statuses + priorities).
+
+| Method | Path | Gate | Description |
+| --- | --- | --- | --- |
+| GET | `/api/work-vocabulary` | — | GET /api/work-vocabulary — the effective statuses + priorities for this scope (any authed user). |
+| PUT | `/api/work-vocabulary` | requireAnyRole(pmo, admin) | { statuses?: [{ id, label?, order? }], priorities?: [{ id, label?, order? }] }. |
+
 ### `artifacts/api-server/src/routes/workflows.ts`
 
 WORKFLOW authoring + running (design §5).

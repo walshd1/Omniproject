@@ -1,4 +1,5 @@
-import { reportCatalogue, formCatalogue, dashboardDefCatalogue, referenceRulesetCatalogue, methodologyCatalogue, screenDefCatalogue, primitiveCatalogue, mappingCatalogue, workVocabulary } from "@workspace/backend-catalogue";
+import { reportCatalogue, formCatalogue, dashboardDefCatalogue, referenceRulesetCatalogue, methodologyCatalogue, screenDefCatalogue, primitiveCatalogue, mappingCatalogue, workVocabularyValues } from "@workspace/backend-catalogue";
+import { WORK_VOCABULARY_CONFIG_ID } from "./work-vocabulary-config";
 import { artifactStoreEnabled } from "./artifact-store";
 import { buildSystemDefRow, replaceSystemDefs, listSystemDefs, type StoredDef } from "./def-import";
 
@@ -34,21 +35,11 @@ export function buildSystemDefaultRows(): StoredDef[] {
   // resolver uses as its store-off fallback layer (one JSON source of truth, no TS mapping constants).
   for (const m of mappingCatalogue()) rows.push(buildSystemDefRow("mapping", m.label, m, SEED_AT));
   // The canonical work-item vocabulary (statuses + priorities) — authored as JSON
-  // (assets/work-vocabulary.json) and ALSO seeded here as a read-only `config` def, so the canonical set
-  // is derived from the system JSON store like every other shipped default (visible, exported, backed up
-  // in one place). It is the SAME catalogue the build-time accessor exports, so the two can't drift; the
-  // set stays fixed (the neutral wire contract backends normalise into) — seeded at system scope only.
-  rows.push(buildSystemDefRow("config", "Work vocabulary", buildWorkVocabularyConfig(), SEED_AT));
+  // (assets/work-vocabulary.json), seeded here as the SYSTEM-scope `work-vocabulary` config def: the base
+  // layer the scope resolver folds org/programme/project/user overrides onto (see work-vocabulary-config).
+  // Sourced from the SAME catalogue accessor the build-time consumers export, so the base can't drift.
+  rows.push(buildSystemDefRow("config", "Work vocabulary", { id: WORK_VOCABULARY_CONFIG_ID, values: workVocabularyValues() }, SEED_AT));
   return rows;
-}
-
-/** The read-only work-vocabulary `config` def payload: the canonical statuses + priorities grouped by
- *  kind, sourced from the shared catalogue (one source of truth with the build-time accessor). */
-function buildWorkVocabularyConfig(): { id: string; values: Record<string, unknown> } {
-  const vocab = workVocabulary();
-  const forKind = (kind: "status" | "priority") =>
-    vocab.filter((e) => e.kind === kind).map((e) => ({ id: e.id, label: e.label, order: e.order, ...(e.lifecycle ? { lifecycle: e.lifecycle } : {}) }));
-  return { id: "work-vocabulary", values: { statuses: forKind("status"), priorities: forKind("priority") } };
 }
 
 /** One-shot (re)apply of the bundled defaults into the system store — decrypt→replace→re-encrypt in ONE write. */

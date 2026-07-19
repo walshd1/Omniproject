@@ -3787,6 +3787,15 @@ Full active memory cleanse on shutdown.
 | --- | --- |
 | `wipeInMemoryState` | Full active memory cleanse on shutdown. |
 
+### `artifacts/api-server/src/lib/work-vocabulary-config.ts`
+
+SCOPE-OVERRIDABLE work-item vocabulary — the resolver + write sanitiser behind `GET`/`PUT /api/work-vocabulary`.
+
+| Function | What it does |
+| --- | --- |
+| `resolveWorkVocabulary` | The effective vocabulary at the given scopes — the shipped default with every scope layer folded on, then re-projected onto the canonical set (label/order overrides applied, lifecycle + membership fixed), each list sorted by its resolved order. |
+| `sanitizeWorkVocabularyOverride` | Validate + normalise a PUT body into the config-def `values` to store: only canonical ids survive, labels are trimmed/capped (blank ⇒ dropped, so the canonical label shows), orders must be non-negative integers. |
+
 ### `artifacts/api-server/src/lib/workflow-run.ts`
 
 Runtime side of workflows — binds the pure engine's injected effect to the REAL, RBAC-scoped surfaces below the seam, and runs a stored workflow.
@@ -4298,6 +4307,10 @@ WHITEBOARDS / visual canvas (roadmap 2.3).
 ### `artifacts/api-server/src/routes/wiki.ts`
 
 WIKI / collaborative docs (roadmap 2.1).
+
+### `artifacts/api-server/src/routes/work-vocabulary.ts`
+
+Scope-overridable work-item vocabulary (statuses + priorities).
 
 ### `artifacts/api-server/src/routes/workflows.ts`
 
@@ -4974,6 +4987,7 @@ Canonical WORK-ITEM vocabulary — the single source of truth for the statuses a
 | Function | What it does |
 | --- | --- |
 | `workVocabulary` | The full vocabulary (a defensive copy) — for a consumer that needs the raw entries. |
+| `workVocabularyValues` | Build the shipped-default {@link WorkVocabularyValues} from the canonical entries. |
 
 ### `lib/backend-catalogue/src/workflow-generator.ts`
 

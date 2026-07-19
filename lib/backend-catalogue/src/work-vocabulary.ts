@@ -57,3 +57,19 @@ export const PRIORITY_LABEL: Record<WorkPriority, string> = Object.fromEntries(
 export function workVocabulary(): WorkVocabEntry[] {
   return entries.map((e) => ({ ...e }));
 }
+
+/** The scope-layerable shape of the vocabulary: statuses + priorities grouped by kind. This is BOTH the
+ *  `values` seeded into the system `work-vocabulary` config def AND the base a scope resolver folds
+ *  org/programme/project/user overrides onto — one source of truth for the shipped default. */
+export interface WorkVocabularyValues {
+  statuses: Array<{ id: string; label: string; order: number; lifecycle: StatusClass }>;
+  priorities: Array<{ id: string; label: string; order: number }>;
+}
+
+/** Build the shipped-default {@link WorkVocabularyValues} from the canonical entries. */
+export function workVocabularyValues(): WorkVocabularyValues {
+  return {
+    statuses: statusEntries.map((e) => ({ id: e.id, label: e.label, order: e.order, lifecycle: e.lifecycle ?? "open" })),
+    priorities: priorityEntries.map((e) => ({ id: e.id, label: e.label, order: e.order })),
+  };
+}
