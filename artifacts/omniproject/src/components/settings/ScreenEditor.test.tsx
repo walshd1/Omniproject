@@ -33,6 +33,14 @@ describe("ScreenEditor", () => {
     expect(screen.getByTestId("screen-editor-save")).toBeDisabled();
   });
 
+  it("surfaces the primitive library (what you can build from) — degrades gracefully with no query client", () => {
+    // Rendered without a QueryClientProvider: the library still shows the shipped vocabulary (activated primitives
+    // just aren't fetched), rather than crashing the editor.
+    render(<ScreenEditor def={base} onSave={vi.fn()} onCancel={() => {}} />);
+    expect(screen.getByTestId("primitive-library")).toBeInTheDocument();
+    expect(screen.getByTestId("primitive-library-item-viz-bar")).toBeInTheDocument();
+  });
+
   it("only shows the route field for non-core screens (allowRoute)", () => {
     const { rerender } = render(<ScreenEditor def={base} onSave={vi.fn()} onCancel={() => {}} allowRoute />);
     expect(screen.getByTestId("screen-editor-route")).toBeInTheDocument();

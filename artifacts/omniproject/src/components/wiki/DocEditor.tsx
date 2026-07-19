@@ -5,6 +5,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { ArrowUp, ArrowDown, Trash2, Plus, Radio } from "lucide-react";
 import { CALLOUT_TONES, type DocBlock, type DocBlockType, type CalloutTone } from "@workspace/backend-catalogue";
 import { primitivesByFamily } from "../../lib/primitive-store";
+import { PrimitiveLibrary } from "../artifact/PrimitiveLibrary";
 import { descendantIds, type WikiDoc, type WikiDocInput, type WikiDocSummary } from "../../lib/wiki";
 import { useCollabBlocks } from "../../lib/collab";
 
@@ -118,6 +119,11 @@ export function DocEditor({ doc, spaceId, docs = [], coEditRoomId = null, coEdit
           </Button>
         ))}
       </div>
+
+      <details className="border border-border rounded-md p-2" data-testid="doc-primitive-library">
+        <summary className="text-[10px] uppercase tracking-widest text-muted-foreground cursor-pointer">Primitive library — what you can embed (incl. your org's activated primitives)</summary>
+        <div className="mt-3"><PrimitiveLibrary surface="content" includeActivated /></div>
+      </details>
 
       <div className="flex items-center gap-2 pt-1">
         <Button type="button" size="sm" onClick={submit} disabled={!canSave} data-testid="doc-save">{saving ? "Saving…" : "Save document"}</Button>

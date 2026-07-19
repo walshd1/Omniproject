@@ -1,4 +1,5 @@
-import { useMemo } from "react";
+import { useContext, useMemo } from "react";
+import { QueryClientContext } from "@tanstack/react-query";
 import type { PrimitiveDef } from "../charts/catalogue";
 import { PRIMITIVE_LIBRARY } from "../../definitions/primitives";
 import { useResolvedDefs } from "../../lib/defs";
@@ -60,9 +61,25 @@ export function PrimitiveLibrary({ onPick, surface, tree, includeActivated = fal
   return <PrimitiveLibraryView families={tree ?? primitiveTree(surface)} onPick={onPick} testId={testId} />;
 }
 
-/** The `includeActivated` variant: fetch the activated primitives from the def store, fold them into the tree,
- *  then render the shared view. Isolated so the def-store query only mounts when the caller opts in. */
+/** The `includeActivated` entry: only the def-store fetch needs a React Query client, and some builders that
+ *  mount this palette are rendered (in isolation, in tests) WITHOUT a provider. So gate on the client's presence —
+ *  with one, fetch + fold in the activated primitives; without one, fall back to the static shipped palette rather
+ *  than crash. Splitting the fetch into a child keeps the hook out of the no-client path (no conditional hook). */
 function ActivatedPrimitiveLibrary({ onPick, surface, projectId, programmeId, testId }: {
+  onPick?: ((primitive: Primitive) => void) | undefined;
+  surface?: PlacementSurface | undefined;
+  projectId?: string | undefined;
+  programmeId?: string | undefined;
+  testId: string;
+}) {
+  const hasClient = useContext(QueryClientContext) != null;
+  if (!hasClient) return <PrimitiveLibraryView families={primitiveTree(surface)} onPick={onPick} testId={testId} />;
+  return <FetchingActivatedLibrary {...{ onPick, surface, projectId, programmeId, testId }} />;
+}
+
+/** Fetch the activated primitives + fold them into the tree, then render the shared view. Only mounted when a
+ *  React Query client is present (see {@link ActivatedPrimitiveLibrary}), so the hook is always safe here. */
+function FetchingActivatedLibrary({ onPick, surface, projectId, programmeId, testId }: {
   onPick?: ((primitive: Primitive) => void) | undefined;
   surface?: PlacementSurface | undefined;
   projectId?: string | undefined;
