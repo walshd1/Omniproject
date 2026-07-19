@@ -28,11 +28,12 @@ test("roots are FEW and generic; composed primitives are not roots", () => {
   for (const r of rootPrimitives()) assert.ok(r.params.length > 0, `root "${r.id}" must define its params`);
 });
 
-test("data-slot ← register ← table: params flatten property-by-property with a traceable provenance", () => {
+test("data-slot ← register ← record-set: the editable data structure flattens with a traceable provenance", () => {
   const ds = resolvePrimitive("data-slot")!;
-  assert.deepEqual(ds.lineage, ["data-slot", "register", "table"]);
+  // register/data-slot are DATA STRUCTURES — they descend from `record-set`, not the visual `table`.
+  assert.deepEqual(ds.lineage, ["data-slot", "register", "record-set"]);
   // Inherited, added, and altered fields each trace to the def that supplied the winning value.
-  assert.equal(ds.provenance["columns"], "table");      // inherited from the root
+  assert.equal(ds.provenance["columns"], "record-set");  // schema inherited from the data-structure root
   assert.equal(ds.provenance["collection"], "register"); // inherited from the middle
   assert.equal(ds.provenance["slot"], "data-slot");      // altered by the leaf (register's optional slot → required)
   assert.equal(ds.params.find((p) => p.key === "slot")?.required, true);

@@ -11,14 +11,15 @@
  */
 
 /**
- * The category a primitive is grouped under (mirrors the SPA `PrimitiveCategory`).
- * `geometry` is the FUNDAMENTAL tier of the drawable plane — the true atoms (line / rect / text /
- * point) that every chart, diagram, gantt and visual grid composes up from, each instance's geometry
- * and style supplied from system JSON. The semantic plane (table / tile) stays accessible DOM and
- * composes via the `extends` lineage, NOT by drawing shapes.
+ * The category a primitive is grouped under (mirrors the SPA `PrimitiveCategory`). These map onto
+ * several TREES: `geometry`/`chart`/`graphic` are the VISUALS tree (rooted at the geometry canvas —
+ * how things are drawn); `data-structure` is the DATA-STRUCTURES tree (the shape of data — a record
+ * set and its editable specialisations, independent of how it's shown); `table`/`tile` are semantic
+ * DOM VISUALS that render a data structure. A `table` VISUAL binds to a `record-set` DATA STRUCTURE:
+ * the two halves of the old, overloaded "table" now live in their own trees.
  */
-export type PrimitiveCategory = "geometry" | "chart" | "graphic" | "table" | "tile";
-export const PRIMITIVE_CATEGORIES: readonly PrimitiveCategory[] = ["geometry", "chart", "graphic", "table", "tile"];
+export type PrimitiveCategory = "geometry" | "chart" | "graphic" | "data-structure" | "table" | "tile";
+export const PRIMITIVE_CATEGORIES: readonly PrimitiveCategory[] = ["geometry", "chart", "graphic", "data-structure", "table", "tile"];
 
 /** The kind of value a primitive parameter carries (mirrors the SPA `PrimitiveParamType`). */
 export type PrimitiveParamType =

@@ -42,12 +42,13 @@ describe("primitive catalogue", () => {
     }
   });
 
-  it("composition: extends resolves property-by-property with a traceable lineage (data-slot ← register ← table)", () => {
+  it("composition: extends resolves property-by-property with a traceable lineage (data-slot ← register ← record-set)", () => {
     const ds = resolvePrimitive("data-slot")!;
-    expect(ds.lineage).toEqual(["data-slot", "register", "table"]);
-    // Fields trace back to the def that supplied them: columns from table, an editable prop from register,
-    // and the one it adds/alters (slot, now required) from data-slot itself.
-    expect(ds.provenance["columns"]).toBe("table");
+    // register/data-slot are DATA STRUCTURES — they descend from record-set, not the visual table.
+    expect(ds.lineage).toEqual(["data-slot", "register", "record-set"]);
+    // Fields trace back to the def that supplied them: columns from the record-set (schema), an editable
+    // prop from register, and the one it adds/alters (slot, now required) from data-slot itself.
+    expect(ds.provenance["columns"]).toBe("record-set");
     expect(ds.provenance["collection"]).toBe("register");
     expect(ds.provenance["slot"]).toBe("data-slot");
     expect(ds.params.find((p) => p.key === "slot")?.required).toBe(true); // the child ALTERS slot → required

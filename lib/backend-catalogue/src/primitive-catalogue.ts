@@ -305,25 +305,40 @@ export const PRIMITIVE_CATALOGUE: PrimitiveDef[] = [
       { key: "segments", label: "Segments", type: "slices", required: true, description: "{ value, className }[] shares." },
     ],
   },
+  // ── DATA-STRUCTURES TREE — the SHAPE of data, independent of how it's shown ─────────────────────
+  // `record-set` is the root: a set of typed records (columns/fields + rows). Its editable
+  // specialisations (register → data-slot) are DATA, not visuals — they're bound to a store and own
+  // CRUD. A VISUAL that shows a record set (the `table` below) BINDS to one; it does not extend it.
+  {
+    id: "record-set",
+    label: "Record set",
+    category: "data-structure",
+    description: "A structured set of records — typed columns/fields plus rows. A pure DATA STRUCTURE, independent of how it's displayed; a visual (table/board/chart) binds to it to show it.",
+    params: [
+      { key: "columns", label: "Columns", type: "columns", required: true, description: "The fields/columns: key, label, type/alignment. The record set's schema." },
+      { key: "rows", label: "Rows", type: "rows", required: true, description: "One object per record." },
+    ],
+  },
   {
     id: "table",
     label: "Data table",
     category: "table",
-    description: "Generic sortable columns and rows with per-column rendering and an optional footer.",
+    description: "The VISUAL that renders a record set as generic sortable columns and rows (accessible DOM) with per-column rendering and an optional footer. Binds to a record set via `source`, or takes inline columns/rows.",
     params: [
-      { key: "columns", label: "Columns", type: "columns", required: true, description: "Column key, label, alignment, and render." },
-      { key: "rows", label: "Rows", type: "rows", required: true, description: "One object per row." },
+      { key: "source", label: "Record set", type: "string", required: false, description: "Id of the record set to render (binds the visual to a data structure); omit to supply columns/rows inline." },
+      { key: "columns", label: "Columns", type: "columns", required: true, description: "Display columns: key, label, alignment, and render." },
+      { key: "rows", label: "Rows", type: "rows", required: true, description: "One object per row (inline, when not bound to a source)." },
     ],
   },
   {
     id: "register",
     label: "Editable register",
-    category: "table",
-    // COMPOSITION: a `table` that you can also edit in place. Thin child — inherits `columns`, ALTERS `rows`
-    // (now sourced, not authored), and ADDS the editable-source params. Its new functionality vs `table` is the
-    // add/edit/delete + Save round-trip. Renders via the `register` panel.
-    extends: "table",
-    description: "A data table you can complete and update in place — add / edit / delete rows and Save. Rows come from a settings collection or a generic mapping slot; the server owns the write.",
+    category: "data-structure",
+    // COMPOSITION: an editable `record-set` — a DATA STRUCTURE with CRUD, not a visual. Thin child —
+    // inherits `columns`, ALTERS `rows` (now sourced, not authored), and ADDS the editable-source
+    // params. Its new functionality vs a plain record set is the add/edit/delete + Save round-trip.
+    extends: "record-set",
+    description: "A record set you can complete and update in place — add / edit / delete rows and Save. Rows come from a settings collection or a generic mapping slot; the server owns the write.",
     params: [
       { key: "rows", label: "Rows", type: "rows", required: false, description: "Rows come from the bound source (a settings collection or a mapping slot), not authored inline." },
       { key: "collection", label: "Settings collection", type: "string", required: false, description: "Settings field key to read/write (settings-collection source)." },
@@ -336,7 +351,7 @@ export const PRIMITIVE_CATALOGUE: PrimitiveDef[] = [
   {
     id: "data-slot",
     label: "Data-slot register",
-    category: "table",
+    category: "data-structure",
     // COMPOSITION: a `register` specialised to the generic mapping-slot source. The thinnest possible child —
     // it ONLY alters `slot` to required. Its genuinely-new functionality: a register over ANY mapping slot
     // (epics, sprints, raid, milestones, …) as a pure screen def, no bespoke endpoint. Renders via `register`.
