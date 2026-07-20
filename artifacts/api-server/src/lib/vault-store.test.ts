@@ -227,6 +227,9 @@ test("azure store gets an AAD token then read-modify-writes one Key Vault secret
   await store.put("aiprovider:anthropic", "sk-new");
   assert.equal(stored["aiprovider:anthropic"], "sk-new");
   assert.equal(stored["aiprovider:openai"], "sk-existing");
-  assert.ok(seen.some((s) => s.includes("login.microsoftonline.com")));
+  assert.ok(seen.some((s) => {
+    const urlStr = s.split(" ")[1];
+    try { return !!urlStr && new URL(urlStr).hostname === "login.microsoftonline.com"; } catch { return false; }
+  }));
   assert.ok(seen.some((s) => s.startsWith("PUT https://kv.vault.azure.net/secrets/omni-ai-vault")));
 });
