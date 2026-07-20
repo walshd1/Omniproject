@@ -527,7 +527,16 @@ jobs:
           # Opt in the default-off (cost) feature modules so the contract check exercises the full
           # API surface (odata / BI feeds / metrics / presence) rather than skipping them as gated-off.
           ENABLED_FEATURES: odata,integrations,presence
+          # The contract test drives config-def-backed writes (branding, labels) that only persist when
+          # the artifact store is enabled — point it at a throwaway dir so those reads round-trip.
+          OMNI_CONFIG_DIR: ${{ runner.temp }}/omni-config
+          # The script points the gateway at its mock broker via PATCH /settings {brokerUrl} and creates a
+          # webhook — both are posture-reducing changes that now require a passkey-signed sign-off (202) no
+          # headless run can produce. This CI-only flag auto-applies them; it is HARD-GATED by the
+          # production detector (lib/settings-guard.approvalsAutoApply) so it is inert in any real deployment.
+          OMNI_APPROVALS_AUTO_APPLY: "1"
         run: |
+          mkdir -p "$OMNI_CONFIG_DIR"
           PORT=5000 node artifacts/api-server/dist/index.mjs &
           SERVER_PID=$!
           # Wait for the gateway health endpoint.
