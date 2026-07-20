@@ -69,4 +69,119 @@ describe("CanvasEditor", () => {
     fireEvent.pointerMove(screen.getByTestId("canvas-surface"), { clientX: 42, clientY: 24, pointerId: 1 });
     expect(onCursorMove).toHaveBeenCalledWith(42, 24);
   });
+
+  it("hides the toolbar and inspector in read-only mode and ignores pointer input", () => {
+    const onChange = vi.fn<(next: CanvasElement[]) => void>();
+    const els: CanvasElement[] = [{ id: "s1", type: "sticky", x: 10, y: 10, w: 120, h: 80, text: "hi" }];
+    render(<CanvasEditor elements={els} onChange={onChange} readOnly />);
+    expect(screen.queryByTestId("canvas-toolbar")).toBeNull();
+    fireEvent.pointerDown(screen.getByTestId("canvas-surface"), { clientX: 20, clientY: 20, pointerId: 1 });
+    expect(onChange).not.toHaveBeenCalled();
+    expect(screen.queryByTestId("canvas-inspector")).toBeNull();
+  });
+
+  it("selecting empty space clears the selection without changing elements", () => {
+    const onChange = vi.fn<(next: CanvasElement[]) => void>();
+    render(<CanvasEditor elements={[]} onChange={onChange} />);
+    // Select tool is default; pointer-down over nothing → hit() returns null, no element created.
+    fireEvent.pointerDown(screen.getByTestId("canvas-surface"), { clientX: 5, clientY: 5, pointerId: 1 });
+    expect(onChange).not.toHaveBeenCalled();
+    expect(screen.queryByTestId("canvas-inspector")).toBeNull();
+  });
+
+  it("drags a selected element with the move tool", () => {
+    const els: CanvasElement[] = [{ id: "s1", type: "sticky", x: 10, y: 10, w: 120, h: 80, text: "hi" }];
+    const onChange = vi.fn<(next: CanvasElement[]) => void>();
+    render(<CanvasEditor elements={els} onChange={onChange} />);
+    const surface = screen.getByTestId("canvas-surface");
+    fireEvent.pointerDown(surface, { clientX: 20, clientY: 20, pointerId: 1 }); // grabs the sticky
+    fireEvent.pointerMove(surface, { clientX: 50, clientY: 60, pointerId: 1 }); // drag by (30, 40)
+    fireEvent.pointerUp(surface, { pointerId: 1 });
+    expect(onChange).toHaveBeenCalled();
+    expect(onChange.mock.calls.at(-1)![0][0]).toMatchObject({ id: "s1", x: 40, y: 50 });
+  });
+
+  it("draws a freehand pen stroke and commits it on pointer-up", () => {
+    const onChange = vi.fn<(next: CanvasElement[]) => void>();
+    render(<CanvasEditor elements={[]} onChange={onChange} />);
+    fireEvent.click(screen.getByTestId("canvas-tool-pen"));
+    const surface = screen.getByTestId("canvas-surface");
+    fireEvent.pointerDown(surface, { clientX: 10, clientY: 10, pointerId: 1 });
+    fireEvent.pointerMove(surface, { clientX: 30, clientY: 30, pointerId: 1 });
+    fireEvent.pointerMove(surface, { clientX: 50, clientY: 40, pointerId: 1 });
+    fireEvent.pointerUp(surface, { pointerId: 1 });
+    // Committed: a `draw` element with more than one point.
+    const committed = onChange.mock.calls.at(-1)![0];
+    expect(committed).toHaveLength(1);
+    expect(committed[0]!.type).toBe("draw");
+    expect((committed[0]! as { points: number[][] }).points.length).toBeGreaterThan(1);
+  });
+
+  it("discards a degenerate pen dot (a single point) without committing", () => {
+    const onChange = vi.fn<(next: CanvasElement[]) => void>();
+    render(<CanvasEditor elements={[]} onChange={onChange} />);
+    fireEvent.click(screen.getByTestId("canvas-tool-pen"));
+    const surface = screen.getByTestId("canvas-surface");
+    fireEvent.pointerDown(surface, { clientX: 10, clientY: 10, pointerId: 1 });
+    fireEvent.pointerUp(surface, { pointerId: 1 }); // no move → only one point
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it("draws a connector and commits it once it has length", () => {
+    const onChange = vi.fn<(next: CanvasElement[]) => void>();
+    render(<CanvasEditor elements={[]} onChange={onChange} />);
+    fireEvent.click(screen.getByTestId("canvas-tool-connector"));
+    const surface = screen.getByTestId("canvas-surface");
+    fireEvent.pointerDown(surface, { clientX: 10, clientY: 10, pointerId: 1 });
+    fireEvent.pointerMove(surface, { clientX: 120, clientY: 60, pointerId: 1 });
+    fireEvent.pointerUp(surface, { pointerId: 1 });
+    const committed = onChange.mock.calls.at(-1)![0];
+    expect(committed).toHaveLength(1);
+    expect(committed[0]!.type).toBe("connector");
+  });
+
+  it("discards a zero-length connector", () => {
+    const onChange = vi.fn<(next: CanvasElement[]) => void>();
+    render(<CanvasEditor elements={[]} onChange={onChange} />);
+    fireEvent.click(screen.getByTestId("canvas-tool-connector"));
+    const surface = screen.getByTestId("canvas-surface");
+    fireEvent.pointerDown(surface, { clientX: 10, clientY: 10, pointerId: 1 });
+    fireEvent.pointerUp(surface, { pointerId: 1 }); // never moved
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it("creates a shape of the chosen kind and lets the inspector re-pick it", () => {
+    const onChange = vi.fn<(next: CanvasElement[]) => void>();
+    const { rerender } = render(<CanvasEditor elements={[]} onChange={onChange} />);
+    fireEvent.click(screen.getByTestId("canvas-tool-shape"));
+    // The shape toolbar shows a kind picker; choose an ellipse before dropping it.
+    fireEvent.change(screen.getByTestId("canvas-shape-kind"), { target: { value: "ellipse" } });
+    fireEvent.pointerDown(screen.getByTestId("canvas-surface"), { clientX: 30, clientY: 30, pointerId: 1 });
+    const created = onChange.mock.calls.at(-1)![0][0]!;
+    expect(created).toMatchObject({ type: "shape", shape: "ellipse" });
+
+    // Feed the created shape back in as selected, then change its kind via the inspector.
+    rerender(<CanvasEditor elements={[created]} onChange={onChange} />);
+    fireEvent.pointerDown(screen.getByTestId("canvas-surface"), { clientX: 35, clientY: 35, pointerId: 1 });
+    fireEvent.change(screen.getByLabelText("Selected shape kind"), { target: { value: "diamond" } });
+    expect(onChange.mock.calls.at(-1)![0][0]).toMatchObject({ id: created.id, shape: "diamond" });
+  });
+
+  it("recolours the active sticky tool and drops a sticky of that colour", () => {
+    const onChange = vi.fn<(next: CanvasElement[]) => void>();
+    render(<CanvasEditor elements={[]} onChange={onChange} />);
+    fireEvent.click(screen.getByTestId("canvas-tool-sticky"));
+    fireEvent.click(screen.getByTestId("canvas-color-blue"));
+    fireEvent.pointerDown(screen.getByTestId("canvas-surface"), { clientX: 40, clientY: 30, pointerId: 1 });
+    expect(onChange.mock.calls.at(-1)![0][0]).toMatchObject({ type: "sticky", color: "blue" });
+  });
+
+  it("shows 'Creating…' on the convert button while a conversion is in flight", () => {
+    const els: CanvasElement[] = [{ id: "s1", type: "sticky", x: 10, y: 10, w: 120, h: 80, text: "Cutover" }];
+    render(<CanvasEditor elements={els} onChange={() => {}} onConvertSticky={() => {}} converting />);
+    fireEvent.pointerDown(screen.getByTestId("canvas-surface"), { clientX: 20, clientY: 20, pointerId: 1 });
+    const btn = screen.getByTestId("canvas-to-issue");
+    expect(btn).toBeDisabled();
+    expect(btn).toHaveTextContent("Creating…");
+  });
 });
