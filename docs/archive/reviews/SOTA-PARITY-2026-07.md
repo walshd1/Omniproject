@@ -181,5 +181,7 @@ feature-gapped. At the benchmarks, these are table stakes because they're *demon
 
 ---
 
-*Point-in-time review (July 2026); when an item ships, move it to the "meets or beats" list or
-delete it — same rule as [TECH-DEBT-AND-ROADMAP.md](../../TECH-DEBT-AND-ROADMAP.md).*
+*Point-in-time review (July 2026). Every item above has since been dispositioned — as a build
+candidate, a pointer to its owning register, or an explicit decided-against — in
+[FEATURE-ROADMAP.md](../../FEATURE-ROADMAP.md); that doc is the living one, this review stays
+frozen.*
