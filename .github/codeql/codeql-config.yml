@@ -20,3 +20,18 @@ queries:
 query-filters:
   - exclude:
       id: js/missing-rate-limiting
+
+# Analysis scope — do NOT scan test / bench / e2e sources. These are not shipped (zero production
+# attack surface) but generate a large class of false positives: e.g. a *.test.ts transport-seam
+# bridge that passes a url straight into fetch (js/request-forgery) where, in production, safeFetch()
+# runs assertEgressAllowed() BEFORE the transport (see lib/egress.ts — it blocks cloud-metadata,
+# link-local, RFC1918/loopback incl. DNS-rebinding, and non-http schemes). Excluding tests keeps the
+# Security tab focused on real product code, so a genuine High/Critical can't hide in test noise.
+paths-ignore:
+  - "**/*.test.ts"
+  - "**/*.test.tsx"
+  - "**/*.integration.test.ts"
+  - "**/__tests__/**"
+  - "**/*.bench.ts"
+  - "**/bench/**"
+  - "artifacts/omniproject/e2e/**"
