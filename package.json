@@ -12,6 +12,7 @@
     "sbom": "pnpm licenses list --json > sbom-licences.json",
     "typecheck:libs": "tsc --build",
     "typecheck": "pnpm run typecheck:libs && pnpm -r --filter \"./artifacts/**\" --filter \"./scripts\" --if-present run typecheck",
+    "e2e:install": "playwright install chromium",
     "e2e:build": "PORT=3000 BASE_PATH=/ pnpm --filter @workspace/omniproject run build && pnpm --filter @workspace/api-server run build",
     "e2e:run": "playwright test",
     "e2e": "pnpm run e2e:build && playwright test"
