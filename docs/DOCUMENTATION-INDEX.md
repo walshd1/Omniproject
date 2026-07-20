@@ -54,6 +54,7 @@ Capability-honest notes on each catalogued connector — what's mapped and what'
 Short how-tos for extending each integration plane (`docs/dev/`).
 
 - **[dev/PLANE-BACKENDS.md](dev/PLANE-BACKENDS.md)**, **[dev/PLANE-BROKERS.md](dev/PLANE-BROKERS.md)**, **[dev/PLANE-OUTPUTS.md](dev/PLANE-OUTPUTS.md)**, **[dev/PLANE-NOTIFICATIONS.md](dev/PLANE-NOTIFICATIONS.md)**, **[dev/PLANE-METHODOLOGIES.md](dev/PLANE-METHODOLOGIES.md)**, **[dev/PLANE-REPORTS.md](dev/PLANE-REPORTS.md)**, **[dev/PLANE-SCREENS.md](dev/PLANE-SCREENS.md)** — one per plane.
+- **[BRANCHING.md](BRANCHING.md)** — the branching & release flow: `main` = stable, `next` = standing dev line (Dependabot targets it), promotion + the `next` re-seat ritual, and how to keep CI fast without lowering the bar.
 
 ## Security & compliance
 

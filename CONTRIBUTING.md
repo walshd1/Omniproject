@@ -16,6 +16,13 @@ By participating you agree to the [Code of Conduct](CODE_OF_CONDUCT.md).
   By submitting a PR you agree your contribution is licensed under the licence
   that already applies to the file(s) you change.
 
+## Branching
+
+Base your work on **`next`**, not `main`. `main` is the stable release line; `next` is the
+standing development branch that sits one step ahead and is kept green. Dependency-bump PRs
+target `next` too. Full flow (promotion, the `next` re-seat ritual, hotfixes) is in
+**[docs/BRANCHING.md](docs/BRANCHING.md)**.
+
 ## Development setup
 
 Requires **Node 26+** and **pnpm 11.8+** (`corepack enable`).
