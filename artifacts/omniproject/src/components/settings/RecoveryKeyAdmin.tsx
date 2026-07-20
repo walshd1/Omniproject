@@ -7,6 +7,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth, roleAtLeast } from "../../lib/auth";
 import { withStepUp } from "../../lib/step-up";
 import { useRecoveryKeyStatus, revealRecoveryKey, rotateRecoveryKey, downloadPortableBackup, restorePortableBackup, recoveryKeyStatusKey } from "../../lib/recovery-key";
+import { safeParseJson } from "../../lib/safe-json";
 
 /**
  * INSTANCE RECOVERY KEY — the portable secret the operator must SAVE (offline / printed) to open an encrypted
@@ -60,7 +61,9 @@ export function RecoveryKeyAdmin() {
   const onFile = (f: File | undefined): void => {
     if (!f) return;
     const reader = new FileReader();
-    reader.onload = () => { try { setRestoreFile(JSON.parse(String(reader.result))); } catch { toast({ title: "BAD FILE", description: "That isn't a valid backup file.", variant: "destructive" }); } };
+    // An uploaded file is UNTRUSTED input — parse through safeParseJson (strips __proto__/constructor at every
+    // depth) so a malicious backup file can't prototype-pollute when the parsed object is later handled.
+    reader.onload = () => { try { setRestoreFile(safeParseJson(String(reader.result))); } catch { toast({ title: "BAD FILE", description: "That isn't a valid backup file.", variant: "destructive" }); } };
     reader.readAsText(f);
   };
 
