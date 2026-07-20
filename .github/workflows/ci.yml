@@ -197,7 +197,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]
+        shard: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24]
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
       - name: Install pnpm
@@ -216,12 +216,12 @@ jobs:
         # Blob reporter captures this shard's coverage for the merge job. Thresholds are forced to 0
         # HERE ONLY so a single shard's (necessarily partial) coverage can't fail the shard — the
         # real gate lives in unit-spa-merge, which reads the unmodified vitest.config.ts thresholds.
-        # 16 shards + 10 GB heap: the SPA suite is ~440 jsdom test files, and v8 coverage instrumentation +
-        # jsdom accumulate in a reused worker process — the heaviest worker exhausts its V8 heap and is
-        # KILLED (vitest then reports "Worker exited unexpectedly"/FATAL heap OOM and exits non-zero, with
-        # every test still green). vitest shards by SORTED path, so the heavy page/panel suites cluster into
-        # one contiguous shard; splitting alone just moves the cluster (8→shard5, 12→shard8 both OOM'd), so
-        # split FINER (16 → ~28 files/shard) AND raise the per-worker heap to 10 GB. --max-old-space-size
+        # 24 shards + 10 GB heap: the SPA suite is ~440 jsdom test files, and v8 coverage buffers + jsdom
+        # DOM state ACCUMULATE across the files a reused worker processes (isolate resets the module graph,
+        # not the process), so a worker's heap climbs monotonically and eventually hits the V8 limit and is
+        # KILLED (FATAL "heap out of memory" → "Worker exited unexpectedly", every test still green). The
+        # lever is files-per-worker: at 16 shards (~28 files, ~7/worker) the heap reached exactly 10 GB —
+        # right at the edge. 24 shards (~18 files, ~4-5/worker) keeps peak well under. --max-old-space-size
         # stays within the 16 GB runner because finer shards mean fewer heavy workers peak at once.
         # `blob` feeds the merge job; `default` ALSO prints this shard's own pass/fail + any failing-test
         # detail to the shard log, so a shard failure is diagnosable here directly (the merge job is
