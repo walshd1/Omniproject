@@ -518,6 +518,21 @@ jobs:
   e2e:
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    # Shard the acceptance suite across parallel runners. The suite deliberately runs single-worker
+    # against one demo server FOR DETERMINISM (see the workers/fullyParallel note in
+    # playwright.config.ts) — sharding preserves that guarantee, because each shard is its own
+    # single-worker run against its own freshly-booted server, and only cuts wall-clock. `--shard=i/N`
+    # splits the tests deterministically; `fail-fast: false` lets every shard report its result even
+    # when a sibling shard fails. The shard COUNT lives in exactly one place — the matrix array below —
+    # and `strategy.job-total` feeds it to --shard, so adding a shard is a one-line change.
+    # 4 shards is the sweet spot: the suite's largest atomic unit is a ~40-test serial describe block
+    # (journeys.spec.ts) that can't be split, so the slowest shard floors at ~40 of 107 tests (~2.7x).
+    # N=5+ leaves that 40-test shard as the long pole while spawning near-empty runners — no faster,
+    # just wasteful. Revisit if that serial block is broken up.
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
       - name: Install pnpm
@@ -532,13 +547,19 @@ jobs:
       - run: pnpm install --frozen-lockfile --ignore-scripts
       - name: Install Playwright Chromium
         run: pnpm exec playwright install --with-deps chromium
-      - name: Build + run acceptance specs (mouse + keyboard journeys)
-        run: pnpm run e2e
+      # Build once per shard (in parallel), then run only this shard's slice. Building here rather than
+      # sharing a prebuilt artifact keeps the job self-contained — no cross-job artifact download — at
+      # the cost of a (parallel) rebuild per shard, which is far cheaper than the single-worker suite.
+      - name: Build acceptance app (SPA + gateway)
+        run: pnpm run e2e:build
+      - name: Run acceptance shard ${{ matrix.shard }}/${{ strategy.job-total }} (mouse + keyboard journeys)
+        run: pnpm exec playwright test --shard=${{ matrix.shard }}/${{ strategy.job-total }}
       - name: Upload Playwright report on failure
         if: failure()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
-          name: playwright-report
+          # Per-shard artifact name — a matrix can't upload three artifacts under one name.
+          name: playwright-report-shard-${{ matrix.shard }}
           path: playwright-report
           retention-days: 7
 
