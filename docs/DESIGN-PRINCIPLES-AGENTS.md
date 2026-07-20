@@ -160,6 +160,12 @@ Format: each principle is a RULE + how to CHECK it + the usual FIX.
 - RULE: New/changed behaviour ships WITH its unit tests in the same slice. Run the affected suites + `tsc
   --noEmit` before claiming done. A failing test is the AUTHOR's job to fix NOW, before other work — never walk
   past red. A genuinely pre-existing failure is stated plainly, not silently inherited (§10).
+- RULE: The coverage gate (statements/branches/functions/lines thresholds, CI-enforced) is a per-slice FLOOR,
+  not a later target. New code lands at or above it in the SAME PR; a screen/lib/hook and its tests are one
+  change. NEVER stack feature work on a branch whose coverage gate is red — that is how an untested phase
+  becomes an audit backlog. Lowering a threshold to green a red gate is forbidden; the fix is the missing tests.
+- CHECK: A feature PR that drops global coverage; source added with no matching test; a lowered threshold; work
+  stacked on a red coverage gate "to be tested later".
 - RULE: `docs/FUNCTION-MAP.md` is GENERATED from the code comments and CI-drift-guarded — never hand-edit.
   Improve the comment in the code and regenerate: `pnpm --filter @workspace/scripts run gen-function-map`.
   Regenerate in the SAME change whenever you add/rename a file or an exported function (like a `*.generated.ts`

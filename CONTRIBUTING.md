@@ -75,7 +75,12 @@ CI fails on codegen drift, so commit the regenerated output.
    coverage gates, drift-guards, security scans (secret-scan, taint-scan, CodeQL),
    accessibility and e2e.
 4. Add tests for new logic and update docs (`docs/TECHNICAL.md`, READMEs) when
-   behaviour changes.
+   behaviour changes. **Tests land in the same PR as the code they cover** — a
+   screen, a lib or a hook and its tests are one change, not a "someday" follow-up.
+   The coverage thresholds are a **floor to stay above, per PR**: don't merge feature
+   code that drops global coverage, and never lower a threshold to green a red gate —
+   the fix is always the missing tests. (A per-change floor is what stops an untested
+   phase from silently becoming an audit backlog.)
 5. Open the PR against `main` and fill in the template.
 
 ## Adding a backend

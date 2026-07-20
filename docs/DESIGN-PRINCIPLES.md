@@ -322,6 +322,14 @@ next reader can audit it quickly. Three habits are **enforced**, not merely enco
   before moving on to anything else — a red test you walked past is a regression you shipped. "It's unrelated"
   is a claim to verify, not a licence to skip; a genuinely pre-existing failure gets **stated plainly**
   (principle 10 / faithful reporting), never silently left for the next person to inherit.
+- **The coverage gate is a per-slice floor, and debt is never allowed to accumulate.** The thresholds
+  (statements / branches / functions / lines, enforced in CI) are a floor to stay above, not a target to reach
+  later. New code lands at or above the floor in the **same PR** that adds it — a screen, a lib, a hook and its
+  tests are one change. Do **not** stack feature work on a branch whose coverage gate is red: "we'll write the
+  tests afterwards" is exactly how a whole phase of untested code becomes an audit backlog that someone has to
+  claw back later. The gate runs per change precisely so that can't happen — keep it green as you go, and the
+  debt never exists to pay down. Lowering a threshold to make a red gate pass is not an option; the fix is
+  always the missing tests.
 - **Keep the function map honest.** `docs/FUNCTION-MAP.md` is a *generated*, one-screen-per-package index of
   every file and exported function, collated from those same code comments and kept current by a CI drift guard
   — so it can never lie about the code. You don't hand-edit it; you improve the comment in the code and
