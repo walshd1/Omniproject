@@ -59,8 +59,17 @@ export function ScreenPage({ id, methodology, params }: { id: string; methodolog
   const fallbackLayout = canonicalLayoutFor(def, activeMethodology);
 
   if (def.bare) {
+    // A bare screen renders full-bleed without ScreenPage's visible header, but every page still needs
+    // exactly ONE top-level heading — for accessibility and because the route smoke asserts a single
+    // visible <h1>. A `component`-hosted bare screen (Home, Projects, …) delegates to a full-page
+    // component that already renders its own <h1>; a `view`/panel-hosted bare screen (Gantt, Kanban,
+    // the methodology boards, …) has no such heading, so supply a screen-reader-only page title here —
+    // naming the page for assistive tech without altering the full-bleed layout, and without doubling
+    // up the heading on the component-hosted screens.
+    const hostsOwnHeading = screen.panels.some((p) => p.kind === "component");
     return (
       <div className="h-full" data-testid={`screen-${id}`}>
+        {!hostsOwnHeading && <h1 className="sr-only">{def.label}</h1>}
         <EditableScreen screen={screen} bare fallbackLayout={fallbackLayout} {...(activeMethodology ? { methodology: activeMethodology } : {})} />
       </div>
     );

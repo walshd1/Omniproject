@@ -1,13 +1,14 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { getJson, sendJson } from "./api";
-import { useFeatures, featureEnabled } from "./features";
+import { useFeatureEnabled } from "./features";
 
 /** The whole `/api/defs/*` surface is the (default-off) `defImporter` feature module — the router is only
  *  mounted when it's on. Read hooks gate their fetch on it so a features-off instance (e.g. a bare demo)
  *  doesn't 404-spam the console for defs it can't have. Cached defs still read back; only fetching is gated. */
 export function useDefImporterEnabled(): boolean {
-  const { data: features } = useFeatures();
-  return featureEnabled(features, "defImporter");
+  // Fail-closed-while-loading fetch gate (see useFeatureEnabled): don't fire the `/api/defs/*` request
+  // during the features-loading window, or it 404-spams the console on a features-off instance.
+  return useFeatureEnabled("defImporter");
 }
 
 /**

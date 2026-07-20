@@ -81,6 +81,17 @@ export function featureEnabled(features: FeatureStatus[] | undefined, id: string
   return f.enabled;
 }
 
+/**
+ * Fetch-gate variant of {@link featureEnabled}: true only once the feature list has LOADED and the module
+ * is enabled. `featureEnabled` is fail-OPEN (returns true for an undefined list) so core UI never flickers
+ * off, but that same fail-open answer would fire a default-off module's `/api/<module>` request during the
+ * initial features-loading window — before the (off) status arrives — and 404-spam the console on a
+ * features-off instance. Gate a hook's `enabled` on THIS so the speculative fetch never races the load. */
+export function useFeatureEnabled(id: string): boolean {
+  const { data: features } = useFeatures();
+  return features !== undefined && featureEnabled(features, id);
+}
+
 export const scopeFeatureMapsQueryKey = ["scope-feature-maps"] as const;
 
 /**

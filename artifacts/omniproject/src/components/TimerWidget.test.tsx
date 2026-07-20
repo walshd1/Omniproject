@@ -3,13 +3,16 @@ import { screen } from "@testing-library/react";
 import { QueryClient } from "@tanstack/react-query";
 import { renderWithProviders } from "../test/utils";
 import { timerKey, formatElapsed, type TimerState } from "../lib/live-timer";
+import { featuresQueryKey } from "../lib/features";
 import { TimerWidget } from "./TimerWidget";
 
-/** The live timer widget: idle start-form vs running display. (timeTracking defaults enabled for an unknown
- *  feature id, so the widget renders without seeding features.) */
+/** The live timer widget: idle start-form vs running display. The widget gates its `/api/timer` fetch (and
+ *  its own render) on the `timeTracking` module having LOADED and being enabled (fail-closed while the
+ *  feature list is undefined, so it never races a 404), so seed the feature list with it on. */
 function seed(state: TimerState): QueryClient {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } });
   qc.setQueryData(timerKey, state);
+  qc.setQueryData(featuresQueryKey(), [{ id: "timeTracking", kind: "module", label: "Time tracking", description: "", enabled: true, loaded: true, needsRestart: false }]);
   return qc;
 }
 
