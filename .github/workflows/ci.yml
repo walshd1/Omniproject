@@ -197,7 +197,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
+        shard: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
       - name: Install pnpm
@@ -216,12 +216,13 @@ jobs:
         # Blob reporter captures this shard's coverage for the merge job. Thresholds are forced to 0
         # HERE ONLY so a single shard's (necessarily partial) coverage can't fail the shard — the
         # real gate lives in unit-spa-merge, which reads the unmodified vitest.config.ts thresholds.
-        # 12 shards (not 4/8): the SPA suite is ~440 jsdom test files, and v8 coverage instrumentation +
-        # jsdom accumulate in ONE reused worker process — enough files in a shard and the heaviest worker
-        # exhausts even an 8 GB heap and is KILLED (vitest then reports "Worker exited unexpectedly" and
-        # exits non-zero, with every test still green). 4 shards (~110 files) OOM'd; 8 (~55) held until the
-        # module graph grew and shard 5's worker tipped over again. 12 (~37 files/shard) restores headroom
-        # and cuts the long-pole shard's wall-clock. --max-old-space-size gives headroom on the 16 GB runner.
+        # 16 shards + 10 GB heap: the SPA suite is ~440 jsdom test files, and v8 coverage instrumentation +
+        # jsdom accumulate in a reused worker process — the heaviest worker exhausts its V8 heap and is
+        # KILLED (vitest then reports "Worker exited unexpectedly"/FATAL heap OOM and exits non-zero, with
+        # every test still green). vitest shards by SORTED path, so the heavy page/panel suites cluster into
+        # one contiguous shard; splitting alone just moves the cluster (8→shard5, 12→shard8 both OOM'd), so
+        # split FINER (16 → ~28 files/shard) AND raise the per-worker heap to 10 GB. --max-old-space-size
+        # stays within the 16 GB runner because finer shards mean fewer heavy workers peak at once.
         # `blob` feeds the merge job; `default` ALSO prints this shard's own pass/fail + any failing-test
         # detail to the shard log, so a shard failure is diagnosable here directly (the merge job is
         # `needs: unit-spa` and is skipped when a shard fails, so it can't surface the names otherwise).
@@ -233,7 +234,7 @@ jobs:
           --coverage.thresholds.statements=0 --coverage.thresholds.branches=0
           --coverage.thresholds.functions=0 --coverage.thresholds.lines=0
         env:
-          NODE_OPTIONS: --max-old-space-size=8192
+          NODE_OPTIONS: --max-old-space-size=10240
 
       - name: Upload SPA coverage blob (shard ${{ matrix.shard }})
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
