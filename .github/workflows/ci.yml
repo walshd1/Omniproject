@@ -221,9 +221,13 @@ jobs:
         # 8 GB heap (GC-thrash → FATAL heap OOM). Halving the files per shard keeps peak memory well
         # under the (raised) heap and also cuts the long-pole shard's wall-clock. --max-old-space-size
         # gives headroom on the 16 GB runner.
+        # `blob` feeds the merge job; `default` ALSO prints this shard's own pass/fail + any failing-test
+        # detail to the shard log, so a shard failure is diagnosable here directly (the merge job is
+        # `needs: unit-spa` and is skipped when a shard fails, so it can't surface the names otherwise).
         run: >-
           pnpm --filter @workspace/omniproject exec
-          vitest run --coverage --reporter=blob --outputFile=.vitest-reports/blob-${{ matrix.shard }}.json
+          vitest run --coverage --reporter=blob --reporter=default
+          --outputFile.blob=.vitest-reports/blob-${{ matrix.shard }}.json
           --shard=${{ matrix.shard }}/${{ strategy.job-total }}
           --coverage.thresholds.statements=0 --coverage.thresholds.branches=0
           --coverage.thresholds.functions=0 --coverage.thresholds.lines=0
