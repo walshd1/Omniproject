@@ -185,15 +185,18 @@ jobs:
           NODE_OPTIONS: --max-old-space-size=6144
 
   # ───────────── SPA unit tests + coverage gate (vitest v4), SHARDED ─────────────
-  # Coverage uses the istanbul provider (see vitest.config.ts). Each shard runs ~1/24 of the suite,
+  # Coverage uses the istanbul provider (see vitest.config.ts). Each shard runs ~1/32 of the suite,
   # writes an istanbul coverage blob, and `unit-spa-merge` combines every blob and enforces the
   # vitest.config.ts gate over the COMBINED data. Two independent memory ceilings drove this shape,
   # both measured:
   #   1. A vitest worker fork is REUSED across the test files it's handed, and the istanbul coverage
   #      it accumulates grows with the number of files that fork processes. At 8 shards (~55 files
-  #      each) a heavy shard's fork climbed past 12 GB and OOM'd; at 24 shards (~18 files each) the
-  #      same regions peak at ~0.5 GB. So the shard COUNT — not the heap — is the real lever, and 24
-  #      keeps every shard's fork comfortably bounded (16x headroom under the 8 GB heap below).
+  #      each) a heavy shard's fork climbed past 12 GB and OOM'd; at 24 shards a heavy shard (15,
+  #      the full-app-mount cluster) still OOM'd at 8 GB on the runner (which spreads a shard's files
+  #      over fewer forks than a dev box, so each fork accumulates more). 32 shards (~14 files each)
+  #      PLUS a 12 GB heap gives generous headroom on either lever. shard COUNT is the primary knob;
+  #      the heap is the belt-and-braces margin, safe because each shard is its own 16 GB runner and
+  #      only the heavy-files fork grows (the rest stay <0.5 GB).
   #   2. Building ONE coverage report over all ~440 files in a single process needs >12 GB and OOMs.
   #      So the full report is produced exactly once, in the merge job, which does NOT run tests
   #      (it only combines pre-built istanbul maps — ~0.6 GB) — never in an all-in-one run.
@@ -211,7 +214,8 @@ jobs:
       fail-fast: false
       matrix:
         shard:
-          [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24]
+          [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16,
+           17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32]
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
       - name: Install pnpm
@@ -240,7 +244,9 @@ jobs:
           --coverage.thresholds.statements=0 --coverage.thresholds.branches=0
           --coverage.thresholds.functions=0 --coverage.thresholds.lines=0
         env:
-          NODE_OPTIONS: --max-old-space-size=8192
+          # 12 GB (not the 16 GB runner ceiling) so the heavy-files fork has headroom while leaving
+          # room for the OS + the shard's other (small) forks; see the memory note on the job above.
+          NODE_OPTIONS: --max-old-space-size=12288
 
       - name: Upload SPA coverage blob (shard ${{ matrix.shard }})
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
