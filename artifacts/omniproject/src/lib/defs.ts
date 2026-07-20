@@ -5,7 +5,7 @@ import { useFeatures, featureEnabled } from "./features";
 /** The whole `/api/defs/*` surface is the (default-off) `defImporter` feature module — the router is only
  *  mounted when it's on. Read hooks gate their fetch on it so a features-off instance (e.g. a bare demo)
  *  doesn't 404-spam the console for defs it can't have. Cached defs still read back; only fetching is gated. */
-function useDefImporterEnabled(): boolean {
+export function useDefImporterEnabled(): boolean {
   const { data: features } = useFeatures();
   return featureEnabled(features, "defImporter");
 }
@@ -37,10 +37,11 @@ export const defKey = (id: string) => ["def", id] as const;
 
 /** One stored def with its payload (for the editor). */
 export function useDef(id: string | undefined) {
+  const importerOn = useDefImporterEnabled();
   return useQuery({
     queryKey: defKey(id ?? ""),
     queryFn: () => getJson<StoredDef>(`/api/defs/${encodeURIComponent(id!)}`),
-    enabled: !!id,
+    enabled: !!id && importerOn,
     staleTime: 5_000,
   });
 }
@@ -100,9 +101,11 @@ export function useActiveDefs(projectId?: string, programmeId?: string) {
   if (projectId) qs.set("projectId", projectId);
   if (programmeId) qs.set("programmeId", programmeId);
   const suffix = qs.toString();
+  const enabled = useDefImporterEnabled();
   return useQuery({
     queryKey: [...defsKey, "active", projectId ?? null, programmeId ?? null] as const,
     queryFn: () => getJson<Record<string, ResolvedBinding>>(`/api/defs/active${suffix ? `?${suffix}` : ""}`),
+    enabled,
     staleTime: 15_000,
   });
 }
