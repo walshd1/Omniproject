@@ -197,7 +197,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2, 3, 4, 5, 6, 7, 8]
+        shard: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
       - name: Install pnpm
@@ -216,11 +216,12 @@ jobs:
         # Blob reporter captures this shard's coverage for the merge job. Thresholds are forced to 0
         # HERE ONLY so a single shard's (necessarily partial) coverage can't fail the shard — the
         # real gate lives in unit-spa-merge, which reads the unmodified vitest.config.ts thresholds.
-        # 8 shards (not 4): the SPA suite is ~440 jsdom test files, and v8 coverage instrumentation +
-        # jsdom accumulate in one worker process — a quarter of the suite (~110 files) exhausted even an
-        # 8 GB heap (GC-thrash → FATAL heap OOM). Halving the files per shard keeps peak memory well
-        # under the (raised) heap and also cuts the long-pole shard's wall-clock. --max-old-space-size
-        # gives headroom on the 16 GB runner.
+        # 12 shards (not 4/8): the SPA suite is ~440 jsdom test files, and v8 coverage instrumentation +
+        # jsdom accumulate in ONE reused worker process — enough files in a shard and the heaviest worker
+        # exhausts even an 8 GB heap and is KILLED (vitest then reports "Worker exited unexpectedly" and
+        # exits non-zero, with every test still green). 4 shards (~110 files) OOM'd; 8 (~55) held until the
+        # module graph grew and shard 5's worker tipped over again. 12 (~37 files/shard) restores headroom
+        # and cuts the long-pole shard's wall-clock. --max-old-space-size gives headroom on the 16 GB runner.
         # `blob` feeds the merge job; `default` ALSO prints this shard's own pass/fail + any failing-test
         # detail to the shard log, so a shard failure is diagnosable here directly (the merge job is
         # `needs: unit-spa` and is skipped when a shard fails, so it can't surface the names otherwise).
