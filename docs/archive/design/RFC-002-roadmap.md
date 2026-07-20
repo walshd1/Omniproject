@@ -1,6 +1,8 @@
 # RFC-002 — Roadmap & backlog (post-0.4.0 build session)
 
-**Status:** Living backlog for prioritisation. No commitments to dates.
+**Status:** Superseded as the live backlog — feature tracking moved to
+[FEATURE-ROADMAP.md](../../FEATURE-ROADMAP.md) (July 2026), which absorbed this doc's still-open
+items. Kept frozen here for the per-item history. No commitments to dates.
 
 This captures everything queued during the big build session, with honest status
 (**Done** / **Foundation laid** / **Not started**), dependencies, rough effort,

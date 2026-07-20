@@ -115,6 +115,21 @@ Restated from their home registers so this doc is complete on its own:
 - **Runtime no-code view designer** — deliberate non-goal
   ([METHODOLOGIES.md](METHODOLOGIES.md)); views are open code, not a black box.
 
+## Absorbed from the predecessor backlog (RFC-002)
+
+[archive/design/RFC-002-roadmap.md](archive/design/RFC-002-roadmap.md) was the previous living
+feature backlog (post-0.4.0). Most of its open rows have since shipped (IssueDialog field-level
+gating via `GatedTextField`, `FinancialsPanel`, duplicate-task, the `/resources` page, live Gantt
+drag-to-reschedule, the explore replica workbench, a catalogued Salesforce backend). Its
+still-open residue is carried here so this doc supersedes it as the single live register:
+
+| Item | Status | Disposition |
+| --- | --- | --- |
+| Programme-as-entity (`createProgramme` for backends with a real programme object) | **[candidate]** | Verified still absent from the broker contract; pairs naturally with the §5 entity work. |
+| Per-backend manifest field declaration + generator emission | **[candidate]** | RFC-002 §A row; re-verify against the current manifest/generator before scoping — several sibling rows shipped since. |
+| CRM entity read surfaces (accounts / opportunities / contacts / cases) | **[candidate]** | Salesforce is catalogued as a backend; first-class CRM *entities* beyond the project/issue mapping remain unbuilt. |
+| Delegation / temporary access transfer | **[decided-against]** (NO-GO) | Design complete (RFC-004/RFC-005); deliberately not built. Greenlight conditions recorded in RFC-002 §G — a real user asking, a token-exchange-capable IdP, and a named security reviewer. |
+
 ---
 
 ## Sequencing
