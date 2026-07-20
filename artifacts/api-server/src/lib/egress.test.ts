@@ -1,9 +1,9 @@
 import { test, afterEach } from "node:test";
 import assert from "node:assert/strict";
-import { assertEgressAllowed, safeFetch, __setEgressTransportForTest, EgressError, type LookupFn } from "./egress";
+import { assertEgressAllowed, safeFetch, guardedLookup, __setEgressTransportForTest, EgressError, type LookupFn } from "./egress";
 import { DataResidencyError } from "./data-residency";
 
-afterEach(() => { delete process.env["EGRESS_ALLOWLIST"]; delete process.env["DATA_RESIDENCY_POLICY"]; __setEgressTransportForTest(null); });
+afterEach(() => { delete process.env["EGRESS_ALLOWLIST"]; delete process.env["DATA_RESIDENCY_POLICY"]; delete process.env["EGRESS_BLOCK_PRIVATE"]; __setEgressTransportForTest(null); });
 
 /** A deterministic fake `dns.lookup` — every test that touches a plain (non-IP-literal)
  *  hostname must supply one, so nothing here depends on real network/DNS availability. */
@@ -75,6 +75,29 @@ test("allows ordinary internal + external hosts by default (deployments need thi
   assert.ok(await assertEgressAllowed("http://localhost:5678/webhook")); // real loopback resolution — always safe
   assert.ok(await assertEgressAllowed("http://10.0.0.5:5678/")); // literal IP — no DNS lookup at all
   assert.ok(await assertEgressAllowed("https://api.example.com/fx", SAFE));
+});
+
+test("hardened mode: EGRESS_BLOCK_PRIVATE refuses RFC1918/loopback (literal + resolved), allowlist escapes it", async () => {
+  process.env["EGRESS_BLOCK_PRIVATE"] = "1";
+  // Literal private/loopback IPs are refused.
+  await assert.rejects(assertEgressAllowed("http://10.0.0.5:6379/"), EgressError);
+  await assert.rejects(assertEgressAllowed("http://127.0.0.1:6379/"), EgressError);
+  await assert.rejects(assertEgressAllowed("http://192.168.1.10/admin"), EgressError);
+  await assert.rejects(assertEgressAllowed("http://[::1]/"), EgressError);
+  // A hostname that RESOLVES to a private IP is refused too (n8n → 10.0.0.5 in SAFE).
+  await assert.rejects(assertEgressAllowed("http://n8n:5678/webhook", SAFE), EgressError);
+  // A public host is still fine.
+  assert.ok(await assertEgressAllowed("https://api.example.com/fx", SAFE));
+  // The always-on metadata floor is unchanged.
+  await assert.rejects(assertEgressAllowed("http://169.254.169.254/"), EgressError);
+  // Explicitly allowlisting the internal host is the escape hatch.
+  process.env["EGRESS_ALLOWLIST"] = "n8n";
+  assert.ok(await assertEgressAllowed("http://n8n:5678/webhook", SAFE));
+});
+
+test("private ranges are allowed by DEFAULT (no EGRESS_BLOCK_PRIVATE) — internal brokers keep working", async () => {
+  assert.ok(await assertEgressAllowed("http://10.0.0.5:5678/")); // unchanged default posture
+  assert.ok(await assertEgressAllowed("http://n8n:5678/webhook", SAFE));
 });
 
 test("strict mode: EGRESS_ALLOWLIST pins outbound hosts", async () => {
@@ -158,4 +181,40 @@ test("safeFetch refuses a redirect loop rather than following forever", async ()
   __setEgressTransportForTest(async () =>
     new Response(null, { status: 302, headers: { location: "http://api.example.com/loop" } }));
   await assert.rejects(safeFetch("http://api.example.com/loop", undefined, SAFE), EgressError);
+});
+
+// ── guardedLookup: the connect-time validator that pins a persistent dispatcher (broker Agent) ──
+/** Drive guardedLookup and resolve with its callback args. */
+function callGuarded(host: string, all: boolean): Promise<{ err: Error | null; address: unknown; family: number | undefined }> {
+  return new Promise((resolve) => {
+    guardedLookup(host, { all }, (err, address, family) => resolve({ err, address, family }));
+  });
+}
+
+test("guardedLookup passes a safe IP literal through (single + all forms)", async () => {
+  const single = await callGuarded("127.0.0.1", false);
+  assert.equal(single.err, null);
+  assert.equal(single.address, "127.0.0.1");
+  assert.equal(single.family, 4);
+  const all = await callGuarded("127.0.0.1", true);
+  assert.equal(all.err, null);
+  assert.deepEqual(all.address, [{ address: "127.0.0.1", family: 4 }]);
+});
+
+test("guardedLookup REFUSES a link-local/metadata IP literal (the SSRF target)", async () => {
+  const r = await callGuarded("169.254.169.254", false);
+  assert.ok(r.err instanceof EgressError, "expected an EgressError for the metadata IP");
+  assert.match(r.err.message, /blocked/i);
+});
+
+test("guardedLookup REFUSES a metadata hostname without needing DNS", async () => {
+  const r = await callGuarded("metadata.google.internal", false);
+  assert.ok(r.err instanceof EgressError);
+  assert.match(r.err.message, /blocked/i);
+});
+
+test("guardedLookup resolves a normal name and returns validated addresses (localhost path)", async () => {
+  const r = await callGuarded("localhost", true);
+  assert.equal(r.err, null);
+  assert.ok(Array.isArray(r.address) && (r.address as unknown[]).length > 0, "localhost should resolve to ≥1 vetted address");
 });

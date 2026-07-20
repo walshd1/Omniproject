@@ -162,7 +162,7 @@ test("fuzz: entitySetEnvelope wraps any row set into a JSON-safe envelope withou
 });
 
 // ── 2. SCIM filter + PATCH parsing — hostile input safely rejected, never thrown ──
-beforeEach(() => { process.env["SCIM_TOKEN"] = "scim-secret"; __resetScim(); });
+beforeEach(() => { process.env["SCIM_TOKEN"] = "scim-secret-strong-012345"; __resetScim(); });
 afterEach(() => { delete process.env["SCIM_TOKEN"]; __resetScim(); });
 
 test("fuzz: listUsers/listGroups never throw on a hostile SCIM filter and only ever match on a supported eq-clause", () => {

@@ -1,0 +1,11 @@
+{
+  "id": "kanban",
+  "label": "Kanban board",
+  "methodologies": ["kanban"],
+  "route": "/kanban",
+  "nav": { "label": "Kanban", "group": "primary" },
+  "bare": true,
+  "panels": [
+    { "id": "kanban-board", "kind": "view", "config": { "view": "kanban" } }
+  ]
+}

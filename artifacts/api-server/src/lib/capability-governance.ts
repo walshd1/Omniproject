@@ -54,6 +54,7 @@ const AI_TOOLS: GovernedCapability[] = [
   { id: "ai-estimate", kind: "ai-tool", label: "AI-assisted estimation", description: "Suggests an effort estimate (points/days) for described work, with a rationale. Advisory only — the human explicitly commits the value; the model never writes or acts. Output is labelled AI-generated. Off by default.", supportedStates: ANY, surfaceAware: true },
   { id: "ai-autonomous", kind: "ai-tool", label: "AI rebalancing (agentic)", description: "The AI PROPOSES corrective actions over the portfolio (reprioritise, flag, reassign). It never executes — every proposal is constrained to your approved actions, reviewed and confirmed individually by a human, and re-gated by role + write-grants + the autonomous-write guard before it runs. The highest-risk tool; a SEPARATE toggle, OFF by default.", supportedStates: ANY, surfaceAware: true },
   { id: "backend-draft", kind: "ai-tool", label: "AI backend-draft suggestions", description: "Draft a starting-point backend definition (name, docs link, auth style, capabilities) from an LLM for an unlisted vendor. Training-knowledge only — no live verification; an admin still reviews and maps real actions.", supportedStates: ANY, surfaceAware: true },
+  { id: "ai-authoring", kind: "ai-tool", label: "AI primitive authoring", description: "The Primitive Studio: turn a description into a candidate primitive (chart/graphic) definition, validated against the app's schema. The model emits only a declarative descriptor — never code. Advisory: nothing is stored until the author submits it and an admin approves it. Off by default.", supportedStates: ANY, surfaceAware: true },
 ];
 
 const MCP_CAPABILITY: GovernedCapability = {
@@ -263,18 +264,22 @@ export class CapabilityBlockedError extends Error {
  * which AI/vendor/broker ran where and for whom. The call site uses the returned
  * {state, endpoint} to run correctly.
  */
-export function decideCapability(id: string, opts: { surface?: string | undefined; actor?: Actor | null } = {}): CapabilityDecision {
+export function decideCapability(id: string, opts: { surface?: string | undefined; actor?: Actor | null; granted?: ReadonlySet<string> } = {}): CapabilityDecision {
   const cap = getCapability(id);
   const surface = opts.surface ?? null;
   const state = effectiveState(id, opts.surface);
-  const allowed = state !== "off";
+  // A custom-role PERMISSION SET can grant a capability to the caller even when the org/surface state is off —
+  // an admin has deliberately bundled it into that role. The grant lifts the gate; the state (and thus any
+  // user-defined endpoint) is unchanged, so it never invents config that isn't there.
+  const grantedByRole = state === "off" && !!opts.granted && opts.granted.has(id);
+  const allowed = state !== "off" || grantedByRole;
   const endpoint = state === "user-defined" ? (getSettings().capabilityStates[id]?.endpoint ?? null) : null;
   recordCapabilityEvent({
     auditAction: allowed ? "capability.use" : "capability.blocked",
     logAction: allowed ? "use" : "blocked",
     id, kind: cap?.kind ?? null, surface, state, actor: opts.actor,
     result: allowed ? "success" : "error",
-    meta: { capability: id, kind: cap?.kind ?? null, surface, state },
+    meta: { capability: id, kind: cap?.kind ?? null, surface, state, ...(grantedByRole ? { grantedByPermissionSet: true } : {}) },
   });
   return { id, kind: cap?.kind ?? null, surface, state, allowed, endpoint };
 }
@@ -294,7 +299,7 @@ export function noteCapabilityConfigured(id: string, setting: CapabilitySetting,
  * Strong call-time gate: decide + log, and THROW CapabilityBlockedError when the
  * capability is off for this surface. Every governed call site routes through here.
  */
-export function enforceCapability(id: string, opts: { surface?: string | undefined; actor?: Actor | null } = {}): CapabilityDecision {
+export function enforceCapability(id: string, opts: { surface?: string | undefined; actor?: Actor | null; granted?: ReadonlySet<string> } = {}): CapabilityDecision {
   const decision = decideCapability(id, opts);
   if (!decision.allowed) throw new CapabilityBlockedError(id, decision.surface);
   return decision;
@@ -327,6 +332,18 @@ export function setCapabilityState(id: string, input: unknown): CapabilitySettin
   const clean = sanitizeCapabilitySetting(cap, input);
   updateSettings({ capabilityStates: { ...getSettings().capabilityStates, [id]: clean } });
   return clean;
+}
+
+/**
+ * Build the `capabilityStates` PATCH that sets ONE capability (sanitized) WITHOUT persisting — so the route
+ * can route it through the invariant guard (raising a capability's exposure is a security reduction → held
+ * for a signed sign-off; lowering it applies immediately). Throws {@link UnknownCapabilityError} on a bad id.
+ */
+export function capabilityStatePatch(id: string, input: unknown): { clean: CapabilitySetting; next: Record<string, CapabilitySetting> } {
+  const cap = getCapability(id);
+  if (!cap) throw new UnknownCapabilityError(id);
+  const clean = sanitizeCapabilitySetting(cap, input);
+  return { clean, next: { ...getSettings().capabilityStates, [id]: clean } };
 }
 
 /** Thrown when an unknown capability id is addressed. */

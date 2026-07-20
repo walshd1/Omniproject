@@ -11,6 +11,7 @@
  */
 import { OUTPUTS_DATA } from "./vendors.generated";
 import { withOverlay } from "./vendor-overlay";
+import { matchesMethodology } from "./methodology-match";
 
 export type OutputKind =
   | "read-api" // structured read projection (OData-style)
@@ -46,6 +47,9 @@ export interface OutputManifest {
   capabilities: OutputCapabilities;
   /** The connection methods offered for this output (e.g. `["api","mcp"]` for a calendar). */
   transports?: OutputTransport[];
+  /** Methodology TAGS — like reports/views/screens, so an output can be grouped and preloaded per
+   *  methodology (admin/PMO-editable). Neutral (omitted / `"*"`) ⇒ applies to every methodology. */
+  methodologies?: string[];
   notes?: string;
 }
 
@@ -60,6 +64,11 @@ export const OUTPUTS: OutputDefinition[] = OUTPUTS_DATA;
 /** One output-interface definition by id, or undefined. */
 export function getOutput(id: string): OutputDefinition | undefined {
   return withOverlay("outputs", OUTPUTS).find((o) => o.id === id);
+}
+
+/** Outputs tagged with a methodology — those carrying its tag, plus the neutral (untagged / `"*"`) ones. */
+export function outputsForMethodology(methodology: string): OutputDefinition[] {
+  return OUTPUTS.filter((o) => matchesMethodology(o.methodologies, methodology));
 }
 
 /** All output-interface definitions (a defensive copy). */

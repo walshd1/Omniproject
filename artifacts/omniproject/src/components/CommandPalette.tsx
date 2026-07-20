@@ -6,6 +6,12 @@ import { useStore } from "../store/useStore";
 import { useLocation } from "wouter";
 import { VIEWS } from "../lib/views";
 import { useVisibleNavItems } from "../lib/nav";
+import { SETTINGS_PANEL_KEYS, settingsPanelLabel } from "../lib/settings-panels";
+import { reportCatalogue } from "@workspace/backend-catalogue";
+
+// The full report catalogue is static data — compute the palette's jump targets once. Each id has a
+// matching scroll-anchor on the Reports page (see pages/Reports.tsx), so ⌘K → report = exactly 2 actions.
+const REPORT_JUMPS = reportCatalogue().map((r) => ({ id: r.id, label: r.label }));
 
 export function CommandPalette() {
   const {
@@ -16,9 +22,12 @@ export function CommandPalette() {
     currentView,
     setCurrentView,
     setNewIssueOpen,
+    setNewProjectOpen,
     setShortcutsOpen,
     activeProjectId,
     setActiveProjectId,
+    setSettingsJump,
+    setReportsJump,
   } = useStore();
   const [, setLocation] = useLocation();
   const { data: projects } = useListProjects();
@@ -78,6 +87,12 @@ export function CommandPalette() {
               New Task
             </Command.Item>
             <Command.Item
+              onSelect={() => { setNewProjectOpen(true); setCommandOpen(false); }}
+              className="px-2 py-2 text-sm text-foreground hover:bg-accent cursor-pointer flex items-center gap-2"
+            >
+              New Project
+            </Command.Item>
+            <Command.Item
               onSelect={() => { toggleTheme(); setCommandOpen(false); }}
               className="px-2 py-2 text-sm text-foreground hover:bg-accent cursor-pointer flex items-center gap-2"
             >
@@ -106,6 +121,32 @@ export function CommandPalette() {
               ))}
             </Command.Group>
           )}
+
+          <Command.Group heading="Settings" className="px-2 py-1 text-xs text-muted-foreground font-semibold uppercase tracking-wider mt-4">
+            {SETTINGS_PANEL_KEYS.map((key) => (
+              <Command.Item
+                key={key}
+                value={`settings ${settingsPanelLabel(key)}`}
+                onSelect={() => { setSettingsJump(key); setLocation("/settings"); setCommandOpen(false); }}
+                className="px-2 py-2 text-sm text-foreground hover:bg-accent cursor-pointer flex items-center gap-2"
+              >
+                Settings · {settingsPanelLabel(key)}
+              </Command.Item>
+            ))}
+          </Command.Group>
+
+          <Command.Group heading="Reports" className="px-2 py-1 text-xs text-muted-foreground font-semibold uppercase tracking-wider mt-4">
+            {REPORT_JUMPS.map((r) => (
+              <Command.Item
+                key={r.id}
+                value={`report ${r.label}`}
+                onSelect={() => { setReportsJump(r.id); setLocation("/reports"); setCommandOpen(false); }}
+                className="px-2 py-2 text-sm text-foreground hover:bg-accent cursor-pointer flex items-center gap-2"
+              >
+                Report · {r.label}
+              </Command.Item>
+            ))}
+          </Command.Group>
 
           <Command.Group heading="Views" className="px-2 py-1 text-xs text-muted-foreground font-semibold uppercase tracking-wider mt-4">
             {VIEWS.map((v) => (

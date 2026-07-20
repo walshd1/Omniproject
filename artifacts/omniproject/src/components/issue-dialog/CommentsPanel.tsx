@@ -5,14 +5,15 @@ import { useToast } from "@/hooks/use-toast";
 import { useComments, useAddComment, useDeleteComment } from "../../lib/comments";
 
 /**
- * Comment thread on a work item (the "comments" feature module). Reads/writes the shared-state-backed
- * `/api/comments/:roomId` endpoint keyed by the `issue:<projectId>:<issueId>` room id. `@mentions` in
- * the body are parsed server-side and notify the mentioned user over the notification stream — the
- * input is plain text, no client parsing needed. Delete is offered on every comment; the server
- * enforces "author or pmo/admin".
+ * Comment thread on any shared surface (the "comments" feature module). Reads/writes the
+ * shared-state-backed `/api/comments/:roomId` endpoint keyed by the caller-supplied room id
+ * (`issue:<projectId>:<issueId>` for a work item, `doc:<docId>` for a wiki page, …). `@mentions`
+ * in the body are parsed server-side and notify the mentioned user over the notification stream —
+ * the input is plain text, no client parsing needed. Delete is offered on every comment; the server
+ * enforces "author or pmo/admin". The panel is room-agnostic; the same server RBAC (read for any
+ * authed user, write for contributor+) applies whatever the room is.
  */
-export function CommentsPanel({ projectId, issueId }: { projectId: string; issueId: string }) {
-  const roomId = `issue:${projectId}:${issueId}`;
+export function CommentsPanel({ roomId }: { roomId: string }) {
   const { toast } = useToast();
   const { data: comments } = useComments(roomId);
   const add = useAddComment(roomId);

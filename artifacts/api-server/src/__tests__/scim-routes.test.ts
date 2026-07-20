@@ -10,7 +10,7 @@ import type { Server } from "node:http";
 process.env["SESSION_SECRET"] = "test-scim-routes-secret";
 process.env["NODE_ENV"] = "test";
 process.env["RATE_LIMIT_DISABLED"] = "true";
-process.env["SCIM_TOKEN"] = "idp-bearer-token";
+process.env["SCIM_TOKEN"] = "idp-bearer-token-strong-01";
 delete process.env["OIDC_ISSUER_URL"];
 
 let server: Server;
@@ -29,7 +29,7 @@ after(() => server?.close());
 const scim = (path: string, init?: RequestInit) =>
   fetch(`${base}/api/scim/v2${path}`, {
     ...init,
-    headers: { authorization: "Bearer idp-bearer-token", "content-type": "application/json", ...(init?.headers ?? {}) },
+    headers: { authorization: "Bearer idp-bearer-token-strong-01", "content-type": "application/json", ...(init?.headers ?? {}) },
   });
 
 test("rejects a missing/invalid bearer token with 401", async () => {

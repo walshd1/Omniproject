@@ -81,14 +81,16 @@ describe("App shell + routing", () => {
     // AppLayout/ProgrammeDetail are mocked, so there's no real chunk fetch to wait on —
     // the default findBy timeout is plenty (unlike the real-lazy-load tests above).
     expect(await screen.findByTestId("app-layout-stub")).toBeInTheDocument();
-    expect(screen.getByTestId("programme-detail-stub")).toHaveTextContent("prog-42");
+    // The page is hosted through the generic ScreenPage builder (id="programme-detail") which threads the
+    // :programmeId route param onto the hosted component's props — an extra lazy layer, hence findBy.
+    expect(await screen.findByTestId("programme-detail-stub")).toHaveTextContent("prog-42");
   });
 
   it("resolves :projectId from the URL and threads it through to ProjectDetail", async () => {
     go("/projects/proj-7");
     render(<App />);
     expect(await screen.findByTestId("app-layout-stub")).toBeInTheDocument();
-    expect(screen.getByTestId("project-detail-stub")).toHaveTextContent("proj-7");
+    expect(await screen.findByTestId("project-detail-stub")).toHaveTextContent("proj-7");
   });
 
   it.each([
@@ -106,7 +108,9 @@ describe("App shell + routing", () => {
     go(path);
     render(<App />);
     expect(await screen.findByTestId("app-layout-stub")).toBeInTheDocument();
-    expect(screen.getByTestId(testId)).toBeInTheDocument();
+    // Several of these now resolve through the generic ScreenPage builder (an extra lazy layer), so the
+    // page stub is awaited rather than read synchronously.
+    expect(await screen.findByTestId(testId)).toBeInTheDocument();
   });
 
   it("routes /explore to Explore, outside the AppLayout chrome", async () => {

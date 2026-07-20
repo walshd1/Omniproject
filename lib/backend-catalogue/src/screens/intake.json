@@ -1,0 +1,17 @@
+{
+  "id": "intake",
+  "label": "Intake",
+  "hint": "Submit a request — it becomes a triaged work item. Configure forms in Settings → Forms.",
+  "route": "/intake",
+  "nav": { "label": "Intake", "group": "primary" },
+  "methodologies": ["*"],
+  "panels": [
+    {
+      "id": "intake-form",
+      "kind": "form",
+      "title": "New request",
+      "span": 8,
+      "config": { "formId": "intake-request" }
+    }
+  ]
+}

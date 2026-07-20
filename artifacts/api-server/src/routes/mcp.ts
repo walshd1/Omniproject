@@ -7,10 +7,14 @@ import { getBroker, contextFromReq, type Broker, type ActorContext } from "../br
 import { assertProjectScope } from "../lib/project-scope";
 import { handleMcp, type McpExecutor, type McpPolicy } from "../lib/mcp";
 import { isActionApproved, listApprovedVocab, approvalContextFromReq } from "../lib/approved-actions";
+import { isFeatureEnabled } from "../lib/feature-modules";
+import { allIssues } from "../lib/portfolio-reads";
+import { runJql, JqlError } from "../lib/jql";
 import { answerCopilot } from "../lib/copilot";
 import { aiChat } from "../lib/ai";
 import { recordAudit, actorForAudit } from "../lib/audit";
 import { enforceCapability, CapabilityBlockedError } from "../lib/capability-governance";
+import { grantedCapabilitiesForReq } from "../lib/custom-roles";
 import { resolveSupport } from "../lib/capabilities";
 import { availableReports, availableScreens } from "@workspace/backend-catalogue";
 import type { Role } from "../lib/rbac";
@@ -80,6 +84,19 @@ const MCP_HANDLERS: Record<string, (d: McpCtx) => Promise<unknown> | unknown> = 
     // an MCP client / read-only API token would evade AI_MODEL_ALLOWLIST + AI_TOKEN_BUDGET entirely.
     complete: async (messages) => (await aiChat(messages, { scope: getSession(req)?.sub, role: roleForReq(req) })).content,
   }),
+  // JQL search — feature-gated (handleMcp already refused a disabled feature) + SCOPE-BOUNDED: allIssues
+  // returns only the caller's visible projects' items, then the pure JQL engine filters/sorts in-memory.
+  // The store is never queried; a bad query is a clean 400-style error, never a crash.
+  search_issues: async ({ req, args }) => {
+    const rows = await allIssues(req); // scope-bounded cross-project read (same guard as /odata, /export)
+    const limit = Math.min(500, Math.max(0, typeof args["limit"] === "number" ? args["limit"] : 200));
+    try {
+      return runJql(rows, String(args["jql"] ?? ""), { limit });
+    } catch (e) {
+      if (e instanceof JqlError) throw new Error(`invalid JQL: ${e.message}`);
+      throw e;
+    }
+  },
   // Gated writes (the policy check in handleMcp already refused unauthorised callers).
   create_issue: ({ broker, ctx, pid, args }) => broker.writeIssue(ctx, "create", { projectId: pid, title: String(args["title"] ?? ""), ...(args["description"] ? { description: String(args["description"]) } : {}), ...(args["status"] ? { status: String(args["status"]) } : {}) }),
   update_issue: ({ broker, ctx, pid, args }) => broker.writeIssue(ctx, "update", { projectId: pid, issueId: String(args["issueId"] ?? ""), ...(args["title"] ? { title: String(args["title"]) } : {}), ...(args["status"] ? { status: String(args["status"]) } : {}), ...(args["expectedVersion"] != null ? { expectedVersion: Number(args["expectedVersion"]) } : {}) }),
@@ -108,7 +125,7 @@ router.post("/mcp", async (req, res) => {
   // are logged. Returned as a JSON-RPC error so MCP clients see a clean refusal.
   try {
     const s = getSession(req);
-    enforceCapability("mcp", { actor: s ? { sub: s.sub, email: s.email } : null });
+    enforceCapability("mcp", { actor: s ? { sub: s.sub, email: s.email } : null, granted: grantedCapabilitiesForReq(req) });
   } catch (err) {
     if (err instanceof CapabilityBlockedError) {
       res.status(403).json({ jsonrpc: "2.0", id: body.id ?? null, error: { code: -32004, message: "MCP is turned off by the administrator" } });
@@ -120,7 +137,7 @@ router.post("/mcp", async (req, res) => {
   // Write policy: OFF unless MCP_WRITE_ENABLED, and only for a contributor+
   // SESSION (a read-only API token can never write). Here be dragons.
   const writesEnabled = envFlag("MCP_WRITE_ENABLED");
-  const policy: McpPolicy = { writesEnabled, canWrite: writesEnabled && !!getSession(req) && hasRole(req, "contributor") };
+  const policy: McpPolicy = { writesEnabled, canWrite: writesEnabled && !!getSession(req) && hasRole(req, "contributor"), featureEnabled: (f) => isFeatureEnabled(f) };
 
   const ctx = contextFromReq(req);
   const broker = getBroker();

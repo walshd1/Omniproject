@@ -25,7 +25,8 @@ const SRC = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..");
 /** file (relative to src/) → { count, reason } for every TRUSTED bare-JSON.parse site. */
 const ALLOWLIST: Record<string, { count: number; reason: string }> = {
   // Sealed/encrypted local config files (decrypted via SealedFile before parse — integrity established).
-  "lib/settings.ts": { count: 3, reason: "sealed settings store load (SealedFile-decrypted)" },
+  "lib/settings.ts": { count: 2, reason: "sealed settings store load (SealedFile-decrypted) + trusted env-seed parsers" },
+  "lib/labels.ts": { count: 1, reason: "deploy-controlled LABEL_OVERRIDES env var (admin-set at deploy, not request input)" },
   "lib/config-store.ts": { count: 1, reason: "sealed config-store load (cross-replica ring uses safeParseJson)" },
   "lib/ai-providers.ts": { count: 1, reason: "sealed providers-state load" },
   "lib/rate-card-store.ts": { count: 1, reason: "sealed rate-card store load" },

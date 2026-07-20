@@ -74,6 +74,17 @@ function correlation(xs: number[], ys: number[]): number {
   return denom === 0 ? 0 : sxy / denom;
 }
 
+/** Count of ascending-sorted values ≤ x (upper-bound index) — an O(log n) replacement for a filter+length. */
+const countAtMost = (sorted: number[], x: number): number => {
+  let lo = 0, hi = sorted.length;
+  while (lo < hi) {
+    const mid = (lo + hi) >>> 1;
+    if (sorted[mid]! <= x) lo = mid + 1;
+    else hi = mid;
+  }
+  return lo;
+};
+
 const percentile = (sorted: number[], q: number): number => {
   if (sorted.length === 0) return 0;
   const idx = clamp(Math.floor(q * (sorted.length - 1)), 0, sorted.length - 1);
@@ -110,14 +121,15 @@ export function simulate(tasks: RiskTask[], options: SimOptions = {}): SimResult
   const sorted = [...totals].sort((a, b) => a - b);
   const mean = totals.reduce((s, v) => s + v, 0) / iterations;
   const min = sorted[0]!, max = sorted[sorted.length - 1]!;
-  const belowPlan = sorted.filter((v) => v <= deterministic).length;
+  const belowPlan = countAtMost(sorted, deterministic);
 
-  // S-curve over ~40 evenly-spaced buckets across [min, max].
+  // S-curve over ~40 evenly-spaced buckets across [min, max]. `sorted` is ascending, so each
+  // bucket's cumulative count is an upper-bound index (identical to the old filter+length).
   const BUCKETS = 40;
   const span = max - min || 1;
   const curve = Array.from({ length: BUCKETS + 1 }, (_, k) => {
     const value = min + (span * k) / BUCKETS;
-    const probability = sorted.filter((v) => v <= value).length / iterations;
+    const probability = countAtMost(sorted, value) / iterations;
     return { value: Math.round(value), probability };
   });
 

@@ -5,6 +5,7 @@ import type { SchemaManifest } from "../broker/types";
 import { FIELD_KEYS, ENTITY_KEYS, resolveCapabilities } from "./capabilities";
 import { relationships as registryRelationships, FIELD_REGISTRY } from "./field-registry";
 import { getSettings } from "./settings";
+import { readConfigCollection } from "./scoped-config";
 
 /**
  * Availability resolver — what the connected backend ACTUALLY surfaces, then trimmed by admin/PMO
@@ -134,5 +135,5 @@ export async function resolveAvailability(req: Request): Promise<Availability> {
     backend = { at: Date.now(), value };
     cache.set(key, backend);
   }
-  return applyCuration(backend.value, getSettings().hiddenFields ?? []);
+  return applyCuration(backend.value, readConfigCollection<string[]>("hidden-fields", []));
 }

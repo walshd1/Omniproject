@@ -52,6 +52,10 @@ Backend system of record (Jira / OpenProject / SAP / …)  ── owns authorisa
 | E8 | **IdP / OIDC** | `OIDC_ISSUER_*` | Authentication only; identity, not project data | On (auth) |
 | E9 | **Cross-instance federation** | `lib/federation.ts` (`routes/index.ts`), `safeFetch` → configured `PeerInstance` peers | Portfolio-summary aggregate sent across the instance boundary | **Off** (only when peers configured) |
 | E10 | **SMTP email** | `SMTP_URL`; `lib/email.ts`, `lib/digest-delivery.ts` | Magic-link auth mail + scheduled digest content (portfolio summaries) | **Off** unless `SMTP_URL` set |
+| E11 | **OTLP telemetry** | `OTEL_EXPORTER_OTLP_ENDPOINT`; `lib/tracing.ts`, `lib/otlp-metrics.ts` (both `safeFetch`) | Trace spans + RED metrics to your collector — span/metric metadata only, **no** project data | **Off** unless `OTEL_EXPORTER_OTLP_ENDPOINT` set |
+| E12 | **Audit / SIEM sink** | `AUDIT_HTTP_URL`; `lib/audit.ts` (`safeFetch` + `assertEgressAllowed`) | Batched NDJSON audit events (actor email + IP, action, status, latency) to your log server | **Off** unless `AUDIT_HTTP_URL` set |
+| E13 | **Secret vault / KMS** | `VAULT_*` / `KMS_PROVIDER`; `lib/vault-{store,aws,azure}.ts`, `lib/kms.ts` (all `safeFetch`) | Secret set/get + data-key unwrap to **your own** HashiCorp / AWS / Azure endpoint | **Off** (`KMS_PROVIDER` default `none`; vault only when `VAULT_*` set) |
+| E14 | **Retention connectors** | `services/retention-broker` (separate opt-in sidecar) → S3 / DynamoDB / BigQuery | Durable time-series history you explicitly opted to persist | **Off** (opt-in service; the gateway process imports no cloud SDK — pure key-layout over an injected port) |
 
 **Never egressed / never stored:** backend credentials, the delegator's token
 (delegation is design-only and explicitly refuses this — RFC-004/005), and raw
@@ -192,5 +196,18 @@ turns it on and owns the resulting data flow.
   to classify and get DPA coverage for, since they can carry portfolio data.
 - The RFC security checklists (RFC-004 §15 / RFC-005 §17) are pre-written control
   statements for the delegation feature *if/when* it's built.
+- **Uniform IP-pinning across every HTTP hop.** All HTTP egress with an operator- or
+  request-influenceable URL routes through `safeFetch` (SSRF literal + **post-DNS IP pinning** +
+  per-hop redirect re-validation + allowlist + residency). The first broker hop
+  (`lib/broker-transport.ts`) keeps its own pooled keep-alive + mTLS dispatcher but now **pins the
+  connection to a validated IP at connect time** via `guardedLookup` (refuses a host that resolves to
+  the link-local/metadata range), closing the earlier first-hop DNS-rebinding TOCTOU; redirects are
+  still force-blocked (`redirect: "manual"`, not caller-overridable) and the caller's
+  `assertEgressAllowed` still applies the allowlist/residency against the fixed `BROKER_URL`.
+- **Non-HTTP egress (SMTP, Redis).** `SMTP_URL` / `REDIS_URL` reach a fixed operator host outside the
+  HTTP guard by nature (nodemailer / ioredis, not `fetch`); neither is request-influenced and both are
+  off unless the env var is set. The startup self-check (`lib/security-check.ts`) additionally
+  **refuses to boot** (critical finding) if either is pointed at a link-local/metadata literal — never
+  a legitimate mail/cache host.
 
 *Keep this current: a new egress or durable store is a change to this file.*

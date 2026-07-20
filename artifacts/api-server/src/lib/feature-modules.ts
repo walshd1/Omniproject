@@ -125,6 +125,16 @@ export const FEATURE_MODULES: readonly FeatureModule[] = [
     description: "Fast cross-entity quick-find over projects, issues and programmes.",
   },
   {
+    // JQL search TOOL (MCP): a rich Jira-style query over the caller's scope-bounded work items,
+    // evaluated in the read model (lib/jql). Default-OFF: a powerful cross-project query surface an
+    // admin opts into. No backend route to mount — it gates the MCP `search_issues` tool via its `feature`.
+    id: "jqlSearch",
+    label: "JQL search",
+    description: "Rich Jira-style query language (JQL) for searching work items, exposed as an AI/MCP tool.",
+    defaultOff: true,
+    reason: "cost", // rich cross-project queries can scan the whole scoped portfolio
+  },
+  {
     // Live collaboration: per-surface presence + advisory, soft-TTL field "locks" over SSE. Has a
     // backend route (the SSE stream + heartbeat) so it loads lazily; the SPA gates it via useFeatures.
     id: "presence",
@@ -145,6 +155,137 @@ export const FEATURE_MODULES: readonly FeatureModule[] = [
     load: () => import("../routes/comments"),
     defaultOff: true,
     reason: "storage", // holds comment state in the shared-state seam (soft, opt-in write-through)
+  },
+  {
+    // Real-time collaborative EDITING of wiki documents (Yjs CRDT over an SSE relay). The server is a dumb
+    // fan-out — the durable doc still saves through the broker seam; the CRDT stream is transient. Has a
+    // backend route (the relay), so it loads lazily; OFF until opted in (holds an SSE stream per editor).
+    id: "wikiCoEdit",
+    label: "Wiki co-editing",
+    description: "Edit a wiki document together in real time, with each other's changes merging live (CRDT).",
+    load: () => import("../routes/collab"),
+    defaultOff: true,
+    reason: "cost", // holds an SSE stream per editor; per-replica in-memory relay rooms
+  },
+  {
+    // Visual whiteboards / canvas. Scenes live in the backend through the broker seam (zero-at-rest);
+    // has a backend route, so it loads lazily; OFF until opted in (the canvas editor is a heavy surface).
+    id: "whiteboard",
+    label: "Whiteboards",
+    description: "Freeform visual canvases (sticky notes, shapes, connectors) stored through the data seam.",
+    load: () => import("../routes/whiteboard"),
+    defaultOff: true,
+    reason: "cost",
+  },
+  {
+    // Browser Web Push: deliver personal notifications to a user's device even when the PWA is closed, on
+    // top of the in-app SSE + external channels. Has a backend route (subscribe/unsubscribe/vapid-key), so it
+    // loads lazily; OFF until opted in AND VAPID keys are configured (VAPID_PUBLIC_KEY/PRIVATE_KEY/SUBJECT).
+    id: "pushNotifications",
+    label: "Push notifications",
+    description: "Send personal notifications to a user's device via browser push (works when the app is closed).",
+    load: () => import("../routes/push"),
+    defaultOff: true,
+    reason: "cost", // holds per-device subscriptions + sends outbound to push services
+  },
+  {
+    // Proofing / deliverable review: a proof references an image/PDF (never inlined — zero-at-rest) and
+    // carries annotation primitives + a review decision, held in the encrypted-JSON store. Has a backend
+    // route, so it loads lazily; OFF until opted in.
+    id: "proofing",
+    label: "Proofing & review",
+    description: "Attach a deliverable (image/PDF), pin annotations, and record an approve/reject decision.",
+    load: () => import("../routes/proofs"),
+    defaultOff: true,
+    reason: "storage", // holds proof + annotation metadata in the encrypted-JSON store
+  },
+  {
+    id: "goals",
+    label: "Goals & OKRs",
+    description: "First-class objectives with measurable key results, progress roll-up, and check-ins.",
+    load: () => import("../routes/goals"),
+    defaultOff: true,
+    reason: "storage", // holds goal + key-result data in the encrypted-JSON store
+  },
+  {
+    id: "timeTracking",
+    label: "Live time tracking",
+    description: "A start/stop timer that books elapsed time into a timesheet entry; billing-ready.",
+    load: () => import("../routes/timer"),
+    defaultOff: true,
+    reason: "cost", // ephemeral per-user timer state in the shared-state KV
+  },
+  {
+    id: "invoicing",
+    label: "Invoicing",
+    description: "Generate client-facing invoices with typed line items, derived totals and a status flow.",
+    load: () => import("../routes/invoices"),
+    defaultOff: true,
+    reason: "storage", // holds invoice data in the encrypted-JSON store
+  },
+  {
+    id: "marketplace",
+    label: "Plugin marketplace",
+    description: "Install org-wide extensions that contribute pure-JSON reports, pages, dashboards and screens.",
+    load: () => import("../routes/marketplace"),
+    defaultOff: true,
+    reason: "storage", // holds installed-extension config in the encrypted-JSON store; install is admin-gated
+  },
+  {
+    id: "registry",
+    label: "Approved-items registry",
+    description: "An org store of approved bespoke templates, reports, primitives and JSON defs, with optional community release.",
+    load: () => import("../routes/registry"),
+    defaultOff: true,
+    reason: "storage", // holds curated registry items in the encrypted-JSON store; review/release admin-gated
+  },
+  {
+    id: "studio",
+    label: "AI primitive studio",
+    description: "Turn a description into a candidate primitive (chart/graphic) definition with an LLM, validated against the app's schema, then submit it to the registry.",
+    load: () => import("../routes/studio"),
+    defaultOff: true,
+    reason: "cost", // calls an AI provider; further gated by the ai-authoring capability + contributor role
+  },
+  {
+    id: "defImporter",
+    label: "JSON definition importer",
+    description: "The single validated write-path for any user-defined JSON definition (primitive/screen/form/report/dashboard) into the per-user, project, or org-wide encrypted stores.",
+    load: () => import("../routes/defs"),
+    defaultOff: true,
+    reason: "storage", // writes user-defined JSON into the encrypted-JSON store; scope-gated per storage target
+  },
+  {
+    id: "nativeHandoff",
+    label: "Native handoff (companion apps)",
+    description: "Hand off an artifact to the specialist SaaS tool a connected backend fronts (Miro, Notion, MS Project, Power BI, …) and bring a reference back through the broker.",
+    load: () => import("../routes/native"),
+    defaultOff: true,
+    reason: "cost", // outbound handoff to external tools; content/screenshot import (later slices) egresses
+  },
+  {
+    // Admin bulk-action runner: apply one canonical broker write (create/update project) to many
+    // projects at once, declaratively. Has a backend route (POST /api/admin/bulk), so it loads
+    // lazily; OFF until an admin opts in — it fans out project-level writes (high blast radius), so
+    // it stays gated behind the feature toggle + requireRole("manager") + step-up on the route.
+    id: "bulkActions",
+    label: "Bulk actions",
+    description: "Apply a canonical write (create/update project) to many projects at once, with a dry-run preview.",
+    load: () => import("../routes/bulk"),
+    defaultOff: true,
+    reason: "safety", // fans out project-level writes — high blast radius, opt-in only
+  },
+  {
+    // UI-only: makes the per-user ENCRYPTED OFFLINE CACHE toggle AVAILABLE (off by default per user). When
+    // on, the my-work/tasks read models are cached in IndexedDB, AES-256-GCM encrypted with a session-scoped
+    // NON-EXTRACTABLE WebCrypto key, TTL'd, and wiped on logout — so the app opens with my work while offline
+    // without weakening zero-at-rest (nothing plaintext at rest, nothing survives the session). Nothing to
+    // mount — the SPA gates it via useFeatures; an operator can forbid on-device data org-wide by disabling it.
+    id: "offlineCache",
+    label: "Offline cache (my work)",
+    description: "Cache your my-work/tasks read models on-device (encrypted, ephemeral) so they open offline.",
+    defaultOff: true,
+    reason: "storage", // holds encrypted read-model data on the device (opt-in, wiped on logout)
   },
   {
     // UI-only: makes the per-user PREDICTIVE (speculative) prefetch toggle AVAILABLE (off by default

@@ -39,6 +39,9 @@ import { configuredCorsOrigins } from "./lib/origin-allowlist";
 import { registerBrokerRetentionFromEnv } from "./history/broker-source";
 import { brokerKind } from "./broker";
 import { getSettings, updateSettings } from "./lib/settings";
+import { restoreActiveEnvironment } from "./lib/config-store";
+import { seedSystemDefaultsIfEmpty } from "./lib/system-defs";
+import { invalidateDefIndex } from "./lib/def-index";
 import { SAMPLE_PROGRAMME_REGISTRY } from "./broker/demo-data";
 
 const app: Express = express();
@@ -93,10 +96,22 @@ export async function bootstrap(): Promise<void> {
   await initKms();
   loadSecurityState();
   await hydrateVault();
+  // Restore the persisted config store's ACTIVE environment into live settings (when
+  // CONFIG_STORE_FILE / OMNI_CONFIG_DIR persistence is on) so an admin's runtime config survives a
+  // restart instead of silently reverting to the env/config-dir seed. No-op with no persisted store.
+  // Runs after initKms() (the store is sealed at rest) and before anything that reads settings below.
+  restoreActiveEnvironment();
   // Point durable history at the retention-broker when RETENTION_BROKER_URL is set (no-op otherwise);
   // the gateway stays SDK-free — the broker process holds the cloud SDK. See history/broker-source.
   registerBrokerRetentionFromEnv();
   seedDemoProgrammeRegistry();
+  // First-boot install of OUR shipped defaults (reports/forms/business-rules/dashboards) into the read-only
+  // system def store, sourced from the bundled catalogues. One-shot; no-op when already installed or the store
+  // is off. Runtime UPDATES go through the admin-gated approved-update route, not this.
+  seedSystemDefaultsIfEmpty();
+  // Rebuild-on-doubt: drop the composition child-edge index at boot so a crash that stranded a stale index can't
+  // let the importer's fast path wrongly skip a cascade. It is rebuilt from a full scan on first use.
+  invalidateDefIndex();
 }
 
 /**

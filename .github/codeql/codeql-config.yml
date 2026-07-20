@@ -1,0 +1,22 @@
+# CodeQL configuration for OmniProject.
+#
+# We keep the broad `security-extended` suite, but filter ONE query that is a structural false
+# positive in this codebase:
+#
+#   js/missing-rate-limiting — the ENTIRE /api surface is rate-limited by a single global
+#   express-rate-limit middleware (`routes/index.ts`: `router.use(apiLimiter)`, backed by
+#   `lib/rate-limit.ts`; auth endpoints add a tighter `loginLimiter`, analytics a stricter
+#   `analyticsLimiter`). CodeQL can't trace that global middleware down to each individual route
+#   handler, so it flags every authorized handler as "not rate-limited". The compensating control
+#   genuinely exists and is applied before any route runs, so we exclude the query rather than
+#   sprinkle redundant per-route limiters across dozens of handlers.
+#
+# Every other security-extended query stays active.
+name: "OmniProject CodeQL config"
+
+queries:
+  - uses: security-extended
+
+query-filters:
+  - exclude:
+      id: js/missing-rate-limiting

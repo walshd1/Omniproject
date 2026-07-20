@@ -2,6 +2,8 @@ import { closeAllClients } from "./notify-hub";
 import { closeAllPresence } from "./presence-hub";
 import { wipeInMemoryState } from "./wipe";
 import { closeBrokerDispatcher } from "./broker-transport";
+import { flushSpanExports } from "./tracing";
+import { flushAuditLog } from "./audit-chain";
 
 /**
  * Graceful shutdown — on SIGTERM/SIGINT (e.g. `docker stop`, a rolling deploy),
@@ -27,13 +29,17 @@ export interface ShutdownOpts {
   exit: (code: number) => void;
   /** Drain side-resources (SSE streams) so the server can finish closing. */
   drain?: () => number;
+  /** Flush pending best-effort async work (in-flight telemetry span exports) AFTER the server closes, so the
+   *  last requests' spans aren't dropped. Awaited before exit; the hard timeout still backstops a hung flush.
+   *  Defaults to a no-op so callers that don't need it stay fully synchronous (and unit-testable as such). */
+  flush?: () => Promise<void>;
   timeoutMs?: number;
 }
 
 /** Run one graceful shutdown. Idempotent per invocation; safe to unit-test with
  *  fakes for server/exit/logger. */
 export function gracefulShutdown(opts: ShutdownOpts): void {
-  const { server, signal, logger, exit, drain = closeAllClients, timeoutMs = 10_000 } = opts;
+  const { server, signal, logger, exit, drain = closeAllClients, flush, timeoutMs = 10_000 } = opts;
   let finished = false;
   const finish = (code: number): void => {
     if (finished) return;
@@ -54,9 +60,11 @@ export function gracefulShutdown(opts: ShutdownOpts): void {
   if (drained > 0) logger.info({ streams: drained }, "graceful shutdown: closed live SSE streams");
 
   server.close((err) => {
-    clearTimeout(timer);
     if (err) logger.error({ err }, "graceful shutdown: server close error");
-    finish(err ? 1 : 0);
+    const done = (): void => { clearTimeout(timer); finish(err ? 1 : 0); };
+    // Flush pending telemetry before exit (the timer still backstops a hung flush). No `flush` → synchronous.
+    if (flush) void flush().catch(() => {}).then(done);
+    else done();
   });
 }
 
@@ -69,7 +77,9 @@ export function installShutdownHandlers(server: ClosableServer, logger: Shutdown
     void closeBrokerDispatcher(); // release the broker's warm keep-alive sockets
     return streams;
   };
+  // Persist the last debounced batch of the sealed audit evidence log, then flush telemetry spans, before exit.
+  const flush = async (): Promise<void> => { flushAuditLog(); await flushSpanExports(); };
   for (const signal of ["SIGTERM", "SIGINT"] as const) {
-    process.once(signal, () => gracefulShutdown({ server, signal, logger, exit: (code) => process.exit(code), drain }));
+    process.once(signal, () => gracefulShutdown({ server, signal, logger, exit: (code) => process.exit(code), drain, flush }));
   }
 }

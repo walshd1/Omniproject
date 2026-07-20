@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { PRIMITIVE_CATALOGUE, getPrimitive, primitivesByCategory, chartPrimitives } from "./catalogue";
+import { resolvePrimitive, rootPrimitives } from "@workspace/backend-catalogue";
 import type { ChartViewSpec } from "./ChartView";
 
 // Every chart type the common renderer dispatches. If ChartView gains a type, this list and the
@@ -25,12 +26,31 @@ describe("primitive catalogue", () => {
     }
   });
 
-  it("gives every primitive a label, description, and at least one required param", () => {
+  it("gives every primitive a label, description, and at least one required param (after composition)", () => {
     for (const p of PRIMITIVE_CATALOGUE) {
       expect(p.label.length, p.id).toBeGreaterThan(0);
       expect(p.description.length, p.id).toBeGreaterThan(0);
-      expect(p.params.some((param) => param.required), `${p.id} has a required param`).toBe(true);
+      // A thin child may add only optional params but INHERITS its parent's required ones — so check the
+      // RESOLVED def, which is what the builder consumes.
+      const resolved = resolvePrimitive(p.id)!;
+      expect(resolved.params.some((param) => param.required), `${p.id} (resolved) has a required param`).toBe(true);
     }
+  });
+
+  it("composition: extends resolves property-by-property with a traceable lineage (data-slot ← register ← table)", () => {
+    const ds = resolvePrimitive("data-slot")!;
+    expect(ds.lineage).toEqual(["data-slot", "register", "table"]);
+    // Fields trace back to the def that supplied them: columns from table, an editable prop from register,
+    // and the one it adds/alters (slot, now required) from data-slot itself.
+    expect(ds.provenance["columns"]).toBe("table");
+    expect(ds.provenance["collection"]).toBe("register");
+    expect(ds.provenance["slot"]).toBe("data-slot");
+    expect(ds.params.find((p) => p.key === "slot")?.required).toBe(true); // the child ALTERS slot → required
+    // Roots are few and generic — register/data-slot are NOT roots.
+    const rootIds = rootPrimitives().map((r) => r.id);
+    expect(rootIds).not.toContain("register");
+    expect(rootIds).not.toContain("data-slot");
+    expect(rootIds).toContain("table");
   });
 
   it("declares options for every enum param", () => {

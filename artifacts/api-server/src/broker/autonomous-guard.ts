@@ -38,6 +38,23 @@ const WRITE_CLASSIFIERS = {
   updateTask: (args, now): WriteRequest => ({ action: "update_task", projectId: str(rec(args[2])["projectId"]), now }),
   addTaskComment: (_args, now): WriteRequest => ({ action: "add_task_comment", now }),
   addTaskAttachment: (_args, now): WriteRequest => ({ action: "add_task_attachment", now }),
+  // writeWikiDoc(ctx, op, input) authors a knowledge-base document — a genuine mutation. Guard it under a
+  // per-op action so an autonomous actor must be granted `${op}_wiki_doc`; the wiki isn't project-scoped,
+  // so projectId is null (the grant bounds it by action/field, fail-closed for an ungranted actor).
+  writeWikiDoc: (args, now): WriteRequest => {
+    const op = str(args[1]) ?? "update";
+    const input = rec(args[2]);
+    const fields = Object.keys(input).filter((k) => k !== "id" && k !== "spaceId");
+    return { action: `${op}_wiki_doc`, projectId: null, fields, now };
+  },
+  // writeWhiteboard(ctx, op, input) authors a visual canvas — a genuine mutation. Same shape as the wiki:
+  // a per-op action grant (`${op}_whiteboard`), not project-scoped (projectId null), fail-closed.
+  writeWhiteboard: (args, now): WriteRequest => {
+    const op = str(args[1]) ?? "update";
+    const input = rec(args[2]);
+    const fields = Object.keys(input).filter((k) => k !== "id");
+    return { action: `${op}_whiteboard`, projectId: null, fields, now };
+  },
   // storeCredential(ctx, {backend,name,value}) delegates a vendor secret into the broker vault — a
   // genuine mutation. The secret VALUE is never put in the request (grants scope by action/project,
   // not by content); an autonomous actor with no store_credential grant is denied, fail-closed.
@@ -46,6 +63,10 @@ const WRITE_CLASSIFIERS = {
   // ANY mutating action (create/update/delete_project, RAID, …). Guard it under its own action name
   // so a grant must name that action; an ungranted autonomous command is denied by construction.
   commandWithSource: (args, now): WriteRequest => ({ action: str(args[1]) ?? "command", projectId: str(rec(args[2])["projectId"]), now }),
+  // nativeImport(ctx, req) brings a native artifact back THROUGH the broker as an attachment written to the
+  // target project/issue (route stamps write:true) — a genuine mutation. Guard it under `native_import`,
+  // project-scoped by the target, so an autonomous actor must be granted it (fail-closed if ungranted).
+  nativeImport: (args, now): WriteRequest => ({ action: "native_import", projectId: str(rec(rec(args[1])["target"])["projectId"]), now }),
 } satisfies Record<string, (args: unknown[], now: number) => WriteRequest>;
 
 /** A broker method the autonomous gate must run authorization for. */

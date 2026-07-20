@@ -45,6 +45,7 @@ const ROOTS: MapRoot[] = [
     exempt: [
       "artifacts/api-server/src/broker/contract.schema.generated.ts",
       "artifacts/api-server/src/lib/openapi.generated.ts",
+      "artifacts/api-server/src/lib/api-portal.generated.ts",
     ],
   },
   {

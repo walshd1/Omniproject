@@ -33,8 +33,8 @@
 import dns from "node:dns/promises";
 import net from "node:net";
 import { Agent, fetch as undiciFetch, type RequestInit as UndiciRequestInit } from "undici";
-import { isBlockedHostLiteral, isBlockedIp } from "./ip-ranges";
-import { parseCsvEnv } from "./env";
+import { isBlockedHostLiteral, isBlockedIp, isPrivateOrLoopbackHostLiteral, isPrivateOrLoopbackIp } from "./ip-ranges";
+import { parseCsvEnv, envFlag } from "./env";
 
 // `data-residency` is loaded LAZILY (dynamic import in resolveAndValidate) rather than statically.
 // egress is a very low-level guard that secret-at-rest modules (kms, vault-*) now route through, and
@@ -108,9 +108,23 @@ async function resolveAndValidate(rawUrl: string, lookup: LookupFn): Promise<{ u
     }
   }
   const allowlist = parseCsvEnv("EGRESS_ALLOWLIST");
+  const allowSet = new Set(allowlist.map((s) => s.toLowerCase()));
+  // OPT-IN hardened egress: also refuse RFC1918 / loopback / ULA / CGNAT targets (internal-network SSRF),
+  // checked against BOTH the literal host and every resolved address (so a DNS name pointing at a private
+  // IP can't slip through). An explicit EGRESS_ALLOWLIST entry is the escape hatch for a legitimate
+  // internal host (e.g. the self-hosted broker). Off by default so existing internal-host deployments are
+  // unaffected; the link-local/metadata floor above is enforced regardless of this flag.
+  if (envFlag("EGRESS_BLOCK_PRIVATE") && !allowSet.has(host)) {
+    if (isPrivateOrLoopbackHostLiteral(host)) {
+      throw new EgressError(`egress to ${host} is blocked (private/loopback range; EGRESS_BLOCK_PRIVATE — allowlist it in EGRESS_ALLOWLIST if intended)`);
+    }
+    const priv = addresses?.find((a) => isPrivateOrLoopbackIp(a.address, a.family));
+    if (priv) {
+      throw new EgressError(`egress to ${host} resolves to ${priv.address}, which is blocked (private/loopback; EGRESS_BLOCK_PRIVATE)`);
+    }
+  }
   if (allowlist.length) {
-    const set = new Set(allowlist.map((s) => s.toLowerCase()));
-    if (!set.has(host)) {
+    if (!allowSet.has(host)) {
       throw new EgressError(`egress to ${host} is not in EGRESS_ALLOWLIST`);
     }
   }
@@ -136,6 +150,33 @@ function pinnedLookup(addresses: ResolvedAddr[]) {
     if (all) cb(null, addresses.map((a) => ({ address: a.address, family: a.family })));
     else cb(null, addresses[0]!.address, addresses[0]!.family);
   };
+}
+
+/**
+ * A `dns.lookup`-shaped resolver that VALIDATES every address before returning it, refusing (via an
+ * error callback) any link-local/metadata target so the socket never connects to one. Unlike
+ * `pinnedLookup` (which replays already-validated addresses for a single safeFetch call), this
+ * resolves and checks AT CONNECT TIME — so it can guard a PERSISTENT dispatcher (e.g. the broker
+ * keep-alive Agent) without a per-call dispatcher, closing the DNS-rebinding TOCTOU while keeping the
+ * pooled connection + mTLS. It enforces only the link-local/metadata floor (not the host allowlist /
+ * residency, which the caller's `assertEgressAllowed` still applies against the fixed URL host).
+ */
+export function guardedLookup(hostname: string, options: unknown, callback?: LookupCallback): void {
+  const cb = (typeof options === "function" ? options : callback) as LookupCallback;
+  const all = typeof options === "object" && options !== null && (options as { all?: boolean }).all === true;
+  const host = hostname.replace(/^\[|\]$/g, "").toLowerCase();
+  const deliver = (addrs: ResolvedAddr[]): void => {
+    const blocked = addrs.find((a) => isBlockedIp(a.address, a.family));
+    if (blocked) { cb(new EgressError(`egress to ${host} resolves to ${blocked.address}, which is blocked (link-local/metadata range)`), []); return; }
+    if (all) cb(null, addrs.map((a) => ({ address: a.address, family: a.family })));
+    else cb(null, addrs[0]!.address, addrs[0]!.family);
+  };
+  const lit = net.isIP(host);
+  if (lit !== 0) { deliver([{ address: host, family: lit }]); return; }
+  if (isBlockedHostLiteral(host)) { cb(new EgressError(`egress to ${host} is blocked (link-local/metadata host)`), []); return; }
+  dns.lookup(host, { all: true, verbatim: true })
+    .then((addrs) => deliver(addrs as ResolvedAddr[]))
+    .catch((err) => cb(new EgressError(`egress to ${host} could not be resolved: ${err instanceof Error ? err.message : String(err)}`), []));
 }
 
 /** TEST-ONLY seam: safeFetch uses undici's own fetch (a custom Agent isn't accepted by global fetch),

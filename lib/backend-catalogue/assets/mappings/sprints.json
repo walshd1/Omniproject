@@ -1,0 +1,16 @@
+{
+  "id": "sprints",
+  "label": "Sprint model",
+  "broker": "builtin",
+  "backend": "sidecar",
+  "joinField": "id",
+  "fields": {
+    "id": "id",
+    "name": "name",
+    "goal": "goal",
+    "startDate": "startDate",
+    "endDate": "endDate",
+    "state": "state",
+    "itemIds": "itemIds"
+  }
+}

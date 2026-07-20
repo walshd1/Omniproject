@@ -1,4 +1,5 @@
 import { getSettings, type SttProvider } from "./settings";
+import { envInt } from "./env-config";
 import { aiKillEngaged } from "./ai-kill";
 import { effectiveState } from "./capability-governance";
 import { getProvider, resolveProviderKey } from "./ai-providers";
@@ -53,7 +54,14 @@ export async function transcribe(audio: Buffer, mime: string): Promise<{ text: s
   form.append("model", process.env["WHISPER_MODEL"]?.trim() || "whisper-1");
   // safeFetch applies the SSRF/egress guard before the call — the Whisper endpoint is
   // operator/admin-settable, so it must not be coerced to the metadata IP.
-  const res = await safeFetch(url, { method: "POST", headers: key ? { Authorization: `Bearer ${key}` } : {}, body: form });
+  // Bound the request so a slow/hostile transcription endpoint can't hang the request thread
+  // indefinitely (parity with the AI chat call). Tunable via STT_TIMEOUT_MS.
+  const res = await safeFetch(url, {
+    method: "POST",
+    headers: key ? { Authorization: `Bearer ${key}` } : {},
+    body: form,
+    signal: AbortSignal.timeout(envInt("STT_TIMEOUT_MS", 60_000, { min: 1_000 })),
+  });
   if (!res.ok) throw new SttError(`Transcription provider returned ${res.status}`, 502);
   const data = (await res.json().catch(() => ({}))) as { text?: unknown };
   // Type-check AND length-bound the provider's transcript: the endpoint is operator-configured, but a

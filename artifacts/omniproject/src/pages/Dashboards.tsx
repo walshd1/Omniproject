@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useGetCapabilities } from "@workspace/api-client-react";
 import { canSurfaceEntity } from "../lib/capabilities-fields";
+import { useAuth, roleAtLeast } from "../lib/auth";
 import { useFeatures, featureEnabled } from "../lib/features";
 import {
   useDashboards,
@@ -15,6 +16,9 @@ import {
   type DashboardWidget,
 } from "../lib/dashboards";
 import { downloadDashboard, readDashboardFile } from "../lib/dashboard-file";
+import { useResolvedDefs, useImportDef, useUpdateDef, useDeleteDef, type DefStorage } from "../lib/defs";
+import { useDefPolicy, writableDefScopes } from "../lib/def-policy";
+import { primitivesFor } from "../lib/primitive-store";
 import { WidgetView } from "../components/dashboard/widgets";
 import { DataState } from "../components/DataState";
 import { useToast } from "@/hooks/use-toast";
@@ -45,10 +49,19 @@ function refreshLabel(ms: number | undefined): string {
 }
 
 export function Dashboards() {
+  const { data: auth } = useAuth();
   const { data: features } = useFeatures();
   const enabled = featureEnabled(features, "dashboards");
   const { data: caps } = useGetCapabilities();
   const { data: dashboards, isLoading, isError, error, refetch } = useDashboards();
+  // Dashboards authored through the ONE importer store (X.10). They render read-only here — editing happens
+  // in the definition editor, and they never join the settings-bundle CRUD set, so a Save can't migrate them.
+  const { data: importedDefs } = useResolvedDefs<Dashboard>("dashboard");
+  // The single write path (X.10): dashboards are authored/edited as importer defs into the scoped encrypted
+  // store. The legacy settings-bundle writer stays only to manage pre-existing dashboards until they're migrated.
+  const importDef = useImportDef();
+  const updateDef = useUpdateDef();
+  const deleteDef = useDeleteDef();
   const save = useSaveDashboards();
   const { toast } = useToast();
 
@@ -56,6 +69,12 @@ export function Dashboards() {
   const [editing, setEditing] = useState(false);
   // The working copy while editing (committed to the server on Save).
   const [draft, setDraft] = useState<Dashboard | null>(null);
+  // Where a NEW def-backed dashboard is sealed (its scope fixes the write gate). Existing defs keep their scope.
+  // Only the scopes this author can write are offered (server stays authoritative via the def-policy).
+  const { data: defPolicy } = useDefPolicy();
+  const writableScopes = writableDefScopes(auth?.role, defPolicy?.policy);
+  const [draftStorage, setDraftStorage] = useState<DefStorage>("user");
+  const defWriteBusy = importDef.isPending || updateDef.isPending || deleteDef.isPending;
   const [importError, setImportError] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -63,6 +82,13 @@ export function Dashboards() {
     () => availableWidgets((entity) => canSurfaceEntity(caps, entity)),
     [caps],
   );
+  // The add-widget picker is sourced from the ONE shared primitive store (the `component` family placeable
+  // on a dashboard), intersected with the capability-available widgets so nothing a backend can't feed is
+  // offered. Value is the widget's bare `sourceId` (the type addWidget expects).
+  const widgetPrimitives = useMemo(() => {
+    const available = new Map(catalogue.map((w) => [w.type, w.label]));
+    return primitivesFor("dashboard").filter((p) => p.family === "component" && available.has(p.sourceId));
+  }, [catalogue]);
 
   // Role-tailored "what needs me today" presets whose every widget this backend can surface.
   const presets = useMemo(
@@ -70,12 +96,29 @@ export function Dashboards() {
     [caps],
   );
 
+  // Importer-authored dashboards, keyed by their scoped store id (unique + distinct from settings ids) and
+  // guarded to the real shape so a malformed payload can't crash the grid.
+  const imported = useMemo<Dashboard[]>(
+    () => (Array.isArray(importedDefs) ? importedDefs : [])
+      .map((d) => ({ ...(d.payload as Dashboard), id: d.id }))
+      .filter((d) => d && typeof d.name === "string" && Array.isArray(d.widgets)),
+    [importedDefs],
+  );
+  const importedIds = useMemo(() => new Set(imported.map((d) => d.id)), [imported]);
+  // The picker + active-resolution set: settings-bundle dashboards first, then the read-only importer ones.
+  const allDashboards = useMemo(() => [...(dashboards ?? []), ...imported], [dashboards, imported]);
+
   const active = useMemo<Dashboard | null>(() => {
     if (editing && draft) return draft;
-    const list = dashboards ?? [];
-    if (list.length === 0) return null;
-    return list.find((d) => d.id === activeId) ?? list[0]!;
-  }, [dashboards, activeId, editing, draft]);
+    if (allDashboards.length === 0) return null;
+    return allDashboards.find((d) => d.id === activeId) ?? allDashboards[0]!;
+  }, [allDashboards, activeId, editing, draft]);
+  // A def-backed dashboard lives in the encrypted def store (scoped id); a legacy one lives in the settings
+  // bundle. `draftIsDef` is derived from the draft's id so Save routes to the right (single) write path.
+  const isDefId = (id: string) => importedIds.has(id);
+  const draftIsNewDef = !!draft && !isDefId(draft.id) && !(dashboards ?? []).some((d) => d.id === draft.id);
+  const draftIsDef = !!draft && (isDefId(draft.id) || draftIsNewDef);
+  const activeIsLegacy = !!active && (dashboards ?? []).some((d) => d.id === active.id);
 
   // Real-time: when viewing (not editing) a dashboard with a refresh interval, re-read the mounted
   // widgets' data on that cadence. A client-side poll of the existing read model — no new write path.
@@ -94,9 +137,15 @@ export function Dashboards() {
     });
   }
 
+  const defError = (e: unknown) =>
+    toast({ title: "Couldn't save the dashboard", description: e instanceof Error ? e.message : "failed", variant: "destructive" });
+  /** The importer payload for a dashboard def — the real Dashboard shape. */
+  const defPayload = (d: Dashboard) => ({ id: d.id, name: d.name, widgets: d.widgets, ...(d.refreshMs ? { refreshMs: d.refreshMs } : {}) });
+
   function startNew() {
     const dash: Dashboard = { id: crypto.randomUUID(), name: "New dashboard", widgets: [] };
     setDraft(dash);
+    setDraftStorage(writableScopes[0] ?? "user");
     setActiveId(dash.id);
     setEditing(true);
   }
@@ -115,17 +164,27 @@ export function Dashboards() {
 
   function saveEdit() {
     if (!draft) return;
+    const done = (id: string) => { setEditing(false); setDraft(null); setActiveId(id); };
+    if (draftIsDef) {
+      // The single write path: author/edit the dashboard as a def in the encrypted store via the importer.
+      if (isDefId(draft.id)) {
+        updateDef.mutate({ id: draft.id, name: draft.name, payload: defPayload(draft) }, { onSuccess: (row) => done(row.id), onError: defError });
+      } else {
+        importDef.mutate({ kind: "dashboard", storage: draftStorage, name: draft.name, payload: defPayload(draft) }, { onSuccess: (row) => done(row.id), onError: defError });
+      }
+      return;
+    }
+    // Legacy settings-bundle dashboard (pre-migration): keep managing it via its original path.
     const others = (dashboards ?? []).filter((d) => d.id !== draft.id);
-    const savedId = draft.id;
-    persist([...others, draft], () => {
-      setEditing(false);
-      setDraft(null);
-      setActiveId(savedId);
-    });
+    persist([...others, draft], () => done(draft.id));
   }
 
   function deleteActive() {
     if (!active) return;
+    if (isDefId(active.id)) {
+      deleteDef.mutate(active.id, { onSuccess: () => { setActiveId(null); cancelEdit(); }, onError: defError });
+      return;
+    }
     persist((dashboards ?? []).filter((d) => d.id !== active.id), () => {
       setActiveId(null);
       cancelEdit();
@@ -138,19 +197,46 @@ export function Dashboards() {
     const preset = presets.find((p) => p.id === presetId);
     if (!preset) return;
     const dash: Dashboard = { ...dashboardFromPreset(preset), id: crypto.randomUUID() };
-    persist([...(dashboards ?? []), dash], () => setActiveId(dash.id));
+    // New dashboards are authored as defs through the importer (into the user's private encrypted store).
+    importDef.mutate({ kind: "dashboard", storage: "user", name: dash.name, payload: defPayload(dash) }, { onSuccess: (row) => setActiveId(row.id), onError: defError });
   }
 
-  /** Import a dashboard file — validate, mint a fresh id, persist, and select it. */
+  /** Import a dashboard file — validate, mint a fresh id, and author it as a def via the importer. */
   async function importFile(file: File | undefined) {
     setImportError(null);
     if (!file) return;
     try {
       const parsed = await readDashboardFile(file);
       const dash: Dashboard = { ...parsed, id: crypto.randomUUID() };
-      persist([...(dashboards ?? []), dash], () => setActiveId(dash.id));
+      importDef.mutate(
+        { kind: "dashboard", storage: "user", name: dash.name, payload: defPayload(dash) },
+        { onSuccess: (row) => setActiveId(row.id), onError: (e) => setImportError(e instanceof Error ? e.message : "Could not import that file.") },
+      );
     } catch (e) {
       setImportError(e instanceof Error ? e.message : "Could not import that file.");
+    }
+  }
+
+  // One-time drain of the parallel store (X.10 slice 3b): re-author every legacy settings-bundle dashboard as
+  // an ORG def through the importer, then clear the settings slice — after which the only dashboard writer left
+  // is the importer/editor. Admin-only (an org def write needs manager+, and this touches the shared slice).
+  const legacyDashboards = dashboards ?? [];
+  const canMigrate = roleAtLeast(auth?.role, "admin") && legacyDashboards.length > 0;
+  const [migrating, setMigrating] = useState(false);
+  async function migrateLegacy() {
+    if (legacyDashboards.length === 0) return;
+    setMigrating(true);
+    try {
+      for (const d of legacyDashboards) {
+        await importDef.mutateAsync({ kind: "dashboard", storage: "org", name: d.name, payload: defPayload(d) });
+      }
+      await save.mutateAsync([]); // the settings slice is now drained — the parallel writer has nothing to hold
+      toast({ title: "MIGRATED", description: `${legacyDashboards.length} dashboard(s) moved to the definition store.` });
+      setActiveId(null);
+    } catch (e) {
+      toast({ title: "Migration failed", description: e instanceof Error ? e.message : "Some dashboards were not migrated.", variant: "destructive" });
+    } finally {
+      setMigrating(false);
     }
   }
 
@@ -196,11 +282,26 @@ export function Dashboards() {
               value={active?.id ?? ""}
               onChange={(e) => setActiveId(e.target.value)}
             >
-              {(dashboards ?? []).length === 0 && <option value="">No dashboards yet</option>}
+              {allDashboards.length === 0 && <option value="">No dashboards yet</option>}
               {(dashboards ?? []).map((d) => (
                 <option key={d.id} value={d.id}>{d.name}</option>
               ))}
+              {imported.length > 0 && (
+                <optgroup label="Definitions">
+                  {imported.map((d) => (
+                    <option key={d.id} value={d.id}>{d.name}</option>
+                  ))}
+                </optgroup>
+              )}
             </select>
+            {activeIsLegacy && <span data-testid="dashboard-legacy-badge" title="Stored in the legacy settings bundle — will be migrated to the definition store" className="text-[10px] font-black uppercase tracking-widest text-muted-foreground border border-border px-1.5 py-0.5">Legacy</span>}
+            {canMigrate && (
+              <button onClick={migrateLegacy} disabled={migrating} data-testid="dashboard-migrate"
+                title="Move legacy settings-bundle dashboards into the encrypted definition store"
+                className="px-3 py-1 text-xs font-bold uppercase tracking-wider border-2 border-amber-500 text-amber-600 disabled:opacity-50">
+                {migrating ? "Migrating…" : `Migrate ${legacyDashboards.length} legacy → definitions`}
+              </button>
+            )}
             {active && <button onClick={startEdit} className="px-3 py-1 text-xs font-bold uppercase tracking-wider border-2 border-foreground">Edit</button>}
             <button onClick={startNew} className="px-3 py-1 text-xs font-bold uppercase tracking-wider bg-foreground text-background">New</button>
             {active && <button onClick={() => downloadDashboard(active)} className="px-3 py-1 text-xs font-bold uppercase tracking-wider border-2 border-foreground">Export</button>}
@@ -238,6 +339,16 @@ export function Dashboards() {
               value={draft.name}
               onChange={(e) => setDraft({ ...draft, name: e.target.value })}
             />
+            {draftIsDef && !isDefId(draft.id) && (
+              <select aria-label="Storage target" data-testid="dashboard-storage" value={draftStorage} onChange={(e) => setDraftStorage(e.target.value as DefStorage)}
+                className="border-2 border-foreground bg-background px-2 py-1 text-xs">
+                {/* Dashboards author to user/project/org here; programme-scoped defs go through the general
+                    importer (Definitions), which pairs the programme target with a programme-id picker. */}
+                {((writableScopes.filter((s) => s !== "programme")).length ? writableScopes.filter((s) => s !== "programme") : (["user"] as DefStorage[])).map((s) => (
+                  <option key={s} value={s}>{{ user: "Personal", project: "Project", programme: "Programme", org: "Org-wide" }[s]}</option>
+                ))}
+              </select>
+            )}
             <select
               aria-label="Add widget"
               className="border-2 border-foreground bg-background px-2 py-1 text-sm"
@@ -245,8 +356,8 @@ export function Dashboards() {
               onChange={(e) => { if (e.target.value) addWidget(e.target.value); }}
             >
               <option value="">+ Add widget…</option>
-              {catalogue.map((w) => (
-                <option key={w.type} value={w.type}>{w.label}</option>
+              {widgetPrimitives.map((p) => (
+                <option key={p.sourceId} value={p.sourceId}>{p.label}</option>
               ))}
             </select>
             <label className="flex items-center gap-1 text-[10px] uppercase tracking-widest text-muted-foreground">
@@ -257,9 +368,9 @@ export function Dashboards() {
                 {REFRESH_OPTIONS.map((o) => <option key={o.ms} value={o.ms}>{o.label}</option>)}
               </select>
             </label>
-            <button onClick={saveEdit} disabled={save.isPending} className="px-3 py-1 text-xs font-bold uppercase tracking-wider bg-foreground text-background disabled:opacity-50">Save</button>
+            <button onClick={saveEdit} disabled={save.isPending || defWriteBusy} className="px-3 py-1 text-xs font-bold uppercase tracking-wider bg-foreground text-background disabled:opacity-50">Save</button>
             <button onClick={cancelEdit} className="px-3 py-1 text-xs font-bold uppercase tracking-wider border-2 border-foreground">Cancel</button>
-            <button onClick={deleteActive} disabled={save.isPending} className="px-3 py-1 text-xs font-bold uppercase tracking-wider border-2 border-red-500 text-red-500 disabled:opacity-50">Delete</button>
+            <button onClick={deleteActive} disabled={save.isPending || defWriteBusy} className="px-3 py-1 text-xs font-bold uppercase tracking-wider border-2 border-red-500 text-red-500 disabled:opacity-50">Delete</button>
             {save.isError && <span role="alert" className="text-xs font-bold text-red-500">{(save.error as Error).message}</span>}
           </div>
         )}

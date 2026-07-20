@@ -1,0 +1,12 @@
+{
+  "id": "portfolio-roadmap",
+  "label": "Portfolio Roadmap",
+  "docsUrl": "",
+  "kind": "schedule",
+  "renderer": { "engine": "builtin", "component": "PortfolioRoadmap" },
+  "capabilities": { "requiresCapability": "scheduling", "timeSeries": false, "exports": ["csv", "pdf", "png"] },
+  "tools": ["start","end","progress"],
+  "notes": "Project bars on a timeline, derived from work-item dates. Stateless.",
+  "order": 11,
+  "methodologies": ["waterfall", "prince2"]
+}

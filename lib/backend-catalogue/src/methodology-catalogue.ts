@@ -44,6 +44,9 @@ export interface MethodologyDefinition extends MethodologyManifest {
   tools: { states: string[]; ceremonies: string[] };
   /** Display order in the methodology picker. */
   order: number;
+  /** COMPOSITION: the id of a parent methodology this one is built on (see def-compose). A customer fork
+   *  records its parent here so the importer traces its ancestry + guards the chain. Omitted = a root. */
+  extends?: string;
 }
 
 /** Every shipped methodology, in display order. Authored as JSON under
@@ -51,9 +54,11 @@ export interface MethodologyDefinition extends MethodologyManifest {
  *  in CI). Being data is what lets a methodology PACK ship as an importable bundle. */
 export const METHODOLOGIES: MethodologyDefinition[] = [...METHODOLOGIES_DATA].sort((a, b) => a.order - b.order);
 
+const byId = new Map(METHODOLOGIES.map((m) => [m.id, m]));
+
 /** One methodology definition by id, or undefined. */
 export function getMethodology(id: string): MethodologyDefinition | undefined {
-  return METHODOLOGIES.find((m) => m.id === id);
+  return byId.get(id);
 }
 
 /** All methodology definitions (a defensive copy). */

@@ -23,7 +23,7 @@ import { startHarness, cookie, type Harness } from "./_harness";
 
 // A path segment that binds a caller-supplied resource id. `:id` is included because several admin/global
 // resources use it; the classification records why each such id is (or isn't) a tenant boundary.
-const RESOURCE_PARAM = /:(projectId|taskId|programmeId|guid|issueId|roomId|commentId|id)\b/;
+const RESOURCE_PARAM = /:(projectId|taskId|programmeId|guid|issueId|roomId|commentId|workflowId|id)\b/;
 
 type ScopeClass =
   | "project-scope"      // :projectId/:roomId guarded by guardProjectScope / guardRoomScope before the scope-blind broker
@@ -32,6 +32,7 @@ type ScopeClass =
   | "all-scope-only"     // route gated to pmo/admin (scope "all") — a lower principal can't reach the id at all
   | "admin-nontenant"    // id names an admin-global object (AI provider, SCIM user/group, webhook, governed capability, approval) — admin+step-up gated, not per-tenant data
   | "global-config"      // id names global UI/catalogue config (screen id, methodology pack/preset) — a fixed global set, not tenant data
+  | "org-content"        // id names an ORG-WIDE shared content object (wiki doc) — read open to any member (viewer+), writes role-gated; no per-user/project partition exists to breach
   | "self-or-approver";  // in-handler RBAC: caller acts on its own resource, approvals gated by role
 
 /**
@@ -51,6 +52,15 @@ const CLASSIFICATION: Record<string, ScopeClass> = {
   "GET /projects/:projectId/capacity": "project-scope",
   "GET /projects/:projectId/type": "project-scope",
   "GET /projects/:projectId/staff-cost": "project-scope",
+  "GET /projects/:projectId/wbs": "project-scope",
+  "GET /projects/:projectId/wbs/cost-rows": "project-scope",
+  "GET /projects/:projectId/wbs/mapping": "project-scope",
+  "PUT /projects/:projectId/wbs/:wbsId": "project-scope",
+  "GET /projects/:projectId/wbs/:wbsId/financials": "project-scope",
+  "GET /projects/:projectId/mapping/:slot": "project-scope",
+  "GET /projects/:projectId/mapping/:slot/rows": "project-scope",
+  "PUT /projects/:projectId/mapping/:slot/:rowId": "project-scope",
+  "DELETE /projects/:projectId/mapping/:slot/:rowId": "project-scope",
   "GET /projects/:projectId/issues/:issueId/items": "project-scope",
   "PATCH /projects/:projectId": "project-scope",
   "PATCH /projects/:projectId/issues/:issueId": "project-scope",
@@ -64,6 +74,23 @@ const CLASSIFICATION: Record<string, ScopeClass> = {
   "GET /comments/:roomId": "project-scope",
   "POST /comments/:roomId": "project-scope",
   "DELETE /comments/:roomId/:commentId": "project-scope",
+  // Wiki co-edit relay: same room-scope guard as presence/comments (a project-encoding room is scope-checked;
+  // a doc:<id> wiki room is org-content with no boundary). Both routes are additionally contributor+.
+  "GET /collab/rooms/:roomId/stream": "project-scope",
+  "POST /collab/rooms/:roomId": "project-scope",
+  // Whiteboard live-cursor relay: a `board:<id>` room. Same room-scope guard — a board id that encodes a
+  // project (`board:project~<projectId>~…`) is guardProjectScope-checked; user/org/sidecar board rooms have
+  // no project boundary. Transient cursor fan-out (nothing stored); identity is stamped server-side.
+  "GET /whiteboards/rooms/:roomId/stream": "project-scope",
+  "POST /whiteboards/rooms/:roomId": "project-scope",
+  // Proof ids are SELF-DESCRIBING (`<target>~…`) — same storage-target model as whiteboards/wiki: a `user~…`
+  // id is structurally isolated (scope uses the caller's own sub), `project~…` is guardProjectScope-checked
+  // (stricter than org-content), `org~…` is the org-content posture (read viewer+, write/delete/decision
+  // manager+). No sidecar variant. The decision route is contributor+ with the same per-target gate.
+  "GET /proofs/:id": "org-content",
+  "PUT /proofs/:id": "org-content",
+  "DELETE /proofs/:id": "org-content",
+  "POST /proofs/:id/decision": "org-content",
 
   // ── Task-scoped: assertTaskScope on the caller-supplied taskId ──
   "GET /tasks/:taskId": "task-scope",
@@ -106,9 +133,65 @@ const CLASSIFICATION: Record<string, ScopeClass> = {
   "GET /setup/methodology-preset/:id": "global-config",
   "GET /setup/screens/:id/layout": "global-config",
   "PUT /setup/screens/:id/layout": "global-config",
+  // Automation recipe id names an org-global config object (the `automations` collection), NOT tenant data;
+  // running it re-checks the caller's RBAC (authorDenial) + evaluates conditions + runs caller-scoped, and a
+  // mutating recipe is refused (202) pending a grant — so the id is not a lateral-movement vector.
+  "POST /automations/:id/run": "global-config",
+  // Template id names an org-global config object (the `templates` collection), NOT tenant data; instantiate
+  // is manager+ gated and creates a NEW project via the scope-checked broker, so the id is not a lateral vector.
+  "POST /templates/:id/instantiate": "global-config",
+  // A wiki-doc id is SELF-DESCRIBING (`<target>~…~<localId>`) — it names a store, not a bare tenant id (same
+  // storage-target model as whiteboards):
+  //  - `user~…`    the caller's PRIVATE area — the scope always uses the CALLER's own sub, so one user's id
+  //                can never address another's area (structurally isolated, no lateral vector).
+  //  - `project~…` a project's shared area — guarded by guardProjectScope on the encoded projectId (stricter
+  //                than org-content).
+  //  - `org~…`     the org-wide shared area — read viewer+, write/delete manager+ (the org-content posture).
+  //  - `sidecar~…` the built-in wiki, reached through the broker seam.
+  // Classified org-content: the open-read variant (org) has no partition to breach; the user/project variants
+  // add STRICTER guards on top. Read viewer+, author contributor+, delete contributor+ (org write manager+).
+  "GET /wiki/docs/:id": "org-content",
+  "PUT /wiki/docs/:id": "org-content",
+  "DELETE /wiki/docs/:id": "org-content",
+  // A document's revision history — same self-describing id; the versionId names a revision within the doc's
+  // own history (read-only, viewer+, per-target as above), not per-tenant data.
+  "GET /wiki/docs/:id/versions": "org-content",
+  "GET /wiki/docs/:id/versions/:versionId": "org-content",
+  // A whiteboard id is SELF-DESCRIBING (`<target>~…~<localId>`): it names a store, not a bare tenant id.
+  //  - `user~…`    the caller's PRIVATE area — the scope always uses the CALLER's own sub, so one user's id
+  //                can never address another's area (structurally isolated, no lateral vector).
+  //  - `project~…` a project's shared area — guarded by guardProjectScope on the encoded projectId (so this
+  //                variant is in fact project-scoped, stricter than org-content).
+  //  - `org~…`     the org-wide shared area — read viewer+, write/delete manager+ (the org-content posture).
+  //  - `sidecar~…` the built-in SoR, reached through the broker seam.
+  // Classified org-content: the open-read variant (org) has no partition to breach, and the user/project
+  // variants add STRICTER guards on top — never weaker.
+  "GET /whiteboards/:id": "org-content",
+  "PUT /whiteboards/:id": "org-content",
+  "DELETE /whiteboards/:id": "org-content",
 
   // ── Own-resource / approver: in-handler RBAC + state machine ──
   "POST /timesheets/:id/action": "self-or-approver",
+  // Approval proposals: the :id is a global proposal id (a uuid), not per-tenant data. Challenge/decision
+  // are open to any authenticated session but the approval ENGINE gates every act — only an ELIGIBLE
+  // approver for the current stage can advance it, the proposer can't self-approve (unless allowed), and a
+  // passkey signature over the proposal's content hash is verified — so a guessed id yields nothing.
+  "POST /approvals/:id/challenge": "self-or-approver",
+  "POST /approvals/:id/decision": "self-or-approver",
+  // Redirect/bypass are PMO acts (requireRole pmo) over the same global proposal id; bypass is itself
+  // passkey-signed. Admin-global, not tenant data.
+  "POST /approvals/:id/redirect": "admin-nontenant",
+  "POST /approvals/:id/bypass": "admin-nontenant",
+  "POST /approvals/:id/bypass/challenge": "admin-nontenant",
+  // A workflow run: the :id is a global workflow-definition id, not tenant data. The run is scope-gated
+  // (org⇒pmo, project⇒manager) and, when bound, approval-held; the effect surface is a fail-closed read+
+  // notify allowlist carrying the caller's own broker scope — so it can't be a cross-tenant lateral vector.
+  "POST /workflows/:id/run": "admin-nontenant",
+  // AI responsibility acceptances: the :workflowId is a global workflow id, not tenant data. Each route is
+  // scope-owner gated (org⇒pmo, project⇒manager) and the sign is passkey-verified — a hard human-only act.
+  "POST /approvals/workflow-acceptances/:workflowId": "admin-nontenant",
+  "POST /approvals/workflow-acceptances/:workflowId/challenge": "admin-nontenant",
+  "DELETE /approvals/workflow-acceptances/:workflowId": "admin-nontenant",
 };
 
 /** Recursively collect "METHOD /path" for every route in an Express router tree. */
@@ -135,7 +218,7 @@ function collectRoutes(router: IRouter): string[] {
  *  code isn't mounted in the test env (so a per-resource route in a disabled module can't escape the ratchet). */
 async function perResourceRoutes(): Promise<Set<string>> {
   const assembled = (await import("../routes/index")).default as IRouter;
-  const featureMods = ["presence", "comments", "odata", "integrations"];
+  const featureMods = ["presence", "comments", "collab", "whiteboard", "proofs", "odata", "integrations"];
   const routes = new Set<string>(collectRoutes(assembled));
   for (const name of featureMods) {
     const mod = (await import(`../routes/${name}`)).default as IRouter;

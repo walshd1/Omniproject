@@ -15,9 +15,11 @@ import {
   promote,
   serializeState,
   exportConfig,
+  restoreActiveEnvironment,
   __resetConfigStore,
 } from "./config-store";
 import { __resetConfigCrypto } from "./config-crypto";
+import { getSettings, updateSettings } from "./settings";
 
 /**
  * Configuration environments + versioned rollback. In-memory by default; CONFIG_STORE_FILE
@@ -154,6 +156,38 @@ test("persistence: state survives a simulated restart via CONFIG_STORE_FILE", ()
   const reloaded = storeView();
   assert.ok(reloaded.environments.includes("sandbox"));
   assert.ok(reloaded.versions.some((x) => x.id === v.id && x.label === "persisted"));
+});
+
+test("restoreActiveEnvironment: an admin's runtime config survives a restart (re-applied to live settings)", () => {
+  const file = tmpFile();
+  process.env["CONFIG_STORE_FILE"] = file;
+  try {
+    // Admin changes config through the runtime path, then captures it into the active env (as the
+    // settings API does), which persists to the sealed store file.
+    updateSettings({ backendSource: "jira-only" });
+    captureVersion("admin change");
+    assert.equal(getSettings().backendSource, "jira-only");
+
+    // Simulate a restart: settings re-seed from env/config-dir (default), and the store drops its RAM.
+    updateSettings({ backendSource: "all" });
+    __resetConfigStore();
+    assert.equal(getSettings().backendSource, "all"); // without the boot hook the runtime change is lost
+
+    // The boot hook re-applies the persisted active environment onto live settings.
+    const r = restoreActiveEnvironment();
+    assert.equal(r.restored, true);
+    assert.equal(r.env, "production");
+    assert.equal(getSettings().backendSource, "jira-only");
+  } finally {
+    updateSettings({ backendSource: "all" }); // don't leak into sibling tests
+  }
+});
+
+test("restoreActiveEnvironment: no-op when persistence is off or nothing persisted", () => {
+  assert.equal(restoreActiveEnvironment().restored, false); // no CONFIG_STORE_FILE
+  const file = tmpFile();
+  process.env["CONFIG_STORE_FILE"] = file; // path set but no file written yet
+  assert.equal(restoreActiveEnvironment().restored, false);
 });
 
 test("persistence: a corrupt store file is tolerated (starts fresh)", () => {

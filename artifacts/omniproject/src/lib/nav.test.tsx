@@ -9,6 +9,7 @@ import {
   roleSeesAdminByDefault,
   partitionNavByGroup,
   navShelvesForRole,
+  catalogueScreenNavItems,
 } from "./nav";
 import { featuresQueryKey, type FeatureStatus } from "./features";
 import type { Role } from "./auth";
@@ -55,11 +56,22 @@ describe("NAV_ITEMS", () => {
       "/tasks",
       "/dashboards",
       "/content",
+      "/wiki",
+      "/whiteboards",
+      "/proofs",
+      "/goals",
       "/programmes",
       "/projects",
+      "/budgets",
+      "/invoices",
       "/reports",
       "/resources",
+      "/resource-planning",
+      "/studio",
       "/explore",
+      "/marketplace",
+      "/registry",
+      "/definitions",
       "/settings",
       "/configurator",
     ]);
@@ -161,8 +173,8 @@ describe("useVisibleNavItems — role gating (hard gate)", () => {
 });
 
 describe("nav grouping — progressive disclosure", () => {
-  const ADMIN_HREFS = ["/explore", "/settings", "/configurator"];
-  const PRIMARY_HREFS = ["/", "/my-work", "/tasks", "/dashboards", "/content", "/programmes", "/projects", "/reports", "/resources"];
+  const ADMIN_HREFS = ["/explore", "/marketplace", "/registry", "/settings", "/configurator"];
+  const PRIMARY_HREFS = ["/", "/my-work", "/tasks", "/dashboards", "/content", "/wiki", "/whiteboards", "/proofs", "/goals", "/programmes", "/projects", "/budgets", "/invoices", "/reports", "/resources", "/resource-planning", "/studio", "/definitions"];
 
   it("classifies the everyday surfaces as primary and the governance/config surfaces as admin", () => {
     for (const item of NAV_ITEMS) {
@@ -175,6 +187,25 @@ describe("nav grouping — progressive disclosure", () => {
     const { primary, admin } = partitionNavByGroup(NAV_ITEMS);
     expect(primary.map((i) => i.href)).toEqual(PRIMARY_HREFS);
     expect(admin.map((i) => i.href)).toEqual(ADMIN_HREFS);
+  });
+});
+
+describe("catalogueScreenNavItems — methodology-gated catalogue screens", () => {
+  it("includes a catalogue screen under an uncurated composition", () => {
+    const hrefs = catalogueScreenNavItems(null).map((i) => i.href);
+    expect(hrefs).toContain("/kanban");
+  });
+
+  it("includes a methodology-tagged catalogue screen when its methodology is selected", () => {
+    const items = catalogueScreenNavItems(["screen:kanban"]);
+    const kanban = items.find((i) => i.href === "/kanban");
+    expect(kanban).toBeTruthy();
+    expect(kanban!.label).toBe("Kanban");
+  });
+
+  it("hides a methodology-tagged catalogue screen when a different methodology is selected", () => {
+    const hrefs = catalogueScreenNavItems(["screen:something-else"]).map((i) => i.href);
+    expect(hrefs).not.toContain("/kanban");
   });
 });
 
@@ -220,6 +251,6 @@ describe("navShelvesForRole — visibility per role", () => {
 
   it("the admin shelf still carries all governance/config routes (deep-links stay reachable)", () => {
     const { admin } = navShelvesForRole(NAV_ITEMS, "viewer", false);
-    expect(admin.map((i) => i.href)).toEqual(["/explore", "/settings", "/configurator"]);
+    expect(admin.map((i) => i.href)).toEqual(["/explore", "/marketplace", "/registry", "/settings", "/configurator"]);
   });
 });

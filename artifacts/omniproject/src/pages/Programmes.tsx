@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { Link } from "wouter";
 import { useListProgrammes, useListProjects, useGetCapabilities, type Programme, type Project } from "@workspace/api-client-react";
 import { Layers, FolderOpen } from "lucide-react";
@@ -45,9 +46,12 @@ export function Programmes() {
   const { data: caps } = useGetCapabilities();
   const { data: registry } = useProgrammeRegistry();
   // Standalone = not a member of any programme. Membership is by the project's correlation GUID
-  // against the registry (the source of truth), not the backend programmeId.
-  const members = memberInstanceIds(registry);
-  const standalone = (projects ?? []).filter((p: Project) => !members.has((p as { omniInstanceId?: string }).omniInstanceId ?? ""));
+  // against the registry (the source of truth), not the backend programmeId. Memoized so the
+  // registry Set + filter don't rebuild on every unrelated render.
+  const standalone = useMemo(() => {
+    const members = memberInstanceIds(registry);
+    return (projects ?? []).filter((p: Project) => !members.has((p as { omniInstanceId?: string }).omniInstanceId ?? ""));
+  }, [projects, registry]);
 
   if (isLoading) return <LoadingState />;
 

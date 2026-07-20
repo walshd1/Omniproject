@@ -9,7 +9,7 @@ describe("buildCompositionItems", () => {
     const ids = items.map((i) => i.id);
     expect(new Set(ids).size).toBe(ids.length); // unique
     // Every id is namespaced by kind so a report and a view can't collide.
-    expect(ids.every((id) => /^(report|view|screen|output|ruleset|artifact):/.test(id))).toBe(true);
+    expect(ids.every((id) => /^(report|view|screen|output|ruleset|artifact|form):/.test(id))).toBe(true);
     // Multiple kinds are represented.
     const kinds = new Set(items.map((i) => i.kind));
     expect(kinds.has("report")).toBe(true);

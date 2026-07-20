@@ -36,7 +36,7 @@ test("a still-active principal is not revoked and emits nothing (keepAlive write
 });
 
 test("a deprovisioned principal is revoked with a `revoked` event", () => {
-  process.env["SCIM_TOKEN"] = "scim-secret";
+  process.env["SCIM_TOKEN"] = "scim-secret-strong-012345";
   createUser({ userName: "gone@x.io", active: false });
   const { stream, sent } = fakeStream();
   const revoked = revokedIfDeprovisioned(reqWithSession({ sub: "u9", email: "gone@x.io", accessToken: "t" }), stream);
@@ -45,7 +45,7 @@ test("a deprovisioned principal is revoked with a `revoked` event", () => {
 });
 
 test("a SCIM-known but still-active principal is not revoked", () => {
-  process.env["SCIM_TOKEN"] = "scim-secret";
+  process.env["SCIM_TOKEN"] = "scim-secret-strong-012345";
   createUser({ userName: "ok@x.io", active: true });
   const { stream, sent } = fakeStream();
   assert.equal(revokedIfDeprovisioned(reqWithSession({ sub: "u2", email: "ok@x.io", accessToken: "t" }), stream), false);
@@ -53,7 +53,7 @@ test("a SCIM-known but still-active principal is not revoked", () => {
 });
 
 test("an unauthenticated stream (no session) is never treated as deprovisioned", () => {
-  process.env["SCIM_TOKEN"] = "scim-secret";
+  process.env["SCIM_TOKEN"] = "scim-secret-strong-012345";
   const { stream } = fakeStream();
   assert.equal(revokedIfDeprovisioned({ signedCookies: {}, headers: {} } as unknown as Request, stream), false);
 });

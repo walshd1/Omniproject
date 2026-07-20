@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { isLinkLocalIPv4, isLinkLocalIPv6, isBlockedHostLiteral, isBlockedIp } from "./ip-ranges";
+import { isLinkLocalIPv4, isLinkLocalIPv6, isBlockedHostLiteral, isBlockedIp, isPrivateOrLoopbackIPv4, isPrivateOrLoopbackIPv6, isPrivateOrLoopbackIp, isPrivateOrLoopbackHostLiteral } from "./ip-ranges";
 
 test("isLinkLocalIPv4: 169.254.0.0/16 (incl. AWS/GCP/Azure IMDS + ECS metadata)", () => {
   assert.equal(isLinkLocalIPv4("169.254.169.254"), true); // AWS/GCP/Azure/DO IMDS
@@ -57,4 +57,31 @@ test("isBlockedIp: validates a resolved DNS address by family (the DNS-rebinding
   assert.equal(isBlockedIp("fe80::1", 6), true);
   assert.equal(isBlockedIp("8.8.8.8", 4), false);
   assert.equal(isBlockedIp("2001:4860:4860::8888", 6), false);
+});
+
+test("isPrivateOrLoopbackIPv4: RFC1918 + loopback + CGNAT + this-host, excludes public", () => {
+  for (const ip of ["10.0.0.5", "10.255.255.255", "172.16.0.1", "172.31.255.255", "192.168.1.1", "127.0.0.1", "0.0.0.0", "100.64.0.1"]) {
+    assert.equal(isPrivateOrLoopbackIPv4(ip), true, `${ip} should be private/loopback`);
+  }
+  for (const ip of ["8.8.8.8", "93.184.216.34", "172.15.0.1", "172.32.0.1", "192.169.0.1", "100.63.0.1", "100.128.0.1"]) {
+    assert.equal(isPrivateOrLoopbackIPv4(ip), false, `${ip} should be public`);
+  }
+  assert.equal(isPrivateOrLoopbackIPv4("not-an-ip"), false);
+});
+
+test("isPrivateOrLoopbackIPv6: ::1, fc00::/7 ULA, IPv4-mapped private; excludes public", () => {
+  assert.equal(isPrivateOrLoopbackIPv6("::1"), true);
+  assert.equal(isPrivateOrLoopbackIPv6("fc00::1"), true);
+  assert.equal(isPrivateOrLoopbackIPv6("fd12:3456::1"), true);
+  assert.equal(isPrivateOrLoopbackIPv6("::ffff:a00:5"), true); // IPv4-mapped 10.0.0.5 in canonical hex (as URL.hostname produces)
+  assert.equal(isPrivateOrLoopbackIPv6("2001:4860:4860::8888"), false); // public
+  assert.equal(isPrivateOrLoopbackIPv6("fe80::1"), false); // link-local is the ALWAYS-ON floor, not this set
+});
+
+test("isPrivateOrLoopbackIp / HostLiteral: dispatch by family; a plain hostname is not a literal", () => {
+  assert.equal(isPrivateOrLoopbackIp("10.0.0.5", 4), true);
+  assert.equal(isPrivateOrLoopbackIp("::1", 6), true);
+  assert.equal(isPrivateOrLoopbackIp("8.8.8.8", 4), false);
+  assert.equal(isPrivateOrLoopbackHostLiteral("127.0.0.1"), true);
+  assert.equal(isPrivateOrLoopbackHostLiteral("n8n"), false); // resolved separately
 });

@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import crypto from "node:crypto";
 import type { AddressInfo } from "node:net";
 import type { Server } from "node:http";
+import { signOffRelaxation } from "./_signoff";
 
 /**
  * Feature gating + governance routes over the REAL app: scoped GET resolution and the
@@ -107,11 +108,13 @@ test("a project cannot require a feature the programme forbade (project ceiling 
 });
 
 test("governance rules round-trip and restrict predicates to the sync-safe fields", async () => {
-  // a valid rule (scoped by projectType) is accepted and read back
+  // a valid rule (scoped by projectType) is accepted — but editing a governance CONTROL is held for a
+  // signed sign-off (§0), so it goes live only after the solo admin confirm+signs.
   const ok = await put("/features/governance-rules", {
     governanceRules: [{ id: "r1", when: { all: [{ field: "projectType", op: "eq", value: "internal" }] }, forbid: ["report:evm"] }],
   });
-  assert.equal(ok.status, 200);
+  assert.equal(ok.status, 202);
+  await signOffRelaxation(((await ok.json()) as { pending: { proposalId: string } }).pending.proposalId, "u-feat");
   const got = await fetch(`${base}/api/features/governance-rules`, { headers: { cookie: ADMIN } }).then((r) => r.json()) as { governanceRules: { id: string }[] };
   assert.deepEqual(got.governanceRules.map((r) => r.id), ["r1"]);
   // a predicate on a non-sync-safe field (budget) is rejected — it couldn't be enforced consistently
@@ -150,7 +153,8 @@ test("governance rules carry a label, require/disable arrays, and an `any` predi
       { id: "labelled", label: "internal locks report", when: { any: [{ field: "projectType", op: "eq", value: "internal" }] }, require: ["grid"], disable: ["presence"] },
     ],
   });
-  assert.equal(r.status, 200);
+  assert.equal(r.status, 202); // held: a governance-control edit needs a signed sign-off
+  await signOffRelaxation(((await r.json()) as { pending: { proposalId: string } }).pending.proposalId, "u-feat");
   const got = (await fetch(`${base}/api/features/governance-rules`, { headers: { cookie: ADMIN } }).then((x) => x.json())) as { governanceRules: { id: string; label?: string; require?: string[]; disable?: string[] }[] };
   assert.equal(got.governanceRules[0]!.label, "internal locks report");
   assert.deepEqual(got.governanceRules[0]!.require, ["grid"]);

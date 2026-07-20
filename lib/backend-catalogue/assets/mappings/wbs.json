@@ -1,0 +1,22 @@
+{
+  "id": "wbs",
+  "label": "WBS cost mapping",
+  "broker": "builtin",
+  "backend": "sidecar",
+  "fields": {
+    "id": "id",
+    "name": "name",
+    "parentId": "parentId",
+    "status": "status",
+    "responsible": "responsible",
+    "budget": "budget",
+    "actual": "actual",
+    "commitment": "commitment",
+    "wip": "wip",
+    "planned": "planned",
+    "currency": "currency"
+  },
+  "defaults": {
+    "currency": "GBP"
+  }
+}

@@ -74,3 +74,45 @@ self.addEventListener("fetch", (event) => {
     }),
   );
 });
+
+/*
+ * Web Push (roadmap 2.5 slice 3). The server sends an encrypted payload
+ * ({title, body?, url?, tag?}); we render a notification. Clicking it focuses an
+ * existing app window (or opens one) and navigates to the payload's url. Payload
+ * is best-effort JSON — a push with no decipherable body still shows a fallback.
+ */
+self.addEventListener("push", (event) => {
+  let data = {};
+  try {
+    data = event.data ? event.data.json() : {};
+  } catch {
+    data = { title: "OmniProject", body: event.data ? event.data.text() : "" };
+  }
+  const title = typeof data.title === "string" && data.title ? data.title : "OmniProject";
+  const options = {
+    body: typeof data.body === "string" ? data.body : "",
+    tag: typeof data.tag === "string" ? data.tag : undefined,
+    data: { url: typeof data.url === "string" ? data.url : "/" },
+    icon: "/icons/app-icon.svg",
+    badge: "/icons/app-icon.svg",
+  };
+  event.waitUntil(self.registration.showNotification(title, options));
+});
+
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  const target = (event.notification.data && event.notification.data.url) || "/";
+  event.waitUntil(
+    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((clients) => {
+      for (const client of clients) {
+        // Focus an already-open window and route it to the target.
+        if ("focus" in client) {
+          client.focus();
+          if ("navigate" in client && target) client.navigate(target).catch(() => {});
+          return undefined;
+        }
+      }
+      return self.clients.openWindow(target);
+    }),
+  );
+});

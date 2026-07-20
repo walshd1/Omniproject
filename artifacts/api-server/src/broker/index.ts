@@ -2,6 +2,7 @@ import type { Request, Response } from "express";
 import { getSession } from "../routes/auth";
 import { sessionBindFromSession } from "../lib/session-key";
 import { roleForReq, scopeForReq } from "../lib/rbac";
+import { matchApiToken } from "../lib/api-token";
 import { ReferenceBroker, BROKER_ENV_CONFIGURED, pingBroker } from "./reference-broker";
 import { builtinBrokerEnabled, makeBuiltinBroker } from "./builtin";
 import { DemoBroker } from "./demo";
@@ -9,11 +10,13 @@ import { BrokerError, type Broker, type ActorContext } from "./types";
 import { instrumented, wrapWithTrace } from "./trace";
 import { provenanceEnabled, wrapWithProvenance } from "./provenance";
 import { wrapWithKeyGuard } from "./key-guard";
+import { wrapWithMeter } from "./meter";
 import { isDevMode } from "../lib/dev-mode";
 import { DataResidencyError } from "../lib/data-residency";
 import { devBrokerFromEnv } from "./dev-broker";
 import { applyVendorProfile, demoVendorFor } from "./vendor-profile";
 import { readCacheEnabled, wrapWithCache, invalidateReadCache } from "./cache";
+import { sharedReadCacheEnabled, wrapWithSharedCache } from "./shared-cache";
 import { wrapWithAutonomousGuard } from "./autonomous-guard";
 import { wrapWithScopeGuard } from "./scope-guard";
 import { wrapWithSanitizer } from "./sanitizer";
@@ -57,6 +60,10 @@ export function getBroker(): Broker {
     // serve sample data and reach no vendor, so they're exempt; the built-in broker reaches no
     // external vendor either (its store is local), so it's exempt too.
     if (BROKER_ENV_CONFIGURED && !dev && !isDevMode()) base = wrapWithKeyGuard(base);
+    // Usage meter (only for a real external backend): count each actual backend read/write per vendor.
+    // Inner to the cache + single-flight, so a cached/coalesced call — which never reaches the vendor —
+    // isn't counted; the meter reflects REAL external API volume for the admin cost/limit screen.
+    if (BROKER_ENV_CONFIGURED && !dev) base = wrapWithMeter(base, () => getSettings().backendSource || "backend");
     // Demonstration flavour: present the demo AS the vendor named by `backendSource`,
     // gated to its declared capabilities, so a prospect previews the product on THEIR
     // stack over sample data. `demoVendorFor` enforces the hard rule that a thin-file
@@ -76,9 +83,11 @@ export function getBroker(): Broker {
     // keep on unconditionally, and it shields the backend's rate limits from a thundering herd.
     // Inner to the cache so a cache hit never reaches it.
     base = wrapWithSingleFlight(base);
-    // OPT-IN performance mode: a short-TTL in-memory read cache (READ_CACHE_TTL_MS).
-    // Trades "never stale" for latency; off by default and announced loudly at boot.
-    if (readCacheEnabled()) base = wrapWithCache(base);
+    // OPT-IN performance mode: a short-TTL read cache (READ_CACHE_TTL_MS). Trades "never stale" for
+    // latency; off by default. When READ_CACHE_SHARED is also set, the cache is FLEET-WIDE (shared via
+    // Redis) so repeated reads coalesce across replicas — otherwise it's the per-replica in-memory cache.
+    if (sharedReadCacheEnabled()) base = wrapWithSharedCache(base);
+    else if (readCacheEnabled()) base = wrapWithCache(base);
     // Provenance: chained, keyed-MAC fingerprints of every broker call (content stays
     // in transit; only MACs persist). Outside the cache so logical calls are recorded
     // even on a cache hit. Additive — never alters results.
@@ -205,7 +214,19 @@ export function contextFromReq(req: Request): ActorContext {
   const authHeader = explicit
     ? Array.isArray(explicit) ? explicit[0] : explicit
     : session?.accessToken ? `Bearer ${session.accessToken}` : undefined;
-  if (!session) return { authHeader };
+  if (!session) {
+    // No session ⇒ a read-only API-token principal (or an unauthenticated caller). Even without a
+    // session we MUST carry the token's DATA SCOPE into the broker context: a scoped token
+    // (`<token>@<programme>`) resolves to programme scope via scopeForReq, and if we drop it here the
+    // broker sees no scope and returns the WHOLE portfolio — defeating the containment the scoped token
+    // exists to provide. Attach a stable, NON-SECRET `sub` (derived from the allowed programmes, never
+    // the token itself) so the read/single-flight caches bucket per scope rather than collapsing every
+    // token caller into one shared "anon" entry.
+    const apiScope = matchApiToken(req);
+    if (!apiScope) return { authHeader };
+    const sub = apiScope.programmes?.length ? `apitoken:${[...apiScope.programmes].sort().join("|")}` : "apitoken";
+    return { sub, role: roleForReq(req), scope: scopeForReq(req), authHeader };
+  }
   // Bind the per-session broker signing key to this user + session (null for older
   // cookies that predate the scheme — those fall back to the static broker key).
   const sessionBind = sessionBindFromSession(session) ?? undefined;

@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, memo } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   useGetProjectIssues,
@@ -19,7 +19,7 @@ import { DataState } from "../DataState";
 import { useToast } from "@/hooks/use-toast";
 import { ToastAction } from "@/components/ui/toast";
 
-function IssueCard({
+const IssueCard = memo(function IssueCard({
   issue,
   onClick,
   onDragStart,
@@ -70,7 +70,7 @@ function IssueCard({
       </div>
     </div>
   );
-}
+});
 
 export function AgileBoard({ projectId }: { projectId: string }) {
   const { data: issues, isLoading, isError, error, refetch } = useGetProjectIssues(projectId);
@@ -160,6 +160,18 @@ export function AgileBoard({ projectId }: { projectId: string }) {
     return [...STATUS_ORDER, ...extra];
   }, [issues]);
 
+  // Group issues by status once per issues change (preserving issues order) so each column is
+  // an O(1) lookup rather than re-filtering the whole list on every render (incl. every drag-over).
+  const issuesByStatus = useMemo(() => {
+    const map = new Map<string, Issue[]>();
+    for (const i of issues ?? []) {
+      const list = map.get(i.status);
+      if (list) list.push(i);
+      else map.set(i.status, [i]);
+    }
+    return map;
+  }, [issues]);
+
   if (isError) {
     return <DataState isError error={error} onRetry={() => refetch()}>{null}</DataState>;
   }
@@ -178,7 +190,7 @@ export function AgileBoard({ projectId }: { projectId: string }) {
     <>
       <div className="flex gap-6 h-full min-w-max pb-4">
         {columns.map((status) => {
-          const statusIssues = issues?.filter((i) => i.status === status) ?? [];
+          const statusIssues = issuesByStatus.get(status) ?? [];
           const isDragOver = dragOverStatus === status;
 
           return (

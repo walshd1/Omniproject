@@ -251,6 +251,103 @@ export async function restoreSnapshot(snapshot: unknown): Promise<RestoreResult>
   return data;
 }
 
+/** Download the DEF-STORE export (imported defs, selection bindings/locks, def-policy, custom roles) — the
+ *  backup the settings snapshot never covered. Needs a fresh step-up server-side; a 403 with
+ *  code:"step_up_required" is surfaced verbatim so the caller can prompt a re-auth and retry. */
+export async function downloadDefsExport(): Promise<void> {
+  const res = await fetch("/api/setup/defs-export", { credentials: "same-origin" });
+  if (!res.ok) {
+    const body = (await res.json().catch(() => ({}))) as { error?: string; code?: string };
+    throw new Error(body.code === "step_up_required" ? "step_up_required" : (body.error || `defs export failed: ${res.status}`));
+  }
+  const blob = await res.blob();
+  triggerBlobDownload(blob, `omniproject-defs-export-${new Date().toISOString().slice(0, 10)}.json`);
+}
+
+export interface DefsImportResult {
+  imported: boolean;
+  written?: { type: string; count: number }[];
+  warnings?: string[];
+  skipped?: number;
+  error?: string;
+}
+
+/** Reimport a def-store export bundle into THIS instance (re-validated + re-encrypted server-side). Needs a
+ *  fresh step-up; a step-up requirement is surfaced as Error("step_up_required") for the caller to handle. */
+export async function importDefsBundle(bundle: unknown): Promise<DefsImportResult> {
+  const res = await fetch("/api/setup/defs-import", {
+    method: "POST",
+    credentials: "same-origin",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(bundle),
+  });
+  const data = (await res.json().catch(() => ({}))) as DefsImportResult & { code?: string };
+  if (!res.ok) throw new Error(data.code === "step_up_required" ? "step_up_required" : (data.error || `defs import failed: ${res.status}`));
+  return data;
+}
+
+/** Download the FULL backup (settings snapshot + def-store export) as one file. Needs a fresh step-up;
+ *  a step-up requirement surfaces as Error("step_up_required").
+ *  `encrypted` downloads the SEALED variant: the COMPLETE state (secrets included) sealed under this
+ *  deployment's own key — restoring it elsewhere needs the same key material. The default (plaintext) variant
+ *  leaves secrets out. */
+export async function downloadFullBackup(encrypted = false): Promise<void> {
+  const res = await fetch(`/api/setup/full-backup${encrypted ? "?encrypted=1" : ""}`, { credentials: "same-origin" });
+  if (!res.ok) {
+    const body = (await res.json().catch(() => ({}))) as { error?: string; code?: string };
+    throw new Error(body.code === "step_up_required" ? "step_up_required" : (body.error || `full backup failed: ${res.status}`));
+  }
+  const blob = await res.blob();
+  const kind = encrypted ? "full-backup-sealed" : "full-backup";
+  triggerBlobDownload(blob, `omniproject-${kind}-${new Date().toISOString().slice(0, 10)}.json`);
+}
+
+export interface FullRestoreResult {
+  restored: boolean;
+  settingsRestored?: boolean;
+  defStore?: { written?: unknown[]; skipped?: number } | null;
+  warnings?: string[];
+  error?: string;
+}
+
+/** Restore BOTH settings + defs from a full backup. Needs a fresh step-up. */
+export async function restoreFullBackup(backup: unknown): Promise<FullRestoreResult> {
+  const res = await fetch("/api/setup/full-restore", {
+    method: "POST",
+    credentials: "same-origin",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(backup),
+  });
+  const data = (await res.json().catch(() => ({}))) as FullRestoreResult & { code?: string };
+  if (!res.ok) throw new Error(data.code === "step_up_required" ? "step_up_required" : (data.error || `full restore failed: ${res.status}`));
+  return data;
+}
+
+export interface ConfigDiff {
+  schema: string;
+  generatedAt: string;
+  settings: { added: string[]; removed: string[]; changed: { key: string; status: "added" | "removed" | "changed"; secret: boolean }[]; unchanged: number };
+  defStore: { type: string; scopeLabel: string; added: number; removed: number; changed: number; items: { id: string; status: "added" | "removed" | "changed"; fromRowVersion: number | null; toRowVersion: number | null }[] }[];
+  extraStores: { name: string; from: boolean; to: boolean }[];
+  summary: { settingsAdded: number; settingsRemoved: number; settingsChanged: number; defsAdded: number; defsRemoved: number; defsChanged: number; collectionsChanged: number };
+  identical: boolean;
+}
+
+/** Compare an uploaded backup (`to`) against the LIVE config; content-free change report. Needs a fresh
+ *  step-up (it decrypts every store to build the live side). A step-up requirement surfaces as
+ *  Error("step_up_required"). */
+export async function diffConfig(to: unknown): Promise<ConfigDiff> {
+  const res = await fetch("/api/setup/config-diff", {
+    method: "POST",
+    credentials: "same-origin",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ to }),
+  });
+  const data = (await res.json().catch(() => ({}))) as ConfigDiff & { code?: string; error?: string };
+  if (!res.ok) throw new Error(data.code === "step_up_required" ? "step_up_required" : (data.error || `config diff failed: ${res.status}`));
+  return data;
+}
+
 export interface ConfigVersion {
   id: string;
   env: string;

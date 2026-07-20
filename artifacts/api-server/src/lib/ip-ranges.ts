@@ -82,3 +82,54 @@ export function isBlockedIp(address: string, family: number): boolean {
   if (family === 6) return isLinkLocalIPv6(address);
   return false;
 }
+
+// ── Private / loopback ranges (OPT-IN hardened egress only) ─────────────────────────────────────────
+// The link-local/metadata checks above are the ALWAYS-ON floor. These broader private/loopback ranges
+// are blocked only when an operator opts into the hardened egress posture (EGRESS_BLOCK_PRIVATE), because
+// many normal deployments legitimately call internal hosts (a self-hosted broker like http://n8n:5678, a
+// LAN logging server). They stop the gateway being used as an SSRF relay to internal-only services.
+
+/** IPv4 dotted-decimal → true if RFC1918 private, loopback (127/8), CGNAT (100.64/10), or this-host (0/8). */
+export function isPrivateOrLoopbackIPv4(ip: string): boolean {
+  const parts = ip.split(".");
+  if (parts.length !== 4) return false;
+  const o = parts.map(Number);
+  if (o.some((n) => !Number.isInteger(n) || n < 0 || n > 255)) return false;
+  const a = o[0]!, b = o[1]!;
+  if (a === 10) return true;                         // 10.0.0.0/8
+  if (a === 172 && b >= 16 && b <= 31) return true;  // 172.16.0.0/12
+  if (a === 192 && b === 168) return true;           // 192.168.0.0/16
+  if (a === 127) return true;                        // 127.0.0.0/8 loopback
+  if (a === 0) return true;                          // 0.0.0.0/8 this-host
+  if (a === 100 && b >= 64 && b <= 127) return true; // 100.64.0.0/10 CGNAT
+  return false;
+}
+
+/** IPv6 literal → true if loopback (::1), unique-local (fc00::/7), or an IPv4-mapped private/loopback v4. */
+export function isPrivateOrLoopbackIPv6(ip: string): boolean {
+  const h = expandIPv6(ip.toLowerCase());
+  if (!h) return false;
+  if (h[0] === 0 && h[1] === 0 && h[2] === 0 && h[3] === 0 && h[4] === 0 && h[5] === 0 && h[6] === 0 && h[7] === 1) return true; // ::1
+  if ((h[0]! & 0xfe00) === 0xfc00) return true; // fc00::/7 unique-local
+  if (h[0] === 0 && h[1] === 0 && h[2] === 0 && h[3] === 0 && h[4] === 0 && h[5] === 0xffff) { // IPv4-mapped
+    const a = (h[6]! >> 8) & 0xff, b = h[6]! & 0xff, c = (h[7]! >> 8) & 0xff, d = h[7]! & 0xff;
+    return isPrivateOrLoopbackIPv4(`${a}.${b}.${c}.${d}`);
+  }
+  return false;
+}
+
+/** Is a resolved DNS address in a private/loopback range (opt-in hardened egress)? */
+export function isPrivateOrLoopbackIp(address: string, family: number): boolean {
+  if (family === 4) return isPrivateOrLoopbackIPv4(address);
+  if (family === 6) return isPrivateOrLoopbackIPv6(address);
+  return false;
+}
+
+/** Is `host` (lower-cased, brackets stripped) a private/loopback IP literal? A plain hostname is not a
+ *  literal — its resolved addresses are checked separately with `isPrivateOrLoopbackIp`. */
+export function isPrivateOrLoopbackHostLiteral(host: string): boolean {
+  const family = net.isIP(host);
+  if (family === 4) return isPrivateOrLoopbackIPv4(host);
+  if (family === 6) return isPrivateOrLoopbackIPv6(host);
+  return false;
+}

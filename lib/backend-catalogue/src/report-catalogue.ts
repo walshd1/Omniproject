@@ -11,6 +11,7 @@
 import { isCapabilityMet } from "./compatibility";
 import { matchesMethodology } from "./methodology-match";
 import { REPORTS_DATA } from "./reports.generated";
+import { composeExtends, type Resolved } from "./def-compose";
 import type { DrillTo } from "./drill-to";
 
 export type ReportKind = "schedule" | "progress" | "financial" | "resource" | "quality" | "portfolio";
@@ -52,6 +53,9 @@ export interface ReportManifest {
 }
 
 export interface ReportDefinition extends ReportManifest {
+  /** COMPOSITION: the id of a parent report this one is built on (see def-compose). A thin child adds/alters
+   *  properties over its parent; `resolveReport` flattens the chain. Omitted = a root report. */
+  extends?: string;
   /** The metrics / columns / series this report produces. */
   tools: string[];
   /** Methodology tags — "*"/omitted = neutral (all). */
@@ -68,13 +72,27 @@ export interface ReportDefinition extends ReportManifest {
   drillTo?: DrillTo;
 }
 
-/** Every shipped report, in display order. Authored as JSON under
- *  assets/reports/<id>.json and embedded by gen-reports (drift-guarded in CI). */
-export const REPORTS: ReportDefinition[] = [...REPORTS_DATA].sort((a, b) => a.order - b.order);
+/** The RAW authored reports (may carry `extends`), by id — the source `resolveReport` composes over. */
+const RAW_BY_ID = new Map(REPORTS_DATA.map((r) => [r.id, r]));
 
-/** One report definition by id, or undefined. */
+/** Resolve a report's `extends` chain into the effective (flattened) def + its lineage. Undefined when unknown.
+ *  A rootless report resolves to itself, so non-`extends` reports are unchanged. */
+export function resolveReport(id: string): Resolved<ReportDefinition> | undefined {
+  return composeExtends<ReportDefinition>(id, (k) => RAW_BY_ID.get(k));
+}
+
+/** Every shipped report FLATTENED (extends executed), in display order. Authored as JSON under
+ *  assets/reports/<id>.json and embedded by gen-reports (drift-guarded in CI). `lineage` is kept only on the
+ *  explicit `resolveReport` return, not on the catalogue entries. */
+export const REPORTS: ReportDefinition[] = [...REPORTS_DATA]
+  .map((r) => { const { lineage: _l, ...def } = resolveReport(r.id)!; return def; })
+  .sort((a, b) => a.order - b.order);
+
+const byId = new Map(REPORTS.map((r) => [r.id, r]));
+
+/** One report definition (flattened) by id, or undefined. */
 export function getReport(id: string): ReportDefinition | undefined {
-  return REPORTS.find((r) => r.id === id);
+  return byId.get(id);
 }
 
 /** All report definitions (a defensive copy). */
@@ -90,7 +108,7 @@ export function reportCatalogue(): ReportDefinition[] {
  * it." This is the single gate; surface only what it returns.
  */
 export function availableReports(caps: Record<string, boolean>): ReportDefinition[] {
-  return reportCatalogue().filter((r) => isCapabilityMet(r.capabilities.requiresCapability, caps));
+  return REPORTS.filter((r) => isCapabilityMet(r.capabilities.requiresCapability, caps)).map((r) => ({ ...r }));
 }
 
 /** Reports tagged with a methodology — those carrying its tag, plus the neutral

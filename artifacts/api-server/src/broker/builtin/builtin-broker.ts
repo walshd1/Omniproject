@@ -20,9 +20,16 @@ import {
   type CapabilityFlags,
   type VerifyReport,
   type Row,
+  type Whiteboard,
+  type WhiteboardWrite,
 } from "../types";
+import crypto from "node:crypto";
 import { isDone, isClosed } from "../vocabulary";
 import { INDICATIVE_FX_RATES } from "../../lib/fx-fallback";
+import { inScope } from "../../lib/scope";
+import { programmeIdsOf } from "../../lib/programmes";
+import { getSettings } from "../../lib/settings";
+import { whiteboardVisibleTo, newWhiteboardRow, mergeWhiteboardUpdate } from "../whiteboard-ownership";
 import type { BuiltinStore } from "./store";
 
 /**
@@ -41,13 +48,62 @@ export class BuiltinBroker implements Broker {
   readonly kind: string;
   readonly live = true;
 
+  // Whiteboards — capability-gated on the STORE: exposed only when the store can persist scenes (memory +
+  // omnistore do; the SQL sidecar doesn't), so a store that can't persist leaves these undefined and the
+  // routes answer 501. Ownership (org-wide vs personal) is enforced HERE via the shared, pure rules.
+  listWhiteboards?: (ctx: ActorContext, opts?: { projectId?: string }) => Promise<Whiteboard[]>;
+  getWhiteboard?: (ctx: ActorContext, id: string) => Promise<Whiteboard | null>;
+  writeWhiteboard?: (ctx: ActorContext, op: "create" | "update" | "delete", input: WhiteboardWrite & { id?: string }) => Promise<Whiteboard | null>;
+
   constructor(private readonly store: BuiltinStore) {
     this.kind = `builtin:${store.name}`;
+    if (store.saveWhiteboard && store.listWhiteboards && store.getWhiteboard && store.deleteWhiteboard) {
+      this.listWhiteboards = async (ctx, opts) => {
+        const all = await store.listWhiteboards!();
+        return all
+          .filter((b) => (!opts?.projectId || b.projectId === opts.projectId) && whiteboardVisibleTo(b, ctx.sub))
+          .map((b) => ({ ...b, scene: { elements: [] } })); // list omits the scene body
+      };
+      this.getWhiteboard = async (ctx, id) => {
+        const b = await store.getWhiteboard!(id);
+        return b && whiteboardVisibleTo(b, ctx.sub) ? b : null; // a personal board is null to non-owners
+      };
+      this.writeWhiteboard = async (ctx, op, input) => {
+        const now = new Date().toISOString();
+        if (op === "create") {
+          const row = newWhiteboardRow(ctx, `wb-${crypto.randomUUID()}`, input, now);
+          await store.saveWhiteboard!(row);
+          return row;
+        }
+        // update / delete: the board must exist AND be visible to the caller (a personal board is
+        // not_found to a non-owner, so neither edit nor delete can target it).
+        const existing = input.id ? await store.getWhiteboard!(input.id) : null;
+        if (!existing || !whiteboardVisibleTo(existing, ctx.sub)) throw new BrokerError("not_found", "Whiteboard not found");
+        if (op === "delete") { await store.deleteWhiteboard!(existing.id); return null; }
+        const merged = mergeWhiteboardUpdate(existing, ctx, input, now);
+        await store.saveWhiteboard!(merged);
+        return merged;
+      };
+    }
   }
 
   // ── Projects ────────────────────────────────────────────────────────────────
-  async listProjects(_ctx?: ActorContext): Promise<Project[]> {
-    return this.store.listProjects();
+  /** Reference scope enforcement for the visible-project set: `listProjects` (and the portfolio
+   *  roll-up that derives from it) is the scope-filtered set per the broker contract
+   *  (lib/project-scope), so a programme-scoped principal — a human manager OR a scoped API token —
+   *  only ever sees its own programmes' projects. Mirrors DemoBroker.listProjects; without it the
+   *  built-in (real, durable) store returned the WHOLE portfolio to any caller. */
+  private scopeProjects(ctx: ActorContext | undefined, projects: Project[]): Project[] {
+    const scope = ctx?.scope ?? { level: "all" as const };
+    if (scope.level === "all") return projects;
+    const registry = getSettings().programmeRegistry;
+    return projects.filter((p) =>
+      inScope(scope, { id: (p as Row)["id"] as string, programmeId: ((p as Row)["programmeId"] as string | null | undefined) ?? null, programmeIds: programmeIdsOf(p as Row, registry) }),
+    );
+  }
+
+  async listProjects(ctx?: ActorContext): Promise<Project[]> {
+    return this.scopeProjects(ctx, await this.store.listProjects());
   }
   async createProject(_ctx: ActorContext, input: ProjectWrite): Promise<Project> {
     return this.store.createProject(input);
@@ -105,8 +161,8 @@ export class BuiltinBroker implements Broker {
     const done = issues.filter((i) => isDone(String(i.status))).length;
     return { projectId, total, byStatus, byPriority, completionRate: total > 0 ? Math.round((done / total) * 100) : 0, overdue };
   }
-  async portfolioHealth(_ctx: ActorContext): Promise<PortfolioRow[]> {
-    const projects = await this.store.listProjects();
+  async portfolioHealth(ctx: ActorContext): Promise<PortfolioRow[]> {
+    const projects = this.scopeProjects(ctx, await this.store.listProjects());
     return projects.map((p) => {
       const issueCount = Number((p as Row)["issueCount"] ?? 0);
       const completed = Number((p as Row)["completedCount"] ?? 0);

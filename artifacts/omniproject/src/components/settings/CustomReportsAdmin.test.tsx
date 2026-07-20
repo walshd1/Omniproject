@@ -13,11 +13,28 @@ const AVAIL: Availability = { source: "manifest", fields: ["status", "budget"], 
 function seed(role: string | undefined, reports: CustomReportDef[]): QueryClient {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity, gcTime: Infinity }, mutations: { retry: false } } });
   if (role) qc.setQueryData(["auth", "me"], { sub: "u1", role });
-  qc.setQueryData(customReportsQueryKey, reports);
+  // Report defs are def-store artifacts now: the editable set is the ORG-scoped `report` defs (with scoped ids).
+  qc.setQueryData(["defs", "resolved", "report", null, null], reports.map((r, i) => ({
+    id: `org~r${i}`, kind: "report", name: r.label, payload: r, createdBy: null, createdAt: "", updatedAt: "", rowVersion: 1,
+  })));
+  qc.setQueryData(["custom-reports", "legacy"], []); // no un-migrated legacy → no migration button
+  qc.setQueryData(customReportsQueryKey, reports);   // resolved set (the renderer)
   qc.setQueryData(reportOverridesQueryKey, []);
   qc.setQueryData(availabilityQueryKey, AVAIL);
   return qc;
 }
+
+/** The payload of the report def written through the importer (POST a new / PUT an existing). */
+function savedReportPayload(fetchMock: ReturnType<typeof vi.fn>): Record<string, unknown> {
+  const isDefWrite = (c: unknown[]) => {
+    const url = String(c[0]); const m = (c[1] as RequestInit | undefined)?.method;
+    return (url === "/api/defs" && m === "POST") || (url.startsWith("/api/defs/") && m === "PUT");
+  };
+  const call = fetchMock.mock.calls.find(isDefWrite)!;
+  return (JSON.parse((call[1] as RequestInit).body as string) as { payload: Record<string, unknown> }).payload;
+}
+const wroteADef = (fetchMock: ReturnType<typeof vi.fn>) =>
+  fetchMock.mock.calls.some((c) => String(c[0]) === "/api/defs" || String(c[0]).startsWith("/api/defs/"));
 
 afterEach(() => vi.restoreAllMocks());
 
@@ -37,12 +54,9 @@ describe("CustomReportsAdmin", () => {
     fireEvent.change(screen.getByLabelText("Report 1 group by"), { target: { value: "status" } });
     fireEvent.click(screen.getByText("Save reports"));
 
-    await waitFor(() => expect(fetchMock.mock.calls.some((c) => c[0] === "/api/reports/custom")).toBe(true));
-    const [, init] = fetchMock.mock.calls.find((c) => c[0] === "/api/reports/custom")!;
-    expect(init.method).toBe("PUT");
-    const body = JSON.parse(init.body as string);
-    expect(body.customReports[0]).toMatchObject({ label: "Spend by status", scope: "project", groupBy: "status", viz: "table" });
-    expect(body.customReports[0].metrics[0]).toMatchObject({ agg: "count" });
+    await waitFor(() => expect(wroteADef(fetchMock)).toBe(true));
+    expect(savedReportPayload(fetchMock)).toMatchObject({ label: "Spend by status", scope: "project", groupBy: "status", viz: "table" });
+    expect((savedReportPayload(fetchMock).metrics as unknown[])[0]).toMatchObject({ agg: "count" });
   });
 
   it("a tasks-scoped report sources its fields from the task descriptor and saves", async () => {
@@ -61,10 +75,8 @@ describe("CustomReportsAdmin", () => {
     fireEvent.change(groupBy, { target: { value: "context" } });
     fireEvent.click(screen.getByText("Save reports"));
 
-    await waitFor(() => expect(fetchMock.mock.calls.some((c) => c[0] === "/api/reports/custom")).toBe(true));
-    const [, init] = fetchMock.mock.calls.find((c) => c[0] === "/api/reports/custom")!;
-    const body = JSON.parse(init.body as string);
-    expect(body.customReports[0]).toMatchObject({ label: "Tasks by context", scope: "tasks", groupBy: "context" });
+    await waitFor(() => expect(wroteADef(fetchMock)).toBe(true));
+    expect(savedReportPayload(fetchMock)).toMatchObject({ label: "Tasks by context", scope: "tasks", groupBy: "context" });
   });
 
   it("saves chart type + options (pie / stacked / legend) from the chart editor", async () => {
@@ -80,10 +92,8 @@ describe("CustomReportsAdmin", () => {
     fireEvent.click(screen.getByLabelText("Report 1 stacked"));
     fireEvent.click(screen.getByText("Save reports"));
 
-    await waitFor(() => expect(fetchMock.mock.calls.some((c) => c[0] === "/api/reports/custom")).toBe(true));
-    const [, init] = fetchMock.mock.calls.find((c) => c[0] === "/api/reports/custom")!;
-    const body = JSON.parse(init.body as string);
-    expect(body.customReports[0]).toMatchObject({ viz: "bar", chart: { legend: false, stacked: true } });
+    await waitFor(() => expect(wroteADef(fetchMock)).toBe(true));
+    expect(savedReportPayload(fetchMock)).toMatchObject({ viz: "bar", chart: { legend: false, stacked: true } });
   });
 
   it("shows the second group-by select only once a first group-by is chosen, and saves the pivot", async () => {
@@ -99,10 +109,8 @@ describe("CustomReportsAdmin", () => {
     fireEvent.change(screen.getByLabelText("Report 1 group by 2"), { target: { value: "budget" } });
 
     fireEvent.click(screen.getByText("Save reports"));
-    await waitFor(() => expect(fetchMock.mock.calls.some((c) => c[0] === "/api/reports/custom")).toBe(true));
-    const [, init] = fetchMock.mock.calls.find((c) => c[0] === "/api/reports/custom")!;
-    const body = JSON.parse(init.body as string);
-    expect(body.customReports[0]).toMatchObject({ groupBy: "status", groupBy2: "budget" });
+    await waitFor(() => expect(wroteADef(fetchMock)).toBe(true));
+    expect(savedReportPayload(fetchMock)).toMatchObject({ groupBy: "status", groupBy2: "budget" });
   });
 
   it("clears the second group-by when the first is cleared", () => {
@@ -125,10 +133,8 @@ describe("CustomReportsAdmin", () => {
     fireEvent.change(screen.getByLabelText("Report 1 date field"), { target: { value: "budget" } });
 
     fireEvent.click(screen.getByText("Save reports"));
-    await waitFor(() => expect(fetchMock.mock.calls.some((c) => c[0] === "/api/reports/custom")).toBe(true));
-    const [, init] = fetchMock.mock.calls.find((c) => c[0] === "/api/reports/custom")!;
-    const body = JSON.parse(init.body as string);
-    expect(body.customReports[0]).toMatchObject({ viz: "line", dateField: "budget" });
+    await waitFor(() => expect(wroteADef(fetchMock)).toBe(true));
+    expect(savedReportPayload(fetchMock)).toMatchObject({ viz: "line", dateField: "budget" });
   });
 
   it("exports a report definition as a JSON download", () => {
@@ -210,10 +216,8 @@ describe("CustomReportsAdmin", () => {
     fireEvent.change(screen.getByLabelText("Report 1 metric 1 label"), { target: { value: "Total spend" } });
     fireEvent.click(screen.getByText("Save reports"));
 
-    await waitFor(() => expect(fetchMock.mock.calls.some((c) => c[0] === "/api/reports/custom")).toBe(true));
-    const [, init] = fetchMock.mock.calls.find((c) => c[0] === "/api/reports/custom")!;
-    const body = JSON.parse((init as RequestInit).body as string);
-    expect(body.customReports[0].metrics[0]).toMatchObject({ agg: "sum", field: "budget", label: "Total spend" });
+    await waitFor(() => expect(wroteADef(fetchMock)).toBe(true));
+    expect((savedReportPayload(fetchMock).metrics as unknown[])[0]).toMatchObject({ agg: "sum", field: "budget", label: "Total spend" });
   });
 
   it("adds and removes metrics, keeping at least one", () => {
@@ -277,10 +281,8 @@ describe("CustomReportsAdmin", () => {
     fireEvent.click(screen.getByRole("button", { name: /\+ condition/i }));
     fireEvent.click(screen.getByText("Save reports"));
 
-    await waitFor(() => expect(fetchMock.mock.calls.some((c) => c[0] === "/api/reports/custom")).toBe(true));
-    const [, init] = fetchMock.mock.calls.find((c) => c[0] === "/api/reports/custom")!;
-    const body = JSON.parse((init as RequestInit).body as string);
-    expect(body.customReports[0].filter.all.length).toBeGreaterThan(0);
+    await waitFor(() => expect(wroteADef(fetchMock)).toBe(true));
+    expect(((savedReportPayload(fetchMock).filter as { all: unknown[] }).all).length).toBeGreaterThan(0);
   });
 
   it("hides and reorders a built-in report, saving both as overrides", async () => {

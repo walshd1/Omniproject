@@ -9,6 +9,7 @@ delete process.env["BROKER_URL"];
 import { BuiltinBroker, MemoryStore } from "./index";
 import { structuralConformance, runReadConformance } from "../conformance";
 import { BrokerError, type ActorContext } from "../types";
+import { updateSettings } from "../../lib/settings";
 
 const ctx: ActorContext = { sub: "founder", email: "founder@charity.test", role: "admin" };
 const fresh = () => new BuiltinBroker(new MemoryStore());
@@ -53,6 +54,32 @@ test("starts EMPTY and round-trips project + issue CRUD, keeping roll-up counts"
 
   await b.writeIssue(ctx, "delete", { projectId: project.id, issueId: created!.id });
   assert.deepEqual(await b.listIssues(ctx, project.id), []);
+});
+
+test("scope enforcement: a programme-scoped caller only sees its programme's projects (listProjects + portfolioHealth)", async () => {
+  const b = fresh();
+  const alpha = await b.createProject(ctx, { name: "Alpha proj", omniInstanceId: "guid-alpha" });
+  const beta = await b.createProject(ctx, { name: "Beta proj", omniInstanceId: "guid-beta" });
+  try {
+    // Register programme "alpha" containing ONLY alpha's correlation GUID.
+    updateSettings({ programmeRegistry: { alpha: { name: "Alpha", instanceIds: ["guid-alpha"] } } });
+    const scoped: ActorContext = { sub: "mgr", role: "manager", scope: { level: "programme", programmes: ["alpha"] } };
+
+    // Before the fix the built-in store returned BOTH projects to this scoped caller (whole-portfolio leak).
+    const visible = await b.listProjects(scoped);
+    assert.deepEqual(visible.map((p) => p.id), [alpha.id]);
+    const health = await b.portfolioHealth(scoped);
+    assert.deepEqual(health.map((h) => h.projectId), [alpha.id]);
+
+    // An all-scope (admin) caller still sees both — the filter only narrows non-`all` scopes.
+    assert.equal((await b.listProjects(ctx)).length, 2);
+    // A programme with no matching membership sees nothing (fail-closed).
+    const none = await b.listProjects({ sub: "x", scope: { level: "programme", programmes: ["ghost"] } });
+    assert.deepEqual(none, []);
+    void beta;
+  } finally {
+    updateSettings({ programmeRegistry: {} });
+  }
 });
 
 test("optimistic concurrency: a stale expectedVersion is a conflict; a missing issue is not_found", async () => {

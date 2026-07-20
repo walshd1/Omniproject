@@ -4,6 +4,7 @@ import { runScheduledAutonomousJob, createIntervalScheduler } from "./scheduled-
 import { deliverDigestEmail } from "./digest-delivery";
 import type { Mailer } from "./email";
 import { logger } from "./logger";
+import { DEFAULT_THRESHOLDS } from "./health-watch";
 
 /**
  * Proactive "what needs me" digest.
@@ -51,11 +52,11 @@ export interface DigestThresholds {
   maxNamed: number;
 }
 
-/** Safe, PM-friendly defaults — a slip of a working week, a 10% budget breach, any blocker. */
+/** Safe, PM-friendly defaults. The three risk thresholds are shared with the health watch (single source
+ *  of truth — DEFAULT_THRESHOLDS) so the two surfaces can never disagree on what "at risk" means; this
+ *  module adds only its own presentation cap (maxNamed). */
 export const DEFAULT_DIGEST_THRESHOLDS: DigestThresholds = {
-  scheduleSlipDays: 5,
-  budgetOverrunPct: 10,
-  blockers: 1,
+  ...DEFAULT_THRESHOLDS,
   maxNamed: 5,
 };
 

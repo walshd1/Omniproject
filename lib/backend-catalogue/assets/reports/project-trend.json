@@ -1,0 +1,11 @@
+{
+  "id": "project-trend",
+  "label": "Project Trend",
+  "docsUrl": "",
+  "kind": "progress",
+  "renderer": { "engine": "builtin", "component": "ProjectTrend" },
+  "capabilities": { "requiresCapability": null, "timeSeries": true, "exports": ["csv", "pdf", "png"] },
+  "tools": ["history","trend"],
+  "notes": "Point-in-time history trend for a project. Stateless.",
+  "order": 55
+}

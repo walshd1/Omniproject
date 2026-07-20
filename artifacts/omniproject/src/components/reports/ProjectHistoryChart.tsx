@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { useMemo, type ReactNode } from "react";
 import { useGetProjectHistory, type ProjectHistoryPoint } from "@workspace/api-client-react";
 import { ProvenanceBadge } from "../ProvenanceBadge";
 import { DataState } from "../DataState";
@@ -43,7 +43,7 @@ export function ProjectHistoryChart<T>({
 }: ProjectHistoryChartProps<T>) {
   const { data, isLoading, isError, error, refetch } = useGetProjectHistory(projectId);
   const points = data ?? [];
-  const series = select(points);
+  const series = useMemo(() => select(points), [select, points]);
   const provenance = points[0]?.provenance;
 
   return (

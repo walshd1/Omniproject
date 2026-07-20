@@ -17,6 +17,7 @@ import { configuredBrokerUrls } from "./broker-url";
 import { checkRequiredEnv, detectEnvVarTypos, isTruthy } from "./env-config";
 import { isProductionLike } from "./dev-mode-guard";
 import { isDemoAuthFrom } from "./auth-config";
+import { isBlockedHostLiteral } from "./ip-ranges";
 
 export type Severity = "critical" | "warn" | "info";
 
@@ -28,6 +29,17 @@ export interface SecurityFinding {
 
 type Env = Record<string, string | undefined>;
 const set = (v: string | undefined) => !!v?.trim();
+
+/** The literal hostname of a URL-ish connection string (a URL, or `host:port`, with an optional
+ *  scheme and `user:pass@`), lower-cased with IPv6 brackets stripped — or null if there's nothing
+ *  usable. Used to spot a non-HTTP egress target (SMTP/Redis) pointed at a known-bad literal. */
+function outboundHostLiteral(url: string | undefined): string | null {
+  const v = url?.trim();
+  if (!v) return null;
+  try { return new URL(v).hostname.replace(/^\[|\]$/g, "").toLowerCase() || null; } catch { /* not a full URL */ }
+  const hostPort = v.replace(/^[a-z][a-z0-9+.-]*:\/\//i, "").split("/")[0]!.split("@").pop() ?? "";
+  return hostPort.replace(/:\d+$/, "").replace(/^\[|\]$/g, "").toLowerCase() || null;
+}
 const explicitlyOff = (v: string | undefined) => {
   const t = v?.trim().toLowerCase();
   return t === "off" || t === "false" || t === "0" || t === "no";
@@ -127,6 +139,21 @@ export function securityFindings(env: Env): SecurityFinding[] {
       message: "RATE_LIMIT_DISABLED is on in production — abuse/DoS protection is removed.",
     });
   }
+  // SCIM token present but too weak to be trusted. SCIM drives deprovisioning + group→role membership,
+  // so a short/brute-forceable token is a privilege-escalation vector — the gate DISABLES SCIM when the
+  // token is under the floor (fail-closed, see lib/scim), which would silently stop provisioning; surface
+  // it loudly so the operator sets a strong token rather than wondering why SCIM went dark.
+  {
+    const scimTok = env["SCIM_TOKEN"]?.trim();
+    if (scimTok && scimTok.length < 24) {
+      out.push({
+        id: "scim-token-weak",
+        severity: "warn",
+        message: `SCIM_TOKEN is set but shorter than the 24-char minimum — SCIM provisioning is DISABLED until it is strengthened ` +
+          "(a weak SCIM token would let an attacker deprovision users or grant admin via group membership). Use a strong random token.",
+      });
+    }
+  }
   // mTLS deliberately downgraded to accept an unverified broker certificate — the same class
   // of "explicit insecure escape hatch left on in prod" as the checks above, so it gets the
   // same CRITICAL treatment (refuses to boot by default) rather than a log-only warning.
@@ -150,6 +177,23 @@ export function securityFindings(env: Env): SecurityFinding[] {
       message: "CSRF_DISABLED is on in production — the Origin/Referer + double-submit-token guard for " +
         "cookie-authenticated mutations is off (SameSite=Lax cookies still block most cross-site vectors).",
     });
+  }
+  // Non-HTTP egress (SMTP, Redis) reaches a FIXED operator host, so it sits outside the HTTP egress
+  // guard (safeFetch/guardedLookup). It isn't request-influenced, but a config that literally points
+  // mail or the shared-state cache at the link-local/cloud-metadata range is never legitimate — a
+  // misconfiguration or an exfil/pivot attempt. Flagged as CRITICAL (refuse boot) on the LITERAL host
+  // only: a hostname is the operator's own infra and blocking boot on a transient DNS resolve would
+  // be worse than the risk.
+  for (const name of ["SMTP_URL", "REDIS_URL"] as const) {
+    const host = outboundHostLiteral(env[name]);
+    if (host && isBlockedHostLiteral(host)) {
+      out.push({
+        id: "egress-host-metadata",
+        severity: "critical",
+        message: `${name} points at ${host}, in the link-local/cloud-metadata range — never a legitimate ` +
+          `${name === "SMTP_URL" ? "mail server" : "cache"}. Point it at your real host.`,
+      });
+    }
   }
   // Premium/labels free-to-run is a business choice, not security — skip.
   // Egress not pinned (link-local/metadata are still blocked regardless).

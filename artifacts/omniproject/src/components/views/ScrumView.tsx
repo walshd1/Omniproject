@@ -55,7 +55,15 @@ export function ScrumView({ projectId }: { projectId: string }) {
     const backlog = all.filter((i) => !inActiveSprint(i) && i.status !== "cancelled");
     const committed = sprint.reduce((sum, i) => sum + storyPoints(i), 0);
     const completed = sprint.filter((i) => isDone(i.status)).reduce((sum, i) => sum + storyPoints(i), 0);
-    return { sprint, backlog, committed, completed, remaining: committed - completed };
+    // Group sprint issues by status once (preserving sprint order) so each column is an
+    // O(1) lookup instead of re-filtering the whole sprint inside SPRINT_COLUMNS.map.
+    const grouped = new Map<string, Issue[]>();
+    for (const i of sprint) {
+      const list = grouped.get(i.status);
+      if (list) list.push(i);
+      else grouped.set(i.status, [i]);
+    }
+    return { sprint, backlog, committed, completed, remaining: committed - completed, grouped };
   }, [issues]);
 
   return (
@@ -79,7 +87,7 @@ export function ScrumView({ projectId }: { projectId: string }) {
         <div className="flex-1 grid grid-cols-1 xl:grid-cols-[1fr_18rem] gap-6 min-h-0">
           <div className="flex gap-4 overflow-x-auto pb-2">
             {SPRINT_COLUMNS.map((status) => {
-              const col = model.sprint.filter((i) => i.status === status);
+              const col = model.grouped.get(status) ?? [];
               const pts = col.reduce((s, i) => s + storyPoints(i), 0);
               return (
                 <div key={status} className="w-72 shrink-0 flex flex-col bg-card border border-border">

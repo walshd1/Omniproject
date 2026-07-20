@@ -26,7 +26,7 @@ export const READ_METHODS = new Set([
   "notifications", "portfolioHealth", "resourceCapacity", "projectFinancials",
   "capabilities", "fxRates",
 ]);
-const WRITE_METHODS = new Set([
+export const WRITE_METHODS = new Set([
   "createProject", "updateProject", "writeIssue", "createTaskItem", "addRaid",
 ]);
 
@@ -59,11 +59,30 @@ export function invalidateReadCache(): void {
 
 interface Entry { at: number; value: unknown; ttl: number }
 
-/** A per-actor key prefix so one user's read is never shared with another (reads run "as" the user). */
+/** A stable, non-secret fingerprint of a principal's DATA scope. Two callers with the same identity but
+ *  DIFFERENT scope (e.g. an all-scope admin vs a programme-scoped token, or two tokens bound to different
+ *  programmes) must not share a cache bucket — a scope-filtered `listProjects` for one must never be
+ *  served to the other. Deterministic (sorted) so the key is stable across requests. */
+function scopeFingerprint(scope: ActorContext["scope"]): string {
+  if (!scope) return "s:none";
+  if (scope.level === "all") return "s:all";
+  if (scope.level === "programme") return `s:prog:${[...(scope.programmes ?? [])].sort().join(",")}`;
+  return `s:user:${scope.sub ?? ""}`;
+}
+
+/** A per-actor key prefix so one principal's read is never shared with another (reads run "as" the
+ *  principal). Includes the scope fingerprint so identity + scope together bucket the cache — otherwise
+ *  a fix that forwards scope into the ctx would let two differently-scoped callers poison each other. */
 export const actorKey = (a: unknown): string => {
   const ctx = a as ActorContext | undefined;
-  return ctx?.sub ?? ctx?.email ?? "anon";
+  const id = ctx?.sub ?? ctx?.email ?? "anon";
+  return `${id}|${scopeFingerprint(ctx?.scope)}`;
 };
+
+/** The per-actor read key BOTH the cache and single-flight coalesce on: identity + method + args.
+ *  Extracted so a cache miss doesn't JSON.stringify the same args twice (once per stacked layer). */
+export const readKey = (method: string, args: unknown[]): string =>
+  `${actorKey(args[0])}:${method}:${JSON.stringify(args.slice(1))}`;
 
 /** Wrap a broker so its reads are cached for the configured TTL (writes clear it). The TTL is fixed
  *  (`READ_CACHE_TTL_MS`) unless adaptive mode is on, in which case it's tuned per method from measured
@@ -74,23 +93,30 @@ export function wrapWithCache(base: Broker, opts: { now?: () => number } = {}): 
   const store = new Map<string, Entry>();
   const clear = () => store.clear();
   activeClear = clear;
+  // Memoize the per-method wrapper so a fresh closure isn't allocated on EVERY property access (this
+  // is an always-in-the-stack broker layer). The guard logic still runs per CALL, inside the wrapper —
+  // caching the accessor changes nothing a caller observes, it just stops the churn.
+  const wrappers = new Map<PropertyKey, unknown>();
 
   return new Proxy(base, {
     get(target, prop, receiver) {
+      const memo = wrappers.get(prop);
+      if (memo !== undefined) return memo;
       const orig = Reflect.get(target, prop, receiver);
-      if (typeof orig !== "function") return orig;
+      if (typeof orig !== "function") return orig; // non-function props pass through, never memoized
       const method = String(prop);
 
+      let wrapper: unknown;
       if (WRITE_METHODS.has(method)) {
-        return function (this: unknown, ...args: unknown[]) {
+        wrapper = function (this: unknown, ...args: unknown[]) {
           clear(); // write-through: drop stale reads immediately
           return (orig as (...a: unknown[]) => unknown).apply(target, args);
         };
-      }
-      if (!READ_METHODS.has(method)) return (orig as (...a: unknown[]) => unknown).bind(target);
-
-      return function (this: unknown, ...args: unknown[]) {
-        const key = `${actorKey(args[0])}:${method}:${JSON.stringify(args.slice(1))}`;
+      } else if (!READ_METHODS.has(method)) {
+        wrapper = (orig as (...a: unknown[]) => unknown).bind(target);
+      } else {
+        wrapper = function (this: unknown, ...args: unknown[]) {
+        const key = readKey(method, args);
         const hit = store.get(key);
         // Each entry carries the TTL chosen when it was fetched, so an adaptive TTL change later
         // doesn't retroactively extend an old entry's freshness window.
@@ -112,7 +138,10 @@ export function wrapWithCache(base: Broker, opts: { now?: () => number } = {}): 
           })
           .catch(() => { /* don't cache failures */ });
         return result;
-      };
+        };
+      }
+      wrappers.set(prop, wrapper);
+      return wrapper;
     },
   }) as Broker;
 }

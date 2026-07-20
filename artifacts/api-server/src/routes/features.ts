@@ -9,6 +9,7 @@ import { getSettings, updateSettings, SettingsValidationError, type ScopeFeature
 import { requireRole } from "../lib/rbac";
 import { getSession } from "./auth";
 import { recordRequestAudit } from "../lib/audit";
+import { applySettingsGuarded } from "../lib/settings-guard";
 import { getProjects } from "../lib/data";
 import { programmeIdOf } from "../lib/programmes";
 import { validatePredicate, type ConditionSet } from "../lib/predicate";
@@ -153,10 +154,17 @@ function readGovernanceRules(raw: unknown): GovernanceRule[] {
   return out;
 }
 
-router.put("/features/governance-rules", requireRole("pmo"), (req, res) => {
+router.put("/features/governance-rules", requireRole("pmo"), async (req, res) => {
   try {
     const governanceRules = readGovernanceRules((req.body as Record<string, unknown>)?.["governanceRules"]);
-    updateSettings({ governanceRules });
+    // Governing invariant (§0): governance rules ARE a control — any edit could weaken enforcement, so a
+    // change is held for a signed sign-off (fail-closed; the direction of a rule edit isn't decidable here).
+    const guarded = await applySettingsGuarded({ governanceRules }, getSession(req)?.sub ?? "admin");
+    if (!guarded.applied) {
+      recordRequestAudit(req, { category: "admin", action: "governance.rules.update", result: "success", status: 202, meta: { count: governanceRules.length, held: true } });
+      res.status(202).json({ pending: guarded.pending, message: "Editing governance rules changes a control and needs a signed sign-off before it applies. See /api/approvals/inbox." });
+      return;
+    }
     recordRequestAudit(req, { category: "admin", action: "governance.rules.update", result: "success", status: 200, meta: { count: governanceRules.length } });
     res.json({ governanceRules: getSettings().governanceRules });
   } catch (err) {

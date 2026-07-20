@@ -181,7 +181,10 @@ feature-gapped. At the benchmarks, these are table stakes because they're *demon
 
 ---
 
-*Point-in-time review (July 2026). Every item above has since been dispositioned — as a build
-candidate, a pointer to its owning register, or an explicit decided-against — in
-[FEATURE-ROADMAP.md](../../FEATURE-ROADMAP.md); that doc is the living one, this review stays
-frozen.*
+*Point-in-time review (July 2026), measured against the tree at `main@7dc61a4`. Every item has
+since been dispositioned in [FEATURE-ROADMAP.md](../../FEATURE-ROADMAP.md) (Phase 5 harvests
+this review; Phase 4.12 and the ❄ markers record the won't-build calls) — and a parallel build
+wave has already shipped several of the gaps named above (intake forms, automation recipes,
+wiki with Yjs co-editing, whiteboards, guest portals, encrypted offline cache, Web Push, typed
+dependencies + auto-scheduling, OKR goals, invoicing, a plugin marketplace), so read the
+roadmap's per-item status, not this frozen text, for what is still open.*

@@ -2,7 +2,7 @@ import { test, afterEach, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import {
   createUser, getUser, patchUser, replaceUser, deleteUser, listUsers,
-  createGroup, patchGroup, directoryDecision, scimTokenValid,
+  createGroup, patchGroup, directoryDecision, scimTokenValid, scimEnabled,
   refreshScimFromShared, SCIM_SHARED_KEY, __resetScim,
   sanitizeSharedDirectory,
 } from "./scim";
@@ -12,11 +12,13 @@ import { sharedKv, __resetSharedStateForTest } from "./shared-state";
  * SCIM directory: lifecycle overlay over OIDC. Deprovision (active=false) denies; group
  * membership becomes role claims.
  */
-beforeEach(() => { process.env["SCIM_TOKEN"] = "scim-secret"; __resetScim(); __resetSharedStateForTest(); });
+// A strong (≥24-char) token — SCIM now requires one (a weak token disables SCIM, fail-closed).
+const STRONG_SCIM_TOKEN = "scim-secret-token-0123456789";
+beforeEach(() => { process.env["SCIM_TOKEN"] = STRONG_SCIM_TOKEN; __resetScim(); __resetSharedStateForTest(); });
 afterEach(() => { delete process.env["SCIM_TOKEN"]; __resetScim(); __resetSharedStateForTest(); });
 
 test("scimTokenValid is a constant-time exact match", () => {
-  assert.equal(scimTokenValid("scim-secret"), true);
+  assert.equal(scimTokenValid(STRONG_SCIM_TOKEN), true);
   assert.equal(scimTokenValid("wrong"), false);
   assert.equal(scimTokenValid(undefined), false);
 });
@@ -96,6 +98,13 @@ test("SCIM is disabled (no opinion) when SCIM_TOKEN is unset", () => {
   createUser({ userName: "frank@corp.com", active: false });
   // With SCIM off, the directory expresses no opinion even for a stored inactive user.
   assert.deepEqual(directoryDecision({ email: "frank@corp.com" }), { known: false, active: true, roleClaims: [] });
+});
+
+test("SCIM is DISABLED when SCIM_TOKEN is too weak (< 24 chars) — fail-closed, no auth on a brute-forceable token", () => {
+  process.env["SCIM_TOKEN"] = "short-token"; // 11 chars, under the floor
+  __resetScim();
+  assert.equal(scimEnabled(), false);
+  assert.equal(scimTokenValid("short-token"), false); // the weak token does NOT authorise SCIM
 });
 
 test("fleet propagation: a deprovision on one replica denies the user on a sibling after refresh", async () => {

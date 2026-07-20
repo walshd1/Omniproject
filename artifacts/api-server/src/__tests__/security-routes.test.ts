@@ -121,6 +121,24 @@ test("POST /security/audit/verify rejects a non-array body and verifies an empty
   assert.equal(ok.status, 200);
 });
 
+test("GET /security/audit/log returns the evidence-log status", async () => {
+  const r = await h.req("/security/audit/log", { cookie: adminCookie() });
+  assert.equal(r.status, 200);
+  const body = await r.json() as { retained: number; durable: boolean; cap: number };
+  assert.equal(typeof body.retained, "number");
+  assert.equal(typeof body.durable, "boolean");
+  assert.equal(typeof body.cap, "number");
+});
+
+test("POST /security/audit/log/dispose needs a fresh step-up, then reports disposed/remaining", async () => {
+  assert.equal((await h.req("/security/audit/log/dispose", { method: "POST", cookie: adminCookie() })).status, 403);
+  const r = await h.req("/security/audit/log/dispose", { method: "POST", cookie: stepUpAdminCookie() });
+  assert.equal(r.status, 200);
+  const body = await r.json() as { disposed: number; remaining: number };
+  assert.equal(typeof body.disposed, "number");
+  assert.equal(typeof body.remaining, "number");
+});
+
 test("GET /admin/approvals returns the (empty) proposal queue", async () => {
   const r = await h.req("/admin/approvals", { cookie: adminCookie() });
   assert.equal(r.status, 200);

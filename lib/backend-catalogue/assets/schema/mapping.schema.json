@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://omniproject.dev/assets/mapping.schema.json",
+  "title": "OmniProject field mapping",
+  "description": "A shipped CORE field-mapping def (roadmap §4.6). One file per slot under assets/mappings/<id>.json. A slot's rows are read/written/deleted through the generic mapping surface; each field is addressed to a (broker, backend). Methodology-NEUTRAL data plumbing — the agile tag lives on the screen/report surfaces that render a slot, never on the slot itself.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["id", "label", "fields"],
+  "properties": {
+    "id": { "type": "string", "pattern": "^[a-zA-Z0-9-]+$", "description": "The slot id (must equal the filename)." },
+    "label": { "type": "string", "description": "Human label used as the seeded def name." },
+    "broker": { "type": "string", "description": "Default home broker for fields with no per-field override (e.g. \"builtin\")." },
+    "backend": { "type": "string", "description": "Default home backend (e.g. \"sidecar\" for the all-in-one store)." },
+    "joinField": { "type": "string", "description": "The row id column (defaults to the id field's native name)." },
+    "fields": {
+      "type": "object",
+      "description": "semanticKey → address. A string is the native field name (home = the mapping's broker/backend); an object addresses a specific (broker, backend, field) and optionally the canonical superset key.",
+      "minProperties": 1,
+      "additionalProperties": {
+        "oneOf": [
+          { "type": "string" },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["field"],
+            "properties": {
+              "broker": { "type": "string" },
+              "backend": { "type": "string" },
+              "field": { "type": "string" },
+              "superset": { "type": "string" }
+            }
+          }
+        ]
+      }
+    },
+    "defaults": {
+      "type": "object",
+      "description": "Literal default values by semanticKey.",
+      "additionalProperties": { "type": "string" }
+    }
+  }
+}

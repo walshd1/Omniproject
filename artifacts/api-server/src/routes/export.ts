@@ -9,7 +9,8 @@ import { getProjects, getIssues, getActivity, type Row } from "../lib/data";
 import { allIssues } from "../lib/portfolio-reads";
 import { guardProjectScope } from "../lib/project-scope";
 import { traceFn } from "../broker/trace";
-import { DATASET_META, buildWorkbook, EXPORT_FORMATS, type RenderableDataset } from "../lib/export-datasets";
+import { CSV_BOM, csvLine } from "../lib/csv";
+import { DATASET_META, buildWorkbook, cell, EXPORT_FORMATS, type RenderableDataset } from "../lib/export-datasets";
 
 const router = Router();
 
@@ -24,6 +25,19 @@ function send(res: Response, filename: string, type: string, body: Buffer | stri
 }
 
 const stamp = () => new Date().toISOString().slice(0, 10);
+
+/** Stream a dataset as CSV row-by-row to the socket — byte-identical to toCsv() (BOM + header, then
+ *  \r\n-joined rows) but WITHOUT building the whole CSV string in memory alongside the row array, so a
+ *  10k-project export doesn't hold two full copies. The rows are already resolved (a broker read has
+ *  no page cursor), so this loop is pure cell coercion — no async, nothing to fail mid-write. */
+function streamCsv(res: Response, d: RenderableDataset): void {
+  const safe = `${d.base}.csv`.replace(/[^A-Za-z0-9._-]/g, "_");
+  res.setHeader("Content-Type", EXPORT_FORMATS["csv"]!.contentType);
+  res.setHeader("Content-Disposition", `attachment; filename="${safe}"`);
+  res.write(CSV_BOM + csvLine(d.cols));
+  for (const row of d.rows) res.write("\r\n" + csvLine(d.cols.map((c) => cell(row[c]))));
+  res.end();
+}
 
 // ── GET /api/export.xlsx — one workbook: Projects + Issues + Activity ─────────
 router.get("/export.xlsx", async (req, res) => {
@@ -71,6 +85,9 @@ function datasetExport(format: string) {
         res.status(400).json({ error: "dataset must be projects, issues, or activity" });
         return;
       }
+      // CSV streams row-by-row (halves peak memory on a large export); the other formats build a
+      // whole document (pdf/xlsx) or pretty-printed blob (json/md), so they render + send buffered.
+      if (format === "csv") { streamCsv(res, d); return; }
       send(res, `${d.base}.${format}`, exporter.contentType, render(d));
     } catch (err) {
       req.log.error({ err, dataset, format }, "export failed");

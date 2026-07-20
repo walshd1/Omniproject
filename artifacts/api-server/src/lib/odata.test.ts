@@ -5,6 +5,7 @@ import {
   serviceDocument,
   applyODataQuery,
   entitySetEnvelope,
+  ODATA_MAX_PAGE,
   type EntityModel,
   type Row,
 } from "./odata";
@@ -107,6 +108,28 @@ test("entitySetEnvelope wraps rows and includes @odata.count only when provided"
 
   const withoutCount = entitySetEnvelope("https://x/odata/", "Projects", rows);
   assert.ok(!("@odata.count" in withoutCount));
+});
+
+test("server-driven paging caps every page at ODATA_MAX_PAGE and signals more via nextSkip", () => {
+  const rows: Row[] = Array.from({ length: ODATA_MAX_PAGE + 25 }, (_, i) => ({ id: String(i) }));
+  // No $top: the response is bounded to the max page (no silent whole-corpus dump) and points on.
+  const first = applyODataQuery(rows, {});
+  assert.equal(first.rows.length, ODATA_MAX_PAGE);
+  assert.equal(first.nextSkip, ODATA_MAX_PAGE);
+  // The next page starts at nextSkip and, being the last, carries no further nextSkip.
+  const second = applyODataQuery(rows, { $skip: String(first.nextSkip) });
+  assert.equal(second.rows.length, 25);
+  assert.equal(second.nextSkip, undefined);
+  // A caller $top is honoured but still clamped to the max.
+  assert.equal(applyODataQuery(rows, { $top: "5" }).rows.length, 5);
+  assert.equal(applyODataQuery(rows, { $top: String(ODATA_MAX_PAGE + 500) }).rows.length, ODATA_MAX_PAGE);
+});
+
+test("nextLink is emitted in the envelope only when a page was capped", () => {
+  const capped = entitySetEnvelope("https://x/odata/", "Issues", [{ id: "1" }], 100, "https://x/odata/Issues?$skip=1000");
+  assert.equal(capped["@odata.nextLink"], "https://x/odata/Issues?$skip=1000");
+  const full = entitySetEnvelope("https://x/odata/", "Issues", [{ id: "1" }], 1);
+  assert.ok(!("@odata.nextLink" in full));
 });
 
 test("projection strips un-modeled fields (allowed list) and $select can't pull them back", () => {

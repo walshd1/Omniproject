@@ -1,5 +1,6 @@
 import { Agent, fetch as undiciFetch, type RequestInit as UndiciRequestInit } from "undici";
 import { decodePemOrBase64 } from "./pem";
+import { guardedLookup } from "./egress";
 
 /**
  * The broker HTTP transport — a custom dispatcher shared by every call to the broker, and a
@@ -77,7 +78,12 @@ export function brokerDispatcher(): Agent {
     // Per-origin socket cap — generous enough for the verify-probe fan-out
     // (VERIFY_PROBE_FANOUT_LIMIT concurrent probes) without opening unbounded sockets.
     connections: 32,
-    connect: tls,
+    // Pin the connection to a VALIDATED IP at connect time: guardedLookup refuses a hostname that
+    // resolves to a link-local/metadata address, closing the DNS-rebinding TOCTOU on the first
+    // broker hop (the residual the egress audit flagged) — while keeping the pooled keep-alive
+    // connection and mTLS. The caller's assertEgressAllowed still enforces the host allowlist /
+    // residency against the fixed BROKER_URL; this adds the IP-level floor safeFetch already has.
+    connect: { ...tls, lookup: guardedLookup },
   });
   cached = { agent, tls };
   return agent;
@@ -100,8 +106,9 @@ export async function closeBrokerDispatcher(): Promise<void> {
  *  to the cloud-metadata endpoint unchecked (the same class `safeFetch` closes for the global-fetch paths).
  *  A broker RPC/webhook endpoint never legitimately redirects — point config at the final URL — so surfacing
  *  a 3xx as a non-ok response (the caller then treats it as an error/failover) is the safe behaviour. This
- *  closes the redirect vector with zero added latency; the DNS-rebind TOCTOU residual on the initial hop is
- *  covered by mTLS/private-CA when configured. */
+ *  closes the redirect vector with zero added latency; the DNS-rebind TOCTOU on the initial hop is closed
+ *  by the dispatcher's `guardedLookup` (validates + pins the resolved IP at connect time), and mTLS/
+ *  private-CA add transport-identity on top when configured. */
 export function brokerFetch(url: string, init: UndiciRequestInit): ReturnType<typeof undiciFetch> {
   return undiciFetch(url, { ...init, redirect: "manual", dispatcher: brokerDispatcher() });
 }

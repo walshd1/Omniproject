@@ -187,3 +187,23 @@ test("a self-hosted/nonprofit profile with no override never trips the default b
   const findings = runSecuritySelfCheck({ NODE_ENV: "production", DEPLOYMENT_PROFILE: "self-hosted" }, log);
   assert.equal(findings.filter((f) => f.severity === "critical").length, 0); // warn, not critical — boots fine
 });
+
+test("flags SMTP_URL / REDIS_URL pointed at the link-local/metadata range (critical), but not a normal host", () => {
+  // The self-check is production-scoped (it returns early in dev), so pin NODE_ENV=production.
+  const P = { NODE_ENV: "production" } as const;
+  // A literal metadata/link-local target is never a real mail/cache server → critical.
+  const smtp = securityFindings({ ...P, SMTP_URL: "smtp://user:pass@169.254.169.254:587" }).find((x) => x.id === "egress-host-metadata");
+  assert.ok(smtp && smtp.severity === "critical", "SMTP_URL at 169.254.169.254 should be critical");
+  assert.match(smtp.message, /SMTP_URL/);
+
+  const redis = securityFindings({ ...P, REDIS_URL: "redis://169.254.169.254:6379" }).find((x) => x.id === "egress-host-metadata");
+  assert.ok(redis && redis.severity === "critical", "REDIS_URL at 169.254.169.254 should be critical");
+
+  const metaHost = securityFindings({ ...P, SMTP_URL: "smtp://metadata.google.internal" }).find((x) => x.id === "egress-host-metadata");
+  assert.ok(metaHost, "the metadata hostname is also caught");
+
+  // Ordinary hosts (name or private IP) produce NO such finding — Redis on a private IP is normal.
+  for (const env of [{ ...P, SMTP_URL: "smtp://mail.example.com:587" }, { ...P, REDIS_URL: "redis://10.0.0.9:6379" }, { ...P, REDIS_URL: "redis://redis:6379" }]) {
+    assert.equal(securityFindings(env).find((x) => x.id === "egress-host-metadata"), undefined, `${JSON.stringify(env)} must not flag`);
+  }
+});

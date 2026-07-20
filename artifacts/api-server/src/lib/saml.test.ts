@@ -121,18 +121,27 @@ test("the ACR attribute is surfaced only when SAML_ACR_ATTR is configured", () =
   assert.equal("acr" in withoutAcr, false);
 });
 
-test("replay protection: OFF by default (in-memory, no Redis), ON via the opt-in flag", () => {
-  // No Redis and no opt-in ⇒ strict InResponseTo/assertion-id checks are off (a redirect and its
-  // ACS callback can land on different replicas without a shared cache), so no strict options.
+test("replay protection: 'ifPresent' by default single-replica; 'always' when forced; OFF for multi-replica-no-Redis", () => {
   delete process.env["SAML_STRICT_REPLAY"];
-  assert.deepEqual(replayProtection(), {});
+  delete process.env["REDIS_URL"];
+  // Single-replica default (redirect + ACS hit the same process): protect SP-initiated login by
+  // validating InResponseTo when present, WITHOUT failing an IdP-initiated response that carries none.
+  const def = replayProtection();
+  assert.equal(def["validateInResponseTo"], "ifPresent");
+  assert.ok(def["cacheProvider"]);
 
-  // The single-replica opt-in turns the strict checks on (redirect + ACS hit the same process).
+  // Force-on ⇒ strictest (every response must echo a known request id).
   process.env["SAML_STRICT_REPLAY"] = "1";
-  const strict = replayProtection();
-  assert.equal(strict["validateInResponseTo"], "always");
-  assert.ok(strict["cacheProvider"]);
+  assert.equal(replayProtection()["validateInResponseTo"], "always");
+
+  // Explicit force-off ⇒ no strict options (rely on signature + NotOnOrAfter + audience).
+  process.env["SAML_STRICT_REPLAY"] = "0";
+  assert.deepEqual(replayProtection(), {});
   delete process.env["SAML_STRICT_REPLAY"];
-  // Redis mode enables the SAME strict options automatically (fleet-correct across replicas) —
-  // exercised where a Redis-backed shared-state seam is present (ioredis is not installed in CI).
+
+  // A declared fleet (REDIS_URL) whose Redis isn't actually up (ioredis absent in CI) ⇒ OFF, so a
+  // cross-replica ACS can't fail-close a legitimate SP-initiated login; the fleet-readiness gate covers it.
+  process.env["REDIS_URL"] = "redis://localhost:6379";
+  assert.deepEqual(replayProtection(), {});
+  delete process.env["REDIS_URL"];
 });

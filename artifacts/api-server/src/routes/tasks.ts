@@ -1,3 +1,7 @@
+/**
+ * Task routes — GTD actionable next-actions (distinct from issues): list/create/update, comments,
+ * attachments, plus recurring-task expansion on completion and the in-app reminder sweep.
+ */
 import { Router, type Request, type Response } from "express";
 import { withBrokerErrors } from "../broker";
 import { getTasks, getTask, createTask, updateTask, brokerHasTasks, getTaskComments, addTaskComment, getTaskAttachments, addTaskAttachment, brokerHasTaskAttachments } from "../lib/data";
@@ -6,9 +10,55 @@ import { assertTaskScope, filterTasksInScope } from "../lib/project-scope";
 import { auditScopeDenied } from "../lib/audit";
 import { getSession } from "./auth";
 import { parseOr400, v } from "../lib/validate";
-import { CANONICAL_TASK_STATUS, CANONICAL_PRIORITY, CANONICAL_ENERGY } from "../broker/vocabulary";
+import { CANONICAL_TASK_STATUS, CANONICAL_PRIORITY, CANONICAL_ENERGY, isTaskDone } from "../broker/vocabulary";
 import { summariseTasks } from "../lib/task-summary";
+import { nextOccurrence } from "../lib/recurrence";
+import { runReminderSweep } from "../lib/reminder-sweep";
+import { getNotifyBus } from "../lib/notify-bus";
+import { sharedKv } from "../lib/shared-state";
+import crypto from "node:crypto";
 import type { Task } from "../broker/types";
+
+const REMINDER_TTL_MS = 30 * 24 * 60 * 60 * 1000; // a fired reminder is remembered for 30d (dedupe window)
+
+/**
+ * Recurring-task expansion (Todoist-style): when a PATCH COMPLETES a task that carries a `recurrence` rule,
+ * spawn the following occurrence — a fresh actionable task with the next due/start dates — so a recurring
+ * task actually recurs instead of just being marked done. The reference date is the task's due date (else
+ * its start date, else its completion time). Returns the new task, or null when it doesn't recur.
+ */
+async function maybeSpawnRecurrence(req: Request, completed: Task, patch: Record<string, unknown>): Promise<Task | null> {
+  if (!isTaskDone(patch["status"] as string | undefined)) return null; // only on completion (not on drop)
+  const rule = completed.recurrence;
+  const ref = completed.dueDate ?? completed.startDate ?? completed.completedAt ?? new Date().toISOString();
+  const nextDue = nextOccurrence(rule, ref);
+  if (!nextDue) return null; // one-off / unparseable rule → nothing to spawn
+  // Carry the defining fields forward; the next instance starts fresh (actionable, not done).
+  const nextStart = completed.startDate && completed.dueDate
+    ? nextOccurrence(rule, completed.startDate) // keep the same lead time when both dates were set
+    : null;
+  return createTask(req, {
+    title: completed.title,
+    ...(completed.projectId ? { projectId: completed.projectId } : {}),
+    status: "next",
+    recurrence: rule,
+    dueDate: nextDue,
+    ...(nextStart ? { startDate: nextStart } : {}),
+    ...(completed.priority ? { priority: completed.priority } : {}),
+    ...(completed.context ? { context: completed.context } : {}),
+    ...(completed.assignee ? { assignee: completed.assignee } : {}),
+    ...(completed.description ? { description: completed.description } : {}),
+    ...(completed.tags && completed.tags.length ? { tags: completed.tags } : {}),
+    ...(completed.reminderAt ? { reminderAt: shiftReminder(completed.reminderAt, ref, nextDue) } : {}),
+  });
+}
+
+/** Shift a reminder by the same offset the due date moved, so a "remind me the morning of" stays relative. */
+function shiftReminder(reminderAt: string, oldRef: string, newDue: string): string {
+  const delta = Date.parse(newDue) - Date.parse(oldRef.slice(0, 10));
+  const shifted = Date.parse(reminderAt) + delta;
+  return Number.isNaN(shifted) ? reminderAt : new Date(shifted).toISOString();
+}
 
 /** The caller's identity tokens, for the personal-task owner check. */
 function whoami(req: Request): string[] {
@@ -113,9 +163,34 @@ router.patch("/tasks/:taskId", requireRole("manager"), (req, res) => {
   if (!body) return;
   return withBrokerErrors(req, res, "update_task failed", async () => {
     if (!(await guardTaskAccess(req, res, String(req.params["taskId"])))) return;
-    res.json(await updateTask(req, String(req.params["taskId"]), body));
+    const updated = await updateTask(req, String(req.params["taskId"]), body);
+    // Completing a recurring task spawns its next occurrence (Todoist-style), surfaced on the response.
+    const next = await maybeSpawnRecurrence(req, updated, body as Record<string, unknown>);
+    res.json(next ? { ...updated, nextOccurrence: { id: next.id, dueDate: next.dueDate } } : updated);
   });
 });
+
+// POST /api/tasks/reminders/sweep — deliver any DUE task reminders in-app (pmo+, cron/routine-driven). Fires
+// each task whose `reminderAt` has passed once (deduped via shared-state), notifying the assignee. Runs in
+// the caller's scope, so a portfolio-wide sweep needs a portfolio (pmo/admin) caller.
+router.post("/tasks/reminders/sweep", requireRole("pmo"), (req, res) =>
+  withBrokerErrors(req, res, "reminder sweep failed", async () => {
+    if (!brokerHasTasks()) { res.json({ fired: 0, taskIds: [] }); return; }
+    const tasks = await getTasks(req);
+    const bus = getNotifyBus();
+    const result = await runReminderSweep({
+      tasks,
+      nowMs: Date.now(),
+      isFired: async (key) => !!(await sharedKv.get(key)),
+      markFired: async (key) => { await sharedKv.set(key, "1", { ttlMs: REMINDER_TTL_MS }); },
+      notify: (n, target) => void bus.publish({
+        notification: { id: `rem-${crypto.randomUUID()}`, kind: n.kind, title: n.title, body: n.body, read: false, timestamp: Date.now() },
+        ...(target.sub || target.email ? { target } : {}),
+      }),
+    });
+    res.json(result);
+  }),
+);
 
 // ── Comments ─────────────────────────────────────────────────────────────────
 const CommentBody = v.object({ body: v.string({ min: 1, max: 10_000, trim: true }) });

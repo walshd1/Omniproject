@@ -45,9 +45,11 @@ export interface ScreenDefinition extends ScreenManifest {
  *  assets/screens/<id>.json and embedded by gen-screens (drift-guarded in CI). */
 export const SCREENS: ScreenDefinition[] = [...SCREENS_DATA].sort((a, b) => a.order - b.order);
 
+const byId = new Map(SCREENS.map((s) => [s.id, s]));
+
 /** One screen definition by id, or undefined. */
 export function getScreen(id: string): ScreenDefinition | undefined {
-  return SCREENS.find((s) => s.id === id);
+  return byId.get(id);
 }
 
 /** All screen definitions (a defensive copy). */
@@ -63,7 +65,7 @@ export function screenCatalogue(): ScreenDefinition[] {
  * connected backend(s) feed this screen at all?".
  */
 export function availableScreens(caps: Record<string, boolean>): ScreenDefinition[] {
-  return screenCatalogue().filter((s) => isCapabilityMet(s.capabilities.requiresCapability, caps));
+  return SCREENS.filter((s) => isCapabilityMet(s.capabilities.requiresCapability, caps)).map((s) => ({ ...s }));
 }
 
 /** Screens tagged with a methodology — those carrying its tag, plus the neutral

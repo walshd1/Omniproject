@@ -1,0 +1,11 @@
+{
+  "id": "forecast-windows",
+  "label": "Forecast Windows",
+  "docsUrl": "",
+  "kind": "financial",
+  "renderer": { "engine": "builtin", "component": "ForecastWindows" },
+  "capabilities": { "requiresCapability": "financials", "timeSeries": true, "exports": ["csv", "pdf", "png"] },
+  "tools": ["budget","forecast","sCurve"],
+  "notes": "Time-phased budget S-curve for forecasting. Stateless.",
+  "order": 77
+}

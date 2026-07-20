@@ -10,6 +10,11 @@
  *
  *   1. CI fixture — http-conformance.test.ts runs the conformance suite against it.
  *   2. Author template — `pnpm --filter @workspace/api-server run sidecar`.
+ *
+ * At massive scale a real (DB-backed) sidecar adds connection pooling, hot-key indexes, keyset
+ * pagination, partitioning, materialised rollups, and backpressure — see the "Scaling the sidecar"
+ * section of docs/ops/DATABASE-BACKENDS.md. This template models the backpressure half (429 +
+ * Retry-After) so the wire contract the gateway backs off on is exercised in CI.
  */
 import http from "node:http";
 import { sealPayload } from "../lib/broker-psk";
@@ -111,12 +116,37 @@ function inMemoryBackend(store: Store): BrokerBackend {
   };
 }
 
+/**
+ * Backpressure options — how the sidecar sheds load at massive scale. A real DB-backed sidecar caps
+ * on its connection-pool saturation; here they're simple deterministic knobs that exercise the SAME
+ * wire contract (429 + Retry-After) the gateway backs off on:
+ *  - `maxInflight`: reject with 429 while more than this many requests are already being processed
+ *    (the real "pool is full" signal). 0 ⇒ unlimited (default). Env: SIDECAR_MAX_INFLIGHT.
+ *  - `rejectFirst`: reject the first N requests with 429 (deterministic, for tests / demoing backoff).
+ */
+export interface SidecarOptions { maxInflight?: number; rejectFirst?: number }
+
+/** Emit a 429 with a Retry-After so the gateway honours the backend's backpressure and retries. */
+function tooManyRequests(res: http.ServerResponse, retryAfterSec = 0): void {
+  res.writeHead(429, { "Content-Type": "application/json", "Retry-After": String(retryAfterSec) });
+  res.end(JSON.stringify({ success: false, code: "rate_limited", message: "sidecar is shedding load (backpressure)" }));
+}
+
 /** Build (but don't start) the reference sidecar HTTP server — a thin adapter over
  *  the shared core + the in-memory backend, with PSK-symmetric wire encoding. */
-export function createReferenceSidecar(): http.Server {
+export function createReferenceSidecar(opts: SidecarOptions = {}): http.Server {
   const backend = inMemoryBackend(seed());
+  const maxInflight = opts.maxInflight ?? (Number(process.env["SIDECAR_MAX_INFLIGHT"]) || 0);
+  let rejectFirst = opts.rejectFirst ?? 0;
+  let inflight = 0;
   return http.createServer((req, res) => {
     if (req.method !== "POST") { res.writeHead(405).end(); return; }
+    // Backpressure: shed load with 429 + Retry-After (the gateway's callBroker honours it and retries
+    // a bounded number of times). A DB-backed sidecar would trip this on pool/queue saturation.
+    if (rejectFirst > 0) { rejectFirst--; tooManyRequests(res); return; }
+    if (maxInflight > 0 && inflight >= maxInflight) { tooManyRequests(res); return; }
+    inflight++;
+    res.on("close", () => { inflight--; }); // 'close' fires exactly once per response (success or abort)
     let raw = "";
     req.on("data", (c) => { raw += c; });
     req.on("end", () => {

@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { sanitizeUserPrefs, getUserPrefs, setUserPrefs, hasUserPrefs, DEFAULT_USER_PREFS } from "./user-prefs";
+import { sanitizeUserPrefs, sanitizePartialUserPrefs, getUserPrefs, setUserPrefs, hasUserPrefs, DEFAULT_USER_PREFS } from "./user-prefs";
 
 /**
  * Per-user prefs persist server-side keyed by sub, JSON with code defaults.
@@ -89,4 +89,11 @@ test("get/set/has round-trip per user; unknown user ⇒ defaults", () => {
   assert.deepEqual(getUserPrefs(sub), saved);
   // a different user is unaffected
   assert.equal(hasUserPrefs(`${sub}-other`), false);
+});
+
+test("sanitizePartialUserPrefs keeps ONLY the provided valid keys (no defaults filled)", () => {
+  assert.deepEqual(sanitizePartialUserPrefs({}), {});
+  assert.deepEqual(sanitizePartialUserPrefs({ highContrast: true, fontScale: 1.25 }), { highContrast: true, fontScale: 1.25 });
+  assert.deepEqual(sanitizePartialUserPrefs({ backgroundColor: "navy" }), {}); // present but coerces to null → dropped (a null default is not a default)
+  assert.equal("reduceMotion" in sanitizePartialUserPrefs({ fontScale: 1.1 }), false);               // omitted → not present
 });

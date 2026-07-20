@@ -32,8 +32,6 @@ export interface OidcConfig {
   scope: string;
   /** Expected ID-token audience (defaults to clientId). */
   audience: string;
-  /** Verify the ID token signature + claims against the issuer JWKS. */
-  verifyToken: boolean;
   /** Requested `acr_values` (space-delimited), best-effort — asks the IdP for a specific
    *  authentication strength. Not all IdPs honour it; the gateway still separately VERIFIES
    *  the resulting amr/acr claim (see rbac.hasStrongAuth) rather than trusting the request. */
@@ -62,6 +60,20 @@ export interface SessionUser {
   /** Authentication Context Class Reference from the ID token — an alternative (IdP-specific)
    *  way of asserting authentication strength, checked alongside amr. */
   acr?: string | undefined;
+  /** A GUEST principal's confinement (client-facing portal): the single project it may see and the
+   *  tier of access. Present ONLY on guest sessions minted via a scoped magic-link invite — never
+   *  from an IdP. Its presence is what drops the principal to the `guest` role + `project` scope. */
+  guest?: GuestClaim | undefined;
+}
+
+/** The access tier a guest holds within its one project. `read` = view the status portal only;
+ *  `comment` = additionally leave comments (a later slice may widen what comment reaches). */
+export type GuestTier = "read" | "comment";
+
+/** The confinement carried on a guest session (and inside its sealed invite token). */
+export interface GuestClaim {
+  projectId: string;
+  tier: GuestTier;
 }
 
 /**
@@ -113,8 +125,10 @@ export interface OidcProvider extends OidcConfig {
   label: string;
 }
 
-// Verify by default; OIDC_SKIP_TOKEN_VERIFY=true is a global escape hatch only.
-const verifyToken = process.env["OIDC_SKIP_TOKEN_VERIFY"]?.trim().toLowerCase() !== "true";
+// NOTE: ID-token validation (signature + iss/aud/exp/nonce against the issuer JWKS) is ALWAYS performed
+// by openid-client on the login path — it is not toggleable. `OIDC_SKIP_TOKEN_VERIFY` is intentionally
+// NOT wired to anything (a real off-switch would be an auth-bypass footgun); env-config.ts still flags it
+// as a CRITICAL boot finding so an operator who sets it expecting an effect is told it does nothing.
 
 /** Read one provider's config from a set of env keys, or null if the required three are absent. */
 function providerFromEnv(id: string, label: string, keyPrefix: string): OidcProvider | null {
@@ -130,7 +144,6 @@ function providerFromEnv(id: string, label: string, keyPrefix: string): OidcProv
     clientSecret,
     scope: process.env[`${keyPrefix}_SCOPE`]?.trim() || "openid profile email",
     audience: process.env[`${keyPrefix}_AUDIENCE`]?.trim() || clientId,
-    verifyToken,
     acrValues: process.env[`${keyPrefix}_ACR_VALUES`]?.trim() || undefined,
   };
 }

@@ -28,7 +28,7 @@ function shape(g: Grants): { base: string; authorities: string[] } {
   return { base: g.base, authorities: [...g.authorities].sort() };
 }
 
-beforeEach(() => { process.env["SCIM_TOKEN"] = "scim-secret"; __resetScim(); });
+beforeEach(() => { process.env["SCIM_TOKEN"] = "scim-secret-strong-012345"; __resetScim(); });
 afterEach(() => { delete process.env["SCIM_TOKEN"]; __resetScim(); });
 
 for (const group of ["omni-admins", "programme-managers", "delivery-leads", "unmapped-group"]) {
@@ -52,7 +52,7 @@ for (const group of ["omni-admins", "programme-managers", "delivery-leads", "unm
 }
 
 test("the mapped groups actually confer their expected authority (guards a vacuous parity)", () => {
-  assert.deepEqual(shape(grantsFromClaims(["omni-admins"], { isDemo: false })), { base: "manager", authorities: ["admin"] });
-  assert.deepEqual(shape(grantsFromClaims(["programme-managers"], { isDemo: false })), { base: "manager", authorities: ["pmo"] });
+  assert.deepEqual(shape(grantsFromClaims(["omni-admins"], { isDemo: false })), { base: "programmeManager", authorities: ["admin"] });
+  assert.deepEqual(shape(grantsFromClaims(["programme-managers"], { isDemo: false })), { base: "programmeManager", authorities: ["pmo"] });
   assert.deepEqual(shape(grantsFromClaims(["delivery-leads"], { isDemo: false })), { base: "manager", authorities: [] });
 });

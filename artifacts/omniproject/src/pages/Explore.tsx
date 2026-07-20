@@ -2,15 +2,13 @@ import { useEffect, useState } from "react";
 import { useLocation } from "wouter";
 import { FlaskConical, ExternalLink, LogOut, Download, AlertTriangle } from "lucide-react";
 import { ReplicaWorkbench } from "../components/explore/ReplicaWorkbench";
-import { PortfolioTrends } from "../components/reports/PortfolioTrends";
-import { ScenarioSandbox } from "../components/reports/ScenarioSandbox";
-import { ScheduleSandbox } from "../components/reports/ScheduleSandbox";
-import { DependencyLinks } from "../components/reports/DependencyLinks";
+import { CatalogueReport } from "../components/reports/CatalogueReport";
 import { TimeTravel } from "../components/reports/TimeTravel";
 import { loadSnapshots, exportSnapshots } from "../lib/snapshots";
 import { loadEdges, exportEdges } from "../lib/dependencies";
-import { isExplorationDirty, subscribeExploration, markExplorationClean } from "../lib/exploration";
+import { isExplorationDirty, subscribeExploration } from "../lib/exploration";
 import { useAuth } from "../lib/auth";
+import { CommandPalette } from "../components/CommandPalette";
 
 /**
  * Exploration mode — a deliberately, obviously-different surface for snapshots,
@@ -48,9 +46,11 @@ export function Explore() {
   const downloadExploration = () => {
     const snaps = loadSnapshots();
     const edges = loadEdges();
+    // Clear ONLY what we actually downloaded. exportSnapshots/exportEdges each clear their own source;
+    // the replica-workbench overlay + schedule-shift what-ifs (not exported here) keep their warning, so
+    // downloading snapshots can never silently drop unsaved replica work.
     if (snaps.length) exportSnapshots(snaps);
     if (edges.length) exportEdges(edges);
-    markExplorationClean();
   };
 
   const popOut = () => {
@@ -141,12 +141,17 @@ export function Explore() {
         </header>
 
         <ReplicaWorkbench />
-        <PortfolioTrends />
+        <CatalogueReport id="portfolio-trends" />
         <TimeTravel />
-        <ScenarioSandbox />
-        <ScheduleSandbox />
-        <DependencyLinks />
+        <CatalogueReport id="scenario-sandbox" />
+        <CatalogueReport id="schedule-sandbox" />
+        <CatalogueReport id="dependency-links" />
       </div>
+
+      {/* Keyboard parity: the sandbox is mounted OUTSIDE AppLayout, so ⌘K would otherwise be a
+          dead key here. Mounting the palette keeps "≤2 actions to get anywhere" true from the lab —
+          it's a transient on-demand overlay (navigation aid), not persistent live chrome. */}
+      <CommandPalette />
     </div>
   );
 }

@@ -31,7 +31,6 @@ const CONFIG = {
   clientSecret: "shh",
   scope: "openid profile email",
   audience: "client-1",
-  verifyToken: true,
 };
 
 // ── pure helpers ───────────────────────────────────────────────────────────────

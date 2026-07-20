@@ -22,12 +22,17 @@ const CASES: { path: string; heading: RegExp; testids?: string[]; tab?: RegExp }
   { path: "/my-work", heading: /my work/i, testids: ["my-work-list", "my-work-empty"] },
   { path: "/dashboards", heading: /dashboards/i, testids: ["dashboard-grid", "dashboards-empty", "dashboard-live"] },
   { path: "/content", heading: /content/i, testids: ["content-page-grid", "content-pages-empty"] },
+  { path: "/wiki", heading: /wiki/i, testids: ["wiki-page"] },
+  { path: "/whiteboards", heading: /whiteboards/i, testids: ["whiteboards-page"] },
   { path: "/programmes", heading: /programmes/i },
   { path: "/projects", heading: /projects index/i },
   { path: "/projects/proj-001", heading: /.+/, tab: /grid|board|timeline/i },
   { path: "/reports", heading: /enterprise reporting/i },
   { path: "/resources", heading: /resource planning/i, testids: ["capacity-summary"] },
   { path: "/explore", heading: /exploration sandbox/i, testids: ["explore-mode"] },
+  // A normal (non-guest) demo session hits the portal's "unavailable" notice — the page still paints its
+  // own heading + testid, which is what the smoke checks (guest-only content needs a guest session).
+  { path: "/portal", heading: /project portal/i, testids: ["portal-page"] },
   { path: "/settings", heading: /system configuration/i },
   { path: "/configurator", heading: /configurator/i },
   { path: "/setup", heading: /.+/, testids: ["setup-start-here"] },

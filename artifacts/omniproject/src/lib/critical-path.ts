@@ -79,8 +79,9 @@ export function criticalPath(nodes: readonly CpmNode[], edges: readonly CpmEdge[
   for (const id of duration.keys()) indeg.set(id, pred.get(id)!.size);
   const queue = [...duration.keys()].filter((id) => indeg.get(id) === 0);
   const order: string[] = [];
-  while (queue.length) {
-    const id = queue.shift()!;
+  let head = 0;
+  while (head < queue.length) {
+    const id = queue[head++]!;
     order.push(id);
     for (const s of succ.get(id)!) {
       indeg.set(s, indeg.get(s)! - 1);

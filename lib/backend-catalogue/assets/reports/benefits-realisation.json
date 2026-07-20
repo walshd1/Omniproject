@@ -1,0 +1,12 @@
+{
+  "id": "benefits-realisation",
+  "label": "Benefits Realisation",
+  "docsUrl": "",
+  "kind": "portfolio",
+  "renderer": { "engine": "builtin", "component": "BenefitsRealisation" },
+  "capabilities": { "requiresCapability": null, "timeSeries": false, "exports": ["csv", "pdf", "png"] },
+  "tools": ["benefitPlanned","benefitActual","realisation"],
+  "notes": "Planned-vs-realised benefits roll-up from benefit* fields. Stateless.",
+  "order": 101,
+  "methodologies": ["prince2"]
+}

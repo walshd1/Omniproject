@@ -11,10 +11,10 @@ import type { StyleSpec } from "../../lib/artifact-style";
  * a primitive. Data is supplied already-shaped by the caller; ChartView never fetches or computes.
  */
 export type ChartViewSpec =
-  | { type: "bar"; data: ChartRow[]; series: ChartSeries[]; stacked?: boolean; legend?: boolean; orientation?: "horizontal" | "vertical"; height?: ChartHeight; referenceLines?: ReferenceMark[]; valueFormatter?: (n: number) => string; palette?: string[] }
+  | { type: "bar"; data: ChartRow[]; series: ChartSeries[]; stacked?: boolean; legend?: boolean; orientation?: "horizontal" | "vertical"; height?: ChartHeight; referenceLines?: ReferenceMark[]; valueFormatter?: (n: number) => string; palette?: string[]; onDatumClick?: (row: ChartRow) => void }
   | { type: "line"; data: ChartRow[]; series: ChartSeries[]; legend?: boolean; height?: ChartHeight; xKey?: string; referenceLines?: ReferenceMark[]; valueFormatter?: (n: number) => string; yDomain?: [number, number]; palette?: string[] }
   | { type: "area"; data: ChartRow[]; series: ChartSeries[]; stacked?: boolean; legend?: boolean; height?: ChartHeight; xKey?: string; referenceLines?: ReferenceMark[]; valueFormatter?: (n: number) => string; yDomain?: [number, number]; palette?: string[] }
-  | { type: "pie" | "donut"; data: { name: string; value: number }[]; legend?: boolean; height?: ChartHeight; palette?: string[] }
+  | { type: "pie" | "donut"; data: { name: string; value: number }[]; legend?: boolean; height?: ChartHeight; palette?: string[]; onDatumClick?: (row: { name: string; value: number }) => void }
   | { type: "scatter"; points: ScatterPoint[]; xLabel?: string; yLabel?: string; height?: ChartHeight }
   | { type: "treemap"; data: TreeNode[]; height?: ChartHeight }
   | { type: "gantt"; items: GanttItem[]; height?: number; palette?: string[] };
@@ -32,14 +32,14 @@ export function ChartView(spec: ChartViewSpec & { style?: StyleSpec }) {
 function renderChart(spec: ChartViewSpec) {
   switch (spec.type) {
     case "bar":
-      return <SeriesBarChart data={spec.data} series={spec.series} stacked={spec.stacked ?? false} legend={spec.legend ?? true} orientation={spec.orientation ?? "horizontal"} {...(spec.height ? { height: spec.height } : {})} {...(spec.referenceLines ? { referenceLines: spec.referenceLines } : {})} {...(spec.valueFormatter ? { valueFormatter: spec.valueFormatter } : {})} {...(spec.palette ? { palette: spec.palette } : {})} />;
+      return <SeriesBarChart data={spec.data} series={spec.series} stacked={spec.stacked ?? false} legend={spec.legend ?? true} orientation={spec.orientation ?? "horizontal"} {...(spec.height ? { height: spec.height } : {})} {...(spec.referenceLines ? { referenceLines: spec.referenceLines } : {})} {...(spec.valueFormatter ? { valueFormatter: spec.valueFormatter } : {})} {...(spec.palette ? { palette: spec.palette } : {})} {...(spec.onDatumClick ? { onDatumClick: spec.onDatumClick } : {})} />;
     case "line":
       return <SeriesLineChart data={spec.data} series={spec.series} legend={spec.legend ?? true} {...(spec.height ? { height: spec.height } : {})} {...(spec.xKey ? { xKey: spec.xKey } : {})} {...(spec.referenceLines ? { referenceLines: spec.referenceLines } : {})} {...(spec.valueFormatter ? { valueFormatter: spec.valueFormatter } : {})} {...(spec.yDomain ? { yDomain: spec.yDomain } : {})} {...(spec.palette ? { palette: spec.palette } : {})} />;
     case "area":
       return <SeriesAreaChart data={spec.data} series={spec.series} stacked={spec.stacked ?? false} legend={spec.legend ?? true} {...(spec.height ? { height: spec.height } : {})} {...(spec.xKey ? { xKey: spec.xKey } : {})} {...(spec.referenceLines ? { referenceLines: spec.referenceLines } : {})} {...(spec.valueFormatter ? { valueFormatter: spec.valueFormatter } : {})} {...(spec.yDomain ? { yDomain: spec.yDomain } : {})} {...(spec.palette ? { palette: spec.palette } : {})} />;
     case "pie":
     case "donut":
-      return <SharePieChart data={spec.data} donut={spec.type === "donut"} legend={spec.legend ?? true} {...(spec.height ? { height: spec.height } : {})} {...(spec.palette ? { palette: spec.palette } : {})} />;
+      return <SharePieChart data={spec.data} donut={spec.type === "donut"} legend={spec.legend ?? true} {...(spec.height ? { height: spec.height } : {})} {...(spec.palette ? { palette: spec.palette } : {})} {...(spec.onDatumClick ? { onDatumClick: spec.onDatumClick } : {})} />;
     case "scatter":
       return <ScatterPlotChart points={spec.points} {...(spec.xLabel ? { xLabel: spec.xLabel } : {})} {...(spec.yLabel ? { yLabel: spec.yLabel } : {})} {...(spec.height ? { height: spec.height } : {})} />;
     case "treemap":

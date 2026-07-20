@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { detectPlatform, resolveMobile, type Platform } from "./platform";
 import { useA11yPrefs } from "./a11y-prefs";
 
@@ -63,7 +63,8 @@ export function PlatformProvider({ children }: { children: ReactNode }) {
     root.setAttribute("data-standalone", platform.standalone ? "true" : "false");
   }, [platform.formFactor, platform.touch, platform.standalone, isMobile]);
 
-  return <PlatformContext.Provider value={{ platform, isMobile }}>{children}</PlatformContext.Provider>;
+  const value = useMemo(() => ({ platform, isMobile }), [platform, isMobile]);
+  return <PlatformContext.Provider value={value}>{children}</PlatformContext.Provider>;
 }
 
 export function usePlatform(): PlatformContextValue {

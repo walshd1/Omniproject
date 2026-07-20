@@ -1,0 +1,57 @@
+{
+  "id": "budget-plans",
+  "label": "Budget plans",
+  "hint": "Planned budget by period and project. Edit the plans in Settings → Budget plans.",
+  "methodologyLayouts": {
+    "lean": { "order": ["budget-by-year-chart", "budget-by-project"], "hidden": ["budget-all-periods"], "spans": {} }
+  },
+  "panels": [
+    {
+      "id": "budget-by-year-chart",
+      "kind": "chart",
+      "title": "Budget by year",
+      "span": 12,
+      "config": { "chartType": "bar", "xKey": "year", "series": [{ "key": "amount", "label": "Planned budget" }] },
+      "source": { "url": "/api/budget-plans/rows?groupBy=year&metric=sum:amount" }
+    },
+    {
+      "id": "budget-by-year",
+      "kind": "table",
+      "title": "Budget by year",
+      "span": 6,
+      "source": { "url": "/api/budget-plans/rows?groupBy=year&metric=sum:amount" }
+    },
+    {
+      "id": "budget-by-project",
+      "kind": "table",
+      "title": "Budget by project",
+      "span": 6,
+      "source": { "url": "/api/budget-plans/rows?groupBy=projectId&metric=sum:amount" },
+      "config": {
+        "drillTo": {
+          "target": "grid",
+          "projectIdField": "projectId",
+          "label": "Project work items",
+          "predicateFrom": [{ "field": "projectId", "op": "eq", "fromField": "projectId" }]
+        }
+      }
+    },
+    {
+      "id": "budget-all-periods",
+      "kind": "table",
+      "title": "Pivot planned budget",
+      "span": 12,
+      "source": { "url": "/api/budget-plans/rows" },
+      "config": {
+        "controls": {
+          "groupBy": ["projectId", "currency", "year"],
+          "metricField": "amount",
+          "metricLabel": "Planned budget",
+          "aggs": ["sum", "avg", "count"],
+          "filters": ["currency", "projectId"],
+          "period": { "field": "period", "buckets": ["year", "quarter", "month"] }
+        }
+      }
+    }
+  ]
+}

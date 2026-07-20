@@ -168,6 +168,7 @@ export function sanitizeTaskItem(r: Row): Row {
 export function sanitizeTaskComment(r: Row): Row {
   return { ...r, id: reqStr(r["id"]), taskId: reqStr(r["taskId"]), body: reqStr(r["body"]), createdAt: reqStr(r["createdAt"]) };
 }
+/** Coerce a task attachment row to its typed shape (ids/filename/addedAt required; size optional). */
 export function sanitizeTaskAttachment(r: Row): Row {
   const out: Row = { ...r, id: reqStr(r["id"]), taskId: reqStr(r["taskId"]), filename: reqStr(r["filename"]), addedAt: reqStr(r["addedAt"]) };
   if ("size" in r) out["size"] = optNum(r["size"]);
@@ -182,6 +183,8 @@ function sanitizeCountMap(v: unknown): Record<string, number> {
   for (const [k, val] of Object.entries(v as Record<string, unknown>)) out[k] = reqNum(val);
   return out;
 }
+/** Coerce a project summary row: projectId + total are required numbers/strings, and the byStatus /
+ *  byPriority count maps are each forced to finite numbers (a junk count would poison a chart/total). */
 export function sanitizeSummary(r: Row): Row {
   return { ...r, projectId: reqStr(r["projectId"]), total: reqNum(r["total"]), byStatus: sanitizeCountMap(r["byStatus"]), byPriority: sanitizeCountMap(r["byPriority"]) };
 }

@@ -26,6 +26,9 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, "../..");
 const ROUTES_DIR = path.join(ROOT, "artifacts/api-server/src/routes");
 const OUT_MD = path.join(ROOT, "docs/API-REFERENCE.md");
+// The optional in-app browser portal (served at GET /api/docs only when API_PORTAL_ENABLED is set)
+// is generated from the SAME route model as the markdown, as an embeddable HTML string module.
+const OUT_PORTAL = path.join(ROOT, "artifacts/api-server/src/lib/api-portal.generated.ts");
 
 const METHODS = new Set(["get", "post", "put", "patch", "delete", "all"]);
 // Middleware whose presence on a route we surface as its gate. Call-forms carry a string arg
@@ -136,6 +139,13 @@ md.push(
   "page is the full surface (admin, security, setup, AI, SCIM, auth, costing, feature-config).",
 );
 md.push("");
+md.push(
+  "> **Optional browser portal.** The same surface renders as a self-contained, searchable HTML page " +
+  "at `GET /api/docs` — **off by default**, exposed only when `API_PORTAL_ENABLED` is set (it 404s " +
+  "otherwise, so a deployment that doesn't want its route map browsable never exposes it). It is a " +
+  "documentation page: it makes no calls and holds no data.",
+);
+md.push("");
 md.push("## Authentication & roles");
 md.push("");
 md.push("- **Session cookie** — OIDC (also SAML, OAuth2, magic-link, demo); signed httpOnly; full read + write. Cookie-authed mutations pass a CSRF guard.");
@@ -168,4 +178,64 @@ for (const f of files) {
 }
 
 fs.writeFileSync(OUT_MD, md.join("\n") + "\n");
-console.log(`api reference: ${total} routes across ${files.length} router files → ${path.relative(ROOT, OUT_MD)}`);
+
+// ── The optional browser portal (a self-contained, theme-aware, searchable HTML page) ──────────
+const esc = (s: string): string => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+
+function buildPortal(): string {
+  const rows: string[] = [];
+  for (const f of files) {
+    rows.push(`<section class="grp"><h2>${esc(f.rel)}</h2>${f.title ? `<p class="blurb">${esc(f.title)}</p>` : ""}<table><tbody>`);
+    for (const r of f.routes) {
+      const hay = esc(`${r.method} ${r.routePath} ${r.gate} ${r.doc}`).toLowerCase();
+      rows.push(
+        `<tr class="rt" data-h="${hay}"><td><span class="m m-${r.method}">${r.method}</span></td>` +
+        `<td class="pth">${esc(r.routePath)}</td><td class="gt">${r.gate ? esc(r.gate) : "—"}</td>` +
+        `<td class="dc">${r.doc ? esc(r.doc) : ""}</td></tr>`,
+      );
+    }
+    rows.push("</tbody></table></section>");
+  }
+  // Self-contained: inline CSS + JS, no external requests (CSP-safe). Theme-aware via prefers-color-scheme.
+  return [
+    "<!doctype html>",
+    '<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">',
+    "<title>OmniProject API</title><style>",
+    ":root{--bg:#fff;--fg:#111;--mut:#666;--bd:#e2e2e2;--card:#fafafa;--acc:#1d4ed8}",
+    "@media(prefers-color-scheme:dark){:root{--bg:#0b0b0c;--fg:#e8e8ea;--mut:#9a9aa2;--bd:#26262b;--card:#141417;--acc:#60a5fa}}",
+    "*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}",
+    "header{position:sticky;top:0;background:var(--bg);border-bottom:1px solid var(--bd);padding:16px 20px;z-index:1}",
+    "h1{font-size:18px;margin:0 0 4px}.sub{color:var(--mut);font-size:12px;margin:0 0 10px}",
+    "#q{width:100%;max-width:520px;padding:8px 10px;border:1px solid var(--bd);border-radius:6px;background:var(--card);color:var(--fg);font:inherit}",
+    "main{padding:8px 20px 60px}.grp{margin:22px 0}.grp h2{font-size:13px;color:var(--fg);margin:0 0 2px}.blurb{color:var(--mut);font-size:12px;margin:0 0 8px;max-width:70ch}",
+    "table{width:100%;border-collapse:collapse;display:block;overflow-x:auto}td{border-top:1px solid var(--bd);padding:6px 8px;vertical-align:top}",
+    ".m{display:inline-block;min-width:56px;text-align:center;font-size:11px;font-weight:700;padding:2px 6px;border-radius:4px}",
+    ".m-GET{background:#16a34a22;color:#15803d}.m-POST{background:#2563eb22;color:#1d4ed8}.m-PUT{background:#d9770622;color:#b45309}.m-PATCH{background:#7c3aed22;color:#6d28d9}.m-DELETE{background:#dc262622;color:#b91c1c}.m-ALL{background:#4b556322;color:#374151}",
+    "@media(prefers-color-scheme:dark){.m-GET{color:#4ade80}.m-POST{color:#60a5fa}.m-PUT{color:#fbbf24}.m-PATCH{color:#a78bfa}.m-DELETE{color:#f87171}.m-ALL{color:#9ca3af}}",
+    ".pth{font-weight:600}.gt{color:var(--acc);font-size:12px}.dc{color:var(--mut);font-size:12px}.hide{display:none}#empty{color:var(--mut);padding:20px}",
+    "</style></head><body>",
+    `<header><h1>OmniProject API</h1><p class="sub">${total} routes · every path is under <code>/api</code> · generated from the route source. This is a documentation portal — it makes no calls. Auth &amp; roles: see the project docs.</p>`,
+    '<input id="q" type="search" placeholder="Filter by path, method, gate, or description…" autocomplete="off" aria-label="Filter routes"></header>',
+    `<main>${rows.join("")}<p id="empty" class="hide">No routes match.</p></main>`,
+    "<script>",
+    "var q=document.getElementById('q'),rows=[].slice.call(document.querySelectorAll('.rt')),grps=[].slice.call(document.querySelectorAll('.grp')),empty=document.getElementById('empty');",
+    "q.addEventListener('input',function(){var t=q.value.trim().toLowerCase(),n=0;rows.forEach(function(r){var m=!t||r.getAttribute('data-h').indexOf(t)>=0;r.classList.toggle('hide',!m);if(m)n++;});",
+    "grps.forEach(function(g){var any=g.querySelectorAll('.rt:not(.hide)').length>0;g.classList.toggle('hide',!any);});empty.classList.toggle('hide',n>0);});",
+    "</script></body></html>",
+  ].join("\n");
+}
+
+const portalHtml = buildPortal();
+const portalTs = [
+  "/* GENERATED by scripts/src/gen-api-reference.ts — do not edit.",
+  "   Run `pnpm --filter @workspace/scripts run gen-api-reference` to regenerate. */",
+  "",
+  "/** The optional, self-contained API portal page (served at GET /api/docs when API_PORTAL_ENABLED). */",
+  `export const API_PORTAL_HTML = ${JSON.stringify(portalHtml)};`,
+  "",
+].join("\n");
+fs.writeFileSync(OUT_PORTAL, portalTs);
+
+console.log(`api reference: ${total} routes across ${files.length} router files`);
+console.log(`  → ${path.relative(ROOT, OUT_MD)}`);
+console.log(`  → ${path.relative(ROOT, OUT_PORTAL)} (browser portal, ${portalHtml.length} bytes)`);

@@ -28,7 +28,7 @@ are therefore **defence-in-depth and UX**, layered on top of — not a replaceme
 | Domain | Control | Module(s) | Default |
 | --- | --- | --- | --- |
 | Authentication | OIDC + OAuth2/PKCE + SAML + magic-link; read-only API tokens | `routes/auth`, `lib/api-token` | OIDC |
-| Session security | Sealed cookie; sliding idle + absolute cap; server-side expiry | `lib/session-*`, `lib/session-timeout` | idle 30m / abs 8h |
+| Session security | Sealed cookie; sliding idle + absolute cap; server-side expiry | `lib/session-*`, `lib/session-timeout` | idle 15m / abs 4h |
 | Step-up re-auth | Fresh re-auth required for high-risk actions | `lib/step-up` | enforced |
 | CSRF | Origin/Referer check + double-submit token on cookie mutations | `lib/csrf` | on |
 | Authorization | Linear role ladder + two orthogonal authorities; SCIM lifecycle | `lib/rbac`, `lib/scim` | least-privilege |
@@ -50,8 +50,8 @@ are therefore **defence-in-depth and UX**, layered on top of — not a replaceme
   and passwordless magic-link / email-OTP for orgs without an IdP. Read-only **API tokens**
   (`API_TOKENS`) authenticate non-interactive BI/export clients and are restricted to `GET`.
 - **Sessions are sealed cookies**, not server state (stateless). A **sliding idle timeout**
-  (`SESSION_IDLE_MINUTES`, default 30) plus an **absolute cap** from `iat` (`SESSION_ABSOLUTE_HOURS`,
-  default 8) are enforced **server-side**: an expired session reads as "no session" everywhere, so a
+  (`SESSION_IDLE_MINUTES`, default 15) plus an **absolute cap** from `iat` (`SESSION_ABSOLUTE_HOURS`,
+  default 4) are enforced **server-side**: an expired session reads as "no session" everywhere, so a
   stolen long-lived cookie can neither idle indefinitely nor outlive the absolute cap.
 - **Step-up re-auth** (`lib/step-up`): revoking a key, flipping an egress/governance setting, or
   running the raw escape hatch requires a *recent* re-authentication (`stepUpAt`, OIDC `prompt=login`),

@@ -9,7 +9,9 @@ import { useQueryClient, useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { useEffect, useState, Fragment, type ComponentType, type ReactNode } from "react";
+import { useEffect, useState, type ComponentType, type ReactNode } from "react";
+import { useStore } from "../store/useStore";
+import { settingsAnchorId } from "../lib/settings-panels";
 import { useToast } from "@/hooks/use-toast";
 import { fetchAiStatus, type AiStatus } from "../lib/ai";
 import { useSettingLocks } from "../lib/setting-locks";
@@ -25,6 +27,7 @@ import { FieldValidationAdmin } from "../components/settings/FieldValidationAdmi
 import { ProgrammeRegistryAdmin } from "../components/settings/ProgrammeRegistryAdmin";
 import { BrokerKindsAdmin } from "../components/settings/BrokerKindsAdmin";
 import { ClosedProjectsAdmin } from "../components/settings/ClosedProjectsAdmin";
+import { GuestInvitePanel } from "../components/settings/GuestInvitePanel";
 import { GuidAliasesAdmin } from "../components/settings/GuidAliasesAdmin";
 import { SelfHostCapabilitiesAdmin } from "../components/settings/SelfHostCapabilitiesAdmin";
 import { TranslationLayer } from "../components/settings/TranslationLayer";
@@ -36,6 +39,8 @@ import { PriorityLabelsAdmin } from "../components/settings/PriorityLabelsAdmin"
 import { ViewBuilder } from "../components/settings/ViewBuilder";
 import { MethodologyComposer } from "../components/settings/MethodologyComposer";
 import { PerformanceSettings } from "../components/settings/PerformanceSettings";
+import { SchedulingSettingsAdmin } from "../components/settings/SchedulingSettingsAdmin";
+import { UsageLimitsAdmin } from "../components/settings/UsageLimitsAdmin";
 import { GovernanceAdmin } from "../components/settings/GovernanceAdmin";
 import { ActionCatalogue } from "../components/settings/ActionCatalogue";
 import { AiProvidersAdmin } from "../components/settings/AiProvidersAdmin";
@@ -47,6 +52,17 @@ import { RateGridAdmin } from "../components/settings/RateGridAdmin";
 import { IdentityMapAdmin } from "../components/settings/IdentityMapAdmin";
 import { CostRulesAdmin } from "../components/settings/CostRulesAdmin";
 import { CustomReportsAdmin } from "../components/settings/CustomReportsAdmin";
+import { BudgetPlansAdmin } from "../components/settings/BudgetPlansAdmin";
+import { ResourceAllocationsAdmin } from "../components/settings/ResourceAllocationsAdmin";
+import { ScreensAdmin } from "../components/settings/ScreensAdmin";
+import { RoleMapAdmin } from "../components/settings/RoleMapAdmin";
+import { CustomRolesAdmin } from "../components/settings/CustomRolesAdmin";
+import { DefPolicyAdmin } from "../components/settings/DefPolicyAdmin";
+import { RaciAdmin } from "../components/settings/RaciAdmin";
+import { StakeholdersAdmin } from "../components/settings/StakeholdersAdmin";
+import { FormsAdmin } from "../components/settings/FormsAdmin";
+import { AutomationsAdmin } from "../components/settings/AutomationsAdmin";
+import { TemplatesAdmin } from "../components/settings/TemplatesAdmin";
 import { CustomBackendAdmin } from "../components/settings/CustomBackendAdmin";
 import { ContentPagesAdmin } from "../components/settings/ContentPagesAdmin";
 import { FederatedPeersAdmin } from "../components/settings/FederatedPeersAdmin";
@@ -128,6 +144,15 @@ const ADMIN_PANELS: AdminPanel[] = [
   { key: "rateGrid", Component: RateGridAdmin },
   { key: "identityMap", Component: IdentityMapAdmin },
   { key: "costRules", Component: CostRulesAdmin },
+  { key: "budgetPlans", Component: BudgetPlansAdmin },
+  { key: "resourceAllocations", Component: ResourceAllocationsAdmin },
+  { key: "raci", Component: RaciAdmin },
+  { key: "stakeholders", Component: StakeholdersAdmin },
+  { key: "guestInvite", Component: GuestInvitePanel },
+  { key: "forms", Component: FormsAdmin },
+  { key: "automations", Component: AutomationsAdmin },
+  { key: "templates", Component: TemplatesAdmin },
+  { key: "screens", Component: ScreensAdmin },
   { key: "customReports", Component: CustomReportsAdmin },
   { key: "customBackend", Component: CustomBackendAdmin },
   { key: "contentPages", Component: ContentPagesAdmin },
@@ -137,6 +162,9 @@ const ADMIN_PANELS: AdminPanel[] = [
   { key: "fieldVisibility", Component: FieldVisibilityAdmin },
   { key: "governanceDashboard", Component: GovernanceDashboard },
   { key: "governance", Component: GovernanceAdmin },
+  { key: "roleMap", Component: RoleMapAdmin },
+  { key: "customRoles", Component: CustomRolesAdmin },
+  { key: "defPolicy", Component: DefPolicyAdmin },
   { key: "aiProviders", Component: AiProvidersAdmin },
   { key: "actionCatalogue", Component: ActionCatalogue },
   { key: "a11y", Component: A11yControls, wrap: "bare" },
@@ -146,19 +174,43 @@ const ADMIN_PANELS: AdminPanel[] = [
   { key: "viewBuilder", Component: ViewBuilder, wrap: "section" },
   { key: "methodologyComposer", Component: MethodologyComposer, wrap: "section" },
   { key: "performance", Component: PerformanceSettings },
+  { key: "scheduling", Component: SchedulingSettingsAdmin },
+  { key: "usageLimits", Component: UsageLimitsAdmin },
 ];
 
-function renderAdminPanel(panel: AdminPanel): ReactNode {
-  if ("render" in panel) return <Fragment key={panel.key}>{panel.render()}</Fragment>;
-  const { Component, wrap = "lazy", key } = panel;
-  if (wrap === "bare") return <Component key={key} />;
-  if (wrap === "section") return <div key={key} className="mt-8"><Component /></div>;
-  return <LazyMount key={key}><Component /></LazyMount>;
+/** Every panel is wrapped in an anchor whose id lets the command palette jump straight to it
+ *  (⌘K → "Settings · <panel>"). `scroll-mt` offsets the sticky topbar so the panel isn't hidden. */
+function panelBody(panel: AdminPanel): ReactNode {
+  if ("render" in panel) return panel.render();
+  const { Component, wrap = "lazy" } = panel;
+  if (wrap === "bare") return <Component />;
+  if (wrap === "section") return <div className="mt-8"><Component /></div>;
+  return <LazyMount><Component /></LazyMount>;
 }
+
+function renderAdminPanel(panel: AdminPanel): ReactNode {
+  return <div key={panel.key} id={settingsAnchorId(panel.key)} className="scroll-mt-20">{panelBody(panel)}</div>;
+}
+
+/** The panel keys, in render order — exported so the palette's SETTINGS_PANEL_KEYS is drift-guarded. */
+export const ADMIN_PANEL_KEYS: string[] = ADMIN_PANELS.map((p) => p.key);
 
 export function Settings() {
   const { data: settings, isLoading, isError, error, refetch } = useGetSettings();
   const updateSettings = useUpdateSettings();
+  // Command-palette jump: when the palette routed here targeting a panel, scroll it into view (once),
+  // then clear the one-shot signal. A tick lets the (lazy) panels mount before we measure.
+  const settingsJump = useStore((s) => s.settingsJump);
+  const setSettingsJump = useStore((s) => s.setSettingsJump);
+  useEffect(() => {
+    if (!settingsJump) return;
+    const id = settingsAnchorId(settingsJump);
+    const t = setTimeout(() => {
+      document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
+      setSettingsJump(null);
+    }, 60);
+    return () => clearTimeout(t);
+  }, [settingsJump, setSettingsJump]);
   const { toast } = useToast();
   const queryClient = useQueryClient();
   // Backend-source suggestions come from the catalogue (admin-filtered server-side), so no

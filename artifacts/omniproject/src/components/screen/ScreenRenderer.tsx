@@ -20,6 +20,7 @@ export function ScreenRenderer({
   layout,
   editable,
   onLayoutChange,
+  bare,
 }: {
   screen: ScreenDef;
   methodology?: string;
@@ -29,6 +30,9 @@ export function ScreenRenderer({
   /** Enable drag-to-rearrange; reordering calls `onLayoutChange`. */
   editable?: boolean;
   onLayoutChange?: (layout: ScreenLayout) => void;
+  /** Full-bleed mode: stack panels full-height instead of the 12-col grid. For screens that host a
+   *  bespoke full-page component (which owns its own internal layout) rather than tiled widgets. */
+  bare?: boolean;
 }) {
   let panels = applyLayout(screen, layout).panels;
   if (methodology) panels = panelsForMethodology(panels, methodology);
@@ -42,6 +46,19 @@ export function ScreenRenderer({
     setDragId(null);
     onLayoutChange({ ...(layout ?? {}), order });
   };
+
+  if (bare) {
+    // Full-height stack: a hosted full-page component fills the screen and keeps its own layout.
+    return (
+      <div className="flex flex-col h-full gap-4" data-testid="screen-renderer" data-screen={screen.id} data-bare="true">
+        {panels.map((panel) => (
+          <div key={panel.id} className="flex-1 min-h-0" data-testid={`panel-wrap-${panel.id}`}>
+            <PanelSlot panel={panel} />
+          </div>
+        ))}
+      </div>
+    );
+  }
 
   return (
     <div className="grid grid-cols-12 gap-4" data-testid="screen-renderer" data-screen={screen.id}>

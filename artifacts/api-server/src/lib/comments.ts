@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { envInt } from "./env-config";
 import { sharedKv } from "./shared-state";
 import { safeParseJson } from "./safe-json";
 
@@ -33,7 +34,8 @@ export interface Comment {
 }
 
 const PREFIX = "comments:";
-const MAX_PER_ROOM = 500;
+// Per-room comment retention cap (oldest trimmed beyond it). Tunable for storage-governance needs.
+const MAX_PER_ROOM = envInt("COMMENTS_MAX_PER_ROOM", 500, { min: 1 });
 const TTL_MS = 90 * 24 * 60 * 60 * 1000; // 90-day soft retention in the ephemeral seam (bounds Redis growth)
 
 const keyOf = (roomId: string, id: string) => `${PREFIX}${roomId}:${id}`;

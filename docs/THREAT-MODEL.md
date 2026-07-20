@@ -31,7 +31,7 @@ network, and (per zero-trust) the broker plane and backends across boundary 3.
 ### Spoofing
 - **Threats:** stolen/forged session cookie; replayed gateway→broker request under another identity;
   CSRF riding the ambient cookie; account enumeration via magic-link.
-- **Defences:** sealed (HMAC) cookie + `SameSite=Lax`; **idle + absolute** session caps and **step-up**
+- **Defences:** sealed (AES-256-GCM, integrity + confidentiality) cookie + `SameSite=Lax`; **idle + absolute** session caps and **step-up**
   re-auth shrink a stolen cookie's value; gateway→broker requests are signed with a **per-session**
   key (proves "this user's valid session"), with a single-use **nonce** + timestamp rejecting replays;
   CSRF Origin/Referer + double-submit token; magic-link **always answers `ok`** (no enumeration).
