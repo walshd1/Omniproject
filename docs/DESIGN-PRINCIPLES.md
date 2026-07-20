@@ -204,6 +204,15 @@ when an invariant slips.
 - **Assume decay; re-audit on a cadence.** Dependencies age, threat models shift, features accrete. The
   security posture is revisited (the audit-remediation program), not declared done. "It passed review once" is
   not a state the system is allowed to rest in.
+- **Every dependency is tracked, and borrowed code is a tracked dependency.** All runtime and dev dependencies
+  live under Dependabot (`.github/dependabot.yml`), so an upstream fix arrives as a small, reviewable PR on a
+  cadence — never a manual chase — and the 1-day `minimumReleaseAge` in `pnpm-workspace.yaml` keeps us on
+  *stable*, not day-zero. The corollary for **imported / borrowed / vendored third-party code** (for example the
+  `yjs` CRDT core behind the wiki co-editor): it is declared as a real, version-pinned dependency, marked at its
+  call site with its provenance and licence, and thereby swept into that same update flow. Copy-pasting a
+  snippet into the tree — untracked, unversioned, invisible to Dependabot — is the anti-pattern: it ages
+  silently and no CVE scan will ever find it. If you must borrow, **pin it and mark it** so it updates like
+  everything else.
 
 The through-line: **continuous improvement *is* the security model.** The crypto, the auth tiers and the
 hard-data seam are only ever as strong as the discipline that keeps them from eroding.

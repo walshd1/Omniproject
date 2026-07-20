@@ -120,8 +120,13 @@ Format: each principle is a RULE + how to CHECK it + the usual FIX.
 - RULE: Every invariant that matters ships WITH a build-failing guard (JSON-drift guard, `no-unsafe-json-parse`,
   architecture-guard on seam leaks, strong-auth gate). A principle without a guard is a wish.
 - RULE: Re-audit on cadence (the audit-remediation program); "passed review once" is not a resting state.
+- RULE: Every runtime AND dev dependency is tracked by Dependabot (`.github/dependabot.yml`); the 1-day
+  `minimumReleaseAge` keeps installs on stable, not day-zero. Any imported/borrowed/vendored third-party code
+  (e.g. `yjs` behind the wiki co-editor) is declared as a real version-pinned dependency, marked at its call
+  site with provenance + licence, and thereby included in that update flow.
 - CHECK: A new invariant with no guard test; a "temporary" workaround with no follow-up; drift stepped over in
-  a file you edited.
+  a file you edited; a new dependency missing from the manifest; borrowed code copy-pasted into the tree
+  (untracked, unversioned, invisible to Dependabot) instead of pinned + marked.
 
 ## 15. One function, one job — write once, call everywhere (DRY)
 - RULE: Each behaviour has ONE implementation; every call site uses it (the general form of §3's choke points).
