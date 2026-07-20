@@ -26,7 +26,7 @@ test("parsePrivateKey accepts PEM, base64 PKCS#8 DER, and a base64 32-byte seed"
     const key = parsePrivateKey(raw);
     assert.ok(key, "expected a key object");
     // Every format must derive the SAME public key as the original pair.
-    const pub = crypto.createPublicKey(key!).export({ format: "pem", type: "spki" }).toString();
+    const pub = crypto.createPublicKey(key!.export({ format: "pem", type: "pkcs8" })).export({ format: "pem", type: "spki" }).toString();
     assert.equal(pub, PUBLIC_PEM);
   }
 });

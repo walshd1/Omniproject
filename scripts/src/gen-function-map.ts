@@ -14,7 +14,8 @@
  *
  * Run: pnpm --filter @workspace/scripts run gen-function-map
  */
-import ts from "typescript";
+import * as ts from "./lib/ts-ast";
+import { parseSourceFile, getModifiers } from "./lib/ts-ast";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -140,12 +141,12 @@ function fileTitle(sf: ts.SourceFile, fullText: string): string {
 
 /** Extract the title + exported functions from one source file. */
 function readFile(abs: string, rel: string): FileEntry {
-  const fullText = fs.readFileSync(abs, "utf8");
-  const sf = ts.createSourceFile(abs, fullText, ts.ScriptTarget.Latest, true);
+  const sf = parseSourceFile(abs);
+  const fullText = sf.text;
   const fns: FnEntry[] = [];
 
   for (const stmt of sf.statements) {
-    const exported = ts.canHaveModifiers(stmt) && (ts.getModifiers(stmt) ?? []).some((m) => m.kind === ts.SyntaxKind.ExportKeyword);
+    const exported = getModifiers(stmt).some((m) => m.kind === ts.SyntaxKind.ExportKeyword);
     if (!exported) continue;
     // `export function foo()`
     if (ts.isFunctionDeclaration(stmt) && stmt.name) {
