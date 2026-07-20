@@ -14,11 +14,15 @@ export interface TimerStartInput { projectId: string; issueId?: string; note?: s
 
 export const timerKey = ["timer"] as const;
 
-/** The caller's running timer + live elapsed hours (or {running:false}). Polls while a timer runs. */
-export function useTimer() {
+/** The caller's running timer + live elapsed hours (or {running:false}). Polls while a timer runs.
+ *  `enabled` gates the fetch on the `timeTracking` feature: the `/api/timer` route is only mounted when
+ *  that (default-off) module is on, so fetching it unconditionally would 404-spam the console on every
+ *  page (the widget sits in the app shell). Callers pass `featureEnabled(features, "timeTracking")`. */
+export function useTimer(enabled = true) {
   return useQuery({
     queryKey: timerKey,
     queryFn: () => getJson<TimerState>("/api/timer"),
+    enabled,
     // Re-fetch the server's authoritative elapsed once a minute; the widget also ticks locally between polls.
     refetchInterval: (q) => (q.state.data?.running ? 60_000 : false),
     staleTime: 5_000,

@@ -1,5 +1,14 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { getJson, sendJson } from "./api";
+import { useFeatures, featureEnabled } from "./features";
+
+/** The whole `/api/defs/*` surface is the (default-off) `defImporter` feature module — the router is only
+ *  mounted when it's on. Read hooks gate their fetch on it so a features-off instance (e.g. a bare demo)
+ *  doesn't 404-spam the console for defs it can't have. Cached defs still read back; only fetching is gated. */
+function useDefImporterEnabled(): boolean {
+  const { data: features } = useFeatures();
+  return featureEnabled(features, "defImporter");
+}
 
 /**
  * Definition importer client hooks over `/api/defs/*` (roadmap X.3). THE single validated write-path for any
@@ -42,9 +51,11 @@ export function useDefs(kind?: DefKind, projectId?: string) {
   if (kind) qs.set("kind", kind);
   if (projectId) qs.set("projectId", projectId);
   const suffix = qs.toString();
+  const enabled = useDefImporterEnabled();
   return useQuery({
     queryKey: [...defsKey, kind ?? null, projectId ?? null] as const,
     queryFn: () => getJson<StoredDefMeta[]>(`/api/defs${suffix ? `?${suffix}` : ""}`),
+    enabled,
     staleTime: 15_000,
   });
 }
@@ -56,9 +67,11 @@ export function useResolvedDefs<T = unknown>(kind: DefKind, projectId?: string, 
   if (projectId) qs.set("projectId", projectId);
   if (programmeId) qs.set("programmeId", programmeId);
   const suffix = qs.toString();
+  const enabled = useDefImporterEnabled();
   return useQuery({
     queryKey: [...defsKey, "resolved", kind, projectId ?? null, programmeId ?? null] as const,
     queryFn: () => getJson<Array<StoredDef & { payload: T }>>(`/api/defs/resolved/${encodeURIComponent(kind)}${suffix ? `?${suffix}` : ""}`),
+    enabled,
     staleTime: 15_000,
   });
 }

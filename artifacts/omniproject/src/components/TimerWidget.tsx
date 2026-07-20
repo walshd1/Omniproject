@@ -11,7 +11,10 @@ import { useToast } from "@/hooks/use-toast";
  */
 export function TimerWidget({ defaultProjectId = "" }: { defaultProjectId?: string }) {
   const { data: features } = useFeatures();
-  const { data: state } = useTimer();
+  const timeTrackingOn = featureEnabled(features, "timeTracking");
+  // Gate the fetch (not just the render) on the feature — the /api/timer route is only mounted when
+  // timeTracking is on, so an unconditional fetch 404-spams the console on every page (this sits in the shell).
+  const { data: state } = useTimer(timeTrackingOn);
   const start = useStartTimer();
   const stop = useStopTimer();
   const { toast } = useToast();
