@@ -3,6 +3,8 @@
 A living, honest register of known limitations, deferred work, and where the product goes
 next. It is deliberately candid — "honest scope" notes scattered through `docs/AI-SECURITY.md`
 and commit messages are consolidated here so reviewers and operators have one place to look.
+*(Feature-level* roadmap items — new capabilities rather than debt/verification — live in
+[FEATURE-ROADMAP.md](FEATURE-ROADMAP.md); this register stays scoped to engineering debt.)*
 
 Status legend: **[debt]** something to pay down · **[gap]** not built yet · **[caveat]** a
 deliberate, documented limitation (not a defect) · **[idea]** worth doing, unscoped.
