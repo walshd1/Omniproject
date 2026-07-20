@@ -73,8 +73,8 @@ export function GlobalSearch() {
 
   const hits = useMemo(
     () => searchEntities(query, {
-      projects: (projects ?? []).map((p) => ({ id: p.id, name: p.name })),
-      programmes: (programmes ?? []).map((p) => ({ id: p.id, name: p.name })),
+      projects: (Array.isArray(projects) ? projects : []).map((p) => ({ id: p.id, name: p.name })),
+      programmes: (Array.isArray(programmes) ? programmes : []).map((p) => ({ id: p.id, name: p.name })),
       issues,
     }),
     [query, projects, programmes, issues],
