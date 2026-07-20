@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { type ExtensionContributionKind, type ExtensionStatus } from "@workspace/backend-catalogue";
 import { getJson, sendJson } from "./api";
+import { useFeatures, featureEnabled } from "./features";
 
 export { EXTENSION_CONTRIBUTION_KINDS, contributionKindLabel, type ExtensionContributionKind, type ExtensionStatus } from "@workspace/backend-catalogue";
 
@@ -20,14 +21,18 @@ export interface Extension extends ExtensionMeta { description: string | null; c
 export const extensionsKey = ["extensions"] as const;
 export const extensionKey = (id: string) => ["extension", id] as const;
 
-/** The installed extensions (contribution defs omitted). */
+/** The installed extensions (contribution defs omitted). Gated on the (default-off) `marketplace` module —
+ *  its router only mounts when the feature is on, so a features-off instance would otherwise 404-spam the
+ *  console for extensions it can't have. */
 export function useExtensions() {
-  return useQuery({ queryKey: extensionsKey, queryFn: () => getJson<ExtensionMeta[]>("/api/extensions"), staleTime: 15_000 });
+  const enabled = featureEnabled(useFeatures().data, "marketplace");
+  return useQuery({ queryKey: extensionsKey, queryFn: () => getJson<ExtensionMeta[]>("/api/extensions"), enabled, staleTime: 15_000 });
 }
 
 /** One installed extension with its contributions. */
 export function useExtension(id: string | undefined) {
-  return useQuery({ queryKey: extensionKey(id ?? ""), queryFn: () => getJson<Extension>(`/api/extensions/${encodeURIComponent(id!)}`), enabled: !!id, staleTime: 10_000 });
+  const enabled = featureEnabled(useFeatures().data, "marketplace");
+  return useQuery({ queryKey: extensionKey(id ?? ""), queryFn: () => getJson<Extension>(`/api/extensions/${encodeURIComponent(id!)}`), enabled: !!id && enabled, staleTime: 10_000 });
 }
 
 function useInvalidate() {

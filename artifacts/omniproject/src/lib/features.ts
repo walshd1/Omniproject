@@ -62,7 +62,10 @@ function scopeQuery(scope: FeatureScope): string {
 export function useFeatures(scope: FeatureScope = {}) {
   return useQuery({
     queryKey: featuresQueryKey(scope),
-    queryFn: () => getJson<{ features: FeatureStatus[] }>(`/api/features${scopeQuery(scope)}`).then((r) => r.features),
+    // Coalesce a missing/empty `features` field to `[]` so the queryFn never resolves to `undefined`
+    // (react-query treats an undefined result as an invariant violation). `featureEnabled([], id)`
+    // still returns true — the fail-open default — so gating behaviour is unchanged.
+    queryFn: () => getJson<{ features: FeatureStatus[] }>(`/api/features${scopeQuery(scope)}`).then((r) => r.features ?? []),
     staleTime: 30_000,
   });
 }

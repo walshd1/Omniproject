@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import type { CanvasElement } from "@workspace/backend-catalogue";
 import { getJson, sendJson } from "./api";
+import { useFeatures, featureEnabled } from "./features";
 
 /**
  * Whiteboard / visual-canvas client hooks over `/api/whiteboards/*` (roadmap 2.3). A board's scene is a list
@@ -33,18 +34,22 @@ export const whiteboardRoomId = (boardId: string) => `board:${boardId}`;
 export const whiteboardsKey = (projectId?: string) => ["whiteboards", projectId ?? "all"] as const;
 export const whiteboardKey = (id: string) => ["whiteboard", id] as const;
 
-/** The whiteboards, optionally scoped to a project (scene bodies omitted — a listing). */
+/** The whiteboards, optionally scoped to a project (scene bodies omitted — a listing). Gated on the
+ *  (default-off) `whiteboard` module — its router only mounts when the feature is on, so a features-off
+ *  instance would otherwise 404-spam the console for boards it can't have. */
 export function useWhiteboards(projectId?: string) {
   const qs = projectId ? `?projectId=${encodeURIComponent(projectId)}` : "";
-  return useQuery({ queryKey: whiteboardsKey(projectId), queryFn: () => getJson<WhiteboardMeta[]>(`/api/whiteboards${qs}`), staleTime: 15_000 });
+  const enabled = featureEnabled(useFeatures().data, "whiteboard");
+  return useQuery({ queryKey: whiteboardsKey(projectId), queryFn: () => getJson<WhiteboardMeta[]>(`/api/whiteboards${qs}`), enabled, staleTime: 15_000 });
 }
 
 /** One board with its scene. */
 export function useWhiteboard(id: string | undefined) {
+  const enabled = featureEnabled(useFeatures().data, "whiteboard");
   return useQuery({
     queryKey: whiteboardKey(id ?? ""),
     queryFn: () => getJson<Whiteboard>(`/api/whiteboards/${encodeURIComponent(id!)}`),
-    enabled: !!id,
+    enabled: !!id && enabled,
     staleTime: 10_000,
   });
 }

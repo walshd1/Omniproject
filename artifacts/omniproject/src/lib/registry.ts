@@ -4,6 +4,7 @@ import {
   type RegistryItemKind, type RegistryApprovalStatus, type RegistryVisibility,
 } from "@workspace/backend-catalogue";
 import { getJson, sendJson } from "./api";
+import { useFeatures, featureEnabled } from "./features";
 
 export { REGISTRY_ITEM_KINDS, registryItemKindLabel };
 export type { RegistryItemKind, RegistryApprovalStatus, RegistryVisibility };
@@ -33,19 +34,24 @@ export const registryKey = ["registry"] as const;
 export const registryItemKey = (id: string) => ["registry-item", id] as const;
 export const communityStatusKey = ["registry-community-status"] as const;
 
-/** The visible registry items (payload omitted). Non-admins see approved + their own. */
+/** The visible registry items (payload omitted). Non-admins see approved + their own. Gated on the
+ *  (default-off) `registry` module — its router only mounts when the feature is on, so a features-off
+ *  instance would otherwise 404-spam the console for a registry it can't have. */
 export function useRegistry() {
-  return useQuery({ queryKey: registryKey, queryFn: () => getJson<RegistryItemMeta[]>("/api/registry"), staleTime: 15_000 });
+  const enabled = featureEnabled(useFeatures().data, "registry");
+  return useQuery({ queryKey: registryKey, queryFn: () => getJson<RegistryItemMeta[]>("/api/registry"), enabled, staleTime: 15_000 });
 }
 
 /** One registry item with its payload. */
 export function useRegistryItem(id: string | undefined) {
-  return useQuery({ queryKey: registryItemKey(id ?? ""), queryFn: () => getJson<RegistryItem>(`/api/registry/${encodeURIComponent(id!)}`), enabled: !!id, staleTime: 10_000 });
+  const enabled = featureEnabled(useFeatures().data, "registry");
+  return useQuery({ queryKey: registryItemKey(id ?? ""), queryFn: () => getJson<RegistryItem>(`/api/registry/${encodeURIComponent(id!)}`), enabled: !!id && enabled, staleTime: 10_000 });
 }
 
 /** Whether a community marketplace is connected. */
 export function useCommunityStatus() {
-  return useQuery({ queryKey: communityStatusKey, queryFn: () => getJson<CommunityStatus>("/api/registry/community/status"), staleTime: 60_000 });
+  const enabled = featureEnabled(useFeatures().data, "registry");
+  return useQuery({ queryKey: communityStatusKey, queryFn: () => getJson<CommunityStatus>("/api/registry/community/status"), enabled, staleTime: 60_000 });
 }
 
 function useInvalidate() {

@@ -1,5 +1,6 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { getJson, sendJson } from "./api";
+import { useFeatures, featureEnabled } from "./features";
 
 /**
  * Native handoff (companion-app bridge) client hooks over `/api/native/*` (roadmap X.1). Read the native
@@ -24,9 +25,12 @@ export interface NativeHandoff { url: string; embedUrl?: string; handoffId: stri
 
 export const nativeSurfacesKey = ["native-surfaces"] as const;
 
-/** The native surfaces connected backends front (empty / 404 when the module is off or nothing advertises). */
+/** The native surfaces connected backends front (empty / 404 when the module is off or nothing advertises).
+ *  Gated on the (default-off) `nativeHandoff` module — its router only mounts when the feature is on, so a
+ *  features-off instance would otherwise 404-spam the console for surfaces it can't have. */
 export function useNativeSurfaces() {
-  return useQuery({ queryKey: nativeSurfacesKey, queryFn: () => getJson<NativeSurface[]>("/api/native/surfaces"), retry: false, staleTime: 60_000 });
+  const enabled = featureEnabled(useFeatures().data, "nativeHandoff");
+  return useQuery({ queryKey: nativeSurfacesKey, queryFn: () => getJson<NativeSurface[]>("/api/native/surfaces"), enabled, retry: false, staleTime: 60_000 });
 }
 
 /** Mint a handoff URL for a vendor surface. */

@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { type InvoiceLineKind, type InvoiceStatus } from "@workspace/backend-catalogue";
 import { getJson, sendJson } from "./api";
+import { useFeatures, featureEnabled } from "./features";
 
 export { INVOICE_LINE_KINDS, INVOICE_STATUSES, invoiceLineAmount, formatMoney, type InvoiceLineKind, type InvoiceStatus } from "@workspace/backend-catalogue";
 
@@ -29,18 +30,22 @@ export interface InvoiceInput {
 export const invoicesKey = (projectId?: string) => ["invoices", projectId ?? "all"] as const;
 export const invoiceKey = (id: string) => ["invoice", id] as const;
 
-/** The invoices (lines omitted — a listing), optionally scoped to a project. */
+/** The invoices (lines omitted — a listing), optionally scoped to a project. Gated on the (default-off)
+ *  `invoicing` module — its router only mounts when the feature is on, so a features-off instance would
+ *  otherwise 404-spam the console for invoices it can't have. */
 export function useInvoices(projectId?: string) {
   const qs = projectId ? `?projectId=${encodeURIComponent(projectId)}` : "";
-  return useQuery({ queryKey: invoicesKey(projectId), queryFn: () => getJson<InvoiceMeta[]>(`/api/invoices${qs}`), staleTime: 15_000 });
+  const enabled = featureEnabled(useFeatures().data, "invoicing");
+  return useQuery({ queryKey: invoicesKey(projectId), queryFn: () => getJson<InvoiceMeta[]>(`/api/invoices${qs}`), enabled, staleTime: 15_000 });
 }
 
 /** One invoice with its lines. */
 export function useInvoice(id: string | undefined) {
+  const enabled = featureEnabled(useFeatures().data, "invoicing");
   return useQuery({
     queryKey: invoiceKey(id ?? ""),
     queryFn: () => getJson<Invoice>(`/api/invoices/${encodeURIComponent(id!)}`),
-    enabled: !!id,
+    enabled: !!id && enabled,
     staleTime: 10_000,
   });
 }
