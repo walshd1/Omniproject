@@ -57,6 +57,7 @@
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",
     "@vitejs/plugin-react": "catalog:",
+    "@vitest/coverage-istanbul": "4.1.10",
     "@vitest/coverage-v8": "^4.1.10",
     "@workspace/api-client-react": "workspace:*",
     "@workspace/backend-catalogue": "workspace:*",
