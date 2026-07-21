@@ -34,7 +34,7 @@ function stubFileReader(res: string) {
 }
 
 /** A generate result fixture (the proposed submission + the deterministic test outcome). */
-function result(over: Partial<PrimitiveStudioResult> = {}): PrimitiveStudioResult {
+function result(over: { [K in keyof PrimitiveStudioResult]?: PrimitiveStudioResult[K] | undefined } = {}): PrimitiveStudioResult {
   return {
     submission: {
       kind: "primitive",
@@ -49,7 +49,7 @@ function result(over: Partial<PrimitiveStudioResult> = {}): PrimitiveStudioResul
     errors: [],
     def: { chartType: "bar", category: "chart", params: [{ label: "Metric" }] } as unknown as PrimitiveStudioResult["def"],
     ...over,
-  };
+  } as PrimitiveStudioResult;
 }
 
 function seed(status?: { available: boolean }): QueryClient {
@@ -151,7 +151,7 @@ describe("Studio page", () => {
     fireEvent.click(screen.getByTestId("studio-refine"));
     await waitFor(() => {
       const posts = calls.filter((c) => (c.init?.method ?? "GET").toUpperCase() === "POST" && c.url.includes("/api/studio/primitive"));
-      const last = posts[posts.length - 1];
+      const last = posts[posts.length - 1]!;
       const body = JSON.parse(String(last.init?.body));
       expect(body.feedback).toBe("make the bars horizontal");
       expect(body.previous).toEqual({ foo: "bar" });

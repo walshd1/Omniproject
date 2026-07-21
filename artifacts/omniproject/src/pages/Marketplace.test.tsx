@@ -22,7 +22,7 @@ const setStatusMutate = vi.fn();
 const uninstallMutate = vi.fn();
 const toast = vi.fn();
 
-const mutateWith = (spy: ReturnType<typeof vi.fn>, getMode: () => "ok" | "err", result?: (vars: unknown) => unknown) =>
+const mutateWith = (spy: (vars: unknown) => void, getMode: () => "ok" | "err", result?: (vars: unknown) => unknown) =>
   (vars: unknown, opts?: { onSuccess?: (r: unknown) => void; onError?: (e: unknown) => void }) => {
     spy(vars);
     if (getMode() === "err") opts?.onError?.(new Error("boom"));

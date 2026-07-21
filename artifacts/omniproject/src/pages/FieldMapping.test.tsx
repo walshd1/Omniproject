@@ -181,11 +181,11 @@ describe("FieldMapping — compose + save", () => {
     ];
     renderWithProviders(<FieldMapping />);
     const picks = screen.getAllByRole("button", { name: "Pick" });
-    fireEvent.click(picks[0]);
+    fireEvent.click(picks[0]!);
     fireEvent.change(screen.getByPlaceholderText("e.g. Title"), { target: { value: "Title" } });
     fireEvent.click(screen.getByRole("button", { name: /add link/i }));
     // Re-pick a different field for the same UI name → the entry is replaced, not duplicated.
-    fireEvent.click(screen.getAllByRole("button", { name: "Pick" })[1]);
+    fireEvent.click(screen.getAllByRole("button", { name: "Pick" })[1]!);
     fireEvent.change(screen.getByPlaceholderText("e.g. Title"), { target: { value: "Title" } });
     fireEvent.click(screen.getByRole("button", { name: /add link/i }));
     const listItems = screen.getAllByText("Title");

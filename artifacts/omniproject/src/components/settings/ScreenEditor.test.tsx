@@ -184,7 +184,7 @@ describe("ScreenEditor", () => {
   });
 
   it("keeps an unknown (config-folder) panel kind selectable rather than dropping it", () => {
-    render(<ScreenEditor def={{ id: "s1", label: "S", panels: [{ id: "p", kind: "custom-widget" }] } as OrgScreenDef} onSave={vi.fn()} onCancel={() => {}} />);
+    render(<ScreenEditor def={{ id: "s1", label: "S", panels: [{ id: "p", kind: "custom-widget" }] } as unknown as OrgScreenDef} onSave={vi.fn()} onCancel={() => {}} />);
     const kindSelect = screen.getByTestId("panel-kind-0") as HTMLSelectElement;
     const values = Array.from(kindSelect.querySelectorAll("option")).map((o) => o.getAttribute("value"));
     expect(values).toContain("custom-widget");

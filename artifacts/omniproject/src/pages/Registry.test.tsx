@@ -35,7 +35,7 @@ const submitMutate = vi.fn();
 const toast = vi.fn();
 
 /** A mutation stub honouring the react-query `mutate(vars, { onSuccess, onError })` contract. */
-const mutateWith = (spy: ReturnType<typeof vi.fn>, getMode: () => "ok" | "err", result?: (vars: unknown) => unknown) =>
+const mutateWith = (spy: (vars: unknown) => void, getMode: () => "ok" | "err", result?: (vars: unknown) => unknown) =>
   (vars: unknown, opts?: { onSuccess?: (r: unknown) => void; onError?: (e: unknown) => void }) => {
     spy(vars);
     if (getMode() === "err") opts?.onError?.(new Error("boom"));

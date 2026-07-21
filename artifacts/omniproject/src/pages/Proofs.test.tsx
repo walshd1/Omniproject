@@ -44,7 +44,7 @@ const saveMutate = vi.fn();
 const delMutate = vi.fn();
 const decideMutate = vi.fn();
 
-const mutateWith = (spy: ReturnType<typeof vi.fn>, getMode: () => "ok" | "err", result?: (vars: unknown) => unknown) =>
+const mutateWith = (spy: (vars: unknown) => void, getMode: () => "ok" | "err", result?: (vars: unknown) => unknown) =>
   (vars: unknown, opts?: { onSuccess?: (r: unknown) => void; onError?: (e: unknown) => void }) => {
     spy(vars);
     if (getMode() === "err") opts?.onError?.(errValue);
@@ -97,11 +97,11 @@ const { Proofs } = await import("./Proofs");
 const listItem = (over: Partial<{ id: string; name: string; decision: string }> = {}) => ({
   id: "user~p1", name: "Homepage", version: 1, decision: "pending", updatedAt: "", ...over,
 });
-const proof = (over: Partial<OpenProof> = {}): OpenProof => ({
+const proof = (over: { [K in keyof OpenProof]?: OpenProof[K] | undefined } = {}): OpenProof => ({
   id: "user~p1", name: "Homepage", version: 1, decision: "pending", updatedAt: "",
   deliverable: { kind: "image", url: "https://cdn/x.png" }, annotations: [{ id: "a1", type: "pin", x: 0.2, y: 0.2, text: "logo" }],
   storage: "user", ...over,
-});
+} as OpenProof);
 
 /** Render, then open the seeded proof by clicking its nav link (mounts the header + overlay). */
 function openView() {
