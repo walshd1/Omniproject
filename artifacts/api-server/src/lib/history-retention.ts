@@ -40,6 +40,8 @@ export function sanitizeHistoryRetention(value: unknown): HistoryRetentionSettin
     if (!map || typeof map !== "object") throw new SettingsValidationError(`historyRetention.${name} must be an object`);
     const out: Record<string, ReturnType<typeof asCadence>> = {};
     for (const [key, cadence] of Object.entries(map as Record<string, unknown>)) {
+      // Inline proto-key guard (a programme/project id is the map key): never write __proto__/constructor/prototype.
+      if (key === "__proto__" || key === "constructor" || key === "prototype") continue;
       if (!isValidCadence(cadence)) throw new SettingsValidationError(`historyRetention.${name}.${key} must be a valid cadence`);
       out[key] = asCadence(cadence);
     }

@@ -114,7 +114,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (authLoading || !auth?.authenticated) return;
     const segment = location.split("/")[1] || "";
-    if (shouldGateToSetup({ role: auth.role, brokerConfigured: !!setup?.broker.configured, dismissed: firstRunDismissed(), segment })) {
+    if (shouldGateToSetup({ role: auth.role, brokerConfigured: !!setup?.broker.configured, dismissed: firstRunDismissed(), segment, demoMode: auth.mode === "demo" })) {
       setLocation("/configurator");
     }
   }, [auth, authLoading, setup, location, setLocation]);

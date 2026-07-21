@@ -35,7 +35,11 @@ export function shouldGateToSetup(input: {
   brokerConfigured: boolean;
   dismissed: boolean;
   segment: string;
+  /** A DEMO instance is pre-seeded sample data being explored, not a blank deployment awaiting setup —
+   *  so the first-run wizard must never hijack its landing page. Only real (oidc) instances gate. */
+  demoMode?: boolean;
 }): boolean {
+  if (input.demoMode) return false;
   if (!isPmoOrAdmin(input.role)) return false;
   if (input.brokerConfigured) return false;
   if (input.dismissed) return false;

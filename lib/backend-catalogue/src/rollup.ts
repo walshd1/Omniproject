@@ -67,7 +67,11 @@ export function rollup(rows: readonly Row[], spec: RollupSpec): Array<Record<str
       const m = metrics[0]!;
       for (const c of cols2) {
         const cell = grp.filter((r) => key(r[spec.groupBy2!]) === c);
-        row[`${c} · ${metricName(m)}`] = aggregate(m.agg, cell.map((r) => num(r[m.field])), cell.length);
+        const pk = `${c} · ${metricName(m)}`;
+        // Inline proto-key guard on the data-derived pivot column key (defensive; the ` · ` suffix means
+        // it can't literally be a proto key, but the explicit check keeps the dynamic write provably safe).
+        if (pk === "__proto__" || pk === "constructor" || pk === "prototype") continue;
+        row[pk] = aggregate(m.agg, cell.map((r) => num(r[m.field])), cell.length);
       }
     } else {
       for (const m of metrics) row[metricName(m)] = aggregate(m.agg, grp.map((r) => num(r[m.field])), grp.length);

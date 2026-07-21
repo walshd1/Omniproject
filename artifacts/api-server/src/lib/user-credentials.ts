@@ -133,6 +133,7 @@ export function assertPasswordPolicy(password: unknown): asserts password is str
 export function setPassword(userId: string, password: string): void {
   assertPasswordPolicy(password);
   if (!credentialsEnabled()) throw new Error("credential store is not configured");
+  if (userId === "__proto__" || userId === "constructor" || userId === "prototype") throw new Error("invalid userId");
   const salt = randomBytes(16);
   const hash = scrypt(password, salt, SCRYPT);
   const map = { ...load() };
@@ -147,6 +148,7 @@ export function hasPassword(userId: string): boolean {
 
 /** Remove a user's credential (on delete). Returns whether one was present. */
 export function removePassword(userId: string): boolean {
+  if (userId === "__proto__" || userId === "constructor" || userId === "prototype") return false;
   const map = load();
   if (!map[userId]) return false;
   const next = { ...map };
