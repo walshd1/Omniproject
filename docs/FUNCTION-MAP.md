@@ -2103,6 +2103,15 @@ Conditional governance rules — a PMO mandate that applies only WHEN its predic
 | `governanceOverridesFor` | Collect the effects of every rule whose condition matches the context (deduped, declared order). |
 | `firedGovernanceRuleIds` | The ids of the governance rules that fired for a context — for explainability + audit. |
 
+### `artifacts/api-server/src/lib/governed-config-ids.ts`
+
+GOVERNED logical config ids — the `config`-def logical ids whose write is reserved to a DEDICATED, governed surface and must NOT be authorable through the generic def importer (`routes/defs`) or a def-store reimport (`lib/def-store-export`).
+
+| Function | What it does |
+| --- | --- |
+| `isGovernedConfigId` | GOVERNED logical config ids — the `config`-def logical ids whose write is reserved to a DEDICATED, governed surface and must NOT be authorable through the generic def importer (`routes/defs`) or a def-store reimport (`lib/def-store-export`). |
+| `configPayloadId` | The logical `id` a `config` def carries in its payload (empty string when absent / not a string). |
+
 ### `artifacts/api-server/src/lib/guid-aliases.ts`
 
 GUID TRANSLATION — the alias table that lets an admin RELINK a project to a new correlation GUID without losing the history that referenced the old one.
@@ -2810,6 +2819,16 @@ Proactive "what needs me" digest.
 | `startProactiveDigestScheduler` | Start the in-process digest timer (single-instance / homelab). |
 | `__stopProactiveDigestScheduler` | Test-only: stop the timer. |
 
+### `artifacts/api-server/src/lib/process-guards.ts`
+
+Process-level crash backstop.
+
+| Function | What it does |
+| --- | --- |
+| `onUnhandledRejection` | Handler for an unhandled promise rejection: log and keep running. |
+| `onUncaughtException` | Handler for an uncaught exception (a throw that escaped Express — a timer/stream/emitter callback): log and keep running. |
+| `installProcessGuards` | Install the backstop. |
+
 ### `artifacts/api-server/src/lib/programmes.ts`
 
 Programmes are a grouping of related projects, **derived** from each project's optional `programmeId` (owned by the backend).
@@ -3207,6 +3226,19 @@ RISK-EXPOSURE maths, routed through the SCOPE-RESOLVED graded vocabularies.
 
 Re-export of the ONE shared, artifact-agnostic roll-up (`@workspace/backend-catalogue`), so the backend (rollup endpoints, exports) and the SPA (no-code report engine) run the SAME aggregation implementation — a single roll-up behind every output of the system.
 
+### `artifacts/api-server/src/lib/ruleset-scope.ts`
+
+SCOPED RULESET OVERLAY — lets a programme or project TIGHTEN the org's business ruleset for its own work, never loosen it.
+
+| Function | What it does |
+| --- | --- |
+| `stricterMode` | The stricter of two modes (used to tighten, never loosen). |
+| `tightenModes` | Fold an override's MODES onto a base, keeping only the stricter mode per rule (tighten-only). |
+| `tightenFieldRules` | Fold an override's FIELD RULES onto a base. |
+| `resolveEffectiveRuleset` | Resolve the EFFECTIVE ruleset for a request scope: the org baseline, tightened by the programme override (if any), then the project override (if any) — system < org < programme < project, each only able to make things stricter. |
+| `getRulesetOverride` | The stored override for one scope (for an admin UI to read/edit), or undefined. |
+| `setRulesetOverride` | Persist a scope's ruleset override (already delegation-gated by the caller). |
+
 ### `artifacts/api-server/src/lib/ruleset.ts`
 
 Business ruleset engine — EXTRA, admin-configurable rules layered ON TOP of the hard ruleset.
@@ -3350,7 +3382,11 @@ SCOPED CONFIG RESOLUTION — the reusable vehicle for the model migration (roadm
 | `orgConfigCollectionId` | The stable storage id of an org-scope config-collection def (one singleton row per logical config). |
 | `writeScopedConfigCollection` | Persist a collection as the config def `{ id, values: { value } }` AT `scope` (org / programme / project). |
 | `writeOrgConfigCollection` | Persist a collection at ORG scope (the common case) — a thin delegate over {@link writeScopedConfigCollection}. |
+| `readScopedConfigValue` | Read ONLY the value stored AT `scope` for `configId` (no scope fold), or undefined when that scope has no stored value. |
 | `resolveMethodologyComposition` | — |
+| `resolveDelegationPolicy` | — |
+| `delegationLevelOf` | The delegation LEVEL a config-write scope corresponds to (org / programme / project). |
+| `assertDelegationAllowed` | Assert a scoped write for `area` is permitted under the current delegation policy; throws a {@link DelegationDeniedError} when the target scope is deeper than the admin allows. |
 | `resolveErrorTelemetry` | — |
 | `sanitizeSchedulingValues` | Validate + normalise a partial scheduling `values` payload (the org admin's working-time edit) into a clean partial: hours/day in (0,24], working weekdays a non-empty set of integers 0–6 (a week with no working day would make the scheduler's day arithmetic non-terminating), holidays a de-duped sorted list of ISO dates. |
 | `resolveScheduling` | The effective working-time policy at a scope: the code default with every `scheduling` config-def layer folded on top (system < org < programme < project < user), nearest scope winning. |
@@ -3440,6 +3476,14 @@ SELF-HOST DB ADOPTION — the operator's choice to let OmniProject's OWN databas
 | `sanitizeSelfHost` | Validate + normalise the self-host adoption config: a valid mode, a string[] of adopted domain ids, and — the "disclose, don't insure" gate — an explicit acknowledgement whenever the mode isn't `off`. |
 | `resolveSelfHost` | The resolved self-host adoption config (org config def → built-in default). |
 
+### `artifacts/api-server/src/lib/server-timeouts.ts`
+
+Inbound HTTP-server hardening (slowloris / slow-body defence).
+
+| Function | What it does |
+| --- | --- |
+| `configureServerTimeouts` | — |
+
 ### `artifacts/api-server/src/lib/session-crypto.ts`
 
 Authenticated encryption for the session cookie.
@@ -3467,7 +3511,7 @@ Concurrent-session cap.
 | `maxSessionsPerUser` | The configured per-user concurrent-session cap (0 / unset ⇒ unlimited). |
 | `registerSession` | Record activity for (sub, sid) and report whether this session is within the cap. |
 | `activeSessionCount` | How many sessions the registry currently tracks for a user (diagnostics). |
-| `sequenceEnforced` | Whether rotating-token sequence enforcement is on (default ON; set SESSION_SEQUENCE_ENFORCE=0 to disable, e.g. for a non-sticky fleet that would rather not risk per-replica missed detections). |
+| `sequenceEnforced` | Whether rotating-token sequence enforcement is on. |
 | `issueSequence` | Issue the next sequence number for a session (called when its cookie is (re)sealed). |
 | `checkSequence` | Check a presented sequence against the session's high-water mark. |
 | `__resetSessionRegistry` | Test-only: clear the registry. |
@@ -3479,6 +3523,7 @@ The session-cookie signing secret's boot-time guard, factored out of app.ts so t
 | Function | What it does |
 | --- | --- |
 | `evaluateSessionSecret` | Evaluate the guard (pure). |
+| `assertSessionSecretForLocalPrincipals` | Post-config-load re-check for NATIVE LOCAL ACCOUNTS. |
 | `resolveSessionSecret` | Boot hook: evaluate the guard and throw (refuse to boot) when it fails. |
 
 ### `artifacts/api-server/src/lib/session-timeout.ts`
@@ -3525,6 +3570,16 @@ Known-good settings blueprints for common customer archetypes — a starting poi
 | --- | --- |
 | `listSettingsPresets` | The known-good settings blueprints, in display order. |
 | `settingsPreset` | One blueprint by id, or null. |
+
+### `artifacts/api-server/src/lib/settings-scope.ts`
+
+SCOPED SETTINGS OVERLAY — lets a programme/project override a SMALL, SAFE allow-list of settings for itself (see SCOPE_VARIABLE_SETTINGS), governed by the delegation policy.
+
+| Function | What it does |
+| --- | --- |
+| `resolveScopedSettings` | Resolve the EFFECTIVE settings for a request scope: the org base, with allow-listed keys overridden by the programme override then the project override (nearest wins). |
+| `getSettingsOverride` | The stored override for one scope (for an admin UI), or an empty object. |
+| `setSettingsOverride` | Persist a scope's settings override (already delegation-gated by the caller). |
 
 ### `artifacts/api-server/src/lib/settings.ts`
 
@@ -4191,9 +4246,13 @@ DEF SELECTION BINDINGS routes (roadmap X.12).
 
 THE DEFINITION IMPORTER routes (roadmap X.3), behind the default-off `defImporter` module.
 
+### `artifacts/api-server/src/routes/delegation-policy.ts`
+
+DELEGATION POLICY — the org's governance dial for how far DOWN the scope hierarchy local variation is allowed, per governed area (ruleset / settings / methodology).
+
 ### `artifacts/api-server/src/routes/deployment-types.ts`
 
-Coerce an unknown into a string→string map (drops non-string values).
+DEPLOYMENT TYPES — the on-ramp archetypes (solo self-hoster, small team, managed cloud, enterprise on-prem, regulated self-host).
 
 ### `artifacts/api-server/src/routes/dev-mode.ts`
 
@@ -4797,6 +4856,16 @@ Composition ancestry refs — the shipped `{ id, extends }` of every def of a ki
 | --- | --- |
 | `shippedDefRefs` | — |
 | `shippedDefs` | The full shipped def PAYLOADS of a kind. |
+
+### `lib/backend-catalogue/src/delegation-policy.ts`
+
+DELEGATION POLICY — the admin-set governance dial for how far DOWN the scope hierarchy local variation is allowed for each governed area (rulesets, settings, methodology).
+
+| Function | What it does |
+| --- | --- |
+| `levelDepth` | A level's depth (org=0 … user=3); unknown → 0 (org, the safe/tightest). |
+| `isDelegationAllowed` | May a write at `target` scope proceed under a policy that allows variation down to `allowed`? True when the target is no deeper than the allowed level. |
+| `cleanDelegationPolicy` | Coerce untrusted input (imported/stored) into a valid policy, filling unknowns from the default. |
 
 ### `lib/backend-catalogue/src/deployment-resolve.ts`
 

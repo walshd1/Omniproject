@@ -360,9 +360,18 @@ THE DEFINITION IMPORTER routes (roadmap X.3), behind the default-off `defImporte
 | PUT | `/api/defs/:id` | requireRole(contributor) | the def's own scope). |
 | DELETE | `/api/defs/:id` | requireRole(contributor) | DELETE /api/defs/:id — remove a stored def (contributor+, subject to the target gate). |
 
+### `artifacts/api-server/src/routes/delegation-policy.ts`
+
+DELEGATION POLICY — the org's governance dial for how far DOWN the scope hierarchy local variation is allowed, per governed area (ruleset / settings / methodology).
+
+| Method | Path | Gate | Description |
+| --- | --- | --- | --- |
+| GET | `/api/admin/delegation-policy` | — | — |
+| PUT | `/api/admin/delegation-policy` | requireAnyRole(pmo, admin) | — |
+
 ### `artifacts/api-server/src/routes/deployment-types.ts`
 
-Coerce an unknown into a string→string map (drops non-string values).
+DEPLOYMENT TYPES — the on-ramp archetypes (solo self-hoster, small team, managed cloud, enterprise on-prem, regulated self-host).
 
 | Method | Path | Gate | Description |
 | --- | --- | --- | --- |
@@ -959,6 +968,8 @@ Whether a methodology's reference ruleset is enabled by the methodology composit
 | PUT | `/api/admin/ruleset/fields` | requireRole(pmo) | — |
 | GET | `/api/admin/ruleset/reference` | requireRole(pmo) | the methodology composition enables (uncurated ⇒ all). |
 | POST | `/api/admin/ruleset/apply-reference` | requireRole(pmo) | (routes through applyRuleset → setRuleModes/setFieldRules). |
+| GET | `/api/admin/ruleset/scope` | requireRole(pmo) | GET the override stored at a programme/project scope (for the admin UI). |
+| PUT | `/api/admin/ruleset/scope` | requireRole(pmo) | policy: a scoped ruleset change is only permitted when the admin has opened `ruleset` variation to that depth. |
 
 ### `artifacts/api-server/src/routes/scheduling.ts`
 
@@ -1046,6 +1057,8 @@ Gateway-local settings (the broker URL, AI provider, …).
 | GET | `/api/settings/constraints` | — | grey out illegal choices proactively — same non-secret, read-safe audience as GET /settings. |
 | GET | `/api/settings/presets` | — | loads one as a starting point, then the operator tweaks + saves. |
 | PATCH | `/api/settings` | requireRole(admin) | Each change is versioned so it can be rolled back (see config-store). |
+| GET | `/api/settings/scope` | requireRole(admin) | GET a scope's stored settings override (the allow-listed keys it varies). |
+| PUT | `/api/settings/scope` | requireRole(admin) | are rejected (never stored); an invalid value is rejected by the same field validation as org settings. |
 
 ### `artifacts/api-server/src/routes/setup.ts`
 
