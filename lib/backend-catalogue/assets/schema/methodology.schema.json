@@ -60,6 +60,11 @@
         }
       }
     },
+    "settings": {
+      "type": "object",
+      "description": "Preset settings (first-class fields) this methodology lands on a one-click deploy — validated against the settings field descriptors at apply time. Keys must be writable settings keys (e.g. reportingCurrency, fxRatePolicy, priorityWeights).",
+      "additionalProperties": true
+    },
     "notes": { "type": "string" },
     "order": { "type": "integer", "description": "Display order in the methodology picker." }
   }

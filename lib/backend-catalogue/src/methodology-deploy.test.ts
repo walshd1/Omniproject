@@ -30,6 +30,25 @@ test("a methodology with a ruleset but no invariants still resolves (scrum)", ()
   assert.ok(dep!.compositionItemIds.includes("screen:scrum-overview"));
 });
 
+test("the deploy plan carries the methodology's preset SETTINGS block (posture)", () => {
+  // Scrum lands a WSJF-weighted prioritisation as a first-class settings field.
+  const scrum = resolveMethodologyDeployment("scrum");
+  assert.ok(scrum);
+  assert.equal(scrum!.summary.settings, 1);
+  assert.deepEqual(scrum!.settings["priorityWeights"], { rice: 20, wsjf: 40, moscow: 10, strategic: 20, benefit: 10 });
+
+  // Waterfall lands period-close FX + a strategy-weighted prioritisation.
+  const wf = resolveMethodologyDeployment("waterfall");
+  assert.ok(wf);
+  assert.equal(wf!.settings["fxRatePolicy"], "periodClose");
+  assert.equal(wf!.summary.settings, 2);
+
+  // A methodology with no settings block yields an empty (never undefined) settings map.
+  const gtd = resolveMethodologyDeployment("gtd");
+  assert.deepEqual(gtd!.settings, {});
+  assert.equal(gtd!.summary.settings, 0);
+});
+
 test("composition item ids are de-duplicated and an unknown methodology is null", () => {
   const dep = resolveMethodologyDeployment("gtd");
   assert.equal(new Set(dep!.compositionItemIds).size, dep!.compositionItemIds.length);

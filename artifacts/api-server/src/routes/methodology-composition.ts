@@ -4,6 +4,7 @@ import { requireArtifactStore } from "../lib/artifact-store";
 import { resolveMethodologyComposition, writeOrgConfigCollection, writeScopedConfigCollection, METHODOLOGY_COMPOSITION_ID, type ConfigWriteScope } from "../lib/scoped-config";
 import { resolveMethodologyDeployment } from "@workspace/backend-catalogue";
 import { applyRuleset } from "../lib/ruleset";
+import { updateSettings, validatePatch } from "../lib/settings";
 import { recordRequestAudit } from "../lib/audit";
 
 /**
@@ -76,9 +77,23 @@ router.post("/methodology-composition/deploy/:id", requireAnyRole("pmo", "admin"
   writeScopedConfigCollection(METHODOLOGY_COMPOSITION_ID, "Methodology composition", plan.compositionItemIds, scope);
   // 2) Apply its reference ruleset (modes + field rules), if it ships one. (The ruleset engine is org-global.)
   if (plan.ruleset) applyRuleset({ modes: plan.ruleset.modes, fieldRules: plan.ruleset.fieldRules });
+  // 3) Land its PRESET SETTINGS block (the posture half of the bundle), validated against the field
+  //    descriptors. Settings are org-global (like the ruleset), so this applies regardless of the scope.
+  //    An invalid block is rejected as a whole, reported back, and doesn't abort the (already-written) deploy.
+  let appliedSettings: string[] = [];
+  let settingsError: string | null = null;
+  if (Object.keys(plan.settings).length > 0) {
+    try {
+      const normalized = validatePatch(plan.settings);
+      updateSettings(normalized);
+      appliedSettings = Object.keys(normalized);
+    } catch (e) {
+      settingsError = e instanceof Error ? e.message : "invalid methodology settings";
+    }
+  }
   recordRequestAudit(req, {
     category: "admin", action: "methodology_deploy", result: "success", status: 200,
-    meta: { methodology: id, scope: scope.kind, items: plan.compositionItemIds.length, ruleset: plan.ruleset?.id ?? null, invariants: plan.invariants.length },
+    meta: { methodology: id, scope: scope.kind, items: plan.compositionItemIds.length, ruleset: plan.ruleset?.id ?? null, invariants: plan.invariants.length, settings: appliedSettings.length, settingsError },
   });
   const scopeKeys = scope.kind === "programme" ? { programmeId: scope.programmeId } : scope.kind === "project" ? { projectId: scope.projectId } : {};
   res.json({
@@ -87,6 +102,8 @@ router.post("/methodology-composition/deploy/:id", requireAnyRole("pmo", "admin"
     methodologyComposition: resolveMethodologyComposition(scopeKeys),
     appliedRuleset: plan.ruleset?.id ?? null,
     invariants: plan.invariants,
+    appliedSettings,
+    ...(settingsError ? { settingsError } : {}),
   });
 });
 

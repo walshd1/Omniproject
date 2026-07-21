@@ -42,8 +42,11 @@ export interface MethodologyDeployment {
   invariants: MethodologyInvariant[];
   /** The methodology's nomenclature — states/ceremonies + the status/priority tokens it relabels. */
   nomenclature: MethodologyNomenclature;
+  /** The PRESET SETTINGS block (first-class fields) the deploy also lands — the "posture" half of the bundle.
+   *  Validated against the settings field descriptors at apply time by the deploy route. */
+  settings: Record<string, unknown>;
   /** Counts for a one-click confirmation summary ("turns on 1 screen, 1 ruleset, 1 business rule"). */
-  summary: { views: number; reports: number; screens: number; invariants: number; hasRuleset: boolean };
+  summary: { views: number; reports: number; screens: number; invariants: number; hasRuleset: boolean; settings: number };
 }
 
 /** A screen/report/view carries this methodology's OWN tag (not neutral "*"). */
@@ -70,6 +73,7 @@ export function resolveMethodologyDeployment(methodologyId: string): Methodology
     ...(pack.ruleset ? [`ruleset:${pack.ruleset.id}`] : []),
   ])];
   const invariants = methodology.invariants ?? [];
+  const settings = methodology.settings ?? {};
   const nomenclature = {
     states: [...methodology.tools.states],
     ceremonies: [...methodology.tools.ceremonies],
@@ -86,12 +90,14 @@ export function resolveMethodologyDeployment(methodologyId: string): Methodology
     ruleset: pack.ruleset,
     invariants,
     nomenclature,
+    settings,
     summary: {
       views: pack.views.length,
       reports: pack.reports.length,
       screens: screenIds.size,
       invariants: invariants.length,
       hasRuleset: !!pack.ruleset,
+      settings: Object.keys(settings).length,
     },
   };
 }

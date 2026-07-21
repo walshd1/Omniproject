@@ -54,6 +54,11 @@ export interface MethodologyManifest {
   alsoProvides?: CrossPlaneRef[];
   /** Declarative cross-entity business rules this methodology asserts (see {@link MethodologyInvariant}). */
   invariants?: MethodologyInvariant[];
+  /** PRESET SETTINGS (first-class fields) this methodology lands on a one-click deploy — the "known-good
+   *  posture" half of the bundle. Keys must be writable settings keys (reportingCurrency, fxRatePolicy,
+   *  priorityWeights, …); they are validated against the settings field descriptors at apply time, so an
+   *  invalid block is rejected (never silently mis-applied). */
+  settings?: Record<string, unknown>;
   notes?: string;
 }
 

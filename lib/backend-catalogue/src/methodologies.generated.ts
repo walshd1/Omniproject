@@ -290,6 +290,15 @@ export const METHODOLOGIES_DATA: MethodologyDefinition[] = [
         "note": "sprint board"
       }
     ],
+    "settings": {
+      "priorityWeights": {
+        "rice": 20,
+        "wsjf": 40,
+        "moscow": 10,
+        "strategic": 20,
+        "benefit": 10
+      }
+    },
     "notes": "Time-boxed sprints, story points, the four ceremonies.",
     "order": 10
   },
@@ -399,6 +408,16 @@ export const METHODOLOGIES_DATA: MethodologyDefinition[] = [
         "note": "schedule / Gantt"
       }
     ],
+    "settings": {
+      "fxRatePolicy": "periodClose",
+      "priorityWeights": {
+        "rice": 15,
+        "wsjf": 10,
+        "moscow": 20,
+        "strategic": 40,
+        "benefit": 15
+      }
+    },
     "notes": "Sequential phases, baselines, critical path.",
     "order": 40
   }

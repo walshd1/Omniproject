@@ -86,6 +86,18 @@ test("POST deploy/:id sets the composition + applies the ruleset in one click", 
   assert.ok(got.methodologyComposition.includes("ruleset:gtd"));
 });
 
+test("POST deploy/:id lands the methodology's preset SETTINGS block (scrum → WSJF weights)", async () => {
+  const r = await h.req("/methodology-composition/deploy/scrum", { method: "POST", cookie: adminCookie() });
+  assert.equal(r.status, 200);
+  const out = await json(r);
+  // The posture half of the bundle applied: the settings keys are echoed back.
+  assert.ok(Array.isArray(out.appliedSettings) && out.appliedSettings.includes("priorityWeights"));
+  assert.equal(out.settingsError, undefined);
+  // It persisted to the settings store — a follow-up read reflects the WSJF-weighted prioritisation.
+  const settings = await json(await h.req("/settings", { cookie: adminCookie() }));
+  assert.equal(settings.priorityWeights.wsjf, 40);
+});
+
 test("POST deploy/:id requires admin/PMO", async () => {
   const r = await h.req("/methodology-composition/deploy/gtd", { method: "POST" });
   assert.equal(r.status, 401);
