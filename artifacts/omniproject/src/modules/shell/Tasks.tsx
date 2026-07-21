@@ -4,6 +4,7 @@ import { TaskDetailDialog } from "../../components/TaskDetailDialog";
 import { EntityViews } from "../../components/view-engine/EntityViews";
 import { taskDescriptor } from "../../lib/view-engine/task-descriptor";
 import { usePriorityLabels } from "../../lib/priority-labels";
+import { parseQuickAdd } from "../../lib/quick-add";
 import { Button } from "@/components/ui/button";
 
 function Stat({ label, value }: { label: string; value: number }) {
@@ -31,9 +32,21 @@ export function Tasks() {
   const [detail, setDetail] = useState<Task | null>(null);
 
   const add = () => {
-    if (!title.trim()) return;
+    const raw = title.trim();
+    if (!raw) return;
+    // Parse inline syntax (#tag @context !priority ^date) out of the title; the explicit context/priority
+    // controls, when set, OVERRIDE the parsed values so both ways of entering work together.
+    const parsed = parseQuickAdd(raw, new Date());
+    const ctx = context.trim() || parsed.context || "";
+    const prio = priority !== "none" ? priority : (parsed.priority ?? "none");
     create.mutate(
-      { title: title.trim(), ...(context.trim() ? { context: context.trim() } : {}), ...(priority !== "none" ? { priority } : {}) },
+      {
+        title: parsed.title || raw,
+        ...(ctx ? { context: ctx } : {}),
+        ...(prio !== "none" ? { priority: prio as Priority } : {}),
+        ...(parsed.tags.length ? { tags: parsed.tags } : {}),
+        ...(parsed.dueDate ? { dueDate: parsed.dueDate } : {}),
+      },
       { onSuccess: () => { setTitle(""); setContext(""); setPriority("none"); } },
     );
   };
@@ -62,7 +75,7 @@ export function Tasks() {
         <div className="flex flex-wrap gap-2">
           <input
             className="flex-1 min-w-[12rem] rounded-none border border-border bg-card px-3 py-2 text-sm"
-            placeholder="Add a next action…"
+            placeholder="Add a next action…  (try #tag @context !p1 ^tomorrow)"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             onKeyDown={(e) => { if (e.key === "Enter") add(); }}

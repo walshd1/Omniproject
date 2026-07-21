@@ -44,7 +44,7 @@ describe("Tasks", () => {
   it("quick-add posts a new next action", async () => {
     renderWithProviders(<Tasks />);
     await screen.findByText("Call the auditor");
-    fireEvent.change(screen.getByPlaceholderText("Add a next action…"), { target: { value: "Book the review" } });
+    fireEvent.change(screen.getByPlaceholderText(/Add a next action/), { target: { value: "Book the review" } });
     fireEvent.click(screen.getByRole("button", { name: "Add" }));
     await waitFor(() => {
       const post = fetchMock.mock.calls.find((c) => c[0] === "/api/tasks" && c[1]?.method === "POST");
@@ -55,7 +55,7 @@ describe("Tasks", () => {
   it("quick-add carries an optional priority when chosen", async () => {
     renderWithProviders(<Tasks />);
     await screen.findByText("Call the auditor");
-    fireEvent.change(screen.getByPlaceholderText("Add a next action…"), { target: { value: "Prep board pack" } });
+    fireEvent.change(screen.getByPlaceholderText(/Add a next action/), { target: { value: "Prep board pack" } });
     fireEvent.change(screen.getByLabelText("Priority"), { target: { value: "high" } });
     fireEvent.click(screen.getByRole("button", { name: "Add" }));
     await waitFor(() => {
@@ -67,7 +67,7 @@ describe("Tasks", () => {
   it("submits the quick-add on Enter in the title field", async () => {
     renderWithProviders(<Tasks />);
     await screen.findByText("Call the auditor");
-    const input = screen.getByPlaceholderText("Add a next action…");
+    const input = screen.getByPlaceholderText(/Add a next action/);
     fireEvent.change(input, { target: { value: "Ring the bank" } });
     fireEvent.keyDown(input, { key: "Enter" });
     await waitFor(() => {
@@ -79,7 +79,7 @@ describe("Tasks", () => {
   it("carries an @context and submits on Enter from the context field", async () => {
     renderWithProviders(<Tasks />);
     await screen.findByText("Call the auditor");
-    fireEvent.change(screen.getByPlaceholderText("Add a next action…"), { target: { value: "Water the plants" } });
+    fireEvent.change(screen.getByPlaceholderText(/Add a next action/), { target: { value: "Water the plants" } });
     const ctx = screen.getByPlaceholderText("@context");
     fireEvent.change(ctx, { target: { value: "@home" } });
     fireEvent.keyDown(ctx, { key: "Enter" });
@@ -94,7 +94,7 @@ describe("Tasks", () => {
   it("ignores an empty/whitespace quick-add — Enter with no real title posts nothing", async () => {
     renderWithProviders(<Tasks />);
     await screen.findByText("Call the auditor");
-    const input = screen.getByPlaceholderText("Add a next action…");
+    const input = screen.getByPlaceholderText(/Add a next action/);
     fireEvent.keyDown(input, { key: "Enter" }); // empty
     fireEvent.change(input, { target: { value: "   " } });
     fireEvent.keyDown(input, { key: "Enter" }); // whitespace-only
