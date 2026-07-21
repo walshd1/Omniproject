@@ -4,9 +4,13 @@ version: 2
 # the deploy files did before. Note: the `docker` ecosystem scans the Dockerfile
 # AND docker-compose.*.yml image: pins, but NOT the k8s manifest image — review
 # k8s-enterprise-manifest.yaml's pins (and the intentional n8n 1.x hold) manually.
+# All bump PRs open against `next` (the standing development branch), not `main`.
+# `main` is the stable release line; dependency updates are validated on `next`'s CI
+# and ride into `main` with the next promotion. See docs/BRANCHING.md.
 updates:
   - package-ecosystem: docker
     directory: "/"
+    target-branch: "next"
     schedule:
       interval: weekly
     open-pull-requests-limit: 5
@@ -16,12 +20,14 @@ updates:
 
   - package-ecosystem: github-actions
     directory: "/"
+    target-branch: "next"
     schedule:
       interval: weekly
     open-pull-requests-limit: 5
 
   - package-ecosystem: npm
     directory: "/"
+    target-branch: "next"
     schedule:
       interval: weekly
     open-pull-requests-limit: 8
