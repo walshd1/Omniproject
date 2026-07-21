@@ -30,8 +30,10 @@ interface ActiveDeployment { deploymentType?: string; answers?: Record<string, s
 function strMap(v: unknown): Record<string, string> {
   const out: Record<string, string> = {};
   if (v && typeof v === "object" && !Array.isArray(v)) {
-    // Inline proto-key guard (CodeQL's remote-property-injection barrier recognises the literal comparison).
-    for (const [k, val] of Object.entries(v as Record<string, unknown>)) if (typeof val === "string" && k !== "__proto__" && k !== "constructor" && k !== "prototype") out[k] = val;
+    for (const [k, val] of Object.entries(v as Record<string, unknown>)) {
+      if (k === "__proto__" || k === "constructor" || k === "prototype") continue; // standalone proto-key barrier
+      if (typeof val === "string") out[k] = val;
+    }
   }
   return out;
 }
@@ -54,7 +56,10 @@ router.post("/deployment-types/:id/resolve", (req, res) => {
   // Only string→string answers are honoured; anything else is dropped (the resolver defaults it).
   const answers: Record<string, string> = {};
   if (body.answers && typeof body.answers === "object" && !Array.isArray(body.answers)) {
-    for (const [k, v] of Object.entries(body.answers as Record<string, unknown>)) if (typeof v === "string" && k !== "__proto__" && k !== "constructor" && k !== "prototype") answers[k] = v;
+    for (const [k, v] of Object.entries(body.answers as Record<string, unknown>)) {
+      if (k === "__proto__" || k === "constructor" || k === "prototype") continue; // standalone proto-key barrier
+      if (typeof v === "string") answers[k] = v;
+    }
   }
   const resolved = resolveDeploymentSetup(id, answers);
   if (!resolved) { res.status(404).json({ error: "unknown deployment type" }); return; }
