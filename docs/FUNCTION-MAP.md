@@ -844,6 +844,7 @@ The action-id prefix a workflow RUN binds to (`workflow.run:<id>`) — matched h
 | `challengeForStage` | Issue a one-time passkey challenge for `sub` to sign the CURRENT stage of a proposal. |
 | `submitDecision` | Submit a passkey-signed decision for the current stage. |
 | `redirectProposal` | PMO REDIRECT — reassign the current stage's approvers. |
+| `isDualControl` | A genuine dual-control chain: distinct approvers required across two or more stages. |
 | `bypassProposal` | PMO BYPASS — force the chain to approved and run the executor. |
 | `challengeForBypass` | Issue a challenge for a PMO bypass of a proposal (signed like any approval, over a `:bypass` scope). |
 
@@ -3137,7 +3138,7 @@ Active reminder delivery.
 | `reminderFireKey` | The one-time fire key for a task's current reminder — includes the timestamp so RESCHEDULING (a new reminderAt) is a fresh reminder that fires again, while the same one never double-fires. |
 | `dueReminders` | Tasks whose reminder is DUE at `nowMs`: a reminderAt in the past, not done/dropped, not already fired. |
 | `reminderNotification` | A reminder notification for a task + the target derived from its assignee (email addressing when the assignee is an email; otherwise untargeted — delivered to the task's watchers by the hub). |
-| `runReminderSweep` | Run one reminder sweep: fire every due reminder exactly once (mark-then-notify, so a mid-sweep failure can't produce a duplicate on the next run), returning the count fired. |
+| `runReminderSweep` | Run one reminder sweep: deliver every due reminder exactly once. |
 
 ### `artifacts/api-server/src/lib/report-store.ts`
 
