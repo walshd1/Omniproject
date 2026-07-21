@@ -360,6 +360,16 @@ THE DEFINITION IMPORTER routes (roadmap X.3), behind the default-off `defImporte
 | PUT | `/api/defs/:id` | requireRole(contributor) | the def's own scope). |
 | DELETE | `/api/defs/:id` | requireRole(contributor) | DELETE /api/defs/:id — remove a stored def (contributor+, subject to the target gate). |
 
+### `artifacts/api-server/src/routes/deployment-types.ts`
+
+DEPLOYMENT TYPES — the on-ramp archetypes (solo self-hoster, small team, managed cloud, enterprise on-prem, regulated self-host).
+
+| Method | Path | Gate | Description |
+| --- | --- | --- | --- |
+| GET | `/api/deployment-types` | — | — |
+| GET | `/api/deployment-types/:id` | — | — |
+| POST | `/api/deployment-types/:id/resolve` | — | — |
+
 ### `artifacts/api-server/src/routes/dev-mode.ts`
 
 Dev-mode routes.

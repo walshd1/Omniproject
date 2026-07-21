@@ -82,6 +82,7 @@ const CASES: GenCase[] = [
   { name: "gen-dashboard-presets", script: "src/gen-dashboard-presets.ts", outputs: [`${BC}/dashboard-presets.generated.ts`] },
   { name: "gen-screens", script: "src/gen-screens.ts", outputs: [`${BC}/screens.generated.ts`] },
   { name: "gen-methodologies", script: "src/gen-methodologies.ts", outputs: [`${BC}/methodologies.generated.ts`] },
+  { name: "gen-deployment-types", script: "src/gen-deployment-types.ts", outputs: [`${BC}/deployment-types.generated.ts`] },
   { name: "gen-personas", script: "src/gen-personas.ts", outputs: [`${BC}/personas.generated.ts`] },
   { name: "gen-methodology-rulesets", script: "src/gen-methodology-rulesets.ts", outputs: [`${BC}/methodology-rulesets.generated.ts`] },
   { name: "gen-consolidations", script: "src/gen-consolidations.ts", outputs: [`${BC}/consolidations.generated.ts`] },
