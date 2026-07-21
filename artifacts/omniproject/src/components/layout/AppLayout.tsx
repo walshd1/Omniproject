@@ -23,7 +23,7 @@ import { usePublicSetupStatus } from "../../lib/setup";
 import { useT } from "../../lib/i18n";
 import { useOnline, connectivityState } from "../../lib/connectivity";
 import { useInstallPrompt } from "../../lib/use-install-prompt";
-import { TimerWidget } from "../TimerWidget";
+import { TimerWidget } from "../../modules/invoicing/TimerWidget";
 import { useOfflineCacheSync } from "../../lib/use-offline-cache";
 import { useBranding } from "../../lib/branding";
 import { LanguageSwitcher } from "../LanguageSwitcher";

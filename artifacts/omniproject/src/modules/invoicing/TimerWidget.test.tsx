@@ -1,9 +1,9 @@
 import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
 import { screen, fireEvent, waitFor, act } from "@testing-library/react";
 import { QueryClient } from "@tanstack/react-query";
-import { renderWithProviders, mockFetchRouter, resetFetchMock } from "../test/utils";
-import { timerKey, formatElapsed, type TimerState } from "../lib/live-timer";
-import { featuresQueryKey, type FeatureStatus } from "../lib/features";
+import { renderWithProviders, mockFetchRouter, resetFetchMock } from "../../test/utils";
+import { timerKey, formatElapsed, type TimerState } from "./live-timer";
+import { featuresQueryKey, type FeatureStatus } from "../../lib/features";
 import { TimerWidget } from "./TimerWidget";
 
 const toastMock = vi.hoisted(() => vi.fn());

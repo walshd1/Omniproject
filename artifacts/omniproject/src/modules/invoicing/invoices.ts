@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { type InvoiceLineKind, type InvoiceStatus } from "@workspace/backend-catalogue";
-import { getJson, sendJson } from "./api";
-import { useFeatures, featureEnabled } from "./features";
+import { getJson, sendJson } from "../../lib/api";
+import { useFeatures, featureEnabled } from "../../lib/features";
 
 export { INVOICE_LINE_KINDS, INVOICE_STATUSES, invoiceLineAmount, formatMoney, type InvoiceLineKind, type InvoiceStatus } from "@workspace/backend-catalogue";
 

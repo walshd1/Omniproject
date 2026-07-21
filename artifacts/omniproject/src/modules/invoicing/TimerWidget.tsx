@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Play, Square, Timer as TimerIcon } from "lucide-react";
-import { useFeatureEnabled } from "../lib/features";
-import { useTimer, useStartTimer, useStopTimer, formatElapsed } from "../lib/live-timer";
+import { useFeatureEnabled } from "../../lib/features";
+import { useTimer, useStartTimer, useStopTimer, formatElapsed } from "./live-timer";
 import { useToast } from "@/hooks/use-toast";
 
 /**

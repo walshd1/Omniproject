@@ -2,7 +2,7 @@ import { describe, it, expect, vi, afterEach } from "vitest";
 import { createElement, type ReactNode } from "react";
 import { renderHook, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { featuresQueryKey } from "./features";
+import { featuresQueryKey } from "../../lib/features";
 import {
   invoicesKey,
   invoiceKey,

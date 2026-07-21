@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { getJson, sendJson } from "./api";
+import { getJson, sendJson } from "../../lib/api";
 
 /**
  * Live time-tracking client hooks over `/api/timer/*` (roadmap 3.3). One running timer per user (ephemeral,

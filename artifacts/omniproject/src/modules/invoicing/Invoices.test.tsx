@@ -1,8 +1,8 @@
 import { describe, it, expect, afterEach } from "vitest";
 import { screen, fireEvent, waitFor, within } from "@testing-library/react";
 import { QueryClient } from "@tanstack/react-query";
-import { renderWithProviders, mockFetchRouter, resetFetchMock } from "../test/utils";
-import { invoicesKey, type InvoiceMeta, type Invoice } from "../lib/invoices";
+import { renderWithProviders, mockFetchRouter, resetFetchMock } from "../../test/utils";
+import { invoicesKey, type InvoiceMeta, type Invoice } from "./invoices";
 import { Invoices } from "./Invoices";
 
 /** The Invoices page: listing, empty state, the create-draft form (line editing, derived preview, submit +

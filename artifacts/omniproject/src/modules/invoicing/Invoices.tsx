@@ -1,11 +1,11 @@
 import { useState } from "react";
 import { Receipt, Plus, Trash2 } from "lucide-react";
-import { DataState } from "../components/DataState";
+import { DataState } from "../../components/DataState";
 import {
   useInvoices, useInvoice, useCreateInvoice, useSetInvoiceStatus, useDeleteInvoice,
   invoiceActions, invoiceStatusTone, INVOICE_LINE_KINDS, invoiceLineAmount, formatMoney,
   type InvoiceStatus, type InvoiceLineKind, type InvoiceInput,
-} from "../lib/invoices";
+} from "./invoices";
 
 /**
  * Invoices (roadmap 3.3). List generated invoices with derived totals + a status flow, create a draft with
