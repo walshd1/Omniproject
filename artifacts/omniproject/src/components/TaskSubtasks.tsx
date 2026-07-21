@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { useTasks, useCreateTask, useUpdateTask, type Task } from "../lib/tasks";
 import { descendantIds } from "../lib/task-tree";
+import { isTerminal } from "../lib/status-vocab";
 
 /**
  * TaskSubtasks — the subtask CREATE + re-parent affordance on the task detail. The list view already renders
@@ -44,7 +45,7 @@ export function TaskSubtasks({ task, onOpen }: { task: Task; onOpen?: (t: Task) 
       <ul className="space-y-1">
         {children.length === 0 && <li className="text-xs text-muted-foreground">No subtasks yet.</li>}
         {children.map((c) => {
-          const done = c.status === "done" || c.status === "dropped";
+          const done = isTerminal(c.status);
           return (
             <li key={c.id} className="flex items-center gap-2 text-sm">
               <input

@@ -23,6 +23,8 @@ function envInt(env: Env, key: string, dflt: number): number {
   return Number.isInteger(n) && n > 0 ? n : dflt;
 }
 
+/** Apply the inbound-HTTP hardening timeouts (slowloris defence) to a live server: request/headers/keep-alive
+ *  windows from env with safe defaults, and an opt-in max-connection cap. Mutates `server` in place. */
 export function configureServerTimeouts(server: TimeoutTarget, env: Env = process.env): void {
   // Time to receive the whole request (slow-body slowloris). 30s is ample for a ≤256kb body on a slow link.
   server.requestTimeout = envInt(env, "REQUEST_TIMEOUT_MS", 30_000);

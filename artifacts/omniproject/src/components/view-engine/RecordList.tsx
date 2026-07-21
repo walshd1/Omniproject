@@ -2,6 +2,7 @@ import { useState } from "react";
 import { ChevronRight, ChevronDown } from "lucide-react";
 import { CHIP_TONE_CLASS, type ViewRecord } from "../../lib/view-engine/types";
 import { buildTaskTree, flattenTaskTree } from "../../lib/task-tree";
+import { safeParseJson } from "../../lib/safe-json";
 
 /**
  * Generic record list — the entity-agnostic list view. Renders any normalised records with a
@@ -109,7 +110,7 @@ export function RecordList<T>({
 function readFolded(key: string): Set<string> {
   try {
     const raw = typeof localStorage !== "undefined" ? localStorage.getItem(key) : null;
-    const arr = raw ? JSON.parse(raw) : [];
+    const arr = raw ? safeParseJson<unknown>(raw) : [];
     return new Set(Array.isArray(arr) ? arr.filter((x): x is string => typeof x === "string") : []);
   } catch { return new Set(); }
 }
