@@ -14,7 +14,11 @@ const mutate = vi.fn();
 vi.mock("../../lib/methodology-composition-api", () => ({
   useMethodologyComposition: () => ({ data: saved }),
   useSaveMethodologyComposition: () => ({ mutate, isPending: false }),
+  // The embedded one-click deploy section (MethodologyDeploy) uses these; stub them inert here.
+  useMethodologyDeploymentPreview: () => ({ data: undefined }),
+  useDeployMethodology: () => ({ mutate: vi.fn(), isPending: false }),
 }));
+vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast: vi.fn() }) }));
 
 beforeEach(() => { role = "pmo"; saved = null; mutate.mockClear(); });
 
