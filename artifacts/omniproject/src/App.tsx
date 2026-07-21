@@ -34,23 +34,23 @@ import { useRoutedScreens } from "./lib/org-screens";
 // the `component` primitive registry in components/screen/screen-components), so they are no longer
 // imported directly here — only the screens not yet migrated (Dashboards, ContentPages, Settings,
 // Configurator, Resources capacity, Explore, Login) keep a direct route.
-const Dashboards = lazy(() => import("./pages/Dashboards").then((m) => ({ default: m.Dashboards })));
+const Dashboards = lazy(() => import("./modules/shell/Dashboards").then((m) => ({ default: m.Dashboards })));
 const ContentPages = lazy(() => import("./pages/ContentPages").then((m) => ({ default: m.ContentPages })));
-const Wiki = lazy(() => import("./pages/Wiki").then((m) => ({ default: m.Wiki })));
-const Portal = lazy(() => import("./pages/Portal").then((m) => ({ default: m.Portal })));
-const Whiteboards = lazy(() => import("./pages/Whiteboards").then((m) => ({ default: m.Whiteboards })));
-const Proofs = lazy(() => import("./pages/Proofs").then((m) => ({ default: m.Proofs })));
-const Goals = lazy(() => import("./pages/Goals").then((m) => ({ default: m.Goals })));
-const Invoices = lazy(() => import("./pages/Invoices").then((m) => ({ default: m.Invoices })));
-const Marketplace = lazy(() => import("./pages/Marketplace").then((m) => ({ default: m.Marketplace })));
-const Registry = lazy(() => import("./pages/Registry").then((m) => ({ default: m.Registry })));
-const Studio = lazy(() => import("./pages/Studio").then((m) => ({ default: m.Studio })));
-const Definitions = lazy(() => import("./pages/Definitions").then((m) => ({ default: m.Definitions })));
-const FieldMapping = lazy(() => import("./pages/FieldMapping").then((m) => ({ default: m.FieldMapping })));
-const ScreenPage = lazy(() => import("./pages/ScreenPage").then((m) => ({ default: m.ScreenPage })));
-const Settings = lazy(() => import("./pages/Settings").then((m) => ({ default: m.Settings })));
+const Wiki = lazy(() => import("./modules/wiki").then((m) => ({ default: m.Wiki })));
+const Portal = lazy(() => import("./modules/portal").then((m) => ({ default: m.Portal })));
+const Whiteboards = lazy(() => import("./modules/whiteboard").then((m) => ({ default: m.Whiteboards })));
+const Proofs = lazy(() => import("./modules/proof").then((m) => ({ default: m.Proofs })));
+const Goals = lazy(() => import("./modules/goals").then((m) => ({ default: m.Goals })));
+const Invoices = lazy(() => import("./modules/invoicing").then((m) => ({ default: m.Invoices })));
+const Marketplace = lazy(() => import("./modules/marketplace").then((m) => ({ default: m.Marketplace })));
+const Registry = lazy(() => import("./modules/registry").then((m) => ({ default: m.Registry })));
+const Studio = lazy(() => import("./modules/studio").then((m) => ({ default: m.Studio })));
+const Definitions = lazy(() => import("./modules/definitions").then((m) => ({ default: m.Definitions })));
+const FieldMapping = lazy(() => import("./modules/field-mapping").then((m) => ({ default: m.FieldMapping })));
+const ScreenPage = lazy(() => import("./modules/shell/ScreenPage").then((m) => ({ default: m.ScreenPage })));
+const Settings = lazy(() => import("./modules/settings").then((m) => ({ default: m.Settings })));
 const Configurator = lazy(() => import("./pages/Configurator").then((m) => ({ default: m.Configurator })));
-const Resources = lazy(() => import("./pages/Resources").then((m) => ({ default: m.Resources })));
+const Resources = lazy(() => import("./modules/shell/Resources").then((m) => ({ default: m.Resources })));
 const Login = lazy(() => import("./pages/Login").then((m) => ({ default: m.Login })));
 
 const queryClient = new QueryClient({
