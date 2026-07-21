@@ -29,6 +29,10 @@ export interface WorkflowAcceptance {
   sigRef: string;
   /** ISO timestamp the acceptance was signed. */
   acceptedAt: string;
+  /** Keyed MAC over the acceptance fields under the internal key — only the signing flow (which holds the
+   *  key) can mint one, so an acceptance injected via config-dir / a hand-edited settings blob carries no
+   *  valid MAC and is voided at use. Absent on legacy/injected entries ⇒ treated as void. */
+  mac?: string | undefined;
 }
 
 /**
@@ -60,6 +64,7 @@ export function validateWorkflowAcceptances(value: unknown): WorkflowAcceptance[
     if (seen.has(workflowId)) throw new ResponsibilityAcceptanceError(`duplicate acceptance for workflow "${workflowId}"`);
     seen.add(workflowId);
     const email = str(o["acceptedByEmail"]);
-    return { workflowId, workflowHash, acceptedBy, sigRef, acceptedAt, ...(email ? { acceptedByEmail: email } : {}) };
+    const mac = str(o["mac"]);
+    return { workflowId, workflowHash, acceptedBy, sigRef, acceptedAt, ...(email ? { acceptedByEmail: email } : {}), ...(mac ? { mac } : {}) };
   });
 }

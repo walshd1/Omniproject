@@ -1,6 +1,10 @@
+import { createHmac } from "node:crypto";
 import { getSettings, updateSettings } from "./settings";
 import { directoryDecision } from "./scim";
 import { safeParseJson } from "./safe-json";
+import { derivedKey } from "./key-registry";
+import { constantTimeEqual } from "./crypto-keys";
+import { canonicalJson } from "./canonical-json";
 import {
   issueChallenge, consumeChallenge, getCredential, verifyWebAuthnAssertion,
 } from "./passkey";
@@ -69,10 +73,12 @@ export async function acceptResponsibility(workflowId: string, actor: { sub: str
     signature: signed.signature, expectedChallenge: presented, rpId: rpId(), origin: rpOrigin(),
   }); // throws AssertionError on failure
 
-  const acceptance: WorkflowAcceptance = {
+  const base = {
     workflowId, workflowHash, acceptedBy: actor.sub, ...(actor.email ? { acceptedByEmail: actor.email } : {}),
     sigRef, acceptedAt: new Date().toISOString(),
   };
+  // Bind the acceptance to the internal key so it can't be forged via a config-dir/settings injection.
+  const acceptance: WorkflowAcceptance = { ...base, mac: acceptanceMac(base) };
   // One active acceptance per workflow — the fresh signature supersedes any prior one.
   const rest = acceptances().filter((a) => a.workflowId !== workflowId);
   updateSettings({ workflowAcceptances: [...rest, acceptance] });
@@ -87,6 +93,18 @@ function signerIsCurrent(a: WorkflowAcceptance): boolean {
   return d.known ? d.active : true;
 }
 
+/** Keyed MAC over an acceptance's fields under the internal key — only the signing flow (which holds the
+ *  key) can mint a valid one, so an acceptance injected via config-dir or a hand-edited settings blob (which
+ *  never re-verifies the passkey signature at use) carries no valid MAC and is rejected. Note: rotating the
+ *  internal key voids existing acceptances (they must be re-signed) — a safe-side re-attestation. */
+function acceptanceMac(a: Pick<WorkflowAcceptance, "workflowId" | "workflowHash" | "acceptedBy" | "sigRef" | "acceptedAt">): string {
+  const input = canonicalJson({ workflowId: a.workflowId, workflowHash: a.workflowHash, acceptedBy: a.acceptedBy, sigRef: a.sigRef, acceptedAt: a.acceptedAt });
+  return createHmac("sha256", derivedKey("acceptance")).update(input).digest("hex");
+}
+function acceptanceMacValid(a: WorkflowAcceptance): boolean {
+  return !!a.mac && constantTimeEqual(acceptanceMac(a), a.mac);
+}
+
 /**
  * The ACTIVE responsibility acceptance for a workflow, or null. Active = bound to the workflow's CURRENT
  * content hash (any edit voids it) AND signed by a still-current person (offboarding voids it). Computed on
@@ -97,6 +115,7 @@ export function activeAcceptanceFor(workflowId: string): WorkflowAcceptance | nu
   if (!def) return null;
   const a = acceptances().find((x) => x.workflowId === workflowId);
   if (!a) return null;
+  if (!acceptanceMacValid(a)) return null;                       // forged/injected (no valid internal MAC) → void
   if (a.workflowHash !== workflowContentHash(def)) return null; // workflow edited since acceptance → voided
   if (!signerIsCurrent(a)) return null;                          // signer offboarded → voided
   return a;
