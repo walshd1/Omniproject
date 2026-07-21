@@ -2448,14 +2448,14 @@ MAPPING — the first-class data-routing object (roadmap §4.6, "mappings become
 
 | Function | What it does |
 | --- | --- |
-| `mappingHome` | The mapping's DECLARED home (broker and/or backend). |
+| `mappingHome` | The mapping's EFFECTIVE home (broker and/or backend). |
 | `resolveMappingTargets` | Resolve every field to a {@link FieldTarget}, inheriting the mapping's declared home. |
 | `sanitizeMapping` | Validate + coerce an authored mapping (the importer choke point for `kind: "mapping"`). |
 | `mergeMappings` | Merge mapping layers (base → nearest). |
 | `mappingFromFieldRoutes` | Bridge the legacy org `fieldRouting` (an array of `{ uiElement, vendor, broker, sourceField }`) into a generic {@link Mapping} — each route becomes `fields[uiElement] = { broker, backend: vendor, field: sourceField }`. |
 | `mappingIdKey` | Which semantic key is the row id (default `"id"`). |
 | `projectMappingRows` | Project records (per-`(broker,backend)` bucket, keyed by {@link targetKey}) into rows of semantic values via a mapping. |
-| `planMappingWrite` | Plan a generic write of `values` (semanticKey → value) under mapping `m`: split each provided field to the sidecar (written locally), `external` (routed elsewhere, no adapter yet), or `homeless` (no home — never written, surfaced for the admin to decide). |
+| `planMappingWrite` | Plan a generic write of `values` (semanticKey → value) under mapping `m`: split each provided field to the local built-in store (sidecar or OmniStore — written locally), `external` (routed elsewhere, no adapter yet), or `homeless` (no home — never written, surfaced for the admin to decide). |
 
 ### `artifacts/api-server/src/lib/mcp.ts`
 
@@ -2588,6 +2588,16 @@ OpenID Connect (Authorization Code + PKCE) relying-party.
 | `buildOidcAuthUrl` | Build a provider's authorization-endpoint URL (Authorization Code + S256 PKCE + nonce) via openid-client. |
 | `completeOidcLogin` | Complete the Authorization-Code callback: openid-client exchanges the code (with the PKCE verifier) at the token endpoint and validates the ID token end-to-end — signature against the issuer JWKS, plus `iss`/`aud`/`exp` and the `state`/`nonce` bindings. |
 | `claimsToSessionUser` | Map validated ID-token claims onto the app's SessionUser (app-specific claim shapes). |
+
+### `artifacts/api-server/src/lib/omnistore-homing.ts`
+
+OMNISTORE HOMING — OmniStore as the System-of-Record OF LAST RESORT.
+
+| Function | What it does |
+| --- | --- |
+| `omnistoreEnabled` | True when the built-in broker is running the OmniStore store — the enablement signal, the same env the built-in factory switches on (`BUILTIN_BROKER=omnistore`). |
+| `omnistoreLastResort` | The last-resort home to fold into routing: the OmniStore home when enabled, else null — with null the orphans stay HOMELESS (a decision surfaced to the admin), exactly as before OmniStore was turned on. |
+| `omnistoreSupersetCapabilities` | The full {@link CapabilityFlags} OmniStore declares when it homes the data — every superset domain true. |
 
 ### `artifacts/api-server/src/lib/optional-dependency.ts`
 
@@ -5247,6 +5257,22 @@ Canonical RAID/risk SEVERITY vocabulary — the single source of truth for the s
 | `severityVocabulary` | The full severity vocabulary (a defensive copy) — for a consumer that needs the raw entries. |
 | `severityVocabularyValues` | Build the shipped-default {@link SeverityVocabularyValues} from the canonical entries. |
 | `severityLevelsForMethodology` | The severity grades that apply to `methodologyId` — its tagged ones plus the neutral ("*") ones. |
+
+### `lib/backend-catalogue/src/sort-filter.ts`
+
+SORT + FILTER — the ONE shared, pure "view controls" engine a screen table or a report row-set runs so a user can sort by ANY column (or row) and filter, with the SAME comparators everywhere.
+
+| Function | What it does |
+| --- | --- |
+| `asNumber` | Parse a number-ish value (a real number, or a numeric string), else null (missing/uncomparable). |
+| `asDateMs` | Parse a date-ish string to epoch millis, else null. |
+| `ordinalLevel` | The internal ordinal level of a graded `value` in `kind`, using the shipped default map. |
+| `ordinalSortKey` | Build a {@link SortKey} for a known graded column, wiring its shipped default level map. |
+| `compareRows` | A comparator for one sort key. |
+| `sortRows` | Sort rows by one or more keys (earlier keys dominate), stably (original order breaks a full tie). |
+| `evalFilter` | Evaluate one predicate against a row. |
+| `filterRows` | Keep rows matching EVERY predicate (AND). |
+| `applyView` | The common "view" application: filter THEN sort, in one pure pass. |
 
 ### `lib/backend-catalogue/src/task-vocabulary.generated.ts`
 
