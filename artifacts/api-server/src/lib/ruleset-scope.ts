@@ -1,6 +1,5 @@
 import type { RuleMode, FieldRule } from "./ruleset";
 import { readScopedConfigValue, writeScopedConfigCollection, type ConfigWriteScope } from "./scoped-config";
-import { isForbiddenKey } from "./safe-json";
 
 /**
  * SCOPED RULESET OVERLAY — lets a programme or project TIGHTEN the org's business ruleset for its own work,
@@ -83,7 +82,8 @@ export function getRulesetOverride(scope: ConfigWriteScope): RulesetOverride | u
  *  well-formed field rules so a stored override can only ever be applied as a tightening. */
 export function setRulesetOverride(scope: ConfigWriteScope, override: RulesetOverride): RulesetOverride {
   const modes: Record<string, RuleMode> = {};
-  for (const [id, mode] of Object.entries(override.modes ?? {})) if (typeof mode === "string" && mode in MODE_RANK && !isForbiddenKey(id)) modes[id] = mode as RuleMode;
+  // Inline proto-key guard (CodeQL's remote-property-injection barrier recognises the literal comparison).
+  for (const [id, mode] of Object.entries(override.modes ?? {})) if (typeof mode === "string" && mode in MODE_RANK && id !== "__proto__" && id !== "constructor" && id !== "prototype") modes[id] = mode as RuleMode;
   const fieldRules = (Array.isArray(override.fieldRules) ? override.fieldRules : []).filter(isFieldRule);
   const clean: RulesetOverride = { modes, fieldRules };
   writeScopedConfigCollection(RULESET_OVERRIDE_ID, "Ruleset override", clean, scope);
