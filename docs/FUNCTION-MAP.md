@@ -4963,6 +4963,14 @@ METHODOLOGY registry — the PM methodologies OmniProject can shape itself to (S
 | `getMethodology` | One methodology definition by id, or undefined. |
 | `methodologyCatalogue` | All methodology definitions (a defensive copy). |
 
+### `lib/backend-catalogue/src/methodology-deploy.ts`
+
+METHODOLOGY DEPLOY — the pure resolver behind "one-click deploy this methodology".
+
+| Function | What it does |
+| --- | --- |
+| `resolveMethodologyDeployment` | Resolve the one-click deploy plan for a methodology, or null when the id is unknown. |
+
 ### `lib/backend-catalogue/src/methodology-group.ts`
 
 GROUP any methodology-tagged definitions by methodology — generic over EVERY catalogue plane (reports, views, screens, personas, …), since they all carry the same optional `methodologies` tag and share one matcher.
