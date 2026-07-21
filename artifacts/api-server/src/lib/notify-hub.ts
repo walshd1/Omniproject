@@ -39,7 +39,10 @@ export const MAX_STREAMS_PER_SUB = 10;
 /** Whether another SSE stream may be opened for this principal (under the per-sub ceiling). An
  *  anonymous/subless connection isn't capped here (it has no stable identity to key on). */
 export function canAddClient(sub: string | undefined): boolean {
-  if (!sub) return true;
+  // A subless principal (a read-only API/BI token has no session `sub`) is UNCAPPABLE, so it must be
+  // REFUSED, not exempted — otherwise the per-principal held-stream cap is bypassed and one token can
+  // hold unbounded sockets (FD/timer exhaustion). The SSE routes also reject subless callers up front.
+  if (!sub) return false;
   let count = 0;
   for (const c of clients) if (c.sub === sub) count++;
   return count < MAX_STREAMS_PER_SUB;

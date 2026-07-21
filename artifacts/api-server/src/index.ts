@@ -25,6 +25,8 @@ import { assertSessionSecretForLocalPrincipals } from "./lib/session-secret-guar
 import { localUsersActive } from "./lib/user-directory";
 import { readCacheEnabled, readCacheTtlMs } from "./broker/cache";
 import { startMetricExport } from "./lib/otlp-metrics";
+import { installProcessGuards } from "./lib/process-guards";
+import { configureServerTimeouts } from "./lib/server-timeouts";
 
 const rawPort = process.env["PORT"];
 
@@ -147,9 +149,17 @@ async function start(): Promise<void> {
     );
   });
 
+  // Slowloris / slow-body defence + optional concurrent-connection cap (env-tunable). Applies to request
+  // RECEIPT only, so long-lived SSE responses are unaffected.
+  configureServerTimeouts(server);
+
   // Clean up on SIGTERM/SIGINT: drain SSE streams, finish in-flight requests, exit.
   installShutdownHandlers(server, logger);
 }
+
+// Crash backstop: an escaped throw / unhandled rejection is logged and SURVIVED, not fatal (see
+// lib/process-guards). Installed before boot so it also covers an async boot failure.
+installProcessGuards(logger);
 
 start().catch((err) => {
   logger.error({ err }, "Fatal error during boot");

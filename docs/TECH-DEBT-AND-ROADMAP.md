@@ -74,10 +74,9 @@ one confirmed CRITICAL and a corroborating cluster — most sharing one root cau
   `{baseRole:"admin", groups:[<attacker IdP group>]}` confers write-capable grants without ever passing
   `sanitizeCustomRolesConfig`. **Fix:** route every config blob through its real sanitizer on import (add
   `custom-roles → sanitizeCustomRolesConfig` to `CONFIG_VALIDATORS`) or re-sanitize in the getters.
-- **[security — LOW/MED] Sealed secret-store files written world-readable (no `0600`).**
-  `lib/sealed-file.ts:82`, `lib/user-credentials.ts:108`, `lib/instance-key.ts:107` create via
-  `openSync(tmp,"w")` (umask default ~0644); the broker stores already pass `{mode:0o600}`. Defense-in-depth
-  alone (content is encrypted), but compounds the dev-master finding on a shared host.
+- **[security — LOW/MED, FIXED 2026-07-21] Sealed secret-store files written world-readable (no `0600`).**
+  `lib/sealed-file.ts`, `lib/user-credentials.ts`, `lib/instance-key.ts` now pass `0o600` to `openSync` (the
+  temp file's mode survives the atomic rename); a `sealed-file` test asserts the resulting mode is `0600`.
 - **[security — LOW/MED, hardening] Internal-network SSRF reachable by an admin in the default config.**
   The RFC1918/loopback egress block (`lib/egress.ts:117`) is opt-in (`EGRESS_BLOCK_PRIVATE`, off by default
   so `http://n8n:5678` works); cloud-metadata stays blocked always and the broker seam pins IPs + refuses

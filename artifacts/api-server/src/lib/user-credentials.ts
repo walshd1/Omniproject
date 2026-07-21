@@ -106,7 +106,7 @@ function persist(map: Record<string, CredentialRecord>): void {
   fs.mkdirSync(path.dirname(f), { recursive: true });
   const sealed = aesGcmSeal(JSON.stringify(map), credKey());
   const tmp = `${f}.${process.pid}.${randomBytes(6).toString("hex")}.tmp`;
-  const fd = fs.openSync(tmp, "w");
+  const fd = fs.openSync(tmp, "w", 0o600); // 0o600: password-hash store — never world-readable
   try {
     fs.writeSync(fd, sealed);
     fs.fsyncSync(fd);

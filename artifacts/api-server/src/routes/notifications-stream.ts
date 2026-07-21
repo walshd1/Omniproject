@@ -29,6 +29,14 @@ export const ingestRouter: Router = Router();
 streamRouter.get("/notifications/stream", (req: Request, res: Response) => {
   const session = getSession(req);
 
+  // SSE requires an INTERACTIVE session. A read-only API/BI token has no `sub`, so it can't be counted
+  // against the per-principal stream cap — an uncapped held stream is a socket/timer-exhaustion DoS.
+  // Refuse it up front (the in-app bell is a session feature; tokens are for data feeds, not streams).
+  if (!session?.sub) {
+    res.status(403).json({ error: "Notification streaming requires an interactive session." });
+    return;
+  }
+
   // Cap concurrent streams per principal BEFORE opening the SSE response (a held connection isn't
   // counted by the request rate-limiter). Reject with 429 rather than opening an uncapped stream.
   if (!canAddClient(session?.sub)) {
