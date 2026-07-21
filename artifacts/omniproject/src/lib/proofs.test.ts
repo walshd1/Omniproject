@@ -2,6 +2,7 @@ import { describe, it, expect, vi, afterEach } from "vitest";
 import { createElement, type ReactNode } from "react";
 import { renderHook, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { featuresQueryKey } from "./features";
 import {
   proofRoomId, proofsKey, proofKey, isProofDecisionHeld,
   useProofs, useProof, useCreateProof, useSaveProof, useDecideProof, useDeleteProof,
@@ -15,7 +16,10 @@ function wrapper(client: QueryClient) {
   return ({ children }: { children: ReactNode }) => createElement(QueryClientProvider, { client }, children);
 }
 function freshClient() {
-  return new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
+  const qc = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
+  // Enable the `proofing` feature so the gated read hooks fetch (see useFeatures/featureEnabled).
+  qc.setQueryData(featuresQueryKey({}), [{ id: "proofing", kind: "module", label: "proofing", description: "", enabled: true, loaded: true, needsRestart: false }]);
+  return qc;
 }
 function stubFetch(body: unknown = {}, status = 200) {
   const fn = vi.fn(async () => new Response(status === 204 ? null : JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } }));

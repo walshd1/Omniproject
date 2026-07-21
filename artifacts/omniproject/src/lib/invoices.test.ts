@@ -2,6 +2,7 @@ import { describe, it, expect, vi, afterEach } from "vitest";
 import { createElement, type ReactNode } from "react";
 import { renderHook, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { featuresQueryKey } from "./features";
 import {
   invoicesKey,
   invoiceKey,
@@ -27,7 +28,10 @@ function wrapper(client: QueryClient) {
 }
 
 function client() {
-  return new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
+  const qc = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
+  // Enable the `invoicing` feature so the gated read hooks fetch (see useFeatures/featureEnabled).
+  qc.setQueryData(featuresQueryKey({}), [{ id: "invoicing", kind: "module", label: "invoicing", description: "", enabled: true, loaded: true, needsRestart: false }]);
+  return qc;
 }
 
 function stubFetch(body: unknown, status = 200) {

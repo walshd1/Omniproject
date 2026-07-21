@@ -2,6 +2,7 @@ import { describe, it, expect, vi, afterEach } from "vitest";
 import { createElement, type ReactNode } from "react";
 import { renderHook, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { featuresQueryKey } from "./features";
 import { bindingsKey, useDefBindings, useSetBinding, type BindingMaps } from "./def-bindings";
 
 /**
@@ -15,7 +16,10 @@ function wrapper(client: QueryClient) {
   return ({ children }: { children: ReactNode }) => createElement(QueryClientProvider, { client }, children);
 }
 function newClient(): QueryClient {
-  return new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
+  const qc = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
+  // Enable the `defImporter` feature so the gated read hooks fetch (see useFeatures/featureEnabled).
+  qc.setQueryData(featuresQueryKey({}), [{ id: "defImporter", kind: "module", label: "defImporter", description: "", enabled: true, loaded: true, needsRestart: false }]);
+  return qc;
 }
 function jsonResponse(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });

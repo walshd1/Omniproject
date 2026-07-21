@@ -2,6 +2,7 @@ import { describe, it, expect, vi, afterEach } from "vitest";
 import { createElement, type ReactNode } from "react";
 import { renderHook, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { featuresQueryKey } from "./features";
 import {
   pickActiveDef,
   primitiveSlot,
@@ -23,7 +24,11 @@ function wrapper(client: QueryClient) {
   return ({ children }: { children: ReactNode }) => createElement(QueryClientProvider, { client }, children);
 }
 function newClient(): QueryClient {
-  return new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
+  const qc = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
+  // The /api/defs/* read hooks gate their fetch on the `defImporter` feature (useDefImporterEnabled),
+  // which reads false while the features query is unseeded — enable it so the hook tests fire.
+  qc.setQueryData(featuresQueryKey({}), [{ id: "defImporter", kind: "module", label: "Def importer", description: "", enabled: true, loaded: true, needsRestart: false }]);
+  return qc;
 }
 function jsonResponse(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });

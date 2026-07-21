@@ -2,6 +2,7 @@ import { describe, it, expect, vi, afterEach } from "vitest";
 import { createElement, type ReactNode } from "react";
 import { renderHook, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { featuresQueryKey } from "./features";
 import {
   goalsKey,
   goalKey,
@@ -31,7 +32,11 @@ function wrapper(client: QueryClient) {
 }
 
 function newClient(): QueryClient {
-  return new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
+  const qc = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
+  // useGoals/useGoal gate their fetch on the `goals` feature, which reads false while the features query
+  // is unseeded — enable it so the hook tests fire their request.
+  qc.setQueryData(featuresQueryKey({}), [{ id: "goals", kind: "module", label: "Goals", description: "", enabled: true, loaded: true, needsRestart: false }]);
+  return qc;
 }
 
 function goal(over: Partial<Goal> = {}): Goal {
