@@ -26,6 +26,13 @@ export { CANONICAL_STATUS, STATUS_CLASS, canonicalStatusOf, type CanonicalStatus
 import { CANONICAL_TASK_STATUS, TASK_STATUS_CLASS, type CanonicalTaskStatus, type TaskStatusClass } from "@workspace/backend-catalogue";
 export { CANONICAL_TASK_STATUS, TASK_STATUS_CLASS, type CanonicalTaskStatus, type TaskStatusClass };
 
+// The canonical GTD ENERGY levels + their ordinal level are likewise shared reference data, sourced from the
+// backend-catalogue energy-vocabulary asset (assets/energy-vocabulary.json) — mirroring the task-status axis
+// above — so the gateway and the SPA can't drift on WHICH energy levels exist. Re-exported here so this module
+// stays the gateway's single import surface for energy vocabulary.
+import { CANONICAL_ENERGY, ENERGY_LEVEL, type CanonicalEnergy } from "@workspace/backend-catalogue";
+export { CANONICAL_ENERGY, ENERGY_LEVEL, type CanonicalEnergy };
+
 // Common native synonyms seen across backends, folded onto a canonical status so
 // completion detection works without a per-backend mapping. A backend can still
 // declare an explicit StatusVocabulary (below) to override these.
@@ -173,12 +180,7 @@ export function isTaskDone(native: string | null | undefined): boolean {
 export const CANONICAL_PRIORITY = ["none", "low", "medium", "high", "urgent"] as const;
 export type CanonicalPriority = (typeof CANONICAL_PRIORITY)[number];
 
-// ── Energy (GTD) ─────────────────────────────────────────────────────────────
-
-/** Canonical GTD energy/effort level — the "how much have I got in the tank" filter,
- *  distinct from an hour estimate (mirrors the light effort tag in leading task apps). */
-export const CANONICAL_ENERGY = ["low", "medium", "high"] as const;
-export type CanonicalEnergy = (typeof CANONICAL_ENERGY)[number];
+// (GTD energy levels are re-exported near the top of this module — sourced from the energy-vocabulary asset.)
 
 // ── RAG (red/amber/green) ────────────────────────────────────────────────────
 

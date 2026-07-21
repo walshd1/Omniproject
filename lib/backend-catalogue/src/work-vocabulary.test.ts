@@ -6,7 +6,10 @@ import {
   STATUS_CLASS,
   STATUS_LABEL,
   PRIORITY_LABEL,
+  PRIORITY_RANK,
+  priorityWeightBand,
   workVocabulary,
+  workVocabularyValues,
   canonicalStatusOf,
   statusClassOf,
 } from "./work-vocabulary";
@@ -25,6 +28,21 @@ test("canonical statuses are in board order with their lifecycle class", () => {
 
 test("canonical priorities are in ranked order", () => {
   assert.deepEqual([...WORK_PRIORITIES], ["urgent", "high", "medium", "low", "none"]);
+});
+
+test("priorities bind to an internal rank (higher = more urgent), the invariant the weighting keys off", () => {
+  // The five shipped priorities are the rank anchors: none=0 … urgent=4.
+  assert.deepEqual(PRIORITY_RANK, { urgent: 4, high: 3, medium: 2, low: 1, none: 0 });
+  // Every resolved default priority carries its rank (distinct from display order).
+  const { priorities } = workVocabularyValues();
+  for (const p of priorities) assert.equal(p.rank, PRIORITY_RANK[p.id as keyof typeof PRIORITY_RANK]);
+});
+
+test("priorityWeightBand snaps any rank onto the nearest shipped anchor (ties go to the more-urgent band)", () => {
+  assert.equal(priorityWeightBand(4), 4); // exact anchor
+  assert.equal(priorityWeightBand(0), 0);
+  assert.equal(priorityWeightBand(6), 4); // above every anchor → the top band (urgent)
+  assert.equal(priorityWeightBand(2), 2); // exact middle anchor
 });
 
 test("every status/priority carries a label", () => {

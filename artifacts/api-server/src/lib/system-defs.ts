@@ -1,6 +1,7 @@
-import { reportCatalogue, formCatalogue, dashboardDefCatalogue, referenceRulesetCatalogue, methodologyCatalogue, screenDefCatalogue, primitiveCatalogue, mappingCatalogue, workVocabularyValues, taskVocabularyValues } from "@workspace/backend-catalogue";
+import { reportCatalogue, formCatalogue, dashboardDefCatalogue, referenceRulesetCatalogue, methodologyCatalogue, screenDefCatalogue, primitiveCatalogue, mappingCatalogue, workVocabularyValues, taskVocabularyValues, energyVocabularyValues } from "@workspace/backend-catalogue";
 import { WORK_VOCABULARY_CONFIG_ID } from "./work-vocabulary-config";
 import { TASK_VOCABULARY_CONFIG_ID } from "./task-vocabulary-config";
+import { ENERGY_VOCABULARY_CONFIG_ID } from "./energy-vocabulary-config";
 import { DEF_SCOPE_POLICY_CONFIG_ID, DEFAULT_DEF_SCOPE_POLICY } from "./def-policy";
 import { PRESETS_CONFIG_ID, presetConfigValues } from "./preset-config";
 import { artifactStoreEnabled } from "./artifact-store";
@@ -50,6 +51,12 @@ export function buildSystemDefaultRows(): StoredDef[] {
   // def: the base layer the scope resolver folds org/programme/project/user overrides onto (see
   // task-vocabulary-config). Sourced from the SAME catalogue accessor the write-path uses, so it can't drift.
   rows.push(buildSystemDefRow("config", "Task vocabulary", { id: TASK_VOCABULARY_CONFIG_ID, values: taskVocabularyValues() }, SEED_AT));
+  // The canonical GTD ENERGY-level vocabulary (the "how much have I got in the tank" axis, orthogonal to an
+  // hour estimate) — authored as JSON (assets/energy-vocabulary.json), seeded here as the SYSTEM-scope
+  // `energy-vocabulary` config def: the base layer the scope resolver folds org/programme/project/user
+  // overrides onto (see energy-vocabulary-config). Sourced from the SAME catalogue accessor the write-path
+  // uses, so it can't drift.
+  rows.push(buildSystemDefRow("config", "Energy vocabulary", { id: ENERGY_VOCABULARY_CONFIG_ID, values: energyVocabularyValues() }, SEED_AT));
   // The definition-write POLICY LEVELS (which role each scope needs to write a def) — the baseline as a system
   // `config` def, scope-overridable via copy-and-override (an org tightens/relaxes per key). The ENFORCEMENT
   // stays in code (def-policy.ts); only the levels are data.

@@ -10,8 +10,9 @@ import { assertTaskScope, filterTasksInScope } from "../lib/project-scope";
 import { auditScopeDenied } from "../lib/audit";
 import { getSession } from "./auth";
 import { parseOr400, v } from "../lib/validate";
-import { CANONICAL_PRIORITY, CANONICAL_ENERGY, isTaskDone } from "../broker/vocabulary";
+import { CANONICAL_PRIORITY, isTaskDone } from "../broker/vocabulary";
 import { resolveTaskVocabulary } from "../lib/task-vocabulary-config";
+import { resolveEnergyVocabulary } from "../lib/energy-vocabulary-config";
 import type { ConfigScopes } from "../lib/scoped-config";
 import { summariseTasks } from "../lib/task-summary";
 import { nextOccurrence } from "../lib/recurrence";
@@ -97,6 +98,20 @@ function checkTaskStatus(req: Request, res: Response, body: { status?: string | 
 }
 
 /**
+ * Membership-check a write's `energy` against the RESOLVED energy vocabulary for the request scope (the relaxed
+ * gate that replaces the frozen `v.enum(CANONICAL_ENERGY)`). An absent or null energy passes (it's optional /
+ * clearable); an energy present in the scoped set passes; a truly-unknown id is rejected with 400. Returns
+ * false (having sent the 400) on a miss.
+ */
+function checkTaskEnergy(req: Request, res: Response, body: { energy?: string | null | undefined; projectId?: string | null | undefined }): boolean {
+  if (body.energy === undefined || body.energy === null) return true;
+  const { levels } = resolveEnergyVocabulary(taskScopesFromReq(req, body));
+  if (levels.some((l) => l.id === body.energy)) return true;
+  res.status(400).json({ error: "invalid request", issues: [`energy "${body.energy}" is not an energy level in this scope`] });
+  return false;
+}
+
+/**
  * Fetch a task by id and enforce the caller's scope on it (IDOR guard — getTask is scope-blind at the
  * broker). Sends 404 if unknown, 403 if out of scope, and returns null in both cases; otherwise the task.
  * Usage: `const task = await guardTaskAccess(req, res, id); if (!task) return;`
@@ -141,7 +156,11 @@ const TaskBody = v.object({
   url: v.optional(v.nullable(v.string({ max: 2000 }))),
   completedAt: v.optional(v.nullable(v.string({ max: 40 }))),
   reminderAt: v.optional(v.nullable(v.string({ max: 40 }))),
-  energy: v.optional(v.nullable(v.enum(CANONICAL_ENERGY))),
+  // Energy is a GTD "in the tank" level, now SCOPE-OVERRIDABLE (an org/methodology can add, relabel or remove
+  // levels — see energy-vocabulary-config). The frozen `v.enum(CANONICAL_ENERGY)` gate is relaxed to a bounded
+  // string here; the handler membership-checks it against the RESOLVED energy vocabulary for the request scope
+  // (`checkTaskEnergy`), so any scope-added level is accepted while garbage is 400.
+  energy: v.optional(v.nullable(v.string({ min: 1, max: 100, trim: true }))),
   section: v.optional(v.nullable(v.string({ max: 200 }))),
   sortOrder: v.optional(v.nullable(v.number())),
   collaborators: v.optional(v.array(v.string({ min: 1, max: 200, trim: true }), { max: 100 })),
@@ -186,6 +205,7 @@ router.post("/tasks", requireRole("manager"), (req, res) => {
   if (!body) return;
   if (!body.title) { res.status(400).json({ error: "title is required" }); return; }
   if (!checkTaskStatus(req, res, body)) return;
+  if (!checkTaskEnergy(req, res, body)) return;
   return withBrokerErrors(req, res, "create_task failed", async () => {
     res.status(201).json(await createTask(req, body));
   });
@@ -197,6 +217,7 @@ router.patch("/tasks/:taskId", requireRole("manager"), (req, res) => {
   const body = parseOr400(req, res, TaskBody);
   if (!body) return;
   if (!checkTaskStatus(req, res, body)) return;
+  if (!checkTaskEnergy(req, res, body)) return;
   return withBrokerErrors(req, res, "update_task failed", async () => {
     if (!(await guardTaskAccess(req, res, String(req.params["taskId"])))) return;
     const updated = await updateTask(req, String(req.params["taskId"]), body);

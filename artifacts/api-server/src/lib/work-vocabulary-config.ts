@@ -11,10 +11,15 @@
  * a lifecycle class (open/active/done/cancelled) — a custom status without one is dropped, and the sanitiser
  * requires it on a newly-added status. Removal is a tombstone (`{id, removed:true}`) folded over the base.
  *
- * PRIORITIES stay a FIXED rank scale (the shipped five) — an override may only relabel/reorder them; add
- * and remove are a status-only capability. Both boundaries are enforced on read (projection) and write.
+ * PRIORITIES are fully org-owned TOO, symmetric with statuses: a scope may RELABEL, REORDER, ADD and REMOVE
+ * priorities. The invariant kept for the sorting + RICE/WSJF weighting maths is that every effective priority
+ * binds to an internal RANK (its ordinal level, higher = more urgent — kept SEPARATE from display `order`):
+ * the shipped five are the rank anchors (none=0 … urgent=4), a custom priority without a rank is dropped, and
+ * the sanitiser requires a rank on a newly-added priority. A scope-added priority resolves a weight by snapping
+ * its rank onto the nearest canonical band ({@link priorityWeightBand}), so the weighting never breaks. The
+ * ONLY status/priority asymmetry is the binding kind: `lifecycle` (status) vs `rank` (priority).
  */
-import { workVocabularyValues, type StatusClass, type ResolvedStatus, type ResolvedPriority, type WorkVocabularyValues } from "@workspace/backend-catalogue";
+import { workVocabularyValues, priorityWeightBand, type StatusClass, type ResolvedStatus, type ResolvedPriority, type WorkVocabularyValues } from "@workspace/backend-catalogue";
 import { configDefLayers, resolveScopedConfig, type ConfigScopes } from "./scoped-config";
 import { ACCESSIBILITY_CONFIG_ID } from "./user-prefs";
 import { makeScopedId } from "./artifact-store";
@@ -68,16 +73,17 @@ export function resolveWorkVocabulary(scopes: ConfigScopes = {}): WorkVocabulary
   ];
   const folded = resolveScopedConfig<Record<string, unknown>>(workVocabularyValues() as unknown as Record<string, unknown>, layers);
   return {
-    statuses: projectTokens(folded["statuses"], true) as ResolvedStatus[],
-    priorities: projectTokens(folded["priorities"], false) as ResolvedPriority[],
+    statuses: projectTokens(folded["statuses"], "status") as ResolvedStatus[],
+    priorities: projectTokens(folded["priorities"], "priority") as ResolvedPriority[],
   };
 }
 
 /** Project a folded token array (statuses or priorities): keep only well-formed, non-tombstoned entries
- *  (a valid token needs a label + an order; a status additionally needs a lifecycle class), dedupe by id,
- *  default methodology tags, sort by order. Add/remove are honoured — the set is whatever the folded
- *  layers say, not a fixed list. `requireLifecycle` is the only status/priority difference. */
-function projectTokens(folded: unknown, requireLifecycle: boolean): Array<ResolvedStatus | ResolvedPriority> {
+ *  (a valid token needs a label + an order, PLUS its internal-level binding — a status needs a lifecycle
+ *  class, a priority needs a rank), dedupe by id, default methodology tags, sort by order. Add/remove are
+ *  honoured — the set is whatever the folded layers say, not a fixed list. The binding kind is the only
+ *  status/priority difference. */
+function projectTokens(folded: unknown, kind: "status" | "priority"): Array<ResolvedStatus | ResolvedPriority> {
   const arr = Array.isArray(folded) ? folded : [];
   const out: Array<ResolvedStatus | ResolvedPriority> = [];
   const seen = new Set<string>();
@@ -89,43 +95,61 @@ function projectTokens(folded: unknown, requireLifecycle: boolean): Array<Resolv
     if (!isStr(id) || !ID_RE.test(id) || seen.has(id)) continue;
     const label = cleanLabel(e["label"]);
     if (!label || !isIntGe0(e["order"])) continue;
-    let lifecycle: StatusClass | null = null;
-    if (requireLifecycle) {
-      lifecycle = isStr(e["lifecycle"]) && LIFECYCLES.has(e["lifecycle"] as StatusClass) ? (e["lifecycle"] as StatusClass) : null;
-      if (!lifecycle) continue;
-    }
     const color = cleanColor(e["color"]);
     const labels = cleanLabels(e["labels"]);
-    seen.add(id);
-    out.push({ id, label, order: e["order"] as number, methodologies: cleanMethodologies(e["methodologies"]), ...(lifecycle ? { lifecycle } : {}), ...(labels ? { labels } : {}), ...(color ? { color } : {}) } as ResolvedStatus | ResolvedPriority);
+    const common = { id, label, order: e["order"] as number, methodologies: cleanMethodologies(e["methodologies"]), ...(labels ? { labels } : {}), ...(color ? { color } : {}) };
+    if (kind === "status") {
+      const lifecycle = isStr(e["lifecycle"]) && LIFECYCLES.has(e["lifecycle"] as StatusClass) ? (e["lifecycle"] as StatusClass) : null;
+      if (!lifecycle) continue;
+      seen.add(id);
+      out.push({ ...common, lifecycle } as ResolvedStatus);
+    } else {
+      const rank = isIntGe0(e["rank"]) ? (e["rank"] as number) : null;
+      if (rank === null) continue;
+      seen.add(id);
+      out.push({ ...common, rank } as ResolvedPriority);
+    }
   }
   return out.sort((a, b) => a.order - b.order);
 }
 
-/** One sanitised status override entry — a partial for an existing status, a full def for a new one, or a
- *  `{id, removed}` tombstone. */
-export interface TokenOverride { id: string; label?: string; labels?: Record<string, string>; order?: number; lifecycle?: StatusClass; methodologies?: string[]; color?: string; removed?: true }
+/**
+ * Resolve the effective WEIGHT of a priority against a resolved set — the canonical rank band the sorting +
+ * RICE/WSJF weighting key off. A priority in the set contributes its own rank, snapped onto the nearest
+ * shipped anchor band so a scope-added priority (any ordinal) still lands on a weight the maths understand.
+ * Unknown id ⇒ null (the caller can treat it as the lowest band).
+ */
+export function resolvePriorityWeight(id: string, priorities: readonly ResolvedPriority[]): number | null {
+  const found = priorities.find((p) => p.id === id);
+  if (!found) return null;
+  return priorityWeightBand(found.rank);
+}
+
+/** One sanitised token override entry — a partial for an existing token, a full def for a new one, or a
+ *  `{id, removed}` tombstone. `lifecycle` is a status-only binding; `rank` is a priority-only binding. */
+export interface TokenOverride { id: string; label?: string; labels?: Record<string, string>; order?: number; lifecycle?: StatusClass; rank?: number; methodologies?: string[]; color?: string; removed?: true }
 
 /**
  * Validate + normalise a PUT body into the config-def `values` to store. Throws {@link Error} (→ 400) on a
  * malformed entry. STATUSES and PRIORITIES are symmetric: relabel/reorder/recolour an existing token, tag it
- * by methodology, ADD a new one (id + label + order — and a lifecycle class for a status), or REMOVE a shipped
- * one (`{id, removed:true}`). The ONLY difference is the lifecycle class, which is status-only. No-op entries
- * are dropped.
+ * by methodology, ADD a new one (id + label + order + its internal-level binding), or REMOVE a shipped one
+ * (`{id, removed:true}`). The ONLY difference is the binding kind: a status carries a `lifecycle` class, a
+ * priority carries a `rank`. No-op entries are dropped.
  */
 export function sanitizeWorkVocabularyOverride(raw: unknown): { statuses: TokenOverride[]; priorities: TokenOverride[] } {
   if (typeof raw !== "object" || raw === null || Array.isArray(raw)) throw new Error("work vocabulary override must be an object");
   const base = workVocabularyValues();
   const obj = raw as Record<string, unknown>;
   return {
-    statuses: cleanTokenOverrides(obj["statuses"], new Set(base.statuses.map((s) => s.id)), true, "status"),
-    priorities: cleanTokenOverrides(obj["priorities"], new Set(base.priorities.map((p) => p.id)), false, "priority"),
+    statuses: cleanTokenOverrides(obj["statuses"], new Set(base.statuses.map((s) => s.id)), "status"),
+    priorities: cleanTokenOverrides(obj["priorities"], new Set(base.priorities.map((p) => p.id)), "priority"),
   };
 }
 
-function cleanTokenOverrides(list: unknown, baseIds: Set<string>, allowLifecycle: boolean, kind: string): TokenOverride[] {
+function cleanTokenOverrides(list: unknown, baseIds: Set<string>, kind: "status" | "priority"): TokenOverride[] {
   if (list === undefined) return [];
   if (!Array.isArray(list)) throw new Error(`${kind}es must be an array`);
+  const isStatus = kind === "status";
   const out: TokenOverride[] = [];
   for (const raw of list) {
     if (!raw || typeof raw !== "object") throw new Error(`each ${kind} entry must be an object`);
@@ -146,9 +170,14 @@ function cleanTokenOverrides(list: unknown, baseIds: Set<string>, allowLifecycle
       entry.label = l;
     }
     if (e["lifecycle"] !== undefined) {
-      if (!allowLifecycle) throw new Error(`a ${kind} has no lifecycle class`);
+      if (!isStatus) throw new Error(`a ${kind} has no lifecycle class`);
       if (!isStr(e["lifecycle"]) || !LIFECYCLES.has(e["lifecycle"] as StatusClass)) throw new Error(`${kind} "${id}" lifecycle must be one of open/active/done/cancelled`);
       entry.lifecycle = e["lifecycle"] as StatusClass;
+    }
+    if (e["rank"] !== undefined) {
+      if (isStatus) throw new Error(`a ${kind} has no rank`);
+      if (!isIntGe0(e["rank"])) throw new Error(`${kind} "${id}" rank must be a non-negative integer`);
+      entry.rank = e["rank"] as number;
     }
     if (e["order"] !== undefined) {
       if (!isIntGe0(e["order"])) throw new Error(`${kind} "${id}" order must be a non-negative integer`);
@@ -169,10 +198,11 @@ function cleanTokenOverrides(list: unknown, baseIds: Set<string>, allowLifecycle
       if (!c) throw new Error(`${kind} "${id}" color must be a 6-digit hex like #3b82f6`);
       entry.color = c;
     }
-    if (isNew && (entry.label === undefined || entry.order === undefined || (allowLifecycle && entry.lifecycle === undefined))) {
-      throw new Error(`new ${kind} "${id}" needs a label${allowLifecycle ? ", a lifecycle class" : ""} and an order`);
+    const missingBinding = isStatus ? entry.lifecycle === undefined : entry.rank === undefined;
+    if (isNew && (entry.label === undefined || entry.order === undefined || missingBinding)) {
+      throw new Error(`new ${kind} "${id}" needs a label, ${isStatus ? "a lifecycle class" : "a rank"} and an order`);
     }
-    if (entry.label !== undefined || entry.labels !== undefined || entry.order !== undefined || entry.lifecycle !== undefined || entry.methodologies !== undefined || entry.color !== undefined) out.push(entry);
+    if (entry.label !== undefined || entry.labels !== undefined || entry.order !== undefined || entry.lifecycle !== undefined || entry.rank !== undefined || entry.methodologies !== undefined || entry.color !== undefined) out.push(entry);
   }
   return out;
 }

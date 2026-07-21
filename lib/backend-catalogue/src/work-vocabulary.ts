@@ -38,6 +38,14 @@ export interface WorkVocabEntry {
    * of the same "custom, but bound at the broker seam" model that field-mapping uses for fields.
    */
   canonical?: CanonicalStatus;
+  /**
+   * ADJUSTABLE-PRIORITY BINDING (priorities only). A priority is bound to an internal RANK — its ordinal
+   * level (higher = more urgent), the invariant the sorting + RICE/WSJF weighting key off. This is kept
+   * SEPARATE from `order` (display position): the five shipped priorities ARE the rank anchors (none=0 …
+   * urgent=4), and an adjustable priority declares which rank band it binds to, exactly as a non-core
+   * status declares its lifecycle class. Absent on statuses.
+   */
+  rank?: number;
 }
 
 /** A token's methodology tags, defaulting to neutral ("*") when untagged. */
@@ -79,6 +87,34 @@ const coreStatusEntries = statusEntries.filter((e) => e.canonical === undefined)
 export const CANONICAL_STATUS: readonly CanonicalStatus[] = coreStatusEntries.map((e) => e.id as CanonicalStatus);
 /** Canonical priorities in ranked order (urgent → none). */
 export const WORK_PRIORITIES: readonly WorkPriority[] = priorityEntries.map((e) => e.id as WorkPriority);
+
+/** Canonical priority → its internal RANK (ordinal level, higher = more urgent) — the invariant the
+ *  sorting + RICE/WSJF weighting key off, distinct from display `order`. The five shipped priorities ARE
+ *  the rank anchors (none=0 … urgent=4); an adjustable priority binds to a rank band (see
+ *  {@link priorityWeightBand}). Derived from the shipped entries, so a drift test can assert the anchors. */
+export const PRIORITY_RANK: Record<WorkPriority, number> = Object.fromEntries(
+  priorityEntries.map((e) => [e.id, e.rank ?? 0]),
+) as Record<WorkPriority, number>;
+
+/** The distinct ranks of the shipped priority anchors, ascending — the canonical weight bands. */
+const PRIORITY_RANK_ANCHORS: readonly number[] = [...new Set(Object.values(PRIORITY_RANK))].sort((a, b) => a - b);
+
+/**
+ * Snap an arbitrary priority rank onto the NEAREST canonical priority weight band (one of the five shipped
+ * anchor ranks). This is how an ADJUSTABLE priority — whatever ordinal a scope declares for it — still
+ * resolves a weight the RICE/WSJF + sorting maths understand: it falls back to its nearest ranked neighbour
+ * (ties break toward the more-urgent, i.e. higher, band). Returns null only when there are no anchors.
+ */
+export function priorityWeightBand(rank: number): number | null {
+  if (!PRIORITY_RANK_ANCHORS.length) return null;
+  let best = PRIORITY_RANK_ANCHORS[0]!;
+  for (const anchor of PRIORITY_RANK_ANCHORS) {
+    const d = Math.abs(anchor - rank);
+    const bd = Math.abs(best - rank);
+    if (d < bd || (d === bd && anchor > best)) best = anchor;
+  }
+  return best;
+}
 
 /** Canonical status → its lifecycle class. */
 export const STATUS_CLASS: Record<CanonicalStatus, StatusClass> = Object.fromEntries(
@@ -130,7 +166,7 @@ export function workVocabulary(): WorkVocabEntry[] {
  *  `values` seeded into the system `work-vocabulary` config def AND the base a scope resolver folds
  *  org/programme/project/user overrides onto — one source of truth for the shipped default. */
 export interface ResolvedStatus { id: string; label: string; labels?: Record<string, string>; order: number; lifecycle: StatusClass; methodologies: string[]; color?: string; canonical?: CanonicalStatus }
-export interface ResolvedPriority { id: string; label: string; labels?: Record<string, string>; order: number; methodologies: string[]; color?: string }
+export interface ResolvedPriority { id: string; label: string; labels?: Record<string, string>; order: number; rank: number; methodologies: string[]; color?: string }
 export interface WorkVocabularyValues {
   statuses: ResolvedStatus[];
   priorities: ResolvedPriority[];
@@ -140,7 +176,7 @@ export interface WorkVocabularyValues {
 export function workVocabularyValues(): WorkVocabularyValues {
   return {
     statuses: statusEntries.map((e) => ({ id: e.id, label: e.label, order: e.order, lifecycle: e.canonical ? STATUS_CLASS[e.canonical] : (e.lifecycle ?? "open"), methodologies: vocabMethodologies(e), ...(e.labels ? { labels: e.labels } : {}), ...(e.color ? { color: e.color } : {}), ...(e.canonical ? { canonical: e.canonical } : {}) })),
-    priorities: priorityEntries.map((e) => ({ id: e.id, label: e.label, order: e.order, methodologies: vocabMethodologies(e), ...(e.labels ? { labels: e.labels } : {}), ...(e.color ? { color: e.color } : {}) })),
+    priorities: priorityEntries.map((e) => ({ id: e.id, label: e.label, order: e.order, rank: e.rank ?? PRIORITY_RANK[e.id as WorkPriority] ?? 0, methodologies: vocabMethodologies(e), ...(e.labels ? { labels: e.labels } : {}), ...(e.color ? { color: e.color } : {}) })),
   };
 }
 
