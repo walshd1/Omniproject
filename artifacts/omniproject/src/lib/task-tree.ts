@@ -66,6 +66,28 @@ export function hasChildren<T extends TreeTask>(node: TaskTreeNode<T>): boolean 
 }
 
 /**
+ * The ids of every descendant of `rootId` (its children, their children, …), NOT including `rootId` itself.
+ * Used by a re-parent picker to exclude a task's own subtree — you can't move a task under one of its own
+ * descendants without creating a cycle. Uses the effective (cycle-broken) tree, so it's always finite.
+ */
+export function descendantIds<T extends TreeTask>(tasks: readonly T[], rootId: string): Set<string> {
+  const roots = buildTaskTree(tasks);
+  const out = new Set<string>();
+  const find = (list: TaskTreeNode<T>[]): TaskTreeNode<T> | null => {
+    for (const n of list) {
+      if (n.task.id === rootId) return n;
+      const hit = find(n.children);
+      if (hit) return hit;
+    }
+    return null;
+  };
+  const collect = (n: TaskTreeNode<T>): void => { for (const c of n.children) { out.add(c.task.id); collect(c); } };
+  const root = find(roots);
+  if (root) collect(root);
+  return out;
+}
+
+/**
  * Flatten the forest to the VISIBLE rows in render order (depth-first), skipping the descendants of any node
  * whose id is in `folded`. Each row carries its depth (for indent) and whether it has children (for the caret).
  */

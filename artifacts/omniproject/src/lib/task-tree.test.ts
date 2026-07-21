@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { buildTaskTree, flattenTaskTree, type TreeTask } from "./task-tree";
+import { buildTaskTree, flattenTaskTree, descendantIds, type TreeTask } from "./task-tree";
 
 const ids = (rows: Array<{ task: { id: string } }>) => rows.map((r) => r.task.id);
 
@@ -42,5 +42,19 @@ describe("task-tree", () => {
     const all = flattenTaskTree(roots);
     expect(all.map((r) => r.task.id).sort()).toEqual(["p", "q"]);
     expect(all).toHaveLength(2); // no duplication, no infinite loop
+  });
+
+  describe("descendantIds", () => {
+    const tasks: TreeTask[] = [
+      { id: "a" }, { id: "a1", parentTaskId: "a" }, { id: "a1x", parentTaskId: "a1" },
+      { id: "a2", parentTaskId: "a" }, { id: "b" },
+    ];
+    it("collects the whole subtree, excluding the root itself", () => {
+      expect([...descendantIds(tasks, "a")].sort()).toEqual(["a1", "a1x", "a2"]);
+    });
+    it("is empty for a leaf and for an unknown id", () => {
+      expect([...descendantIds(tasks, "b")]).toEqual([]);
+      expect([...descendantIds(tasks, "ghost")]).toEqual([]);
+    });
   });
 });

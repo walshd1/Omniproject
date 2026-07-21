@@ -6,6 +6,7 @@ import { useTaskComments, useAddComment, useTaskAttachments, useAddAttachment, u
 import { usePriorityLabels } from "../lib/priority-labels";
 import { TaskNotes } from "./TaskNotes";
 import { TagEditor } from "./TagEditor";
+import { TaskSubtasks } from "./TaskSubtasks";
 
 /**
  * Task detail — the fields plus the discussion thread and file attachment REFERENCES for one task,
@@ -71,6 +72,9 @@ export function TaskDetailDialog({ task, open, onOpenChange }: { task: Task | nu
 
           {/* Per-user tag colour + hierarchy overlay (personal, localStorage). */}
           <TagEditor tags={task.tags ?? []} />
+
+          {/* Subtasks — create children + re-parent this task (builds the tree the list view renders). */}
+          <TaskSubtasks task={task} />
 
           {/* Comments */}
           <div>
