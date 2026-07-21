@@ -10,12 +10,12 @@ const toastMock = vi.hoisted(() => vi.fn());
 vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast: toastMock, dismiss: vi.fn(), toasts: [] }) }));
 
 /** The live timer widget: idle start-form vs running display, start/stop mutations, the local 1s tick, and the
- *  timeTracking feature gate. (timeTracking defaults enabled for an unknown feature id, so most tests need no
- *  feature seeding.) */
+ *  timeTracking feature gate. `useFeatureEnabled("timeTracking")` reads false when the features query is unseeded,
+ *  so seed the feature ENABLED by default — a test that exercises the gate passes its own `features` override. */
 function seed(state: TimerState, features?: FeatureStatus[]): QueryClient {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity }, mutations: { retry: false } } });
   qc.setQueryData(timerKey, state);
-  if (features) qc.setQueryData(featuresQueryKey({}), features);
+  qc.setQueryData(featuresQueryKey({}), features ?? [feature()]);
   return qc;
 }
 
