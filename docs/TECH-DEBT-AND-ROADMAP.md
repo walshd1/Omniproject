@@ -48,7 +48,7 @@ one confirmed CRITICAL and a corroborating cluster — most sharing one root cau
   the zero-account CI/throwaway-store shape, so nothing legitimate is forced. Regression:
   `lib/session-secret-local-users.test.ts` drives the real directory signal end-to-end. **Residual (LOW,
   unfixed):** the `Secure` cookie flag on `lan-ok` profiles is a deliberate LAN-without-TLS posture, left as-is.
-- **[security — HIGH, confirmed] The generic def importer (`POST /api/defs`, kind `config`) bypasses the
+- **[security — HIGH, FIXED 2026-07-21] The generic def importer (`POST /api/defs`, kind `config`) bypassed the
   governance guards on the SAME config store.** Security-classified configs (`history-retention`,
   `logging-sync`, `error-telemetry` — `lib/security-config.ts`) must, on a relaxing change, be held for a
   passkey sign-off; their dedicated writers route through `applyConfigCollectionGuarded`
@@ -62,18 +62,24 @@ one confirmed CRITICAL and a corroborating cluster — most sharing one root cau
   (MEDIUM):** the admin-only `def-scope-policy` (who may author defs where) is folded from an org config def
   (`lib/def-policy.ts:70`) a `pmo` can write via `/api/defs`, lowering the authoring gate itself. **Caveat:**
   in DEMO mode pmo/admin orthogonality collapses (all authorities granted, `lib/rbac.ts:268`), so this only
-  bites a REAL IdP deployment with `defImporter` enabled. **Fix:** run security-classified logical ids through
-  `applyConfigCollectionGuarded` inside the importer choke point (or reject reserved logical ids at
-  `runDefWriteHook`). NB — the ruleset/settings scope-overrides are NOT affected: they read by exact singleton
-  id (`readScopedConfigValue`), which a random-UUID importer id cannot forge.
-- **[security — HIGH, needs a regression test] Custom-roles reimport skips the sanitizer → base-role
-  privilege escalation.** `applyDefStoreExport` (`lib/def-store-export.ts:175-185`) writes `custom-roles` /
-  `def-policy` / `def-binding` / `user-prefs` on only an `{id}`-shape check (no per-kind validator), and
-  `getCustomRolesConfig` (`lib/custom-roles.ts:125-130`) trusts the stored row at read time — so a crafted
-  plaintext `defs-import` bundle (admin + step-up gated, `routes/setup/config-io.ts:220`) carrying
-  `{baseRole:"admin", groups:[<attacker IdP group>]}` confers write-capable grants without ever passing
-  `sanitizeCustomRolesConfig`. **Fix:** route every config blob through its real sanitizer on import (add
-  `custom-roles → sanitizeCustomRolesConfig` to `CONFIG_VALIDATORS`) or re-sanitize in the getters.
+  bites a REAL IdP deployment with `defImporter` enabled. **Fixed:** a shared `isGovernedConfigId` predicate
+  (`lib/governed-config-ids.ts`, composing `isSecurityConfig` + the `def-scope-policy` id) is now enforced at
+  BOTH write choke points — `runDefWriteHook` refuses a `config` def carrying a governed logical id (`POST`/`PUT
+  /api/defs`), and `applyDefStoreExport` drops one smuggled through a backup bundle (the second, previously
+  unnoted, entry point). This closes the MEDIUM `def-scope-policy` sibling in the same guard. Benign configs
+  (e.g. `scheduling`) still write. NB — the ruleset/settings scope-overrides were never affected: they read by
+  exact singleton id (`readScopedConfigValue`), which a random-UUID importer id cannot forge. Regression tests:
+  `def-write-hooks.test.ts` + `def-store-export.test.ts` (governed-id drop; benign round-trip preserved).
+- **[security — HIGH, FIXED 2026-07-21] Custom-roles reimport skipped the sanitizer → base-role privilege
+  escalation.** `applyDefStoreExport` wrote `custom-roles` on only an `{id}`-shape check (no per-kind validator),
+  and `getCustomRolesConfig` (`lib/custom-roles.ts:125-130`) trusts the stored row at read time — so a crafted
+  plaintext `defs-import` bundle (admin + step-up gated, `routes/setup/config-io.ts:220`) carrying a role whose
+  `id` shadows a built-in (mapping `[<attacker IdP group>]` onto elevated grants) conferred write-capable
+  capabilities without ever passing `sanitizeCustomRolesConfig`. **Fixed:** a new `CONFIG_SANITIZERS` map routes
+  the `custom-roles` blob through `sanitizeCustomRolesConfig` on import — a TRANSFORM (not a keep/drop validator)
+  so the WRITTEN row is the normalised shape; a blob the authoring path would reject is dropped (fails toward no
+  custom grants). Regression tests in `def-store-export.test.ts` (shadow-a-built-in dropped; valid role still
+  round-trips). `def-policy` / `user-prefs` were left on the shape gate — their getters re-validate at read time.
 - **[security — LOW/MED, FIXED 2026-07-21] Sealed secret-store files written world-readable (no `0600`).**
   `lib/sealed-file.ts`, `lib/user-credentials.ts`, `lib/instance-key.ts` now pass `0o600` to `openSync` (the
   temp file's mode survives the atomic rename); a `sealed-file` test asserts the resulting mode is `0600`.
