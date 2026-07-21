@@ -1,11 +1,11 @@
 import { useState } from "react";
 import { Target, Plus, Trash2, Link2, CheckCircle2 } from "lucide-react";
-import { DataState } from "../components/DataState";
+import { DataState } from "../../components/DataState";
 import {
   useGoals, useGoal, useCreateGoal, useCheckInGoal, useLinkGoal, useUnlinkGoal, useDeleteGoal,
   goalStatusTone, GOAL_STATUSES, KEY_RESULT_KINDS, formatKeyResultValue,
   type GoalStatus, type GoalInput, type KeyResult, type KeyResultKind,
-} from "../lib/goals";
+} from "./goals";
 
 /**
  * Goals / OKRs (roadmap 3.2). List objectives with derived progress, create a goal with measurable key

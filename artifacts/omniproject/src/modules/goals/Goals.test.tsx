@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { screen, fireEvent } from "@testing-library/react";
-import { renderWithProviders } from "../test/utils";
-import type { Goal, GoalMeta } from "../lib/goals";
+import { renderWithProviders } from "../../test/utils";
+import type { Goal, GoalMeta } from "./goals";
 
 /**
  * The Goals page composes the list surface (useGoals), the create form (useCreateGoal), and the
@@ -37,8 +37,8 @@ const delMutate = vi.fn();
 const unlinkMutate = vi.fn();
 const refetch = vi.fn();
 
-vi.mock("../lib/goals", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("../lib/goals")>();
+vi.mock("./goals", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("./goals")>();
   return {
     ...actual,
     useGoals: () => ({
