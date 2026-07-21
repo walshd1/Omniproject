@@ -4,6 +4,7 @@ import { useMethodologyComposition, useSaveMethodologyComposition } from "../../
 import { buildCompositionItems, methodologyLabel } from "../../lib/methodology-composition-catalogue";
 import { applyPreset, toggleItem, isEnabled, derivePresets, type Composition, type CompositionKind } from "../../lib/methodology-composition";
 import { MethodologyDeploy } from "./MethodologyDeploy";
+import { DelegationPolicyAdmin } from "./DelegationPolicyAdmin";
 
 /**
  * Methodology composer (PMO/admin) — pick which artifacts, outputs and rulesets are visible. A preset is
@@ -88,6 +89,9 @@ export function MethodologyComposer() {
         onClick={() => save.mutate(composition)}>
         {save.isPending ? "Saving…" : "Save composition"}
       </button>
+
+      {/* Governance: how far down the scope hierarchy local variation of rulesets/settings/methodology is allowed. */}
+      <DelegationPolicyAdmin />
 
       {/* One-click deploy — the inverse of hand-ticking items: turn a whole methodology (its screens,
           ruleset, business rules, settings + nomenclature) on in a single action. */}
