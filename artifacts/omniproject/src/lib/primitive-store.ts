@@ -306,13 +306,9 @@ export interface PrimitiveFamilyTree {
 
 const FAMILY_ORDER: PrimitiveFamily[] = ["panel", "viz", "field", "block", "component"];
 
-/**
- * The store as a browsable TREE — family → category subfolders → primitives. Optionally scoped to one
- * placement surface (e.g. build the "what can I drop on a screen" palette with `primitiveTree("screen")`).
- * Empty families/folders are omitted; categories are alphabetical within a family.
- */
-export function primitiveTree(surface?: PlacementSurface): PrimitiveFamilyTree[] {
-  const source = surface ? primitivesFor(surface) : PRIMITIVES;
+/** Group a flat primitive list into the family → category-subfolder tree (the shared shape the palette renders).
+ *  Empty families/folders are omitted; categories are alphabetical within a family. */
+function buildTree(source: Primitive[]): PrimitiveFamilyTree[] {
   const tree: PrimitiveFamilyTree[] = [];
   for (const family of FAMILY_ORDER) {
     const inFamily = source.filter((p) => p.family === family);
@@ -325,6 +321,68 @@ export function primitiveTree(surface?: PlacementSurface): PrimitiveFamilyTree[]
     tree.push({ family, folders });
   }
   return tree;
+}
+
+/**
+ * The store as a browsable TREE — family → category subfolders → primitives. Optionally scoped to one
+ * placement surface (e.g. build the "what can I drop on a screen" palette with `primitiveTree("screen")`).
+ * Empty families/folders are omitted; categories are alphabetical within a family.
+ */
+export function primitiveTree(surface?: PlacementSurface): PrimitiveFamilyTree[] {
+  return buildTree(surface ? primitivesFor(surface) : PRIMITIVES);
+}
+
+// ── Activated (customer-authored) primitives ─────────────────────────────────────────────────────────────
+// The static store above is the SHIPPED vocabulary. An org may also ACTIVATE its own approved primitives
+// (roadmap X — registry approval → per-scope activation), and a `blank`-derived bespoke family starts life
+// there. Those live in the def store, not the static catalogue, so the builder palette folds them in at render
+// time by resolving `/defs/resolved/primitive`. This is the pure merge; the hook that fetches is in the palette.
+
+/** The minimal resolved-primitive shape the palette needs (one row of `/defs/resolved/primitive`). */
+export interface ResolvedPrimitive {
+  /** The def STORAGE id — e.g. `system~bar`, `org~reg-xyz`, `project~p1~reg-abc` — the scope prefix is its origin. */
+  id: string;
+  payload: { id: string; label?: string; category?: string; extends?: string };
+}
+
+/** The origin scope of a resolved primitive, from its storage-id prefix (system / org / programme / project / user). */
+function originOf(storageId: string): string {
+  const prefix = storageId.split("~")[0] ?? "system";
+  return ["system", "org", "programme", "project", "user"].includes(prefix) ? prefix : "system";
+}
+
+/** Map a resolved primitive def → a palette `Primitive` in the `viz` family (where the visual primitives live).
+ *  A customer-activated primitive is tagged by its origin scope + `activated`, so the palette can badge it as
+ *  org/programme/project-authored; a shipped `system` one carries no origin tag (it's already in the store). */
+export function primitiveFromResolved(def: ResolvedPrimitive): Primitive {
+  const origin = originOf(def.id);
+  return {
+    id: def.payload.id,
+    sourceId: def.payload.id,
+    family: "viz",
+    label: def.payload.label ?? titleCase(def.payload.id),
+    category: def.payload.category ?? "custom",
+    tags: origin === "system" ? [] : [origin, "activated"],
+    placeableIn: ["screen", "report", "dashboard", "content"],
+  };
+}
+
+/**
+ * The palette tree INCLUDING customer-activated primitives, folded into the `viz` family. `activated` is the
+ * mapped resolved set ({@link primitiveFromResolved}); each is added only when it is NOT already in the static
+ * store by id (a shipped `system` primitive already appears) and is placeable on `surface` (when scoped). Pure,
+ * so the palette can compute it from a fetch without another round-trip.
+ */
+export function primitiveTreeWith(activated: Primitive[], surface?: PlacementSurface): PrimitiveFamilyTree[] {
+  const known = new Set(PRIMITIVES.filter((p) => p.family === "viz").map((p) => p.id));
+  const seen = new Set<string>();
+  const extras = activated.filter((p) => {
+    if (p.family !== "viz" || known.has(p.id) || seen.has(p.id)) return false;
+    if (surface && !p.placeableIn.includes(surface)) return false;
+    seen.add(p.id);
+    return true;
+  });
+  return buildTree([...(surface ? primitivesFor(surface) : PRIMITIVES), ...extras]);
 }
 
 /** The category subfolders present in a family. */

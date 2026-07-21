@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { SealedFile } from "./sealed-file";
 import { safeParseJson } from "./safe-json";
+import { cachedDecryptedRead } from "./sealed-read-cache";
 
 /**
  * SCOPED ENCRYPTED-JSON ARTIFACT STORE — the canonical home for user-authored artifacts (whiteboards,
@@ -128,10 +129,26 @@ export function artifactStoreEnabled(): boolean {
   return !!process.env["OMNI_CONFIG_DIR"]?.trim();
 }
 
+/**
+ * Route guard for endpoints that need the encrypted-JSON store: when it isn't configured on this
+ * deployment, write the standard `501` and return false; otherwise return true. Collapses the
+ * `if (!artifactStoreEnabled()) { res.status(501)… ; return; }` block copy-pasted across ~24 routes into
+ * `if (!requireArtifactStore(res)) return;`. Typed structurally so this storage module stays free of an
+ * express dependency.
+ */
+export function requireArtifactStore(res: { status(code: number): { json(body: unknown): unknown } }): boolean {
+  if (artifactStoreEnabled()) return true;
+  res.status(501).json({ error: "no encrypted-JSON store is configured on this deployment" });
+  return false;
+}
+
 function readCollection<T>(type: string, scope: ArtifactScope): T[] {
   const f = fileFor(type, scope);
   if (!f) return [];
-  const raw = new SealedFile(() => f, `artifact:${type}`).read();
+  // The decrypted string is memoised per (path, mtime, size) when SEALED_READ_CACHE is on (SCALING.md §4);
+  // parse still runs per call so every caller gets a FRESH array (no shared-mutable-state — read-modify-write
+  // callers like putArtifact/deleteArtifact mutate their own copy). A write bumps mtime → the next read misses.
+  const raw = cachedDecryptedRead(f, () => new SealedFile(() => f, `artifact:${type}`).read());
   if (raw === null) return [];
   const parsed = safeParseJson(raw);
   return Array.isArray(parsed) ? (parsed as T[]) : [];

@@ -1,3 +1,5 @@
+import { CANONICAL_STATUS, WORK_PRIORITIES, STATUS_LABEL, PRIORITY_LABEL } from "@workspace/backend-catalogue";
+
 /** The list-row fields whose fill rate is worth surfacing on the projects index/dashboard. */
 export const PROJECT_FIELDS = [
   { key: "description", label: "Description" },
@@ -6,6 +8,10 @@ export const PROJECT_FIELDS = [
   { key: "issueCount", label: "Issues" },
 ];
 
+// The status/priority IDS, ORDER and LABELS come from the shared work-vocabulary asset (the single
+// source of truth the gateway also reads) — see below. Only the Tailwind colour/accent CLASSES stay
+// hand-written here, keyed by id: they MUST be literal class strings so Tailwind's content scanner
+// keeps them (a computed `bg-${token}-500` would be purged from the build).
 export const STATUS_COLORS: Record<string, string> = {
   backlog: "bg-zinc-500",
   todo: "bg-blue-500",
@@ -23,34 +29,18 @@ export const PRIORITY_COLORS: Record<string, string> = {
   none: "bg-transparent",
 };
 
-export const STATUS_LABELS: Record<string, string> = {
-  backlog: "BACKLOG",
-  todo: "TODO",
-  in_progress: "IN PROGRESS",
-  in_review: "IN REVIEW",
-  done: "DONE",
-  cancelled: "CANCELLED",
-};
+// Ordered board columns (left → right) + ranked priorities — derived from the shared vocabulary asset.
+export const STATUS_ORDER: readonly string[] = CANONICAL_STATUS;
+export const PRIORITY_ORDER: readonly string[] = WORK_PRIORITIES;
 
-// Ordered list of board columns (left → right).
-export const STATUS_ORDER = [
-  "backlog",
-  "todo",
-  "in_progress",
-  "in_review",
-  "done",
-  "cancelled",
-] as const;
-
-export const PRIORITY_ORDER = ["urgent", "high", "medium", "low", "none"] as const;
-
-export const PRIORITY_LABELS: Record<string, string> = {
-  urgent: "URGENT",
-  high: "HIGH",
-  medium: "MEDIUM",
-  low: "LOW",
-  none: "NONE",
-};
+// Upper-cased display labels, derived from the asset's canonical labels (the SPA renders status/priority
+// pills in caps). Deriving them means adding a status to the asset surfaces it here automatically.
+export const STATUS_LABELS: Record<string, string> = Object.fromEntries(
+  CANONICAL_STATUS.map((s) => [s, STATUS_LABEL[s].toUpperCase()]),
+);
+export const PRIORITY_LABELS: Record<string, string> = Object.fromEntries(
+  WORK_PRIORITIES.map((p) => [p, PRIORITY_LABEL[p].toUpperCase()]),
+);
 
 // Accent border for each column header (left→right pipeline feel).
 export const STATUS_ACCENTS: Record<string, string> = {

@@ -50,15 +50,15 @@ export function FeatureGatingBulkAdmin() {
   const fileRef = useRef<HTMLInputElement>(null);
 
   const validFeatureIds = useMemo(() => new Set((catalogue ?? []).map((f) => f.id)), [catalogue]);
-  const knownProgrammeIds = useMemo(() => new Set(programmes.map((p) => p.id)), [programmes]);
-  const knownProjectIds = useMemo(() => new Set(projects.map((p) => p.id)), [projects]);
+  const knownProgrammeIds = useMemo(() => new Set((Array.isArray(programmes) ? programmes : []).map((p) => p.id)), [programmes]);
+  const knownProjectIds = useMemo(() => new Set((Array.isArray(projects) ? projects : []).map((p) => p.id)), [projects]);
 
   if (!canProject && !canProgramme) return null; // no scope this session can bulk-edit
 
   function doExport() {
     const rows = buildFeatureGatingExportRows(
-      canProgramme ? programmes : [],
-      canProject ? projects : [],
+      canProgramme ? (Array.isArray(programmes) ? programmes : []) : [],
+      canProject ? (Array.isArray(projects) ? projects : []) : [],
       maps?.programmeFeatures ?? {},
       maps?.projectFeatures ?? {},
     );

@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { requireAnyRole } from "../lib/rbac";
 import { CANONICAL_PRIORITY } from "../broker/vocabulary";
-import { artifactStoreEnabled, makeScopedId } from "../lib/artifact-store";
+import { makeScopedId, requireArtifactStore } from "../lib/artifact-store";
 import { getDef, putDef, type StoredDef } from "../lib/def-import";
 import { configDefLayers, resolveScopedConfig } from "../lib/scoped-config";
 import { contextFromReq } from "../broker";
@@ -52,7 +52,7 @@ router.get("/priority-labels", (req, res) => {
 
 // PUT /api/priority-labels — set the org-scope custom labels (admin or PMO). Body: { labels: { high: "Critical", … } }.
 router.put("/priority-labels", requireAnyRole("pmo", "admin"), (req, res) => {
-  if (!artifactStoreEnabled()) { res.status(501).json({ error: "no encrypted-JSON store is configured on this deployment" }); return; }
+  if (!requireArtifactStore(res)) return;
   let labels: Record<string, string>;
   try { labels = sanitizePriorityLabels((req.body as { labels?: unknown })?.labels ?? {}); }
   catch (e) { res.status(400).json({ error: e instanceof Error ? e.message : "invalid priority labels" }); return; }

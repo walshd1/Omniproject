@@ -1,26 +1,22 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { getJson, sendJson } from "./api";
+import { useQuery } from "@tanstack/react-query";
 import { fetchBrokers, type BrokerInfo } from "./setup";
+import { configResource } from "./config-resource";
 
 export const brokerKindsQueryKey = ["broker-kinds"] as const;
 
+const resource = configResource<string[]>({
+  queryKey: brokerKindsQueryKey,
+  path: "/api/broker-kinds",
+  envelopeKey: "brokerKinds",
+  empty: [],
+  staleTime: 0,
+  // The server re-validates each id against the catalogue (admin).
+  saveErrorMessage: "Failed to save brokers",
+});
 /** The admin-managed extra connected broker kinds. */
-export function useBrokerKinds() {
-  return useQuery({
-    queryKey: brokerKindsQueryKey,
-    queryFn: () => getJson<{ brokerKinds?: string[] }>("/api/broker-kinds").then((r) => r.brokerKinds ?? []),
-    staleTime: 0,
-  });
-}
-
+export const useBrokerKinds = resource.useResource;
 /** Persist the broker list (admin). The server re-validates each id against the catalogue. */
-export function useSaveBrokerKinds() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (kinds: string[]) => sendJson("/api/broker-kinds", { brokerKinds: kinds }, "PUT", "Failed to save brokers"),
-    onSuccess: () => qc.invalidateQueries({ queryKey: brokerKindsQueryKey }),
-  });
-}
+export const useSaveBrokerKinds = resource.useSaveResource;
 
 /** The broker kinds the catalogue knows about (for the picker + client-side validity feedback). */
 export function useAvailableBrokers(enabled: boolean) {

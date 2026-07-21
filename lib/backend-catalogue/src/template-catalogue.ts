@@ -6,6 +6,7 @@
  * collection, these are the shipped starters.
  */
 import { matchesMethodology } from "./methodology-match";
+import { PROJECT_TEMPLATES_DATA } from "./templates.generated";
 
 /** A work item to seed into a freshly-instantiated project. */
 export interface TemplateSeedIssue {
@@ -30,37 +31,10 @@ export interface ProjectTemplate {
   methodologies?: string[];
 }
 
-/** The shipped starter templates. */
-export const PROJECT_TEMPLATES: ProjectTemplate[] = [
-  {
-    id: "scrum-starter",
-    label: "Scrum project",
-    description: "A sprint-ready backlog with the usual ceremonies as work items.",
-    methodology: "scrum",
-    methodologies: ["scrum", "agile"],
-    project: { description: "Scrum project created from a template." },
-    seedIssues: [
-      { title: "Sprint 0: set up the board & backlog", status: "todo", priority: "high", labels: ["setup"] },
-      { title: "Define the Definition of Done", status: "todo", priority: "medium" },
-      { title: "First sprint planning", status: "todo", priority: "medium" },
-      { title: "Backlog: sample user story", status: "backlog", priority: "low", labels: ["story"] },
-    ],
-  },
-  {
-    id: "prince2-starter",
-    label: "PRINCE2 project",
-    description: "A stage-gated project shell with the PRINCE2 management products as work items.",
-    methodology: "prince2",
-    methodologies: ["prince2", "governance"],
-    project: { description: "PRINCE2 project created from a template." },
-    seedIssues: [
-      { title: "Project Brief", status: "todo", priority: "high", labels: ["initiation"] },
-      { title: "Business Case", status: "todo", priority: "high", labels: ["initiation"] },
-      { title: "Stage 1 plan", status: "todo", priority: "medium" },
-      { title: "Risk register set-up", status: "todo", priority: "medium", labels: ["raid"] },
-    ],
-  },
-];
+/** The shipped starter templates — authored as JSON under assets/templates/ and generated into
+ *  `templates.generated.ts` (mirrors the presets pipeline, so a preset's `projectTemplate` ref points at data
+ *  on both sides). Add a starter by dropping a JSON file, not by editing code. */
+export const PROJECT_TEMPLATES: ProjectTemplate[] = PROJECT_TEMPLATES_DATA;
 
 const byId = new Map(PROJECT_TEMPLATES.map((t) => [t.id, t]));
 /** One template by id, or undefined. */

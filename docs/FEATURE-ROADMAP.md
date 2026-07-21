@@ -2196,20 +2196,149 @@ settings key/classification) plus a store-enabled route test.
     into a `hidden-fields` config def via the seam above. `GET`/`PATCH /api/availability/curation` contract
     unchanged (SPA untouched); `lib/availability` reads `readConfigCollection("hidden-fields", [])` fresh per
     resolve; the string-array sanitiser moved into the route. Backend-only; full suite green.
-  - **`savedViews` — pending.** Behind the `savedViews` feature module (`routes/views`, already a
-    settingsCollectionRouter user) — a clean flip once tackled. **`screenLayouts`** is a separate target: it's
-    being folded INTO screen defs (per-screen), not a standalone config collection, so it's not this seam's job.
-- **Slice 5 · `collectionEditRoles` + `disabledScreens`/`disabledFeatures`.** Access/visibility policy —
-  classify carefully (edit-roles borders on authz; today "choice", so policy, but tighten-only is the safer read).
+  - **`savedViews` ✅ (config-def collection, no compat).** Flipped `routes/views` to config mode (`saved-views`
+    config def) — `settings.savedViews` removed (field + FIELD_DESCRIPTORS + CHOICE). `validateSavedViews` +
+    `shapeChecked` are now exported from `lib/settings` and passed as the router's `validate`, so the rich
+    view-engine validation (entity/viewKind/chart/timeline/style) is unchanged — its tests moved to call
+    `validateSavedViews` directly. `GET`/`PUT /api/views` contract + `savedViews` feature-module gate unchanged
+    (SPA untouched). **`screenLayouts`** is a separate target: it folds INTO screen defs (per-screen), not a
+    standalone config collection, so it's not this seam's job.
+- **Slice 5 · `collectionEditRoles` + `disabledScreens` + `panelViews` ✅ (batch flip, no compat).** All three
+  flipped to config-def collections via the seam; settings keys + FIELD_DESCRIPTORS + CHOICE classifications
+  removed. Validators: `stringArrayField`/`validatePanelViews` exported from `lib/settings` and reused;
+  `validateCollectionEditRoles` extracted into its route. `lib/collection-edit-policy` (`editPolicyFor`, the
+  hot-path write gate read by RACI/stakeholders/panelViews/…) now reads `readConfigCollection("collection-edit-roles")`
+  instead of settings. Route contracts unchanged (SPA untouched); route tests store-enabled and drive
+  `collection-edit-roles` via `writeOrgConfigCollection` (RBAC-independent setup). NB `disabledFeatures` stays a
+  settings key for now (it's the feature-module toggle read all over `feature-modules`; a later slice). Full
+  suite green.
 - **Slice 6 · `automations` + `templates` + `raci` + `stakeholders` + `methodologyComposition`.** Remaining
   choice content slices.
+  - **`raci` + `stakeholders` ✅ (batch flip, no compat).** Both register stores flipped to config-def
+    collections (`raci` / `stakeholders`) via the seam; settings keys + FIELD_DESCRIPTORS + CHOICE removed, and
+    the now-unused `validateRaci`/`validateStakeholders` imports dropped from `lib/settings`. The routes pass
+    `normalisedBy(validate…, …Error)` as the config-mode `validate`; the `/raci/rows` + `/stakeholders/rows`
+    endpoints repointed to `readConfigCollection(…)`. Route contracts unchanged (SPA untouched); the route test
+    is store-enabled and drives both registers + the edit-policy via `writeOrgConfigCollection`.
+  - **`automations` + `templates` ✅ (batch flip, no compat).** Both flipped to config-def collections
+    (`automations` / `templates`) via the seam; settings keys + FIELD_DESCRIPTORS + CHOICE removed and the
+    now-unused imports dropped from `lib/settings`. The routes pass `normalisedBy(validate…, …Error)` as the
+    config-mode `validate` (each has a standalone validator + its own `Error` class); the automations `/run`
+    endpoint repointed to `readConfigCollection`. Route contracts unchanged (SPA untouched); route tests
+    store-enabled and seed via `writeOrgConfigCollection`.
+  - **`methodologyComposition` ✅ (dedicated route, no compat).** The composition is a NULLABLE `string[] | null`
+    (`null` = uncurated, everything visible), so it can't ride the array-collection seam whose default is `[]`.
+    It moved to a dedicated `methodology-composition` config def with a null-preserving `{ value }` wrapper:
+    `lib/scoped-config` gained `resolveMethodologyComposition` (reads `readConfigCollection<string[]|null>(…, null)`),
+    and a new `routes/methodology-composition` (GET any-authed; PUT admin/PMO, validated `null | string[]`)
+    replaces the old settings slice. All consumers repointed: the output hard-gate (`lib/composition-gate`),
+    reference rulesets (`routes/ruleset`) and reports (`routes/reports`) now read `resolveMethodologyComposition()`
+    instead of `getSettings().methodologyComposition`; the SPA `methodology-composition-api` hooks repoint to
+    `/api/methodology-composition` while keeping the `{ data }` shape callers destructure. `settings.methodologyComposition`
+    removed (field + FIELD_DESCRIPTORS + CHOICE). Store-enabled route tests cover the new route + the gate paths.
+
+  **Phase B choice slices complete.** Every choice-classified collection now lives in the composition model as a
+  scope-layered `config` def; `SettingsState` retains only security-classified keys (Phase C) and the handful of
+  toggle/registry keys still read module-wide (`disabledFeatures`, `reports`, …). Next milestone: Phase C floor gate.
 
 ### Phase C — security/floor slices (introduce the floor + sign-off wiring)
-- **Slice 7 · the floor gate.** Wire "relaxing a floor config needs sign-off" onto the existing `relaxingKeys` /
-  `applySettingsGuarded` gate (it already DETECTS a relaxation; the floor model names it), then migrate the
-  security-classified slices — webhooks/egress, `brokerUrl`, AI provider/model allowlists, `historyRetention`,
-  session controls — as floors where a lower scope may only TIGHTEN (a project restricts further, never loosens
-  the org egress allow-list).
+- **Slice 7a · the floor-gate MECHANISM ✅ (built + proven; no real key migrated yet).** The config-def analogue
+  of `settings-guard`, so a security-classified collection can leave settings and STILL be governed by the §0
+  invariant (a relaxation is held for a signed sign-off). Mirrors how Phase B shipped the "master seam" before
+  any flip.
+  - **`lib/security-config`** — `SECURITY_CONFIGS: Record<configId, RelaxPredicate>`, the config-def analogue of
+    `SECURITY_SETTINGS`. A config is guarded IFF registered here (starts empty; each Phase C migration slice adds
+    its predicate). `relaxingConfig(configId, old, new)` / `isSecurityConfig(configId)`.
+  - **`lib/config-guard`** — `applyConfigCollectionGuarded(configId, name, value, proposedBy)`: reads the current
+    resolved value, and if the (already-validated) `value` relaxes the posture, SEALS the write (config-crypto,
+    so a secret never sits plaintext in the shared queue) and raises a proposal on a new `config.relax` action
+    (bound dual-control chain, or the solo confirm+sign degrade) — applied by the registered executor only once
+    signed. A strengthening/neutral write, or a non-security config, applies immediately. A line-for-line analogue
+    of `settings-guard` but persisting via `writeOrgConfigCollection`.
+  - **`settings-collection-router` config mode** now consults `isSecurityConfig(configId)`: a security config
+    writes through the gate (202 + `pending` on relax, exactly like `applySettingsGuarded`), a choice config
+    writes directly. No new option — the classification alone flips the behaviour, mirroring settings.
+  - Tests: `config-guard.test` (strengthen→immediate, relax→held→applied-on-sign-off, non-security→immediate,
+    driving the real passkey sign-off ceremony) + `settings-collection-guard-routes.test` (the router's 202/200
+    branches over a real Express app). Full suite green.
+- **Slice 7b · migrate the security-classified slices.** With the gate in place, each registers its predicate in
+  `SECURITY_CONFIGS`, adds a route, and repoints readers + the SPA off `PATCH /settings`.
+  - **`errorTelemetry` ✅ (first security-config migration, end-to-end).** The admin opt-in for internal
+    client-error reporting left `SettingsState` for the `error-telemetry` config def. `security-config` registers
+    the directional predicate (enabling relaxes → sign-off; disabling immediate); `scoped-config.resolveErrorTelemetry`
+    reads org def → `ERROR_TELEMETRY` env default → false (env kept as the deploy-time BASE layer, not compat); a
+    dedicated `routes/error-telemetry` (GET any-authed; PUT admin → 202-on-enable via the floor gate) replaces the
+    settings slice; `routes/client-errors` reads the resolver. Removed from settings (field + descriptor + the
+    `SECURITY_SETTINGS` classification) and from the OpenAPI `Settings`/`SettingsUpdate` schemas (codegen + the
+    embedded bundle regenerated). SPA: hand-written `error-telemetry-api` hooks (`useErrorTelemetry` /
+    `useSaveErrorTelemetry`, which surfaces the 202 `pending` in the toast) repoint `ErrorTelemetrySync` (read) and
+    `ErrorTelemetrySettings` (write) off `useGetSettings`/`useUpdateSettings`. New route test + config-guard cover
+    the gate; SPA tests reseed the new query key. Full suite green.
+  - **`loggingSync` ✅ (egress config, own module, end-to-end).** The opt-in state-history egress (the "logging
+    server", unlocks time-travel) left `SettingsState` for the `logging-sync` config def. It got its own module
+    `lib/logging-sync` (mirroring `branding`/`labels`): the `LoggingSyncConfig` type, `loggingSyncFromEnv` (the
+    `LOGGING_SYNC_*` env BASE layer), `sanitizeLoggingSync` (url + warranty-ack gate → 400), `resolveLoggingSync`
+    (org def → env → off) and `isTimeTravelEnabled`. `security-config` holds the directional relax predicate
+    (enable, or redirect-while-on, relaxes). A dedicated `routes/logging-sync` (GET any-authed; PUT admin →
+    202-on-enable via the floor gate) replaces the settings slice; `capabilities` + `routes/history` read
+    `isTimeTravelEnabled` from the new module. Removed from settings (type + field + env-seed + validator + the
+    `SECURITY_SETTINGS` classification), from the `settings-constraints` enable-lock (now the route validator +
+    the panel's local guard), from `config-snapshot` `EXCLUDED_KEYS` (its egress url rides the sealed org config-
+    def backup, not the settings snapshot), and from the OpenAPI schemas (client + bundle regenerated). SPA:
+    hand-written `logging-sync-api` hooks (surfacing the 202 `pending`) repoint `LoggingSyncSettings` off
+    `useGetSettings`/`useUpdateSettings`. New route test + the security/history/rbac integration tests repointed
+    to `/api/logging-sync` + the sealed store. (Also fixed 3 SPA composition tests left seeding the pre-6c
+    `["settings"]` key — now `["methodology-composition"]`.) Full suite green.
+  - **`historyRetention` ✅ (own module, floor gate; backend-only).** The snapshot cadence (org default + PMO
+    programme/project overrides) + the org-wide disposal window + legal holds left `SettingsState` for the
+    `history-retention` config def. New `lib/history-retention` (type + default + `sanitizeHistoryRetention` +
+    `resolveHistoryRetention` + `retentionDaysNow`/`legalHoldsNow`); `security-config` holds the
+    SHORTENING-is-a-relaxation predicate; `routes/history` keeps its admin/PMO authority checks and routes the PUT
+    through the floor gate (a shortening → 202 held, else applies). Repointed the audit-critical readers
+    (`audit-chain` evidence-log prune, `dsar` window, `history/lifecycle` disposal + legal holds). Removed from
+    settings + `SECURITY_SETTINGS` (the now-empty `HistoryConfig` sub-config dropped). No SPA surface; not a
+    contract field. New shorten→202 / lengthen→200 route coverage; unit tests repointed.
+  - **`selfHost` ✅ (own module, CHOICE config; backend-only).** The self-host DB adoption config left
+    `SettingsState` for the `self-host` config def. NB it migrated as a CHOICE, not floor-gated: its real gate is
+    the disclose-don't-insure ACKNOWLEDGEMENT (kept in `sanitizeSelfHost`), and it's authored through the admin
+    setup wizard (`POST /api/setup/self-host`), which has always applied immediately — never a sign-off. Its
+    former `SECURITY_SETTINGS` `changed` classification only guarded the bulk `PATCH /settings` backdoor, which
+    can no longer reach it once it leaves settings. New `lib/self-host-config` (type + default + sanitize +
+    `resolveSelfHost`); `routes/setup` GET/POST read the resolver + write via `writeOrgConfigCollection`;
+    `selfhost/runtime` + `timesheets/store` repointed. Removed from settings, `SECURITY_SETTINGS`, the
+    `settings-constraints` ack-lock, and `config-snapshot` `EXCLUDED_KEYS`. SPA already talked to the setup route
+    via hand-written hooks → zero SPA change. Not a contract field. Full suite green.
+  - **Not migrated (documented, deliberate).** `brokerUrl`/`backendSource`/`oidcIssuerUrl` are boot-time TRUST
+    ROOTS read across the broker seam before any org/scope context exists — deployment control-plane, not
+    scope-layered config; forcing them into config defs would be high-risk and semantically wrong. `webhooks`,
+    `federatedPeers`, `capabilityStates`, `workflowAcceptances`, `approvalChains`, `approvalBindings`,
+    `featureGovernance`, `governanceRules` are the security MACHINERY itself (dedicated passkey/step-up routes,
+    fail-closed governance controls) — not "choices with a floor". Roadmap "session controls" has no concrete
+    settings keys. These stay in `SettingsState`.
+  - **Cross-scope FLOOR resolver ✅ (the "lower scope may only TIGHTEN" mechanism).** `lib/scoped-config` gained
+    `resolveFloorConfig(base, layers, tighten)` — folds scope layers base→leaf clamping each to be no looser than
+    what it inherits, so the org sets the ceiling and every lower scope can only restrict further — plus
+    `tightenAllowlist` (the allowlist tighten step: `null` = no restriction; both present ⇒ intersection, so a
+    lower scope can drop an allowed id but never add a forbidden one). Distinct from the default nearest-wins
+    `resolveScopedConfig`. Unit-tested (intersection, widen-is-a-no-op, null inheritance).
+  - **AI selection allowlists ✅ (FLOOR configs; net-new governance) — provider + model + STT.** There was no
+    existing allowlist setting — `aiProvider`/`aiModel`/`sttProvider` are the *selections* — so these ADD governance
+    floors rather than migrating keys. `lib/ai-allowlist` holds three config defs (`ai-provider-allowlist`,
+    `ai-model-allowlist`, `stt-provider-allowlist`), each resolved with the floor fold, with `aiProviderAllowed` /
+    `aiModelAllowed` / `sttProviderAllowed` (`"none"`/off and the empty/default model always permitted).
+    `routes/ai-allowlist` authors the ORG ceilings (admin PUT; lower scopes narrow via their own imported config
+    defs); the SELECTION gate lives in `routes/settings` — a `PATCH /settings` that picks a provider/model/STT
+    engine outside the resolved allowlist is rejected 400 before the write. Route test covers GET/PUT + the three
+    enforcement gates + off/default/unrestricted. **SPA ✅:** `ai-allowlist-api` hooks; the System-Configuration
+    provider + STT pickers filter to their allowlists (keeping off + the current value visible), the model input
+    becomes a dropdown of allowed models when restricted (free-text otherwise), and one `AiAllowlistsAdmin` panel
+    (registered in `ADMIN_PANELS` + `SETTINGS_PANEL_KEYS` as `aiAllowlists`) authors all three ceilings —
+    provider/STT as checkbox sets, models as a free-text list. Panel + helper + picker-filter tests green.
+
+  **Phase C sensible-subset complete.** The floor gate (7a) + four security-key migrations (errorTelemetry,
+  loggingSync, historyRetention, selfHost) + the cross-scope floor resolver + the AI provider/model/STT allowlist
+  floors (server enforcement + SPA) are all in. The boot-time trust roots and the passkey/step-up security
+  machinery stay in `SettingsState` by design (documented above). Phase C is done.
 
 ### Phase D — artifacts' template/schema layer (content stays sealed data, zero-at-rest)
 - **Slice 8 · schema families.** proof-annotation kinds, invoice-line schema, goal key-result kinds,

@@ -19,6 +19,7 @@ import { downloadDashboard, readDashboardFile } from "../lib/dashboard-file";
 import { useResolvedDefs, useImportDef, useUpdateDef, useDeleteDef, type DefStorage } from "../lib/defs";
 import { useDefPolicy, writableDefScopes } from "../lib/def-policy";
 import { primitivesFor } from "../lib/primitive-store";
+import { PrimitiveLibrary } from "../components/artifact/PrimitiveLibrary";
 import { WidgetView } from "../components/dashboard/widgets";
 import { DataState } from "../components/DataState";
 import { useToast } from "@/hooks/use-toast";
@@ -373,6 +374,12 @@ export function Dashboards() {
             <button onClick={deleteActive} disabled={save.isPending || defWriteBusy} className="px-3 py-1 text-xs font-bold uppercase tracking-wider border-2 border-red-500 text-red-500 disabled:opacity-50">Delete</button>
             {save.isError && <span role="alert" className="text-xs font-bold text-red-500">{(save.error as Error).message}</span>}
           </div>
+        )}
+        {editing && (
+          <details className="mt-2 border border-border rounded-md p-2" data-testid="dashboard-primitive-library">
+            <summary className="text-[10px] uppercase tracking-widest text-muted-foreground cursor-pointer">Primitive library — what you can build from (incl. your org's activated primitives)</summary>
+            <div className="mt-3"><PrimitiveLibrary surface="dashboard" includeActivated /></div>
+          </details>
         )}
       </div>
 

@@ -26,9 +26,14 @@ import aiProvidersRouter from "./ai-providers";
 import exportRouter from "./export";
 import archiveRouter from "./archive";
 import priorityLabelsRouter from "./priority-labels";
+import workVocabularyRouter from "./work-vocabulary";
 import calendarRouter from "./calendar";
 import schedulingRouter from "./scheduling";
 import accessibilityRouter from "./accessibility";
+import methodologyCompositionRouter from "./methodology-composition";
+import errorTelemetryRouter from "./error-telemetry";
+import loggingSyncRouter from "./logging-sync";
+import aiAllowlistRouter from "./ai-allowlist";
 import featuresRouter from "./features";
 import rateCardRouter from "./rate-card";
 import viewsRouter from "./views";
@@ -44,6 +49,9 @@ import panelViewsRouter from "./panel-views";
 import formsRouter from "./forms";
 import automationsRouter from "./automations";
 import templatesRouter from "./templates";
+import presetsRouter from "./presets";
+import orgIdentityRouter from "./org-identity";
+import usersRouter from "./users";
 import wikiRouter from "./wiki";
 import collectionEditRolesRouter from "./collection-edit-roles";
 import reportOverridesRouter from "./report-overrides";
@@ -157,7 +165,7 @@ router.use(scimRouter);
 
 // Strict, per-IP throttle on login / step-up initiation (brute-force / flow-cookie
 // spam) — tighter than the general apiLimiter and applied just to these endpoints.
-router.use(["/auth/login", "/auth/step-up", "/auth/saml/login", "/auth/oauth2/login", "/auth/magic/request", "/break-glass/lockdown", "/break-glass/release", "/break-glass/status"], loginLimiter);
+router.use(["/auth/login", "/auth/step-up", "/auth/saml/login", "/auth/oauth2/login", "/auth/magic/request", "/auth/local", "/auth/local/bootstrap", "/auth/passkey/step-up", "/break-glass/lockdown", "/break-glass/release", "/break-glass/status"], loginLimiter);
 router.use(authRouter);
 
 // Break-glass containment — the IdP-INDEPENDENT panic button for admin impersonation. Self-authed by
@@ -204,9 +212,14 @@ router.use(requireAuth, aiProvidersRouter);
 router.use(requireAuth, exportRouter);
 router.use(requireAuth, archiveRouter);
 router.use(requireAuth, priorityLabelsRouter);
+router.use(requireAuth, workVocabularyRouter);
 router.use(requireAuth, calendarRouter);
 router.use(requireAuth, schedulingRouter);
 router.use(requireAuth, accessibilityRouter);
+router.use(requireAuth, methodologyCompositionRouter);
+router.use(requireAuth, errorTelemetryRouter);
+router.use(requireAuth, loggingSyncRouter);
+router.use(requireAuth, aiAllowlistRouter);
 router.use(requireAuth, featuresRouter);
 router.use(requireAuth, rateCardRouter);
 // These three carry a toggleable feature module (savedViews / dashboards / contentPages) whose
@@ -227,6 +240,9 @@ router.use(requireAuth, panelViewsRouter);
 router.use(requireAuth, formsRouter);
 router.use(requireAuth, automationsRouter);
 router.use(requireAuth, templatesRouter);
+router.use(requireAuth, presetsRouter);
+router.use(requireAuth, orgIdentityRouter);
+router.use(requireAuth, usersRouter);
 router.use(requireAuth, wikiRouter);
 router.use(requireAuth, collectionEditRolesRouter);
 router.use(requireAuth, reportOverridesRouter);

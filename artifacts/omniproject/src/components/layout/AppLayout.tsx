@@ -10,6 +10,7 @@ import { GlobalSearchTrigger } from "../search/GlobalSearchTrigger";
 import { NotificationsBell } from "../NotificationsBell";
 import { DataQualityBadge } from "../DataQualityBadge";
 import { ApiPortalLink } from "../ApiPortalLink";
+import { OrgLogo } from "../OrgLogo";
 import { useStore } from "../../store/useStore";
 import { useListProjects, useHealthCheck, getHealthCheckQueryKey } from "@workspace/api-client-react";
 import { LogOut, Menu, ChevronDown, ShieldCheck, Flag, DownloadCloud } from "lucide-react";
@@ -17,6 +18,7 @@ import { ReportProblemDialog } from "../ReportProblemDialog";
 import { useNavShelves, type NavItem } from "../../lib/nav";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { useAuth, logout } from "../../lib/auth";
+import { shouldGateToSetup, firstRunDismissed } from "../../lib/first-run";
 import { usePublicSetupStatus } from "../../lib/setup";
 import { useT } from "../../lib/i18n";
 import { useOnline, connectivityState } from "../../lib/connectivity";
@@ -104,6 +106,18 @@ export function AppLayout({ children }: { children: ReactNode }) {
       setLocation("/portal");
     }
   }, [auth, authLoading, setLocation]);
+
+  // First-run front door: a new, UNCONFIGURED instance sends the first qualifying admin who lands on the home
+  // page into the setup wizard (the preset-driven Configurator), so setup isn't something to go hunting for.
+  // Only from the landing route (never mid-task), only for admins, only until a backend is connected or the
+  // operator has dismissed it ("skip for now"). The predicate is pure + unit-tested; here we just fire it.
+  useEffect(() => {
+    if (authLoading || !auth?.authenticated) return;
+    const segment = location.split("/")[1] || "";
+    if (shouldGateToSetup({ role: auth.role, brokerConfigured: !!setup?.broker.configured, dismissed: firstRunDismissed(), segment, demoMode: auth.mode === "demo" })) {
+      setLocation("/configurator");
+    }
+  }, [auth, authLoading, setup, location, setLocation]);
 
   // Two-key "chord" navigation (g then d/p/r/s, like Gmail/GitHub): pressing 'g'
   // arms a one-shot listener for the destination key; it auto-disarms after the
@@ -253,6 +267,11 @@ export function AppLayout({ children }: { children: ReactNode }) {
 
         {navList()}
 
+        {/* The org's OWN logo (ungated), shown here only when the org uploaded one AND opted in — renders
+            nothing otherwise. Distinct from the premium product brandMark above. */}
+        <div className="px-4 pt-3 empty:hidden">
+          <OrgLogo className="opacity-80" maxHeight={28} />
+        </div>
         <div className="p-4 border-t border-border flex items-center justify-between text-xs text-muted-foreground">
           <span>CMD+K TO SEARCH</span>
           <ApiPortalLink />

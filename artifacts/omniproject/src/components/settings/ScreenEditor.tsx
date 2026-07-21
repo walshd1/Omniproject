@@ -5,6 +5,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { SCREEN_COMPONENT_IDS } from "../screen/screen-components";
 import { safeParseJson } from "../../lib/safe-json";
 import { familyFolders } from "../../lib/primitive-store";
+import { PrimitiveLibrary } from "../artifact/PrimitiveLibrary";
 import type { OrgScreenDef } from "../../lib/org-screens";
 
 /**
@@ -169,6 +170,13 @@ export function ScreenEditor({ def, onSave, onCancel, saving, allowRoute }: {
         })}
         <Button type="button" variant="outline" size="sm" onClick={addPanel} data-testid="screen-editor-add-panel">Add panel</Button>
       </div>
+
+      <details className="border border-border rounded-md p-2">
+        <summary className="text-[10px] uppercase tracking-widest text-muted-foreground cursor-pointer">Primitive library — what you can build from (incl. your org's activated primitives)</summary>
+        <div className="mt-3">
+          <PrimitiveLibrary surface="screen" includeActivated />
+        </div>
+      </details>
 
       <div className="flex items-center gap-2 border-t border-border pt-2">
         <Button type="button" size="sm" onClick={commit} disabled={invalid || saving} data-testid="screen-editor-save">{saving ? "Saving…" : "Save screen"}</Button>

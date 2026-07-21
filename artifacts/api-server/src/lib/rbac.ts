@@ -2,7 +2,8 @@ import type { Request, Response, NextFunction } from "express";
 import { getSession } from "../routes/auth";
 import { directoryDecision } from "./scim";
 import { parseCommaSet } from "./env";
-import { isDemoAuth } from "./auth-config";
+import { isDemoAuth } from "./auth-runtime";
+import { localAdminRequiresPasskey } from "./user-directory";
 import { resolveScope, type Scope } from "./scope";
 import { matchApiToken } from "./api-token";
 
@@ -331,7 +332,10 @@ export function grantsForReq(req: Request): Grants {
   // A SCIM-provisioned user's group memberships are merged in as extra role claims, so the
   // IdP's group→role assignment flows through without re-issuing OIDC claims.
   const claims = decision.known ? [...(session.roles ?? []), ...decision.roleClaims] : (session.roles ?? []);
-  const strongAuth = hasStrongAuth(session);
+  // A local (in-app password) user's password counts as strong auth for admin/PMO ONLY when the operator has
+  // opted OUT of the passkey requirement (LOCAL_ADMIN_REQUIRE_PASSKEY=false). By default it does NOT, so a local
+  // admin must additionally step up with a passkey — the same hardware-MFA gate every IdP admin clears.
+  const strongAuth = hasStrongAuth(session) || (session.local === true && !localAdminRequiresPasskey());
   const fixed = grantsFromClaims(claims, { isDemo, strongAuth });
   // Demo already holds every grant; otherwise fold in any admin-defined custom roles the claims match (each
   // capped at its fixed base role, so this only ever equals a grant the admin could assign directly).

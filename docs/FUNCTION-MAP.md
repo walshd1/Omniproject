@@ -513,6 +513,7 @@ Canonical value vocabularies — the cross-backend meanings the gateway reasons 
 | `isActionable` | Is this task an ACTIONABLE next-action right now? (the GTD "what can I do next" filter). |
 | `isTaskClosed` | Is a task finished OR dropped (terminal)? — e.g. excluded from an active GTD list. |
 | `isTaskDone` | Is a task COMPLETED (done), as distinct from dropped? — e.g. the trigger to spawn a recurring task's next occurrence (dropping one should NOT recur). |
+| `classifyRag` | Normalise a free-form RAG value (any case / surrounding whitespace) to a canonical RagStatus, or null when it isn't one of the three — the SINGLE classification action behind every RAG tally, replacing the hand-rolled `s === "red" … else` ladders each roll-up used to inline. |
 | `ragFor` | RAG from a completion percentage (≥60 green, ≥25 amber, else red). |
 | `financialHealthFrom` | RAG from cost performance: prefer CPI when earned value is known, else the spend ratio. |
 | `ragBuckets` | A zeroed RAG tally (e.g. for the Prometheus portfolio gauge). |
@@ -631,7 +632,7 @@ Retention LIFECYCLE governance — the data-disposal / legal-hold / right-to-era
 | Function | What it does |
 | --- | --- |
 | `holdKey` | The canonical legal-hold key for an entity id. |
-| `legalHoldSet` | The configured legal-hold key set (from settings.historyRetention.legalHolds). |
+| `legalHoldSet` | The configured legal-hold key set (from the `history-retention` config def). |
 | `isUnderLegalHold` | Whether an entity id is under legal hold (exempt from disposal AND erasure). |
 | `disposalCutoff` | The disposal cutoff (ISO) for a window in days, or null when retention is infinite (window unset). |
 | `disposeExpired` | Run disposal for a source per the configured retention window, skipping legal-held keys. |
@@ -677,6 +678,33 @@ History-retention vocabulary — the durable time-series layer that lets the sel
 ### `artifacts/api-server/src/index.ts`
 
 Server entrypoint.
+
+### `artifacts/api-server/src/lib/actor.ts`
+
+Shared actor-identity helpers over the broker's `ActorContext`.
+
+| Function | What it does |
+| --- | --- |
+| `actorLabel` | The human-readable label recorded on a write's `*By` audit field: the actor's email, then name, then subject id, or null when the context carries none. |
+
+### `artifacts/api-server/src/lib/ai-allowlist.ts`
+
+AI SELECTION ALLOWLISTS — governance FLOORS (roadmap Phase C) over which AI providers / models / STT engines may be SELECTED (`aiProvider` / `aiModel` / `sttProvider`).
+
+| Function | What it does |
+| --- | --- |
+| `sanitizeAiProviderAllowlist` | ── AI provider ────────────────────────────────────────────────────────────────────────────────────────────── |
+| `resolveAiProviderAllowlist` | — |
+| `aiProviderAllowed` | Whether `providerId` may be SELECTED. |
+| `writeOrgAiProviderAllowlist` | — |
+| `sanitizeAiModelAllowlist` | ── AI model ───────────────────────────────────────────────────────────────────────────────────────────────── |
+| `resolveAiModelAllowlist` | — |
+| `aiModelAllowed` | Whether `model` may be SELECTED. |
+| `writeOrgAiModelAllowlist` | — |
+| `sanitizeSttProviderAllowlist` | ── STT provider ───────────────────────────────────────────────────────────────────────────────────────────── |
+| `resolveSttProviderAllowlist` | — |
+| `sttProviderAllowed` | Whether `sttProvider` may be SELECTED. |
+| `writeOrgSttProviderAllowlist` | — |
 
 ### `artifacts/api-server/src/lib/ai-containment.ts`
 
@@ -858,6 +886,7 @@ SCOPED ENCRYPTED-JSON ARTIFACT STORE — the canonical home for user-authored ar
 | `parseScopedId` | Parse a self-describing id back to its target + parts, or null when malformed. |
 | `scopeFromParsed` | The encrypted-JSON scope for a parsed non-sidecar id. |
 | `artifactStoreEnabled` | Whether the encrypted-JSON artifact store is available (an OMNI_CONFIG_DIR is configured). |
+| `requireArtifactStore` | Route guard for endpoints that need the encrypted-JSON store: when it isn't configured on this deployment, write the standard `501` and return false; otherwise return true. |
 | `listArtifacts` | Every item in a (type, scope) collection. |
 | `getArtifact` | One item by id within a scope, or null. |
 | `putArtifact` | Upsert an item into a scope (read-modify-write of the sealed collection). |
@@ -910,7 +939,17 @@ Is the gateway running in DEMO auth mode — i.e. NO real authentication method 
 | Function | What it does |
 | --- | --- |
 | `isDemoAuthFrom` | Pure decision: is this env a DEMO (no-real-auth, every-session-admin) deployment? Returns false as soon as ANY real method is configured — legacy OIDC, named OIDC, OAuth2, SAML, or magic-link. |
-| `isDemoAuth` | Runtime gate: is the live process in demo auth mode? Delegates to the pure `isDemoAuthFrom` so the gate and the boot-time blocker share one definition and can never drift. |
+| `strongerAuthConfigured` | True when a STRONGER-than-local real SSO method (legacy/named OIDC, OAuth2, or SAML) is configured. |
+| `localPasswordRecovery` | The host-side RECOVERY break-glass: force local passwords back on despite a configured SSO. |
+| `localPasswordsAllowed` | Whether local (in-app password) sign-in is ALLOWED at all: only when no stronger SSO is configured, UNLESS the destructive recovery break-glass is engaged. |
+
+### `artifacts/api-server/src/lib/auth-runtime.ts`
+
+RUNTIME auth-mode gate — the one auth predicate that depends on live STORE state (the local-user directory), split out from the otherwise PURE `auth-config` module.
+
+| Function | What it does |
+| --- | --- |
+| `isDemoAuth` | Runtime gate: is the live process in demo auth mode? Starts from the pure env decision (shared with the boot self-check `isDemoAuthFrom`) AND additionally turns demo OFF once ≥1 active local user exists — so creating the first in-app admin in the setup wizard immediately stops "no IdP = everyone admin", without needing an env change. |
 
 ### `artifacts/api-server/src/lib/automation.ts`
 
@@ -1201,6 +1240,7 @@ Shared input-coercion guards for untrusted values (request bodies, external JSON
 | `isStr` | Narrow to a string. |
 | `isNum` | Narrow to a finite number (rejects NaN/Infinity). |
 | `stringArray` | Keep only the string members of an array (empty array for a non-array). |
+| `sanitizeText` | Strip control characters and cap length on a free-text value before storage, so authored text can never carry a control-char payload or blow a limit. |
 
 ### `artifacts/api-server/src/lib/collab-hub.ts`
 
@@ -1284,7 +1324,8 @@ Tiny bounded-concurrency pool — the `p-limit` pattern without adding a depende
 | Function | What it does |
 | --- | --- |
 | `createConcurrencyLimiter` | A limiter: call `run(fn)` any number of times; at most `limit` of the wrapped calls are ever in flight concurrently. |
-| `poolMap` | Map `items` through the async `fn`, keeping at most `limit` calls in flight at once. |
+| `poolMapWith` | Fan `items` out through an EXISTING limiter — the generic bounded fan-out. |
+| `poolMap` | Map `items` through the async `fn`, keeping at most `limit` calls in flight at once (its own fresh limiter). |
 
 ### `artifacts/api-server/src/lib/concurrency.ts`
 
@@ -1355,6 +1396,14 @@ Config export for the Setup wizard.
 | --- | --- |
 | `configEntries` | Resolve the ordered env entries that reproduce the given configuration. |
 | `buildConfigExport` | Render the deploy config in the requested format (.env / docker-compose / k8s). |
+
+### `artifacts/api-server/src/lib/config-guard.ts`
+
+The config-def analogue of `settings-guard.ts` — the single chokepoint that enforces the governing invariant (§0, §6a) for a security-classified config-def collection (roadmap Phase C).
+
+| Function | What it does |
+| --- | --- |
+| `applyConfigCollectionGuarded` | Persist a security-classified config-def collection under the invariant. |
 
 ### `artifacts/api-server/src/lib/config-refresh.ts`
 
@@ -1582,6 +1631,8 @@ DEF SELECTION BINDINGS (roadmap X.12).
 
 | Function | What it does |
 | --- | --- |
+| `primitiveSlot` | The binding slot key for a primitive family (namespaced, so it never collides with a screen/report slot). |
+| `isPrimitiveSlot` | Whether a slot addresses a primitive selection (vs a screen/report/methodology slot). |
 | `resolveDefBinding` | Resolve the effective binding for `slot` given the caller's scope. |
 | `canRebind` | Whether a principal at `level` may CHANGE the selection for `slot` — i.e. no higher scope has locked it. |
 | `getScopeBindings` | The slot→binding map stored at one scope (empty when unset / store off). |
@@ -1594,6 +1645,7 @@ THE DEFINITION IMPORTER — the single validated write-path for ANY user-defined
 
 | Function | What it does |
 | --- | --- |
+| `isVendorControlledKind` | — |
 | `defMethodologies` | An OPTIONAL, loose methodology tag any artifact def may carry in its JSON (`methodologies: string[]`) — the same convention the shipped screen/report/view catalogues use, generalised to every kind so ANY def can be softly associated with one or more methodologies (an untagged def is neutral — it applies everywhere). |
 | `validateDef` | Validate a payload against its kind using the REAL product validators — the same ones the individual def routes enforce — so a stored def can never be a shape the product would reject. |
 | `sanitizeDef` | The single choke point: validate the whole import request (kind, name, payload size + shape). |
@@ -1608,6 +1660,10 @@ THE DEFINITION IMPORTER — the single validated write-path for ANY user-defined
 | `checkDeleteIntegrity` | Guard a DELETE: removing a def that others are BUILT ON orphans them. |
 | `putDef` | — |
 | `deleteDef` | — |
+| `approvedPrimitiveDefId` | The def storage id for a primitive activated from a registry item at a target scope (deterministic, so reject/delete can undo). |
+| `approvedPrimitiveErrors` | Validate a customer primitive for activation: shape ({@link validatePrimitiveDef}) + the customer-only safety bounds/render-safety ({@link primitiveSafetyErrors}) + `extends` ancestry resolving (system + org + the target scope) + the bidirectional integrity check. |
+| `activateApprovedPrimitive` | PRIVILEGED: activate an APPROVED customer primitive into a customer def scope (org-wide by default, or confined to a programme/project). |
+| `deactivateApprovedPrimitive` | Remove an activated approved primitive from its scope (on reject / retract / delete). |
 | `makeSystemDefId` | A system def id: `system~<localId>`. |
 | `listSystemDefs` | The shipped-default defs (read-only). |
 | `buildSystemDefRow` | Build (validate + stamp) one shipped-default row WITHOUT writing — the row for the read-only system store. |
@@ -1634,7 +1690,7 @@ DEFINITION SCOPE POLICY — the admin-configurable answer to "who may WRITE a de
 | Function | What it does |
 | --- | --- |
 | `satisfiesDefGate` | Does the request satisfy a scope gate? |
-| `getDefScopePolicy` | The current policy (the org config artifact, or the defaults when unset / store disabled). |
+| `getDefScopePolicy` | The current policy: the system-JSON baseline (the seeded `def-scope-policy` config def), copy-and-overridden by the org's stored policy (per key). |
 | `setDefScopePolicy` | Merge a partial patch over the current policy and persist it (org config). |
 | `authorizeDefWrite` | WRITE authorization for a def op at a storage target: the configured per-scope gate, plus the caller's project scope for `project`. |
 
@@ -2014,7 +2070,6 @@ GOAL / OKR server logic (roadmap 3.2) — the authoritative sanitiser + storage 
 | `makeGoalId` | Build a self-describing goal id (shared scoped-id primitive). |
 | `parseGoalId` | Parse a self-describing goal id, or null if malformed / not a JSON target. |
 | `goalScope` | The encrypted-JSON scope for a goal id (the caller's OWN sub is always used for a user goal). |
-| `actorLabel` | A goal actor's label (email > name > sub) for the audit `updatedBy`. |
 | `newGoalRow` | Build the row for a NEW goal from a sanitised write (owner stamped from ctx; progress derived; version 1). |
 | `goalLinkKey` | The stable, URL-safe key for a work-item link (base64url of the addressing triple). |
 | `sanitizeGoalLink` | Validate + normalise a raw work-item link (throws {@link GoalError} on a bad shape). |
@@ -2060,6 +2115,17 @@ Health / anomaly watch.
 | `recentFindings` | The most recent findings (newest last). |
 | `__resetHealthWatch` | Test-only: clear the findings ring + restore default thresholds. |
 | `runHealthWatch` | Run the watch: mint the keyed actor, read the portfolio THROUGH the broker as that actor, evaluate the rules, notify per finding, and record the run. |
+
+### `artifacts/api-server/src/lib/history-retention.ts`
+
+HISTORY RETENTION — the durable-snapshot cadence (org default + PMO programme/project overrides) plus the org-wide DISPOSAL window (`retentionDays`) and LEGAL HOLDS.
+
+| Function | What it does |
+| --- | --- |
+| `sanitizeHistoryRetention` | Validate + normalise the retention config: valid cadences for the org default and every programme/project override; a positive-integer-or-null disposal window; a string[] of legal holds. |
+| `resolveHistoryRetention` | The resolved retention config (org config def → built-in default). |
+| `retentionDaysNow` | The org disposal window in days, or `null` for infinite retention. |
+| `legalHoldsNow` | The org legal-hold key set (`"entity#id"`). |
 
 ### `artifacts/api-server/src/lib/ical.ts`
 
@@ -2119,6 +2185,31 @@ Portfolio AI INSIGHTS — read-only, model-written narrative over the portfolio 
 | `insightMessages` | Build the insight messages: a hardening system frame + the fixed brief + the delimited DATA. |
 | `generatePortfolioInsight` | Produce a portfolio insight. |
 
+### `artifacts/api-server/src/lib/instance-backup.ts`
+
+PORTABLE BACKUP — the complete instance backup (settings + def store + secret stores) sealed under the INSTANCE RECOVERY KEY (lib/instance-key), NOT the deployment's config key.
+
+| Function | What it does |
+| --- | --- |
+| `buildPortableBackup` | Build the complete backup and seal it under the raw IRK. |
+| `isPortableBackup` | True when `input` looks like a portable-backup envelope (so a restore route can branch/validate). |
+| `openPortableBackup` | Open a portable backup with the raw IRK the operator supplies, returning the two halves for the caller to apply (`applySnapshot` / `applyDefStoreExport` / `applyExtraStores`, with `allowSecrets` since the AES-GCM tag has authenticated the bundle). |
+
+### `artifacts/api-server/src/lib/instance-key.ts`
+
+INSTANCE RECOVERY KEY (IRK) — the portable secret an operator SAVES on first setup and needs to open an encrypted backup on a fresh box.
+
+| Function | What it does |
+| --- | --- |
+| `instanceKeyEnabled` | Whether the instance-key store can persist (a path resolves). |
+| `_resetInstanceKeyCache` | Test-only: drop the in-memory cache so an env/path change is re-read. |
+| `getInstanceKey` | Unwrap the stored IRK to raw bytes, or null (absent / unreadable / no matching wrap key). |
+| `ensureInstanceKey` | Ensure an IRK exists, minting + wrapping + persisting one if absent. |
+| `rotateInstanceKey` | Rotate to a fresh IRK (mint + wrap + persist), resetting the reveal gate. |
+| `isInstanceKeyRevealed` | Whether the current IRK has been revealed to an admin (the one-time export gate). |
+| `markInstanceKeyRevealed` | Mark the current IRK revealed (called after a successful one-time reveal). |
+| `instanceKeyFingerprint` | A non-secret fingerprint of the current IRK — confirm which key a backup needs without revealing it. |
+
 ### `artifacts/api-server/src/lib/invoice.ts`
 
 INVOICE server logic (roadmap 3.3) — the authoritative sanitiser + storage access for first-class generated invoices.
@@ -2134,7 +2225,6 @@ INVOICE server logic (roadmap 3.3) — the authoritative sanitiser + storage acc
 | `makeInvoiceId` | ── Storage-target model ───────────────────────────────────────────────────────────────────────────────── |
 | `parseInvoiceId` | — |
 | `invoiceScope` | — |
-| `actorLabel` | — |
 | `newInvoiceRow` | Build the row for a NEW invoice (owner stamped from ctx; totals derived; status draft; version 1). |
 | `mergeInvoiceRow` | Apply an UPDATE, preserving id/owner/storage/status/timestamps; totals recomputed. |
 | `applyInvoiceStatus` | Move an invoice to `next` status (assumes the transition was validated by {@link canTransitionInvoice}). |
@@ -2259,6 +2349,17 @@ Licensing / entitlements — the paywall for premium overlay features.
 ### `artifacts/api-server/src/lib/logger.ts`
 
 The shared pino logger — one configured instance for the whole gateway (level from LOG_LEVEL, pretty in dev, JSON in prod).
+
+### `artifacts/api-server/src/lib/logging-sync.ts`
+
+LOGGING SYNC — the opt-in egress of the gateway's own event log to an external destination.
+
+| Function | What it does |
+| --- | --- |
+| `loggingSyncFromEnv` | The deploy-time BASE layer from env. |
+| `sanitizeLoggingSync` | Validate + normalise the opt-in logging-sync egress config: an object with an optional safe-outbound `url`; turning it ON requires BOTH a url and an explicit warranty acknowledgement (egress is the one out-of-warranty relaxation). |
+| `resolveLoggingSync` | The resolved logging-sync config (org config def → env base → off). |
+| `isTimeTravelEnabled` | True when historical time-travel is available (operator opted into the log-sync egress). |
 
 ### `artifacts/api-server/src/lib/magic-link.ts`
 
@@ -2469,6 +2570,21 @@ Runtime-optional dependency loader — the shared shape behind every "this packa
 | --- | --- |
 | `loadOptionalDependency` | Runtime-optional dependency loader — the shared shape behind every "this package isn't a committed dependency, load it if present, degrade to a no-op if not" seam (Redis clients, the SAML library, geoip-lite, …): dynamic `import()` by a variable specifier (so bundlers/tsc never statically resolve it), extract the piece the caller needs, and on absence/mismatch log ONE warning and resolve to `null` — never throw. |
 
+### `artifacts/api-server/src/lib/org-identity.ts`
+
+ORG IDENTITY — the canonical, first-class record of WHO this deployment belongs to: a stable org `id` and a human `name`.
+
+| Function | What it does |
+| --- | --- |
+| `mintOrgId` | A fresh, unique org id. |
+| `readOrgIdentity` | The org identity as it currently stands — the stored id (or `""` when not yet minted) and the stored name (or the default placeholder). |
+| `resolveOrgIdentity` | The effective org identity at a scope: the stored org-scope identity with any config-def layers folded on top (an org id can never be overridden lower down, but this keeps the read consistent with every other config). |
+| `ensureOrgIdentity` | Ensure the org has a stable id, minting one (and persisting the identity at the top of the org JSON) if it doesn't yet. |
+| `sanitizeOrgName` | Sanitise a proposed org name: single line, trimmed, capped. |
+| `sanitizeOrgLogo` | Sanitise a proposed org logo. |
+| `updateOrgIdentity` | Apply an (ungated) patch to the org identity — name, logo and/or the show-logo opt-in — minting the id first if needed. |
+| `setOrgName` | Set the org NAME (ungated), minting the id first if needed. |
+
 ### `artifacts/api-server/src/lib/origin-allowlist.ts`
 
 The set of origins this deployment trusts for cross-origin browser interaction — shared by CORS (which cross-origin page's JS may read our responses) and, via CSRF_TRUSTED_ORIGINS, the CSRF guard (which Origin/Referer a cookie-bearing mutation may announce).
@@ -2543,6 +2659,14 @@ Methodology RAG — persona SELECTION for the portfolio copilot.
 | `personaById` | A persona by id, or undefined. |
 | `selectPersonas` | Retrieve the most relevant persona(s) for a question. |
 
+### `artifacts/api-server/src/lib/portfolio-financials.ts`
+
+Portfolio financials fan-out — the server-side half of the Portfolio Financials report.
+
+| Function | What it does |
+| --- | --- |
+| `computePortfolioFinancials` | Compute the consolidated portfolio financials for one reporting currency (a `?currency=` override, else the org default → FX base → GBP). |
+
 ### `artifacts/api-server/src/lib/portfolio-reads.ts`
 
 Shared portfolio-wide issue fan-out — was duplicated verbatim (and unbounded) in both routes/export.ts and routes/odata.ts: every xlsx/csv/json/md/pdf export and every OData `/Issues` feed poll fired one `getIssues` call PER PROJECT via a bare `Promise.all`, which is a 200-way concurrent hit on the backend at the 60/200-project target (Power BI/SAP feed polls make this recur on every poll interval, not just on demand).
@@ -2560,6 +2684,7 @@ Portfolio-wide AGGREGATE summary — the one shape allowed to cross an instance 
 | `summarizeHealth` | Summarise portfolio-health rows (the existing `GET /portfolio/health` aggregate) into portfolio-wide counts — no per-project id/name survives. |
 | `foldFinance` | Fold per-project financials (the existing `GET /projects/:id/financials` rows) into ONE portfolio total in `target` currency — the portfolio-only reduction of `consolidateFinancials`. |
 | `foldCapacity` | Fold every project's resource rows (the existing `GET /projects/:id/capacity` rows, flattened across the portfolio) into ONE portfolio total — the portfolio-only reduction of `rollupByProgramme`. |
+| `portfolioSummaryCacheKey` | The read-cache key for a portfolio summary — the caller's identity+data-scope (`actorKey`, the scope-safe fingerprint the broker cache uses) plus the reporting-currency posture. |
 | `computeLocalPortfolioSummary` | Build the portfolio rollup for this request by fanning the four sections (health, finance, capacity, tasks) out in parallel over the broker, then folding them into one summary. |
 
 ### `artifacts/api-server/src/lib/predicate.ts`
@@ -2601,6 +2726,24 @@ Live collaboration presence hub (Server-Sent Events).
 | `presenceStats` | Diagnostics for dev mode: how many rooms / connections are live right now (LOCAL sockets only — the authoritative in-process view; remote mirror entries are not counted). |
 | `closeAllPresence` | Close every live presence stream and forget them — used on graceful shutdown. |
 | `_resetPresenceForTest` | Test reset hook — drop all presence state (local + remote mirror + publishers) without touching connections. |
+
+### `artifacts/api-server/src/lib/preset-apply.ts`
+
+PRESET APPLY — the plan for landing an org on a quick-load preset in one action.
+
+| Function | What it does |
+| --- | --- |
+| `planPresetApply` | Resolve an (already scope-resolved) preset into an apply plan. |
+
+### `artifacts/api-server/src/lib/preset-config.ts`
+
+SCOPE-OVERRIDABLE presets — the resolver behind the presets route.
+
+| Function | What it does |
+| --- | --- |
+| `presetConfigValues` | The seeded `values` for the system `presets` config def — the shipped catalogue under a `list` key. |
+| `resolvePresets` | The effective presets at the given scopes: shipped base (`presetCatalogue`) with system→org→programme→ project→user config-def layers folded on top (nearest wins, list merges by id). |
+| `resolvePreset` | One resolved preset by id (system + overrides), or undefined. |
 
 ### `artifacts/api-server/src/lib/primitive-studio.ts`
 
@@ -2695,7 +2838,6 @@ PROOF server logic — the authoritative sanitiser + storage access for the crea
 | `makeProofId` | Build a self-describing proof id (shared scoped-id primitive). |
 | `parseProofId` | Parse a self-describing proof id, or null if malformed / not a JSON target. |
 | `proofScope` | The encrypted-JSON scope for a proof id (the caller's OWN sub is always used for a user proof). |
-| `actorLabel` | A proof actor's label (email > name > sub) for the audit `decidedBy`/`updatedBy`. |
 | `newJsonProofRow` | Build the row for a NEW proof from a sanitised write. |
 | `mergeJsonProofRow` | Apply an UPDATE to an existing proof, preserving its id/owner/storage. |
 | `isReviewDecision` | Whether a string is a settable review decision (approved / rejected / changes-requested). |
@@ -2875,6 +3017,15 @@ Agentic REBALANCING — the AI proposes a short, ordered list of corrective acti
 | `rebalanceMessages` | Build the rebalance messages: a hardening frame + the ALLOWED tool catalogue + the delimited untrusted snapshot. |
 | `parseSteps` | Defensively parse the model's reply into raw steps (before catalogue validation). |
 | `proposeRebalance` | Ask the model for a rebalancing plan and return only the steps that VALIDATE against the approved tool catalogue. |
+
+### `artifacts/api-server/src/lib/recovery-mode.ts`
+
+RECOVERY MODE — the data-isolation half of the local-password break-glass.
+
+| Function | What it does |
+| --- | --- |
+| `recoveryConfigDir` | The isolated config directory recovery runs from — a `recovery/` child of the real OMNI_CONFIG_DIR. |
+| `engageRecoveryConfigDir` | If the recovery break-glass is engaged AND an OMNI_CONFIG_DIR is set, redirect it to the isolated recovery subdirectory (creating it) so every sealed store runs blank. |
 
 ### `artifacts/api-server/src/lib/recurrence.ts`
 
@@ -3137,9 +3288,13 @@ SCOPED CONFIG RESOLUTION — the reusable vehicle for the model migration (roadm
 | `resolveScopedConfig` | Fold `base` and every `layer` (a partial `values` object), base → leaf, via the shared merge algebra. |
 | `configDefLayers` | Every config-def `values` layer supplying `configId`, in scope-precedence order (system → org → programme → project → user). |
 | `resolveConfig` | Resolve a logical config to its effective value at the given scopes: `base` (the code default) with every config-def layer folded on top, nearest scope winning. |
+| `resolveFloorConfig` | Fold `base` then every `layer`, base→leaf, clamping each layer to be no looser than what it inherits via `tighten(parent, child)` (which returns the child narrowed to the parent's ceiling). |
+| `tightenAllowlist` | The FLOOR tighten step for an ALLOWLIST (a set of permitted ids, or `null` = "no restriction / allow all"). |
 | `readConfigCollection` | The scope-folded value of a config-def-backed collection, or `fallback` when unset. |
 | `writeOrgConfigCollection` | Persist a collection as the ORG-scope config def `{ id, values: { value } }`. |
 | `orgConfigCollectionId` | The stable storage id of an org-scope config-collection def (one singleton row per logical config). |
+| `resolveMethodologyComposition` | — |
+| `resolveErrorTelemetry` | — |
 | `sanitizeSchedulingValues` | Validate + normalise a partial scheduling `values` payload (the org admin's working-time edit) into a clean partial: hours/day in (0,24], working weekdays a non-empty set of integers 0–6 (a week with no working day would make the scheduler's day arithmetic non-terminating), holidays a de-duped sorted list of ISO dates. |
 | `resolveScheduling` | The effective working-time policy at a scope: the code default with every `scheduling` config-def layer folded on top (system < org < programme < project < user), nearest scope winning. |
 
@@ -3167,6 +3322,16 @@ One home for the "durable state file, sealed at rest" pattern.
 | --- | --- |
 | `resolveConfigFile` | Resolve a config file path: an explicit env override wins; otherwise `defaultName` under OMNI_CONFIG_DIR (or null if neither is set, meaning "no persistence"). |
 
+### `artifacts/api-server/src/lib/sealed-read-cache.ts`
+
+MTIME-KEYED DECRYPTED-READ CACHE for the sealed artifact/def stores (SCALING.md §4).
+
+| Function | What it does |
+| --- | --- |
+| `sealedReadCacheEnabled` | True only when an operator has opted in (`SEALED_READ_CACHE=true`). |
+| `cachedDecryptedRead` | Return the decrypted contents of sealed file `file`, serving a cached copy when the file is unchanged (same mtime + size) since it was last read. |
+| `_resetSealedReadCache` | Test-only: drop the whole cache so a subsequent read re-decrypts. |
+
 ### `artifacts/api-server/src/lib/security-check.ts`
 
 Startup security self-check — surface dangerous *production* configurations loudly at boot so a customer can't silently deploy the headline.
@@ -3176,6 +3341,15 @@ Startup security self-check — surface dangerous *production* configurations lo
 | `bootRefusalActive` | Is the CRITICAL-finding boot refusal active? True unless an operator has explicitly opted out (`SECURITY_STRICT=off`) — refusal is the default, not something that must be turned on. |
 | `securityFindings` | Evaluate the deployment config and return any security findings (pure). |
 | `runSecuritySelfCheck` | Boot hook: log findings at their severity. |
+
+### `artifacts/api-server/src/lib/security-config.ts`
+
+The config-def analogue of `security-settings.ts` (design §0 + §6a, roadmap Phase C).
+
+| Function | What it does |
+| --- | --- |
+| `relaxingConfig` | TRUE when moving `configId` from `oldValue`→`newValue` relaxes the posture. |
+| `isSecurityConfig` | Whether `configId` is a security-classified config def (its relaxation needs a sign-off). |
 
 ### `artifacts/api-server/src/lib/security-settings.ts`
 
@@ -3199,6 +3373,15 @@ Durable security state.
 | `startAiAuthzFleetSync` | Start periodic AI-authz fleet convergence (idempotent, unref'd). |
 | `stopAiAuthzFleetSync` | Stop the AI-authz fleet-sync poll (idempotent) — shutdown / tests. |
 | `loadSecurityState` | Restore the security state at boot (sealed file; plaintext tolerated for migration). |
+
+### `artifacts/api-server/src/lib/self-host-config.ts`
+
+SELF-HOST DB ADOPTION — the operator's choice to let OmniProject's OWN database become a system-of-record (or an augmenting store) for a slice of the work-item superset.
+
+| Function | What it does |
+| --- | --- |
+| `sanitizeSelfHost` | Validate + normalise the self-host adoption config: a valid mode, a string[] of adopted domain ids, and — the "disclose, don't insure" gate — an explicit acknowledgement whenever the mode isn't `off`. |
+| `resolveSelfHost` | The resolved self-host adoption config (org config def → built-in default). |
 
 ### `artifacts/api-server/src/lib/session-crypto.ts`
 
@@ -3283,7 +3466,7 @@ Known-good settings blueprints for common customer archetypes — a starting poi
 
 | Function | What it does |
 | --- | --- |
-| `listSettingsPresets` | The known-good settings blueprints, newest posture first (stable order). |
+| `listSettingsPresets` | The known-good settings blueprints, in display order. |
 | `settingsPreset` | One blueprint by id, or null. |
 
 ### `artifacts/api-server/src/lib/settings.ts`
@@ -3292,9 +3475,13 @@ Gateway-local settings store.
 
 | Function | What it does |
 | --- | --- |
-| `isTimeTravelEnabled` | True when historical time-travel is available (operator opted into egress). |
+| `stringArrayField` | Validator for a `string[]` field (rejects non-arrays / non-string members). |
+| `shapeChecked` | Adapt a validator that only THROWS on bad input (no normalisation) into a descriptor validator — persists the dangerous-key-stripped value verbatim, exactly as the old `if (k in patch) checkX(...)`. |
+| `normalisedBy` | Adapt a validator that RETURNS a normalised value and throws a typed error, mapping that error to the standard settings 400 (SettingsValidationError) while letting anything else propagate. |
 | `getSettings` | The current in-memory settings — a shared FROZEN snapshot, rebuilt only when settings change. |
 | `redactSettingsForRead` | A read-safe view of settings for the GET endpoint. |
+| `validateSavedViews` | Shape-validate the saved-view list: an array whose every entry is an object with a string id + name. |
+| `validatePanelViews` | Shape-validate saved PANEL VIEWS. |
 | `registerCapabilityStatesSanitizer` | — |
 | `validatePatch` | Validate a settings patch and return a NORMALIZED copy (reportingCurrency upper-cased, fxRateAsOfDate/reportingCurrency empty-string coerced to null, …) — pure, never mutates the caller's `patch` object. |
 | `updateSettings` | Validate + apply a partial settings patch, returning the new settings. |
@@ -3508,6 +3695,38 @@ External-API USAGE METER — counts the calls (and, where known, tokens) OmniPro
 | `limitStatus` | Resolve a vendor's limit status for the current period (null when no limit is configured). |
 | `pointCost` | Money cost of a usage point under a cost policy (0 when no cost is configured). |
 
+### `artifacts/api-server/src/lib/user-credentials.ts`
+
+LOCAL-USER CREDENTIAL STORE — password secrets for in-app (non-IdP) users, in a SEPARATELY-KEYED sealed store, isolated from the config store and the AI vault.
+
+| Function | What it does |
+| --- | --- |
+| `credentialsEnabled` | Whether the credential store can persist (a path resolves). |
+| `_resetCredentialCache` | Reset the in-memory cache — test-only, so an env/path change is re-read. |
+| `assertPasswordPolicy` | Validate a proposed password. |
+| `setPassword` | Set (or replace) a user's password. |
+| `hasPassword` | Whether a user has a stored password. |
+| `removePassword` | Remove a user's credential (on delete). |
+| `verifyPassword` | Verify a password against a user's stored credential, constant-time. |
+
+### `artifacts/api-server/src/lib/user-directory.ts`
+
+LOCAL USER DIRECTORY — the in-app roster of native (non-IdP) users, so a deployment can manage its own accounts and assign roles WITHOUT an external identity provider (while OIDC/SAML/SCIM still work alongside).
+
+| Function | What it does |
+| --- | --- |
+| `userDirectoryEnabled` | Whether the roster can persist (the org artifact store is configured). |
+| `localAdminRequiresPasskey` | Policy: must a local user ALSO hold a passkey to exercise admin/PMO? The product PREFERS passkey-gated admin, but that requires a passkey step-up that upgrades the session to strong auth — a capability an org opts into. |
+| `listUsers` | All users (public projection), sorted by userName. |
+| `getUser` | One user by id, or null. |
+| `getActiveUserByUserName` | One ACTIVE user by login handle (case-insensitive), or null — the login lookup. |
+| `localUsersActive` | Whether ≥1 active local user exists — the signal that turns the runtime demo gate off. |
+| `anyUserExists` | Whether ANY user (active or not) exists — used by the first-run "claim first admin" bootstrap gate. |
+| `createUser` | Create a user. |
+| `updateUser` | Update a user's profile / groups / active flag. |
+| `deleteUser` | Delete a user AND their credential. |
+| `getUserView` | Public view of one user, or null. |
+
 ### `artifacts/api-server/src/lib/user-prefs.ts`
 
 Per-user UI/accessibility preferences, persisted server-side keyed by the user's `sub` so a person's setup (text size, background colour, contrast, motion) follows them across SESSIONS and devices — not just one browser.
@@ -3666,7 +3885,6 @@ WIKI document server logic — the authoritative sanitiser + broker access for c
 
 | Function | What it does |
 | --- | --- |
-| `sanitizeText` | Strip control characters (keep tab/newline) and cap length so authored text can never carry a payload or blow a limit. |
 | `sanitizeEmbedUrl` | Validate an embed URL against the safe-scheme allow-list; returns the normalised href or throws. |
 | `sanitizeDocBlock` | Sanitise one raw block into a well-formed `DocBlock`, or throw {@link WikiError}. |
 | `sanitizeDocBlocks` | Sanitise a whole block list. |
@@ -3695,6 +3913,15 @@ Full active memory cleanse on shutdown.
 | Function | What it does |
 | --- | --- |
 | `wipeInMemoryState` | Full active memory cleanse on shutdown. |
+
+### `artifacts/api-server/src/lib/work-vocabulary-config.ts`
+
+SCOPE-OVERRIDABLE work-item vocabulary — the resolver + write sanitiser behind `GET`/`PUT /api/work-vocabulary`.
+
+| Function | What it does |
+| --- | --- |
+| `resolveWorkVocabulary` | The effective vocabulary at the given scopes. |
+| `sanitizeWorkVocabularyOverride` | Validate + normalise a PUT body into the config-def `values` to store. |
 
 ### `artifacts/api-server/src/lib/workflow-run.ts`
 
@@ -3740,6 +3967,10 @@ Minimal, dependency-free STORED (uncompressed) ZIP writer.
 ### `artifacts/api-server/src/routes/accessibility.ts`
 
 The ORG-wide accessibility DEFAULTS — a partial UserPrefs the org sets as everyone's starting point (a default font, reduced motion for a sensitive environment, …).
+
+### `artifacts/api-server/src/routes/ai-allowlist.ts`
+
+AI SELECTION ALLOWLISTS — the org's governance FLOORS over which AI providers / models / STT engines may be selected (roadmap Phase C).
 
 ### `artifacts/api-server/src/routes/ai-providers.ts`
 
@@ -3844,6 +4075,10 @@ Real-time collaborative-edit relay (the "wikiCoEdit" feature module, roadmap 2.1
 
 The per-collection EDIT-policy store.
 
+| Function | What it does |
+| --- | --- |
+| `validateCollectionEditRoles` | Validate the edit-role map: a collection id → one of the allowed edit roles. |
+
 ### `artifacts/api-server/src/routes/comments.ts`
 
 Comment threads (the "comments" feature module) — lightweight collaboration on a work item.
@@ -3887,6 +4122,10 @@ Dev-mode routes.
 ### `artifacts/api-server/src/routes/disabled-screens.ts`
 
 The OFF switch for screens.
+
+### `artifacts/api-server/src/routes/error-telemetry.ts`
+
+ERROR TELEMETRY — the admin opt-in for internal client-error reporting (Settings → Diagnostics).
 
 ### `artifacts/api-server/src/routes/export.ts`
 
@@ -3956,6 +4195,10 @@ SPDX-License-Identifier: LicenseRef-OmniProject-Premium Premium feature — gove
 
 Licence endpoint — GET /api/license reports the current licence summary + premium-feature entitlements (white-label, webhooks, enterprise workflows).
 
+### `artifacts/api-server/src/routes/logging-sync.ts`
+
+LOGGING SYNC — the opt-in egress of the gateway's event log to an operator-owned destination (unlocks historical time-travel).
+
 ### `artifacts/api-server/src/routes/marketplace.ts`
 
 PLUGIN MARKETPLACE routes (roadmap 3.4), behind the default-off `marketplace` feature module.
@@ -3967,6 +4210,10 @@ MCP endpoint — POST /api/mcp (JSON-RPC 2.0).
 ### `artifacts/api-server/src/routes/me.ts`
 
 The signed-in user's own preferences.
+
+### `artifacts/api-server/src/routes/methodology-composition.ts`
+
+The methodology COMPOSITION — the PMO/admin's curated set of visible artifact/output/ruleset ids, or `null` (uncurated: everything the catalogues offer stays visible).
 
 ### `artifacts/api-server/src/routes/native.ts`
 
@@ -3983,6 +4230,10 @@ The notify-plane dispatch decision, traced/capturable like the broker seam.
 ### `artifacts/api-server/src/routes/odata.ts`
 
 OData v4 read service — so SAP / Dynamics / Oracle / Power BI can pull OmniProject data in their native feed format (read-only API token works).
+
+### `artifacts/api-server/src/routes/org-identity.ts`
+
+ORG IDENTITY — the org's canonical id + name (see lib/org-identity).
 
 ### `artifacts/api-server/src/routes/panel-views.ts`
 
@@ -4007,6 +4258,10 @@ Portfolio analytics endpoints — portfolio-wide RAG/health and resource-capacit
 ### `artifacts/api-server/src/routes/presence.ts`
 
 Live-collaboration presence routes (the "presence" feature module).
+
+### `artifacts/api-server/src/routes/presets.ts`
+
+QUICK-LOAD PRESETS — land an org on a way of working in one action.
 
 ### `artifacts/api-server/src/routes/priority-labels.ts`
 
@@ -4050,7 +4305,7 @@ Rate card + hashed identity→role map + project types, and the server-side staf
 
 ### `artifacts/api-server/src/routes/registry.ts`
 
-ORG REGISTRY routes (org-wide store of approved bespoke items), behind the default-off `registry` module.
+Parse the activation target from a review body — org-wide by default, or a programme/project to CONFINE the activated primitive to (downward-only).
 
 ### `artifacts/api-server/src/routes/report-overrides.ts`
 
@@ -4164,6 +4419,10 @@ Capability governance plane — the admin-set deployment state (off / user-defin
 
 External-API USAGE + LIMITS surface.
 
+### `artifacts/api-server/src/routes/users.ts`
+
+NATIVE USER MANAGEMENT (admin) — create/manage in-app users + assign their groups (which map to roles the same way IdP claims do), so a deployment can run WITHOUT an external IdP.
+
 ### `artifacts/api-server/src/routes/views.ts`
 
 Saved views — named filter/sort/column/grouping presets.
@@ -4187,6 +4446,10 @@ WHITEBOARDS / visual canvas (roadmap 2.3).
 ### `artifacts/api-server/src/routes/wiki.ts`
 
 WIKI / collaborative docs (roadmap 2.1).
+
+### `artifacts/api-server/src/routes/work-vocabulary.ts`
+
+Scope-overridable work-item vocabulary (statuses + priorities).
 
 ### `artifacts/api-server/src/routes/workflows.ts`
 
@@ -4348,6 +4611,23 @@ Methodology COMPOSITION enforcement — the shared primitive behind both the SPA
 | `isComposed` | Is the artifact `${kind}:${id}` enabled? The runtime gate (`isComposed("report", "evm")`) and the presentation filter share this one predicate. |
 | `filterComposed` | Keep only the items of one `kind` enabled under the composition (uncurated ⇒ all). |
 
+### `lib/backend-catalogue/src/consolidation.ts`
+
+Generic group consolidation engine — the ONE fold behind every "consolidate a per-project figure into one reporting currency, group by programme, derive a ratio, sort" report (portfolio financials, income, benefits).
+
+| Function | What it does |
+| --- | --- |
+| `measureValue` | Extract one measure's value from a set of items per its spec — the generic "sum field X" / "weighted-sum field X by Y" action, with every field name coming from the spec. |
+| `extractMeasures` | Extract every measure's value from a group's items — the `{ measureKey: amount }` map the fold folds. |
+| `consolidateByGroup` | Run a consolidation spec over a set of project contributions: group them, fold each into its group + the grand total, then finalise (round measures, compute derived, settle local) and sort. |
+| `flattenRow` | Present a consolidated row as a FLAT record: the fixed fields plus every metric hoisted to a top-level key. |
+| `consolidationSpec` | Look up a consolidation spec by id, or throw — a report binds to its spec by a stable id. |
+| `consolidationFields` | The RAW row fields the named consolidation specs read — every measure's `field` and `weightField`, deduped, blanks dropped. |
+
+### `lib/backend-catalogue/src/consolidations.generated.ts`
+
+GENERATED by scripts/src/gen-consolidations.ts — do not edit.
+
 ### `lib/backend-catalogue/src/container-constraints.ts`
 
 KIND-ROOT CONSTRAINTS — the container-primitive floors that bind a WHOLE kind, expressed as declarative data rather than hardcoded in a per-kind validator.
@@ -4356,6 +4636,17 @@ KIND-ROOT CONSTRAINTS — the container-primitive floors that bind a WHOLE kind,
 | --- | --- |
 | `kindRootConstraints` | The implicit root constraints every def of `kind` inherits (empty for kinds with no container floors). |
 | `kindElementErrors` | The PER-ELEMENT validation for a kind whose children are primitive instances — beyond the container floors, each child is validated against its own primitive. |
+
+### `lib/backend-catalogue/src/currency.ts`
+
+Currency conversion — the pure, dependency-free FX primitives every money roll-up and report shares: convert an amount between currencies via a base-anchored rate table, decide whether a conversion is even possible, list the convertible codes, and the default display currency.
+
+| Function | What it does |
+| --- | --- |
+| `convertAmount` | Convert between currencies via a base-anchored rate table. |
+| `isConvertible` | Whether `from` can actually be converted to `to` with these rates — callers that SUM across currencies must use this to exclude unconvertible rows, or a raw foreign amount corrupts the total. |
+| `currencyList` | The sorted list of currency codes a rate table can convert between. |
+| `currencyMix` | Tally the distinct source currencies across a set of rows (so a UI can say "consolidated from N currencies"), most-common first. |
 
 ### `lib/backend-catalogue/src/dashboard-preset-catalogue.ts`
 
@@ -4419,7 +4710,7 @@ ENTITY RESOLUTION — stateless helpers for reconciling the SAME real-world enti
 
 ### `lib/backend-catalogue/src/field-primitive-catalogue.ts`
 
-FIELD PRIMITIVES — `field` is a ROOT primitive (sibling to `table` / `bar`).
+DERIVED field primitives — everything that COMPOSES from the `field` root (`extends`) is DATA, authored as JSON recipes under field-primitives/ (the same rule the visual primitives, screens, reports and mappings follow).
 
 | Function | What it does |
 | --- | --- |
@@ -4427,6 +4718,21 @@ FIELD PRIMITIVES — `field` is a ROOT primitive (sibling to `table` / `bar`).
 | `fieldPrimitive` | One field primitive by id, or undefined. |
 | `validateFieldInstance` | Validate ONE form-field instance against its field primitive — the type is a concrete (never an abstract ancestor used raw), its required params are present, and it satisfies the composed constraints (incl. |
 | `validateFormFields` | Validate a form's `fields[]` as field-primitive instances (the per-element half of form validation). |
+
+### `lib/backend-catalogue/src/field-validation.ts`
+
+FIELD VALIDATION + SANITISATION — the single policy engine every field instance runs through.
+
+| Function | What it does |
+| --- | --- |
+| `isLabelType` | — |
+| `resolveFieldPolicy` | Merge an author's overrides ONTO the type default — overrides tighten the floor (a longer maxLength than the default is allowed; the sanitise steps are the union so an author can add but not drop a step). |
+| `sanitiseKeystroke` | The PER-KEYSTROKE character filter — drops characters that can NEVER be valid for the field type, so the in-progress value stays clean as it is typed (or pasted). |
+| `sanitiseValue` | Apply a sanitise policy to a raw string value, steps in order. |
+| `sanitiseForStore` | STORAGE sanitisation — apply only the normalising steps (never escaping), so the result is round-trip safe: the value stored/emitted stays editable and un-mangled. |
+| `validateValue` | Validate an already-sanitised value against its validation spec. |
+| `applyFieldPolicy` | Sanitise THEN validate a raw value in one call — the runtime entry point. |
+| `assertFieldHasPolicy` | The CONTRACT CHECK the def validators call: a non-label field MUST resolve to a non-empty sanitise policy. |
 
 ### `lib/backend-catalogue/src/field-vocabulary.ts`
 
@@ -4445,6 +4751,10 @@ FORM registry — intake / request forms OmniProject can render.
 | `getForm` | One form template by id, or undefined. |
 | `formCatalogue` | All form templates (a defensive copy). |
 | `formsForMethodology` | The form templates tagged for a methodology (neutral tags always match). |
+
+### `lib/backend-catalogue/src/forms.generated.ts`
+
+GENERATED by scripts/src/gen-forms.ts — do not edit.
 
 ### `lib/backend-catalogue/src/goal-catalogue.ts`
 
@@ -4465,7 +4775,6 @@ INVOICING model — the neutral, primitive-built shape for OmniProject's generat
 
 | Function | What it does |
 | --- | --- |
-| `round2` | Round a money amount to 2 decimal places (banker-free, half-up). |
 | `invoiceLineAmount` | The signed amount of a line by its kind: `quantity × unitPrice`, forced ≤ 0 for a `discount` (so a discount always reduces the total regardless of how its inputs were entered). |
 | `formatMoney` | Format a money amount with an ISO-4217 currency code as a prefix (e.g. "USD 1,000.00"). |
 
@@ -4589,6 +4898,21 @@ NOTIFICATION ROUTING — the generic, above-the-seam DISPATCH engine: given an e
 | `routeMatches` | Does a route's predicate match an event? ("*" in kinds = any kind.) |
 | `routeNotification` | The dispatch decision: the de-duplicated set of delivery intents for an event. |
 
+### `lib/backend-catalogue/src/num.ts`
+
+Numeric coercion + rounding — the ONE shared home for the "read a possibly-dirty number off an untrusted read model and don't let a string/null/NaN/±Infinity poison a sum" idiom.
+
+| Function | What it does |
+| --- | --- |
+| `numLoose` | Coerce a possibly-dirty unknown to a finite number, else 0 (string/null/undefined/NaN/±Infinity → 0). |
+| `num` | Coerce a typed optional number to a finite number, else 0 — the strict-typed sibling of {@link numLoose}. |
+| `optNum` | A finite number from a possibly-dirty field, or null when it is absent / blank / non-numeric. |
+| `round2` | Round to 2 decimal places (money / percentages). |
+| `round1` | Round to 1 decimal place (utilisation / health / flow percentages). |
+| `clamp` | Clamp `n` to the inclusive range [lo, hi]. |
+| `finiteValues` | The finite values from a list (drops null/undefined/NaN/±Infinity) — the input to a safe mean. |
+| `finiteAvg` | Mean of the finite values, or 0 when there are none — the divide-by-zero-safe average. |
+
 ### `lib/backend-catalogue/src/output-catalogue.ts`
 
 OUTPUT registry — the outward interfaces that expose portfolio data/events to the outside world (BI tools, agents, scrapers, webhooks).
@@ -4629,9 +4953,24 @@ The PLANES meta-registry — the seven integration planes OmniProject models, al
 | `getPlane` | Look up a single plane descriptor by its id. |
 | `planeCatalogue` | All plane descriptors (a defensive copy). |
 
+### `lib/backend-catalogue/src/preset-catalogue.ts`
+
+PRESET catalogue — the QUICK-LOAD presets that configure an org for a way of working in ONE action.
+
+| Function | What it does |
+| --- | --- |
+| `getPreset` | One preset by id. |
+| `presetCatalogue` | All presets (a defensive copy). |
+| `presetReferenceErrors` | Validate a preset's REFERENCES resolve against the catalogues this package owns (methodology, reference ruleset, project template, dashboard preset). |
+| `isPresetConsistent` | Whether a preset's references all resolve. |
+
+### `lib/backend-catalogue/src/presets.generated.ts`
+
+GENERATED by scripts/src/gen-presets.ts — do not edit.
+
 ### `lib/backend-catalogue/src/primitive-catalogue.ts`
 
-THE SHIPPED PRIMITIVE CATALOGUE — a data-only library of every rendering primitive the product ships, so the view/report/chart builders (and the def store) can discover what artifacts compose from.
+DERIVED primitives — everything that COMPOSES from a root (`extends`) is DATA, authored as JSON recipes under primitives/ (like screens/reports/mappings).
 
 | Function | What it does |
 | --- | --- |
@@ -4642,6 +4981,15 @@ THE SHIPPED PRIMITIVE CATALOGUE — a data-only library of every rendering primi
 | `resolvePrimitive` | Execute a primitive's composition: walk `extends` to a root, then merge each ancestor's params by KEY from root → leaf so a thin child ADDS new params and ALTERS ones it re-declares (child wins), while inheriting the rest. |
 | `rootPrimitives` | The root primitives — those built on nothing (no `extends`). |
 
+### `lib/backend-catalogue/src/primitive-safety.ts`
+
+PRIMITIVE SAFETY — the extra guardrails a CUSTOMER-authored primitive must clear on top of the shape check ({@link validatePrimitiveDef}).
+
+| Function | What it does |
+| --- | --- |
+| `primitiveSafetyErrors` | The safety violations for a CUSTOMER-authored primitive def (empty = safe to activate). |
+| `isPrimitiveSafe` | Convenience: safe ⇔ no violations. |
+
 ### `lib/backend-catalogue/src/primitive-schema.ts`
 
 PRIMITIVE BUNDLE SCHEMA + validator — the shared, closed-set definition of what a `primitive` registry payload must look like (a `PrimitiveDef`: a declarative, code-free chart/graphic descriptor).
@@ -4649,6 +4997,14 @@ PRIMITIVE BUNDLE SCHEMA + validator — the shared, closed-set definition of wha
 | Function | What it does |
 | --- | --- |
 | `validatePrimitiveDef` | Validate a primitive-bundle payload against the shared schema. |
+
+### `lib/backend-catalogue/src/priority-weights.generated.ts`
+
+GENERATED by scripts/src/gen-priority-weights.ts — do not edit.
+
+### `lib/backend-catalogue/src/priority-weights.ts`
+
+Portfolio-prioritisation weights — the SHARED shape + shipped default for the composite ranking score, the single source of truth for BOTH planes (the api-server seeds/validates the saved config against it; the SPA falls back to it while the saved weights load and runs the scoring maths on it).
 
 ### `lib/backend-catalogue/src/proof-catalogue.ts`
 
@@ -4710,7 +5066,7 @@ SCREEN registry — the SPA views OmniProject ships.
 
 ### `lib/backend-catalogue/src/screen-def-catalogue.ts`
 
-THE SHIPPED SCREEN-DEFINITION catalogue — the panel-bearing screen ARTIFACTS the generic builder renders, authored as pure JSON (NOT React).
+Methodology overview screens — ordinary screens, each built PURELY from atom-composable primitive panels (a canvas + chart/table/register/metric/text panels that resolve to the primitive tree).
 
 | Function | What it does |
 | --- | --- |
@@ -4720,6 +5076,19 @@ THE SHIPPED SCREEN-DEFINITION catalogue — the panel-bearing screen ARTIFACTS t
 ### `lib/backend-catalogue/src/screens.generated.ts`
 
 GENERATED by scripts/src/gen-screens.ts — do not edit.
+
+### `lib/backend-catalogue/src/settings-preset-catalogue.ts`
+
+SETTINGS-PRESET archetypes — known-good posture blueprints an operator loads in setup and then tweaks (enterprise-pmo, growth-business, nonprofit, agency-services, regulated-selfhost, demo-trial).
+
+| Function | What it does |
+| --- | --- |
+| `settingsPresetCatalogue` | The known-good settings blueprints, in display order. |
+| `getSettingsPreset` | One blueprint by id, or undefined. |
+
+### `lib/backend-catalogue/src/settings-presets.generated.ts`
+
+GENERATED by scripts/src/gen-settings-presets.ts — do not edit.
 
 ### `lib/backend-catalogue/src/template-catalogue.ts`
 
@@ -4732,6 +5101,10 @@ PROJECT TEMPLATE catalogue — reusable project blueprints for the "spin up a pr
 | `projectTemplatesForMethodology` | Templates tagged for a methodology (neutral tags always match). |
 | `resolveProjectTemplates` | The EFFECTIVE template set: the shipped default catalogue with the org's stored templates merged over it — an org template with the same id OVERRIDES the built-in, a new id is appended. |
 | `resolveProjectTemplate` | Resolve one template by id from the merged set (org override wins over the shipped default). |
+
+### `lib/backend-catalogue/src/templates.generated.ts`
+
+GENERATED by scripts/src/gen-templates.ts — do not edit.
 
 ### `lib/backend-catalogue/src/vendor-overlay.ts`
 
@@ -4802,6 +5175,25 @@ WIKI / document content model — the neutral, primitive-built shape for OmniPro
 | `docWikiLinks` | All wiki-link targets referenced anywhere in a document's block text (deduped, in order). |
 | `slugifyDocTitle` | A URL-safe slug for a document title (lowercased, hyphenated, ascii-word runs). |
 
+### `lib/backend-catalogue/src/work-vocabulary.generated.ts`
+
+GENERATED by scripts/src/gen-work-vocabulary.ts — do not edit.
+
+### `lib/backend-catalogue/src/work-vocabulary.ts`
+
+Canonical WORK-ITEM vocabulary — the single source of truth for the statuses and priorities OmniProject knows about, their lifecycle class and their display order.
+
+| Function | What it does |
+| --- | --- |
+| `vocabMethodologies` | A token's methodology tags, defaulting to neutral ("*") when untagged. |
+| `localeLabel` | The label a viewer in `locale` sees: an exact locale match, else the base language ("de-DE" → "de"), else the default `label`. |
+| `vocabAppliesTo` | True when a token applies to `methodologyId` — neutral ("*") tokens always apply. |
+| `workVocabulary` | The full vocabulary (a defensive copy) — for a consumer that needs the raw entries. |
+| `workVocabularyValues` | Build the shipped-default {@link WorkVocabularyValues} from the canonical entries. |
+| `tokensForMethodology` | The tokens (statuses OR priorities) that apply to `methodologyId` — its tagged ones plus the neutral ("*") ones — a methodology's normal nomenclature. |
+| `statusesForMethodology` | The statuses that apply to `methodologyId` (thin wrapper over {@link tokensForMethodology}). |
+| `prioritiesForMethodology` | The priorities that apply to `methodologyId` (thin wrapper over {@link tokensForMethodology}). |
+
 ### `lib/backend-catalogue/src/workflow-generator.ts`
 
 Pure n8n workflow generator.
@@ -4823,6 +5215,10 @@ End-to-end smoke test for the single-container "omni-shell".
 
 API-reference generator.
 
+### `scripts/src/gen-consolidations.ts`
+
+Consolidation-spec generator.
+
 ### `scripts/src/gen-contract.ts`
 
 Broker-contract generator.
@@ -4834,6 +5230,10 @@ Dashboard-preset catalogue generator.
 ### `scripts/src/gen-fields.ts`
 
 Canonical field-vocabulary generator.
+
+### `scripts/src/gen-forms.ts`
+
+Form catalogue generator.
 
 ### `scripts/src/gen-function-map.ts`
 
@@ -4863,6 +5263,14 @@ gen-openapi-bundle — embed the consumer (northbound) OpenAPI spec into a TS mo
 
 Copilot persona catalogue generator.
 
+### `scripts/src/gen-presets.ts`
+
+Preset catalogue generator.
+
+### `scripts/src/gen-priority-weights.ts`
+
+Prioritisation-weights generator.
+
 ### `scripts/src/gen-reports.ts`
 
 Report catalogue generator.
@@ -4870,6 +5278,14 @@ Report catalogue generator.
 ### `scripts/src/gen-screens.ts`
 
 Screen catalogue generator.
+
+### `scripts/src/gen-settings-presets.ts`
+
+Settings-preset (archetype blueprint) generator.
+
+### `scripts/src/gen-templates.ts`
+
+Project-template catalogue generator.
 
 ### `scripts/src/gen-vendors.ts`
 
@@ -4882,6 +5298,10 @@ View catalogue generator.
 ### `scripts/src/gen-widgets.ts`
 
 Widget catalogue generator.
+
+### `scripts/src/gen-work-vocabulary.ts`
+
+Canonical work-item vocabulary generator.
 
 ### `scripts/src/gen-workflow-blueprints.ts`
 
@@ -4961,6 +5381,15 @@ Backend-catalogue growth freeze.
 | --- | --- |
 | `checkCatalogueFreeze` | Throws if the catalogue has grown past its baseline while any flagship backend is still unverified. |
 
+### `scripts/src/lib/comment-summary.ts`
+
+Reduce a raw leading-comment block to a one-line summary — the single shared summariser behind the documentation generators (`gen-function-map`, `gen-api-reference`), which each need "first sentence of the comment above this symbol" and were carrying their own near-identical copy.
+
+| Function | What it does |
+| --- | --- |
+| `leadParagraph` | Strip the comment delimiters (`/**`, leading `*`/`/`), drop blank-line-separated trailing paragraphs and flow the lead paragraph into a single line of prose. |
+| `firstSentence` | Collapse a raw comment block to its first complete sentence (the summary): the lead paragraph clipped at its first sentence-ending period, ignoring abbreviation dots (`e.g.`, `i.e.`, `etc.`) and single-letter initials so a legitimate mid-sentence dot doesn't truncate it early. |
+
 ### `scripts/src/lib/coverage.ts`
 
 "Every declared item is built" — the pure core of the coverage guard.
@@ -4988,6 +5417,7 @@ Generic JSON-asset registry generator.
 | `loadGroup` | Read, validate (schema + filename===id + unique) and id-sort one group. |
 | `emitRegistry` | Emit a generated module: the header comment, the type imports, then one const per group. |
 | `runSingleAssetGenerator` | Run one single-group JSON-asset generator end-to-end: resolve the asset paths, read + validate the group, emit its `lib/backend-catalogue/src/<label>.generated.ts`, and log the summary. |
+| `runArrayAssetGenerator` | Run one array-source asset generator: compute the rows, validate each against its schema, and emit the `<label>.generated.ts`. |
 
 ### `scripts/src/lib/guard-harness.ts`
 
@@ -5017,6 +5447,10 @@ Markdown emit helpers for the codegen scripts (`gen-contract`, `gen-function-map
 | Function | What it does |
 | --- | --- |
 | `escapeTableCell` | Make an arbitrary string safe to drop into a GitHub-flavoured Markdown *table cell*. |
+
+### `scripts/src/lib/repo-root.ts`
+
+The repository root, resolved once from this file's fixed location (scripts/src/lib/).
 
 ### `scripts/src/lib/superset.ts`
 

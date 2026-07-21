@@ -6,6 +6,7 @@ import NotFound from "@/pages/not-found";
 import { useEffect, lazy, Suspense } from "react";
 import { useStore } from "./store/useStore";
 import { BrandingProvider } from "./lib/branding";
+import { WorkVocabularyProvider } from "./lib/work-vocabulary";
 import { A11yProvider } from "./lib/a11y-prefs";
 import { ThemeScopeProvider } from "./lib/theme-scope";
 import { PlatformProvider } from "./lib/platform-context";
@@ -210,6 +211,7 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <BrandingProvider>
+        <WorkVocabularyProvider>
         <A11yProvider>
         <ThemeScopeProvider>
         <PlatformProvider>
@@ -245,6 +247,7 @@ function App() {
         </PlatformProvider>
         </ThemeScopeProvider>
         </A11yProvider>
+        </WorkVocabularyProvider>
       </BrandingProvider>
     </QueryClientProvider>
   );

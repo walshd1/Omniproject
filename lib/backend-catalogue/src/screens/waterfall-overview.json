@@ -1,0 +1,4 @@
+{ "id": "waterfall-overview", "label": "Waterfall overview", "methodologies": ["waterfall"], "panels": [
+  { "id": "schedule", "kind": "chart", "title": "Schedule", "config": { "chart": { "type": "column" } } },
+  { "id": "milestones", "kind": "register", "title": "Milestones", "config": { "slot": "milestones" } }
+] }

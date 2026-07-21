@@ -6,7 +6,6 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { FieldMapOverride } from './fieldMapOverride';
-import type { LoggingSync } from './loggingSync';
 import type { SettingsAiProvider } from './settingsAiProvider';
 import type { SettingsDeploymentProfile } from './settingsDeploymentProfile';
 import type { SettingsFxRatePolicy } from './settingsFxRatePolicy';
@@ -41,8 +40,5 @@ export interface Settings {
   oidcIssuerUrl?: string | null;
   /** Deployment context chosen in the setup wizard, which relaxes enterprise couplings by choice (e.g. a charity/self-hosted instance on a plain-HTTP LAN). Optional; absent until an admin selects one. The infra-level DEPLOYMENT_PROFILE env var takes precedence on a fresh boot (see docs/REVERSE-PROXY.md). */
   deploymentProfile?: SettingsDeploymentProfile;
-  /** Admin opt-in. When true the SPA reports uncaught render errors (message + component stack + page, never user/project data) to POST /client-errors, which records them to the gateway's INTERNAL audit log. Off by default — the same no-external-telemetry posture as the rest of the app. */
-  errorTelemetry?: boolean;
-  loggingSync?: LoggingSync;
   fieldOverrides?: FieldMapOverride;
 }

@@ -1,0 +1,6 @@
+{
+  "id": "checkbox",
+  "extends": "form-field",
+  "label": "Checkbox",
+  "params": []
+}

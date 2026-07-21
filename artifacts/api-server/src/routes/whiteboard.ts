@@ -9,9 +9,7 @@ import { authorizeStorageTarget } from "../lib/storage-target-authz";
 import { joinCollabRoom, relayToRoom, collabConnectionCount, MAX_COLLAB_STREAMS_PER_SUB } from "../lib/collab-hub";
 import { openSse, keepAlive } from "../lib/sse";
 import { peerColor } from "../lib/presence-hub";
-import {
-  artifactStoreEnabled, listArtifacts, getArtifact, putArtifact, deleteArtifact,
-} from "../lib/artifact-store";
+import { artifactStoreEnabled, listArtifacts, getArtifact, putArtifact, deleteArtifact, requireArtifactStore } from "../lib/artifact-store";
 import {
   brokerHasWhiteboards, listWhiteboards, getWhiteboard, writeWhiteboard,
   sanitizeWhiteboardWrite, makeWhiteboardId, parseWhiteboardId, whiteboardScope,
@@ -105,7 +103,7 @@ router.post("/whiteboards", requireRole("contributor"), (req, res) => {
       res.status(201).json(board ? { ...board, id: makeWhiteboardId("sidecar", board.id), storage: "sidecar" } : board);
       return;
     }
-    if (!artifactStoreEnabled()) { res.status(501).json({ error: "no encrypted-JSON store is configured on this deployment" }); return; }
+    if (!requireArtifactStore(res)) return;
     const ctx = contextFromReq(req);
     const scope = whiteboardScope(input, ctx.sub);
     if (!scope) { res.status(400).json({ error: "invalid storage target" }); return; }

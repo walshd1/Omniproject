@@ -11,7 +11,7 @@
  * Pure over the injected source + the settings snapshot, so it is deterministic and unit-testable;
  * `nowMs` is a parameter (never a hidden clock read) so tests pin the cutoff.
  */
-import { getSettings } from "../lib/settings";
+import { resolveHistoryRetention, legalHoldsNow } from "../lib/history-retention";
 import type { RetentionSource, DisposalResult } from "./retention";
 
 const DAY_MS = 86_400_000;
@@ -19,9 +19,9 @@ const DAY_MS = 86_400_000;
 /** The canonical legal-hold key for an entity id. */
 export const holdKey = (entity: string, id: string): string => `${entity}#${id}`;
 
-/** The configured legal-hold key set (from settings.historyRetention.legalHolds). */
+/** The configured legal-hold key set (from the `history-retention` config def). */
 export function legalHoldSet(): Set<string> {
-  return new Set(getSettings().historyRetention.legalHolds ?? []);
+  return new Set(legalHoldsNow());
 }
 
 /** Whether an entity id is under legal hold (exempt from disposal AND erasure). */
@@ -63,7 +63,7 @@ export interface DisposalRun extends DisposalResult {
  * (disposed:false) when the window is unset — infinite retention is the safe default, never a silent prune.
  */
 export async function disposeExpired(source: RetentionSource, nowMs: number): Promise<DisposalRun> {
-  const cfg = getSettings().historyRetention;
+  const cfg = resolveHistoryRetention();
   const cutoff = disposalCutoff(cfg.retentionDays, nowMs);
   if (!cutoff) return { disposed: false, cutoff: null, snapshots: 0, journal: 0 };
   if (!source.disposeOlderThan) throw new RetentionUnsupportedError("disposal");

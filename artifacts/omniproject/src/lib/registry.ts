@@ -17,10 +17,17 @@ export type { RegistryItemKind, RegistryApprovalStatus, RegistryVisibility };
  * `registry` feature module.
  */
 
+/** Where an approved primitive's def was activated — org-wide, or confined to one programme/project. */
+export type ActivationScope =
+  | { kind: "org" }
+  | { kind: "programme"; programmeId: string }
+  | { kind: "project"; projectId: string };
+
 export interface RegistryItemMeta {
   id: string; kind: RegistryItemKind; name: string; publisher: string; version: string;
   approvalStatus: RegistryApprovalStatus; visibility: RegistryVisibility; tags: string[];
   submittedBy: string | null; submittedAt: string; updatedAt: string;
+  activatedScope?: ActivationScope | null;
 }
 export interface RegistryItem extends RegistryItemMeta {
   description: string | null; payload: unknown;
@@ -65,10 +72,23 @@ export function useSubmitRegistryItem() {
   return useMutation({ mutationFn: (submission: unknown) => sendJson<RegistryItem>("/api/registry", submission, "POST"), onSuccess: invalidate });
 }
 
-/** Approve or reject a submission (admin). */
+/** Approve or reject a submission (admin). Approving a PRIMITIVE may target a scope — org-wide (default), or
+ *  CONFINED to a programme/project the approver holds (downward-only); the server gates the target. */
 export function useReviewRegistryItem() {
   const invalidate = useInvalidate();
-  return useMutation({ mutationFn: ({ id, decision, note }: { id: string; decision: "approved" | "rejected"; note?: string }) => sendJson<RegistryItem>(`/api/registry/${encodeURIComponent(id)}/review`, { decision, ...(note ? { note } : {}) }, "POST"), onSuccess: invalidate });
+  return useMutation({
+    mutationFn: ({ id, decision, note, scope, programmeId, projectId }: {
+      id: string; decision: "approved" | "rejected"; note?: string;
+      scope?: "org" | "programme" | "project"; programmeId?: string; projectId?: string;
+    }) => sendJson<RegistryItem>(`/api/registry/${encodeURIComponent(id)}/review`, {
+      decision,
+      ...(note ? { note } : {}),
+      ...(scope && scope !== "org" ? { scope } : {}),
+      ...(scope === "programme" && programmeId ? { programmeId } : {}),
+      ...(scope === "project" && projectId ? { projectId } : {}),
+    }, "POST"),
+    onSuccess: invalidate,
+  });
 }
 
 /** Release an approved item to the community (admin). */

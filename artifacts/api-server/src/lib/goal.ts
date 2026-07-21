@@ -10,6 +10,8 @@
  */
 import type { ActorContext } from "../broker/types";
 import { makeScopedId, parseScopedId, scopeFromParsed, type ArtifactScope, type StorageTarget } from "./artifact-store";
+import { sanitizeText as cleanText } from "./coerce";
+import { actorLabel } from "./actor";
 import { nextOccurrence } from "./recurrence";
 import { KEY_RESULT_KINDS, isBinaryKeyResultKind, type KeyResultKind } from "@workspace/backend-catalogue";
 
@@ -147,19 +149,6 @@ export interface SanitizedGoalWrite {
   projectId?: string;
 }
 
-/** Strip control characters and cap length on a free-text value. */
-function cleanText(value: unknown, max: number): string {
-  if (typeof value !== "string") return "";
-  let out = "";
-  for (const ch of value) {
-    const c = ch.codePointAt(0)!;
-    const printable = c === 9 || c === 10 || (c >= 32 && c !== 127 && !(c >= 128 && c <= 159));
-    if (printable) out += ch;
-    if (out.length >= max) break;
-  }
-  return out.slice(0, max);
-}
-
 /** A finite number or a default. */
 function num(v: unknown, def = 0): number {
   const n = Number(v);
@@ -254,7 +243,7 @@ export const goalScope = (parsed: { storage: GoalStorage; projectId?: string }, 
   scopeFromParsed(parsed as { storage: StorageTarget; projectId?: string }, sub);
 
 /** A goal actor's label (email > name > sub) for the audit `updatedBy`. */
-export const actorLabel = (ctx: ActorContext): string | null => ctx.email ?? ctx.name ?? ctx.sub ?? null;
+export { actorLabel };
 
 /** Build the row for a NEW goal from a sanitised write (owner stamped from ctx; progress derived; version 1). */
 export function newGoalRow(id: string, input: SanitizedGoalWrite, ctx: ActorContext, now: string): Goal {

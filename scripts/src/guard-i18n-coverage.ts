@@ -24,10 +24,8 @@
 import * as ts from "./lib/ts-ast";
 import { parseSourceFile } from "./lib/ts-ast";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { REPO_ROOT as ROOT } from "./lib/repo-root";
 
-const HERE = path.dirname(fileURLToPath(import.meta.url));
-const ROOT = path.resolve(HERE, "../..");
 const I18N_FILE = path.join(ROOT, "artifacts/omniproject/src/lib/i18n.tsx");
 
 /** The name of the base-locale const in i18n.tsx (English — the fallback for every other locale). */

@@ -89,8 +89,8 @@ export function FeatureGovernance() {
   const [msg, setMsg] = useState<string | null>(null);
 
   const needsTarget = level !== "org";
-  const options = level === "programme" ? programmes.map((p) => ({ id: p.id, name: p.name }))
-    : level === "project" ? projects.map((p) => ({ id: p.id, name: p.name })) : [];
+  const options = level === "programme" ? (Array.isArray(programmes) ? programmes : []).map((p) => ({ id: p.id, name: p.name }))
+    : level === "project" ? (Array.isArray(projects) ? projects : []).map((p) => ({ id: p.id, name: p.name })) : [];
 
   async function save() {
     setMsg(null);

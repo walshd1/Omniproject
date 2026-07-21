@@ -64,18 +64,27 @@ export function useDefs(kind?: DefKind, projectId?: string) {
 
 /** The stored defs of ONE kind WITH their payloads, scope-aggregated — the read seam a renderer consumes to
  *  render user-authored defs from the unified importer store (roadmap X.10). Typed by the payload shape `T`. */
-export function useResolvedDefs<T = unknown>(kind: DefKind, projectId?: string, programmeId?: string) {
+export function useResolvedDefs<T = unknown>(kind: DefKind, projectId?: string, programmeId?: string, enabled = true) {
   const qs = new URLSearchParams();
   if (projectId) qs.set("projectId", projectId);
   if (programmeId) qs.set("programmeId", programmeId);
   const suffix = qs.toString();
-  const enabled = useDefImporterEnabled();
+  // Gate on BOTH the caller's opt-in (`enabled` param — e.g. the palette's includeActivated) AND the
+  // def-importer feature flag: only fetch resolved defs when the caller wants them and the feature is on.
+  const importerEnabled = useDefImporterEnabled();
   return useQuery({
     queryKey: [...defsKey, "resolved", kind, projectId ?? null, programmeId ?? null] as const,
     queryFn: () => getJson<Array<StoredDef & { payload: T }>>(`/api/defs/resolved/${encodeURIComponent(kind)}${suffix ? `?${suffix}` : ""}`),
-    enabled,
+    enabled: enabled && importerEnabled,
     staleTime: 15_000,
   });
+}
+
+/** The binding slot key for a primitive family — namespaced so a primitive selection never collides with a
+ *  same-named screen/report slot. Mirrors the server's `primitiveSlot` (lib/def-binding). Locking this slot at a
+ *  scope mandates the primitive down that subtree (a descendant can't re-fork or re-select it). */
+export function primitiveSlot(primitiveId: string): string {
+  return `primitive:${primitiveId}`;
 }
 
 /** A stored selection for one slot (mirrors the server's `DefBinding`): the chosen def + whether the choice is

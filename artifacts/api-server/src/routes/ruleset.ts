@@ -3,13 +3,13 @@ import { requireRole } from "../lib/rbac";
 import { rulesetCatalogue, setRuleModes, getFieldRules, setFieldRules, applyRuleset } from "../lib/ruleset";
 import { referenceRulesetCatalogue, getReferenceRuleset } from "@workspace/backend-catalogue";
 import { recordRequestAudit } from "../lib/audit";
-import { getSettings } from "../lib/settings";
+import { resolveMethodologyComposition } from "../lib/scoped-config";
 import { v, parseOr400 } from "../lib/validate";
 
 /** Whether a methodology's reference ruleset is enabled by the methodology composition. The composition
  *  stores enabled item ids as `ruleset:<methodology>`; `null` = uncurated (everything enabled). */
 function rulesetInComposition(methodology: string): boolean {
-  const composition = getSettings().methodologyComposition;
+  const composition = resolveMethodologyComposition();
   return composition === null || composition.includes(`ruleset:${methodology}`);
 }
 

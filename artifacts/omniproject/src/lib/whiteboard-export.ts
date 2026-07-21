@@ -1,5 +1,6 @@
 import type { CanvasElement } from "@workspace/backend-catalogue";
 import { elementBounds } from "./canvas-geometry";
+import { slug } from "./slug";
 
 /**
  * Whiteboard EXPORT (roadmap 2.3). Turn the live canvas into a portable file — a standalone SVG (vector,
@@ -71,8 +72,7 @@ export async function svgToPngBlob(svg: string, box: Box, scale = 2): Promise<Bl
 
 /** Slugify a board name into a safe filename stem (letters/digits/dash), falling back to "whiteboard". */
 export function exportFileStem(name: string): string {
-  const stem = name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 60);
-  return stem || "whiteboard";
+  return slug(name).slice(0, 60) || "whiteboard";
 }
 
 /** Trigger a browser download of a blob under `filename`. */

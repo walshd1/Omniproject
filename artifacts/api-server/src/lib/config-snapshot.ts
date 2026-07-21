@@ -50,7 +50,9 @@ export const SNAPSHOT_VERSION = 1;
  *  full backup. Everything NOT listed here is captured in both variants — so a newly-added config key travels
  *  by default; only a deliberately secret-bearing one is held back from plaintext. */
 export const EXCLUDED_KEYS: ReadonlySet<string> = new Set([
-  "webhooks", "federatedPeers", "loggingSync", "selfHost", "capabilityStates", "workflowAcceptances",
+  // NB `loggingSync` + `selfHost` left SettingsState for their own config defs (Phase C) — they now ride the
+  // sealed org config-def backup (not this settings snapshot), so they're no longer listed here.
+  "webhooks", "federatedPeers", "capabilityStates", "workflowAcceptances",
 ]);
 
 /** Every classified settings key, sorted — the COMPLETE set captured in a sealed backup. Derived (not

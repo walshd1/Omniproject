@@ -5,9 +5,7 @@ import { requireRole } from "../lib/rbac";
 import { assertProjectScope } from "../lib/project-scope";
 import { authorizeStorageTarget } from "../lib/storage-target-authz";
 import crypto2 from "node:crypto";
-import {
-  artifactStoreEnabled, listArtifacts, getArtifact, putArtifact, deleteArtifact, listAllArtifactCollections,
-} from "../lib/artifact-store";
+import { artifactStoreEnabled, listArtifacts, getArtifact, putArtifact, deleteArtifact, listAllArtifactCollections, requireArtifactStore } from "../lib/artifact-store";
 import { getNotifyBus } from "../lib/notify-bus";
 import { sharedKv } from "../lib/shared-state";
 import {
@@ -75,7 +73,7 @@ router.post("/goals", requireRole("contributor"), (req, res) => {
   catch (e) { if (e instanceof GoalError) { res.status(400).json({ error: e.message }); return; } throw e; }
   return withBrokerErrors(req, res, "create_goal failed", async () => {
     if (!(await authorizeTarget(req, res, input.storage, input.projectId, "write"))) return;
-    if (!artifactStoreEnabled()) { res.status(501).json({ error: "no encrypted-JSON store is configured on this deployment" }); return; }
+    if (!requireArtifactStore(res)) return;
     const ctx = contextFromReq(req);
     const scope = goalScope(input, ctx.sub);
     if (!scope) { res.status(400).json({ error: "invalid storage target" }); return; }

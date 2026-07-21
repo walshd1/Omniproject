@@ -1,7 +1,7 @@
 import { ReportEmpty } from "./ReportEmpty";
 import { useMemo } from "react";
 import { convertAmount } from "../../lib/currency";
-import { num } from "../../lib/num";
+import { num, round1 } from "../../lib/num";
 import type { ProjectItems } from "../../lib/portfolio-value";
 import { DataState } from "../DataState";
 import { StatCard } from "./StatCard";
@@ -53,7 +53,6 @@ export function riskSeverity(level?: string | null): number | null {
 }
 
 const clamp01 = (n: number) => Math.min(1, Math.max(0, n));
-const round1 = (n: number) => Math.round(n * 10) / 10;
 
 /** Turn a possibly-stringly due date into an epoch ms, or null when absent/unparseable. */
 function dueMs(d?: string | Date | null): number | null {

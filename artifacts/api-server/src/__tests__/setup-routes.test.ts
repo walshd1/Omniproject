@@ -3,6 +3,12 @@ import assert from "node:assert/strict";
 // A production build (harness sets NODE_ENV=production) refuses to build redirect URLs from a
 // client Host header, so /setup/idp needs an explicit PUBLIC_URL. Set before the app imports.
 process.env["PUBLIC_URL"] = "https://setup-test.omni.example";
+// self-host adoption (Phase C) is a config def — enable the sealed store so the setup route can persist it.
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+process.env["SESSION_SECRET"] ??= "integration-harness-secret";
+process.env["OMNI_CONFIG_DIR"] = fs.mkdtempSync(path.join(os.tmpdir(), "setup-routes-"));
 import { startHarness, adminCookie, stepUpAdminCookie, type Harness } from "./_harness";
 
 /**
@@ -17,7 +23,9 @@ before(async () => { h = await startHarness(); });
 after(() => h.close());
 afterEach(async () => {
   const { updateSettings } = await import("../lib/settings");
-  updateSettings({ screenLayouts: {}, deploymentProfile: null, selfHost: { mode: "off", adopted: [], acknowledgedDataResponsibility: false } });
+  updateSettings({ screenLayouts: {}, deploymentProfile: null });
+  const { writeOrgConfigCollection } = await import("../lib/scoped-config");
+  writeOrgConfigCollection("self-host", "Self-host", { mode: "off", adopted: [], acknowledgedDataResponsibility: false });
 });
 
 const admin = () => adminCookie();

@@ -1,16 +1,29 @@
 import { test, before, after, afterEach } from "node:test";
 import assert from "node:assert/strict";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import { startHarness, adminCookie, memberCookie, type Harness } from "./_harness";
 
 /**
  * routes/raci.ts + routes/stakeholders.ts over the REAL app — the editable register stores behind the RACI
  * and Stakeholders screens. GET/PUT (manager-gated write) + a /rows endpoint the screen table binds to.
+ * The edit-policy gate reads the `collection-edit-roles` config def, so enable the sealed store.
  */
+process.env["SESSION_SECRET"] ??= "integration-harness-secret";
+const CONFIG_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "raci-stakeholders-routes-"));
+process.env["OMNI_CONFIG_DIR"] = CONFIG_DIR;
+
 let h: Harness;
 const ADMIN = adminCookie();
 before(async () => { h = await startHarness(); });
-after(() => h?.close());
-afterEach(async () => { const { updateSettings } = await import("../lib/settings"); updateSettings({ raci: [], stakeholders: [], collectionEditRoles: {} }); });
+after(() => { h?.close(); fs.rmSync(CONFIG_DIR, { recursive: true, force: true }); });
+afterEach(async () => {
+  const { writeOrgConfigCollection } = await import("../lib/scoped-config");
+  writeOrgConfigCollection("raci", "RACI", []);
+  writeOrgConfigCollection("stakeholders", "Stakeholders", []);
+  writeOrgConfigCollection("collection-edit-roles", "Collection edit roles", {});
+});
 const req = (p: string, o: Parameters<Harness["req"]>[1] = {}) => h.req(p, { cookie: ADMIN, ...o });
 
 test("RACI: save + rows round-trip", async () => {
@@ -34,22 +47,22 @@ test("Stakeholders: save + rows round-trip", async () => {
 });
 
 test("collectionEditRoles: read-only blocks every write; default allows it", async () => {
-  const { updateSettings } = await import("../lib/settings");
+  const { writeOrgConfigCollection } = await import("../lib/scoped-config");
   // Locked read-only → even the admin session is refused.
-  updateSettings({ collectionEditRoles: { raci: "readonly" } });
+  writeOrgConfigCollection("collection-edit-roles", "Collection edit roles", { raci: "readonly" });
   assert.equal((await req("/raci", { method: "PUT", body: { raci: [] } })).status, 403);
   // Unset → default user-editable, the write goes through.
-  updateSettings({ collectionEditRoles: {} });
+  writeOrgConfigCollection("collection-edit-roles", "Collection edit roles", {});
   assert.equal((await req("/raci", { method: "PUT", body: { raci: [] } })).status, 200);
 });
 
 test("collectionEditRoles: a configured role gate is enforced under real RBAC", async () => {
-  const { updateSettings } = await import("../lib/settings");
+  const { writeOrgConfigCollection } = await import("../lib/scoped-config");
   const prev = process.env["OIDC_ISSUER_URL"]; process.env["OIDC_ISSUER_URL"] = "https://idp.example";
   try {
     // Raise RACI to pmo+ → a plain member is refused, reads stay open.
-    updateSettings({ collectionEditRoles: { raci: "pmo" } });
+    writeOrgConfigCollection("collection-edit-roles", "Collection edit roles", { raci: "pmo" });
     assert.equal((await h.req("/raci", { cookie: memberCookie(), method: "PUT", body: { raci: [] } })).status, 403);
     assert.equal((await h.req("/raci/rows", { cookie: memberCookie() })).status, 200);
-  } finally { updateSettings({ collectionEditRoles: {} }); if (prev === undefined) delete process.env["OIDC_ISSUER_URL"]; else process.env["OIDC_ISSUER_URL"] = prev; }
+  } finally { writeOrgConfigCollection("collection-edit-roles", "Collection edit roles", {}); if (prev === undefined) delete process.env["OIDC_ISSUER_URL"]; else process.env["OIDC_ISSUER_URL"] = prev; }
 });

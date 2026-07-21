@@ -3,8 +3,9 @@ import assert from "node:assert/strict";
 
 /**
  * Unit coverage for the update-time validation branches in lib/settings.ts that the HTTP
- * route tests don't reach: the `dashboards[]` element/widget shape guards and the `loggingSync`
- * egress guards. `updateSettings` runs the same `validatePatch` the PATCH /settings path does,
+ * route tests don't reach: the `dashboards[]` element/widget shape guards. (The `loggingSync`
+ * egress guards moved to `sanitizeLoggingSync` — see below — with the `logging-sync` config def.)
+ * `updateSettings` runs the same `validatePatch` the PATCH /settings path does,
  * and rejects a bad patch ATOMICALLY (it throws before writing anything to the store), so these
  * invalid-patch calls never mutate global settings — the afterEach reset is defensive only.
  */
@@ -14,11 +15,12 @@ process.env["SECURITY_STRICT"] ??= "off";
 
 const settings = await import("../lib/settings");
 const { updateSettings, SettingsValidationError, getSettings, redactSettingsForRead } = settings;
+const { sanitizeLoggingSync } = await import("../lib/logging-sync");
 
 afterEach(() => {
   // Nothing above mutates (invalid patches throw pre-write), but reset the touched keys to
   // their defaults so this file can never leak state into another suite in the shared process.
-  updateSettings({ dashboards: [], loggingSync: { enabled: false, url: null, acknowledgedWarranty: false } });
+  updateSettings({ dashboards: [] });
 });
 
 const rejects = (patch: Record<string, unknown>, re: RegExp) =>
@@ -62,18 +64,27 @@ test("dashboards: a non-object (string) widget is rejected — the typeof arm of
   rejects({ dashboards: [{ id: "d1", name: "Exec", widgets: ["not-a-widget"] }] }, /each dashboard widget must be an object/);
 });
 
-// ── loggingSync egress guards (settings.ts ~921/927) ──────────────────────────────
+// ── loggingSync egress guards — now sanitizeLoggingSync (lib/logging-sync), the `logging-sync` config def ──
+const rejectsSync = (value: unknown, re: RegExp) =>
+  assert.throws(() => sanitizeLoggingSync(value), (err: unknown) => err instanceof SettingsValidationError && re.test((err as Error).message));
+
 test("loggingSync: a link-local/metadata url is rejected via the outbound-URL safety check", () => {
-  // assertSafeOutboundUrl throws UnsafeUrlError → caught and re-thrown as a settings error.
-  rejects({ loggingSync: { url: "http://169.254.169.254/latest/meta-data" } }, /link-local|metadata|invalid/i);
+  rejectsSync({ url: "http://169.254.169.254/latest/meta-data" }, /link-local|metadata|invalid/i);
 });
 
 test("loggingSync: enabling with no url is rejected (enable requires a url)", () => {
-  rejects({ loggingSync: { enabled: true } }, /requires a url/);
+  rejectsSync({ enabled: true }, /requires a url/);
 });
 
 test("loggingSync: enabling with a url but no warranty acknowledgement is rejected", () => {
-  rejects({ loggingSync: { enabled: true, url: "https://logs.example.com/ingest" } }, /warranty/);
+  rejectsSync({ enabled: true, url: "https://logs.example.com/ingest" }, /warranty/);
+});
+
+test("loggingSync: a valid enable normalises to the clean config object", () => {
+  assert.deepEqual(
+    sanitizeLoggingSync({ enabled: true, url: "https://logs.example.com/ingest", acknowledgedWarranty: true }),
+    { enabled: true, url: "https://logs.example.com/ingest", acknowledgedWarranty: true },
+  );
 });
 
 // ── customReports shape (settings.ts validateCustomReports ~715/718/719/722/728/729) ──

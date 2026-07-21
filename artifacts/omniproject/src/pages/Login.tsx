@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
-import { useAuth, useAuthProviders, login, samlLogin, oauth2Login, requestMagicLink } from "../lib/auth";
+import { useAuth, useAuthProviders, login, samlLogin, oauth2Login, requestMagicLink, localLogin, bootstrapFirstAdmin } from "../lib/auth";
 import { useBranding } from "../lib/branding";
 
 export function Login() {
@@ -11,6 +11,24 @@ export function Login() {
   const [, setLocation] = useLocation();
   const [email, setEmail] = useState("");
   const [magicSent, setMagicSent] = useState(false);
+  const [userName, setUserName] = useState("");
+  const [password, setPassword] = useState("");
+  const [localError, setLocalError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  const submitLocal = async (e: React.FormEvent): Promise<void> => {
+    e.preventDefault();
+    setLocalError(null);
+    setBusy(true);
+    try {
+      const r = auth?.needsFirstAdmin ? await bootstrapFirstAdmin(userName, password) : await localLogin(userName, password);
+      if (!r.ok) { setLocalError(r.error ?? "Sign-in failed."); return; }
+      const dest = "returnTo" in r && typeof r.returnTo === "string" ? r.returnTo : "/";
+      window.location.href = dest;
+    } finally {
+      setBusy(false);
+    }
+  };
 
   // Already authenticated → bounce to the dashboard.
   useEffect(() => {
@@ -85,6 +103,42 @@ export function Login() {
           >
             SIGN IN WITH OAUTH2
           </Button>
+        )}
+
+        {auth?.localSignInEnabled && (
+          <form className="mt-4 space-y-2" onSubmit={submitLocal} data-testid="local-login-form">
+            {auth.needsFirstAdmin && (
+              <p className="text-[11px] text-center text-muted-foreground font-mono leading-relaxed" data-testid="first-admin-note">
+                No identity provider is configured. Create the first administrator to get started.
+              </p>
+            )}
+            <input
+              type="text"
+              required
+              autoComplete="username"
+              value={userName}
+              onChange={(e) => setUserName(e.target.value)}
+              placeholder={auth.needsFirstAdmin ? "choose an admin username" : "username"}
+              aria-label="Username"
+              data-testid="local-username"
+              className="w-full border-2 border-foreground bg-background px-3 py-2 text-sm font-mono outline-none focus:border-primary"
+            />
+            <input
+              type="password"
+              required
+              autoComplete={auth.needsFirstAdmin ? "new-password" : "current-password"}
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder={auth.needsFirstAdmin ? "choose a password (min 8)" : "password"}
+              aria-label="Password"
+              data-testid="local-password"
+              className="w-full border-2 border-foreground bg-background px-3 py-2 text-sm font-mono outline-none focus:border-primary"
+            />
+            <Button type="submit" disabled={busy || !userName || !password} variant="outline" className="w-full rounded-none border-2 border-foreground font-bold uppercase tracking-wider h-10">
+              {busy ? "…" : auth.needsFirstAdmin ? "Create first admin" : "Sign in"}
+            </Button>
+            {localError && <p className="text-[11px] text-center text-destructive font-mono" data-testid="local-login-error">{localError}</p>}
+          </form>
         )}
 
         {auth?.magicLinkEnabled && (

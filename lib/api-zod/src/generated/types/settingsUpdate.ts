@@ -6,7 +6,6 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { FieldMapOverride } from './fieldMapOverride';
-import type { LoggingSync } from './loggingSync';
 import type { SettingsUpdateAiProvider } from './settingsUpdateAiProvider';
 import type { SettingsUpdateDeploymentProfile } from './settingsUpdateDeploymentProfile';
 import type { SettingsUpdateFxRatePolicy } from './settingsUpdateFxRatePolicy';
@@ -38,8 +37,5 @@ export interface SettingsUpdate {
   oidcIssuerUrl?: string | null;
   /** Set the deployment profile (admin). Persisted; the infra-level DEPLOYMENT_PROFILE env var still wins on a fresh boot (see docs/REVERSE-PROXY.md). */
   deploymentProfile?: SettingsUpdateDeploymentProfile;
-  /** Admin opt-in for internal client-error reporting (see Settings.errorTelemetry). */
-  errorTelemetry?: boolean;
-  loggingSync?: LoggingSync;
   fieldOverrides?: FieldMapOverride;
 }

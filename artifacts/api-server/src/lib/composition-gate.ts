@@ -1,5 +1,5 @@
 import type { RequestHandler } from "express";
-import { getSettings } from "./settings";
+import { resolveMethodologyComposition } from "./scoped-config";
 import { isComposed } from "@workspace/backend-catalogue";
 
 /**
@@ -13,7 +13,7 @@ import { isComposed } from "@workspace/backend-catalogue";
 
 /** Is the OUTPUT `id` enabled under the current composition? (`null` composition ⇒ yes.) */
 export function isOutputComposed(id: string): boolean {
-  return isComposed(getSettings().methodologyComposition, "output", id);
+  return isComposed(resolveMethodologyComposition(), "output", id);
 }
 
 /** Map an /api-relative request path to the OUTPUT it serves (the catalogue output id), or null. */

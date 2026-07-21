@@ -195,7 +195,7 @@ export function CustomReportsAdmin() {
       <details className="border border-border rounded-md p-2">
         <summary className="text-[10px] uppercase tracking-widest text-muted-foreground cursor-pointer">Primitive library — what you can build from</summary>
         <div className="mt-3">
-          <PrimitiveLibrary />
+          <PrimitiveLibrary surface="report" includeActivated />
         </div>
       </details>
 

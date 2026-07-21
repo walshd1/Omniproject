@@ -9,6 +9,8 @@
  */
 import type { ActorContext } from "../broker/types";
 import { makeScopedId, parseScopedId, scopeFromParsed, type ArtifactScope, type StorageTarget } from "./artifact-store";
+import { sanitizeText as cleanText } from "./coerce";
+import { actorLabel } from "./actor";
 import {
   INVOICE_LINE_KINDS, INVOICE_STATUSES, invoiceLineAmount, round2,
   type InvoiceLineKind, type InvoiceStatus,
@@ -117,18 +119,6 @@ export interface SanitizedInvoiceWrite {
   projectId?: string;
 }
 
-function cleanText(value: unknown, max: number): string {
-  if (typeof value !== "string") return "";
-  let out = "";
-  for (const ch of value) {
-    const c = ch.codePointAt(0)!;
-    const printable = c === 9 || c === 10 || (c >= 32 && c !== 127 && !(c >= 128 && c <= 159));
-    if (printable) out += ch;
-    if (out.length >= max) break;
-  }
-  return out.slice(0, max);
-}
-
 const num = (v: unknown, def = 0): number => { const n = Number(v); return Number.isFinite(n) ? n : def; };
 
 /** Normalise a currency to a 3-letter uppercase ISO-4217-ish code (defaults to the FX base later if absent). */
@@ -211,7 +201,7 @@ export function parseInvoiceId(id: string): { storage: InvoiceStorage; projectId
 export const invoiceScope = (parsed: { storage: InvoiceStorage; projectId?: string }, sub: string | undefined): ArtifactScope | null =>
   scopeFromParsed(parsed as { storage: StorageTarget; projectId?: string }, sub);
 
-export const actorLabel = (ctx: ActorContext): string | null => ctx.email ?? ctx.name ?? ctx.sub ?? null;
+export { actorLabel };
 
 /** Build the row for a NEW invoice (owner stamped from ctx; totals derived; status draft; version 1). */
 export function newInvoiceRow(id: string, input: SanitizedInvoiceWrite, ctx: ActorContext, now: string): Invoice {

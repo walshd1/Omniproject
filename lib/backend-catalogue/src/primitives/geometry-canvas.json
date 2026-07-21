@@ -1,0 +1,16 @@
+{
+  "id": "geometry-canvas",
+  "label": "Geometry canvas",
+  "category": "geometry",
+  "extends": "canvas",
+  "description": "A canvas that draws GEOMETRY ATOMS (line/rect/text/point/path). Inherits the surface; adds the shapes it renders. The drawable branch of the visuals tree.",
+  "params": [
+    {
+      "key": "shapes",
+      "label": "Shapes",
+      "type": "rows",
+      "required": false,
+      "description": "The geometry-atom instances to draw (each an atom `type` + its params)."
+    }
+  ]
+}

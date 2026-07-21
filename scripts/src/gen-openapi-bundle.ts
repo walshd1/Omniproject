@@ -10,10 +10,8 @@
  */
 import fs from "node:fs";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { REPO_ROOT as ROOT } from "./lib/repo-root";
 
-const HERE = path.dirname(fileURLToPath(import.meta.url));
-const ROOT = path.resolve(HERE, "../..");
 const SRC = path.join(ROOT, "lib/api-spec/openapi.yaml");
 const OUT = path.join(ROOT, "artifacts/api-server/src/lib/openapi.generated.ts");
 

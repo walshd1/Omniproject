@@ -1,6 +1,9 @@
 import { test, afterEach } from "node:test";
 import assert from "node:assert/strict";
-import { updateSettings, getSettings, redactSettingsForRead, SettingsValidationError } from "./settings";
+import { updateSettings, getSettings, redactSettingsForRead, SettingsValidationError, validateSavedViews } from "./settings";
+import { sanitizeLoggingSync } from "./logging-sync";
+import { sanitizeHistoryRetention } from "./history-retention";
+import { sanitizeSelfHost } from "./self-host-config";
 
 /**
  * Settings patch validation — updateSettings runs an untrusted patch through validatePatch,
@@ -109,30 +112,27 @@ test("featureGovernance / scope feature maps / governanceRules shapes", () => {
   assert.doesNotThrow(() => updateSettings({ featureGovernance: { required: ["labels"], forbidden: [] }, governanceRules: [{ id: "r", require: ["labels"] }] }));
 });
 
+// savedViews is a config def now (routes/views); its validator is exercised directly.
 test("savedViews entries need string id + name", () => {
-  throws({ savedViews: "nope" });
-  throws({ savedViews: [null] });
-  throws({ savedViews: [{ name: "no id" }] });
-  throws({ savedViews: [{ id: "v" }] }); // no name
-  assert.doesNotThrow(() => updateSettings({ savedViews: [{ id: "v", name: "My view" }] }));
+  assert.throws(() => validateSavedViews("nope"), SettingsValidationError);
+  assert.throws(() => validateSavedViews([null]), SettingsValidationError);
+  assert.throws(() => validateSavedViews([{ name: "no id" }]), SettingsValidationError);
+  assert.throws(() => validateSavedViews([{ id: "v" }]), SettingsValidationError); // no name
+  assert.doesNotThrow(() => validateSavedViews([{ id: "v", name: "My view" }]));
 });
 
-test("methodologyComposition: null or an array of strings", () => {
-  throws({ methodologyComposition: "scrum" }); // not an array
-  throws({ methodologyComposition: [1, 2] }); // non-string entries
-  assert.doesNotThrow(() => updateSettings({ methodologyComposition: null })); // uncurated
-  assert.deepEqual(updateSettings({ methodologyComposition: ["report:burndown", "view:raid"] }).methodologyComposition, ["report:burndown", "view:raid"]);
-  updateSettings({ methodologyComposition: null });
-});
+// NB methodologyComposition is no longer a settings key (it's a nullable `methodology-composition` config def);
+// its null/array validation is exercised in the methodology-composition route test.
 
 test("artifact style: enums for font/align, capped colour + title strings", () => {
-  const view = (style: unknown) => ({ savedViews: [{ id: "v", name: "V", style }] });
-  throws(view("nope")); // not an object
-  throws(view({ fontFamily: "comic-sans" })); // unknown font
-  throws(view({ align: "justify" })); // unknown align
-  throws(view({ textColor: "x".repeat(65) })); // over the colour cap
-  throws(view({ title: "t".repeat(201) })); // over the title cap
-  assert.doesNotThrow(() => updateSettings(view({ title: "Velocity", fontFamily: "serif", textColor: "#123456", background: "rgba(0,0,0,0.1)", align: "center" })));
+  const view = (style: unknown) => [{ id: "v", name: "V", style }];
+  const throwsView = (style: unknown) => assert.throws(() => validateSavedViews(view(style)), SettingsValidationError);
+  throwsView("nope"); // not an object
+  throwsView({ fontFamily: "comic-sans" }); // unknown font
+  throwsView({ align: "justify" }); // unknown align
+  throwsView({ textColor: "x".repeat(65) }); // over the colour cap
+  throwsView({ title: "t".repeat(201) }); // over the title cap
+  assert.doesNotThrow(() => validateSavedViews(view({ title: "Velocity", fontFamily: "serif", textColor: "#123456", background: "rgba(0,0,0,0.1)", align: "center" })));
   // The same guard applies to custom reports.
   const okReport = { id: "r", label: "R", scope: "tasks" as const, viz: "bar" as const, metrics: [{ id: "m", field: "count", agg: "count" as const }] };
   throws({ customReports: [{ ...okReport, style: { fontFamily: "papyrus" } }] });
@@ -149,36 +149,39 @@ test("fieldOverrides support-map validation", () => {
   assert.doesNotThrow(() => updateSettings({ fieldOverrides: { fields: { budget: { surface: true, store: false } }, entities: {} } }));
 });
 
-test("loggingSync: object with a safe url; enabling needs url + warranty ack", () => {
-  throws({ loggingSync: "nope" });
-  throws({ loggingSync: { url: 5 } });
-  throws({ loggingSync: { url: "http://169.254.169.254/logs" } }); // unsafe
-  throws({ loggingSync: { enabled: true, url: "", acknowledgedWarranty: true } }); // no url
-  throws({ loggingSync: { enabled: true, url: "https://logs.example.com", acknowledgedWarranty: false } }); // no ack
-  assert.doesNotThrow(() => updateSettings({ loggingSync: { enabled: true, url: "https://logs.example.com", acknowledgedWarranty: true } }));
-  // Reset the sync back off so it doesn't leak into other tests.
-  updateSettings({ loggingSync: { enabled: false, url: null, acknowledgedWarranty: false } });
+test("loggingSync: sanitizeLoggingSync — safe url; enabling needs url + warranty ack (the `logging-sync` config def)", () => {
+  const bad = (v: unknown) => assert.throws(() => sanitizeLoggingSync(v), SettingsValidationError);
+  bad("nope");
+  bad({ url: 5 });
+  bad({ url: "http://169.254.169.254/logs" }); // unsafe
+  bad({ enabled: true, url: "", acknowledgedWarranty: true }); // no url
+  bad({ enabled: true, url: "https://logs.example.com", acknowledgedWarranty: false }); // no ack
+  assert.deepEqual(
+    sanitizeLoggingSync({ enabled: true, url: "https://logs.example.com", acknowledgedWarranty: true }),
+    { enabled: true, url: "https://logs.example.com", acknowledgedWarranty: true },
+  );
 });
 
-test("selfHost: valid mode + string[] adopted; a non-off mode needs the data-responsibility ack", () => {
-  throws({ selfHost: "nope" });
-  throws({ selfHost: { mode: "bogus", adopted: [], acknowledgedDataResponsibility: false } }); // bad mode
-  throws({ selfHost: { mode: "off", adopted: [1], acknowledgedDataResponsibility: false } }); // non-string id
-  throws({ selfHost: { mode: "off", adopted: [], acknowledgedDataResponsibility: "yes" } }); // non-boolean ack
-  throws({ selfHost: { mode: "system-of-record", adopted: ["financials"], acknowledgedDataResponsibility: false } }); // no ack
-  assert.doesNotThrow(() => updateSettings({ selfHost: { mode: "augmenting", adopted: ["quality"], acknowledgedDataResponsibility: true } }));
-  // Reset back off so it doesn't leak into other tests.
-  updateSettings({ selfHost: { mode: "off", adopted: [], acknowledgedDataResponsibility: false } });
+test("selfHost: sanitizeSelfHost — valid mode + string[] adopted; a non-off mode needs the ack (the `self-host` config def)", () => {
+  const bad = (v: unknown) => assert.throws(() => sanitizeSelfHost(v), SettingsValidationError);
+  bad("nope");
+  bad({ mode: "bogus", adopted: [], acknowledgedDataResponsibility: false }); // bad mode
+  bad({ mode: "off", adopted: [1], acknowledgedDataResponsibility: false }); // non-string id
+  bad({ mode: "off", adopted: [], acknowledgedDataResponsibility: "yes" }); // non-boolean ack
+  bad({ mode: "system-of-record", adopted: ["financials"], acknowledgedDataResponsibility: false }); // no ack
+  assert.deepEqual(
+    sanitizeSelfHost({ mode: "augmenting", adopted: ["quality"], acknowledgedDataResponsibility: true }),
+    { mode: "augmenting", adopted: ["quality"], acknowledgedDataResponsibility: true },
+  );
 });
 
-test("historyRetention: valid org-default + scope cadence maps; bad cadences rejected", () => {
-  throws({ historyRetention: "nope" });
-  throws({ historyRetention: { orgDefault: { kind: "bogus" } } });
-  throws({ historyRetention: { orgDefault: { kind: "interval", everyHours: 0 } } });
-  throws({ historyRetention: { orgDefault: { kind: "onWrite" }, programme: { P1: { kind: "interval", everyHours: -1 } } } });
-  assert.doesNotThrow(() => updateSettings({ historyRetention: { orgDefault: { kind: "interval", everyHours: 12 }, programme: { P1: { kind: "onWrite" } }, project: {} } }));
-  // Reset back to the default so it doesn't leak into other tests.
-  updateSettings({ historyRetention: { orgDefault: { kind: "interval", everyHours: 24 }, programme: {}, project: {} } });
+test("historyRetention: sanitizeHistoryRetention — valid org-default + scope cadence maps; bad cadences rejected (the `history-retention` config def)", () => {
+  const bad = (v: unknown) => assert.throws(() => sanitizeHistoryRetention(v), SettingsValidationError);
+  bad("nope");
+  bad({ orgDefault: { kind: "bogus" } });
+  bad({ orgDefault: { kind: "interval", everyHours: 0 } });
+  bad({ orgDefault: { kind: "onWrite" }, programme: { P1: { kind: "interval", everyHours: -1 } } });
+  assert.doesNotThrow(() => sanitizeHistoryRetention({ orgDefault: { kind: "interval", everyHours: 12 }, programme: { P1: { kind: "onWrite" } }, project: {} }));
 });
 
 test("skillsPlanning: validates the matrix (proficiency 1–5, non-negative capacity) + demand", () => {

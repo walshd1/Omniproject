@@ -20,19 +20,25 @@ test("every primitive's extends chain resolves — no dangling parent, no cycle 
 
 test("roots are FEW and generic; composed primitives are not roots", () => {
   const roots = rootPrimitives().map((r) => r.id);
-  // The editable register + its slot specialisation compose from `table` — they are never roots.
-  assert.ok(!roots.includes("register"), "register composes from table");
+  // `canvas` roots the VISUALS tree; `record` roots the DATA tree (all records belong to a set, so
+  // record-set extends record). The visual `table` is a canvas made specific; the data structures
+  // compose from record — none of them are roots.
+  assert.ok(roots.includes("canvas"), "canvas is the visuals root");
+  assert.ok(roots.includes("record"), "record is the data-structures root");
+  assert.ok(!roots.includes("record-set"), "record-set is the set a record belongs to (extends record)");
+  assert.ok(!roots.includes("table"), "table (visual) composes from canvas");
+  assert.ok(!roots.includes("register"), "register composes from record-set");
   assert.ok(!roots.includes("data-slot"), "data-slot composes from register");
-  assert.ok(roots.includes("table"), "table is a root");
   // A root defines its own params (it is built on nothing).
   for (const r of rootPrimitives()) assert.ok(r.params.length > 0, `root "${r.id}" must define its params`);
 });
 
-test("data-slot ← register ← table: params flatten property-by-property with a traceable provenance", () => {
+test("data-slot ← register ← record-set ← record: the editable data structure flattens with provenance", () => {
   const ds = resolvePrimitive("data-slot")!;
-  assert.deepEqual(ds.lineage, ["data-slot", "register", "table"]);
+  // The data tree bottoms out at `record` (a record belongs to a set → record-set extends record).
+  assert.deepEqual(ds.lineage, ["data-slot", "register", "record-set", "record"]);
   // Inherited, added, and altered fields each trace to the def that supplied the winning value.
-  assert.equal(ds.provenance["columns"], "table");      // inherited from the root
+  assert.equal(ds.provenance["columns"], "record");  // the record's schema (fields), from the data root
   assert.equal(ds.provenance["collection"], "register"); // inherited from the middle
   assert.equal(ds.provenance["slot"], "data-slot");      // altered by the leaf (register's optional slot → required)
   assert.equal(ds.params.find((p) => p.key === "slot")?.required, true);

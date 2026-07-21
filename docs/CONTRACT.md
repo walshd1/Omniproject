@@ -113,6 +113,28 @@ Who initiated an action. Autonomous actors (scheduled jobs, AI agents) are first
 
 Enum: `human`, `automation`, `agent`
 
+### Annotation
+
+One annotation pinned onto a deliverable. Which optional fields apply depends on `type`: a `pin` uses just `x`/`y`; a `box`/`highlight` adds `w`/`h`. `text` is the reviewer's note; `resolved` marks a raised point as addressed. `page` targets a page of a multi-page PDF (1-based; defaults to 1). A generic overlay renderer switches on `type`. All coordinates are normalised (0..1).
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `id` | string | yes | Stable id within the proof (for keys + comment-thread anchoring). |
+| `type` | [AnnotationType](#annotationtype) | yes |  |
+| `x` | number | yes | Normalised top-left / point position on the deliverable (0..1). |
+| `y` | number | yes |  |
+| `w` | number | — | Normalised region size — box / highlight (0..1). |
+| `h` | number | — |  |
+| `text` | string | — | The reviewer's note. |
+| `page` | number | — | Which page of a multi-page deliverable (PDF) this pins to (1-based). |
+| `resolved` | boolean | — | Whether the raised point has been addressed. |
+
+### AnnotationType
+
+PROOFING / deliverable review model — the neutral, primitive-built shape for OmniProject's creative-review surface (roadmap 2.4). Same architectural principle as documents (wiki blocks) and whiteboards (canvas elements): a proof is a JSON DEFINITION that REFERENCES a deliverable (an image/PDF that lives elsewhere — attachments-as-references, zero-at-rest) and carries a list of typed ANNOTATION PRIMITIVES pinned onto it, plus a review decision. NOT an opaque third-party markup blob. The single `ANNOTATION_TYPES` list is what the authoring palette, the validator AND the unified primitive store (the `annotation` family) all draw from, so the store can never drift from what a proof can contain. The authoritative sanitiser runs server-side before anything is written.
+
+Enum: `pin`, `box`, `highlight`
+
 ### BackendFieldMap
 
 Per-field / per-entity support a backend declares. Finer-grained than the domain flags: e.g. a backend may surface `dueDate` read-only (surface without store), or have no `programmeId` field at all (programme entity unsupported).
@@ -148,6 +170,42 @@ Normalised error taxonomy — no broker-specific status quirks leak upward.
 
 Enum: `conflict`, `not_found`, `unauthorized`, `bad_request`, `rate_limited`, `unavailable`
 
+### CalloutTone
+
+The tones a `callout` block can carry.
+
+Enum: `info`, `warn`, `success`, `danger`
+
+### CanvasElement
+
+One element on a whiteboard. Which optional fields apply depends on `type`: `sticky` uses text+color+box; `shape` uses shape+box (+optional text label); `text` uses text+fontSize; `connector` uses the end point `x2/y2` (start is `x/y`) and may bind to element ids via `from`/`to`; `frame` uses text (its label)+box. A generic renderer switches on `type`. `link` (any type) is an OPTIONAL external reference — e.g. a sticky that links to a work item — restricted to safe schemes by the sanitiser (zero-at-rest, never inlined).
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `id` | string | yes | Stable id within the scene (for keys, connector binding, live-cursor anchoring). |
+| `type` | [CanvasElementType](#canvaselementtype) | yes |  |
+| `x` | number | yes | Top-left position on the infinite canvas. |
+| `y` | number | yes |  |
+| `w` | number | — | Box size — sticky / shape / frame. |
+| `h` | number | — |  |
+| `text` | string | — | Text — a sticky's note, a shape's label, a text element's body, a frame's label. |
+| `color` | [StickyColor](#stickycolor) | — | Sticky colour. |
+| `shape` | [ShapeKind](#shapekind) | — | Shape kind. |
+| `fontSize` | number | — | Text size for a `text` element. |
+| `x2` | number | — | Connector end point (its start is `x`/`y`). |
+| `y2` | number | — |  |
+| `from` | string | — | Optional connector endpoints bound to element ids (so the line follows them). |
+| `to` | string | — |  |
+| `points` | number[][] | — | Freehand path points for a `draw` element — `[x, y]` pairs relative to `x`/`y` (the stroke origin). |
+| `strokeWidth` | number | — | Stroke width (draw) / border weight. |
+| `link` | string | — | Optional external reference (safe scheme only) — the content lives elsewhere (zero-at-rest). |
+
+### CanvasElementType
+
+WHITEBOARD / canvas content model — the neutral, primitive-built shape for OmniProject's visual canvas (roadmap 2.3). Same architectural principle as documents (wiki blocks), forms, screens and reports: a whiteboard is a JSON DEFINITION built of typed CANVAS-ELEMENT PRIMITIVES, authored once and rendered by a generic renderer — NOT an opaque third-party scene blob. A whiteboard scene is an ordered list of `CanvasElement`s. Each element TYPE is a small primitive (its config are properties; it renders and validates by its type). The single `CANVAS_ELEMENT_TYPES` list is what the authoring palette, the validator AND the unified primitive store (the `canvas` family) all draw from, so the store can never drift from what a canvas can contain. Because the model is ours, a rich third-party editor (Excalidraw/Miro) is an OPTIONAL "use native" enhancement, not the source of truth. Scenes are stored through the broker seam (zero-at-rest); this module defines the neutral shape only — the authoritative sanitiser runs server-side before anything is written.
+
+Enum: `sticky`, `shape`, `text`, `connector`, `frame`, `draw`
+
 ### CapabilityFlags
 
 Raw capability flags a backend can populate (domain → available).
@@ -157,6 +215,53 @@ Type: map → boolean
 ### ContractVersion
 
 Type: `v1`
+
+### Deliverable
+
+A deliverable under review — a REFERENCE to media that lives elsewhere (never inlined; zero-at-rest).
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `kind` | [DeliverableKind](#deliverablekind) | yes |  |
+| `url` | string | yes | Safe-scheme URL of the media (validated by the sanitiser). |
+| `label` | string | — | Optional human label / filename. |
+
+### DeliverableKind
+
+The deliverable media kinds a proof can reference.
+
+Enum: `image`, `pdf`
+
+### DocBlock
+
+One block in a document. Which optional fields apply depends on `type`: text blocks use `text`; `heading` adds `level`; `callout` adds `tone`; list blocks use `items`; `table` uses `rows`; `embed` uses `url` (+ optional `caption`). A generic renderer switches on `type`.
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `id` | string | yes | Stable id within the document (for keys, presence anchoring, comment threading). |
+| `type` | [DocBlockType](#docblocktype) | yes |  |
+| `text` | string | — | Free text for a text block (heading/paragraph/quote/callout/code). |
+| `level` | number | — | Heading level (1–3); defaulted to 2 when omitted. |
+| `tone` | [CalloutTone](#callouttone) | — | Callout tone. |
+| `items` | [DocListItem](#doclistitem)[] | — | Items for a list block. |
+| `rows` | string[][] | — | Rows of cells for a `table` block. |
+| `url` | string | — | External reference for an `embed` block (the content lives elsewhere — zero-at-rest). |
+| `caption` | string | — | Optional caption for an `embed`. |
+
+### DocBlockType
+
+WIKI / document content model — the neutral, primitive-built shape for OmniProject's collaborative docs and knowledge base (roadmap 2.1). Same architectural principle as forms, screens and reports: a document is a JSON DEFINITION built of typed BLOCK PRIMITIVES, authored once and rendered by a generic renderer. A document is an ordered list of `DocBlock`s. Each block TYPE is a small class (its config are properties; it renders and validates by its type). The block types are the "documents built of primitives" allow-list: the single `DOC_BLOCK_TYPES` list is what the validator, the authoring palette AND the unified primitive store (the `block` family) all draw from, so the store can never drift from what a document can contain. Bodies are stored through the broker seam (zero-at-rest) — this module only defines the neutral shape and pure helpers (block-type registry, wiki-link parsing, slugging); the authoritative sanitiser runs server-side before anything is written.
+
+Enum: `heading`, `paragraph`, `quote`, `callout`, `code`, `bullet-list`, `numbered-list`, `checklist`, `divider`, `table`, `embed`
+
+### DocListItem
+
+One item in a list block. `checked` only applies to a `checklist`.
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `text` | string | yes |  |
+| `checked` | boolean | — |  |
 
 ### EnumeratedField
 
@@ -454,6 +559,12 @@ A PROOF — a deliverable (image/PDF, referenced not inlined) under creative rev
 | `updatedBy` | string \| null | — |  |
 | _(other)_ | any | — | Open row — backend-specific fields pass through. |
 
+### ProofDecision
+
+A review decision on a proof version. `pending` — awaiting review; `approved` — signed off; `rejected` — declined; `changes-requested` — needs rework before re-review. Bound to a version so a new deliverable revision re-opens the decision.
+
+Enum: `pending`, `approved`, `rejected`, `changes-requested`
+
 ### ProofMeta
 
 A proof's metadata (no annotations/deliverable body) — the list view.
@@ -541,6 +652,18 @@ Per-session broker signing key. The key used to sign a gateway→broker request 
 | `smono` | string | yes | Monotonic-clock reading (ns string) at session creation. |
 | `salt` | string | yes | Per-session CSPRNG entropy (hex). |
 | `bkver` | number | — | Broker-key version the session key was derived under (for revocation/rotation). |
+
+### ShapeKind
+
+The shapes a `shape` element can be.
+
+Enum: `rectangle`, `ellipse`, `diamond`
+
+### StickyColor
+
+The palette of sticky-note colours (named, not raw hex — so the renderer owns the actual values).
+
+Enum: `yellow`, `green`, `blue`, `pink`, `gray`
 
 ### Summary
 
@@ -833,13 +956,3 @@ A WIKI SPACE — a named container for documents (a knowledge base / team space)
 | `name` | string | yes |  |
 | `description` | string \| null | — |  |
 | _(other)_ | any | — | Open row — backend-specific fields pass through. |
-
-## ⚠️ Unmapped contract fields
-
-The generator could not map these to a code type — review before relying on them:
-
-- Type `DocBlock` is referenced by the contract but has no definition in broker/{types,contract}.ts.
-- Type `CanvasElement` is referenced by the contract but has no definition in broker/{types,contract}.ts.
-- Type `Deliverable` is referenced by the contract but has no definition in broker/{types,contract}.ts.
-- Type `Annotation` is referenced by the contract but has no definition in broker/{types,contract}.ts.
-- Type `ProofDecision` is referenced by the contract but has no definition in broker/{types,contract}.ts.

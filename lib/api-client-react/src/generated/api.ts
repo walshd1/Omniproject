@@ -31,12 +31,14 @@ import type {
   FieldManifest,
   FxRates,
   GetFxRatesParams,
+  GetPortfolioFinancialsParams,
   HealthStatus,
   HistoryState,
   Issue,
   IssueInput,
   IssueUpdate,
   Notification,
+  PortfolioFinancials,
   PortfolioHealthSummary,
   PortfolioSummary,
   Programme,
@@ -2157,6 +2159,91 @@ export function useGetPortfolioSummary<TData = Awaited<ReturnType<typeof getPort
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getGetPortfolioSummaryQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetPortfolioFinancialsUrl = (params?: GetPortfolioFinancialsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/portfolio/financials?${stringifiedParams}` : `/api/portfolio/financials`
+}
+
+/**
+ * Fans out every project's financials + the FX table through the broker and folds them into programme roll-ups + a portfolio total in one reporting currency (via the broker FX table). `currency` overrides the org default reporting currency. Read-through and derive-only; nothing is stored.
+ * @summary Portfolio financials consolidated into one reporting currency, rolled up by programme
+ */
+export const getPortfolioFinancials = async (params?: GetPortfolioFinancialsParams, options?: RequestInit): Promise<PortfolioFinancials> => {
+
+  return customFetch<PortfolioFinancials>(getGetPortfolioFinancialsUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetPortfolioFinancialsQueryKey = (params?: GetPortfolioFinancialsParams,) => {
+    return [
+    `/api/portfolio/financials`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetPortfolioFinancialsQueryOptions = <TData = Awaited<ReturnType<typeof getPortfolioFinancials>>, TError = ErrorType<unknown>>(params?: GetPortfolioFinancialsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPortfolioFinancials>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetPortfolioFinancialsQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getPortfolioFinancials>>> = ({ signal }) => getPortfolioFinancials(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getPortfolioFinancials>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetPortfolioFinancialsQueryResult = NonNullable<Awaited<ReturnType<typeof getPortfolioFinancials>>>
+export type GetPortfolioFinancialsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Portfolio financials consolidated into one reporting currency, rolled up by programme
+ */
+
+export function useGetPortfolioFinancials<TData = Awaited<ReturnType<typeof getPortfolioFinancials>>, TError = ErrorType<unknown>>(
+ params?: GetPortfolioFinancialsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPortfolioFinancials>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetPortfolioFinancialsQueryOptions(params,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

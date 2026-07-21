@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
 import { evaluateRuleset } from "./ruleset";
-import { createConcurrencyLimiter } from "./concurrency-pool";
+import { poolMap } from "./concurrency-pool";
 import type { Broker, ActorContext, ProjectWrite } from "../broker/types";
 import type { Role } from "./rbac";
 
@@ -164,18 +164,16 @@ async function runCreateItem(input: RunBulkInput, index: number, name: string, t
  */
 export async function runBulk(input: RunBulkInput): Promise<BulkOutcome> {
   const { spec } = input;
-  // Bound the fan-out here so a barrier'd Promise.all can't thundering-herd the backend.
-  const run = createConcurrencyLimiter(BULK_FANOUT_LIMIT);
-
+  // The fan-out is bounded to BULK_FANOUT_LIMIT so a barrier'd batch can't thundering-herd the backend.
   let results: BulkItemResult[];
   if (spec.action === "update_project") {
     const patch = pickPatch(spec.patch);
     const targets = spec.targets ?? [];
-    results = await Promise.all(targets.map((target, i) => run(() => runUpdateItem(input, i, String(target ?? ""), patch))));
+    results = await poolMap(targets, BULK_FANOUT_LIMIT, (target, i) => runUpdateItem(input, i, String(target ?? ""), patch));
   } else {
     const template = pickPatch(spec.template);
     const names = spec.names ?? [];
-    results = await Promise.all(names.map((name, i) => run(() => runCreateItem(input, i, String(name ?? ""), template))));
+    results = await poolMap(names, BULK_FANOUT_LIMIT, (name, i) => runCreateItem(input, i, String(name ?? ""), template));
   }
 
   const applied = results.filter((r) => r.status === "applied" || r.status === "preview-apply").length;
