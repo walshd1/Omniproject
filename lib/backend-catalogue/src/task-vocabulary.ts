@@ -58,6 +58,27 @@ export const TASK_STATUS_LABEL: Record<CanonicalTaskStatus, string> = Object.fro
   entries.map((e) => [e.id, e.label]),
 ) as Record<CanonicalTaskStatus, string>;
 
+/** The workflow class of ANY task status id, via its shipped binding (unknown ⇒ null). The ONE place the
+ *  task-status → class meaning is derived, so no consumer re-hardcodes it (data/code split). */
+export function taskStatusClassOf(id: string | null | undefined): TaskStatusClass | null {
+  if (!id) return null;
+  return TASK_STATUS_CLASS[id as CanonicalTaskStatus] ?? null;
+}
+
+/** True when a task status is CLOSED — its class is `done` or `dropped`. The completion test, asset-backed. */
+export function isTaskStatusClosed(id: string | null | undefined): boolean {
+  const c = taskStatusClassOf(id);
+  return c === "done" || c === "dropped";
+}
+
+/** True when a task status is specifically DONE (not merely dropped). */
+export function isTaskStatusDone(id: string | null | undefined): boolean {
+  return taskStatusClassOf(id) === "done";
+}
+
+/** The canonical task statuses that count as CLOSED — derived from the class binding, never hand-listed. */
+export const TASK_CLOSED_STATUSES: readonly string[] = CANONICAL_TASK_STATUS.filter((id) => isTaskStatusClosed(id));
+
 /** The full task vocabulary (a defensive copy) — for a consumer that needs the raw entries. */
 export function taskVocabulary(): TaskVocabEntry[] {
   return entries.map((e) => ({ ...e }));

@@ -1,4 +1,4 @@
-import { ORDINAL_LEVELS_BY_KIND, type FilterNode, type FilterPredicate } from "@workspace/backend-catalogue";
+import { ORDINAL_LEVELS_BY_KIND, TASK_CLOSED_STATUSES, type FilterNode, type FilterPredicate } from "@workspace/backend-catalogue";
 
 /**
  * TASK SEARCH SYNTAX — pure. Parses a search box string into free text + a boolean filter tree for the ONE
@@ -25,7 +25,8 @@ export interface ParsedTaskSearch {
   where: FilterNode;
 }
 
-const CLOSED_STATUSES = ["done", "dropped", "cancelled"];
+// The closed statuses come from the task-status vocabulary (asset-backed), never hand-listed here.
+const CLOSED_STATUSES = [...TASK_CLOSED_STATUSES];
 const URGENCY_ALIAS: Record<string, string> = { overdue: "overdue", today: "due-today", soon: "due-soon", scheduled: "scheduled" };
 const priorityLevels = ORDINAL_LEVELS_BY_KIND.priority;
 

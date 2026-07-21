@@ -1,3 +1,5 @@
+import { isTaskStatusClosed } from "@workspace/backend-catalogue";
+
 /**
  * TASK URGENCY + STALENESS — pure render rules over a next-action's dates. A list/board colours each row
  * by how pressing it is (from `dueDate`) and flags ones that have gone stale (from the last-touched date),
@@ -36,11 +38,10 @@ export function daysUntilDue(task: UrgencyTask, today: Date): number | null {
   return Math.round((due - todayDay(today)) / DAY_MS);
 }
 
-/** True when the task is closed (completed stamp set, or a done/dropped-ish status). */
+/** True when the task is closed — a completion stamp, or a status whose canonical class is done/dropped.
+ *  The closed meaning comes from the task-status vocabulary (asset-backed), never re-hardcoded here. */
 export function isTaskClosed(task: UrgencyTask): boolean {
-  if (task.completedAt) return true;
-  const s = (task.status ?? "").toLowerCase();
-  return s === "done" || s === "dropped" || s === "cancelled";
+  return !!task.completedAt || isTaskStatusClosed(task.status);
 }
 
 /**

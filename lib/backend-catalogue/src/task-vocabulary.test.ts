@@ -7,6 +7,10 @@ import {
   taskVocabulary,
   taskVocabularyValues,
   taskStatusesForMethodology,
+  taskStatusClassOf,
+  isTaskStatusClosed,
+  isTaskStatusDone,
+  TASK_CLOSED_STATUSES,
 } from "./task-vocabulary";
 
 test("canonical GTD task statuses are in workflow order with their workflow class", () => {
@@ -43,6 +47,19 @@ test("taskStatusesForMethodology surfaces neutral statuses for any methodology",
   const forGtd = taskStatusesForMethodology("gtd");
   assert.ok(forGtd.some((s) => s.id === "next"));
   assert.equal(forGtd.length, CANONICAL_TASK_STATUS.length);
+});
+
+test("closed-status meaning derives from the class binding (the one home, not a hand-list)", () => {
+  // done/dropped are CLOSED; the actionable/waiting/deferred classes are OPEN.
+  assert.equal(taskStatusClassOf("done"), "done");
+  assert.equal(isTaskStatusClosed("done"), true);
+  assert.equal(isTaskStatusClosed("dropped"), true);
+  assert.equal(isTaskStatusDone("done"), true);
+  assert.equal(isTaskStatusDone("dropped"), false);
+  assert.equal(isTaskStatusClosed("next"), false);
+  assert.equal(isTaskStatusClosed("no-such"), false);
+  // The closed set is exactly the canonical statuses whose class is done/dropped.
+  assert.deepEqual([...TASK_CLOSED_STATUSES].sort(), CANONICAL_TASK_STATUS.filter((s) => ["done", "dropped"].includes(TASK_STATUS_CLASS[s])).sort());
 });
 
 test("taskVocabulary returns an independent defensive copy", () => {

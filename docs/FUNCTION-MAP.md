@@ -5286,6 +5286,9 @@ Canonical GTD TASK-STATUS vocabulary — the single source of truth for the next
 
 | Function | What it does |
 | --- | --- |
+| `taskStatusClassOf` | The workflow class of ANY task status id, via its shipped binding (unknown ⇒ null). |
+| `isTaskStatusClosed` | True when a task status is CLOSED — its class is `done` or `dropped`. |
+| `isTaskStatusDone` | True when a task status is specifically DONE (not merely dropped). |
 | `taskVocabulary` | The full task vocabulary (a defensive copy) — for a consumer that needs the raw entries. |
 | `taskVocabularyValues` | Build the shipped-default {@link TaskVocabularyValues} from the canonical entries. |
 | `taskStatusesForMethodology` | The task statuses that apply to `methodologyId` — its tagged ones plus the neutral ("*") ones — a methodology's normal GTD nomenclature. |
