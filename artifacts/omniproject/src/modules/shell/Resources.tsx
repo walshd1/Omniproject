@@ -1,9 +1,9 @@
 import { useMemo, useState } from "react";
 import { useListResourcePool, useGetCapabilities, getListResourcePoolQueryKey } from "@workspace/api-client-react";
-import { DataState } from "../components/DataState";
-import { DataProvenance } from "../components/DataProvenance";
-import { canSurfaceEntity } from "../lib/capabilities-fields";
-import { capacityBand, capacitySummary } from "../lib/capacity";
+import { DataState } from "../../components/DataState";
+import { DataProvenance } from "../../components/DataProvenance";
+import { canSurfaceEntity } from "../../lib/capabilities-fields";
+import { capacityBand, capacitySummary } from "../../lib/capacity";
 
 /** Roster fields whose fill rate exposes capacity-planning gaps. */
 const RESOURCE_FIELDS = [

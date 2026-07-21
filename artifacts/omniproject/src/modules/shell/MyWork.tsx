@@ -2,14 +2,14 @@ import { useMemo, useState } from "react";
 import { Link } from "wouter";
 import { useQueries } from "@tanstack/react-query";
 import { useListProjects, type Issue, type Project } from "@workspace/api-client-react";
-import { getJson } from "../lib/api";
-import { useAuth } from "../lib/auth";
-import { useFeatures, featureEnabled } from "../lib/features";
-import { useLiveEvents, type LiveEvent } from "../lib/live-events";
-import { STATUS_ORDER, statusLabel } from "../lib/constants";
-import { createConcurrencyLimiter } from "../lib/concurrency-pool";
-import { DataState } from "../components/DataState";
-import { TimesheetReview } from "../components/reports/TimesheetReview";
+import { getJson } from "../../lib/api";
+import { useAuth } from "../../lib/auth";
+import { useFeatures, featureEnabled } from "../../lib/features";
+import { useLiveEvents, type LiveEvent } from "../../lib/live-events";
+import { STATUS_ORDER, statusLabel } from "../../lib/constants";
+import { createConcurrencyLimiter } from "../../lib/concurrency-pool";
+import { DataState } from "../../components/DataState";
+import { TimesheetReview } from "../../components/reports/TimesheetReview";
 
 /**
  * My Work / Inbox (the "myWork" feature module). Two tabs:

@@ -1,8 +1,8 @@
-import { canonicalLayoutFor, screenIsCore } from "../lib/screen-catalogue";
-import { useScreenDef } from "../lib/org-screens";
-import { useDisabledScreens, isScreenDisabled } from "../lib/screen-state";
-import type { ScreenDef } from "../lib/screen";
-import { EditableScreen } from "../components/screen/EditableScreen";
+import { canonicalLayoutFor, screenIsCore } from "../../lib/screen-catalogue";
+import { useScreenDef } from "../../lib/org-screens";
+import { useDisabledScreens, isScreenDisabled } from "../../lib/screen-state";
+import type { ScreenDef } from "../../lib/screen";
+import { EditableScreen } from "../../components/screen/EditableScreen";
 
 /**
  * ScreenPage — the ONE generic builder page behind every editable screen. Given a screen `id`, it loads

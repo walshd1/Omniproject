@@ -2,9 +2,9 @@ import { describe, it, expect, vi, afterEach } from "vitest";
 import { screen, fireEvent, waitFor } from "@testing-library/react";
 import { QueryClient } from "@tanstack/react-query";
 import { getListProjectsQueryKey, type Project } from "@workspace/api-client-react";
-import { renderWithProviders } from "../test/utils";
-import { usePredictivePrefetchSetting } from "../lib/prefetch";
-import { featuresQueryKey, type FeatureStatus } from "../lib/features";
+import { renderWithProviders } from "../../test/utils";
+import { usePredictivePrefetchSetting } from "../../lib/prefetch";
+import { featuresQueryKey, type FeatureStatus } from "../../lib/features";
 import { Projects } from "./Projects";
 
 function project(over: Partial<Project> = {}): Project {

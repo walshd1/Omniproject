@@ -8,7 +8,7 @@ import {
   type Capabilities,
   type ResourceMember,
 } from "@workspace/api-client-react";
-import { renderWithProviders } from "../test/utils";
+import { renderWithProviders } from "../../test/utils";
 import { Resources } from "./Resources";
 
 function client(

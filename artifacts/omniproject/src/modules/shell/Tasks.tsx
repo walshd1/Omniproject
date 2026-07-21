@@ -1,9 +1,9 @@
 import { useState } from "react";
-import { useTaskSummary, useCreateTask, PRIORITIES, type Task, type Priority } from "../lib/tasks";
-import { TaskDetailDialog } from "../components/TaskDetailDialog";
-import { EntityViews } from "../components/view-engine/EntityViews";
-import { taskDescriptor } from "../lib/view-engine/task-descriptor";
-import { usePriorityLabels } from "../lib/priority-labels";
+import { useTaskSummary, useCreateTask, PRIORITIES, type Task, type Priority } from "../../lib/tasks";
+import { TaskDetailDialog } from "../../components/TaskDetailDialog";
+import { EntityViews } from "../../components/view-engine/EntityViews";
+import { taskDescriptor } from "../../lib/view-engine/task-descriptor";
+import { usePriorityLabels } from "../../lib/priority-labels";
 import { Button } from "@/components/ui/button";
 
 function Stat({ label, value }: { label: string; value: number }) {

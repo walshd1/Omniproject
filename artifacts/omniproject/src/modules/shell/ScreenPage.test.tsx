@@ -1,22 +1,22 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { screen } from "@testing-library/react";
-import { renderWithProviders } from "../test/utils";
+import { renderWithProviders } from "../../test/utils";
 
 /**
  * ScreenPage is the ONE generic builder: given a screen id it loads that JSON def and renders it through
  * the EditableScreen canvas. These prove the data-driven path end-to-end for the budget-plans screen
  * (heading + label from JSON, one bound panel per JSON panel, PMO edit affordance) and the unknown-id guard.
  */
-vi.mock("../lib/auth", async (importActual) => {
-  const actual = await importActual<typeof import("../lib/auth")>();
+vi.mock("../../lib/auth", async (importActual) => {
+  const actual = await importActual<typeof import("../../lib/auth")>();
   return { ...actual, useAuth: () => ({ data: { role: "pmo" } }) };
 });
-vi.mock("../lib/screen-layouts", () => ({
+vi.mock("../../lib/screen-layouts", () => ({
   useScreenLayouts: () => ({ data: {} }),
   useSaveScreenLayouts: () => ({ mutate: vi.fn(), isPending: false }),
 }));
 // Stub the hosted-component registry so the bare-screen test doesn't pull in real pages.
-vi.mock("../components/screen/screen-components", () => ({
+vi.mock("../../components/screen/screen-components", () => ({
   SCREEN_COMPONENTS: {
     tasks: () => <div data-testid="hosted-tasks">tasks page</div>,
     "project-detail": (props: { projectId?: string }) => <div data-testid="hosted-detail">detail {props.projectId ?? "?"}</div>,
@@ -26,9 +26,9 @@ vi.mock("../components/screen/screen-components", () => ({
 
 // Org store: default empty (built-ins only); individual tests override via the mocked hook.
 let orgDefs: unknown[] = [];
-vi.mock("../lib/org-screens", async (importActual) => {
-  const actual = await importActual<typeof import("../lib/org-screens")>();
-  const { resolveScreenDef } = await import("../lib/screen-catalogue");
+vi.mock("../../lib/org-screens", async (importActual) => {
+  const actual = await importActual<typeof import("../../lib/org-screens")>();
+  const { resolveScreenDef } = await import("../../lib/screen-catalogue");
   return {
     ...actual,
     useOrgScreenDefs: () => ({ data: orgDefs }),
@@ -37,8 +37,8 @@ vi.mock("../lib/org-screens", async (importActual) => {
 });
 
 let disabledIds: string[] = [];
-vi.mock("../lib/screen-state", async (importActual) => {
-  const actual = await importActual<typeof import("../lib/screen-state")>();
+vi.mock("../../lib/screen-state", async (importActual) => {
+  const actual = await importActual<typeof import("../../lib/screen-state")>();
   return { ...actual, useDisabledScreens: () => ({ data: disabledIds }) };
 });
 

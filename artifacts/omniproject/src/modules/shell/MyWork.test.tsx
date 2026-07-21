@@ -2,15 +2,15 @@ import { describe, it, expect, afterEach } from "vitest";
 import { screen, fireEvent, act } from "@testing-library/react";
 import { QueryClient } from "@tanstack/react-query";
 import { getListProjectsQueryKey, type Project, type Issue } from "@workspace/api-client-react";
-import { renderWithProviders, mockFetchRouter, resetFetchMock } from "../test/utils";
+import { renderWithProviders, mockFetchRouter, resetFetchMock } from "../../test/utils";
 import { isAssignedToMe, MyWork } from "./MyWork";
-import { featuresQueryKey, type FeatureStatus } from "../lib/features";
+import { featuresQueryKey, type FeatureStatus } from "../../lib/features";
 import { vi } from "vitest";
 
 // Control the shared SSE stream: capture the subscriber MyWork registers so a test can push
 // a live event synchronously (jsdom has no EventSource, so nothing arrives otherwise).
 const live = vi.hoisted(() => ({ handler: null as null | ((e: Record<string, unknown>) => void) }));
-vi.mock("../lib/live-events", () => ({
+vi.mock("../../lib/live-events", () => ({
   useLiveEvents: (h: (e: Record<string, unknown>) => void) => {
     live.handler = h;
   },

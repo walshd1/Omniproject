@@ -6,7 +6,7 @@ import {
   type ProgrammeDetail as ProgrammeDetailType,
   type Project,
 } from "@workspace/api-client-react";
-import { renderWithProviders } from "../test/utils";
+import { renderWithProviders } from "../../test/utils";
 import { ProgrammeDetail } from "./ProgrammeDetail";
 
 function project(over: Partial<Project> = {}): Project {

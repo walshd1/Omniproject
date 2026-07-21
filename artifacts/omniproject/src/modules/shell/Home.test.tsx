@@ -9,8 +9,8 @@ import {
   type Project,
   type ActivityEntry,
 } from "@workspace/api-client-react";
-import { renderWithProviders, mockFetchRouter, resetFetchMock } from "../test/utils";
-import { useStore } from "../store/useStore";
+import { renderWithProviders, mockFetchRouter, resetFetchMock } from "../../test/utils";
+import { useStore } from "../../store/useStore";
 import { Home } from "./Home";
 
 function project(over: Partial<Project> = {}): Project {

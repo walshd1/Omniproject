@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useGetCapabilities } from "@workspace/api-client-react";
-import { canSurfaceEntity } from "../lib/capabilities-fields";
-import { useAuth, roleAtLeast } from "../lib/auth";
-import { useFeatures, featureEnabled } from "../lib/features";
+import { canSurfaceEntity } from "../../lib/capabilities-fields";
+import { useAuth, roleAtLeast } from "../../lib/auth";
+import { useFeatures, featureEnabled } from "../../lib/features";
 import {
   useDashboards,
   useSaveDashboards,
@@ -14,14 +14,14 @@ import {
   clampSpan,
   type Dashboard,
   type DashboardWidget,
-} from "../lib/dashboards";
-import { downloadDashboard, readDashboardFile } from "../lib/dashboard-file";
-import { useResolvedDefs, useImportDef, useUpdateDef, useDeleteDef, type DefStorage } from "../lib/defs";
-import { useDefPolicy, writableDefScopes } from "../lib/def-policy";
-import { primitivesFor } from "../lib/primitive-store";
-import { PrimitiveLibrary } from "../components/artifact/PrimitiveLibrary";
-import { WidgetView } from "../components/dashboard/widgets";
-import { DataState } from "../components/DataState";
+} from "../../lib/dashboards";
+import { downloadDashboard, readDashboardFile } from "../../lib/dashboard-file";
+import { useResolvedDefs, useImportDef, useUpdateDef, useDeleteDef, type DefStorage } from "../../lib/defs";
+import { useDefPolicy, writableDefScopes } from "../../lib/def-policy";
+import { primitivesFor } from "../../lib/primitive-store";
+import { PrimitiveLibrary } from "../../components/artifact/PrimitiveLibrary";
+import { WidgetView } from "../../components/dashboard/widgets";
+import { DataState } from "../../components/DataState";
 import { useToast } from "@/hooks/use-toast";
 
 /**

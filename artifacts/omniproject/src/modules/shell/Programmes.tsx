@@ -2,11 +2,11 @@ import { useMemo } from "react";
 import { Link } from "wouter";
 import { useListProgrammes, useListProjects, useGetCapabilities, type Programme, type Project } from "@workspace/api-client-react";
 import { Layers, FolderOpen } from "lucide-react";
-import { useT } from "../lib/i18n";
-import { RAG_DOT, RAG_TEXT } from "../lib/methodology";
-import { LoadingState } from "../components/LoadingState";
-import { DataProvenance } from "../components/DataProvenance";
-import { useProgrammeRegistry, memberInstanceIds } from "../lib/programme-registry";
+import { useT } from "../../lib/i18n";
+import { RAG_DOT, RAG_TEXT } from "../../lib/methodology";
+import { LoadingState } from "../../components/LoadingState";
+import { DataProvenance } from "../../components/DataProvenance";
+import { useProgrammeRegistry, memberInstanceIds } from "../../lib/programme-registry";
 
 const PROGRAMME_FIELDS = [
   { key: "ragStatus", label: "RAG status" },

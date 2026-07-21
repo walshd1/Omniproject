@@ -7,8 +7,8 @@ import {
   type Programme,
   type Project,
 } from "@workspace/api-client-react";
-import { renderWithProviders } from "../test/utils";
-import { programmeRegistryQueryKey, type ProgrammeRegistry } from "../lib/programme-registry";
+import { renderWithProviders } from "../../test/utils";
+import { programmeRegistryQueryKey, type ProgrammeRegistry } from "../../lib/programme-registry";
 import { Programmes } from "./Programmes";
 
 function programme(over: Partial<Programme> = {}): Programme {

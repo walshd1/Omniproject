@@ -3,10 +3,10 @@ import { screen, fireEvent, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient } from "@tanstack/react-query";
 import { getGetCapabilitiesQueryKey, getListProjectsQueryKey, type Capabilities, type Project } from "@workspace/api-client-react";
-import { renderWithProviders, mockBlobDownload, mockFetchRouter, resetFetchMock } from "../test/utils";
+import { renderWithProviders, mockBlobDownload, mockFetchRouter, resetFetchMock } from "../../test/utils";
 import { Dashboards } from "./Dashboards";
-import { featuresQueryKey, type FeatureStatus } from "../lib/features";
-import { dashboardsQueryKey, type Dashboard } from "../lib/dashboards";
+import { featuresQueryKey, type FeatureStatus } from "../../lib/features";
+import { dashboardsQueryKey, type Dashboard } from "../../lib/dashboards";
 
 function project(over: Partial<Project> = {}): Project {
   return {

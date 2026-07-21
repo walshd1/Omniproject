@@ -2,11 +2,11 @@ import { Link } from "wouter";
 import { useEffect } from "react";
 import { useGetProgramme, useGetCapabilities, type Project } from "@workspace/api-client-react";
 import { ArrowLeft, Layers } from "lucide-react";
-import { LoadingState } from "../components/LoadingState";
-import { useRecentItems } from "../lib/recent-items";
-import { ProgrammeFinancialsCard } from "../components/ProgrammeFinancialsCard";
-import { DataProvenance } from "../components/DataProvenance";
-import { RAG_DOT, RAG_TEXT } from "../lib/methodology";
+import { LoadingState } from "../../components/LoadingState";
+import { useRecentItems } from "../../lib/recent-items";
+import { ProgrammeFinancialsCard } from "../../components/ProgrammeFinancialsCard";
+import { DataProvenance } from "../../components/DataProvenance";
+import { RAG_DOT, RAG_TEXT } from "../../lib/methodology";
 
 const PROGRAMME_PROJECT_FIELDS = [
   { key: "name", label: "Name" },

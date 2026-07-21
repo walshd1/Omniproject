@@ -1,15 +1,15 @@
 import { useListProjects, useGetCapabilities, type Project } from "@workspace/api-client-react";
 import { Link } from "wouter";
-import { useProjectPrefetch } from "../lib/prefetch";
+import { useProjectPrefetch } from "../../lib/prefetch";
 import { useEffect, useState } from "react";
 import { PlugZap, Plus } from "lucide-react";
-import { ExportMenu } from "../components/ExportMenu";
-import { DataProvenance } from "../components/DataProvenance";
-import { NewProjectDialog } from "../components/NewProjectDialog";
-import { canStoreEntity } from "../lib/capabilities-fields";
-import { PROJECT_FIELDS } from "../lib/constants";
+import { ExportMenu } from "../../components/ExportMenu";
+import { DataProvenance } from "../../components/DataProvenance";
+import { NewProjectDialog } from "../../components/NewProjectDialog";
+import { canStoreEntity } from "../../lib/capabilities-fields";
+import { PROJECT_FIELDS } from "../../lib/constants";
 import { Button } from "@/components/ui/button";
-import { DataState } from "../components/DataState";
+import { DataState } from "../../components/DataState";
 import { Empty, EmptyHeader, EmptyMedia, EmptyTitle, EmptyDescription, EmptyContent } from "@/components/ui/empty";
 
 function ProjectSummaryCard({ project }: { project: Project }) {

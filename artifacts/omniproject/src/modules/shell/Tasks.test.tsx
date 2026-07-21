@@ -1,8 +1,8 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { screen, fireEvent, waitFor, within } from "@testing-library/react";
-import { renderWithProviders } from "../test/utils";
+import { renderWithProviders } from "../../test/utils";
 import { Tasks } from "./Tasks";
-import type { Task } from "../lib/tasks";
+import type { Task } from "../../lib/tasks";
 
 const SUMMARY = { total: 3, byClass: { actionable: 1, waiting: 1, deferred: 0, done: 1, dropped: 0 }, open: 2, actionable: 1, overdue: 1, dueSoon: 0, unassigned: 1, byAssignee: {}, byTag: {}, byContext: {} };
 let tasks: Task[] = [

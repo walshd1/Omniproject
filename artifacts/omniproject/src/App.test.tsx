@@ -22,26 +22,26 @@ function go(path: string) {
 vi.mock("./components/layout/AppLayout", () => ({
   AppLayout: ({ children }: { children: ReactNode }) => <div data-testid="app-layout-stub">{children}</div>,
 }));
-vi.mock("./pages/ProgrammeDetail", () => ({
+vi.mock("./modules/shell/ProgrammeDetail", () => ({
   ProgrammeDetail: ({ programmeId }: { programmeId: string }) => <div data-testid="programme-detail-stub">{programmeId}</div>,
 }));
-vi.mock("./pages/ProjectDetail", () => ({
+vi.mock("./modules/shell/ProjectDetail", () => ({
   ProjectDetail: ({ projectId }: { projectId: string }) => <div data-testid="project-detail-stub">{projectId}</div>,
 }));
 
 // The remaining routes (below) don't need real data-fetching pages to prove the router wires
 // each path to the right component — that's App's job here, not the pages'. Each page already
 // has its own dedicated test file for its actual content/data-fetching.
-vi.mock("./pages/Home", () => ({ Home: () => <div data-testid="home-stub" /> }));
-vi.mock("./pages/MyWork", () => ({ MyWork: () => <div data-testid="my-work-stub" /> }));
-vi.mock("./pages/Dashboards", () => ({ Dashboards: () => <div data-testid="dashboards-stub" /> }));
+vi.mock("./modules/shell/Home", () => ({ Home: () => <div data-testid="home-stub" /> }));
+vi.mock("./modules/shell/MyWork", () => ({ MyWork: () => <div data-testid="my-work-stub" /> }));
+vi.mock("./modules/shell/Dashboards", () => ({ Dashboards: () => <div data-testid="dashboards-stub" /> }));
 vi.mock("./pages/ContentPages", () => ({ ContentPages: () => <div data-testid="content-stub" /> }));
-vi.mock("./pages/Programmes", () => ({ Programmes: () => <div data-testid="programmes-stub" /> }));
-vi.mock("./pages/Projects", () => ({ Projects: () => <div data-testid="projects-stub" /> }));
-vi.mock("./pages/Reports", () => ({ Reports: () => <div data-testid="reports-stub" /> }));
-vi.mock("./pages/Resources", () => ({ Resources: () => <div data-testid="resources-stub" /> }));
-vi.mock("./pages/Explore", () => ({ Explore: () => <div data-testid="explore-stub" /> }));
-vi.mock("./pages/Settings", () => ({ Settings: () => <div data-testid="settings-stub" /> }));
+vi.mock("./modules/shell/Programmes", () => ({ Programmes: () => <div data-testid="programmes-stub" /> }));
+vi.mock("./modules/shell/Projects", () => ({ Projects: () => <div data-testid="projects-stub" /> }));
+vi.mock("./modules/shell/Reports", () => ({ Reports: () => <div data-testid="reports-stub" /> }));
+vi.mock("./modules/shell/Resources", () => ({ Resources: () => <div data-testid="resources-stub" /> }));
+vi.mock("./modules/shell/Explore", () => ({ Explore: () => <div data-testid="explore-stub" /> }));
+vi.mock("./modules/settings", () => ({ Settings: () => <div data-testid="settings-stub" /> }));
 vi.mock("./pages/Configurator", () => ({ Configurator: () => <div data-testid="configurator-stub" /> }));
 
 afterEach(() => {

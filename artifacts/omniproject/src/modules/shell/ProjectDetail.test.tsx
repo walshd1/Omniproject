@@ -6,7 +6,7 @@ import {
   getGetProjectIssuesQueryKey,
   type Project,
 } from "@workspace/api-client-react";
-import { renderWithProviders } from "../test/utils";
+import { renderWithProviders } from "../../test/utils";
 import { ProjectDetail } from "./ProjectDetail";
 
 function project(over: Partial<Project> = {}): Project {

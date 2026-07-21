@@ -1,16 +1,16 @@
 import { useEffect, type ReactNode } from "react";
 import { useListProjects, useGetCapabilities, type Capabilities } from "@workspace/api-client-react";
-import { useActiveProjectSelector } from "../hooks/use-active-project-selector";
-import { CustomReportsProject, CustomReportsPortfolio, CustomReportsTasks } from "../components/reports/CustomReportsPanel";
-import { SnapshotVerifyPanel } from "../components/reports/SnapshotControls";
-import { CatalogueReport } from "../components/reports/CatalogueReport";
-import { useAuth, roleAtLeast } from "../lib/auth";
-import { useMethodologyComposition } from "../lib/methodology-composition-api";
-import { isItemVisible } from "../lib/methodology-composition";
-import { ProvenanceBadge } from "../components/ProvenanceBadge";
-import { DataProvenance } from "../components/DataProvenance";
-import { useT } from "../lib/i18n";
-import { useStore } from "../store/useStore";
+import { useActiveProjectSelector } from "../../hooks/use-active-project-selector";
+import { CustomReportsProject, CustomReportsPortfolio, CustomReportsTasks } from "../../components/reports/CustomReportsPanel";
+import { SnapshotVerifyPanel } from "../../components/reports/SnapshotControls";
+import { CatalogueReport } from "../../components/reports/CatalogueReport";
+import { useAuth, roleAtLeast } from "../../lib/auth";
+import { useMethodologyComposition } from "../../lib/methodology-composition-api";
+import { isItemVisible } from "../../lib/methodology-composition";
+import { ProvenanceBadge } from "../../components/ProvenanceBadge";
+import { DataProvenance } from "../../components/DataProvenance";
+import { useT } from "../../lib/i18n";
+import { useStore } from "../../store/useStore";
 
 const REPORT_PROJECT_FIELDS = [
   { key: "programmeName", label: "Programme" },

@@ -1,11 +1,11 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { screen, fireEvent, act, waitFor } from "@testing-library/react";
 import { QueryClient } from "@tanstack/react-query";
-import { renderWithProviders, mockBlobDownload } from "../test/utils";
+import { renderWithProviders, mockBlobDownload } from "../../test/utils";
 import { Explore } from "./Explore";
-import { markExplorationClean, markExplorationDirty } from "../lib/exploration";
-import { createSnapshot, saveSnapshots } from "../lib/snapshots";
-import { saveEdges, type DependencyEdge } from "../lib/dependencies";
+import { markExplorationClean, markExplorationDirty } from "../../lib/exploration";
+import { createSnapshot, saveSnapshots } from "../../lib/snapshots";
+import { saveEdges, type DependencyEdge } from "../../lib/dependencies";
 
 /** A QueryClient with the auth query pre-seeded — Explore now guards itself (it is mounted outside
  *  AppLayout), so its tools only render for a resolved, authenticated session. */

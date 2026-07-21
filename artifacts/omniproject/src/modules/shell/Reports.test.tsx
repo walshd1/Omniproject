@@ -7,7 +7,7 @@ import {
   type Project,
   type Capabilities,
 } from "@workspace/api-client-react";
-import { renderWithProviders } from "../test/utils";
+import { renderWithProviders } from "../../test/utils";
 import { Reports } from "./Reports";
 
 function project(over: Partial<Project> = {}): Project {

@@ -1,14 +1,14 @@
 import { useEffect, useState } from "react";
 import { useLocation } from "wouter";
 import { FlaskConical, ExternalLink, LogOut, Download, AlertTriangle } from "lucide-react";
-import { ReplicaWorkbench } from "../components/explore/ReplicaWorkbench";
-import { CatalogueReport } from "../components/reports/CatalogueReport";
-import { TimeTravel } from "../components/reports/TimeTravel";
-import { loadSnapshots, exportSnapshots } from "../lib/snapshots";
-import { loadEdges, exportEdges } from "../lib/dependencies";
-import { isExplorationDirty, subscribeExploration } from "../lib/exploration";
-import { useAuth } from "../lib/auth";
-import { CommandPalette } from "../components/CommandPalette";
+import { ReplicaWorkbench } from "../../components/explore/ReplicaWorkbench";
+import { CatalogueReport } from "../../components/reports/CatalogueReport";
+import { TimeTravel } from "../../components/reports/TimeTravel";
+import { loadSnapshots, exportSnapshots } from "../../lib/snapshots";
+import { loadEdges, exportEdges } from "../../lib/dependencies";
+import { isExplorationDirty, subscribeExploration } from "../../lib/exploration";
+import { useAuth } from "../../lib/auth";
+import { CommandPalette } from "../../components/CommandPalette";
 
 /**
  * Exploration mode — a deliberately, obviously-different surface for snapshots,

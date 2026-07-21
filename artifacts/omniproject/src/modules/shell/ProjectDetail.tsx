@@ -1,14 +1,14 @@
 import { useListProjects, useGetProjectIssues, useGetCapabilities, getGetProjectIssuesQueryKey } from "@workspace/api-client-react";
 import { Link, useSearch } from "wouter";
 import { useEffect, useState } from "react";
-import { IssueBoardView } from "../components/views/IssueEngineView";
-import { IssueGrid } from "../components/grid/IssueGrid";
-import { useFeatures, featureEnabled } from "../lib/features";
-import { useRecentItems } from "../lib/recent-items";
-import { ExportMenu } from "../components/ExportMenu";
-import { CloseProjectDialog } from "../components/CloseProjectDialog";
-import { DataProvenance } from "../components/DataProvenance";
-import { ProjectFinancialsStrip } from "../components/ProjectFinancialsStrip";
+import { IssueBoardView } from "../../components/views/IssueEngineView";
+import { IssueGrid } from "../../components/grid/IssueGrid";
+import { useFeatures, featureEnabled } from "../../lib/features";
+import { useRecentItems } from "../../lib/recent-items";
+import { ExportMenu } from "../../components/ExportMenu";
+import { CloseProjectDialog } from "../../components/CloseProjectDialog";
+import { DataProvenance } from "../../components/DataProvenance";
+import { ProjectFinancialsStrip } from "../../components/ProjectFinancialsStrip";
 
 /** A representative spread across the field groups, to expose where issue data
  *  is sparse (people / schedule / effort / financial / agile / quality). */
