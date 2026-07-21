@@ -1,13 +1,13 @@
 import { useState } from "react";
 import { Package, Trash2, Check, X, Globe, Undo2 } from "lucide-react";
-import { DataState } from "../components/DataState";
-import { useAuth, roleAtLeast } from "../lib/auth";
+import { DataState } from "../../components/DataState";
+import { useAuth, roleAtLeast } from "../../lib/auth";
 import {
   useRegistry, useCommunityStatus,
   useSubmitRegistryItem, useReviewRegistryItem, useReleaseRegistryItem, useRetractRegistryItem, useDeleteRegistryItem,
   registryItemKindLabel, type RegistryItemMeta, type ActivationScope,
-} from "../lib/registry";
-import { safeParseJson } from "../lib/safe-json";
+} from "../../lib/registry";
+import { safeParseJson } from "../../lib/safe-json";
 import { useToast } from "@/hooks/use-toast";
 
 /**

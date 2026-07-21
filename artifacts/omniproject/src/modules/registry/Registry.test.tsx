@@ -1,8 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { screen, fireEvent } from "@testing-library/react";
-import { renderWithProviders } from "../test/utils";
-import type { Role } from "../lib/auth";
-import type { RegistryItemMeta, CommunityStatus } from "../lib/registry";
+import { renderWithProviders } from "../../test/utils";
+import type { Role } from "../../lib/auth";
+import type { RegistryItemMeta, CommunityStatus } from "../../lib/registry";
 
 /**
  * The Registry page composes the registry CRUD hooks, an RBAC admin gate, and a submit form with a
@@ -44,14 +44,14 @@ const mutateWith = (spy: (vars: unknown) => void, getMode: () => "ok" | "err", r
 
 vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast }) }));
 
-vi.mock("../lib/auth", async (importActual) => {
-  const actual = await importActual<typeof import("../lib/auth")>();
+vi.mock("../../lib/auth", async (importActual) => {
+  const actual = await importActual<typeof import("../../lib/auth")>();
   return { ...actual, useAuth: () => ({ data: { role } }) };
 });
 
 // Keep the real pure helpers (registryItemKindLabel + types); only the hooks are stubbed.
-vi.mock("../lib/registry", async (importActual) => {
-  const actual = await importActual<typeof import("../lib/registry")>();
+vi.mock("../../lib/registry", async (importActual) => {
+  const actual = await importActual<typeof import("../../lib/registry")>();
   return {
     ...actual,
     useRegistry: () => ({ data: items, isLoading, isError, error: isError ? new Error("nope") : null, refetch }),
