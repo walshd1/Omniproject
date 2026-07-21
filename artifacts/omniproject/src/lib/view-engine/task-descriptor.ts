@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { useTasks, useUpdateTask, type Task } from "../tasks";
 import { usePriorityLabels } from "../priority-labels";
 import { taskAttention, type UrgencyBand } from "../task-urgency";
@@ -73,10 +74,16 @@ export const taskDescriptor: EntityDescriptor<Task> = {
   doneStatus: "done",
   reopenStatus: "next",
   useRecords: (scope) => {
-    const { data = [], isLoading, error } = useTasks(scope.projectId);
+    const { data, isLoading, error } = useTasks(scope.projectId);
     const tagPrefs = useTagPrefs((s) => s.prefs);
-    const today = new Date(); // browser-edge reference; the urgency maths itself is pure (see task-urgency)
-    return { records: data.map((t) => toRecord(t, today, tagPrefs)), isLoading, error };
+    // Memoise the mapped records so their identity is stable across renders (react-query `data` is stable;
+    // `tagPrefs` changes only on a pref edit). Without this the fresh `.map` array re-triggers the whole
+    // view-engine filter/sort memo chain in EntityViews on every render (broken-memo thrash).
+    const records = useMemo(() => {
+      const today = new Date(); // browser-edge reference; the urgency maths itself is pure (see task-urgency)
+      return (data ?? []).map((t) => toRecord(t, today, tagPrefs));
+    }, [data, tagPrefs]);
+    return { records, isLoading, error };
   },
   useMove: () => {
     const update = useUpdateTask();

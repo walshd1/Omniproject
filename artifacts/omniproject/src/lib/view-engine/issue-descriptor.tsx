@@ -1,3 +1,4 @@
+import { useCallback, useMemo } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useGetProjectIssues, useUpdateIssue, getGetProjectIssuesQueryKey, type Issue } from "@workspace/api-client-react";
 import { STATUS_ORDER, STATUS_LABELS } from "../constants";
@@ -45,8 +46,11 @@ export const issueDescriptor: EntityDescriptor<Issue> = {
   doneStatus: "done",
   reopenStatus: "todo",
   useRecords: (scope) => {
-    const { data = [], isLoading, error, refetch } = useGetProjectIssues(scope.projectId ?? "");
-    return { records: data.map(toRecord), isLoading, error, refetch: () => { void refetch(); } };
+    const { data, isLoading, error, refetch } = useGetProjectIssues(scope.projectId ?? "");
+    // Stable identity (see task-descriptor): a fresh `.map` array each render defeats EntityViews' memo chain.
+    const records = useMemo(() => (data ?? []).map(toRecord), [data]);
+    const stableRefetch = useCallback(() => { void refetch(); }, [refetch]);
+    return { records, isLoading, error, refetch: stableRefetch };
   },
   useMove: () => {
     const update = useUpdateIssue();
