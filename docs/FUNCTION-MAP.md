@@ -2862,6 +2862,9 @@ Gateway-side per-project authorization — the deployment-independent scope gate
 | `guardProjectScope` | Express convenience: enforce {@link assertProjectScope}, sending a 403 and returning false when the caller is out of scope. |
 | `guardProgrammeScope` | Express convenience: enforce that the caller is within a PROGRAMME's scope, sending a 403 (and auditing the cross-scope attempt) when not. |
 | `filterTasksInScope` | Filter a task LIST to only those the caller may see — the batched form of {@link assertTaskScope} for a list endpoint, resolving the caller's in-scope project set ONCE (not per task). |
+| `inScopeProjectIds` | The caller's in-scope project-id set (both raw and qualified id forms), resolved ONCE from the broker-visible project list + the programme registry — or `null` for all-scope (everything visible). |
+| `filterRowsByProjectScope` | Filter per-project settings rows to only those the caller's scope permits (all-scope ⇒ unchanged). |
+| `mergeRowsByProjectScope` | Scope-safe write-merge for a per-project settings collection. |
 | `assertTaskScope` | Whether a caller may see/mutate a single task. |
 
 ### `artifacts/api-server/src/lib/project-template.ts`
