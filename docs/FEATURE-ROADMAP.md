@@ -398,7 +398,7 @@ authoring, and the drift guards — no feature bypasses the golden rules.
   passkey-signed, chain-gated review decision — the creative-review markup competitors have, on OmniProject's
   own governance rails.
 
-### 2.5 Native mobile + offline  🚧 In progress (slices 1–3)
+### 2.5 Native mobile + offline  ✅ Done (slices 1–3; native shells deferred as a stretch)
 - **Competitors.** All. **Gap.** PWA caches app-shell only; no offline data, no native apps.
 - **Acceptance.** Offline-capable data cache for my-work/tasks with sync-on-reconnect;
   installable; push notifications; (stretch) native shells.
@@ -1173,7 +1173,7 @@ authoring, and the drift guards — no feature bypasses the golden rules.
   backend seeder can source them too (they're already `DefKind`s + org-authorable — only the *system defaults*
   are blocked on the data living SPA-side); then the client "Duplicate to my store" fork.
 
-### X.12 Def selection + lock (which def is IN USE at each scope)  🚧 In progress (slice 1 of ~4)
+### X.12 Def selection + lock (which def is IN USE at each scope)  ✅ Done (slices 1–4)
 - **Goal (user directive, 2026-07-17).** The tiered def store says which defs EXIST; it does not say which is
   IN USE. Two needs: (a) a **project manager can load THEIR custom screen** instead of our default (select a def
   for their scope); (b) an **admin/PMO can LOCK a choice** at a higher scope so lower scopes can't override
@@ -2099,6 +2099,36 @@ external infrastructure a CI sandbox can't reach (so they are execution/attestat
   already ships, the agentic execution rails already exist (`lib/autonomous-grant`), and one-click deploy
   templates (Railway/Helm/compose) already ship — only the hosted tier is missing. Corrected inline with file
   evidence; the other 21 items verified as genuine gaps.
+- _2026-07-18_ — **Composition model completed + rolled across every dimension.** A leveled-vocabulary model
+  (status/priority/severity/energy/RAG/impact/likelihood — adjustable, each bound to an internal level); the
+  generic board/list/register engine subsumed the legacy `AgileBoard`/`ListView` (retired); a shared sort/filter
+  primitive (date + vocab-ordinal, any column) for screens and reports; a GTD cross-entity business rule
+  ("every active project must have a next action"); domain entities (dependencies, epics, sprints) as rows in
+  generic `mapping` slots rather than bespoke `Broker` methods; the primitive geometry-atom tier + canvas recipe
+  tree; the org registry lock/activation model; presets; org identity / in-app user management / org logo. The
+  SPA was reorganised into `src/modules/*` feature folders — a stepping-stone toward the workspace-package split
+  still tracked in `TECH-DEBT-AND-ROADMAP.md §5` (it remains one package).
+- _2026-07-19_ — **Methodology as a one-click bundle.** A methodology def now carries nomenclature (vocab
+  relabels) + preset settings as first-class fields and deploys to a chosen scope in one action; the OmniStore
+  became the system-of-record of last resort (orphan-home) with a conformance test; a deployment-type catalogue
+  (pick a type → answer a few questions → known-good setup, modelled on methodologies); the personal-task surface
+  (subtask tree, rich notes, urgency-colour render rules, tag search syntax, tag colours/hierarchy).
+- _2026-07-21_ — **Governance — admin-set local-variation depth (delegation) + ruleset/settings scope
+  migration.** Admins set, per governed area (ruleset / settings / methodology composition), how far local
+  variation may be delegated (org < programme < project < user); scoped writes enforce it
+  (`assertDelegationAllowed` → 403 `delegation_denied`; default `org` = no behaviour change). The ruleset engine
+  (tighten-only overlay) and settings (a conservative allow-list) now migrate to programme/project scope, with a
+  scope-override authoring UI (`ScopeOverrideAdmin`). Also: a codebase-wide audit of the unstable-reference-per-
+  render bug class (fixed 5 broken-memo cases; 0 production infinite-loops) and the SPA's first lint gate — a
+  **react-hooks ESLint gate** in CI (`exhaustive-deps` + `rules-of-hooks` as errors, `--max-warnings 0`, parsed
+  via `@babel/eslint-parser` since `@typescript-eslint/parser` refuses this repo's TS 7).
+- _2026-07-21_ — **Offensive-security review (red-team pass).** Six-surface audit (authn/session/sign-off,
+  RBAC/delegation/IDOR, SSRF/egress, injection/deserialization/ReDoS, client-side XSS/CSP, crypto/secrets/
+  sealed-store). The crypto, egress, and client-side layers verified strong; the material result is a CRITICAL —
+  the env-only "is-this-production?" detector (`productionSignals`/`isDemoAuthFrom`) is blind to the product's own
+  no-SSO-but-real-local-accounts profile, so such a deployment boots on the public default `SESSION_SECRET`
+  (forgeable admin cookie) and seals data under a public dev master key. Logged with corroborating findings in
+  `TECH-DEBT-AND-ROADMAP.md §1`.
 
 ---
 

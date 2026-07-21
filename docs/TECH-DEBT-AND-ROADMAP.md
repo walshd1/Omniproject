@@ -14,6 +14,73 @@ deliberate, documented limitation (not a defect) · **[idea]** worth doing, unsc
 These are the items most likely to bite in production, because they're verified against
 **mocks**, not the real third parties.
 
+### Security findings — offensive red-team review, 2026-07-21 (fix before the next release)
+
+A six-surface pass (authn/session/sign-off, RBAC/delegation, SSRF/egress, injection/deserialization,
+client-side, crypto/sealed-store) found the crypto, egress, and client-side layers **strong**, with
+one confirmed CRITICAL and a corroborating cluster — most sharing one root cause: the env-only
+"is this production?" detector is blind to the product's own flagship *real-local-accounts, no-SSO* profile.
+
+- **[security — CRITICAL, confirmed] The boot-time secret guard is blind to runtime local users, so a
+  SUPPORTED deployment boots on the PUBLIC default `SESSION_SECRET` → forgeable admin cookies.**
+  `productionSignals()` (`lib/dev-mode-guard.ts:36-55`) is env-pure and decides "real auth" via the env-only
+  `isDemoAuthFrom` (`lib/auth-config.ts:78-92`), which counts only SSO / `MAGIC_LINK_ENABLED` /
+  `LOCAL_USERS_ENABLED`. But native local accounts work whenever `OMNI_CONFIG_DIR` is set
+  (`userDirectoryEnabled = artifactStoreEnabled`, `lib/user-directory.ts:56-58`) — `LOCAL_USERS_ENABLED` is
+  only an OPTIONAL declare-intent flag. So a deployment that sets `OMNI_CONFIG_DIR`, bootstraps an admin at
+  runtime, and leaves SSO + `SESSION_SECRET` + `NODE_ENV` unset (the documented self-hosted / charity /
+  homelab profile) has `productionSignals()` empty, and `evaluateSessionSecret`
+  (`lib/session-secret-guard.ts:35-41`) accepts the public `DEV_SESSION_SECRET`. An attacker who read this
+  Apache-2.0 source HKDF-derives the seal + cookie-signing keys and forges a signed+sealed admin cookie
+  (`amr:["hwk"]`, fresh step-up) — full admin, defeating `LOCAL_ADMIN_REQUIRE_PASSKEY` and every
+  `requireStepUp` route, zero interaction. **Same root cause, corroborated:** the sealed config store /
+  vault / key-registry fall back to PUBLIC source-embedded dev masters on those same deployments
+  (`lib/config-crypto.ts:35`, `lib/vault-store.ts:69`, `lib/key-registry.ts:50` — "zero-at-rest" becomes
+  theatre; the vault holds AI keys); `OMNI_APPROVALS_AUTO_APPLY` is NOT inert there
+  (`lib/settings-guard.ts:19-21`), so a posture-reducing `brokerUrl`/webhook change skips the passkey
+  sign-off; and session/CSRF cookies ship without `Secure` (`auth.ts:101-108`). **Fix (one change closes all
+  four):** treat "artifact store enabled + local users active/enabled" as a production signal — fold
+  `localUsersActive()`/`credentialsEnabled()` into `productionSignals`, or re-check in
+  `resolveSessionSecret`/`runSecuritySelfCheck` after `loadConfigDir()`.
+- **[security — HIGH, confirmed] The generic def importer (`POST /api/defs`, kind `config`) bypasses the
+  governance guards on the SAME config store.** Security-classified configs (`history-retention`,
+  `logging-sync`, `error-telemetry` — `lib/security-config.ts`) must, on a relaxing change, be held for a
+  passkey sign-off; their dedicated writers route through `applyConfigCollectionGuarded`
+  (`lib/settings-collection-router.ts:86`, `lib/config-guard.ts:63`). `/api/defs` writes the identical store
+  with none of it — `routes/defs.ts:144-181` blocks only vendor-controlled kinds, `runDefWriteHook` guards
+  only `kind==="form"` (`lib/def-write-hooks.ts:20`), then `putDef`s directly. Because `resolveHistoryRetention`
+  reads via LOGICAL-ID fold (`readConfigCollection`→`configDefLayers`→`scopeLayers`, `lib/scoped-config.ts:54-71`),
+  a smuggled org `config` def with `payload.id:"history-retention"` is folded into the resolved value — so a
+  `pmo` (org def gate = pmoOrAdmin) shrinks the audit-retention window (or repoints `logging-sync`) with NO
+  proposal and NO passkey: an admin-classified relaxation performed by the wrong authority. **Same root cause
+  (MEDIUM):** the admin-only `def-scope-policy` (who may author defs where) is folded from an org config def
+  (`lib/def-policy.ts:70`) a `pmo` can write via `/api/defs`, lowering the authoring gate itself. **Caveat:**
+  in DEMO mode pmo/admin orthogonality collapses (all authorities granted, `lib/rbac.ts:268`), so this only
+  bites a REAL IdP deployment with `defImporter` enabled. **Fix:** run security-classified logical ids through
+  `applyConfigCollectionGuarded` inside the importer choke point (or reject reserved logical ids at
+  `runDefWriteHook`). NB — the ruleset/settings scope-overrides are NOT affected: they read by exact singleton
+  id (`readScopedConfigValue`), which a random-UUID importer id cannot forge.
+- **[security — HIGH, needs a regression test] Custom-roles reimport skips the sanitizer → base-role
+  privilege escalation.** `applyDefStoreExport` (`lib/def-store-export.ts:175-185`) writes `custom-roles` /
+  `def-policy` / `def-binding` / `user-prefs` on only an `{id}`-shape check (no per-kind validator), and
+  `getCustomRolesConfig` (`lib/custom-roles.ts:125-130`) trusts the stored row at read time — so a crafted
+  plaintext `defs-import` bundle (admin + step-up gated, `routes/setup/config-io.ts:220`) carrying
+  `{baseRole:"admin", groups:[<attacker IdP group>]}` confers write-capable grants without ever passing
+  `sanitizeCustomRolesConfig`. **Fix:** route every config blob through its real sanitizer on import (add
+  `custom-roles → sanitizeCustomRolesConfig` to `CONFIG_VALIDATORS`) or re-sanitize in the getters.
+- **[security — LOW/MED] Sealed secret-store files written world-readable (no `0600`).**
+  `lib/sealed-file.ts:82`, `lib/user-credentials.ts:108`, `lib/instance-key.ts:107` create via
+  `openSync(tmp,"w")` (umask default ~0644); the broker stores already pass `{mode:0o600}`. Defense-in-depth
+  alone (content is encrypted), but compounds the dev-master finding on a shared host.
+- **[security — LOW/MED, hardening] Internal-network SSRF reachable by an admin in the default config.**
+  The RFC1918/loopback egress block (`lib/egress.ts:117`) is opt-in (`EGRESS_BLOCK_PRIVATE`, off by default
+  so `http://n8n:5678` works); cloud-metadata stays blocked always and the broker seam pins IPs + refuses
+  redirects (verified solid — no metadata-SSRF). Recommend documenting `EGRESS_BLOCK_PRIVATE=true` +
+  `EGRESS_ALLOWLIST` as the hardened default. Lesser hardening notes: `Login.tsx` post-auth redirect leans
+  on the server's `safeLocalPath` with no client-side guard (add `isSafeRedirect` for symmetry with
+  step-up); the CSP is strong but env-overridable (`CONTENT_SECURITY_POLICY`/`CSP_SCRIPT_SRC` are
+  security-sensitive config).
+
 - **[gap] The entire n8n contract has never executed inside real n8n.** CI's "n8n contract
   verification (bidirectional)" step (`.github/workflows/ci.yml`) and `verify-broker-contract.ts`
   both run the gateway against a hand-rolled Node HTTP server standing in for "whatever the broker
@@ -136,8 +203,9 @@ These are documented in `docs/AI-SECURITY.md §6`; restated here so they're not 
   screen/def engine, …) lives in one `src/` tree tested by one Vitest project. This has become
   untenable at the CI seam: producing a single coverage report over all ~440 files in one process
   needs >12 GB and OOMs regardless of coverage provider (this is the root cause behind the
-  `unit-spa` OOM saga — see the sharding note in `.github/workflows/ci.yml`; we contained it by
-  switching v8→istanbul coverage and sharding the run + a merge job, but that's a workaround, not a
+  `unit-spa` OOM saga — see the sharding note in `.github/workflows/ci.yml`; CI now runs the SPA suite
+  SHARDED WITHOUT suite-wide coverage — the coverage GATE is SUSPENDED (the istanbul provider + thresholds
+  remain in `vitest.config.ts` only for a narrower local `test:coverage`), a workaround, not a
   fix). The same monolith slows typecheck, build, and IDE responsiveness, and makes ownership
   boundaries mushy. **Fix:** split the SPA into workspace packages by feature domain, each with its
   own tests + coverage gate + build, composed at the app shell. Each package's coverage then runs
