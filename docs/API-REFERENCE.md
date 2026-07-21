@@ -637,6 +637,8 @@ The methodology COMPOSITION — the PMO/admin's curated set of visible artifact/
 | --- | --- | --- | --- |
 | GET | `/api/methodology-composition` | — | — |
 | PUT | `/api/methodology-composition` | requireAnyRole(pmo, admin) | — |
+| GET | `/api/methodology-composition/deployment/:id` | — | PREVIEW: what deploying this methodology would turn on (read-only, any authed user). |
+| POST | `/api/methodology-composition/deploy/:id` | requireAnyRole(pmo, admin) | org by default, or a programme/project named in the body (a nearer scope overrides the org in the read fold). |
 
 ### `artifacts/api-server/src/routes/native.ts`
 
