@@ -117,11 +117,21 @@ function scopeFileName(scope: ArtifactScope): string {
   return `project-${safeToken(scope.projectId)}.json`;
 }
 
-/** The on-disk file for a (type, scope) collection, or null when no OMNI_CONFIG_DIR (store disabled). */
+/** Resolve `parts` under the `<dir>/artifacts` base, or null if any component would escape it. A
+ *  path-injection barrier (defence in depth on top of `safeToken`): even if a token slipped a `..`
+ *  through, the resolved path is asserted to stay inside the artifacts tree before any fs call sees it. */
+function underArtifacts(dir: string, ...parts: string[]): string | null {
+  const base = path.resolve(dir, "artifacts");
+  const full = path.resolve(base, ...parts);
+  return full === base || full.startsWith(base + path.sep) ? full : null;
+}
+
+/** The on-disk file for a (type, scope) collection, or null when no OMNI_CONFIG_DIR (store disabled)
+ *  or the resolved path would escape the artifacts base. */
 function fileFor(type: string, scope: ArtifactScope): string | null {
   const dir = process.env["OMNI_CONFIG_DIR"]?.trim();
   if (!dir) return null;
-  return path.join(dir, "artifacts", safeToken(type), scopeFileName(scope));
+  return underArtifacts(dir, safeToken(type), scopeFileName(scope));
 }
 
 /** Whether the encrypted-JSON artifact store is available (an OMNI_CONFIG_DIR is configured). */
@@ -220,7 +230,8 @@ function scopeFromFileName(name: string): ArtifactScope | null {
 export function listAllArtifactCollections<T extends { id: string }>(type: string): { scope: ArtifactScope; items: T[] }[] {
   const dir = process.env["OMNI_CONFIG_DIR"]?.trim();
   if (!dir) return [];
-  const typeDir = path.join(dir, "artifacts", safeToken(type));
+  const typeDir = underArtifacts(dir, safeToken(type));
+  if (!typeDir) return [];
   let names: string[];
   try { names = fs.readdirSync(typeDir); } catch { return []; }
   const out: { scope: ArtifactScope; items: T[] }[] = [];

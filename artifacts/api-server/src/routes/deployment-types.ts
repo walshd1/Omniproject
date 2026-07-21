@@ -22,6 +22,7 @@ import { requireAnyRole } from "../lib/rbac";
 import { requireArtifactStore } from "../lib/artifact-store";
 import { readConfigCollection, writeOrgConfigCollection } from "../lib/scoped-config";
 import { recordRequestAudit } from "../lib/audit";
+import { isForbiddenKey } from "../lib/safe-json";
 
 const DEPLOYMENT_TYPE_CONFIG = "deployment-type";
 interface ActiveDeployment { deploymentType?: string; answers?: Record<string, string>; overrides?: Record<string, string> }
@@ -30,7 +31,7 @@ interface ActiveDeployment { deploymentType?: string; answers?: Record<string, s
 function strMap(v: unknown): Record<string, string> {
   const out: Record<string, string> = {};
   if (v && typeof v === "object" && !Array.isArray(v)) {
-    for (const [k, val] of Object.entries(v as Record<string, unknown>)) if (typeof val === "string") out[k] = val;
+    for (const [k, val] of Object.entries(v as Record<string, unknown>)) if (typeof val === "string" && !isForbiddenKey(k)) out[k] = val;
   }
   return out;
 }
@@ -53,7 +54,7 @@ router.post("/deployment-types/:id/resolve", (req, res) => {
   // Only string→string answers are honoured; anything else is dropped (the resolver defaults it).
   const answers: Record<string, string> = {};
   if (body.answers && typeof body.answers === "object" && !Array.isArray(body.answers)) {
-    for (const [k, v] of Object.entries(body.answers as Record<string, unknown>)) if (typeof v === "string") answers[k] = v;
+    for (const [k, v] of Object.entries(body.answers as Record<string, unknown>)) if (typeof v === "string" && !isForbiddenKey(k)) answers[k] = v;
   }
   const resolved = resolveDeploymentSetup(id, answers);
   if (!resolved) { res.status(404).json({ error: "unknown deployment type" }); return; }
