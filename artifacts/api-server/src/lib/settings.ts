@@ -1012,6 +1012,15 @@ const store: SettingsState = (() => {
 // path — a new field is automatically probed, no per-field test to remember.
 export const ALLOWED_KEYS = Object.keys(FIELD_DESCRIPTORS) as (keyof SettingsState)[];
 
+/**
+ * SCOPE-VARIABLE settings — the CONSERVATIVE allow-list of setting keys a programme/project may override for
+ * itself (governed by the delegation policy). These are reporting/prioritisation PRESENTATION choices with no
+ * security or egress implication — safe to differ per scope. Everything else (deployment profile, TLS, AI
+ * provider/egress, security, session, governance, webhooks, …) stays ORG-GLOBAL and is never scope-variable.
+ * Expand this set deliberately; never add a key that carries a secret, an egress target, or a capability grant.
+ */
+export const SCOPE_VARIABLE_SETTINGS: readonly (keyof SettingsState)[] = ["reportingCurrency", "fxRatePolicy", "priorityWeights"];
+
 // A FROZEN read snapshot of the store, rebuilt ONLY on write (updateSettings is the sole mutator).
 // getSettings() returns it directly: reads are hot (100+ call sites, several per request) while writes
 // are rare, so this removes a large per-call shallow-copy allocation. Frozen ⇒ a caller that tries to
