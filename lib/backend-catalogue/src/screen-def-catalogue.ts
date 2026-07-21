@@ -29,6 +29,7 @@ import userStories from "./screens/user-stories.json";
 // (a canvas + chart/table/register/metric/text panels that resolve to the primitive tree). Nothing special:
 // they seed and render through this same catalogue as every other screen; screen-primitives.test proves
 // their panels compose down to the primitive roots.
+import gtdOverview from "./screens/gtd-overview.json";
 import scrumOverview from "./screens/scrum-overview.json";
 import kanbanOverview from "./screens/kanban-overview.json";
 import scrumbanOverview from "./screens/scrumban-overview.json";
@@ -65,7 +66,7 @@ export const SCREEN_DEF_CATALOGUE: RawScreenDef[] = [
   budgetPlans, resourceAllocations, home, myWork, tasks, reports, programmes, programmeDetail,
   projects, projectDetail, explore, kanban, scrum, sprints, userStories, epics, burndown, gantt, prince2,
   raid, intake, projectGantt, riskRegister, raciMatrix, stakeholders, sapProjectCost,
-  scrumOverview, kanbanOverview, scrumbanOverview, waterfallOverview, prince2Overview, safeOverview,
+  gtdOverview, scrumOverview, kanbanOverview, scrumbanOverview, waterfallOverview, prince2Overview, safeOverview,
   grantTrackingOverview, volunteerRosterOverview, fundraisingPipelineOverview,
 ] as unknown as RawScreenDef[];
 

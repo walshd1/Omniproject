@@ -89,6 +89,49 @@ export const METHODOLOGIES_DATA: MethodologyDefinition[] = [
     "order": 70
   },
   {
+    "id": "gtd",
+    "label": "Getting Things Done (GTD)",
+    "docsUrl": "https://gettingthingsdone.com/",
+    "kind": "agile",
+    "capabilities": {
+      "iterations": false,
+      "board": true,
+      "wipLimits": false,
+      "phases": false,
+      "baseline": false,
+      "estimation": "none"
+    },
+    "tools": {
+      "states": [
+        "inbox",
+        "next",
+        "waiting",
+        "scheduled",
+        "someday",
+        "done"
+      ],
+      "ceremonies": [
+        "capture",
+        "clarify",
+        "organise",
+        "weekly-review",
+        "engage"
+      ]
+    },
+    "alsoProvides": [
+      {
+        "plane": "reports",
+        "note": "weekly review (stalled projects, waiting-for follow-ups)"
+      },
+      {
+        "plane": "screens",
+        "note": "next actions by context; weekly review"
+      }
+    ],
+    "notes": "Personal-productivity flow: capture to an inbox, clarify to a single next action per project, organise by context/energy, reflect in a weekly review, engage. Core business rule: every ACTIVE project must have a defined next action.",
+    "order": 5
+  },
+  {
     "id": "kanban",
     "label": "Kanban",
     "docsUrl": "https://kanban.university/kanban-guide/",
