@@ -152,6 +152,11 @@ overrides:
   # (GHSA-52cp-r559-cp3m: merge-key chains → quadratic CPU). Force the vulnerable range up to the
   # patched line; js-yaml is a dev/codegen-time YAML parser here, so a patch bump is low-risk.
   "js-yaml@>=4.0.0 <4.3.0": ">=4.3.0 <5.0.0"
+  # fast-uri 3.0.0–3.1.3 (via ajv, pulled by stryker mutation-testing + orval codegen devDeps) has a
+  # HIGH advisory (GHSA-v2hh-gcrm-f6hx: host confusion via a literal backslash authority delimiter).
+  # All install paths are dev/build tooling — never the production runtime — and 3.1.4 is a patch, so
+  # forcing the vulnerable range up to the patched line is low-risk.
+  "fast-uri@>=3.0.0 <3.1.4": ">=3.1.4 <4.0.0"
 
 allowBuilds:
   esbuild: true
