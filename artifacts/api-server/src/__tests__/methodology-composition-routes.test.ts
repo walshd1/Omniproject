@@ -62,3 +62,31 @@ test("PUT a malformed value (not null / not a string array) → 400", async () =
   const bad2 = await h.req("/methodology-composition", { method: "PUT", cookie: adminCookie(), body: { methodologyComposition: "nope" } });
   assert.equal(bad2.status, 400);
 });
+
+test("GET deployment/:id previews the one-click plan; unknown → 404", async () => {
+  const r = await h.req("/methodology-composition/deployment/gtd", { cookie: adminCookie() });
+  assert.equal(r.status, 200);
+  const plan = await json(r);
+  assert.ok(plan.compositionItemIds.includes("screen:gtd-overview"));
+  assert.equal(plan.ruleset.id, "gtd");
+  assert.equal(plan.invariants.length, 1);
+
+  const miss = await h.req("/methodology-composition/deployment/no-such", { cookie: adminCookie() });
+  assert.equal(miss.status, 404);
+});
+
+test("POST deploy/:id sets the composition + applies the ruleset in one click", async () => {
+  const r = await h.req("/methodology-composition/deploy/gtd", { method: "POST", cookie: adminCookie() });
+  assert.equal(r.status, 200);
+  const out = await json(r);
+  assert.equal(out.appliedRuleset, "gtd");
+  assert.ok(out.methodologyComposition.includes("screen:gtd-overview"));
+  // The composition persisted — a follow-up GET sees the deployed set.
+  const got = await json(await h.req("/methodology-composition", { cookie: adminCookie() }));
+  assert.ok(got.methodologyComposition.includes("ruleset:gtd"));
+});
+
+test("POST deploy/:id requires admin/PMO", async () => {
+  const r = await h.req("/methodology-composition/deploy/gtd", { method: "POST" });
+  assert.equal(r.status, 401);
+});
