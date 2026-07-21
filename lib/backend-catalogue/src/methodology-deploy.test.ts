@@ -14,6 +14,11 @@ test("GTD's one-click deploy plan turns on its screen + ruleset and carries its 
   assert.equal(dep!.invariants[0]!.kind, "every-active-project-has-next-action");
   assert.equal(dep!.summary.hasRuleset, true);
   assert.ok(dep!.summary.screens >= 1);
+  // The bundle carries the methodology's nomenclature (the GTD list names + relabelled vocab).
+  assert.deepEqual(dep!.nomenclature.states, ["inbox", "next", "waiting", "scheduled", "someday", "done"]);
+  assert.ok(dep!.nomenclature.ceremonies.includes("weekly-review"));
+  assert.ok(dep!.nomenclature.statuses.every((s) => typeof s.label === "string" && s.label.length > 0));
+  assert.ok(dep!.nomenclature.priorities.length > 0);
 });
 
 test("a methodology with a ruleset but no invariants still resolves (scrum)", () => {

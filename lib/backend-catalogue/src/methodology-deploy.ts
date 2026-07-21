@@ -1,6 +1,7 @@
 import { methodologyPack } from "./methodology-pack";
 import { getMethodology, type MethodologyInvariant } from "./methodology-catalogue";
 import { screenDefCatalogue } from "./screen-def-catalogue";
+import { statusesForMethodology, prioritiesForMethodology } from "./work-vocabulary";
 import type { ReferenceRuleset } from "./methodology-rulesets";
 
 /**
@@ -20,6 +21,16 @@ import type { ReferenceRuleset } from "./methodology-rulesets";
  * applies the ruleset, and registers the invariants; keeping resolution pure keeps that route a thin shell.
  */
 
+/** The NOMENCLATURE a methodology brings — its workflow states + ceremonies, and the status/priority tokens
+ *  it relabels (the vocab tokens tagged with this methodology, `{ id, label }`). This is the "words" half of
+ *  the bundle: deploying the methodology means a scope also speaks its language. */
+export interface MethodologyNomenclature {
+  states: string[];
+  ceremonies: string[];
+  statuses: Array<{ id: string; label: string }>;
+  priorities: Array<{ id: string; label: string }>;
+}
+
 export interface MethodologyDeployment {
   methodologyId: string;
   label: string;
@@ -29,6 +40,8 @@ export interface MethodologyDeployment {
   ruleset: ReferenceRuleset | null;
   /** The declarative cross-entity invariants this methodology asserts (surfaced as compliance signals). */
   invariants: MethodologyInvariant[];
+  /** The methodology's nomenclature — states/ceremonies + the status/priority tokens it relabels. */
+  nomenclature: MethodologyNomenclature;
   /** Counts for a one-click confirmation summary ("turns on 1 screen, 1 ruleset, 1 business rule"). */
   summary: { views: number; reports: number; screens: number; invariants: number; hasRuleset: boolean };
 }
@@ -57,6 +70,14 @@ export function resolveMethodologyDeployment(methodologyId: string): Methodology
     ...(pack.ruleset ? [`ruleset:${pack.ruleset.id}`] : []),
   ])];
   const invariants = methodology.invariants ?? [];
+  const nomenclature = {
+    states: [...methodology.tools.states],
+    ceremonies: [...methodology.tools.ceremonies],
+    // The status/priority tokens this methodology relabels — its tagged vocab entries (+ the neutral ones it
+    // inherits), as { id, label }. This is the "words" the deploy also lands.
+    statuses: statusesForMethodology(methodologyId).map((s) => ({ id: s.id, label: s.label })),
+    priorities: prioritiesForMethodology(methodologyId).map((p) => ({ id: p.id, label: p.label })),
+  };
 
   return {
     methodologyId,
@@ -64,6 +85,7 @@ export function resolveMethodologyDeployment(methodologyId: string): Methodology
     compositionItemIds,
     ruleset: pack.ruleset,
     invariants,
+    nomenclature,
     summary: {
       views: pack.views.length,
       reports: pack.reports.length,

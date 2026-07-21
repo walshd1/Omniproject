@@ -3346,8 +3346,10 @@ SCOPED CONFIG RESOLUTION — the reusable vehicle for the model migration (roadm
 | `resolveFloorConfig` | Fold `base` then every `layer`, base→leaf, clamping each layer to be no looser than what it inherits via `tighten(parent, child)` (which returns the child narrowed to the parent's ceiling). |
 | `tightenAllowlist` | The FLOOR tighten step for an ALLOWLIST (a set of permitted ids, or `null` = "no restriction / allow all"). |
 | `readConfigCollection` | The scope-folded value of a config-def-backed collection, or `fallback` when unset. |
-| `writeOrgConfigCollection` | Persist a collection as the ORG-scope config def `{ id, values: { value } }`. |
+| `scopedConfigCollectionId` | The stable storage id of a scope's config-collection def (one singleton row per logical config per scope). |
 | `orgConfigCollectionId` | The stable storage id of an org-scope config-collection def (one singleton row per logical config). |
+| `writeScopedConfigCollection` | Persist a collection as the config def `{ id, values: { value } }` AT `scope` (org / programme / project). |
+| `writeOrgConfigCollection` | Persist a collection at ORG scope (the common case) — a thin delegate over {@link writeScopedConfigCollection}. |
 | `resolveMethodologyComposition` | — |
 | `resolveErrorTelemetry` | — |
 | `sanitizeSchedulingValues` | Validate + normalise a partial scheduling `values` payload (the org admin's working-time edit) into a clean partial: hours/day in (0,24], working weekdays a non-empty set of integers 0–6 (a week with no working day would make the scheduler's day arithmetic non-terminating), holidays a de-duped sorted list of ISO dates. |
