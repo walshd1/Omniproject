@@ -16,7 +16,11 @@
  * `scheduling` config def, authored via the admin route), scope-layered over the code default. There is NO
  * settings-blob compatibility layer — the working-time policy lives entirely in the composition model.
  */
-import { mergeValue } from "@workspace/backend-catalogue";
+import {
+  mergeValue,
+  cleanDelegationPolicy, isDelegationAllowed, DEFAULT_DELEGATION_POLICY,
+  type DelegationPolicy, type DelegationArea, type DelegationLevel,
+} from "@workspace/backend-catalogue";
 import { listDefs, listSystemDefs, getDef, putDef, type StoredDef } from "./def-import";
 import { isTruthy } from "./env-config";
 
@@ -162,6 +166,38 @@ export function writeOrgConfigCollection(configId: string, name: string, value: 
 export const METHODOLOGY_COMPOSITION_ID = "methodology-composition";
 export function resolveMethodologyComposition(scopes: ConfigScopes = {}): string[] | null {
   return readConfigCollection<string[] | null>(METHODOLOGY_COMPOSITION_ID, null, scopes);
+}
+
+/** DELEGATION POLICY — the admin dial for how far down local variation is allowed per governed area (ruleset /
+ *  settings / methodology). Org-authored config def; defaults to fully-centralized (`org` everywhere) so nothing
+ *  is delegated until an admin opens it up. See {@link isDelegationAllowed} for the enforcement comparator. */
+export const DELEGATION_POLICY_ID = "delegation-policy";
+export function resolveDelegationPolicy(scopes: ConfigScopes = {}): DelegationPolicy {
+  return cleanDelegationPolicy(readConfigCollection<unknown>(DELEGATION_POLICY_ID, DEFAULT_DELEGATION_POLICY, scopes));
+}
+
+/** The delegation LEVEL a config-write scope corresponds to (org / programme / project). */
+export function delegationLevelOf(scope: ConfigWriteScope): DelegationLevel {
+  return scope.kind;
+}
+
+/** Assert a scoped write for `area` is permitted under the current delegation policy; throws a
+ *  {@link DelegationDeniedError} when the target scope is deeper than the admin allows. Org writes always pass. */
+export function assertDelegationAllowed(area: DelegationArea, scope: ConfigWriteScope): void {
+  const policy = resolveDelegationPolicy();
+  const target = delegationLevelOf(scope);
+  if (!isDelegationAllowed(policy[area], target)) {
+    throw new DelegationDeniedError(area, policy[area], target);
+  }
+}
+
+/** Thrown when a scoped write is denied by the delegation policy. Carries the area + allowed/attempted levels
+ *  so a route can render a 403 with a clear reason. */
+export class DelegationDeniedError extends Error {
+  constructor(readonly area: DelegationArea, readonly allowed: DelegationLevel, readonly attempted: DelegationLevel) {
+    super(`Local variation of ${area} is only allowed down to '${allowed}' scope — a '${attempted}'-scope change is not permitted.`);
+    this.name = "DelegationDeniedError";
+  }
 }
 
 /** ERROR TELEMETRY — the admin opt-in for internal client-error reporting (§0 security-classified: enabling it

@@ -18,8 +18,11 @@ let h: Harness;
 before(async () => { h = await startHarness(); });
 after(() => { h?.close(); fs.rmSync(CONFIG_DIR, { recursive: true, force: true }); });
 afterEach(async () => {
-  const { writeOrgConfigCollection } = await import("../lib/scoped-config");
+  const { writeOrgConfigCollection, DELEGATION_POLICY_ID } = await import("../lib/scoped-config");
+  const { DEFAULT_DELEGATION_POLICY } = await import("@workspace/backend-catalogue");
   writeOrgConfigCollection("methodology-composition", "Methodology composition", null);
+  // Reset the delegation policy to the centralized default so tests stay isolated.
+  writeOrgConfigCollection(DELEGATION_POLICY_ID, "Delegation policy", DEFAULT_DELEGATION_POLICY);
 });
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -103,7 +106,20 @@ test("POST deploy/:id requires admin/PMO", async () => {
   assert.equal(r.status, 401);
 });
 
-test("POST deploy/:id at a PROGRAMME scope writes there (nearer scope), leaving org untouched", async () => {
+test("a PROGRAMME-scope deploy is DENIED by the default (centralized) delegation policy", async () => {
+  const r = await h.req("/methodology-composition/deploy/gtd", { method: "POST", cookie: adminCookie(), body: { programmeId: "prog-9" } });
+  assert.equal(r.status, 403);
+  const out = await json(r);
+  assert.equal(out.code, "delegation_denied");
+  assert.equal(out.allowed, "org");
+  assert.equal(out.attempted, "programme");
+});
+
+test("POST deploy/:id at a PROGRAMME scope writes there once the admin opens delegation to programme", async () => {
+  // Admin opens local variation of methodology down to programme scope …
+  const set = await h.req("/admin/delegation-policy", { method: "PUT", cookie: adminCookie(), body: { policy: { methodologyComposition: "programme" } } });
+  assert.equal(set.status, 200);
+  // … now the programme deploy is permitted and lands at that scope.
   const r = await h.req("/methodology-composition/deploy/gtd", { method: "POST", cookie: adminCookie(), body: { programmeId: "prog-9" } });
   assert.equal(r.status, 200);
   const out = await json(r);
@@ -112,9 +128,9 @@ test("POST deploy/:id at a PROGRAMME scope writes there (nearer scope), leaving 
   // Honest caveat: GTD ships a ruleset, which the org-global engine applied ORG-WIDE — surfaced in scopeNote.
   assert.match(out.scopeNote, /org-wide/i);
   assert.match(out.scopeNote, /ruleset/i);
-  // Org (no scope) is still uncurated — the deploy landed on the programme, not the org.
-  const org = await json(await h.req("/methodology-composition", { cookie: adminCookie() }));
-  assert.equal(org.methodologyComposition, null);
+  // A PROJECT deploy is still denied — the policy only reached programme depth.
+  const proj = await h.req("/methodology-composition/deploy/gtd", { method: "POST", cookie: adminCookie(), body: { projectId: "pr-1" } });
+  assert.equal(proj.status, 403);
 });
 
 test("POST deploy/:id at the ORG scope carries no scopeNote (nothing is 'elsewhere')", async () => {

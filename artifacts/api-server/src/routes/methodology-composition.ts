@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { requireAnyRole } from "../lib/rbac";
 import { requireArtifactStore } from "../lib/artifact-store";
-import { resolveMethodologyComposition, writeOrgConfigCollection, writeScopedConfigCollection, METHODOLOGY_COMPOSITION_ID, type ConfigWriteScope } from "../lib/scoped-config";
+import { resolveMethodologyComposition, writeOrgConfigCollection, writeScopedConfigCollection, assertDelegationAllowed, DelegationDeniedError, METHODOLOGY_COMPOSITION_ID, type ConfigWriteScope } from "../lib/scoped-config";
 import { resolveMethodologyDeployment } from "@workspace/backend-catalogue";
 import { applyRuleset } from "../lib/ruleset";
 import { updateSettings, validatePatch } from "../lib/settings";
@@ -73,6 +73,13 @@ router.post("/methodology-composition/deploy/:id", requireAnyRole("pmo", "admin"
   let scope: ConfigWriteScope;
   try { scope = deployScope(req.body as { programmeId?: unknown; projectId?: unknown } | undefined); }
   catch (e) { res.status(400).json({ error: e instanceof Error ? e.message : "invalid deploy scope" }); return; }
+  // Governance gate: the admin's delegation policy caps how deep a methodology may vary. A deploy at a scope
+  // deeper than allowed is refused (403) — "set the level of local variation you'll allow, and no further".
+  try { assertDelegationAllowed("methodologyComposition", scope); }
+  catch (e) {
+    if (e instanceof DelegationDeniedError) { res.status(403).json({ error: e.message, code: "delegation_denied", area: e.area, allowed: e.allowed, attempted: e.attempted }); return; }
+    throw e;
+  }
   // 1) Turn on the methodology's surfaces (its tagged composition item ids) AT the target scope.
   writeScopedConfigCollection(METHODOLOGY_COMPOSITION_ID, "Methodology composition", plan.compositionItemIds, scope);
   // 2) Apply its reference ruleset (modes + field rules), if it ships one. (The ruleset engine is org-global.)

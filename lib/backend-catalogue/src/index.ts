@@ -25,6 +25,7 @@ export * from "./planes";
 export * from "./methodology-catalogue";
 export * from "./methodology-invariants";
 export * from "./methodology-deploy";
+export * from "./delegation-policy";
 export * from "./deployment-type-catalogue";
 export * from "./deployment-resolve";
 export * from "./deployment-settings";
