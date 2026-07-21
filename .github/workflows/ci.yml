@@ -219,13 +219,21 @@ jobs:
         run: pnpm install --frozen-lockfile --ignore-scripts
 
       - name: Unit tests (SPA) — shard ${{ matrix.shard }}/${{ strategy.job-total }}
-        # No --coverage: tests only, so memory stays flat (<200 MB) and the run is reliably green.
+        # No --coverage: the TESTS run flat (per-file heap <200 MB, resets every file). What still
+        # grows is native jsdom memory the reused vitest fork doesn't reclaim between files —
+        # ~100 s of environment setup/teardown across a shard's ~110 files. A full source audit
+        # confirmed the app code is leak-free (every timer/listener/observer/EventSource/subscription
+        # has matching teardown), so this is fork-level native churn, not a fixable per-file leak.
+        # At a 4 GB heap the three light shards cleared comfortably but the marginally-heaviest shard
+        # grazed the ceiling near the end and OOM'd; an 8 GB heap (runner has 16 GB) gives that shard
+        # ~4 GB over its peak. This can't relocate the way the coverage runs did — those OOM'd from
+        # per-file coverage-state retention; tests-only growth is slow and shard-flat.
         run: >-
           pnpm --filter @workspace/omniproject exec
           vitest run --reporter=default
           --shard=${{ matrix.shard }}/${{ strategy.job-total }}
         env:
-          NODE_OPTIONS: --max-old-space-size=4096
+          NODE_OPTIONS: --max-old-space-size=8192
 
   # Remaining unit suites that carry no coverage gate — grouped into one parallel job.
   # Skipped on direct pushes to main (see two-tier note).
