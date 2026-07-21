@@ -3,7 +3,7 @@ import { screen, fireEvent, waitFor } from "@testing-library/react";
 import { QueryClient } from "@tanstack/react-query";
 import { renderWithProviders } from "../../test/utils";
 import { DocHistory } from "./DocHistory";
-import type { WikiDoc } from "../../lib/wiki";
+import type { WikiDoc } from "./wiki";
 
 /** The version-history panel: list revisions, diff a revision vs the current doc, restore via the save path. */
 const CURRENT: WikiDoc = {

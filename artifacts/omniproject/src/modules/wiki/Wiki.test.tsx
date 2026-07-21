@@ -1,9 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { screen, fireEvent, within } from "@testing-library/react";
-import { renderWithProviders } from "../test/utils";
-import type { WikiDoc, WikiDocSummary } from "../lib/wiki";
-import type { FeatureStatus } from "../lib/features";
-import type { Role } from "../lib/auth";
+import { renderWithProviders } from "../../test/utils";
+import type { WikiDoc, WikiDocSummary } from "./wiki";
+import type { FeatureStatus } from "../../lib/features";
+import type { Role } from "../../lib/auth";
 
 /**
  * Wiki page — spaces → docs browsing, RBAC-gated authoring (create/edit/delete on a chosen storage
@@ -27,8 +27,8 @@ const h = vi.hoisted(() => ({
   toast: vi.fn(),
 }));
 
-vi.mock("../lib/wiki", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("../lib/wiki")>();
+vi.mock("./wiki", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("./wiki")>();
   return {
     ...actual, // keep the real wikiRoomId / wikiDocStorage / buildDocTree / flattenDocTree helpers
     useWikiSpaces: () => h.spacesQ,
@@ -40,22 +40,22 @@ vi.mock("../lib/wiki", async (importOriginal) => {
   };
 });
 
-vi.mock("../lib/auth", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("../lib/auth")>();
+vi.mock("../../lib/auth", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../../lib/auth")>();
   return { ...actual, useAuth: () => ({ data: { role: h.role } }) }; // roleAtLeast stays real
 });
 
-vi.mock("../lib/features", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("../lib/features")>();
+vi.mock("../../lib/features", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../../lib/features")>();
   return { ...actual, useFeatures: () => ({ data: h.features }) }; // featureEnabled stays real
 });
 
-vi.mock("../lib/presence", () => ({ usePresence: () => ({ peers: h.peers }) }));
+vi.mock("../../lib/presence", () => ({ usePresence: () => ({ peers: h.peers }) }));
 
 vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast: h.toast }) }));
 
 // Child components stubbed to the minimum surface each interaction needs.
-vi.mock("../components/wiki/DocEditor", () => ({
+vi.mock("./DocEditor", () => ({
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   DocEditor: ({ onSave, onCancel, saving }: any) => (
     <div data-testid="doc-editor">
@@ -65,7 +65,7 @@ vi.mock("../components/wiki/DocEditor", () => ({
     </div>
   ),
 }));
-vi.mock("../components/wiki/DocHistory", () => ({
+vi.mock("./DocHistory", () => ({
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   DocHistory: ({ onRestore, onClose }: any) => (
     <div data-testid="doc-history">
@@ -74,15 +74,15 @@ vi.mock("../components/wiki/DocHistory", () => ({
     </div>
   ),
 }));
-vi.mock("../components/wiki/DocRenderer", () => ({
+vi.mock("./DocRenderer", () => ({
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   DocRenderer: ({ blocks }: any) => <div data-testid="doc-renderer">{blocks?.length ?? 0} blocks</div>,
 }));
-vi.mock("../components/presence/PresenceAvatars", () => ({
+vi.mock("../../components/presence/PresenceAvatars", () => ({
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   PresenceAvatars: ({ peers }: any) => <div data-testid="presence-avatars">{peers.length}</div>,
 }));
-vi.mock("../components/issue-dialog/CommentsPanel", () => ({
+vi.mock("../../components/issue-dialog/CommentsPanel", () => ({
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   CommentsPanel: ({ roomId }: any) => <div data-testid="comments-panel">{roomId}</div>,
 }));

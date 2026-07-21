@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { History, RotateCcw, X } from "lucide-react";
-import { useWikiDocVersions, useWikiDocVersion, type WikiDoc, type WikiDocVersion } from "../../lib/wiki";
-import { diffDocBlocks, summarizeDiff, type BlockDiffStatus } from "../../lib/wiki-diff";
+import { useWikiDocVersions, useWikiDocVersion, type WikiDoc, type WikiDocVersion } from "./wiki";
+import { diffDocBlocks, summarizeDiff, type BlockDiffStatus } from "./wiki-diff";
 import { DocRenderer } from "./DocRenderer";
 
 /**

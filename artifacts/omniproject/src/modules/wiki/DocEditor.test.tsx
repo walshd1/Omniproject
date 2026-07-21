@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { DocEditor } from "./DocEditor";
-import type { WikiDocInput } from "../../lib/wiki";
+import type { WikiDocInput } from "./wiki";
 
 /** The block-based doc authoring surface: palette from the primitive store, edit blocks, emit WikiDocInput. */
 describe("DocEditor", () => {

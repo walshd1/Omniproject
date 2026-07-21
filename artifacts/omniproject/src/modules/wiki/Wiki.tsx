@@ -2,20 +2,20 @@ import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { BookOpen, Plus, Pencil, Trash2, History } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { useAuth, roleAtLeast } from "../lib/auth";
-import { useFeatures, featureEnabled } from "../lib/features";
-import { usePresence } from "../lib/presence";
+import { useAuth, roleAtLeast } from "../../lib/auth";
+import { useFeatures, featureEnabled } from "../../lib/features";
+import { usePresence } from "../../lib/presence";
 import {
   useWikiSpaces, useWikiDocs, useWikiDoc,
   useCreateWikiDoc, useSaveWikiDoc, useDeleteWikiDoc,
   wikiRoomId, wikiDocStorage, buildDocTree, flattenDocTree,
   type WikiDocInput, type WikiDocVersion, type WikiDocStorage,
-} from "../lib/wiki";
-import { DocRenderer } from "../components/wiki/DocRenderer";
-import { DocEditor } from "../components/wiki/DocEditor";
-import { DocHistory } from "../components/wiki/DocHistory";
-import { PresenceAvatars } from "../components/presence/PresenceAvatars";
-import { CommentsPanel } from "../components/issue-dialog/CommentsPanel";
+} from "./wiki";
+import { DocRenderer } from "./DocRenderer";
+import { DocEditor } from "./DocEditor";
+import { DocHistory } from "./DocHistory";
+import { PresenceAvatars } from "../../components/presence/PresenceAvatars";
+import { CommentsPanel } from "../../components/issue-dialog/CommentsPanel";
 
 /**
  * Wiki — the collaborative docs / knowledge base page (roadmap 2.1 slice 2). Browse spaces → docs, read a

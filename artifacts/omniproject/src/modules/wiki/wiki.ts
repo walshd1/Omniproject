@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { getJson, sendJson } from "./api";
+import { getJson, sendJson } from "../../lib/api";
 import type { DocBlock } from "@workspace/backend-catalogue";
 
 /**

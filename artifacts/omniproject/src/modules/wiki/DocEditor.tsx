@@ -5,8 +5,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { ArrowUp, ArrowDown, Trash2, Plus, Radio } from "lucide-react";
 import { CALLOUT_TONES, type DocBlock, type DocBlockType, type CalloutTone } from "@workspace/backend-catalogue";
 import { primitivesByFamily } from "../../lib/primitive-store";
-import { PrimitiveLibrary } from "../artifact/PrimitiveLibrary";
-import { descendantIds, type WikiDoc, type WikiDocInput, type WikiDocSummary } from "../../lib/wiki";
+import { PrimitiveLibrary } from "../../components/artifact/PrimitiveLibrary";
+import { descendantIds, type WikiDoc, type WikiDocInput, type WikiDocSummary } from "./wiki";
 import { useCollabBlocks } from "../../lib/collab";
 
 /**
