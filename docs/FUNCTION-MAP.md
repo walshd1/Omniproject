@@ -3482,7 +3482,7 @@ Inbound HTTP-server hardening (slowloris / slow-body defence).
 
 | Function | What it does |
 | --- | --- |
-| `configureServerTimeouts` | — |
+| `configureServerTimeouts` | Apply the inbound-HTTP hardening timeouts (slowloris defence) to a live server: request/headers/keep-alive windows from env with safe defaults, and an opt-in max-connection cap. |
 
 ### `artifacts/api-server/src/lib/session-crypto.ts`
 
