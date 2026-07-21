@@ -99,6 +99,51 @@ export async function filterTasksInScope<T extends ScopableTask>(req: Request, t
     : owns(t.assignee) || (t.collaborators ?? []).some(owns)));
 }
 
+/** The caller's in-scope project-id set (both raw and qualified id forms), resolved ONCE from the
+ *  broker-visible project list + the programme registry — or `null` for all-scope (everything visible).
+ *  The generic building block for scoping settings-stored, per-project collections (resource allocations,
+ *  budget plans, …) the same way {@link filterTasksInScope} scopes tasks. */
+export async function inScopeProjectIds(req: Request): Promise<Set<string> | null> {
+  const scope = scopeForReq(req);
+  if (scope.level === "all") return null;
+  const registry = getSettings().programmeRegistry;
+  const visible = await getProjects(req, { includeClosed: true });
+  const ids = new Set<string>();
+  for (const p of visible) {
+    if (scope.level === "programme"
+      && !inScope(scope, { programmeId: programmeIdOf(p), programmeIds: programmeIdsOf(p, registry) })) continue;
+    ids.add(String(p["id"]));
+    ids.add(qualifiedId(p));
+  }
+  return ids;
+}
+
+/** Filter per-project settings rows to only those the caller's scope permits (all-scope ⇒ unchanged). A
+ *  row with no/unknown projectId is treated as out of scope (fail-closed) for a non-all caller. */
+export async function filterRowsByProjectScope<T>(req: Request, rows: readonly T[], projectIdOf: (r: T) => string | null | undefined): Promise<T[]> {
+  const ids = await inScopeProjectIds(req);
+  if (ids === null) return [...rows];
+  return rows.filter((r) => { const pid = projectIdOf(r); return !!pid && ids.has(pid); });
+}
+
+/**
+ * Scope-safe write-merge for a per-project settings collection. A scoped (non-all) caller may only
+ * add/replace/remove rows for projects in THEIR scope; every existing OUT-of-scope row is preserved
+ * untouched. Any submitted row referencing a project outside the caller's scope is a boundary violation
+ * (returns `{ forbidden }`) — so a programme-A manager can never rewrite or inject programme-B's data.
+ * all-scope callers get a full replace (the prior behaviour).
+ */
+export async function mergeRowsByProjectScope<T>(
+  req: Request, existing: readonly T[], submitted: readonly T[], projectIdOf: (r: T) => string | null | undefined,
+): Promise<{ merged: T[] } | { forbidden: string }> {
+  const ids = await inScopeProjectIds(req);
+  if (ids === null) return { merged: [...submitted] }; // all-scope: unchanged full replace
+  const bad = submitted.find((r) => { const pid = projectIdOf(r); return !pid || !ids.has(pid); });
+  if (bad) return { forbidden: "a submitted row references a project outside your scope" };
+  const preserved = existing.filter((r) => { const pid = projectIdOf(r); return !pid || !ids.has(pid); });
+  return { merged: [...preserved, ...submitted] };
+}
+
 /**
  * Whether a caller may see/mutate a single task. A PROJECT-linked task follows {@link assertProjectScope}
  * (a manager may act on tasks in projects they can see). A PERSONAL task (no projectId) is private to its
