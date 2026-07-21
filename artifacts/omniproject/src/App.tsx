@@ -48,7 +48,7 @@ const Studio = lazy(() => import("./modules/studio").then((m) => ({ default: m.S
 const Definitions = lazy(() => import("./modules/definitions").then((m) => ({ default: m.Definitions })));
 const FieldMapping = lazy(() => import("./modules/field-mapping").then((m) => ({ default: m.FieldMapping })));
 const ScreenPage = lazy(() => import("./pages/ScreenPage").then((m) => ({ default: m.ScreenPage })));
-const Settings = lazy(() => import("./pages/Settings").then((m) => ({ default: m.Settings })));
+const Settings = lazy(() => import("./modules/settings").then((m) => ({ default: m.Settings })));
 const Configurator = lazy(() => import("./pages/Configurator").then((m) => ({ default: m.Configurator })));
 const Resources = lazy(() => import("./pages/Resources").then((m) => ({ default: m.Resources })));
 const Login = lazy(() => import("./pages/Login").then((m) => ({ default: m.Login })));

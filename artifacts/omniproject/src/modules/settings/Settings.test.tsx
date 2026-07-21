@@ -6,10 +6,10 @@ import {
   getGetSettingsQueryKey,
   type Settings as SettingsType,
 } from "@workspace/api-client-react";
-import { renderWithProviders, mockFetchRouter } from "../test/utils";
-import { A11yProvider } from "../lib/a11y-prefs";
-import { PlatformProvider } from "../lib/platform-context";
-import { Toaster } from "../components/ui/toaster";
+import { renderWithProviders, mockFetchRouter } from "../../test/utils";
+import { A11yProvider } from "../../lib/a11y-prefs";
+import { PlatformProvider } from "../../lib/platform-context";
+import { Toaster } from "../../components/ui/toaster";
 import { Settings } from "./Settings";
 
 // Settings.tsx assembles ~30 independent admin panels below its own form, each with its own
@@ -18,37 +18,37 @@ import { Settings } from "./Settings";
 // Settings.tsx's own logic — every one of these already has its own dedicated test file — so
 // they're stubbed out here to keep this file scoped to Settings.tsx's own form/submit/loading/
 // error/testAi behavior instead of playing whack-a-mole with every child's query shape.
-vi.mock("../components/PremiumAdmin", () => ({ PremiumAdmin: () => null }));
-vi.mock("../components/settings/LoggingSyncSettings", () => ({ LoggingSyncSettings: () => null }));
-vi.mock("../components/settings/TranslationLayer", () => ({ TranslationLayer: () => null }));
-vi.mock("../components/settings/BrokerLog", () => ({ BrokerLog: () => null }));
-vi.mock("../components/settings/A11yControls", () => ({ A11yControls: () => null }));
-vi.mock("../components/settings/PerformanceSettings", () => ({ PerformanceSettings: () => null }));
-vi.mock("../components/settings/GovernanceAdmin", () => ({ GovernanceAdmin: () => null }));
-vi.mock("../components/settings/ActionCatalogue", () => ({ ActionCatalogue: () => null }));
-vi.mock("../components/settings/AiProvidersAdmin", () => ({ AiProvidersAdmin: () => null }));
-vi.mock("../components/settings/GovernanceDashboard", () => ({ GovernanceDashboard: () => null }));
-vi.mock("../components/settings/DeploymentProfile", () => ({ DeploymentProfile: () => null }));
-vi.mock("../components/settings/FeatureModulesAdmin", () => ({ FeatureModulesAdmin: () => null }));
-vi.mock("../components/settings/RateCardAdmin", () => ({ RateCardAdmin: () => null }));
-vi.mock("../components/settings/RateGridAdmin", () => ({ RateGridAdmin: () => null }));
-vi.mock("../components/settings/IdentityMapAdmin", () => ({ IdentityMapAdmin: () => null }));
-vi.mock("../components/settings/CostRulesAdmin", () => ({ CostRulesAdmin: () => null }));
-vi.mock("../components/settings/CustomReportsAdmin", () => ({ CustomReportsAdmin: () => null }));
-vi.mock("../components/settings/CustomBackendAdmin", () => ({ CustomBackendAdmin: () => null }));
-vi.mock("../components/settings/ContentPagesAdmin", () => ({ ContentPagesAdmin: () => null }));
-vi.mock("../components/settings/FederatedPeersAdmin", () => ({ FederatedPeersAdmin: () => null }));
-vi.mock("../components/settings/PriorityWeightsAdmin", () => ({ PriorityWeightsAdmin: () => null }));
-vi.mock("../components/settings/GovernanceRulesAdmin", () => ({ GovernanceRulesAdmin: () => null }));
-vi.mock("../components/settings/ScopeUpliftAdmin", () => ({ ScopeUpliftAdmin: () => null }));
-vi.mock("../components/settings/FeatureGovernance", () => ({ FeatureGovernance: () => null }));
-vi.mock("../components/settings/FeatureGatingBulkAdmin", () => ({ FeatureGatingBulkAdmin: () => null }));
-vi.mock("../components/settings/FieldVisibilityAdmin", () => ({ FieldVisibilityAdmin: () => null }));
-vi.mock("../components/settings/SecurityKeys", () => ({ SecurityKeys: () => null }));
-vi.mock("../components/settings/ProvenanceDashboard", () => ({ ProvenanceDashboard: () => null }));
-vi.mock("../components/settings/NlCommand", () => ({ NlCommand: () => null }));
-vi.mock("../components/settings/HealthWatch", () => ({ HealthWatch: () => null }));
-vi.mock("../components/settings/Copilot", () => ({ Copilot: () => null }));
+vi.mock("../../components/PremiumAdmin", () => ({ PremiumAdmin: () => null }));
+vi.mock("../../components/settings/LoggingSyncSettings", () => ({ LoggingSyncSettings: () => null }));
+vi.mock("../../components/settings/TranslationLayer", () => ({ TranslationLayer: () => null }));
+vi.mock("../../components/settings/BrokerLog", () => ({ BrokerLog: () => null }));
+vi.mock("../../components/settings/A11yControls", () => ({ A11yControls: () => null }));
+vi.mock("../../components/settings/PerformanceSettings", () => ({ PerformanceSettings: () => null }));
+vi.mock("../../components/settings/GovernanceAdmin", () => ({ GovernanceAdmin: () => null }));
+vi.mock("../../components/settings/ActionCatalogue", () => ({ ActionCatalogue: () => null }));
+vi.mock("../../components/settings/AiProvidersAdmin", () => ({ AiProvidersAdmin: () => null }));
+vi.mock("../../components/settings/GovernanceDashboard", () => ({ GovernanceDashboard: () => null }));
+vi.mock("../../components/settings/DeploymentProfile", () => ({ DeploymentProfile: () => null }));
+vi.mock("../../components/settings/FeatureModulesAdmin", () => ({ FeatureModulesAdmin: () => null }));
+vi.mock("../../components/settings/RateCardAdmin", () => ({ RateCardAdmin: () => null }));
+vi.mock("../../components/settings/RateGridAdmin", () => ({ RateGridAdmin: () => null }));
+vi.mock("../../components/settings/IdentityMapAdmin", () => ({ IdentityMapAdmin: () => null }));
+vi.mock("../../components/settings/CostRulesAdmin", () => ({ CostRulesAdmin: () => null }));
+vi.mock("../../components/settings/CustomReportsAdmin", () => ({ CustomReportsAdmin: () => null }));
+vi.mock("../../components/settings/CustomBackendAdmin", () => ({ CustomBackendAdmin: () => null }));
+vi.mock("../../components/settings/ContentPagesAdmin", () => ({ ContentPagesAdmin: () => null }));
+vi.mock("../../components/settings/FederatedPeersAdmin", () => ({ FederatedPeersAdmin: () => null }));
+vi.mock("../../components/settings/PriorityWeightsAdmin", () => ({ PriorityWeightsAdmin: () => null }));
+vi.mock("../../components/settings/GovernanceRulesAdmin", () => ({ GovernanceRulesAdmin: () => null }));
+vi.mock("../../components/settings/ScopeUpliftAdmin", () => ({ ScopeUpliftAdmin: () => null }));
+vi.mock("../../components/settings/FeatureGovernance", () => ({ FeatureGovernance: () => null }));
+vi.mock("../../components/settings/FeatureGatingBulkAdmin", () => ({ FeatureGatingBulkAdmin: () => null }));
+vi.mock("../../components/settings/FieldVisibilityAdmin", () => ({ FieldVisibilityAdmin: () => null }));
+vi.mock("../../components/settings/SecurityKeys", () => ({ SecurityKeys: () => null }));
+vi.mock("../../components/settings/ProvenanceDashboard", () => ({ ProvenanceDashboard: () => null }));
+vi.mock("../../components/settings/NlCommand", () => ({ NlCommand: () => null }));
+vi.mock("../../components/settings/HealthWatch", () => ({ HealthWatch: () => null }));
+vi.mock("../../components/settings/Copilot", () => ({ Copilot: () => null }));
 
 function settings(over: Partial<SettingsType> = {}): SettingsType {
   return {
