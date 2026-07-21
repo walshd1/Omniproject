@@ -15,8 +15,8 @@
 // can't drift on WHICH statuses exist. Re-exported here so this module stays the gateway's single
 // import surface for status vocabulary; the native⇄canonical synonym/dialect behaviour below stays
 // above the seam.
-import { CANONICAL_STATUS, STATUS_CLASS, type CanonicalStatus, type StatusClass } from "@workspace/backend-catalogue";
-export { CANONICAL_STATUS, STATUS_CLASS, type CanonicalStatus, type StatusClass };
+import { CANONICAL_STATUS, STATUS_CLASS, canonicalStatusOf, type CanonicalStatus, type StatusClass } from "@workspace/backend-catalogue";
+export { CANONICAL_STATUS, STATUS_CLASS, canonicalStatusOf, type CanonicalStatus, type StatusClass };
 
 // Common native synonyms seen across backends, folded onto a canonical status so
 // completion detection works without a per-backend mapping. A backend can still
@@ -39,14 +39,16 @@ export interface StatusVocabulary {
 }
 
 /**
- * Resolve a native status to a canonical one: a backend's declared vocabulary
- * wins, then the shared synonyms, then null. Pure + data-driven — this is how a
- * vendor's status dialect is abstracted below the seam.
+ * Resolve a native status to a canonical one. Precedence: a backend's declared vocabulary wins; then an
+ * ADJUSTABLE status we defined ourselves (its `canonical` binding — so a custom/methodology status like a
+ * GTD "next" classifies onto its internal lifecycle anchor); then the shared cross-vendor synonyms; then
+ * null. Pure + data-driven — this is how any status (vendor-native OR our own adjustable one) is tied to
+ * the internal lifecycle the gateway reasons about.
  */
 export function normaliseStatus(native: string | null | undefined, vocab?: StatusVocabulary): CanonicalStatus | null {
   if (!native) return null;
   const key = native.trim().toLowerCase();
-  return vocab?.toCanonical[key] ?? STATUS_SYNONYMS[key] ?? null;
+  return vocab?.toCanonical[key] ?? canonicalStatusOf(native) ?? canonicalStatusOf(key) ?? STATUS_SYNONYMS[key] ?? null;
 }
 
 /** The lifecycle class of a native status; "open" when it can't be classified. */
