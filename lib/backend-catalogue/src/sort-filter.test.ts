@@ -130,6 +130,19 @@ test("applyView accepts a boolean `where` tree as well as a flat filter list", (
   assert.deepEqual(ids(out).sort(), [1, 3]);
 });
 
+test("array-membership ops: has / hasnt / hasAny on a list field (tags)", () => {
+  const rows: Row[] = [
+    { id: 1, tags: ["home", "errands"] },
+    { id: 2, tags: ["work"] },
+    { id: 3, tags: [] },
+    { id: 4, context: "home" }, // scalar field treated as a one-element set
+  ];
+  assert.deepEqual(ids(filterRows(rows, [{ field: "tags", op: "has", value: "home" }])), [1]);
+  assert.deepEqual(ids(filterRows(rows, [{ field: "tags", op: "hasnt", value: "home" }])).sort(), [2, 3, 4]);
+  assert.deepEqual(ids(filterRows(rows, [{ field: "tags", op: "hasAny", value: ["work", "errands"] }])).sort(), [1, 2]);
+  assert.deepEqual(ids(filterRows(rows, [{ field: "context", op: "has", value: "home" }])), [4]); // scalar as 1-set
+});
+
 test("applyView filters THEN sorts in one pass", () => {
   const rows: Row[] = [
     { id: 1, status: "todo", priority: "low" },

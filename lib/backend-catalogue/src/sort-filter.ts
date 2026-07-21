@@ -141,7 +141,12 @@ export function sortRows<T extends Row>(rows: readonly T[], keys: readonly SortK
 }
 
 // ── Filters — the shared predicate set (dates + numbers + ordinals compare the SAME way as the sort) ───────
-export type FilterOp = "eq" | "ne" | "in" | "nin" | "lt" | "lte" | "gt" | "gte" | "contains" | "truthy" | "falsy";
+export type FilterOp =
+  | "eq" | "ne" | "in" | "nin" | "lt" | "lte" | "gt" | "gte" | "contains" | "truthy" | "falsy"
+  // Array-membership: the field holds a LIST (tags, labels, collaborators). `has` → the list includes the
+  // value; `hasnt` → it does not; `hasAny` → the list intersects the value ARRAY. A scalar field is treated
+  // as a one-element list, so `has` also works as a case-insensitive equals on a plain field.
+  | "has" | "hasnt" | "hasAny";
 
 /** One filter predicate on a column. `op:"in"/"nin"` take an array; the ordering ops (`lt`…`gte`) compare
  *  number-aware then date-aware; `contains` is a case-insensitive substring; `truthy`/`falsy` ignore `value`.
@@ -162,6 +167,9 @@ function magnitude(p: Pick<FilterPredicate, "kind" | "levels">, v: unknown): num
   return asNumber(v) ?? asDateMs(v);
 }
 
+/** The membership set of a value: an array's stringified elements, or a scalar as a one-element set. */
+const memberSet = (v: unknown): string[] => (Array.isArray(v) ? v.map(str) : v == null || v === "" ? [] : [str(v)]);
+
 /** Evaluate one predicate against a row. */
 export function evalFilter(p: FilterPredicate, row: Row): boolean {
   const actual = row[p.field];
@@ -172,6 +180,9 @@ export function evalFilter(p: FilterPredicate, row: Row): boolean {
     case "ne": return str(actual) !== str(p.value);
     case "in": return Array.isArray(p.value) && p.value.map(str).includes(str(actual));
     case "nin": return Array.isArray(p.value) && !p.value.map(str).includes(str(actual));
+    case "has": return memberSet(actual).includes(str(p.value));
+    case "hasnt": return !memberSet(actual).includes(str(p.value));
+    case "hasAny": return Array.isArray(p.value) && p.value.map(str).some((v) => memberSet(actual).includes(v));
     case "contains": return str(actual).toLowerCase().includes(str(p.value).toLowerCase());
     case "lt": case "lte": case "gt": case "gte": {
       const a = magnitude(p, actual), b = magnitude(p, p.value);
