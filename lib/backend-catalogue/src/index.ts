@@ -27,6 +27,7 @@ export * from "./methodology-invariants";
 export * from "./methodology-deploy";
 export * from "./deployment-type-catalogue";
 export * from "./deployment-resolve";
+export * from "./deployment-settings";
 export * from "./persona-catalogue";
 export * from "./methodology-rulesets";
 export * from "./drill-to";

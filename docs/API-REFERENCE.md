@@ -362,13 +362,15 @@ THE DEFINITION IMPORTER routes (roadmap X.3), behind the default-off `defImporte
 
 ### `artifacts/api-server/src/routes/deployment-types.ts`
 
-DEPLOYMENT TYPES — the on-ramp archetypes (solo self-hoster, small team, managed cloud, enterprise on-prem, regulated self-host).
+Coerce an unknown into a string→string map (drops non-string values).
 
 | Method | Path | Gate | Description |
 | --- | --- | --- | --- |
 | GET | `/api/deployment-types` | — | — |
 | GET | `/api/deployment-types/:id` | — | — |
 | POST | `/api/deployment-types/:id/resolve` | — | — |
+| GET | `/api/deployment-type` | — | The org's ONE active deployment type (admin-gated) + the change function |
+| PUT | `/api/deployment-type` | requireAnyRole(admin) | — |
 
 ### `artifacts/api-server/src/routes/dev-mode.ts`
 

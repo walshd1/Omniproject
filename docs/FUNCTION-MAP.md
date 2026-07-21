@@ -4193,7 +4193,7 @@ THE DEFINITION IMPORTER routes (roadmap X.3), behind the default-off `defImporte
 
 ### `artifacts/api-server/src/routes/deployment-types.ts`
 
-DEPLOYMENT TYPES — the on-ramp archetypes (solo self-hoster, small team, managed cloud, enterprise on-prem, regulated self-host).
+Coerce an unknown into a string→string map (drops non-string values).
 
 ### `artifacts/api-server/src/routes/dev-mode.ts`
 
@@ -4806,6 +4806,16 @@ DEPLOYMENT RESOLVE — pure.
 | --- | --- |
 | `withDefaults` | The answers with every question's `default` filled in for anything the caller left out (unknown answer keys are ignored — only declared questions count). |
 | `resolveDeploymentSetup` | Resolve the known-good setup for a deployment type + answers. |
+
+### `lib/backend-catalogue/src/deployment-settings.ts`
+
+DEPLOYMENT SETTINGS — the settings a deployment type tags with a value.
+
+| Function | What it does |
+| --- | --- |
+| `deploymentSettings` | The deployment settings catalogue — every setting a deployment type can tag, with its options. |
+| `describeDeploymentSetup` | A resolved setup annotated with each setting's descriptor + the value the deployment type tagged it with — "settings tagged with the deployment type and the value it sets". |
+| `applyDeploymentOverrides` | Apply admin OVERRIDES onto a resolved setup — only PICKABLE settings whose new value is a valid option are accepted (so an admin can swap the broker/backend the type recommended, but can't set a non-pickable setting or an unknown value). |
 
 ### `lib/backend-catalogue/src/deployment-type-catalogue.ts`
 
