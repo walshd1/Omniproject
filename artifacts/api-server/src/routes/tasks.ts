@@ -36,6 +36,10 @@ async function maybeSpawnRecurrence(req: Request, completed: Task, patch: Record
   const ref = completed.dueDate ?? completed.startDate ?? completed.completedAt ?? new Date().toISOString();
   const nextDue = nextOccurrence(rule, ref);
   if (!nextDue) return null; // one-off / unparseable rule → nothing to spawn
+  // Idempotent spawn: a double-clicked "complete", a client retry, or two concurrent PATCH-to-done must not
+  // each create the next occurrence. Only the sweep that wins this atomic claim (keyed by the completed task
+  // + its next due date) spawns; the rest are no-ops.
+  if (!(await sharedKv.cas(`recur:spawned:${completed.id}:${nextDue}`, null, "1", { ttlMs: REMINDER_TTL_MS }))) return null;
   // Carry the defining fields forward; the next instance starts fresh (actionable, not done).
   const nextStart = completed.startDate && completed.dueDate
     ? nextOccurrence(rule, completed.startDate) // keep the same lead time when both dates were set
@@ -239,7 +243,9 @@ router.post("/tasks/reminders/sweep", requireRole("pmo"), (req, res) =>
       tasks,
       nowMs: Date.now(),
       isFired: async (key) => !!(await sharedKv.get(key)),
-      markFired: async (key) => { await sharedKv.set(key, "1", { ttlMs: REMINDER_TTL_MS }); },
+      // Atomic claim (set-if-absent) — only the sweep that wins delivers, so overlapping or multi-replica
+      // sweeps can't double-fire the same reminder.
+      claim: async (key) => sharedKv.cas(key, null, "1", { ttlMs: REMINDER_TTL_MS }),
       notify: (n, target) => void bus.publish({
         notification: { id: `rem-${crypto.randomUUID()}`, kind: n.kind, title: n.title, body: n.body, read: false, timestamp: Date.now() },
         ...(target.sub || target.email ? { target } : {}),
