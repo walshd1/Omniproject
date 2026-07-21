@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { screen, fireEvent, waitFor } from "@testing-library/react";
-import { renderWithProviders } from "../test/utils";
-import type { Role } from "../lib/auth";
+import { renderWithProviders } from "../../test/utils";
+import type { Role } from "../../lib/auth";
 
 /**
  * Whiteboards is the visual-canvas page: it composes many seams (whiteboard CRUD hooks, RBAC gates,
@@ -46,21 +46,21 @@ const mutateWith = (getMode: () => "ok" | "err", result?: (vars: unknown) => unk
 vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast }) }));
 
 // Keep the real RBAC ladder; only the session lookup is stubbed.
-vi.mock("../lib/auth", async (importActual) => {
-  const actual = await importActual<typeof import("../lib/auth")>();
+vi.mock("../../lib/auth", async (importActual) => {
+  const actual = await importActual<typeof import("../../lib/auth")>();
   return { ...actual, useAuth: () => ({ data: { role } }) };
 });
 
-vi.mock("../lib/features", () => ({
+vi.mock("../../lib/features", () => ({
   useFeatures: () => ({ data: [] }),
   featureEnabled: () => cursorsOn,
 }));
 
-vi.mock("../lib/whiteboard-cursors", () => ({
+vi.mock("./whiteboard-cursors", () => ({
   useLiveCursors: () => ({ cursors: [], publish: vi.fn(), live: cursorsOn }),
 }));
 
-vi.mock("../lib/whiteboard", () => ({
+vi.mock("./whiteboard", () => ({
   whiteboardRoomId: (id: string) => `board:${id}`,
   useWhiteboards: () => ({ data: boards, isError: boardsError }),
   useWhiteboard: (id?: string) => ({ data: id ? board : undefined }),
@@ -71,7 +71,7 @@ vi.mock("../lib/whiteboard", () => ({
 
 // Export plumbing is exercised for its call shape only (nothing leaves the browser).
 const downloadBlob = vi.fn();
-vi.mock("../lib/whiteboard-export", () => ({
+vi.mock("./whiteboard-export", () => ({
   sceneBounds: () => ({ x: 0, y: 0, w: 10, h: 10 }),
   toExportSvg: () => { if (exportThrow) throw exportThrow; return "<svg/>"; },
   svgToPngBlob: async () => new Blob(["png"], { type: "image/png" }),
@@ -85,11 +85,11 @@ vi.mock("@workspace/api-client-react", () => ({
   useCreateIssue: () => ({ isPending: false, mutate: mutateWith(() => issueMode) }),
 }));
 
-vi.mock("../components/native/UseNative", () => ({ UseNative: () => <div data-testid="use-native" /> }));
+vi.mock("../../components/native/UseNative", () => ({ UseNative: () => <div data-testid="use-native" /> }));
 
 // Editor stub: exposes getSvg via the imperative handle, plus buttons to drive onChange (dirty the
 // board) and onConvertSticky (start a sticky → work-item conversion) from a test.
-vi.mock("../components/whiteboard/CanvasEditor", async () => {
+vi.mock("./CanvasEditor", async () => {
   const { forwardRef, useImperativeHandle } = await import("react");
   const CanvasEditor = forwardRef((props: {
     onChange: (n: unknown[]) => void;

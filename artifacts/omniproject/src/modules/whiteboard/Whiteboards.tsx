@@ -2,18 +2,18 @@ import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { PenTool, Plus, Trash2, Save, Download } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { useAuth, roleAtLeast } from "../lib/auth";
+import { useAuth, roleAtLeast } from "../../lib/auth";
 import { useListProjects, useCreateIssue } from "@workspace/api-client-react";
 import type { CanvasElement } from "@workspace/backend-catalogue";
-import { useFeatures, featureEnabled } from "../lib/features";
+import { useFeatures, featureEnabled } from "../../lib/features";
 import {
   useWhiteboards, useWhiteboard, useCreateWhiteboard, useSaveWhiteboard, useDeleteWhiteboard,
   whiteboardRoomId, type WhiteboardStorage,
-} from "../lib/whiteboard";
-import { useLiveCursors } from "../lib/whiteboard-cursors";
-import { CanvasEditor, type CanvasEditorHandle } from "../components/whiteboard/CanvasEditor";
-import { sceneBounds, toExportSvg, svgToPngBlob, downloadBlob, exportFileStem } from "../lib/whiteboard-export";
-import { UseNative } from "../components/native/UseNative";
+} from "./whiteboard";
+import { useLiveCursors } from "./whiteboard-cursors";
+import { CanvasEditor, type CanvasEditorHandle } from "./CanvasEditor";
+import { sceneBounds, toExportSvg, svgToPngBlob, downloadBlob, exportFileStem } from "./whiteboard-export";
+import { UseNative } from "../../components/native/UseNative";
 
 /**
  * Whiteboards — the visual-canvas page (roadmap 2.3). Browse boards, open one into the native SVG editor

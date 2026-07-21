@@ -1,6 +1,6 @@
 import type { CanvasElement } from "@workspace/backend-catalogue";
-import { elementBounds } from "./canvas-geometry";
-import { slug } from "./slug";
+import { elementBounds } from "../../lib/canvas-geometry";
+import { slug } from "../../lib/slug";
 
 /**
  * Whiteboard EXPORT (roadmap 2.3). Turn the live canvas into a portable file — a standalone SVG (vector,

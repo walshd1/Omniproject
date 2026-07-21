@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import type { CanvasElement } from "@workspace/backend-catalogue";
-import { getJson, sendJson } from "./api";
-import { useFeatures, featureEnabled } from "./features";
+import { getJson, sendJson } from "../../lib/api";
+import { useFeatures, featureEnabled } from "../../lib/features";
 
 /**
  * Whiteboard / visual-canvas client hooks over `/api/whiteboards/*` (roadmap 2.3). A board's scene is a list

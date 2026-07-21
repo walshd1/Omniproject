@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { CanvasElements } from "./CanvasRenderer";
 import { STICKY_HEX, elementBounds, newElement, moveElement, updateElement, removeElement, newElementId } from "../../lib/canvas-geometry";
-import type { RemoteCursor } from "../../lib/whiteboard-cursors";
+import type { RemoteCursor } from "./whiteboard-cursors";
 
 /**
  * CanvasEditor — the interactive native whiteboard editor (roadmap 2.3 slice 2). It reimplements the standard
