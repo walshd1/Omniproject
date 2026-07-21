@@ -87,7 +87,11 @@ export function RecordList<T>({
               <div className="flex flex-wrap gap-2 text-[11px] text-muted-foreground mt-0.5">
                 <span className="uppercase tracking-wider">{r.status}</span>
                 {r.chips.map((c, i) => (
-                  <span key={i} className={[c.mono ? "font-mono" : "", c.tone ? CHIP_TONE_CLASS[c.tone] : ""].filter(Boolean).join(" ") || undefined}>{c.text}</span>
+                  <span
+                    key={i}
+                    className={[c.mono ? "font-mono" : "", !c.color && c.tone ? CHIP_TONE_CLASS[c.tone] : ""].filter(Boolean).join(" ") || undefined}
+                    style={c.color ? { color: c.color } : undefined}
+                  >{c.text}</span>
                 ))}
               </div>
             </div>

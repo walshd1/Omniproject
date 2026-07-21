@@ -15,6 +15,8 @@ export interface Chip {
   mono?: boolean;
   /** Optional semantic colour (urgency). Absent ⇒ the default muted chip. */
   tone?: ChipTone;
+  /** Optional explicit CSS colour (hex/hsl) — used for user-coloured tag chips. Wins over `tone`. */
+  color?: string;
 }
 
 /** Tailwind classes for each chip tone — theme-aware (light/dark). Used by every view that renders chips. */

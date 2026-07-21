@@ -5,6 +5,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useTaskComments, useAddComment, useTaskAttachments, useAddAttachment, useUpdateTask, PRIORITIES, type Task } from "../lib/tasks";
 import { usePriorityLabels } from "../lib/priority-labels";
 import { TaskNotes } from "./TaskNotes";
+import { TagEditor } from "./TagEditor";
 
 /**
  * Task detail — the fields plus the discussion thread and file attachment REFERENCES for one task,
@@ -67,6 +68,9 @@ export function TaskDetailDialog({ task, open, onOpenChange }: { task: Task | nu
             saving={updateTask.isPending}
             onSave={(next) => updateTask.mutate({ id: task.id, patch: { description: next } })}
           />
+
+          {/* Per-user tag colour + hierarchy overlay (personal, localStorage). */}
+          <TagEditor tags={task.tags ?? []} />
 
           {/* Comments */}
           <div>

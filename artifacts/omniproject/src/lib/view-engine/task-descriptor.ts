@@ -1,6 +1,8 @@
 import { useTasks, useUpdateTask, type Task } from "../tasks";
 import { usePriorityLabels } from "../priority-labels";
 import { taskAttention, type UrgencyBand } from "../task-urgency";
+import { useTagPrefs } from "../use-tag-prefs";
+import { resolveTagColor, type TagPrefs } from "../tag-prefs";
 import type { BoardColumn, Chip, ChipTone, EntityDescriptor, ViewRecord } from "./types";
 
 /**
@@ -30,10 +32,12 @@ const BAND_TONE: Partial<Record<UrgencyBand, ChipTone>> = { overdue: "overdue", 
 const DAY_LABEL = (n: number | null): string =>
   n === null ? "" : n < 0 ? `${-n}d overdue` : n === 0 ? "due today" : n === 1 ? "due tomorrow" : `due in ${n}d`;
 
-function toRecord(t: Task, today: Date): ViewRecord<Task> {
+function toRecord(t: Task, today: Date, tagPrefs: TagPrefs): ViewRecord<Task> {
   const chips: Chip[] = [];
   if (t.context) chips.push({ text: t.context, mono: true });
   if (t.assignee) chips.push({ text: t.assignee });
+  // User-coloured tag chips (per-user prefs overlay; default colour derived from the tag name).
+  for (const tag of t.tags ?? []) chips.push({ text: `#${tag}`, mono: true, color: resolveTagColor(tag, tagPrefs) });
   if (t.dueDate) {
     // Colour the due-date chip by urgency (from the shared pure rule), and label it relative to today.
     const att = taskAttention(t, today);
@@ -69,8 +73,9 @@ export const taskDescriptor: EntityDescriptor<Task> = {
   reopenStatus: "next",
   useRecords: (scope) => {
     const { data = [], isLoading, error } = useTasks(scope.projectId);
+    const tagPrefs = useTagPrefs((s) => s.prefs);
     const today = new Date(); // browser-edge reference; the urgency maths itself is pure (see task-urgency)
-    return { records: data.map((t) => toRecord(t, today)), isLoading, error };
+    return { records: data.map((t) => toRecord(t, today, tagPrefs)), isLoading, error };
   },
   useMove: () => {
     const update = useUpdateTask();

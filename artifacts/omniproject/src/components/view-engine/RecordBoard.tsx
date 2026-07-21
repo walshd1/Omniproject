@@ -89,7 +89,7 @@ export function RecordBoard<T>({
                   {(r.chips.length > 0 || (r.priority && r.priority !== "none")) && (
                     <div className="flex flex-wrap items-center gap-1.5 text-[10px] text-muted-foreground">
                       {r.chips.map((c, i) => (
-                        <span key={i} className={[c.mono ? "font-mono" : "", c.tone ? CHIP_TONE_CLASS[c.tone] : ""].filter(Boolean).join(" ") || undefined}>{i > 0 ? "· " : ""}{c.text}</span>
+                        <span key={i} className={[c.mono ? "font-mono" : "", !c.color && c.tone ? CHIP_TONE_CLASS[c.tone] : ""].filter(Boolean).join(" ") || undefined} style={c.color ? { color: c.color } : undefined}>{i > 0 ? "· " : ""}{c.text}</span>
                       ))}
                       {r.priority && r.priority !== "none" && <span className="uppercase border border-border px-1">{labelForPriority(r.priority)}</span>}
                     </div>
