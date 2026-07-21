@@ -1,3 +1,18 @@
+/**
+ * DEPLOYMENT TYPES — the on-ramp archetypes (solo self-hoster, small team, managed cloud, enterprise
+ * on-prem, regulated self-host). A user picks a type, answers a few questions, and gets a known-good setup.
+ * Modelled on the methodology catalogue; the catalogue + resolver are pure (backend-catalogue), so these are
+ * thin read/resolve endpoints.
+ *
+ *  - GET  /api/deployment-types            — the pickable list (label + description + questions).
+ *  - GET  /api/deployment-types/:id        — one type (with its questions).
+ *  - POST /api/deployment-types/:id/resolve — body `{ answers }` → the resolved known-good setup.
+ *
+ * The org runs exactly ONE deployment type at a time — an admin-gated org config with a CHANGE function:
+ *  - GET  /api/deployment-type — the org's active type + resolved (override-applied) setup + settings.
+ *  - PUT  /api/deployment-type — admin sets/changes it. Body `{ deploymentType, answers?, overrides? }`;
+ *      `overrides` may only re-pick PICKABLE settings (broker/backend/…) to a valid option.
+ */
 import { Router } from "express";
 import {
   deploymentTypeCatalogue, getDeploymentType, resolveDeploymentSetup,
@@ -20,21 +35,6 @@ function strMap(v: unknown): Record<string, string> {
   return out;
 }
 
-/**
- * DEPLOYMENT TYPES — the on-ramp archetypes (solo self-hoster, small team, managed cloud, enterprise
- * on-prem, regulated self-host). A user picks a type, answers a few questions, and gets a known-good setup.
- * Modelled on the methodology catalogue; the catalogue + resolver are pure (backend-catalogue), so these are
- * thin read/resolve endpoints.
- *
- *  - GET  /api/deployment-types            — the pickable list (label + description + questions).
- *  - GET  /api/deployment-types/:id        — one type (with its questions).
- *  - POST /api/deployment-types/:id/resolve — body `{ answers }` → the resolved known-good setup.
- *
- * The org runs exactly ONE deployment type at a time — an admin-gated org config with a CHANGE function:
- *  - GET  /api/deployment-type — the org's active type + resolved (override-applied) setup + settings.
- *  - PUT  /api/deployment-type — admin sets/changes it. Body `{ deploymentType, answers?, overrides? }`;
- *      `overrides` may only re-pick PICKABLE settings (broker/backend/…) to a valid option.
- */
 const router = Router();
 
 router.get("/deployment-types", (_req, res) => {
