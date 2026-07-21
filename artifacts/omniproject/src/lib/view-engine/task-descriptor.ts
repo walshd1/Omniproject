@@ -1,6 +1,7 @@
 import { useTasks, useUpdateTask, type Task } from "../tasks";
 import { usePriorityLabels } from "../priority-labels";
-import type { BoardColumn, Chip, EntityDescriptor, ViewRecord } from "./types";
+import { taskAttention, type UrgencyBand } from "../task-urgency";
+import type { BoardColumn, Chip, ChipTone, EntityDescriptor, ViewRecord } from "./types";
 
 /**
  * The TASK entity's view-engine descriptor. Tasks render through the generic engine exactly like
@@ -24,12 +25,24 @@ export const FLOW_COLUMNS: BoardColumn[] = [
   { status: "done", label: "Done" },
 ];
 
-function toRecord(t: Task): ViewRecord<Task> {
+/** Due-date chip tone + label by urgency band — overdue reads red, due-soon/today amber. */
+const BAND_TONE: Partial<Record<UrgencyBand, ChipTone>> = { overdue: "overdue", "due-today": "warn", "due-soon": "warn" };
+const DAY_LABEL = (n: number | null): string =>
+  n === null ? "" : n < 0 ? `${-n}d overdue` : n === 0 ? "due today" : n === 1 ? "due tomorrow" : `due in ${n}d`;
+
+function toRecord(t: Task, today: Date): ViewRecord<Task> {
   const chips: Chip[] = [];
   if (t.context) chips.push({ text: t.context, mono: true });
   if (t.assignee) chips.push({ text: t.assignee });
-  if (t.dueDate) chips.push({ text: `due ${t.dueDate}` });
+  if (t.dueDate) {
+    // Colour the due-date chip by urgency (from the shared pure rule), and label it relative to today.
+    const att = taskAttention(t, today);
+    const tone = BAND_TONE[att.band];
+    chips.push({ text: DAY_LABEL(att.daysUntilDue) || `due ${t.dueDate}`, ...(tone ? { tone } : {}) });
+  }
   if (t.waitingOn) chips.push({ text: `waiting on ${t.waitingOn}` });
+  // Flag an open task that's gone stale (untouched past the window).
+  if (taskAttention(t, today).untouched) chips.push({ text: "untouched", tone: "muted" });
   return { id: t.id, title: t.title, status: t.status, priority: t.priority ?? null, chips, raw: t };
 }
 
@@ -56,7 +69,8 @@ export const taskDescriptor: EntityDescriptor<Task> = {
   reopenStatus: "next",
   useRecords: (scope) => {
     const { data = [], isLoading, error } = useTasks(scope.projectId);
-    return { records: data.map(toRecord), isLoading, error };
+    const today = new Date(); // browser-edge reference; the urgency maths itself is pure (see task-urgency)
+    return { records: data.map((t) => toRecord(t, today)), isLoading, error };
   },
   useMove: () => {
     const update = useUpdateTask();

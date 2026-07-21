@@ -1,4 +1,4 @@
-import type { ViewRecord } from "../../lib/view-engine/types";
+import { CHIP_TONE_CLASS, type ViewRecord } from "../../lib/view-engine/types";
 
 /**
  * Generic record list — the entity-agnostic list view. Renders any normalised records with a
@@ -43,7 +43,7 @@ export function RecordList<T>({
               <div className="flex flex-wrap gap-2 text-[11px] text-muted-foreground mt-0.5">
                 <span className="uppercase tracking-wider">{r.status}</span>
                 {r.chips.map((c, i) => (
-                  <span key={i} className={c.mono ? "font-mono" : undefined}>{c.text}</span>
+                  <span key={i} className={[c.mono ? "font-mono" : "", c.tone ? CHIP_TONE_CLASS[c.tone] : ""].filter(Boolean).join(" ") || undefined}>{c.text}</span>
                 ))}
               </div>
             </div>
