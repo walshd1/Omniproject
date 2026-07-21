@@ -46,7 +46,7 @@ const Marketplace = lazy(() => import("./modules/marketplace").then((m) => ({ de
 const Registry = lazy(() => import("./modules/registry").then((m) => ({ default: m.Registry })));
 const Studio = lazy(() => import("./pages/Studio").then((m) => ({ default: m.Studio })));
 const Definitions = lazy(() => import("./pages/Definitions").then((m) => ({ default: m.Definitions })));
-const FieldMapping = lazy(() => import("./pages/FieldMapping").then((m) => ({ default: m.FieldMapping })));
+const FieldMapping = lazy(() => import("./modules/field-mapping").then((m) => ({ default: m.FieldMapping })));
 const ScreenPage = lazy(() => import("./pages/ScreenPage").then((m) => ({ default: m.ScreenPage })));
 const Settings = lazy(() => import("./pages/Settings").then((m) => ({ default: m.Settings })));
 const Configurator = lazy(() => import("./pages/Configurator").then((m) => ({ default: m.Configurator })));

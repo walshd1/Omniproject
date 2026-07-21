@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { screen, fireEvent, waitFor, within } from "@testing-library/react";
-import { renderWithProviders } from "../test/utils";
-import type { SupersetField, ResolvedMapping } from "../lib/field-mapping";
+import { renderWithProviders } from "../../test/utils";
+import type { SupersetField, ResolvedMapping } from "./field-mapping";
 
 /**
  * FieldMapping is the admin translation page: it renders the LIVE superset (loading/error/empty/table
@@ -35,13 +35,13 @@ const toast = vi.fn();
 
 vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast }) }));
 
-vi.mock("../lib/defs", () => ({
+vi.mock("../../lib/defs", () => ({
   useImportDef: () => ({ mutateAsync, isPending: importPending }),
 }));
 
 // Keep the real `refFromSuperset` (the triple builder under test); only the two query hooks are stubbed.
-vi.mock("../lib/field-mapping", async (importActual) => {
-  const actual = await importActual<typeof import("../lib/field-mapping")>();
+vi.mock("./field-mapping", async (importActual) => {
+  const actual = await importActual<typeof import("./field-mapping")>();
   return {
     ...actual,
     useLiveSuperset: () => ({

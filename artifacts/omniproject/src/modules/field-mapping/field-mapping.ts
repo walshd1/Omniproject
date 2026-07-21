@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { getJson } from "./api";
+import { getJson } from "../../lib/api";
 
 /**
  * Field-mapping data (roadmap §4.6) — the admin translation layer. `useLiveSuperset` is the set of fields an

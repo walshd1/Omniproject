@@ -1,8 +1,8 @@
 import { useMemo, useState } from "react";
 import { Link2, Trash2, Save, AlertTriangle, Database } from "lucide-react";
-import { DataState } from "../components/DataState";
-import { useLiveSuperset, useResolvedMapping, refFromSuperset, type SupersetField, type FieldRef } from "../lib/field-mapping";
-import { useImportDef } from "../lib/defs";
+import { DataState } from "../../components/DataState";
+import { useLiveSuperset, useResolvedMapping, refFromSuperset, type SupersetField, type FieldRef } from "./field-mapping";
+import { useImportDef } from "../../lib/defs";
 import { useToast } from "@/hooks/use-toast";
 
 /**
