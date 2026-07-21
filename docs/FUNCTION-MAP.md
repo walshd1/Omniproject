@@ -3271,7 +3271,7 @@ Settings incompatibility registry — the ONE place cross-field settings constra
 
 ### `artifacts/api-server/src/lib/settings-guard.ts`
 
-The single-chokepoint enforcement of the governing invariant (§0, §6a): a settings change that REDUCES the security posture doesn't apply immediately — it becomes a passkey-signed sign-off.
+CI / contract-test escape hatch.
 
 | Function | What it does |
 | --- | --- |

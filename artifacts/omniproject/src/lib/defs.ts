@@ -1,5 +1,15 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { getJson, sendJson } from "./api";
+import { useFeatureEnabled } from "./features";
+
+/** The whole `/api/defs/*` surface is the (default-off) `defImporter` feature module — the router is only
+ *  mounted when it's on. Read hooks gate their fetch on it so a features-off instance (e.g. a bare demo)
+ *  doesn't 404-spam the console for defs it can't have. Cached defs still read back; only fetching is gated. */
+export function useDefImporterEnabled(): boolean {
+  // Fail-closed-while-loading fetch gate (see useFeatureEnabled): don't fire the `/api/defs/*` request
+  // during the features-loading window, or it 404-spams the console on a features-off instance.
+  return useFeatureEnabled("defImporter");
+}
 
 /**
  * Definition importer client hooks over `/api/defs/*` (roadmap X.3). THE single validated write-path for any
@@ -28,10 +38,11 @@ export const defKey = (id: string) => ["def", id] as const;
 
 /** One stored def with its payload (for the editor). */
 export function useDef(id: string | undefined) {
+  const importerOn = useDefImporterEnabled();
   return useQuery({
     queryKey: defKey(id ?? ""),
     queryFn: () => getJson<StoredDef>(`/api/defs/${encodeURIComponent(id!)}`),
-    enabled: !!id,
+    enabled: !!id && importerOn,
     staleTime: 5_000,
   });
 }
@@ -42,9 +53,11 @@ export function useDefs(kind?: DefKind, projectId?: string) {
   if (kind) qs.set("kind", kind);
   if (projectId) qs.set("projectId", projectId);
   const suffix = qs.toString();
+  const enabled = useDefImporterEnabled();
   return useQuery({
     queryKey: [...defsKey, kind ?? null, projectId ?? null] as const,
     queryFn: () => getJson<StoredDefMeta[]>(`/api/defs${suffix ? `?${suffix}` : ""}`),
+    enabled,
     staleTime: 15_000,
   });
 }
@@ -56,9 +69,11 @@ export function useResolvedDefs<T = unknown>(kind: DefKind, projectId?: string, 
   if (projectId) qs.set("projectId", projectId);
   if (programmeId) qs.set("programmeId", programmeId);
   const suffix = qs.toString();
+  const enabled = useDefImporterEnabled();
   return useQuery({
     queryKey: [...defsKey, "resolved", kind, projectId ?? null, programmeId ?? null] as const,
     queryFn: () => getJson<Array<StoredDef & { payload: T }>>(`/api/defs/resolved/${encodeURIComponent(kind)}${suffix ? `?${suffix}` : ""}`),
+    enabled,
     staleTime: 15_000,
   });
 }
@@ -87,9 +102,11 @@ export function useActiveDefs(projectId?: string, programmeId?: string) {
   if (projectId) qs.set("projectId", projectId);
   if (programmeId) qs.set("programmeId", programmeId);
   const suffix = qs.toString();
+  const enabled = useDefImporterEnabled();
   return useQuery({
     queryKey: [...defsKey, "active", projectId ?? null, programmeId ?? null] as const,
     queryFn: () => getJson<Record<string, ResolvedBinding>>(`/api/defs/active${suffix ? `?${suffix}` : ""}`),
+    enabled,
     staleTime: 15_000,
   });
 }

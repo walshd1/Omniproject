@@ -50,7 +50,7 @@ export function NewTaskDialog({ open, onOpenChange }: { open: boolean; onOpenCha
   const { data: members } = useListProjectMembers(form.projectId || "", {
     query: { enabled: !!form.projectId, queryKey: getListProjectMembersQueryKey(form.projectId) },
   });
-  const assignable = (members ?? []).filter((m) => m.access === "write");
+  const assignable = (Array.isArray(members) ? members : []).filter((m) => m.access === "write");
 
   const titleError = form.title.trim() ? "" : "Title is required";
   const projectError = form.projectId ? "" : "A task must belong to a project";

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Play, Square, Timer as TimerIcon } from "lucide-react";
-import { useFeatures, featureEnabled } from "../lib/features";
+import { useFeatureEnabled } from "../lib/features";
 import { useTimer, useStartTimer, useStopTimer, formatElapsed } from "../lib/live-timer";
 import { useToast } from "@/hooks/use-toast";
 
@@ -10,8 +10,11 @@ import { useToast } from "@/hooks/use-toast";
  * nothing unless the `timeTracking` feature module is enabled. Compact enough to sit on a page header.
  */
 export function TimerWidget({ defaultProjectId = "" }: { defaultProjectId?: string }) {
-  const { data: features } = useFeatures();
-  const { data: state } = useTimer();
+  // Gate the fetch (not just the render) on the feature — the /api/timer route is only mounted when
+  // timeTracking is on, so an unconditional fetch 404-spams the console on every page (this sits in the
+  // shell). Fail-closed-while-loading so it never races a 404 during the features-loading window.
+  const timeTrackingOn = useFeatureEnabled("timeTracking");
+  const { data: state } = useTimer(timeTrackingOn);
   const start = useStartTimer();
   const stop = useStopTimer();
   const { toast } = useToast();
@@ -26,7 +29,7 @@ export function TimerWidget({ defaultProjectId = "" }: { defaultProjectId?: stri
     return () => clearInterval(id);
   }, [state?.running]);
 
-  if (!featureEnabled(features, "timeTracking")) return null;
+  if (!timeTrackingOn) return null;
 
   const liveElapsed = (() => {
     if (!state?.running || !state.timer) return 0;
