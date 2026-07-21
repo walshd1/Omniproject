@@ -45,7 +45,7 @@ const Invoices = lazy(() => import("./modules/invoicing").then((m) => ({ default
 const Marketplace = lazy(() => import("./modules/marketplace").then((m) => ({ default: m.Marketplace })));
 const Registry = lazy(() => import("./modules/registry").then((m) => ({ default: m.Registry })));
 const Studio = lazy(() => import("./modules/studio").then((m) => ({ default: m.Studio })));
-const Definitions = lazy(() => import("./pages/Definitions").then((m) => ({ default: m.Definitions })));
+const Definitions = lazy(() => import("./modules/definitions").then((m) => ({ default: m.Definitions })));
 const FieldMapping = lazy(() => import("./modules/field-mapping").then((m) => ({ default: m.FieldMapping })));
 const ScreenPage = lazy(() => import("./pages/ScreenPage").then((m) => ({ default: m.ScreenPage })));
 const Settings = lazy(() => import("./pages/Settings").then((m) => ({ default: m.Settings })));

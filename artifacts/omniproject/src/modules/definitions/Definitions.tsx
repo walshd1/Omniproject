@@ -1,14 +1,14 @@
 import { useEffect, useState } from "react";
 import { Database, Trash2, Check, AlertTriangle, Save, ShieldCheck, Pencil, Lock } from "lucide-react";
-import { DataState } from "../components/DataState";
+import { DataState } from "../../components/DataState";
 import {
   useDefs, useDef, useValidateDef, useImportDef, useUpdateDef, useDeleteDef, useResolvedDefs, primitiveSlot,
   DEF_KINDS, type DefKind, type DefStorage, type StoredDefMeta,
-} from "../lib/defs";
-import { useDefPolicy, writableDefScopes } from "../lib/def-policy";
-import { useAuth } from "../lib/auth";
-import { safeParseJson } from "../lib/safe-json";
-import { DefBindingControl } from "../components/defs/DefBindingControl";
+} from "../../lib/defs";
+import { useDefPolicy, writableDefScopes } from "../../lib/def-policy";
+import { useAuth } from "../../lib/auth";
+import { safeParseJson } from "../../lib/safe-json";
+import { DefBindingControl } from "../../components/defs/DefBindingControl";
 import { useToast } from "@/hooks/use-toast";
 
 /**

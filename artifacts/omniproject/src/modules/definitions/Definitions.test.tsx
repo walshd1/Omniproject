@@ -1,9 +1,9 @@
 import { describe, it, expect, afterEach, vi } from "vitest";
 import { screen, fireEvent, waitFor } from "@testing-library/react";
 import { QueryClient } from "@tanstack/react-query";
-import { renderWithProviders, mockFetchRouter, resetFetchMock } from "../test/utils";
-import { defsKey, defKey, type StoredDefMeta } from "../lib/defs";
-import { Toaster } from "../components/ui/toaster";
+import { renderWithProviders, mockFetchRouter, resetFetchMock } from "../../test/utils";
+import { defsKey, defKey, type StoredDefMeta } from "../../lib/defs";
+import { Toaster } from "../../components/ui/toaster";
 import { Definitions } from "./Definitions";
 
 /** The Definitions (importer) page: list, JSON-parse guard, validate dry-run, and save gating. */
