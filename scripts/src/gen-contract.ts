@@ -27,7 +27,6 @@ import fs from "node:fs";
 import path from "node:path";
 import { REPO_ROOT as ROOT } from "./lib/repo-root";
 import { escapeTableCell } from "./lib/markdown";
-import { parseSourceFile } from "./lib/ts-ast";
 
 const SRC_DIR = path.join(ROOT, "artifacts/api-server/src");
 const OUT_SCHEMA = path.join(ROOT, "docs/contract/broker.v1.schema.json");
