@@ -1,8 +1,8 @@
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { CircleDot, ExternalLink } from "lucide-react";
-import { useAuth } from "../lib/auth";
-import { usePortalStatus } from "../lib/portal";
+import { useAuth } from "../../lib/auth";
+import { usePortalStatus } from "../../lib/portal";
 
 /**
  * Portal — the client-facing, read-only project status page (roadmap 2.2). Rendered BARE (no AppLayout nav

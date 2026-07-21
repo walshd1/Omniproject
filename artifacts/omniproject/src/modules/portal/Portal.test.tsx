@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { screen } from "@testing-library/react";
 import { QueryClient } from "@tanstack/react-query";
-import { renderWithProviders } from "../test/utils";
+import { renderWithProviders } from "../../test/utils";
 import { Portal } from "./Portal";
 
 /** The client-facing portal: a guest sees its one project's curated status; anyone else sees a notice. */

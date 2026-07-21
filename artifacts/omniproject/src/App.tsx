@@ -37,7 +37,7 @@ import { useRoutedScreens } from "./lib/org-screens";
 const Dashboards = lazy(() => import("./pages/Dashboards").then((m) => ({ default: m.Dashboards })));
 const ContentPages = lazy(() => import("./pages/ContentPages").then((m) => ({ default: m.ContentPages })));
 const Wiki = lazy(() => import("./pages/Wiki").then((m) => ({ default: m.Wiki })));
-const Portal = lazy(() => import("./pages/Portal").then((m) => ({ default: m.Portal })));
+const Portal = lazy(() => import("./modules/portal").then((m) => ({ default: m.Portal })));
 const Whiteboards = lazy(() => import("./pages/Whiteboards").then((m) => ({ default: m.Whiteboards })));
 const Proofs = lazy(() => import("./modules/proof").then((m) => ({ default: m.Proofs })));
 const Goals = lazy(() => import("./modules/goals").then((m) => ({ default: m.Goals })));
