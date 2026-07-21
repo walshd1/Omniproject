@@ -167,7 +167,9 @@ export function sanitiseValue(raw: string, policy: SanitisePolicy): string {
     switch (step) {
       case "trim": v = v.trim(); break;
       case "collapse-whitespace": v = v.replace(/\s+/g, " "); break;
-      case "strip-html": v = v.replace(/<[^>]*>/g, ""); break;
+      // `[^<>]` (not `[^>]`): excluding `<` from the tag body makes each unclosed `<` an O(1) failed
+      // match instead of super-linear backtracking (ReDoS). HTML tags can't contain `<`, so identical output.
+      case "strip-html": v = v.replace(/<[^<>]*>/g, ""); break;
       case "escape-html": v = escapeHtml(v); break;
       case "lowercase": v = v.toLowerCase(); break;
       case "numeric": { const m = v.match(/-?\d*\.?\d+/); v = m ? m[0] : ""; break; }
