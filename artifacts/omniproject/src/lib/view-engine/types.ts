@@ -106,4 +106,8 @@ export interface EntityDescriptor<T = unknown> {
   useBoardColumns?: () => BoardColumn[];
   /** OPTIONAL: display label for a status value (a hook returning the mapper). */
   useStatusLabel?: () => (s: string | null | undefined) => string;
+  /** OPTIONAL: a record's parent id (its subtask link). When present the LIST view renders a fold/unfold
+   *  subtask tree over it. `treeStorageKey` names the per-user fold store. */
+  parentOf?: (record: ViewRecord<T>) => string | null | undefined;
+  treeStorageKey?: string;
 }

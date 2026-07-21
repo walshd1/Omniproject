@@ -13,6 +13,8 @@ export interface Task {
   title: string;
   status: string;
   projectId?: string | null;
+  /** Parent task id (its subtask link), or null/absent for a top-level task. */
+  parentTaskId?: string | null;
   context?: string | null;
   waitingOn?: string | null;
   assignee?: string | null;

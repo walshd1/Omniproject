@@ -77,4 +77,7 @@ export const taskDescriptor: EntityDescriptor<Task> = {
     return (record, status) => { if (record.status !== status) update.mutate({ id: record.id, patch: { status } }); };
   },
   usePriorityLabel: () => usePriorityLabels().labelFor,
+  // Tasks carry a subtask link (parentTaskId) → the list view renders a fold/unfold subtask tree.
+  parentOf: (r) => r.raw.parentTaskId ?? null,
+  treeStorageKey: "task-tree-fold",
 };

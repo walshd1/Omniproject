@@ -84,6 +84,7 @@ export function EntityViews<T>({
       onToggleDone={(r) => move(r, descriptor.closedStatuses.includes(r.status) ? descriptor.reopenStatus : descriptor.doneStatus)}
       onOpen={onOpen}
       emptyMessage={emptyMessage}
+      {...(descriptor.parentOf ? { parentOf: descriptor.parentOf, treeStorageKey: descriptor.treeStorageKey ?? `${descriptor.entity}-tree-fold` } : {})}
     />
   );
 
