@@ -78,11 +78,13 @@ describe("App shell + routing", () => {
   it("resolves :programmeId from the URL and threads it through to ProgrammeDetail", async () => {
     go("/programmes/prog-42");
     render(<App />);
-    // AppLayout/ProgrammeDetail are mocked, so there's no real chunk fetch to wait on —
-    // the default findBy timeout is plenty (unlike the real-lazy-load tests above).
+    // AppLayout/ProgrammeDetail are mocked, but the page is hosted through the generic `ScreenPage`
+    // builder (id="programme-detail"), which IS lazy and NOT mocked — so this is the first test in the
+    // file to cold-import ScreenPage's chunk. Under istanbul coverage that instruments its whole
+    // transitive tree on first load (several seconds), so we lean on the generous global
+    // asyncUtilTimeout (see src/test/setup.ts) rather than the 1s default.
     expect(await screen.findByTestId("app-layout-stub")).toBeInTheDocument();
-    // The page is hosted through the generic ScreenPage builder (id="programme-detail") which threads the
-    // :programmeId route param onto the hosted component's props — an extra lazy layer, hence findBy.
+    // ScreenPage threads the :programmeId route param onto the hosted component's props.
     expect(await screen.findByTestId("programme-detail-stub")).toHaveTextContent("prog-42");
   });
 

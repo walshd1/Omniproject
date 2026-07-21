@@ -110,11 +110,23 @@ export function AppLayout({ children }: { children: ReactNode }) {
   // chord window if no follow-up key arrives.
   useEffect(() => {
     const CHORD_WINDOW_MS = 1000;
+    // The armed destination listener + its auto-disarm timer must be tracked so BOTH are cleaned up on
+    // unmount — otherwise an in-flight chord's setTimeout fires after the component (and, in a test, the
+    // jsdom document) is gone and throws "document is not defined". clearPending() cancels both.
+    let pendingTimer: ReturnType<typeof setTimeout> | undefined;
+    let pendingNextKey: ((ev: KeyboardEvent) => void) | undefined;
+    const clearPending = () => {
+      if (pendingTimer !== undefined) clearTimeout(pendingTimer);
+      if (pendingNextKey) document.removeEventListener("keydown", pendingNextKey);
+      pendingTimer = undefined;
+      pendingNextKey = undefined;
+    };
     const handleKeyDown = (e: KeyboardEvent) => {
       // Ignore shortcuts while typing in a field.
       if (isTypingInField()) return;
 
       if (e.key === "g") {
+        clearPending(); // supersede any still-armed chord before arming a fresh one
         const nextKey = (ev: KeyboardEvent) => {
           if (ev.key === "d") setLocation("/");
           if (ev.key === "p") setLocation("/projects");
@@ -122,15 +134,19 @@ export function AppLayout({ children }: { children: ReactNode }) {
           if (ev.key === "e") setLocation("/explore");
           if (ev.key === "s") setLocation("/settings");
           if (ev.key === "c") setLocation("/configurator");
-          document.removeEventListener("keydown", nextKey);
+          clearPending();
         };
+        pendingNextKey = nextKey;
         document.addEventListener("keydown", nextKey);
-        setTimeout(() => document.removeEventListener("keydown", nextKey), CHORD_WINDOW_MS);
+        pendingTimer = setTimeout(clearPending, CHORD_WINDOW_MS);
       }
     };
 
     document.addEventListener("keydown", handleKeyDown);
-    return () => document.removeEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("keydown", handleKeyDown);
+      clearPending();
+    };
   }, [setLocation]);
 
   // "?" opens the keyboard-shortcuts help. Guarded against typing in a field

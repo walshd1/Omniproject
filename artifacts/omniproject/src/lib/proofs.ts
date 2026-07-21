@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import type { Annotation, Deliverable, ProofDecision } from "@workspace/backend-catalogue";
 import { getJson, sendJson } from "./api";
+import { useFeatures, featureEnabled } from "./features";
 
 /**
  * Proofing / deliverable-review client hooks over `/api/proofs/*` (roadmap 2.4). A proof REFERENCES a
@@ -38,18 +39,22 @@ export const proofRoomId = (proofId: string, annotationId?: string) =>
 export const proofsKey = (projectId?: string) => ["proofs", projectId ?? "all"] as const;
 export const proofKey = (id: string) => ["proof", id] as const;
 
-/** The proofs (deliverable + annotations omitted — a listing), optionally scoped to a project. */
+/** The proofs (deliverable + annotations omitted — a listing), optionally scoped to a project. Gated on
+ *  the (default-off) `proofing` module — its router only mounts when the feature is on, so a features-off
+ *  instance would otherwise 404-spam the console for proofs it can't have. */
 export function useProofs(projectId?: string) {
   const qs = projectId ? `?projectId=${encodeURIComponent(projectId)}` : "";
-  return useQuery({ queryKey: proofsKey(projectId), queryFn: () => getJson<ProofMeta[]>(`/api/proofs${qs}`), staleTime: 15_000 });
+  const enabled = featureEnabled(useFeatures().data, "proofing");
+  return useQuery({ queryKey: proofsKey(projectId), queryFn: () => getJson<ProofMeta[]>(`/api/proofs${qs}`), enabled, staleTime: 15_000 });
 }
 
 /** One proof with its deliverable + annotations. */
 export function useProof(id: string | undefined) {
+  const enabled = featureEnabled(useFeatures().data, "proofing");
   return useQuery({
     queryKey: proofKey(id ?? ""),
     queryFn: () => getJson<Proof>(`/api/proofs/${encodeURIComponent(id!)}`),
-    enabled: !!id,
+    enabled: !!id && enabled,
     staleTime: 10_000,
   });
 }

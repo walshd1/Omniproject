@@ -523,6 +523,13 @@ export const VENDOR_SCHEMAS: Record<string, JsonSchema> = {
           "type": "string"
         }
       },
+      "methodologies": {
+        "type": "array",
+        "description": "Methodology TAGS this output belongs to (\"*\" or omitted = neutral / all). Admin/PMO-editable.",
+        "items": {
+          "type": "string"
+        }
+      },
       "notes": {
         "type": "string"
       }

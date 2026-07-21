@@ -20,3 +20,36 @@ queries:
 query-filters:
   - exclude:
       id: js/missing-rate-limiting
+  # js/insufficient-password-hash (CWE-916) — a STRUCTURAL false positive here: OmniProject has NO
+  # password authentication at all. Identity is entirely federated / passwordless (OIDC, SAML,
+  # OAuth2, magic-link, WebAuthn passkey), so there is no user password to slow-hash. Every site the
+  # query flags is one of:
+  #   - an HMAC-SHA256 message-authentication code for INTEGRITY/signing (audit-chain, provenance,
+  #     key-registry, session-key, broker-hmac, webhooks, field-cipher, rate-card, aws-sigv4, …),
+  #   - HKDF-SHA256 / SHA-256 KEY DERIVATION from a HIGH-ENTROPY master secret — never a human
+  #     passphrase (crypto-keys.deriveKey, config-crypto, vault-store). A production guard
+  #     (lib/session-secret-guard) rejects weak/default master secrets outside dev, so the KDF's
+  #     input keying material is strong by construction; a purpose-built password hash (bcrypt/
+  #     scrypt/argon2) is neither required nor appropriate for high-entropy key material.
+  #   - a content/integrity DIGEST (ETag, dedup id, canonical-JSON hash, key fingerprint),
+  #   - PKCE (spec-mandated S256 = SHA-256) or WebAuthn (SHA-256 per the WebAuthn spec).
+  # None of these hash a low-entropy secret, so the compensating control the query looks for does
+  # not apply. Excluding the query keeps the Security tab focused on real product code, exactly as
+  # with js/missing-rate-limiting above. If password auth is ever added, REMOVE this exclusion.
+  - exclude:
+      id: js/insufficient-password-hash
+
+# Analysis scope — do NOT scan test / bench / e2e sources. These are not shipped (zero production
+# attack surface) but generate a large class of false positives: e.g. a *.test.ts transport-seam
+# bridge that passes a url straight into fetch (js/request-forgery) where, in production, safeFetch()
+# runs assertEgressAllowed() BEFORE the transport (see lib/egress.ts — it blocks cloud-metadata,
+# link-local, RFC1918/loopback incl. DNS-rebinding, and non-http schemes). Excluding tests keeps the
+# Security tab focused on real product code, so a genuine High/Critical can't hide in test noise.
+paths-ignore:
+  - "**/*.test.ts"
+  - "**/*.test.tsx"
+  - "**/*.integration.test.ts"
+  - "**/__tests__/**"
+  - "**/*.bench.ts"
+  - "**/bench/**"
+  - "artifacts/omniproject/e2e/**"

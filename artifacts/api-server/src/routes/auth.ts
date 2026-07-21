@@ -396,8 +396,11 @@ router.get("/auth/callback", async (req, res) => {
   }
 
   if (req.query["error"]) {
+    // Log the provider-supplied error for diagnosis, but NEVER reflect it into the response body:
+    // res.send(string) defaults to text/html, so echoing an attacker-controlled query param would be
+    // reflected XSS (CWE-79). A generic message is enough for the end user.
     req.log.warn({ error: req.query["error"] }, "OIDC provider returned an error");
-    res.status(401).send(`SSO error: ${String(req.query["error"])}`);
+    res.status(401).send("SSO sign-in failed. Please try again.");
     return;
   }
 
@@ -543,8 +546,10 @@ router.get("/auth/oauth2/callback", async (req, res) => {
   const { state, verifier, returnTo, stepup, sub: stepUpSub } = JSON.parse(flowRaw) as { state: string; verifier: string; returnTo: string; stepup?: boolean; sub?: string };
 
   if (req.query["error"]) {
+    // Log for diagnosis but do NOT reflect the provider-supplied error into the HTML response body
+    // (res.send(string) → text/html ⇒ reflected XSS, CWE-79). Generic message for the user.
     req.log.warn({ error: req.query["error"] }, "OAuth2 provider returned an error");
-    res.status(401).send(`OAuth2 error: ${String(req.query["error"])}`);
+    res.status(401).send("OAuth2 sign-in failed. Please try again.");
     return;
   }
   if (typeof req.query["code"] !== "string") {

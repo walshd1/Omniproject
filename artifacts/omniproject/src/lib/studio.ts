@@ -1,5 +1,6 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { getJson, sendJson } from "./api";
+import { useFeatures, featureEnabled } from "./features";
 import type { PrimitiveDefShape } from "@workspace/backend-catalogue";
 
 /**
@@ -43,9 +44,12 @@ export interface GenerateInput {
 
 export const studioStatusKey = ["studio-status"] as const;
 
-/** Whether an AI provider is configured (the studio needs one). */
+/** Whether an AI provider is configured (the studio needs one). Gated on the (default-off) `studio`
+ *  module — its router only mounts when the feature is on, so a features-off instance would otherwise
+ *  404-spam the console for a studio it can't have. */
 export function useStudioStatus() {
-  return useQuery({ queryKey: studioStatusKey, queryFn: () => getJson<{ available: boolean }>("/api/studio/status"), staleTime: 60_000 });
+  const enabled = featureEnabled(useFeatures().data, "studio");
+  return useQuery({ queryKey: studioStatusKey, queryFn: () => getJson<{ available: boolean }>("/api/studio/status"), enabled, staleTime: 60_000 });
 }
 
 /** Generate (or iterate on) a candidate primitive bundle from a description. */
