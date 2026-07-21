@@ -4973,6 +4973,14 @@ GROUP any methodology-tagged definitions by methodology — generic over EVERY c
 | `neutralDefs` | The NEUTRAL defs — untagged or `"*"`, i.e. those that apply to every methodology (the "always shown" set). |
 | `artifactsForMethodology` | — |
 
+### `lib/backend-catalogue/src/methodology-invariants.ts`
+
+METHODOLOGY INVARIANTS — the engine behind a methodology's declarative business rules (see MethodologyInvariant).
+
+| Function | What it does |
+| --- | --- |
+| `evaluateMethodologyInvariants` | Evaluate every invariant a methodology declares against the portfolio snapshot, returning all breaches. |
+
 ### `lib/backend-catalogue/src/methodology-match.ts`
 
 The single predicate behind `reportsForMethodology` / `screensForMethodology` / `viewsForMethodology`: does an entry whose methodology tags are `tags` apply to methodology `id`?

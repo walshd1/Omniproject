@@ -128,6 +128,14 @@ export const METHODOLOGIES_DATA: MethodologyDefinition[] = [
         "note": "next actions by context; weekly review"
       }
     ],
+    "invariants": [
+      {
+        "id": "gtd-next-action",
+        "kind": "every-active-project-has-next-action",
+        "message": "Every active project must have a defined next action (GTD).",
+        "severity": "warn"
+      }
+    ],
     "notes": "Personal-productivity flow: capture to an inbox, clarify to a single next action per project, organise by context/energy, reflect in a weekly review, engage. Core business rule: every ACTIVE project must have a defined next action.",
     "order": 5
   },

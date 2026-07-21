@@ -23,6 +23,7 @@ export * from "./output-catalogue";
 export * from "./notification-catalogue";
 export * from "./planes";
 export * from "./methodology-catalogue";
+export * from "./methodology-invariants";
 export * from "./persona-catalogue";
 export * from "./methodology-rulesets";
 export * from "./drill-to";

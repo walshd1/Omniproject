@@ -27,6 +27,23 @@ export interface MethodologyCapabilities {
   estimation: "story-points" | "hours" | "t-shirt" | "none";
 }
 
+/**
+ * A declarative BUSINESS-RULE INVARIANT a methodology asserts about the WHOLE portfolio — a cross-entity
+ * check the write-time ruleset (single-payload, restrict-only) can't express. GTD's "every active project
+ * must have a next action" is the exemplar: it's a compliance SIGNAL (surfaced, not a write block), evaluated
+ * by {@link evaluateMethodologyInvariants}. The `kind` selects a shipped, code-backed checker; the def carries
+ * only the declaration (id + kind + message + severity), keeping the rule in the methodology FILE (data).
+ */
+export interface MethodologyInvariant {
+  id: string;
+  /** Which shipped checker enforces this (see METHODOLOGY_INVARIANT_KINDS). */
+  kind: string;
+  /** The human message shown when the invariant is breached. */
+  message: string;
+  /** How hard the breach reads — a hard "error" or a soft "warn" (default). */
+  severity?: "error" | "warn";
+}
+
 export interface MethodologyManifest {
   id: string;
   label: string;
@@ -35,6 +52,8 @@ export interface MethodologyManifest {
   capabilities: MethodologyCapabilities;
   /** Other planes this methodology also lights up. */
   alsoProvides?: CrossPlaneRef[];
+  /** Declarative cross-entity business rules this methodology asserts (see {@link MethodologyInvariant}). */
+  invariants?: MethodologyInvariant[];
   notes?: string;
 }
 
