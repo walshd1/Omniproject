@@ -96,6 +96,13 @@ router.post("/methodology-composition/deploy/:id", requireAnyRole("pmo", "admin"
     meta: { methodology: id, scope: scope.kind, items: plan.compositionItemIds.length, ruleset: plan.ruleset?.id ?? null, invariants: plan.invariants.length, settings: appliedSettings.length, settingsError },
   });
   const scopeKeys = scope.kind === "programme" ? { programmeId: scope.programmeId } : scope.kind === "project" ? { projectId: scope.projectId } : {};
+  // Honest caveat: the composition lands AT the chosen scope, but the ruleset + settings engines are
+  // org-global — deploying to a nearer scope still applies them org-wide. Surface it so a caller (and the
+  // UI) can warn, rather than silently changing the whole org from a "programme" action.
+  const orgWideApplied = (plan.ruleset ? ["ruleset"] : []).concat(appliedSettings.length ? ["settings"] : []);
+  const scopeNote = scope.kind !== "org" && orgWideApplied.length > 0
+    ? `The composition applied to this ${scope.kind}, but its ${orgWideApplied.join(" and ")} applied ORG-WIDE (those engines are org-global).`
+    : null;
   res.json({
     methodologyId: id,
     scope: scope.kind,
@@ -104,6 +111,7 @@ router.post("/methodology-composition/deploy/:id", requireAnyRole("pmo", "admin"
     invariants: plan.invariants,
     appliedSettings,
     ...(settingsError ? { settingsError } : {}),
+    ...(scopeNote ? { scopeNote } : {}),
   });
 });
 

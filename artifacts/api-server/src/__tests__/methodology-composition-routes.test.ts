@@ -109,9 +109,18 @@ test("POST deploy/:id at a PROGRAMME scope writes there (nearer scope), leaving 
   const out = await json(r);
   assert.equal(out.scope, "programme");
   assert.ok(out.methodologyComposition.includes("screen:gtd-overview"));
+  // Honest caveat: GTD ships a ruleset, which the org-global engine applied ORG-WIDE — surfaced in scopeNote.
+  assert.match(out.scopeNote, /org-wide/i);
+  assert.match(out.scopeNote, /ruleset/i);
   // Org (no scope) is still uncurated — the deploy landed on the programme, not the org.
   const org = await json(await h.req("/methodology-composition", { cookie: adminCookie() }));
   assert.equal(org.methodologyComposition, null);
+});
+
+test("POST deploy/:id at the ORG scope carries no scopeNote (nothing is 'elsewhere')", async () => {
+  const r = await h.req("/methodology-composition/deploy/gtd", { method: "POST", cookie: adminCookie() });
+  const out = await json(r);
+  assert.equal(out.scopeNote, undefined);
 });
 
 test("POST deploy/:id rejects naming both a programme AND a project → 400", async () => {

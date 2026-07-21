@@ -64,7 +64,7 @@ export function useDeployMethodology() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({ methodologyId, scope }: { methodologyId: string; scope?: DeployScope }) =>
-      sendJson<{ appliedRuleset: string | null; appliedSettings: string[] }>(
+      sendJson<{ appliedRuleset: string | null; appliedSettings: string[]; scopeNote?: string }>(
         `/api/methodology-composition/deploy/${encodeURIComponent(methodologyId)}`,
         scope ?? {}, "POST", "Failed to deploy the methodology",
       ),
