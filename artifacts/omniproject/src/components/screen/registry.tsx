@@ -7,6 +7,11 @@ import { ListPanel } from "./panels/ListPanel";
 import { ViewPanel } from "./panels/ViewPanel";
 import { GraphPanel } from "./panels/GraphPanel";
 import { MapPanel } from "./panels/MapPanel";
+import { ChartPanel } from "./panels/ChartPanel";
+import { ComponentPanel } from "./panels/ComponentPanel";
+import { WidgetPanel } from "./panels/WidgetPanel";
+import { RegisterPanel } from "./panels/RegisterPanel";
+import { FormPanel } from "./panels/FormPanel";
 
 /**
  * Panel-renderer registry — maps a panel `kind` to the ONE component that renders
@@ -21,11 +26,23 @@ export const PANEL_RENDERERS: Partial<Record<PanelKind, PanelComponent>> = {
   text: TextPanel,
   table: TablePanel,
   list: ListPanel,
+  // An EDITABLE data grid (manager+ can add/edit/delete + Save) over a settings collection — RACI,
+  // stakeholders, budget lines, allocations authored ON the screen. Viewers see it read-only.
+  register: RegisterPanel,
   // The bridge to the existing methodology views (board/Gantt/scrum/…) as panels.
   view: ViewPanel,
+  // Charts (bar/line/area/pie) drawn from object-rows through the shared ChartView renderer.
+  chart: ChartPanel,
   // New visual primitives — accessible data view today, rich rendering behind them.
   graph: GraphPanel,
   map: MapPanel,
+  // Hosts a full registered SPA page/component as a panel (the escape hatch for bespoke, interactive
+  // pages that would regress if rebuilt from the generic primitives). See screen-components.
+  component: ComponentPanel,
+  // Hosts any dashboard widget (self-contained, reads its own data) by type. See components/dashboard.
+  widget: WidgetPanel,
+  // An intake/request FORM authored in org config; a submission creates a work item via the broker.
+  form: FormPanel,
 };
 
 /** Whether a renderer exists for a panel kind (else it degrades to a placeholder). */

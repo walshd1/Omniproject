@@ -11,7 +11,7 @@ import { applyPreset, toggleItem, isEnabled, derivePresets, type Composition, ty
  * curation (the default). Only the org's selection is saved; the catalogues stay in code.
  */
 const KIND_LABEL: Record<CompositionKind, string> = {
-  report: "Reports", view: "Views", screen: "Screens", output: "Outputs", ruleset: "Rulesets",
+  report: "Reports", view: "Views", screen: "Screens", output: "Outputs", ruleset: "Rulesets", form: "Forms",
 };
 const KIND_ORDER: CompositionKind[] = ["report", "view", "screen", "output", "ruleset"];
 

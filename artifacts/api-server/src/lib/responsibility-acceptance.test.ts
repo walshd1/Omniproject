@@ -4,7 +4,7 @@ import crypto from "node:crypto";
 
 process.env["WEBAUTHN_RP_ID"] = "omni.test";
 process.env["WEBAUTHN_ORIGIN"] = "https://omni.test";
-process.env["SCIM_TOKEN"] = "test-scim-token"; // enable the IdP directory so offboarding voids an acceptance
+process.env["SCIM_TOKEN"] = "test-scim-token-000000000000"; // ≥ MIN_SCIM_TOKEN_LEN (24): enable the IdP directory so offboarding voids an acceptance
 
 const { registerCredential } = await import("./passkey");
 const { getSettings, updateSettings } = await import("./settings");

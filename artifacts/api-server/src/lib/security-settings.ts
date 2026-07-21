@@ -117,8 +117,16 @@ export const CHOICE_SETTINGS: readonly string[] = [
   // GovernanceConfig (feature toggles — functional, not the governance controls)
   "disabledFeatures", "enabledFeatures", "programmeFeatures", "projectFeatures",
   // PresentationConfig (all presentation)
-  "branding", "labelOverrides", "priorityLabels", "screenLayouts", "hiddenFields",
+  "screenLayouts",
   "savedViews", "dashboards", "customReports", "reportOverrides", "reports", "resourceAllocations", "budgetPlans", "methodologyComposition", "contentPages",
+  // Editable-screens config — org-authored screen defs/content + on-screen registers. All presentation:
+  // screen definitions, the on/off list, per-collection edit policy, the saved pivot views, and the RACI /
+  // stakeholder register content. None is a fail-closed security control (edit access is content
+  // authorization, tuned freely by admins), so each is a choice, not a sign-off-gated security setting.
+  "screenDefs", "disabledScreens", "collectionEditRoles", "panelViews", "raci", "stakeholders", "forms",
+  // Automation recipes — authored config; the security of what they DO is enforced at authoring + run time
+  // (RBAC gate + the workflow runner's no-silent-mutation invariant), not at the edit gate.
+  "automations", "templates",
   // UserConfig
   "userPrefs",
   // PlatformConfig

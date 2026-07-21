@@ -68,6 +68,41 @@ test("gracefulShutdown force-exits if the server never closes", async () => {
   assert.equal(exitCode, 1); // the timeout backstop fired
 });
 
+test("gracefulShutdown awaits the telemetry flush before exiting", async () => {
+  let flushed = false;
+  let exitCode: number | null = null;
+  gracefulShutdown({
+    server: { close: (cb) => cb?.() },
+    signal: "SIGTERM",
+    logger: fakeLogger(),
+    exit: (c) => { exitCode = c; },
+    drain: () => 0,
+    flush: async () => { await new Promise((r) => setImmediate(r)); flushed = true; },
+    timeoutMs: 1000,
+  });
+  assert.equal(exitCode, null); // exit is deferred until the async flush settles
+  await new Promise((r) => setImmediate(r));
+  await new Promise((r) => setImmediate(r));
+  assert.equal(flushed, true);
+  assert.equal(exitCode, 0);
+});
+
+test("gracefulShutdown still exits 0 when a flush rejects (best-effort)", async () => {
+  let exitCode: number | null = null;
+  gracefulShutdown({
+    server: { close: (cb) => cb?.() },
+    signal: "SIGTERM",
+    logger: fakeLogger(),
+    exit: (c) => { exitCode = c; },
+    drain: () => 0,
+    flush: async () => { throw new Error("exporter down"); },
+    timeoutMs: 1000,
+  });
+  await new Promise((r) => setImmediate(r));
+  await new Promise((r) => setImmediate(r));
+  assert.equal(exitCode, 0); // a failed flush never blocks a clean exit
+});
+
 test("closeAllClients ends every live SSE stream and forgets them", () => {
   let aClosed = false;
   let bClosed = false;

@@ -24,24 +24,32 @@ import { VoiceInput } from "./components/VoiceInput";
 
 // Layout (eager — it wraps every authenticated route)
 import { AppLayout } from "./components/layout/AppLayout";
+import { useRoutedScreens } from "./lib/org-screens";
 
 // Pages are code-split: each becomes its own chunk fetched on first visit, so the
 // initial load no longer pays for Reports' charts, the Gantt, etc. (named exports
 // → map to a default for React.lazy).
-const Home = lazy(() => import("./pages/Home").then((m) => ({ default: m.Home })));
-const MyWork = lazy(() => import("./pages/MyWork").then((m) => ({ default: m.MyWork })));
-const Tasks = lazy(() => import("./pages/Tasks").then((m) => ({ default: m.Tasks })));
+// The everyday pages are now hosted through the generic ScreenPage builder (via JSON screen defs +
+// the `component` primitive registry in components/screen/screen-components), so they are no longer
+// imported directly here — only the screens not yet migrated (Dashboards, ContentPages, Settings,
+// Configurator, Resources capacity, Explore, Login) keep a direct route.
 const Dashboards = lazy(() => import("./pages/Dashboards").then((m) => ({ default: m.Dashboards })));
 const ContentPages = lazy(() => import("./pages/ContentPages").then((m) => ({ default: m.ContentPages })));
-const Programmes = lazy(() => import("./pages/Programmes").then((m) => ({ default: m.Programmes })));
-const ProgrammeDetail = lazy(() => import("./pages/ProgrammeDetail").then((m) => ({ default: m.ProgrammeDetail })));
-const Projects = lazy(() => import("./pages/Projects").then((m) => ({ default: m.Projects })));
-const ProjectDetail = lazy(() => import("./pages/ProjectDetail").then((m) => ({ default: m.ProjectDetail })));
+const Wiki = lazy(() => import("./pages/Wiki").then((m) => ({ default: m.Wiki })));
+const Portal = lazy(() => import("./pages/Portal").then((m) => ({ default: m.Portal })));
+const Whiteboards = lazy(() => import("./pages/Whiteboards").then((m) => ({ default: m.Whiteboards })));
+const Proofs = lazy(() => import("./pages/Proofs").then((m) => ({ default: m.Proofs })));
+const Goals = lazy(() => import("./pages/Goals").then((m) => ({ default: m.Goals })));
+const Invoices = lazy(() => import("./pages/Invoices").then((m) => ({ default: m.Invoices })));
+const Marketplace = lazy(() => import("./pages/Marketplace").then((m) => ({ default: m.Marketplace })));
+const Registry = lazy(() => import("./pages/Registry").then((m) => ({ default: m.Registry })));
+const Studio = lazy(() => import("./pages/Studio").then((m) => ({ default: m.Studio })));
+const Definitions = lazy(() => import("./pages/Definitions").then((m) => ({ default: m.Definitions })));
+const FieldMapping = lazy(() => import("./pages/FieldMapping").then((m) => ({ default: m.FieldMapping })));
+const ScreenPage = lazy(() => import("./pages/ScreenPage").then((m) => ({ default: m.ScreenPage })));
 const Settings = lazy(() => import("./pages/Settings").then((m) => ({ default: m.Settings })));
 const Configurator = lazy(() => import("./pages/Configurator").then((m) => ({ default: m.Configurator })));
-const Reports = lazy(() => import("./pages/Reports").then((m) => ({ default: m.Reports })));
 const Resources = lazy(() => import("./pages/Resources").then((m) => ({ default: m.Resources })));
-const Explore = lazy(() => import("./pages/Explore").then((m) => ({ default: m.Explore })));
 const Login = lazy(() => import("./pages/Login").then((m) => ({ default: m.Login })));
 
 const queryClient = new QueryClient({
@@ -77,17 +85,20 @@ function ThemeInitializer() {
 }
 
 function Router() {
+  // Effective routed screens = built-in catalogue + the org's stored/overridden defs (merged). Generated
+  // as routes below, so an org-added screen (e.g. from a methodology bundle) becomes reachable with no code.
+  const routedScreens = useRoutedScreens();
   return (
     <Switch>
       <Route path="/login" component={Login} />
       <Route path="/">
-        <AppLayout><Home /></AppLayout>
+        <AppLayout><ScreenPage id="home" /></AppLayout>
       </Route>
       <Route path="/my-work">
-        <AppLayout><MyWork /></AppLayout>
+        <AppLayout><ScreenPage id="my-work" /></AppLayout>
       </Route>
       <Route path="/tasks">
-        <AppLayout><Tasks /></AppLayout>
+        <AppLayout><ScreenPage id="tasks" /></AppLayout>
       </Route>
       <Route path="/dashboards">
         <AppLayout><Dashboards /></AppLayout>
@@ -95,27 +106,83 @@ function Router() {
       <Route path="/content">
         <AppLayout><ContentPages /></AppLayout>
       </Route>
+      <Route path="/wiki">
+        <AppLayout><Wiki /></AppLayout>
+      </Route>
+      <Route path="/whiteboards">
+        <AppLayout><Whiteboards /></AppLayout>
+      </Route>
+      <Route path="/proofs">
+        <AppLayout><Proofs /></AppLayout>
+      </Route>
+      <Route path="/goals">
+        <AppLayout><Goals /></AppLayout>
+      </Route>
+      <Route path="/invoices">
+        <AppLayout><Invoices /></AppLayout>
+      </Route>
+      <Route path="/marketplace">
+        <AppLayout><Marketplace /></AppLayout>
+      </Route>
+      <Route path="/registry">
+        <AppLayout><Registry /></AppLayout>
+      </Route>
+      <Route path="/studio">
+        <AppLayout><Studio /></AppLayout>
+      </Route>
+      <Route path="/definitions">
+        <AppLayout><Definitions /></AppLayout>
+      </Route>
+      <Route path="/field-mapping">
+        <AppLayout><FieldMapping /></AppLayout>
+      </Route>
       <Route path="/programmes">
-        <AppLayout><Programmes /></AppLayout>
+        <AppLayout><ScreenPage id="programmes" /></AppLayout>
       </Route>
       <Route path="/programmes/:programmeId">
-        {(params) => <AppLayout><ProgrammeDetail programmeId={params.programmeId} /></AppLayout>}
+        {(params) => <AppLayout><ScreenPage id="programme-detail" params={{ programmeId: params.programmeId }} /></AppLayout>}
       </Route>
       <Route path="/projects">
-        <AppLayout><Projects /></AppLayout>
+        <AppLayout><ScreenPage id="projects" /></AppLayout>
+      </Route>
+      {/* Project-scoped sub-screens (JSON defs matching the backend screen ids), threaded with :projectId.
+          Listed before the :projectId detail route; wouter's single-segment param won't match these anyway. */}
+      <Route path="/projects/:projectId/gantt">
+        {(params) => <AppLayout><ScreenPage id="gantt" params={{ projectId: params.projectId }} /></AppLayout>}
+      </Route>
+      <Route path="/projects/:projectId/risks">
+        {(params) => <AppLayout><ScreenPage id="risk-register" params={{ projectId: params.projectId }} /></AppLayout>}
+      </Route>
+      <Route path="/projects/:projectId/raci">
+        {(params) => <AppLayout><ScreenPage id="raci-matrix" params={{ projectId: params.projectId }} /></AppLayout>}
+      </Route>
+      <Route path="/projects/:projectId/stakeholders">
+        {(params) => <AppLayout><ScreenPage id="stakeholders" params={{ projectId: params.projectId }} /></AppLayout>}
       </Route>
       <Route path="/projects/:projectId">
-        {(params) => <AppLayout><ProjectDetail projectId={params.projectId} /></AppLayout>}
+        {(params) => <AppLayout><ScreenPage id="project-detail" params={{ projectId: params.projectId }} /></AppLayout>}
+      </Route>
+      <Route path="/budgets">
+        <AppLayout><ScreenPage id="budget-plans" /></AppLayout>
+      </Route>
+      <Route path="/resource-planning">
+        <AppLayout><ScreenPage id="resource-allocations" /></AppLayout>
       </Route>
       <Route path="/reports">
-        <AppLayout><Reports /></AppLayout>
+        <AppLayout><ScreenPage id="reports" /></AppLayout>
       </Route>
       <Route path="/resources">
         <AppLayout><Resources /></AppLayout>
       </Route>
-      {/* Exploration mode is intentionally OUTSIDE the live AppLayout chrome. */}
+      {/* Exploration mode is intentionally OUTSIDE the live AppLayout chrome. Hosted through the generic
+          builder (bare, no header) so it too is a JSON screen def, but without the AppLayout wrapper. */}
       <Route path="/explore">
-        <Explore />
+        <ScreenPage id="explore" />
+      </Route>
+      {/* Client-facing guest portal — BARE (no AppLayout), like /explore: a guest must never see the app
+          chrome. Guests are bounced here from any AppLayout route (see AppLayout's guest guard). */}
+      <Route path="/portal">
+        <Portal />
       </Route>
       <Route path="/settings">
         <AppLayout><Settings /></AppLayout>
@@ -126,6 +193,14 @@ function Router() {
       <Route path="/setup">
         <Redirect to="/configurator" />
       </Route>
+      {/* Catalogue-owned artifact screens (JSON defs with a `route`, e.g. a methodology's Kanban board).
+          The route is always mounted so a deep-link resolves; nav visibility is what the methodology
+          composition gates (soft declutter, like the rest of the nav). */}
+      {routedScreens.map((s) => (
+        <Route key={s.id} path={s.route!}>
+          <AppLayout><ScreenPage id={s.id} /></AppLayout>
+        </Route>
+      ))}
       <Route component={NotFound} />
     </Switch>
   );

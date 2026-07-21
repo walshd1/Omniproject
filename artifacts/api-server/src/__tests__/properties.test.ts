@@ -151,14 +151,14 @@ test("rbac property: pmo/admin authorities are orthogonal, bounded, and union on
         const g = grantsFromClaims(claims, { isDemo: false });
         // authorities ⊆ {pmo, admin}; base is a real base rung.
         for (const a of g.authorities) assert.ok(a === "pmo" || a === "admin");
-        assert.ok(["viewer", "contributor", "manager"].includes(g.base));
+        assert.ok(["viewer", "contributor", "manager", "programmeManager"].includes(g.base));
         // Orthogonality: admin membership ⇔ a tech claim; pmo ⇔ a gov claim
         // (case-insensitive). Neither implies the other.
         const lc = claims.map((c) => c.toLowerCase());
         assert.equal(g.authorities.has("admin"), lc.includes("tech"));
         assert.equal(g.authorities.has("pmo"), lc.includes("gov"));
         // Any authority implies at least manager-level base.
-        if (g.authorities.size > 0) assert.equal(g.base, "manager");
+        if (g.authorities.size > 0) assert.equal(g.base, "programmeManager");
       },
     );
   } finally {

@@ -37,12 +37,3 @@ updates:
       dev-deps:
         dependency-type: development
         update-types: ["minor", "patch"]
-    ignore:
-      # 2.x -> 4.12.0 (a 46-package dev-deps batch) silently broke CI: the new major
-      # renamed every export (PanelGroup/Panel/PanelResizeHandle -> Group/Panel/Separator)
-      # and dropped the data-panel-group-direction attribute components/ui/resizable.tsx
-      # styles against. Held at 2.x until someone deliberately migrates that component to
-      # the new API (it currently has zero usages, so there was no test coverage to catch
-      # this at review time — only the typecheck did).
-      - dependency-name: "react-resizable-panels"
-        update-types: ["version-update:semver-major"]

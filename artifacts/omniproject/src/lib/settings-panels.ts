@@ -10,10 +10,11 @@ export const SETTINGS_PANEL_KEYS = [
   "brokerKinds", "closedProjects", "guidAliases", "selfHostCapabilities", "translationLayer", "brokerLog",
   "premium", "securityKeys", "nlCommand", "healthWatch", "copilot", "portfolioInsights", "estimateAssistant",
   "rebalancePanel", "provenanceDashboard", "deploymentProfile", "featureModules", "featureGovernance",
-  "rateCard", "scopeUplift", "rateGrid", "identityMap", "costRules", "customReports", "customBackend",
+  "rateCard", "scopeUplift", "rateGrid", "identityMap", "costRules", "budgetPlans", "resourceAllocations",
+  "raci", "stakeholders", "guestInvite", "forms", "automations", "templates", "screens", "customReports", "customBackend",
   "contentPages", "priorityWeights", "federatedPeers", "governanceRules", "fieldVisibility",
-  "governanceDashboard", "governance", "aiProviders", "actionCatalogue", "a11y", "calendarPush", "labels",
-  "priorityLabels", "viewBuilder", "methodologyComposer", "performance", "usageLimits",
+  "governanceDashboard", "governance", "roleMap", "customRoles", "defPolicy", "aiProviders", "actionCatalogue", "a11y", "calendarPush", "labels",
+  "priorityLabels", "viewBuilder", "methodologyComposer", "performance", "scheduling", "usageLimits",
 ] as const;
 
 export type SettingsPanelKey = (typeof SETTINGS_PANEL_KEYS)[number];

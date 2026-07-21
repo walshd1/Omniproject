@@ -12,7 +12,6 @@ import { DEPLOYMENT_PROFILES, setRuntimeProfile, type DeploymentProfile } from "
 import { evaluateConstraints } from "./settings-constraints";
 import { settingsPreset } from "./settings-presets";
 import type { BackendFieldMap } from "../broker/types";
-import { CANONICAL_PRIORITY } from "../broker/vocabulary";
 import type { GovernanceRule } from "./governance-rules";
 import { validatePredicate } from "./predicate";
 import { isValidCadence, type SnapshotCadence } from "../history/cadence";
@@ -25,12 +24,17 @@ import { validateWorkflows, WorkflowError, type WorkflowDef } from "./workflow";
 import { validateWorkflowAcceptances, ResponsibilityAcceptanceError, type WorkflowAcceptance } from "./responsibility-acceptance";
 import { validateResourceAllocations, ResourceAllocationError, type ResourceAllocation } from "./resource-allocation";
 import { validateBudgetPlans, BudgetPlanError, type BudgetPlan } from "./budget-plan";
+import { validateScreenDefs, ScreenDefError, type OrgScreenDef } from "./screen-def";
+import { validateRaci, RaciError, type RaciEntry } from "./raci";
+import { validateStakeholders, StakeholderError, type Stakeholder } from "./stakeholder";
+import { FormDefError, type FormDef } from "./form-def";
+import { validateAutomations, AutomationError } from "./automation";
+import { validateTemplates, TemplateError } from "./project-template";
+import type { AutomationRecipe, ProjectTemplate } from "@workspace/backend-catalogue";
 import { reportCatalogue, type ReportDefinition } from "@workspace/backend-catalogue";
 import { validateCustomFields, validateCustomFieldSources, CustomFieldError, type CustomField } from "./custom-fields";
-import { sanitizeBranding } from "./branding";
 import { sanitizeUserPrefs } from "./user-prefs";
 import { sanitizeGrant } from "./calendar-push";
-import { sanitizeLabels } from "./labels";
 import { isForbiddenKey, stripDangerousKeysDeep } from "./safe-json";
 import { validateFieldValidation, FieldValidationError, type FieldValidationRule } from "./field-validation";
 import { validateProgrammeRegistry, ProgrammeRegistryError, type ProgrammeRegistry } from "./programmes";
@@ -426,26 +430,20 @@ export interface GovernanceConfig {
 /** Presentation / curation config: branding, labels, screen layouts, saved views, dashboards,
  *  custom + built-in reports, content pages, hidden fields and the methodology composition. */
 export interface PresentationConfig {
-  /** White-label branding overrides (null/empty → product defaults). */
-  branding: BrandingConfig | null;
-  /** Company-nomenclature label overrides, keyed by i18n key. */
-  labelOverrides: Record<string, string>;
-  /** Admin/PMO custom display names for the canonical priority levels (canonical → label). Empty
-   *  ⇒ the canonical names. Distinct from labelOverrides (which is premium company-nomenclature). */
-  priorityLabels: Record<string, string>;
+  // NB these presentation configs are NOT settings keys — each moved into the composition model as a
+  // scope-layered config def (see lib/scoped-config + the matching lib/route):
+  //   • white-label `branding`            → lib/branding (env default beneath the org config def)
+  //   • company-nomenclature `labelOverrides` (`label-overrides`) → lib/labels
+  //   • org accessibility `accessibilityDefaults` (`accessibility-defaults`) → lib/user-prefs + routes/accessibility
+  //   • custom `priorityLabels` (`priority-labels`) → routes/priority-labels
   /**
    * Per-screen layout overrides (drag-arranged panel order / spans / hidden), keyed
    * by screen id. Presentation config — part of the snapshot/export so it travels in
    * the customer's config JSON. Never project data.
    */
   screenLayouts: Record<string, ScreenLayout>;
-  /**
-   * Admin/PMO view-curation: canonical field keys HIDDEN from view on top of what the backend makes
-   * available. The availability resolver subtracts these from the surfaced set, so a deployment can
-   * trim available-but-unwanted fields. Customer-level config — rides the snapshot/export so the
-   * curated view travels in the bundle — never project data. See lib/availability.
-   */
-  hiddenFields: string[];
+  // NB the view-curation hidden-field list is NOT a settings key — it moved into the composition model as a
+  // config-def-backed collection (`hidden-fields`, via settingsCollectionRouter's config mode; see lib/availability).
   /**
    * Named saved views (filters + sort + visible columns + grouping) a user can switch between.
    * Customer-level presentation config — rides the snapshot/export so saved views travel in the
@@ -486,6 +484,38 @@ export interface PresentationConfig {
   /** Multi-year / period budget PLANS — an editable time-phased budget per project (the planning side of
    *  financials, above actuals + forecast). Stored as JSON. See routes/budget-plans. */
   budgetPlans: BudgetPlan[];
+  /** RACI register — flat (task, role, responsibility) assignments; the RACI screen renders them. */
+  raci: RaciEntry[];
+  /** Stakeholder register — flat (name, role, influence, interest, engagement) rows; the Stakeholders
+   *  screen renders them. */
+  stakeholders: Stakeholder[];
+  /** Intake / request FORMS — admin/PMO-authored forms (typed fields + a target project); the `form` panel
+   *  renders them and each submission becomes a work item through the broker. See routes/forms. */
+  forms: FormDef[];
+  /** Automation RECIPES — user-authored "when X, do Y" rules that compile to the workflow engine. Authoring
+   *  and execution are RBAC-gated to what the author may edit. See routes/automations. */
+  automations: AutomationRecipe[];
+  /** Project TEMPLATES — reusable project blueprints (defaults + seed work items) instantiated via the
+   *  broker. See routes/templates. */
+  templates: ProjectTemplate[];
+  /** Org-authored SCREEN DEFINITIONS — a PMO's built-from-scratch or modified screens, stored in the
+   *  (encrypted) deployment config to OVERRIDE a shipped default (matched by id) or add net-new screens;
+   *  also the delivery vehicle for a new-methodology JSON bundle. The SPA merges these over its built-in
+   *  screen catalogue and renders them through the one generic builder. See routes/screen-defs. */
+  screenDefs: OrgScreenDef[];
+  /** Screen ids an admin/PMO has turned OFF for this deployment — hidden from nav and refused by the
+   *  builder (an off screen shows a "turned off" state, never a crash). Overriding vs disabling are the
+   *  two admin controls on the Screens admin panel. See routes/disabled-screens. */
+  disabledScreens: string[];
+  /** Per-collection EDIT policy for on-screen editable content (collectionKey → a role, or "readonly").
+   *  The default is user-editable; an admin/PMO raises the bar or locks a collection read-only. Enforced
+   *  server-side (lib/collection-edit-policy) and mirrored by the SPA's edit controls. */
+  collectionEditRoles: Record<string, string>;
+  /** Org-saved PANEL VIEWS — a named period/pivot preset (group + aggregation + filters) a user has saved
+   *  off a table/chart panel's control bar, scoped to a `screen`+`panel`, so a filtered view can be recalled
+   *  later. Shared, customer-level presentation config (rides the config-bundle snapshot); never project
+   *  data. Writes follow the collection edit-policy (default user-editable). See routes/panel-views. */
+  panelViews: PanelView[];
   /**
    * Methodology composition — the PMO/admin's curated set of visible artifact / output / ruleset ids,
    * assembled from one-click methodology presets and refined per item (so "some Scrum + some PRINCE2" is
@@ -515,6 +545,8 @@ export interface UserConfig {
 }
 
 /** Platform-level odds and ends: deployment profile, error telemetry opt-in, skills planning. */
+// NB the working-time policy for the scheduling engine is NOT a settings key — it moved into the composition
+// model as a scope-layered `scheduling` config def (see lib/scoped-config + routes/scheduling).
 export interface PlatformConfig {
   /** Deployment context chosen in the setup wizard (relaxes enterprise couplings by choice). */
   deploymentProfile?: DeploymentProfile;
@@ -579,6 +611,22 @@ export interface SavedView {
   groupBy?: string;
   /** Optional presentation styling for the rendered view (title/font/colours/background). */
   style?: ArtifactStyle;
+}
+
+/**
+ * A saved PANEL VIEW — a named pivot/period preset a user has captured off a table/chart panel's control
+ * bar. `screen`+`panel` scope it to the panel it was saved from; `state` is the exact control state
+ * (group dimension, aggregation, per-field filter selections) to re-apply. Shared, customer-level config.
+ */
+export interface PanelView {
+  id: string;
+  label: string;
+  /** The screen id the source panel lives on. */
+  screen: string;
+  /** The panel id within that screen. */
+  panel: string;
+  /** The control state to re-apply: group dimension, aggregation, and per-field filter selections. */
+  state: { groupBy: string; agg: string; filters: Record<string, string[]> };
 }
 
 /**
@@ -769,34 +817,6 @@ export interface ScreenLayout {
   spans?: Record<string, number>;
   /** Panel ids hidden from this screen. */
   hidden?: string[];
-}
-
-function brandingFromEnv(): BrandingConfig | null {
-  const b: BrandingConfig = {
-    appName: process.env["BRAND_APP_NAME"]?.trim() || null,
-    shortName: process.env["BRAND_SHORT_NAME"]?.trim() || null,
-    logoUrl: process.env["BRAND_LOGO_URL"]?.trim() || null,
-    primaryColor: process.env["BRAND_PRIMARY_COLOR"]?.trim() || null,
-    loginHeading: process.env["BRAND_LOGIN_HEADING"]?.trim() || null,
-    footerText: process.env["BRAND_FOOTER_TEXT"]?.trim() || null,
-    supportUrl: process.env["BRAND_SUPPORT_URL"]?.trim() || null,
-    fontFamily: process.env["BRAND_FONT_FAMILY"]?.trim() || null,
-  };
-  return Object.values(b).some(Boolean) ? b : null;
-}
-
-function labelsFromEnv(): Record<string, string> {
-  const raw = process.env["LABEL_OVERRIDES"]?.trim();
-  if (!raw) return {};
-  try {
-    const parsed = JSON.parse(raw) as Record<string, unknown>;
-    const out: Record<string, string> = {};
-    for (const [k, v] of Object.entries(parsed)) if (typeof v === "string") out[k] = v;
-    return out;
-  } catch (err) {
-    logger.warn({ err }, "LABEL_OVERRIDES is not valid JSON — ignoring, no label overrides seeded");
-    return {};
-  }
 }
 
 function webhooksFromEnv(): WebhookSubscription[] {
@@ -999,48 +1019,6 @@ const FIELD_DESCRIPTORS: { [K in keyof SettingsState]: FieldDescriptor<K> } = {
       return value;
     },
   },
-  branding: {
-    // Branding's fontFamily is injected into an inline style, so the bulk PATCH / config restore must run
-    // it through the SAME sanitizer as saveBranding (http(s) URLs, hex colour, safe font stack, length caps).
-    seed: () => brandingFromEnv(),
-    validate: (value) => {
-      if (value == null) return null;
-      try {
-        return sanitizeBranding(value);
-      } catch (e) {
-        throw new SettingsValidationError(e instanceof Error ? e.message : "invalid branding");
-      }
-    },
-  },
-  labelOverrides: {
-    seed: () => labelsFromEnv(),
-    validate: (value) => {
-      if (typeof value !== "object" || value == null || Array.isArray(value)) throw new SettingsValidationError("labelOverrides must be an object");
-      // Same sanitizer saveLabels uses (catalogue allow-list + length cap), so a bulk PATCH can't persist
-      // non-catalogue keys or unbounded copy.
-      try {
-        return sanitizeLabels(value);
-      } catch (e) {
-        throw new SettingsValidationError(e instanceof Error ? e.message : "invalid labelOverrides");
-      }
-    },
-  },
-  priorityLabels: {
-    seed: () => ({}),
-    validate: (value) => {
-      if (typeof value !== "object" || value == null || Array.isArray(value)) throw new SettingsValidationError("priorityLabels must be an object");
-      const clean: Record<string, string> = {};
-      for (const [k, val] of Object.entries(value as Record<string, unknown>)) {
-        if (!(CANONICAL_PRIORITY as readonly string[]).includes(k)) throw new SettingsValidationError(`priorityLabels key "${k}" is not a canonical priority`);
-        if (val === undefined || val === null || val === "") continue; // empty ⇒ use the canonical name
-        if (typeof val !== "string") throw new SettingsValidationError(`priorityLabels["${k}"] must be a string`);
-        const t = val.trim();
-        if (t.length > 40) throw new SettingsValidationError(`priorityLabels["${k}"] is too long (max 40)`);
-        if (t) clean[k] = t;
-      }
-      return clean;
-    },
-  },
   fieldRouting: {
     // Anti-collision (one source → one UI element, both ways) lives in field-routing; surface its error
     // as the standard settings 400, and persist the normalised (trimmed) map.
@@ -1126,7 +1104,6 @@ const FIELD_DESCRIPTORS: { [K in keyof SettingsState]: FieldDescriptor<K> } = {
   programmeFeatures: { seed: () => ({}), validate: shapeChecked((v) => validateScopeFeatureMap(v, "programmeFeatures")) },
   projectFeatures: { seed: () => ({}), validate: shapeChecked((v) => validateScopeFeatureMap(v, "projectFeatures")) },
   governanceRules: { seed: () => [], validate: shapeChecked((v) => validateGovernanceRules(v, "governanceRules")) },
-  hiddenFields: { seed: () => [], validate: stringArrayField("hiddenFields") },
   savedViews: { seed: () => [], validate: shapeChecked(validateSavedViews) },
   customReports: { seed: () => [], validate: shapeChecked(validateCustomReports) },
   reportOverrides: { seed: () => [], validate: shapeChecked(validateReportOverrides) },
@@ -1134,6 +1111,28 @@ const FIELD_DESCRIPTORS: { [K in keyof SettingsState]: FieldDescriptor<K> } = {
   reports: { seed: () => reportCatalogue() as unknown as ReportDefinition[], validate: shapeChecked(validateReports) },
   resourceAllocations: { seed: () => [], validate: normalisedBy((v) => validateResourceAllocations(v), ResourceAllocationError) },
   budgetPlans: { seed: () => [], validate: normalisedBy((v) => validateBudgetPlans(v), BudgetPlanError) },
+  screenDefs: { seed: () => [], validate: normalisedBy((v) => validateScreenDefs(v), ScreenDefError) },
+  disabledScreens: { seed: () => [], validate: stringArrayField("disabledScreens") },
+  collectionEditRoles: {
+    seed: () => ({}),
+    validate: (value) => {
+      if (typeof value !== "object" || value == null || Array.isArray(value)) throw new SettingsValidationError("collectionEditRoles must be an object");
+      const allowed = new Set(["viewer", "contributor", "manager", "pmo", "admin", "readonly"]);
+      const out: Record<string, string> = {};
+      for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+        if (isForbiddenKey(k)) continue;
+        if (typeof v !== "string" || !allowed.has(v)) throw new SettingsValidationError(`collectionEditRoles["${k}"] must be one of viewer, contributor, manager, pmo, admin, readonly`);
+        out[k] = v;
+      }
+      return out;
+    },
+  },
+  panelViews: { seed: () => [], validate: shapeChecked(validatePanelViews) },
+  forms: { seed: () => [], validate: normalisedBy((v) => { if (!Array.isArray(v)) throw new FormDefError("forms must be an array"); return v as FormDef[]; }, FormDefError) },
+  automations: { seed: () => [], validate: normalisedBy((v) => validateAutomations(v), AutomationError) },
+  templates: { seed: () => [], validate: normalisedBy((v) => validateTemplates(v), TemplateError) },
+  raci: { seed: () => [], validate: normalisedBy((v) => validateRaci(v), RaciError) },
+  stakeholders: { seed: () => [], validate: normalisedBy((v) => validateStakeholders(v), StakeholderError) },
   methodologyComposition: {
     seed: () => null,
     validate: (value) => {
@@ -1530,6 +1529,36 @@ function validateSavedViews(value: unknown): void {
       }
     }
     validateArtifactStyle((view as Record<string, unknown>)["style"], `saved view "${String(id)}"`);
+  }
+}
+
+/**
+ * Shape-validate saved PANEL VIEWS. Each needs a string id/label and a scoping screen+panel id, plus a
+ * `state` object whose `groupBy`/`agg` are strings and whose `filters` map field → an array of string
+ * values. Hardened because these are shared, customer-level config that ride the config bundle; a malformed
+ * or hostile entry must 400, never persist a shape a renderer could choke on.
+ */
+function validatePanelViews(value: unknown): void {
+  if (!Array.isArray(value)) throw new SettingsValidationError("panelViews must be an array");
+  const ids = new Set<string>();
+  for (const view of value) {
+    if (!view || typeof view !== "object") throw new SettingsValidationError("each panel view must be an object");
+    const { id, label, screen, panel, state } = view as Record<string, unknown>;
+    if (typeof id !== "string" || !id) throw new SettingsValidationError("each panel view needs a string id");
+    if (ids.has(id)) throw new SettingsValidationError(`duplicate panel view id "${id}"`);
+    ids.add(id);
+    if (typeof label !== "string" || !label) throw new SettingsValidationError("each panel view needs a label");
+    if (typeof screen !== "string" || !screen) throw new SettingsValidationError("each panel view needs a screen id");
+    if (typeof panel !== "string" || !panel) throw new SettingsValidationError("each panel view needs a panel id");
+    if (!state || typeof state !== "object") throw new SettingsValidationError("each panel view needs a state object");
+    const { groupBy, agg, filters } = state as Record<string, unknown>;
+    if (typeof groupBy !== "string") throw new SettingsValidationError("panel view state.groupBy must be a string");
+    if (typeof agg !== "string") throw new SettingsValidationError("panel view state.agg must be a string");
+    if (!filters || typeof filters !== "object" || Array.isArray(filters)) throw new SettingsValidationError("panel view state.filters must be an object");
+    for (const [field, vals] of Object.entries(filters as Record<string, unknown>)) {
+      if (isForbiddenKey(field)) throw new SettingsValidationError("panel view filter field is not allowed");
+      if (!Array.isArray(vals) || vals.some((v) => typeof v !== "string")) throw new SettingsValidationError(`panel view filter "${field}" must be an array of strings`);
+    }
   }
 }
 

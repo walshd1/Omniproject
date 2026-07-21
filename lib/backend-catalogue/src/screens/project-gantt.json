@@ -1,0 +1,1 @@
+{ "id": "gantt", "label": "Gantt", "bare": true, "panels": [ { "id": "gantt-timeline", "kind": "view", "config": { "view": "gantt" } } ] }

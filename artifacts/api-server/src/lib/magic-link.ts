@@ -2,7 +2,7 @@ import { randomBytes } from "node:crypto";
 import { seal, open } from "./session-crypto";
 import { sharedKv } from "./shared-state";
 import { isTruthy } from "./env-config";
-import { isOidcConfigured } from "./oidc";
+import { isOidcConfigured, type GuestClaim } from "./oidc";
 import { isSamlConfigured } from "./saml";
 import { sendEmail } from "./email";
 import { logger } from "./logger";
@@ -40,8 +40,24 @@ function ttlMs(): number {
   return (Number.isFinite(m) && m > 0 ? m : 15) * 60 * 1000;
 }
 
-export type MagicPurpose = "login" | "stepup";
-interface MagicPayload { email: string; exp: number; jti: string; purpose?: MagicPurpose }
+export type MagicPurpose = "login" | "stepup" | "guest";
+interface MagicPayload { email: string; exp: number; jti: string; purpose?: MagicPurpose; guest?: GuestClaim }
+
+/**
+ * Whether the client-facing GUEST portal is enabled. UNLIKE plain magic-link sign-in, this is
+ * independent of whether an IdP is configured — a company using OIDC for staff still wants to invite
+ * external clients as scoped guests. Off by default; a guest invite/verify path is inert until set.
+ */
+export function guestPortalEnabled(): boolean {
+  return isTruthy(process.env["GUEST_PORTAL_ENABLED"]);
+}
+
+/** How long (ms) a guest invite link stays valid — longer than a sign-in link since a client may take
+ *  a while to open it. Defaults to 7 days; bounded by GUEST_INVITE_TTL_HOURS. */
+function guestTtlMs(): number {
+  const h = Number(process.env["GUEST_INVITE_TTL_HOURS"]);
+  return (Number.isFinite(h) && h > 0 ? h : 24 * 7) * 60 * 60 * 1000;
+}
 
 /** Mint a sealed, single-use, time-boxed magic token for an email. `purpose` distinguishes a normal
  *  sign-in from a step-up re-challenge (the latter stamps step-up freshness on verify, proving the
@@ -51,10 +67,34 @@ export function mintMagicToken(email: string, now: number, purpose: MagicPurpose
   return seal(JSON.stringify(payload));
 }
 
-export interface MagicVerdict { email: string; jti: string; purpose: MagicPurpose }
+/** Mint a sealed, single-use, time-boxed GUEST invite for an email, confined to one project + tier. The
+ *  scope claims ride INSIDE the sealed (tamper-evident) payload, so the guest can't widen them; the verify
+ *  path re-validates their shape before minting the session. Longer TTL than a sign-in link (a client may
+ *  take days to open it). */
+export function mintGuestToken(email: string, guest: GuestClaim, now: number): string {
+  const payload: MagicPayload = {
+    email: email.trim().toLowerCase(),
+    exp: now + guestTtlMs(),
+    jti: randomBytes(16).toString("hex"),
+    purpose: "guest",
+    guest: { projectId: guest.projectId, tier: guest.tier },
+  };
+  return seal(JSON.stringify(payload));
+}
 
-/** Open + validate a magic token (tamper + expiry). Returns the email + jti, or null. Does NOT
- *  consume single-use — call consumeMagicToken after, so verification stays pure/testable. */
+export interface MagicVerdict { email: string; jti: string; purpose: MagicPurpose; guest?: GuestClaim }
+
+/** Validate a guest claim's shape (projectId non-empty, tier known). Defence-in-depth on top of the seal. */
+function validGuestClaim(g: unknown): GuestClaim | null {
+  if (!g || typeof g !== "object") return null;
+  const { projectId, tier } = g as Record<string, unknown>;
+  if (typeof projectId !== "string" || !projectId.trim()) return null;
+  if (tier !== "read" && tier !== "comment") return null;
+  return { projectId: projectId.trim(), tier };
+}
+
+/** Open + validate a magic token (tamper + expiry). Returns the email + jti (+ guest claim), or null.
+ *  Does NOT consume single-use — call consumeMagicToken after, so verification stays pure/testable. */
 export function verifyMagicToken(token: string, now: number): MagicVerdict | null {
   const raw = open(token);
   if (!raw) return null;
@@ -66,6 +106,11 @@ export function verifyMagicToken(token: string, now: number): MagicVerdict | nul
   }
   if (typeof payload.email !== "string" || typeof payload.exp !== "number" || typeof payload.jti !== "string") return null;
   if (payload.exp <= now) return null;
+  if (payload.purpose === "guest") {
+    const guest = validGuestClaim(payload.guest);
+    if (!guest) return null; // a guest token with a malformed claim is rejected outright
+    return { email: payload.email, jti: payload.jti, purpose: "guest", guest };
+  }
   return { email: payload.email, jti: payload.jti, purpose: payload.purpose === "stepup" ? "stepup" : "login" };
 }
 

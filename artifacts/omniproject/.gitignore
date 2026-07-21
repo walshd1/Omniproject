@@ -2,3 +2,6 @@
 # Mutation testing (StrykerJS) output
 .stryker-tmp/
 reports/mutation/
+
+# Vitest blob reports (sharded coverage runs)
+.vitest-reports/

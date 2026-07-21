@@ -1,5 +1,8 @@
 import { test, before, after, afterEach } from "node:test";
 import assert from "node:assert/strict";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import { startHarness, adminCookie, cookie, memberCookie, type Harness } from "./_harness";
 
 /**
@@ -8,7 +11,11 @@ import { startHarness, adminCookie, cookie, memberCookie, type Harness } from ".
  * public (mounted before requireAuth); PUT /labels and POST /labels/apply-preset are PMO-or-admin.
  * Covers: both PMO and admin can write, a non-authority member is refused (403), and the
  * save/apply + error branches (bad overrides → 400, unknown preset → 404, a real preset → 200).
+ * The overrides live as an org `label-overrides` config def, so enable the sealed store.
  */
+process.env["SESSION_SECRET"] ??= "integration-harness-secret";
+const CONFIG_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "labels-routes-"));
+process.env["OMNI_CONFIG_DIR"] = CONFIG_DIR;
 // Strong-auth PMO (amr: hwk) so the pmo authority is actually granted under real RBAC, not withheld.
 const STRONG = { amr: ["hwk"] };
 const pmoCookie = () => cookie({ sub: "u-pmo", name: "Pat PMO", email: "pat@x.io", roles: ["omni-pmo"], ...STRONG });
@@ -26,11 +33,11 @@ async function withRealRbac(fn: () => Promise<void>): Promise<void> {
 }
 let h: Harness;
 before(async () => { h = await startHarness(); });
-after(() => h.close());
+after(() => { h.close(); fs.rmSync(CONFIG_DIR, { recursive: true, force: true }); });
 
 afterEach(async () => {
-  const { updateSettings } = await import("../lib/settings");
-  updateSettings({ labelOverrides: {} });
+  const { saveLabels } = await import("../lib/labels");
+  saveLabels({});
 });
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any

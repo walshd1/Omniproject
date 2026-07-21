@@ -16,6 +16,7 @@ import settingsRouter from "./settings";
 import clientErrorsRouter from "./client-errors";
 import programmesRouter from "./programmes";
 import portfolioRouter from "./portfolio";
+import portalRouter from "./portal";
 import capabilitiesRouter from "./capabilities";
 import brokerLogRouter from "./broker-log";
 import setupRouter from "./setup";
@@ -26,12 +27,25 @@ import exportRouter from "./export";
 import archiveRouter from "./archive";
 import priorityLabelsRouter from "./priority-labels";
 import calendarRouter from "./calendar";
+import schedulingRouter from "./scheduling";
+import accessibilityRouter from "./accessibility";
 import featuresRouter from "./features";
 import rateCardRouter from "./rate-card";
 import viewsRouter from "./views";
 import dashboardsRouter from "./dashboards";
 import customReportsRouter from "./custom-reports";
 import contentPagesRouter from "./content-pages";
+import screenLayoutsRouter from "./screen-layouts";
+import screenDefsRouter from "./screen-defs";
+import disabledScreensRouter from "./disabled-screens";
+import raciRouter from "./raci";
+import stakeholdersRouter from "./stakeholders";
+import panelViewsRouter from "./panel-views";
+import formsRouter from "./forms";
+import automationsRouter from "./automations";
+import templatesRouter from "./templates";
+import wikiRouter from "./wiki";
+import collectionEditRolesRouter from "./collection-edit-roles";
 import reportOverridesRouter from "./report-overrides";
 import routingRouter from "./routing";
 import customFieldsRouter from "./custom-fields";
@@ -55,6 +69,8 @@ import { outputCompositionGate } from "../lib/composition-gate";
 import rulesetRouter from "./ruleset";
 import importRouter from "./import";
 import roleMapRouter from "./role-map";
+import customRolesRouter from "./custom-roles";
+import systemDefsRouter from "./system-defs";
 import rawApiRouter from "./raw-api";
 import devModeRouter from "./dev-mode";
 import meRouter from "./me";
@@ -71,7 +87,7 @@ import resourceAllocationsRouter from "./resource-allocations";
 import budgetPlansRouter from "./budget-plans";
 import scimRouter from "./scim";
 import breakGlassRouter from "./break-glass";
-import { isDeprovisioned } from "../lib/rbac";
+import { isDeprovisioned, requireRole } from "../lib/rbac";
 import { hasValidApiToken } from "../lib/api-token";
 import { apiLimiter, loginLimiter } from "../lib/rate-limit";
 import { auditMiddleware } from "./audit-middleware";
@@ -159,6 +175,15 @@ router.use(labelsRouter);
 router.use(devModeRouter);
 router.use(meRouter);
 
+// Client-facing guest portal — invites (manager+) and the guest's own curated project status (guest+).
+// Self-gates on GUEST_PORTAL_ENABLED. Mounted BEFORE the viewer-floor gate below so a guest can reach it.
+router.use(requireAuth, portalRouter);
+// HARD FLOOR: a GUEST principal (below viewer) may reach ONLY the portal above and the public /auth, /me,
+// branding endpoints (registered earlier). Everything below is the app proper — stop a guest here so it
+// can never fall through to a portfolio/admin router, not even a scope-filtered read. Viewer+ and read-only
+// API tokens pass unchanged; unauthenticated callers still hit each protected router's own requireAuth.
+router.use(requireRole("viewer"));
+
 // Protected routes: require an authenticated session (or read-only API token).
 router.use(requireAuth, licenseRouter);
 router.use(requireAuth, webhooksRouter);
@@ -180,6 +205,8 @@ router.use(requireAuth, exportRouter);
 router.use(requireAuth, archiveRouter);
 router.use(requireAuth, priorityLabelsRouter);
 router.use(requireAuth, calendarRouter);
+router.use(requireAuth, schedulingRouter);
+router.use(requireAuth, accessibilityRouter);
 router.use(requireAuth, featuresRouter);
 router.use(requireAuth, rateCardRouter);
 // These three carry a toggleable feature module (savedViews / dashboards / contentPages) whose
@@ -191,6 +218,17 @@ router.use(requireAuth, requireFeature("savedViews"), viewsRouter);
 router.use(requireAuth, requireFeature("dashboards"), dashboardsRouter);
 router.use(requireAuth, customReportsRouter);
 router.use(requireAuth, requireFeature("contentPages"), contentPagesRouter);
+router.use(requireAuth, screenLayoutsRouter);
+router.use(requireAuth, screenDefsRouter);
+router.use(requireAuth, disabledScreensRouter);
+router.use(requireAuth, raciRouter);
+router.use(requireAuth, stakeholdersRouter);
+router.use(requireAuth, panelViewsRouter);
+router.use(requireAuth, formsRouter);
+router.use(requireAuth, automationsRouter);
+router.use(requireAuth, templatesRouter);
+router.use(requireAuth, wikiRouter);
+router.use(requireAuth, collectionEditRolesRouter);
 router.use(requireAuth, reportOverridesRouter);
 router.use(requireAuth, routingRouter);
 router.use(requireAuth, customFieldsRouter);
@@ -207,6 +245,8 @@ router.use(requireAuth, brokerLogRouter);
 router.use(requireAuth, rulesetRouter);
 router.use(requireAuth, importRouter);
 router.use(requireAuth, roleMapRouter);
+router.use(requireAuth, customRolesRouter);
+router.use(requireAuth, systemDefsRouter);
 router.use(requireAuth, rawApiRouter);
 router.use(requireAuth, toolsRouter);
 router.use(requireAuth, provenanceRouter);

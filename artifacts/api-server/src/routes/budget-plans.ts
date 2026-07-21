@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { requireRole } from "../lib/rbac";
+import { requireCollectionEdit } from "../lib/collection-edit-policy";
 import { getSettings } from "../lib/settings";
 import { settingsCollectionRouter } from "../lib/settings-collection-router";
 import { budgetPeriodRows } from "../lib/budget-plan";
@@ -23,7 +23,7 @@ router.use(settingsCollectionRouter({
   path: "/budget-plans",
   settingsKey: "budgetPlans",
   versionLabel: "budget plans updated",
-  writeGuards: [requireRole("manager")],
+  writeGuards: [requireCollectionEdit("budgetPlans", "manager")],
 }));
 
 export default router;

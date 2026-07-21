@@ -15,7 +15,8 @@
  *
  * Run: pnpm --filter @workspace/scripts run gen-api-reference
  */
-import ts from "typescript";
+import * as ts from "./lib/ts-ast";
+import { parseSourceFile } from "./lib/ts-ast";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -76,8 +77,8 @@ function gateFrom(args: readonly ts.Expression[]): string {
 }
 
 function readFile(abs: string, rel: string): FileRoutes {
-  const fullText = fs.readFileSync(abs, "utf8");
-  const sf = ts.createSourceFile(abs, fullText, ts.ScriptTarget.Latest, true);
+  const sf = parseSourceFile(abs);
+  const fullText = sf.text;
   const base = APP_ROOT_FILES.has(path.basename(rel)) ? "" : "/api";
   const routes: RouteEntry[] = [];
   let title = "";
@@ -107,7 +108,7 @@ function readFile(abs: string, rel: string): FileRoutes {
         }
       }
     }
-    ts.forEachChild(node, visit);
+    node.forEachChild(visit);
   };
   visit(sf);
   return { rel, title, routes };

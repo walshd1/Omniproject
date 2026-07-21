@@ -28,7 +28,7 @@ import {
   mapUserInfo,
   newOAuth2Flow,
 } from "../lib/oauth2";
-import { magicLinkEnabled, isValidEmail, mintMagicToken, verifyMagicToken, consumeMagicToken, sendMagicLink } from "../lib/magic-link";
+import { magicLinkEnabled, isValidEmail, mintMagicToken, verifyMagicToken, consumeMagicToken, sendMagicLink, guestPortalEnabled } from "../lib/magic-link";
 import { isDevMode } from "../lib/dev-mode";
 import { isDemoAuth } from "../lib/auth-config";
 import { effectiveSession } from "../lib/impersonation";
@@ -302,6 +302,8 @@ router.get("/auth/me", (req, res) => {
       mode: isOidcConfigured ? "oidc" : "demo",
       user: { sub: session.sub, name: session.name, email: session.email },
       role: roleForReq(req),
+      // A guest principal's confinement, so the SPA knows to show ONLY the portal for this project.
+      ...(session.guest ? { guest: { projectId: session.guest.projectId, tier: session.guest.tier } } : {}),
       // Lets the SPA warn before, and redirect on, an idle/absolute timeout.
       sessionTimeout: timeoutPolicy(),
       // Currently-unresolved impossible-travel flag (cleared by a step-up minted AFTER
@@ -394,8 +396,11 @@ router.get("/auth/callback", async (req, res) => {
   }
 
   if (req.query["error"]) {
+    // Log the provider-supplied error for diagnosis, but NEVER reflect it into the response body:
+    // res.send(string) defaults to text/html, so echoing an attacker-controlled query param would be
+    // reflected XSS (CWE-79). A generic message is enough for the end user.
     req.log.warn({ error: req.query["error"] }, "OIDC provider returned an error");
-    res.status(401).send(`SSO error: ${String(req.query["error"])}`);
+    res.status(401).send("SSO sign-in failed. Please try again.");
     return;
   }
 
@@ -541,8 +546,10 @@ router.get("/auth/oauth2/callback", async (req, res) => {
   const { state, verifier, returnTo, stepup, sub: stepUpSub } = JSON.parse(flowRaw) as { state: string; verifier: string; returnTo: string; stepup?: boolean; sub?: string };
 
   if (req.query["error"]) {
+    // Log for diagnosis but do NOT reflect the provider-supplied error into the HTML response body
+    // (res.send(string) → text/html ⇒ reflected XSS, CWE-79). Generic message for the user.
     req.log.warn({ error: req.query["error"] }, "OAuth2 provider returned an error");
-    res.status(401).send(`OAuth2 error: ${String(req.query["error"])}`);
+    res.status(401).send("OAuth2 sign-in failed. Please try again.");
     return;
   }
   if (typeof req.query["code"] !== "string") {
@@ -594,12 +601,23 @@ router.post("/auth/magic/request", async (req, res) => {
 
 // Verify a magic token and establish the session (single-use). GET so it works from an email link.
 router.get("/auth/magic/verify", async (req, res) => {
-  if (!magicLinkEnabled()) { res.status(404).send("Magic-link sign-in is not enabled."); return; }
   const token = typeof req.query["token"] === "string" ? req.query["token"] : "";
   const verdict = verifyMagicToken(token, Date.now());
   if (!verdict) { res.status(400).send("This sign-in link is invalid or has expired."); return; }
+  // A GUEST invite is governed by the guest-portal switch (works alongside a configured IdP); every other
+  // magic link needs passwordless sign-in to be enabled (which is off whenever real SSO is configured).
+  const allowed = verdict.purpose === "guest" ? guestPortalEnabled() : magicLinkEnabled();
+  if (!allowed) { res.status(404).send("This sign-in link is not enabled."); return; }
   if (!(await consumeMagicToken(verdict.jti))) { res.status(400).send("This sign-in link has already been used."); return; }
   const travel = await travelCheck(verdict.email, verdict.email, req.ip);
+  // A guest invite mints a CONFINED session: the `guest` marker drops the principal to the guest role +
+  // single-project scope (see rbac). It never carries IdP roles or step-up. Its only surface is the portal.
+  if (verdict.purpose === "guest" && verdict.guest) {
+    establishSession(res, { sub: verdict.email, name: verdict.email, email: verdict.email, accessToken: "guest", guest: verdict.guest, ...travel });
+    const dest = safeLocalPath(req.query["returnTo"]);
+    res.redirect(dest === "/" ? "/portal" : dest);
+    return;
+  }
   // A step-up link (minted by POST /auth/step-up for the signed-in user's own email) proves current
   // mailbox control — a genuine re-authentication for a passwordless method — so it stamps freshness.
   const grantStepUp = verdict.purpose === "stepup";

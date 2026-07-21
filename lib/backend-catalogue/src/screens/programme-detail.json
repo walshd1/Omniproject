@@ -1,0 +1,15 @@
+{
+  "id": "programme-detail",
+  "label": "Programme",
+  "bare": true,
+  "panels": [
+    {
+      "id": "programme-detail",
+      "kind": "component",
+      "config": {
+        "component": "programme-detail"
+      }
+    }
+  ],
+  "core": true
+}

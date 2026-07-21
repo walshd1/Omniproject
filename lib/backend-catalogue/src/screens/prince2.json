@@ -1,0 +1,1 @@
+{ "id": "prince2", "label": "PRINCE2 Stages", "methodologies": ["prince2"], "route": "/prince2", "nav": { "label": "PRINCE2" }, "bare": true, "panels": [ { "id": "prince2-stages", "kind": "view", "config": { "view": "prince2" } } ] }

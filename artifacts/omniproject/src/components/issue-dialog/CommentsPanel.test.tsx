@@ -45,7 +45,7 @@ describe("CommentsPanel", () => {
 
   it("renders the seeded thread with author + body", () => {
     const qc = seed("issue:p1:i1", [COMMENT]);
-    renderWithProviders(<CommentsPanel projectId="p1" issueId="i1" />, { client: qc });
+    renderWithProviders(<CommentsPanel roomId="issue:p1:i1" />, { client: qc });
     expect(screen.getByText(/please review @bob/)).toBeInTheDocument();
     expect(screen.getByText(/Alice/)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Comment" })).toBeInTheDocument();
@@ -55,13 +55,13 @@ describe("CommentsPanel", () => {
 
   it("shows the empty state when there are no comments", () => {
     const qc = seed("issue:p1:i2", []);
-    renderWithProviders(<CommentsPanel projectId="p1" issueId="i2" />, { client: qc });
+    renderWithProviders(<CommentsPanel roomId="issue:p1:i2" />, { client: qc });
     expect(screen.getByText(/No comments yet/)).toBeInTheDocument();
   });
 
   it("disables the Comment button until there is non-whitespace text", () => {
     const qc = seed("issue:p1:i1", []);
-    renderWithProviders(<CommentsPanel projectId="p1" issueId="i1" />, { client: qc });
+    renderWithProviders(<CommentsPanel roomId="issue:p1:i1" />, { client: qc });
     const button = screen.getByRole("button", { name: "Comment" });
     expect(button).toBeDisabled();
     fireEvent.change(screen.getByLabelText("New comment"), { target: { value: "  " } });
@@ -75,7 +75,7 @@ describe("CommentsPanel", () => {
     const calls = stubFetch((url) =>
       url.includes("/api/comments") ? { ok: true, body: { comment: COMMENT } } : { ok: true, body: { comments: [] } },
     );
-    renderWithProviders(<CommentsPanel projectId="p1" issueId="i1" />, { client: qc });
+    renderWithProviders(<CommentsPanel roomId="issue:p1:i1" />, { client: qc });
     const input = screen.getByLabelText("New comment") as HTMLInputElement;
     fireEvent.change(input, { target: { value: "  looks good  " } });
     fireEvent.click(screen.getByRole("button", { name: "Comment" }));
@@ -91,7 +91,7 @@ describe("CommentsPanel", () => {
   it("does not submit an empty comment (guard on the form submit)", () => {
     const qc = seed("issue:p1:i1", []);
     const calls = stubFetch(() => ({ ok: true, body: { comments: [] } }));
-    renderWithProviders(<CommentsPanel projectId="p1" issueId="i1" />, { client: qc });
+    renderWithProviders(<CommentsPanel roomId="issue:p1:i1" />, { client: qc });
     // Submit the form directly with an empty body — the guard returns before mutating.
     fireEvent.submit(screen.getByLabelText("New comment").closest("form")!);
     expect(calls.some((c) => (c.init?.method ?? "GET") === "POST")).toBe(false);
@@ -102,7 +102,7 @@ describe("CommentsPanel", () => {
     stubFetch((url) =>
       url.includes("/api/comments") ? { ok: false, status: 500, body: { error: "nope" } } : { ok: true, body: { comments: [] } },
     );
-    renderWithProviders(<><CommentsPanel projectId="p1" issueId="i1" /><Toaster /></>, { client: qc });
+    renderWithProviders(<><CommentsPanel roomId="issue:p1:i1" /><Toaster /></>, { client: qc });
     fireEvent.change(screen.getByLabelText("New comment"), { target: { value: "will fail" } });
     fireEvent.click(screen.getByRole("button", { name: "Comment" }));
     expect(await screen.findByText("ERROR")).toBeInTheDocument();
@@ -112,7 +112,7 @@ describe("CommentsPanel", () => {
   it("deletes a comment through the delete endpoint", async () => {
     const qc = seed("issue:p1:i1", [COMMENT]);
     const calls = stubFetch(() => ({ ok: true, body: { comments: [] } }));
-    renderWithProviders(<CommentsPanel projectId="p1" issueId="i1" />, { client: qc });
+    renderWithProviders(<CommentsPanel roomId="issue:p1:i1" />, { client: qc });
     fireEvent.click(screen.getByRole("button", { name: "Delete comment" }));
     await waitFor(() => {
       const del = calls.find((c) => (c.init?.method ?? "GET") === "DELETE");

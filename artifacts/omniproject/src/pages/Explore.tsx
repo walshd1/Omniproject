@@ -6,7 +6,7 @@ import { CatalogueReport } from "../components/reports/CatalogueReport";
 import { TimeTravel } from "../components/reports/TimeTravel";
 import { loadSnapshots, exportSnapshots } from "../lib/snapshots";
 import { loadEdges, exportEdges } from "../lib/dependencies";
-import { isExplorationDirty, subscribeExploration, markExplorationClean } from "../lib/exploration";
+import { isExplorationDirty, subscribeExploration } from "../lib/exploration";
 import { useAuth } from "../lib/auth";
 import { CommandPalette } from "../components/CommandPalette";
 
@@ -46,9 +46,11 @@ export function Explore() {
   const downloadExploration = () => {
     const snaps = loadSnapshots();
     const edges = loadEdges();
+    // Clear ONLY what we actually downloaded. exportSnapshots/exportEdges each clear their own source;
+    // the replica-workbench overlay + schedule-shift what-ifs (not exported here) keep their warning, so
+    // downloading snapshots can never silently drop unsaved replica work.
     if (snaps.length) exportSnapshots(snaps);
     if (edges.length) exportEdges(edges);
-    markExplorationClean();
   };
 
   const popOut = () => {

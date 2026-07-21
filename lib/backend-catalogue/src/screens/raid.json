@@ -1,0 +1,1 @@
+{ "id": "raid", "label": "RAID Log", "methodologies": ["governance"], "route": "/raid", "nav": { "label": "RAID" }, "bare": true, "panels": [ { "id": "raid-log", "kind": "view", "config": { "view": "raid" } } ] }

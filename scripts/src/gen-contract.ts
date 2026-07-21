@@ -21,7 +21,8 @@
  *
  * Run: pnpm --filter @workspace/scripts run gen-contract
  */
-import ts from "typescript";
+import * as ts from "./lib/ts-ast";
+import { parseSourceFile } from "./lib/ts-ast";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -59,15 +60,15 @@ interface MethodSig {
 const brokerMethods: MethodSig[] = [];
 
 function read(rel: string): ts.SourceFile {
-  const full = path.join(SRC_DIR, rel);
-  return ts.createSourceFile(full, fs.readFileSync(full, "utf8"), ts.ScriptTarget.Latest, true);
+  return parseSourceFile(path.join(SRC_DIR, rel));
 }
 
 function jsdoc(node: ts.Node): string {
-  const ranges = (ts as unknown as { getJSDocCommentsAndTags: (n: ts.Node) => ts.Node[] }).getJSDocCommentsAndTags(node) ?? [];
-  for (const r of ranges) {
-    const comment = (r as ts.JSDoc).comment;
-    if (typeof comment === "string") return comment.replace(/\s+/g, " ").trim();
+  // TS7 exposes the parsed JSDoc blocks directly on the node (`node.jsDoc`); each block's
+  // `comment` is a node array whose text is recovered via `getTextOfJSDocComment`.
+  for (const doc of node.jsDoc ?? []) {
+    const text = ts.getTextOfJSDocComment((doc as ts.JSDoc).comment);
+    if (text) return text.replace(/\s+/g, " ").trim();
   }
   return "";
 }
@@ -178,12 +179,12 @@ function objectFromMembers(members: ts.NodeArray<ts.TypeElement>, ctx: string, a
   const properties: Record<string, JsonSchema> = {};
   const required: string[] = [];
   for (const m of members) {
-    if (!ts.isPropertySignature(m) || !m.type || !m.name) continue;
+    if (!ts.isPropertySignatureDeclaration(m) || !m.type || !m.name) continue;
     const key = m.name.getText().replace(/^["']|["']$/g, "");
     properties[key] = convert(m.type, `${ctx}.${key}`);
     const doc = jsdoc(m);
     if (doc) properties[key]!["description"] = doc;
-    if (!m.questionToken) required.push(key);
+    if (m.postfixToken?.kind !== ts.SyntaxKind.QuestionToken) required.push(key);
   }
   const schema: JsonSchema = { type: "object", properties };
   if (required.length) schema["required"] = required;
@@ -242,10 +243,10 @@ function collectConstArrays(sf: ts.SourceFile): void {
 
 function collectBrokerMethods(node: ts.InterfaceDeclaration): void {
   for (const m of node.members) {
-    if (!ts.isMethodSignature(m) || !m.name) continue;
+    if (!ts.isMethodSignatureDeclaration(m) || !m.name) continue;
     brokerMethods.push({
       name: m.name.getText(),
-      optional: !!m.questionToken,
+      optional: m.postfixToken?.kind === ts.SyntaxKind.QuestionToken,
       params: m.parameters
         .filter((p) => p.name.getText() !== "ctx")
         .map((p) => ({ name: p.name.getText(), type: p.type ? p.type.getText().replace(/\s+/g, " ") : "unknown" })),

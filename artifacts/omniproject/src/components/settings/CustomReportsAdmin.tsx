@@ -1,10 +1,12 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useAuth, roleAtLeast } from "../../lib/auth";
 import { useAvailability } from "../../lib/availability";
 import { reportCatalogue, type ReportDefinition } from "@workspace/backend-catalogue";
-import { useCustomReports, useSaveCustomReports } from "../../lib/custom-reports-api";
+import { useLegacyCustomReports, useDrainLegacyCustomReports, customReportsQueryKey } from "../../lib/custom-reports-api";
+import { useResolvedDefs, useImportDef, useUpdateDef, useDeleteDef } from "../../lib/defs";
 import { taskDescriptor } from "../../lib/view-engine/task-descriptor";
 import type { CustomReportDef, CustomReportMetric, CustomReportAgg } from "../../lib/custom-report";
 import { downloadReportDef, downloadJson, readReportDefFile, uniqueReportId } from "../../lib/custom-report-file";
@@ -95,11 +97,23 @@ const AGGS: CustomReportAgg[] = ["sum", "avg", "count", "min", "max"];
 
 export function CustomReportsAdmin() {
   const { data: auth } = useAuth();
-  const { data: server } = useCustomReports();
   const { data: availability } = useAvailability();
-  const save = useSaveCustomReports();
+  // Report defs are ARTIFACTS in the def store; edit the ORG-scoped `report` defs through the importer.
+  // Memoised so the derived arrays keep a stable identity across renders (useDraftAdmin re-syncs on change).
+  const { data: defs } = useResolvedDefs<CustomReportDef>("report");
+  const orgReportDefs = useMemo(() => (Array.isArray(defs) ? defs : []).filter((d) => d.id.startsWith("org~")), [defs]);
+  const scopedIdByReportId = useMemo(() => new Map(orgReportDefs.map((d) => [(d.payload as CustomReportDef).id, d.id])), [orgReportDefs]);
+  const server = useMemo(() => orgReportDefs.map((d) => d.payload as CustomReportDef), [orgReportDefs]);
+  const importDef = useImportDef();
+  const updateDef = useUpdateDef();
+  const deleteDef = useDeleteDef();
+  const qc = useQueryClient();
+  const { data: legacy } = useLegacyCustomReports();
+  const drain = useDrainLegacyCustomReports();
+  const savingReports = importDef.isPending || updateDef.isPending || deleteDef.isPending || drain.isPending;
   const { draft, setDraft, dirty, reset } = useDraftAdmin<CustomReportDef[], CustomReportDef[]>(server, structuredClone);
   const [importError, setImportError] = useState<string | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   if (!roleAtLeast(auth?.role, "pmo")) return null;
@@ -132,6 +146,38 @@ export function CustomReportsAdmin() {
       setImportError(e instanceof Error ? e.message : "Could not import that file.");
     }
   }
+
+  // A save is a per-def upsert against the loaded org report defs: PUT an existing report's def in place, POST
+  // a new one, DELETE a removed one — all through the importer choke point.
+  const legacyReports = legacy ?? [];
+  const invalidate = () => qc.invalidateQueries({ queryKey: customReportsQueryKey });
+  const onSaveReports = async () => {
+    if (!draft) return;
+    setSaveError(null);
+    try {
+      const draftIds = new Set(draft.map((r) => r.id));
+      for (const r of draft) {
+        const scopedId = scopedIdByReportId.get(r.id);
+        if (scopedId) await updateDef.mutateAsync({ id: scopedId, name: r.label ?? r.id, payload: r });
+        else await importDef.mutateAsync({ kind: "report", storage: "org", name: r.label ?? r.id, payload: r });
+      }
+      for (const d of orgReportDefs) if (!draftIds.has((d.payload as CustomReportDef).id)) await deleteDef.mutateAsync(d.id);
+      await invalidate();
+    } catch (e) {
+      setSaveError(e instanceof Error ? e.message : "Could not save reports.");
+    }
+  };
+  // One-shot migration of any pre-convergence `settings.customReports` into the def store, then drain the slice.
+  const migrateLegacy = async () => {
+    setSaveError(null);
+    try {
+      for (const r of legacyReports) if (!scopedIdByReportId.has(r.id)) await importDef.mutateAsync({ kind: "report", storage: "org", name: r.label ?? r.id, payload: r });
+      await drain.mutateAsync();
+      await invalidate();
+    } catch (e) {
+      setSaveError(e instanceof Error ? e.message : "Could not migrate legacy reports.");
+    }
+  };
 
   return (
     <section className="space-y-4" data-testid="custom-reports-admin">
@@ -282,12 +328,17 @@ export function CustomReportsAdmin() {
         {draft.length > 0 && (
           <Button variant="outline" className="rounded-none border-2 border-foreground font-bold uppercase text-xs" onClick={() => downloadReportDef(draft)}>Export all</Button>
         )}
-        <Button className="rounded-none border-2 border-foreground font-bold uppercase tracking-wider" onClick={() => save.mutate(draft)} disabled={!dirty || save.isPending}>
-          {save.isPending ? "Saving…" : "Save reports"}
+        {legacyReports.length > 0 && (
+          <Button variant="outline" className="rounded-none border-2 border-foreground font-bold uppercase text-xs" onClick={migrateLegacy} disabled={savingReports} data-testid="reports-migrate-legacy">
+            Migrate {legacyReports.length} legacy report{legacyReports.length === 1 ? "" : "s"}
+          </Button>
+        )}
+        <Button className="rounded-none border-2 border-foreground font-bold uppercase tracking-wider" onClick={onSaveReports} disabled={!dirty || savingReports}>
+          {savingReports ? "Saving…" : "Save reports"}
         </Button>
         {dirty && <Button variant="ghost" className="rounded-none text-xs" onClick={reset}>Reset</Button>}
         {importError && <span role="alert" className="text-xs font-bold text-red-500">{importError}</span>}
-        {save.isError && <span role="alert" className="text-xs font-bold text-red-500">{(save.error as Error).message}</span>}
+        {saveError && <span role="alert" className="text-xs font-bold text-red-500">{saveError}</span>}
       </div>
     </section>
   );

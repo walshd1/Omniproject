@@ -36,7 +36,7 @@ async function assertProjectInScope(base: Broker, ctx: ActorContext, scope: Scop
   const project = projects.find((p) => String(p["id"]) === projectId || qualifiedId(p) === projectId);
   if (!project) throw new BrokerError("unauthorized", "project not in your scope");
   const registry = getSettings().programmeRegistry;
-  if (!scopeAllowsVisibleProject(scope, { programmeId: programmeIdOf(project), programmeIds: programmeIdsOf(project, registry) })) {
+  if (!scopeAllowsVisibleProject(scope, { id: String(project["id"]), programmeId: programmeIdOf(project), programmeIds: programmeIdsOf(project, registry) })) {
     throw new BrokerError("unauthorized", "project not in your scope");
   }
 }

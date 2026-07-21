@@ -24,6 +24,10 @@ import { auditScopeDenied } from "./audit";
 export async function assertProjectScope(req: Request, projectId: string): Promise<{ ok: true } | { ok: false; error: string }> {
   const scope = scopeForReq(req);
   if (scope.level === "all") return { ok: true }; // PMO/admin (and demo) see everything
+  // A GUEST (project-scoped) may touch ONLY its one invited project — decided by id, nothing else visible.
+  if (scope.level === "project") {
+    return scope.projectId === projectId ? { ok: true } : { ok: false, error: "project not in your scope" };
+  }
   const registry = getSettings().programmeRegistry;
   const visible = await getProjects(req, { includeClosed: true });
   const project = visible.find((p) => String(p["id"]) === projectId || qualifiedId(p) === projectId);
@@ -49,6 +53,19 @@ export async function guardProjectScope(req: Request, res: Response, projectId: 
   // actor surfaces as lateral-movement probing, not just a silent 403.
   auditScopeDenied(req, "project", projectId, authz.error);
   res.status(403).json({ error: authz.error });
+  return false;
+}
+
+/**
+ * Express convenience: enforce that the caller is within a PROGRAMME's scope, sending a 403 (and auditing the
+ * cross-scope attempt) when not. all-scope (PMO/admin) passes; a programme-scoped principal passes only for a
+ * programme they own (`inScope` on programmeIds); everyone narrower is refused. Used by the def
+ * importer/editor for a `programme`-target write, so a programme manager's def is confined to their programme.
+ */
+export function guardProgrammeScope(req: Request, res: Response, programmeId: string): boolean {
+  if (inScope(scopeForReq(req), { programmeIds: [programmeId] })) return true;
+  auditScopeDenied(req, "programme", programmeId, "programme not in your scope");
+  res.status(403).json({ error: "programme not in your scope" });
   return false;
 }
 

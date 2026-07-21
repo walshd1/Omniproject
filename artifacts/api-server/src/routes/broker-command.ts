@@ -13,6 +13,7 @@ import { requireRole } from "../lib/rbac";
 import { guardProjectScope } from "../lib/project-scope";
 import { getSession } from "./auth";
 import { enforceCapability, CapabilityBlockedError, getCapability } from "../lib/capability-governance";
+import { grantedCapabilitiesForReq } from "../lib/custom-roles";
 
 const router = Router();
 
@@ -49,7 +50,7 @@ async function handle(req: Request, res: Response): Promise<void> {
   if (vendorId && getCapability(`vendor:${vendorId}`)) {
     try {
       const s = getSession(req);
-      enforceCapability(`vendor:${vendorId}`, { actor: s ? { sub: s.sub, email: s.email } : null });
+      enforceCapability(`vendor:${vendorId}`, { actor: s ? { sub: s.sub, email: s.email } : null, granted: grantedCapabilitiesForReq(req) });
     } catch (err) {
       if (err instanceof CapabilityBlockedError) {
         respondBrokerError(res, new BrokerError("unavailable", `Vendor "${vendorId}" is turned off by the administrator`));

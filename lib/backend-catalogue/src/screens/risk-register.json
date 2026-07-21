@@ -1,0 +1,1 @@
+{ "id": "risk-register", "label": "Risk register", "bare": true, "panels": [ { "id": "raid-risks", "kind": "view", "config": { "view": "raid" } } ] }

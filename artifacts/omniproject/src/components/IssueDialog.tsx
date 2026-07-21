@@ -278,7 +278,7 @@ export function IssueDialog({ projectId, open, onOpenChange, issue, defaultStatu
 
           {isEdit && issue && <TaskItemsPanel projectId={projectId} taskId={issue.id} />}
 
-          {isEdit && issue && commentsEnabled && <CommentsPanel projectId={projectId} issueId={issue.id} />}
+          {isEdit && issue && commentsEnabled && <CommentsPanel roomId={`issue:${projectId}:${issue.id}`} />}
 
           <DialogFooter className="gap-2 sm:justify-between">
             {isEdit ? (

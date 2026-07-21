@@ -1,5 +1,6 @@
-import { REPORTS, VIEWS, SCREENS, OUTPUTS, referenceRulesetCatalogue, METHODOLOGIES } from "@workspace/backend-catalogue";
+import { REPORTS, VIEWS, SCREENS, OUTPUTS, FORMS, referenceRulesetCatalogue, METHODOLOGIES } from "@workspace/backend-catalogue";
 import { BUILTIN_ARTIFACTS } from "../definitions";
+import { screenCompositionItems } from "./screen-catalogue";
 import type { CompositionItem } from "./methodology-composition";
 
 /**
@@ -13,7 +14,10 @@ export function buildCompositionItems(): CompositionItem[] {
   for (const r of REPORTS) items.push({ id: `report:${r.id}`, kind: "report", label: r.label, methodologies: r.methodologies ?? [] });
   for (const v of VIEWS) items.push({ id: `view:${v.id}`, kind: "view", label: v.label, methodologies: v.methodologies });
   for (const s of SCREENS) items.push({ id: `screen:${s.id}`, kind: "screen", label: s.label, methodologies: s.methodologies ?? [] });
+  // Catalogue-owned artifact screens (the JSON screen defs a methodology ships, e.g. a Kanban board).
+  for (const s of screenCompositionItems()) items.push(s);
   for (const o of OUTPUTS) items.push({ id: `output:${o.id}`, kind: "output", label: o.label, methodologies: (o as { methodologies?: string[] }).methodologies ?? [] });
+  for (const f of FORMS) items.push({ id: `form:${f.id}`, kind: "form", label: f.label, methodologies: f.methodologies ?? [] });
   for (const rs of referenceRulesetCatalogue()) items.push({ id: `ruleset:${rs.id}`, kind: "ruleset", label: rs.label, methodologies: [rs.id] });
   for (const a of BUILTIN_ARTIFACTS) items.push({ id: `artifact:${a.id}`, kind: a.kind === "report" ? "report" : "view", label: a.label, methodologies: a.methodologies ?? [] });
   return items;

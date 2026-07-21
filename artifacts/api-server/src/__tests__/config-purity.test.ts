@@ -15,34 +15,45 @@ import { getSettings } from "../lib/settings";
  * in settings.
  */
 
-// Entity/record keys that belong to the BACKENDS, never to config. If one of
-// these appears anywhere in the config snapshot, data has leaked into config.
+// Entity/record keys that belong to the BACKENDS (the brokered systems of record), never to config. If one of
+// these appears as a top-level settings collection, brokered data has leaked into config (e.g. someone
+// "caching" issues in settings).
 const FORBIDDEN_DATA_KEYS = new Set([
   "projects", "project", "issues", "issue", "tasks", "task", "activity",
   "raid", "baseline", "baselines", "history", "summary", "summaries",
   "members", "rows", "fxrates", "portfoliohealth", "notificationsdata",
 ]);
 
-/** Every object key in a value, recursively, lower-cased. */
+// CONFIG subtrees whose OWN field names legitimately collide with entity words but are app-authored config,
+// NOT brokered SoR data — so the deep scan skips inside them (it still guards everything else). These are the
+// in-app registers/policy the org authors (directive: they travel as part of "total state") plus the
+// retention-cadence map whose keys are SCOPE labels ("project"/"programme"/"org"), not project data.
+const CONFIG_SUBTREES = new Set([
+  "raci", "stakeholders", "resourceAllocations", "budgetPlans", "historyRetention",
+]);
+
+/** Every object key in a value, recursively, lower-cased — but not descending into the known config subtrees
+ *  (whose entity-word field names are config, not cached brokered data). */
 function allKeys(value: unknown, out: Set<string> = new Set()): Set<string> {
   if (Array.isArray(value)) {
     for (const v of value) allKeys(v, out);
   } else if (value && typeof value === "object") {
     for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
       out.add(k.toLowerCase());
+      if (CONFIG_SUBTREES.has(k)) continue; // config register/policy — its inner keys aren't brokered data
       allKeys(v, out);
     }
   }
   return out;
 }
 
-test("config snapshot carries no data-bearing entity keys", () => {
+test("config snapshot carries no data-bearing entity keys (brokered SoR data must never cache in config)", () => {
   const snapshot = buildSnapshot(getSettings());
   const offenders = [...allKeys(snapshot)].filter((k) => FORBIDDEN_DATA_KEYS.has(k));
   assert.deepEqual(
     offenders,
     [],
-    `Config must never hold customer data — these data-entity keys leaked into the config snapshot: ${offenders.join(", ")}`,
+    `Config must never hold brokered customer data — these data-entity keys leaked into the config snapshot: ${offenders.join(", ")}`,
   );
 });
 
