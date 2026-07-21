@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import type { Annotation, Deliverable, ProofDecision } from "@workspace/backend-catalogue";
-import { getJson, sendJson } from "./api";
-import { useFeatures, featureEnabled } from "./features";
+import { getJson, sendJson } from "../../lib/api";
+import { useFeatures, featureEnabled } from "../../lib/features";
 
 /**
  * Proofing / deliverable-review client hooks over `/api/proofs/*` (roadmap 2.4). A proof REFERENCES a

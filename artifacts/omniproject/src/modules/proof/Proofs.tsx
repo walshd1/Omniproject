@@ -3,15 +3,15 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Stamp, Plus, Trash2, Save, Check, X, RotateCcw } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { useAuth, roleAtLeast } from "../lib/auth";
-import { useFeatures, featureEnabled } from "../lib/features";
+import { useAuth, roleAtLeast } from "../../lib/auth";
+import { useFeatures, featureEnabled } from "../../lib/features";
 import type { Annotation, DeliverableKind, ProofDecision } from "@workspace/backend-catalogue";
 import {
   useProofs, useProof, useCreateProof, useSaveProof, useDeleteProof, useDecideProof,
   proofRoomId, isProofDecisionHeld, type ProofStorage,
-} from "../lib/proofs";
-import { AnnotationOverlay } from "../components/proof/AnnotationOverlay";
-import { CommentsPanel } from "../components/issue-dialog/CommentsPanel";
+} from "./proofs";
+import { AnnotationOverlay } from "./AnnotationOverlay";
+import { CommentsPanel } from "../../components/issue-dialog/CommentsPanel";
 
 /**
  * Proofs — the creative-review page (roadmap 2.4 slice 2). Browse proofs, open one to overlay its

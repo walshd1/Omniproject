@@ -3,7 +3,7 @@ import { MousePointer2, MapPin, Square, Highlighter, Trash2, Check } from "lucid
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import type { Annotation, AnnotationType, Deliverable } from "@workspace/backend-catalogue";
-import { toNorm, placeAnnotation, moveAnnotation, newAnnotationId } from "../../lib/proof-geometry";
+import { toNorm, placeAnnotation, moveAnnotation, newAnnotationId } from "./proof-geometry";
 
 /**
  * AnnotationOverlay — the interactive proof-review surface (roadmap 2.4 slice 2). Renders the deliverable

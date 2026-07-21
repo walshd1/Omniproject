@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { screen, fireEvent } from "@testing-library/react";
-import { renderWithProviders } from "../test/utils";
-import type { Role } from "../lib/auth";
+import { renderWithProviders } from "../../test/utils";
+import type { Role } from "../../lib/auth";
 
 /**
  * The Proofs page composes the proof CRUD/decision hooks, an RBAC ladder (read viewer+, author
@@ -53,19 +53,19 @@ const mutateWith = (spy: (vars: unknown) => void, getMode: () => "ok" | "err", r
 
 vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast }) }));
 
-vi.mock("../lib/auth", async (importActual) => {
-  const actual = await importActual<typeof import("../lib/auth")>();
+vi.mock("../../lib/auth", async (importActual) => {
+  const actual = await importActual<typeof import("../../lib/auth")>();
   return { ...actual, useAuth: () => ({ data: { role } }) };
 });
 
-vi.mock("../lib/features", () => ({
+vi.mock("../../lib/features", () => ({
   useFeatures: () => ({ data: [] }),
   featureEnabled: () => commentsOn,
 }));
 
 // Keep the real pure helpers (proofRoomId, isProofDecisionHeld); only the hooks are stubbed.
-vi.mock("../lib/proofs", async (importActual) => {
-  const actual = await importActual<typeof import("../lib/proofs")>();
+vi.mock("./proofs", async (importActual) => {
+  const actual = await importActual<typeof import("./proofs")>();
   return {
     ...actual,
     useProofs: () => ({ data: proofsData, isError: proofsError }),
@@ -78,7 +78,7 @@ vi.mock("../lib/proofs", async (importActual) => {
 });
 
 // Overlay stub: buttons drive onChange (dirty), onSelect (open a per-annotation thread) and deselect.
-vi.mock("../components/proof/AnnotationOverlay", () => ({
+vi.mock("./AnnotationOverlay", () => ({
   AnnotationOverlay: (props: { readOnly?: boolean; onChange: (n: Ann[]) => void; onSelect?: (id: string | null) => void }) => (
     <div data-testid="annotation-overlay" data-readonly={String(props.readOnly)}>
       <button type="button" data-testid="stub-ann-change" onClick={() => props.onChange([{ id: "a1", type: "pin", x: 0.1, y: 0.1 }])}>change</button>
@@ -88,7 +88,7 @@ vi.mock("../components/proof/AnnotationOverlay", () => ({
   ),
 }));
 
-vi.mock("../components/issue-dialog/CommentsPanel", () => ({
+vi.mock("../../components/issue-dialog/CommentsPanel", () => ({
   CommentsPanel: ({ roomId }: { roomId: string }) => <div data-testid="comments-panel" data-room={roomId} />,
 }));
 
