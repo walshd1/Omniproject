@@ -1,5 +1,6 @@
-import { reportCatalogue, formCatalogue, dashboardDefCatalogue, referenceRulesetCatalogue, methodologyCatalogue, screenDefCatalogue, primitiveCatalogue, mappingCatalogue, workVocabularyValues } from "@workspace/backend-catalogue";
+import { reportCatalogue, formCatalogue, dashboardDefCatalogue, referenceRulesetCatalogue, methodologyCatalogue, screenDefCatalogue, primitiveCatalogue, mappingCatalogue, workVocabularyValues, taskVocabularyValues } from "@workspace/backend-catalogue";
 import { WORK_VOCABULARY_CONFIG_ID } from "./work-vocabulary-config";
+import { TASK_VOCABULARY_CONFIG_ID } from "./task-vocabulary-config";
 import { DEF_SCOPE_POLICY_CONFIG_ID, DEFAULT_DEF_SCOPE_POLICY } from "./def-policy";
 import { PRESETS_CONFIG_ID, presetConfigValues } from "./preset-config";
 import { artifactStoreEnabled } from "./artifact-store";
@@ -44,6 +45,11 @@ export function buildSystemDefaultRows(): StoredDef[] {
   // layer the scope resolver folds org/programme/project/user overrides onto (see work-vocabulary-config).
   // Sourced from the SAME catalogue accessor the build-time consumers export, so the base can't drift.
   rows.push(buildSystemDefRow("config", "Work vocabulary", { id: WORK_VOCABULARY_CONFIG_ID, values: workVocabularyValues() }, SEED_AT));
+  // The canonical GTD TASK-status vocabulary (next-actions axis, distinct from the work-item/issue axis) —
+  // authored as JSON (assets/task-vocabulary.json), seeded here as the SYSTEM-scope `task-vocabulary` config
+  // def: the base layer the scope resolver folds org/programme/project/user overrides onto (see
+  // task-vocabulary-config). Sourced from the SAME catalogue accessor the write-path uses, so it can't drift.
+  rows.push(buildSystemDefRow("config", "Task vocabulary", { id: TASK_VOCABULARY_CONFIG_ID, values: taskVocabularyValues() }, SEED_AT));
   // The definition-write POLICY LEVELS (which role each scope needs to write a def) — the baseline as a system
   // `config` def, scope-overridable via copy-and-override (an org tightens/relaxes per key). The ENFORCEMENT
   // stays in code (def-policy.ts); only the levels are data.

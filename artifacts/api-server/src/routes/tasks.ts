@@ -10,7 +10,9 @@ import { assertTaskScope, filterTasksInScope } from "../lib/project-scope";
 import { auditScopeDenied } from "../lib/audit";
 import { getSession } from "./auth";
 import { parseOr400, v } from "../lib/validate";
-import { CANONICAL_TASK_STATUS, CANONICAL_PRIORITY, CANONICAL_ENERGY, isTaskDone } from "../broker/vocabulary";
+import { CANONICAL_PRIORITY, CANONICAL_ENERGY, isTaskDone } from "../broker/vocabulary";
+import { resolveTaskVocabulary } from "../lib/task-vocabulary-config";
+import type { ConfigScopes } from "../lib/scoped-config";
 import { summariseTasks } from "../lib/task-summary";
 import { nextOccurrence } from "../lib/recurrence";
 import { runReminderSweep } from "../lib/reminder-sweep";
@@ -66,6 +68,34 @@ function whoami(req: Request): string[] {
   return [s?.sub, s?.email, s?.name].filter((x): x is string => typeof x === "string" && !!x);
 }
 
+/** The scopes for resolving the task vocabulary on a write: programme from the query, project from the write
+ *  body (falling back to the query), user from the auth session — so a scope-added task status is honoured. */
+function taskScopesFromReq(req: Request, body?: { projectId?: string | null | undefined }): ConfigScopes {
+  const q = (req.query ?? {}) as Record<string, unknown>;
+  const scopes: ConfigScopes = {};
+  if (typeof q["programmeId"] === "string" && q["programmeId"]) scopes.programmeId = q["programmeId"];
+  const projectId = body && typeof body.projectId === "string" && body.projectId
+    ? body.projectId
+    : (typeof q["projectId"] === "string" && q["projectId"] ? q["projectId"] : undefined);
+  if (projectId) scopes.projectId = projectId;
+  const s = getSession(req);
+  if (s?.sub) scopes.sub = s.sub;
+  return scopes;
+}
+
+/**
+ * Membership-check a write's `status` against the RESOLVED task vocabulary for the request scope (the relaxed
+ * gate that replaces the frozen `v.enum`). An absent status passes (it's optional); a status present in the
+ * scoped set passes; a truly-unknown id is rejected with 400. Returns false (having sent the 400) on a miss.
+ */
+function checkTaskStatus(req: Request, res: Response, body: { status?: string | undefined; projectId?: string | null | undefined }): boolean {
+  if (body.status === undefined) return true;
+  const { statuses } = resolveTaskVocabulary(taskScopesFromReq(req, body));
+  if (statuses.some((s) => s.id === body.status)) return true;
+  res.status(400).json({ error: "invalid request", issues: [`status "${body.status}" is not a task status in this scope`] });
+  return false;
+}
+
 /**
  * Fetch a task by id and enforce the caller's scope on it (IDOR guard — getTask is scope-blind at the
  * broker). Sends 404 if unknown, 403 if out of scope, and returns null in both cases; otherwise the task.
@@ -91,7 +121,11 @@ const router = Router();
 
 const TaskBody = v.object({
   title: v.optional(v.string({ min: 1, max: 500, trim: true })),
-  status: v.optional(v.enum(CANONICAL_TASK_STATUS)),
+  // Status is a GTD state, but the task status axis is now SCOPE-OVERRIDABLE (an org/methodology can add,
+  // relabel or remove statuses — see task-vocabulary-config). The frozen `v.enum(CANONICAL_TASK_STATUS)` gate
+  // is relaxed to a bounded string here; the handler membership-checks it against the RESOLVED task vocabulary
+  // for the request scope (`checkTaskStatus`), so any scope-added status is accepted while garbage is 400.
+  status: v.optional(v.string({ min: 1, max: 100, trim: true })),
   projectId: v.optional(v.nullable(v.string({ max: 200 }))),
   context: v.optional(v.nullable(v.string({ max: 200 }))),
   waitingOn: v.optional(v.nullable(v.string({ max: 500 }))),
@@ -151,6 +185,7 @@ router.post("/tasks", requireRole("manager"), (req, res) => {
   const body = parseOr400(req, res, TaskBody);
   if (!body) return;
   if (!body.title) { res.status(400).json({ error: "title is required" }); return; }
+  if (!checkTaskStatus(req, res, body)) return;
   return withBrokerErrors(req, res, "create_task failed", async () => {
     res.status(201).json(await createTask(req, body));
   });
@@ -161,6 +196,7 @@ router.patch("/tasks/:taskId", requireRole("manager"), (req, res) => {
   if (!brokerHasTasks()) { res.status(501).json({ error: "this backend does not support tasks" }); return; }
   const body = parseOr400(req, res, TaskBody);
   if (!body) return;
+  if (!checkTaskStatus(req, res, body)) return;
   return withBrokerErrors(req, res, "update_task failed", async () => {
     if (!(await guardTaskAccess(req, res, String(req.params["taskId"])))) return;
     const updated = await updateTask(req, String(req.params["taskId"]), body);

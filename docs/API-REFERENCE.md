@@ -1125,6 +1125,15 @@ The SYSTEM DEFAULTS update mechanism (roadmap X.11).
 | GET | `/api/admin/system-defs` | requireRole(admin) | GET /api/admin/system-defs — a read-only summary of the installed shipped defaults (count per kind). |
 | POST | `/api/admin/system-defs/apply` | requireRole(admin) + requireStepUp | the content is always the approved-from-us catalogue, so this can't be used to inject custom system defs. |
 
+### `artifacts/api-server/src/routes/task-vocabulary.ts`
+
+Scope-overridable GTD task-status vocabulary (next-actions axis, distinct from the work-item/issue status axis).
+
+| Method | Path | Gate | Description |
+| --- | --- | --- | --- |
+| GET | `/api/task-vocabulary` | — | GET /api/task-vocabulary — the effective GTD task statuses for this scope (any authed user). |
+| PUT | `/api/task-vocabulary` | requireAnyRole(pmo, admin) | { statuses?: [{ id, label?, order?, class?, methodologies?, color?, labels?, removed? }] }. |
+
 ### `artifacts/api-server/src/routes/tasks.ts`
 
 Task routes — GTD actionable next-actions (distinct from issues): list/create/update, comments, attachments, plus recurring-task expansion on completion and the in-app reminder sweep.

@@ -18,6 +18,14 @@
 import { CANONICAL_STATUS, STATUS_CLASS, canonicalStatusOf, type CanonicalStatus, type StatusClass } from "@workspace/backend-catalogue";
 export { CANONICAL_STATUS, STATUS_CLASS, canonicalStatusOf, type CanonicalStatus, type StatusClass };
 
+// The canonical GTD task states + their workflow class are likewise shared reference data, sourced from the
+// backend-catalogue task-vocabulary asset (assets/task-vocabulary.json) — mirroring the work-item status axis
+// above — so the gateway and the SPA can't drift on WHICH task statuses exist. Re-exported here so this module
+// stays the gateway's single import surface for task vocabulary; the native⇄canonical synonym behaviour below
+// stays above the seam.
+import { CANONICAL_TASK_STATUS, TASK_STATUS_CLASS, type CanonicalTaskStatus, type TaskStatusClass } from "@workspace/backend-catalogue";
+export { CANONICAL_TASK_STATUS, TASK_STATUS_CLASS, type CanonicalTaskStatus, type TaskStatusClass };
+
 // Common native synonyms seen across backends, folded onto a canonical status so
 // completion detection works without a per-backend mapping. A backend can still
 // declare an explicit StatusVocabulary (below) to override these.
@@ -116,26 +124,10 @@ export function isProjectLive(native: string | null | undefined): boolean {
 
 // ── Task lifecycle (GTD) ─────────────────────────────────────────────────────
 // A TASK is an ACTIONABLE next-action (David Allen's GTD), distinct from an ISSUE (a problem/blocker
-// from a helpdesk or a project). Its lifecycle is the GTD workflow, not the issue board.
-
-/** Canonical GTD task states a backend's native task status normalises into.
- *  next = actionable now · waiting = delegated/blocked on someone · scheduled = deferred to a time ·
- *  someday = someday/maybe (incubating) · done · dropped (decided not to do). */
-export const CANONICAL_TASK_STATUS = ["next", "waiting", "scheduled", "someday", "done", "dropped"] as const;
-export type CanonicalTaskStatus = (typeof CANONICAL_TASK_STATUS)[number];
-
-/** The workflow class a task status falls in. */
-export type TaskStatusClass = "actionable" | "waiting" | "deferred" | "done" | "dropped";
-
-/** Canonical task status → workflow class. */
-export const TASK_STATUS_CLASS: Record<CanonicalTaskStatus, TaskStatusClass> = {
-  next: "actionable",
-  waiting: "waiting",
-  scheduled: "deferred",
-  someday: "deferred",
-  done: "done",
-  dropped: "dropped",
-};
+// from a helpdesk or a project). Its lifecycle is the GTD workflow, not the issue board. The canonical
+// GTD states + their workflow class (CANONICAL_TASK_STATUS / TASK_STATUS_CLASS) are sourced from the
+// backend-catalogue task-vocabulary asset and re-exported at the top of this module (like the issue axis);
+// the native⇄canonical synonym folding below is the above-the-seam dialect behaviour.
 
 // Native synonyms across tools, folded onto a canonical GTD status.
 const TASK_STATUS_SYNONYMS: Record<string, CanonicalTaskStatus> = {
