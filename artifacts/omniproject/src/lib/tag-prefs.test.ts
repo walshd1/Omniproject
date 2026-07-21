@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { defaultTagColor, resolveTagColor, tagPath, tagChildren, cleanTagPrefs, type TagPrefs } from "./tag-prefs";
+import { defaultTagColor, resolveTagColor, tagPath, tagChildren, tagDescendants, cleanTagPrefs, type TagPrefs } from "./tag-prefs";
 
 /**
  * tag-prefs — the pure per-user tag colour + hierarchy overlay. Covers deterministic default colours,
@@ -46,6 +46,20 @@ describe("tagChildren", () => {
   it("returns direct children sorted", () => {
     const prefs: TagPrefs = { z: { parent: "root" }, a: { parent: "root" }, other: { parent: "x" } };
     expect(tagChildren("root", prefs)).toEqual(["a", "z"]);
+  });
+});
+
+describe("tagDescendants", () => {
+  const prefs: TagPrefs = { child: { parent: "root" }, grandchild: { parent: "child" }, other: { parent: "x" } };
+  it("collects the whole subtree, sorted, excluding the tag itself", () => {
+    expect(tagDescendants("root", prefs)).toEqual(["child", "grandchild"]);
+  });
+  it("is empty for a leaf tag", () => {
+    expect(tagDescendants("grandchild", prefs)).toEqual([]);
+  });
+  it("terminates on a cycle", () => {
+    const cyclic: TagPrefs = { a: { parent: "b" }, b: { parent: "a" } };
+    expect(tagDescendants("a", cyclic)).toEqual(["b"]);
   });
 });
 

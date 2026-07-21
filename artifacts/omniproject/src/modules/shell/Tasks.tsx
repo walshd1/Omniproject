@@ -6,6 +6,8 @@ import { useMemo, useState } from "react";
 import { usePriorityLabels } from "../../lib/priority-labels";
 import { parseQuickAdd } from "../../lib/quick-add";
 import { parseTaskSearch } from "../../lib/task-search";
+import { useTagPrefs } from "../../lib/use-tag-prefs";
+import { tagDescendants } from "../../lib/tag-prefs";
 import { taskAttention } from "../../lib/task-urgency";
 import { filterRowsBoolean, type Row } from "@workspace/backend-catalogue";
 import type { ViewRecord } from "../../lib/view-engine/types";
@@ -35,13 +37,15 @@ export function Tasks() {
   const [priority, setPriority] = useState<Priority>("none");
   const [detail, setDetail] = useState<Task | null>(null);
   const [search, setSearch] = useState("");
+  const tagPrefs = useTagPrefs((s) => s.prefs);
 
   // Compile the search box into a predicate: parse the syntax, then for each record enrich its raw task
   // with the derived _urgency/_untouched fields and match the boolean filter tree + free text on the title.
   const recordFilter = useMemo(() => {
     const q = search.trim();
     if (!q) return undefined;
-    const { text, where } = parseTaskSearch(q);
+    // Hierarchy-aware tag search: a `#parent` also matches tasks tagged with any descendant (per-user tags).
+    const { text, where } = parseTaskSearch(q, { expandTag: (tag) => tagDescendants(tag, tagPrefs) });
     const today = new Date();
     const needle = text.toLowerCase();
     return (rec: ViewRecord<Task>): boolean => {
@@ -51,7 +55,7 @@ export function Tasks() {
       if (filterRowsBoolean([row], where).length === 0) return false;
       return needle === "" || rec.title.toLowerCase().includes(needle);
     };
-  }, [search]);
+  }, [search, tagPrefs]);
 
   const add = () => {
     const raw = title.trim();

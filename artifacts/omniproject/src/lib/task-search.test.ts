@@ -42,6 +42,29 @@ describe("parseTaskSearch", () => {
     });
   });
 
+  it("without expandTag, a #tag matches exactly that tag", () => {
+    expect(parseTaskSearch("#work").where).toEqual({ all: [{ field: "tags", op: "has", value: "work" }] });
+  });
+
+  it("with expandTag, a parent #tag matches itself OR any descendant (hierarchy-aware)", () => {
+    const rows: Row[] = [
+      { id: 1, tags: ["work"] },
+      { id: 2, tags: ["work-clientA"] },     // a descendant of work
+      { id: 3, tags: ["work-clientA-urgent"] }, // deeper descendant
+      { id: 4, tags: ["home"] },
+    ];
+    const expandTag = (tag: string) => (tag === "work" ? ["work-clientA", "work-clientA-urgent"] : []);
+    const { where } = parseTaskSearch("#work", { expandTag });
+    expect(where).toEqual({
+      all: [{ any: [
+        { field: "tags", op: "has", value: "work" },
+        { field: "tags", op: "has", value: "work-clientA" },
+        { field: "tags", op: "has", value: "work-clientA-urgent" },
+      ] }],
+    });
+    expect(filterRowsBoolean(rows, where).map((r) => r["id"])).toEqual([1, 2, 3]);
+  });
+
   it("an empty query matches everything", () => {
     const { text, where } = parseTaskSearch("   ");
     expect(text).toBe("");

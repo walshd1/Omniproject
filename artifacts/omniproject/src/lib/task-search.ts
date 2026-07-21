@@ -25,14 +25,28 @@ export interface ParsedTaskSearch {
   where: FilterNode;
 }
 
+/** Options for {@link parseTaskSearch}. `expandTag` maps a tag to its descendant tags (from the per-user tag
+ *  hierarchy), so a `#parent` query also matches tasks carrying a child tag. Absent ⇒ exact-tag match only. */
+export interface TaskSearchOptions {
+  expandTag?: (tag: string) => string[];
+}
+
 // The closed statuses come from the task-status vocabulary (asset-backed), never hand-listed here.
 const CLOSED_STATUSES = [...TASK_CLOSED_STATUSES];
 const URGENCY_ALIAS: Record<string, string> = { overdue: "overdue", today: "due-today", soon: "due-soon", scheduled: "scheduled" };
 const priorityLevels = ORDINAL_LEVELS_BY_KIND.priority;
 
 /** Parse a single non-negated operator token to a predicate (or a node), or null when it's free text. */
-function parseToken(tok: string): FilterNode | null {
-  if (tok.startsWith("#") && tok.length > 1) return { field: "tags", op: "has", value: tok.slice(1) };
+function parseToken(tok: string, opts: TaskSearchOptions): FilterNode | null {
+  if (tok.startsWith("#") && tok.length > 1) {
+    const tag = tok.slice(1);
+    const descendants = opts.expandTag?.(tag) ?? [];
+    // Hierarchy-aware: a parent tag matches itself OR any descendant tag (OR over the family).
+    if (descendants.length > 0) {
+      return { any: [tag, ...descendants].map((t) => ({ field: "tags", op: "has", value: t })) };
+    }
+    return { field: "tags", op: "has", value: tag };
+  }
   if (tok.startsWith("@") && tok.length > 1) return { field: "context", op: "eq", value: tok.slice(1) };
 
   const colon = /^([a-z]+)(:|>=|<=|>|<)(.+)$/i.exec(tok);
@@ -59,14 +73,14 @@ function parseToken(tok: string): FilterNode | null {
   return null; // free text
 }
 
-export function parseTaskSearch(query: string): ParsedTaskSearch {
+export function parseTaskSearch(query: string, opts: TaskSearchOptions = {}): ParsedTaskSearch {
   const tokens = (query ?? "").trim().split(/\s+/).filter(Boolean);
   const nodes: FilterNode[] = [];
   const textParts: string[] = [];
   for (const raw of tokens) {
     const negated = raw.startsWith("-") && raw.length > 1;
     const tok = negated ? raw.slice(1) : raw;
-    const node = parseToken(tok);
+    const node = parseToken(tok, opts);
     if (!node) { textParts.push(raw); continue; } // free text (keep the original, incl. a literal leading -)
     nodes.push(negated ? { not: node } : node);
   }

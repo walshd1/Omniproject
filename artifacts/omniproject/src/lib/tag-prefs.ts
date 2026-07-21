@@ -70,6 +70,26 @@ export function tagChildren(tag: string, prefs: TagPrefs): string[] {
     .sort();
 }
 
+/**
+ * Every descendant of a tag (its children, their children, …), sorted, NOT including the tag itself.
+ * Cycle-guarded (a tag already visited is not re-expanded). Powers hierarchy-aware search — a query for a
+ * parent tag also matches tasks carrying any descendant tag.
+ */
+export function tagDescendants(tag: string, prefs: TagPrefs): string[] {
+  const out = new Set<string>();
+  const stack = [tag];
+  const seen = new Set<string>([tag]);
+  while (stack.length) {
+    for (const child of tagChildren(stack.pop()!, prefs)) {
+      if (seen.has(child)) continue;
+      seen.add(child);
+      out.add(child);
+      stack.push(child);
+    }
+  }
+  return [...out].sort();
+}
+
 /** Sanitise an untrusted prefs object (localStorage / imported profile): valid hex colours, string
  *  parents, no forbidden keys, no self-parent, capped size. Mirrors the a11y sanitiser's discipline. */
 export function cleanTagPrefs(input: unknown): TagPrefs {
