@@ -6,6 +6,7 @@ import { sealConfig, openConfig } from "./config-crypto";
 import { canonicalJson } from "./canonical-json";
 import { safeParseJson } from "./safe-json";
 import { productionSignals } from "./dev-mode-guard";
+import { localUsersActive } from "./user-directory";
 import type { ChainDef } from "./approval-chain";
 
 /**
@@ -17,7 +18,15 @@ import type { ChainDef } from "./approval-chain";
  * passkey sign-off no headless CI run can produce).
  */
 function approvalsAutoApply(): boolean {
-  return process.env["OMNI_APPROVALS_AUTO_APPLY"] === "1" && productionSignals(process.env).length === 0;
+  // The CI/contract-test escape hatch is inert in any real deployment. `productionSignals` is env-only and
+  // runs blind to native local accounts bootstrapped at runtime (same gap the session-secret guard closes),
+  // so also refuse to auto-apply once a real local principal exists — a genuine login means genuine
+  // posture-reducing changes must go through the passkey sign-off, never silently.
+  return (
+    process.env["OMNI_APPROVALS_AUTO_APPLY"] === "1" &&
+    productionSignals(process.env).length === 0 &&
+    !localUsersActive()
+  );
 }
 
 /**

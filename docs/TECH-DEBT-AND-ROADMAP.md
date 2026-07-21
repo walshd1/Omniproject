@@ -21,8 +21,8 @@ client-side, crypto/sealed-store) found the crypto, egress, and client-side laye
 one confirmed CRITICAL and a corroborating cluster — most sharing one root cause: the env-only
 "is this production?" detector is blind to the product's own flagship *real-local-accounts, no-SSO* profile.
 
-- **[security — CRITICAL, confirmed] The boot-time secret guard is blind to runtime local users, so a
-  SUPPORTED deployment boots on the PUBLIC default `SESSION_SECRET` → forgeable admin cookies.**
+- **[security — CRITICAL, FIXED 2026-07-21] The boot-time secret guard was blind to runtime local users, so a
+  SUPPORTED deployment booted on the PUBLIC default `SESSION_SECRET` → forgeable admin cookies.**
   `productionSignals()` (`lib/dev-mode-guard.ts:36-55`) is env-pure and decides "real auth" via the env-only
   `isDemoAuthFrom` (`lib/auth-config.ts:78-92`), which counts only SSO / `MAGIC_LINK_ENABLED` /
   `LOCAL_USERS_ENABLED`. But native local accounts work whenever `OMNI_CONFIG_DIR` is set
@@ -38,10 +38,16 @@ one confirmed CRITICAL and a corroborating cluster — most sharing one root cau
   (`lib/config-crypto.ts:35`, `lib/vault-store.ts:69`, `lib/key-registry.ts:50` — "zero-at-rest" becomes
   theatre; the vault holds AI keys); `OMNI_APPROVALS_AUTO_APPLY` is NOT inert there
   (`lib/settings-guard.ts:19-21`), so a posture-reducing `brokerUrl`/webhook change skips the passkey
-  sign-off; and session/CSRF cookies ship without `Secure` (`auth.ts:101-108`). **Fix (one change closes all
-  four):** treat "artifact store enabled + local users active/enabled" as a production signal — fold
-  `localUsersActive()`/`credentialsEnabled()` into `productionSignals`, or re-check in
-  `resolveSessionSecret`/`runSecuritySelfCheck` after `loadConfigDir()`.
+  sign-off; and session/CSRF cookies ship without `Secure` (`auth.ts:101-108`). **Fixed:** a post-config-load
+  re-check — `assertSessionSecretForLocalPrincipals(localUsersActive())`, called from `index.ts` after
+  `loadConfigDir()` (`session-secret-guard.ts`) — refuses to serve on a missing/default `SESSION_SECRET` once a
+  real *active* local account exists. Because the at-rest master-key ladder (`crypto-keys.masterSecret`)
+  resolves to `SESSION_SECRET` before its dev fallback, forcing a real secret ALSO closes the public
+  dev-master-key exposure; and `approvalsAutoApply()` now additionally gates on `!localUsersActive()`, so the
+  sign-off can't be silently skipped either. `localUsersActive()` is the precise signal — it stays false for
+  the zero-account CI/throwaway-store shape, so nothing legitimate is forced. Regression:
+  `lib/session-secret-local-users.test.ts` drives the real directory signal end-to-end. **Residual (LOW,
+  unfixed):** the `Secure` cookie flag on `lan-ok` profiles is a deliberate LAN-without-TLS posture, left as-is.
 - **[security — HIGH, confirmed] The generic def importer (`POST /api/defs`, kind `config`) bypasses the
   governance guards on the SAME config store.** Security-classified configs (`history-retention`,
   `logging-sync`, `error-telemetry` — `lib/security-config.ts`) must, on a relaxing change, be held for a
