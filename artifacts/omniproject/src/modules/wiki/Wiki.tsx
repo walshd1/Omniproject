@@ -42,8 +42,12 @@ export function Wiki() {
   const [newStorage, setNewStorage] = useState<WikiDocStorage>("user");
 
   const spaces = Array.isArray(spacesQ.data) ? spacesQ.data : [];
-  // Default to the first space once loaded.
-  useEffect(() => { if (!spaceId && spaces.length) setSpaceId(spaces[0]!.id); }, [spaces, spaceId]);
+  // Default to the first space once loaded. Derive the list inside and depend on the react-query-stable
+  // `spacesQ.data`, not the `spaces` narrowing (a fresh `[]` each render would re-fire this effect).
+  useEffect(() => {
+    const list = Array.isArray(spacesQ.data) ? spacesQ.data : [];
+    if (!spaceId && list.length) setSpaceId(list[0]!.id);
+  }, [spacesQ.data, spaceId]);
 
   const docsQ = useWikiDocs(spaceId || undefined);
   const docs = (Array.isArray(docsQ.data) ? docsQ.data : []).filter((d) => d.spaceId === spaceId);

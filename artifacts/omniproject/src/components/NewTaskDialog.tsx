@@ -42,7 +42,7 @@ export function NewTaskDialog({ open, onOpenChange }: { open: boolean; onOpenCha
     if (open) {
       setForm((p) => ({ ...p, projectId: p.projectId || activeProjectId || projects?.[0]?.id || "" }));
     }
-  }, [open, activeProjectId, projects]);
+  }, [open, activeProjectId, projects, setForm]);
 
   // Members of the selected project — only WRITE-access people can be assigned. Disabled while
   // projectId is blank (e.g. the brief moment the draft resets after a successful submit, just

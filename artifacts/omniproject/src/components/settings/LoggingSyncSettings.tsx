@@ -25,12 +25,13 @@ export function LoggingSyncSettings() {
   const [url, setUrl] = useState("");
   const [ack, setAck] = useState(false);
 
+  // Seed the local fields from the server config whenever it changes. `sync` is react-query-stable,
+  // so depending on the object (not its picked fields) is safe and keeps exhaustive-deps clean.
   useEffect(() => {
-    if (sync) {
-      setUrl(sync.url ?? "");
-      setAck(sync.acknowledgedWarranty);
-    }
-  }, [sync?.url, sync?.acknowledgedWarranty]);
+    if (!sync) return;
+    setUrl(sync.url ?? "");
+    setAck(sync.acknowledgedWarranty);
+  }, [sync]);
 
   const urlError = urlFormatError(url);
   const canEnable = !!url.trim() && !urlError && ack && !update.isPending;

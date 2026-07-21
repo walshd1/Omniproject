@@ -70,8 +70,11 @@ export function Whiteboards() {
   const [convertProject, setConvertProject] = useState<string>("");
   useEffect(() => {
     const boardProject = boardQ.data?.projectId ?? "";
-    setConvertProject((cur) => cur || boardProject || projects[0]?.id || "");
-  }, [boardQ.data, projects]);
+    // Derive the list inside and depend on the raw query data — `projects` is a fresh `[]` on any
+    // non-array tick, which would re-fire this default-picker effect every render.
+    const list = Array.isArray(projectsData) ? projectsData : [];
+    setConvertProject((cur) => cur || boardProject || list[0]?.id || "");
+  }, [boardQ.data, projectsData]);
 
   const onChange = (next: CanvasElement[]) => { setElements(next); setDirty(true); };
 

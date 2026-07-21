@@ -38,9 +38,11 @@ export function FieldMapping() {
   const [previewProject, setPreviewProject] = useState("");
 
   const fields = superset.data ?? [];
+  // Fold `?? []` inside and depend on the react-query-stable `superset.data` — a `fields` intermediate
+  // is a fresh `[]` while loading, which would re-run this filter every render.
   const visible = useMemo(
-    () => fields.filter((f) => `${f.label} ${f.canonicalKey} ${f.system} ${f.nativeField}`.toLowerCase().includes(filter.toLowerCase())),
-    [fields, filter],
+    () => (superset.data ?? []).filter((f) => `${f.label} ${f.canonicalKey} ${f.system} ${f.nativeField}`.toLowerCase().includes(filter.toLowerCase())),
+    [superset.data, filter],
   );
   const selected = fields.find((f) => f.id === selectedId);
   const preview = useResolvedMapping(previewProject || undefined, slot);

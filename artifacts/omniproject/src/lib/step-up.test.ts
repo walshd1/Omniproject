@@ -114,7 +114,7 @@ describe("withStepUp", () => {
   it("returns null (generic-message arm) when fn throws a non-Error", async () => {
     vi.stubGlobal("fetch", vi.fn(() => Promise.resolve(new Response("{}", { status: 200 }))));
     Object.defineProperty(window, "location", { value: { pathname: "/settings", href: "" }, writable: true });
-    const fn = vi.fn(() => Promise.reject("just a string")); // eslint-disable-line prefer-promise-reject-errors
+    const fn = vi.fn(() => Promise.reject("just a string"));
     expect(await withStepUp(fn)).toBeNull();
     expect(fn).toHaveBeenCalledOnce();
   });

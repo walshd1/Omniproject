@@ -37,7 +37,9 @@ export function TemplatesAdmin() {
   const [busy, setBusy] = useState<string | null>(null);
   const org = draft ?? [];
   // The gallery merges the shipped catalogue with the org's (draft) overrides so edits show live.
-  const resolved = useMemo(() => resolveProjectTemplates(org), [org]);
+  // Fold `draft ?? []` inside and depend on `draft` — an `org` intermediate is a fresh `[]` on the
+  // null tick, which would thrash this memo.
+  const resolved = useMemo(() => resolveProjectTemplates(draft ?? []), [draft]);
 
   if (!roleAtLeast(auth?.role, "manager")) return null;
   const canEdit = isPmoOrAdmin(auth?.role);
