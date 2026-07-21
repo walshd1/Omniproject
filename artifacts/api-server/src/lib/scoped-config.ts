@@ -119,20 +119,41 @@ export function readConfigCollection<T>(configId: string, fallback: T, scopes: C
   return (merged.value ?? fallback) as T;
 }
 
-/** Persist a collection as the ORG-scope config def `{ id, values: { value } }`. Singleton org row, updated in
- *  place. Store must be enabled (a no-op otherwise, matching the artifact-store's write behaviour). */
-export function writeOrgConfigCollection(configId: string, name: string, value: unknown): void {
-  const payload = { id: configId, values: { value } };
-  const existing = getDef({ kind: "org" }, orgConfigCollectionId(configId));
-  const now = new Date().toISOString();
-  putDef({ kind: "org" }, existing
-    ? { ...existing, payload, updatedAt: now, rowVersion: (existing.rowVersion ?? 1) + 1 }
-    : { id: orgConfigCollectionId(configId), kind: "config", name, payload, createdBy: null, createdAt: now, updatedAt: now, rowVersion: 1 });
+/** Where a config-collection write lands. Org is the default; a PMO/admin may target a programme or project
+ *  so a nearer scope OVERRIDES the org value (the read fold already honours system < org < programme < project). */
+export type ConfigWriteScope =
+  | { kind: "org" }
+  | { kind: "programme"; programmeId: string }
+  | { kind: "project"; projectId: string };
+
+/** The stable storage id of a scope's config-collection def (one singleton row per logical config per scope). */
+export function scopedConfigCollectionId(configId: string, scope: ConfigWriteScope = { kind: "org" }): string {
+  if (scope.kind === "programme") return `programme~${scope.programmeId}~config-${configId}`;
+  if (scope.kind === "project") return `project~${scope.projectId}~config-${configId}`;
+  return `org~config-${configId}`;
 }
 
 /** The stable storage id of an org-scope config-collection def (one singleton row per logical config). */
 export function orgConfigCollectionId(configId: string): string {
-  return `org~config-${configId}`;
+  return scopedConfigCollectionId(configId, { kind: "org" });
+}
+
+/** Persist a collection as the config def `{ id, values: { value } }` AT `scope` (org / programme / project).
+ *  Singleton row per scope, updated in place. Store must be enabled (a no-op otherwise). A nearer scope's value
+ *  overrides the org's in the read fold, so this is how a methodology deploys at a programme/project. */
+export function writeScopedConfigCollection(configId: string, name: string, value: unknown, scope: ConfigWriteScope = { kind: "org" }): void {
+  const payload = { id: configId, values: { value } };
+  const defId = scopedConfigCollectionId(configId, scope);
+  const existing = getDef(scope, defId);
+  const now = new Date().toISOString();
+  putDef(scope, existing
+    ? { ...existing, payload, updatedAt: now, rowVersion: (existing.rowVersion ?? 1) + 1 }
+    : { id: defId, kind: "config", name, payload, createdBy: null, createdAt: now, updatedAt: now, rowVersion: 1 });
+}
+
+/** Persist a collection at ORG scope (the common case) — a thin delegate over {@link writeScopedConfigCollection}. */
+export function writeOrgConfigCollection(configId: string, name: string, value: unknown): void {
+  writeScopedConfigCollection(configId, name, value, { kind: "org" });
 }
 
 /** The methodology COMPOSITION — the PMO/admin's curated set of visible artifact/output/ruleset ids, or `null`

@@ -90,3 +90,19 @@ test("POST deploy/:id requires admin/PMO", async () => {
   const r = await h.req("/methodology-composition/deploy/gtd", { method: "POST" });
   assert.equal(r.status, 401);
 });
+
+test("POST deploy/:id at a PROGRAMME scope writes there (nearer scope), leaving org untouched", async () => {
+  const r = await h.req("/methodology-composition/deploy/gtd", { method: "POST", cookie: adminCookie(), body: { programmeId: "prog-9" } });
+  assert.equal(r.status, 200);
+  const out = await json(r);
+  assert.equal(out.scope, "programme");
+  assert.ok(out.methodologyComposition.includes("screen:gtd-overview"));
+  // Org (no scope) is still uncurated — the deploy landed on the programme, not the org.
+  const org = await json(await h.req("/methodology-composition", { cookie: adminCookie() }));
+  assert.equal(org.methodologyComposition, null);
+});
+
+test("POST deploy/:id rejects naming both a programme AND a project → 400", async () => {
+  const r = await h.req("/methodology-composition/deploy/gtd", { method: "POST", cookie: adminCookie(), body: { programmeId: "p1", projectId: "pr1" } });
+  assert.equal(r.status, 400);
+});

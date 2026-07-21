@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { requireAnyRole } from "../lib/rbac";
 import { requireArtifactStore } from "../lib/artifact-store";
-import { resolveMethodologyComposition, writeOrgConfigCollection, METHODOLOGY_COMPOSITION_ID } from "../lib/scoped-config";
+import { resolveMethodologyComposition, writeOrgConfigCollection, writeScopedConfigCollection, METHODOLOGY_COMPOSITION_ID, type ConfigWriteScope } from "../lib/scoped-config";
 import { resolveMethodologyDeployment } from "@workspace/backend-catalogue";
 import { applyRuleset } from "../lib/ruleset";
 import { recordRequestAudit } from "../lib/audit";
@@ -51,23 +51,40 @@ router.get("/methodology-composition/deployment/:id", (req, res) => {
   res.json(plan);
 });
 
-// DEPLOY: set the org composition to the methodology's tagged surfaces + apply its reference ruleset.
+/** The target scope for a deploy: org by default, or a programme/project named in the body. A body may name
+ *  AT MOST one of programmeId/projectId. Throws a message on a bad shape. */
+function deployScope(body: { programmeId?: unknown; projectId?: unknown } | undefined): ConfigWriteScope {
+  const programmeId = typeof body?.programmeId === "string" && body.programmeId ? body.programmeId : undefined;
+  const projectId = typeof body?.projectId === "string" && body.projectId ? body.projectId : undefined;
+  if (programmeId && projectId) throw new Error("name only one of programmeId / projectId");
+  if (programmeId) return { kind: "programme", programmeId };
+  if (projectId) return { kind: "project", projectId };
+  return { kind: "org" };
+}
+
+// DEPLOY: set the composition to the methodology's tagged surfaces + apply its reference ruleset. Targets the
+// org by default, or a programme/project named in the body (a nearer scope overrides the org in the read fold).
 router.post("/methodology-composition/deploy/:id", requireAnyRole("pmo", "admin"), (req, res) => {
   if (!requireArtifactStore(res)) return;
   const id = String((req.params as { id?: unknown }).id ?? "");
   const plan = resolveMethodologyDeployment(id);
   if (!plan) { res.status(404).json({ error: "unknown methodology" }); return; }
-  // 1) Turn on the methodology's surfaces (its tagged composition item ids).
-  writeOrgConfigCollection(METHODOLOGY_COMPOSITION_ID, "Methodology composition", plan.compositionItemIds);
-  // 2) Apply its reference ruleset (modes + field rules), if it ships one.
+  let scope: ConfigWriteScope;
+  try { scope = deployScope(req.body as { programmeId?: unknown; projectId?: unknown } | undefined); }
+  catch (e) { res.status(400).json({ error: e instanceof Error ? e.message : "invalid deploy scope" }); return; }
+  // 1) Turn on the methodology's surfaces (its tagged composition item ids) AT the target scope.
+  writeScopedConfigCollection(METHODOLOGY_COMPOSITION_ID, "Methodology composition", plan.compositionItemIds, scope);
+  // 2) Apply its reference ruleset (modes + field rules), if it ships one. (The ruleset engine is org-global.)
   if (plan.ruleset) applyRuleset({ modes: plan.ruleset.modes, fieldRules: plan.ruleset.fieldRules });
   recordRequestAudit(req, {
     category: "admin", action: "methodology_deploy", result: "success", status: 200,
-    meta: { methodology: id, items: plan.compositionItemIds.length, ruleset: plan.ruleset?.id ?? null, invariants: plan.invariants.length },
+    meta: { methodology: id, scope: scope.kind, items: plan.compositionItemIds.length, ruleset: plan.ruleset?.id ?? null, invariants: plan.invariants.length },
   });
+  const scopeKeys = scope.kind === "programme" ? { programmeId: scope.programmeId } : scope.kind === "project" ? { projectId: scope.projectId } : {};
   res.json({
     methodologyId: id,
-    methodologyComposition: resolveMethodologyComposition(),
+    scope: scope.kind,
+    methodologyComposition: resolveMethodologyComposition(scopeKeys),
     appliedRuleset: plan.ruleset?.id ?? null,
     invariants: plan.invariants,
   });
