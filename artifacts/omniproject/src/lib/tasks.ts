@@ -23,6 +23,9 @@ export interface Task {
   tags?: string[];
   startDate?: string | null;
   dueDate?: string | null;
+  /** Recurrence rule (free text, e.g. "every 2 weeks", "every weekday", "FREQ=MONTHLY"). The server spawns
+   *  the next occurrence when a recurring task is completed. Empty/one-off ⇒ no repeat. */
+  recurrence?: string | null;
   reminderAt?: string | null;
   energy?: string | null;
   section?: string | null;

@@ -7,6 +7,7 @@ import { usePriorityLabels } from "../lib/priority-labels";
 import { TaskNotes } from "./TaskNotes";
 import { TagEditor } from "./TagEditor";
 import { TaskSubtasks } from "./TaskSubtasks";
+import { TaskRecurrence } from "./TaskRecurrence";
 
 /**
  * Task detail — the fields plus the discussion thread and file attachment REFERENCES for one task,
@@ -75,6 +76,9 @@ export function TaskDetailDialog({ task, open, onOpenChange }: { task: Task | nu
 
           {/* Subtasks — create children + re-parent this task (builds the tree the list view renders). */}
           <TaskSubtasks task={task} />
+
+          {/* Repeat — authoring for the server-side recurrence engine. */}
+          <TaskRecurrence task={task} />
 
           {/* Comments */}
           <div>

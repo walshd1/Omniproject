@@ -45,6 +45,7 @@ function toRecord(t: Task, today: Date, tagPrefs: TagPrefs): ViewRecord<Task> {
     chips.push({ text: DAY_LABEL(att.daysUntilDue) || `due ${t.dueDate}`, ...(tone ? { tone } : {}) });
   }
   if (t.waitingOn) chips.push({ text: `waiting on ${t.waitingOn}` });
+  if (t.recurrence) chips.push({ text: `↻ ${t.recurrence}`, mono: true });
   // Flag an open task that's gone stale (untouched past the window).
   if (taskAttention(t, today).untouched) chips.push({ text: "untouched", tone: "muted" });
   return { id: t.id, title: t.title, status: t.status, priority: t.priority ?? null, chips, raw: t };
