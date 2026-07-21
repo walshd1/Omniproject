@@ -27,19 +27,6 @@ The ORG-wide accessibility DEFAULTS — a partial UserPrefs the org sets as ever
 | GET | `/api/accessibility-defaults` | requireAnyRole(pmo, admin) | — |
 | PUT | `/api/accessibility-defaults` | requireAnyRole(pmo, admin) | — |
 
-### `artifacts/api-server/src/routes/ai-allowlist.ts`
-
-AI SELECTION ALLOWLISTS — the org's governance FLOORS over which AI providers / models / STT engines may be selected (roadmap Phase C).
-
-| Method | Path | Gate | Description |
-| --- | --- | --- | --- |
-| GET | `/api/ai/provider-allowlist` | — | Read the floor-resolved allowlist (any authed; the pickers read it). |
-| PUT | `/api/ai/provider-allowlist` | requireRole(admin) | Set the ORG allowlist ceiling (a lower scope may only narrow it). |
-| GET | `/api/ai/model-allowlist` | — | Read the floor-resolved allowlist (any authed; the pickers read it). |
-| PUT | `/api/ai/model-allowlist` | requireRole(admin) | Set the ORG allowlist ceiling (a lower scope may only narrow it). |
-| GET | `/api/ai/stt-provider-allowlist` | — | Read the floor-resolved allowlist (any authed; the pickers read it). |
-| PUT | `/api/ai/stt-provider-allowlist` | requireRole(admin) | Set the ORG allowlist ceiling (a lower scope may only narrow it). |
-
 ### `artifacts/api-server/src/routes/ai-providers.ts`
 
 Typed + bounded schemas for the admin write bodies (untrusted boundary input).

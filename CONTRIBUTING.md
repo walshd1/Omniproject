@@ -36,7 +36,15 @@ PORT=3000 BASE_PATH=/ pnpm --filter omniproject run build               # SPA bu
 # Live n8n contract verification (starts a mock n8n; needs the gateway running)
 PORT=5000 node artifacts/api-server/dist/index.mjs &
 OMNI_API_BASE=http://localhost:5000 pnpm --filter @workspace/scripts run verify-broker
+
+# End-to-end (Playwright) — install the browser ONCE, then build + run the suite
+pnpm run e2e:install    # downloads the pinned Chromium (skip if $PLAYWRIGHT_BROWSERS_PATH already has it)
+pnpm run e2e            # builds the SPA + gateway, then runs the acceptance specs
 ```
+
+The e2e browser is a one-time setup step, kept out of `pnpm install` so a normal
+install stays fast and offline-friendly. CI installs it per job; locally you run
+`pnpm run e2e:install` once. `pnpm run e2e:run` runs the specs against an already-built app.
 
 Copy [`.env.example`](.env.example) to `.env` to configure — with nothing set the
 gateway runs in stateless **demo mode** (sample data, no SSO), which is the

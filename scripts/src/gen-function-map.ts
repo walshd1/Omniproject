@@ -14,15 +14,16 @@
  *
  * Run: pnpm --filter @workspace/scripts run gen-function-map
  */
-import ts from "typescript";
+import * as ts from "./lib/ts-ast";
+import { parseSourceFile, getModifiers } from "./lib/ts-ast";
 import fs from "node:fs";
 import path from "node:path";
-import { REPO_ROOT as ROOT } from "./lib/repo-root";
+import { fileURLToPath } from "node:url";
 import { walkFiles } from "./lib/walk-files";
 import { escapeTableCell } from "./lib/markdown";
-import { firstSentence } from "./lib/comment-summary";
-import { parseSourceFile } from "./lib/ts-ast";
 
+const HERE = path.dirname(fileURLToPath(import.meta.url));
+const ROOT = path.resolve(HERE, "../..");
 const OUT_MD = path.join(ROOT, "docs/FUNCTION-MAP.md");
 
 /** A package source tree to map, with the files that are generated/trivial. */
@@ -75,6 +76,27 @@ interface FileEntry {
   fns: FnEntry[];
 }
 
+/** Collapse a raw comment block to its first complete sentence (the summary). */
+function firstLine(comment: string): string {
+  // Strip the comment delimiters, join the body into flowing prose, and stop at
+  // the first paragraph break so a multi-paragraph block reduces to its lead.
+  const lines = comment
+    .replace(/^\/\*+/, "")
+    .replace(/\*+\/$/, "")
+    .split("\n")
+    .map((l) => l.replace(/^\s*[/*]+/, "").trim());
+  const lead: string[] = [];
+  for (const l of lines) {
+    if (!l) { if (lead.length) break; else continue; } // blank line ends the lead paragraph
+    lead.push(l);
+  }
+  const text = lead.join(" ").replace(/\s+/g, " ").trim();
+  // First sentence only, so the map stays one line per item — but don't break on
+  // an abbreviation's dot (e.g. / i.e. / etc.) or a single-letter initial.
+  const m = /(?<!\b(?:e\.g|i\.e|etc|vs|cf|no|[A-Z]))\. /.exec(text);
+  return m ? text.slice(0, m.index + 1) : text;
+}
+
 /** A comment range plus the source so we can slice its text. */
 type Range = ts.CommentRange;
 
@@ -89,7 +111,7 @@ function joinRun(fullText: string, ranges: Range[]): string {
     if (between.trim() !== "") break;
     end = ranges[i]!;
   }
-  return firstSentence(fullText.slice(start.pos, end.end));
+  return firstLine(fullText.slice(start.pos, end.end));
 }
 
 /** The nearest comment immediately above a node (JSDoc or contiguous `//` lines). */
@@ -119,12 +141,12 @@ function fileTitle(sf: ts.SourceFile, fullText: string): string {
 
 /** Extract the title + exported functions from one source file. */
 function readFile(abs: string, rel: string): FileEntry {
-  const fullText = fs.readFileSync(abs, "utf8");
-  const sf = parseSourceFile(abs, fullText);
+  const sf = parseSourceFile(abs);
+  const fullText = sf.text;
   const fns: FnEntry[] = [];
 
   for (const stmt of sf.statements) {
-    const exported = ts.canHaveModifiers(stmt) && (ts.getModifiers(stmt) ?? []).some((m) => m.kind === ts.SyntaxKind.ExportKeyword);
+    const exported = getModifiers(stmt).some((m) => m.kind === ts.SyntaxKind.ExportKeyword);
     if (!exported) continue;
     // `export function foo()`
     if (ts.isFunctionDeclaration(stmt) && stmt.name) {

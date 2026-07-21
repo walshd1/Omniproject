@@ -30,8 +30,12 @@ export function FeatureGatingBulkAdmin() {
   const canProgramme = role === "pmo" || role === "admin";
   const canProject = role === "manager" || role === "pmo" || role === "admin";
 
-  const { data: programmes } = useListProgrammes();
-  const { data: projects } = useListProjects();
+  const { data: programmesData } = useListProgrammes();
+  const { data: projectsData } = useListProjects();
+  // A generated list hook can momentarily resolve to a non-array (loading/error/unexpected
+  // payload); `?? []` only guards null/undefined, so narrow with Array.isArray.
+  const programmes = Array.isArray(programmesData) ? programmesData : [];
+  const projects = Array.isArray(projectsData) ? projectsData : [];
   // Org scope resolves the full catalogue (every id, regardless of scope-level state) — see
   // featureStatus() server-side, which always returns every governanceCatalogue() entry.
   const { data: catalogue } = useFeatures({});
@@ -47,14 +51,14 @@ export function FeatureGatingBulkAdmin() {
 
   const validFeatureIds = useMemo(() => new Set((catalogue ?? []).map((f) => f.id)), [catalogue]);
   const knownProgrammeIds = useMemo(() => new Set((Array.isArray(programmes) ? programmes : []).map((p) => p.id)), [programmes]);
-  const knownProjectIds = useMemo(() => new Set((projects ?? []).map((p) => p.id)), [projects]);
+  const knownProjectIds = useMemo(() => new Set((Array.isArray(projects) ? projects : []).map((p) => p.id)), [projects]);
 
   if (!canProject && !canProgramme) return null; // no scope this session can bulk-edit
 
   function doExport() {
     const rows = buildFeatureGatingExportRows(
       canProgramme ? (Array.isArray(programmes) ? programmes : []) : [],
-      canProject ? (projects ?? []) : [],
+      canProject ? (Array.isArray(projects) ? projects : []) : [],
       maps?.programmeFeatures ?? {},
       maps?.projectFeatures ?? {},
     );

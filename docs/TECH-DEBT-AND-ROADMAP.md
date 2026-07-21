@@ -130,6 +130,28 @@ These are documented in `docs/AI-SECURITY.md §6`; restated here so they're not 
 
 ## 5. Smaller debt / cleanups
 
+- **[debt — HIGH PRIORITY, do ASAP] The SPA (`artifacts/omniproject`) is a single ~440-source-file
+  package and it no longer scales.** One workspace package holds the entire front end — every
+  feature domain (wiki, whiteboard, proofs, reports, scheduling, registry, portal, view-engine,
+  screen/def engine, …) lives in one `src/` tree tested by one Vitest project. This has become
+  untenable at the CI seam: producing a single coverage report over all ~440 files in one process
+  needs >12 GB and OOMs regardless of coverage provider (this is the root cause behind the
+  `unit-spa` OOM saga — see the sharding note in `.github/workflows/ci.yml`; we contained it by
+  switching v8→istanbul coverage and sharding the run + a merge job, but that's a workaround, not a
+  fix). The same monolith slows typecheck, build, and IDE responsiveness, and makes ownership
+  boundaries mushy. **Fix:** split the SPA into workspace packages by feature domain, each with its
+  own tests + coverage gate + build, composed at the app shell. Each package's coverage then runs
+  independently and small, the CI sharding/merge dance disappears, and builds/typecheck parallelise.
+  This is a sizeable refactor (module boundaries, shared UI/util extraction, routing seams) but the
+  monolith is now actively holding back CI — prioritise it. *Owner-flagged untenable; do soon.*
+  **Approach (owner-directed):** land the current work to `main` first so `main` is a clean snapshot
+  of the last monolithic version, then modularise on a fresh branch. **Mirror each module with its
+  JSON** — co-locate a feature's code and its shipped JSON assets (screen/report/form defs, mappings,
+  seeds) under the same package (e.g. `packages/wiki/{src,assets}`, `packages/whiteboard/{src,assets}`)
+  so it is obvious at a glance what data belongs to what module. Today the code lives in
+  `artifacts/omniproject/src/**` while its JSON is scattered across `lib/backend-catalogue/src/screens/*.json`,
+  `assets/mappings`, settings presets, etc.; the split should pair them. Keep a thin shared core
+  (view-engine, def-compose, primitives, UI kit) that feature packages depend on.
 - **[debt] Large branch / changelog churn.** The last integration was 85 commits; keep future
   work in smaller, single-concern PRs to ease review and reduce changelog conflicts.
 - **[a11y bug] Toast actions are unreachable while a modal dialog stays open.** Radix's Dialog
@@ -207,14 +229,17 @@ These are documented in `docs/AI-SECURITY.md §6`; restated here so they're not 
 
 ## 6. Suggested sequencing
 
-1. **Verification sweep (§1)** — smoke-test the cloud adapters, OTLP, and the Authentik
+1. **Split the SPA into workspace packages (§5, owner-flagged ASAP)** — the ~440-file front-end
+   monolith is now actively holding back CI (coverage OOM, worked around with istanbul + sharding),
+   builds, and typecheck. Break it up by feature domain so each package tests/builds independently.
+2. **Verification sweep (§1)** — smoke-test the cloud adapters, OTLP, and the Authentik
    blueprint against real services; pin versions + capture required IAM/policies. *Highest ROI;
    de-risks everything already shipped.*
-2. **Shared-state seam (§2)** — Redis-backed option for the RAM-only registries, so the hardening
+3. **Shared-state seam (§2)** — Redis-backed option for the RAM-only registries, so the hardening
    behaves correctly behind multiple replicas.
-3. **Multi-tenancy Phase 1 (§4)** — only if the GTM needs pooled tenancy; start with
+4. **Multi-tenancy Phase 1 (§4)** — only if the GTM needs pooled tenancy; start with
    tenant-context plumbing behind a `currentTenant()` shim (no behaviour change).
-4. **Governance UX + personas (§4)** — wizard governance walkthrough + the MD RAG personas.
+5. **Governance UX + personas (§4)** — wizard governance walkthrough + the MD RAG personas.
 
 ---
 

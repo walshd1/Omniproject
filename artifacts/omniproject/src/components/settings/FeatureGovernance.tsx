@@ -62,9 +62,13 @@ export function FeatureGovernance() {
   const [level, setLevel] = useState<GateLevel>(levels[0] ?? "project");
   const [target, setTarget] = useState<string>("");
 
-  const { data: programmes } = useListProgrammes();
-  const { data: projects } = useListProjects();
-  const project = (projects ?? []).find((p) => p.id === target);
+  const { data: programmesData } = useListProgrammes();
+  const { data: projectsData } = useListProjects();
+  // A generated list hook can momentarily resolve to a non-array (loading/error/unexpected
+  // payload); `?? []` only guards null/undefined, so narrow with Array.isArray.
+  const programmes = Array.isArray(programmesData) ? programmesData : [];
+  const projects = Array.isArray(projectsData) ? projectsData : [];
+  const project = projects.find((p) => p.id === target);
   const programmeId = level === "programme" ? (target || null) : level === "project" ? (project?.programmeId ?? null) : null;
   const projectId = level === "project" ? (target || null) : null;
 
@@ -86,7 +90,7 @@ export function FeatureGovernance() {
 
   const needsTarget = level !== "org";
   const options = level === "programme" ? (Array.isArray(programmes) ? programmes : []).map((p) => ({ id: p.id, name: p.name }))
-    : level === "project" ? (projects ?? []).map((p) => ({ id: p.id, name: p.name })) : [];
+    : level === "project" ? (Array.isArray(projects) ? projects : []).map((p) => ({ id: p.id, name: p.name })) : [];
 
   async function save() {
     setMsg(null);

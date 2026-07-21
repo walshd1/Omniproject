@@ -131,7 +131,7 @@ One annotation pinned onto a deliverable. Which optional fields apply depends on
 
 ### AnnotationType
 
-The supported annotation types. `pin` — a point marker at (x, y); `box` — a rectangular region (x, y + w, h); `highlight` — a rectangular emphasis region. Coordinates are NORMALISED to the deliverable (0..1 of its width/height), so an annotation survives any render scale.
+PROOFING / deliverable review model — the neutral, primitive-built shape for OmniProject's creative-review surface (roadmap 2.4). Same architectural principle as documents (wiki blocks) and whiteboards (canvas elements): a proof is a JSON DEFINITION that REFERENCES a deliverable (an image/PDF that lives elsewhere — attachments-as-references, zero-at-rest) and carries a list of typed ANNOTATION PRIMITIVES pinned onto it, plus a review decision. NOT an opaque third-party markup blob. The single `ANNOTATION_TYPES` list is what the authoring palette, the validator AND the unified primitive store (the `annotation` family) all draw from, so the store can never drift from what a proof can contain. The authoritative sanitiser runs server-side before anything is written.
 
 Enum: `pin`, `box`, `highlight`
 
@@ -202,7 +202,7 @@ One element on a whiteboard. Which optional fields apply depends on `type`: `sti
 
 ### CanvasElementType
 
-The supported canvas element types. `sticky` — a coloured sticky note (the staple); `shape` — a rectangle/ellipse/diamond (optionally labelled); `text` — free-standing text; `connector` — a line/arrow between two points or elements; `frame` — a labelled grouping container.
+WHITEBOARD / canvas content model — the neutral, primitive-built shape for OmniProject's visual canvas (roadmap 2.3). Same architectural principle as documents (wiki blocks), forms, screens and reports: a whiteboard is a JSON DEFINITION built of typed CANVAS-ELEMENT PRIMITIVES, authored once and rendered by a generic renderer — NOT an opaque third-party scene blob. A whiteboard scene is an ordered list of `CanvasElement`s. Each element TYPE is a small primitive (its config are properties; it renders and validates by its type). The single `CANVAS_ELEMENT_TYPES` list is what the authoring palette, the validator AND the unified primitive store (the `canvas` family) all draw from, so the store can never drift from what a canvas can contain. Because the model is ours, a rich third-party editor (Excalidraw/Miro) is an OPTIONAL "use native" enhancement, not the source of truth. Scenes are stored through the broker seam (zero-at-rest); this module defines the neutral shape only — the authoritative sanitiser runs server-side before anything is written.
 
 Enum: `sticky`, `shape`, `text`, `connector`, `frame`, `draw`
 
@@ -250,7 +250,7 @@ One block in a document. Which optional fields apply depends on `type`: text blo
 
 ### DocBlockType
 
-The supported document block types. Text-bearing: `heading` (with a level), `paragraph`, `quote`, `callout` (with a tone), `code`. Lists: `bullet-list`, `numbered-list`, `checklist` (items may be checked). Structural: `divider`, `table` (a grid of cells), `embed` (a REFERENCE to external content by URL — zero-at-rest, never inlined bytes).
+WIKI / document content model — the neutral, primitive-built shape for OmniProject's collaborative docs and knowledge base (roadmap 2.1). Same architectural principle as forms, screens and reports: a document is a JSON DEFINITION built of typed BLOCK PRIMITIVES, authored once and rendered by a generic renderer. A document is an ordered list of `DocBlock`s. Each block TYPE is a small class (its config are properties; it renders and validates by its type). The block types are the "documents built of primitives" allow-list: the single `DOC_BLOCK_TYPES` list is what the validator, the authoring palette AND the unified primitive store (the `block` family) all draw from, so the store can never drift from what a document can contain. Bodies are stored through the broker seam (zero-at-rest) — this module only defines the neutral shape and pure helpers (block-type registry, wiki-link parsing, slugging); the authoritative sanitiser runs server-side before anything is written.
 
 Enum: `heading`, `paragraph`, `quote`, `callout`, `code`, `bullet-list`, `numbered-list`, `checklist`, `divider`, `table`, `embed`
 
@@ -644,7 +644,7 @@ Enum: `user`, `programme`, `project`, `all`
 
 ### SessionBind
 
-The non-secret material needed to re-derive a session's broker key.
+Per-session broker signing key. The key used to sign a gateway→broker request is NOT the static env master — it is DERIVED, per session, as: sessionBrokerKey = HMAC( derivedKey("broker", v), sub ‖ smono ‖ salt ) - `derivedKey("broker", v)` = HMAC(env master, "broker:vN"). Only our system holds the master, so a signature that verifies under this key PROVES the request originated from our gateway — and rolls forward on key revocation. - `sub ‖ smono ‖ salt` binds the key to one USER and one SESSION: · sub — the acting username/subject. · smono — the monotonic-clock reading at session creation (a non-rewindable "session start time"; ordering is guaranteed within a replica). · salt — CSPRNG entropy minted once per session, so the key is regenerated from fresh entropy on every login and stays unique even across a process restart that resets the monotonic clock. The key itself NEVER leaves the gateway. We sign each request with it and transmit only the (non-secret) binding material — sub, smono, salt, broker-key version — so the broker re-derives the same key from ITS copy of the master and verifies. An observer who captures the binding material still cannot forge a signature without the master (HMAC), and a leaked session key is scoped to a single session. This is a shared-secret MAC, not a third-party signature: it authenticates to a party that holds the master (the broker), proving valid origin + that a specific user's valid session sent it. It does not provide non-repudiation against the gateway itself (the same trust boundary as the existing PSK).
 
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |

@@ -5,7 +5,20 @@ import { chainForAction } from "./approval-gate";
 import { sealConfig, openConfig } from "./config-crypto";
 import { canonicalJson } from "./canonical-json";
 import { safeParseJson } from "./safe-json";
+import { productionSignals } from "./dev-mode-guard";
 import type { ChainDef } from "./approval-chain";
+
+/**
+ * CI / contract-test escape hatch. When `OMNI_APPROVALS_AUTO_APPLY=1`, a posture-REDUCING settings change
+ * applies immediately instead of raising a signed sign-off. HARD-GATED by the same production detector used
+ * everywhere else (`productionSignals`): in ANY production-like deployment the flag is ignored, so it can
+ * only ever relax the gate on a throwaway demo/CI instance — never a real one. The smoke broker-contract
+ * job needs it to point the gateway at its mock broker (a posture reduction that would otherwise require a
+ * passkey sign-off no headless CI run can produce).
+ */
+function approvalsAutoApply(): boolean {
+  return process.env["OMNI_APPROVALS_AUTO_APPLY"] === "1" && productionSignals(process.env).length === 0;
+}
 
 /**
  * The single-chokepoint enforcement of the governing invariant (§0, §6a): a settings change that REDUCES
@@ -66,6 +79,11 @@ export async function applySettingsGuarded(patch: Record<string, unknown>, propo
   const normalized = validatePatch(patch);
   const relaxes = relaxingKeys(getSettings() as unknown as Record<string, unknown>, normalized);
   if (relaxes.length === 0) {
+    updateSettings(normalized);
+    return { applied: true };
+  }
+  // CI/contract-test escape hatch (see approvalsAutoApply) — inert in any production-like deployment.
+  if (approvalsAutoApply()) {
     updateSettings(normalized);
     return { applied: true };
   }

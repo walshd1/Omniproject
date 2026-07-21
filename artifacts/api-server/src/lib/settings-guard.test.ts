@@ -78,3 +78,33 @@ test("a SECRET-carrying relaxation is SEALED in the queue — plaintext never si
     assert.equal(applied?.secret, SECRET, "the real secret is applied only at executor time");
   } finally { updateSettings({ webhooks: prev }); }
 });
+
+test("OMNI_APPROVALS_AUTO_APPLY auto-applies a relaxing patch on a NON-production instance (CI/contract-test escape hatch)", async () => {
+  const prev = getSettings().backendSource;
+  process.env["OMNI_APPROVALS_AUTO_APPLY"] = "1";
+  try {
+    // Same relaxing change as above, but the CI escape hatch applies it immediately (no held proposal).
+    const r = await applySettingsGuarded({ backendSource: "switched" }, "ci");
+    assert.equal(r.applied, true, "the escape hatch applies a relaxation without a sign-off on a non-prod box");
+    assert.equal(getSettings().backendSource, "switched");
+  } finally {
+    delete process.env["OMNI_APPROVALS_AUTO_APPLY"];
+    updateSettings({ backendSource: prev });
+  }
+});
+
+test("the OMNI_APPROVALS_AUTO_APPLY escape hatch is INERT when a production signal is present", async () => {
+  const prev = getSettings().backendSource;
+  process.env["OMNI_APPROVALS_AUTO_APPLY"] = "1";
+  process.env["LICENSE_KEY"] = "prod-licence"; // a production signal (productionSignals) ⇒ hatch must be ignored
+  try {
+    const r = await applySettingsGuarded({ backendSource: "switched" }, "ci");
+    assert.equal(r.applied, false, "a production-like deployment must still hold the relaxation for a signed sign-off");
+    assert.ok(r.pending?.proposalId, "the change is queued, not applied");
+    assert.equal(getSettings().backendSource, prev, "not applied while a production signal is present");
+  } finally {
+    delete process.env["OMNI_APPROVALS_AUTO_APPLY"];
+    delete process.env["LICENSE_KEY"];
+    updateSettings({ backendSource: prev });
+  }
+});

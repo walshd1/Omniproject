@@ -32,7 +32,12 @@ export default defineConfig({
     testTimeout: 20_000,
     hookTimeout: 20_000,
     coverage: {
-      provider: "v8",
+      // istanbul (NOT v8): the v8 provider's post-test coverage remap reads every executed
+      // module's source + source-map and rebuilds byte-range coverage in one process; on this
+      // large jsdom suite that step exceeded a 13 GB heap and OOM'd (the tests themselves peak
+      // at <200 MB — see CI notes). istanbul instruments at transform time with per-module
+      // counters, so coverage memory is flat and independent of file count. No sharding needed.
+      provider: "istanbul",
       reporter: ["text", "lcov"],
       include: ["src/**/*.{ts,tsx}"],
       exclude: [
@@ -45,18 +50,18 @@ export default defineConfig({
         "src/.generated/**",
       ],
       // Ratchet: floors set just below measured coverage to prevent regressions.
-      // After a large test push (≈+700 tests across the lowest-covered files), a full
-      // instrumented run measured 93% statements / 86% branches / 90% functions / 95% lines,
-      // and coverage has only risen since. Floors sit ~1-2 points under those proven numbers
-      // to absorb run-to-run variance while still catching a real regression. NOTE: a literal
-      // 95% branch floor is not yet attainable — a real slice of the remaining uncovered
-      // branches are unreachable under jsdom (SSR `typeof window` guards, non-Error catch arms,
-      // recharts render-props); reaching 95 branches needs those guards pruned/ignored in source.
+      // A full instrumented run (istanbul, whole suite, 3328 tests) measured 89.3% statements /
+      // 82.2% branches / 85.8% functions / 91.8% lines. Floors sit ~1-2 points under those proven
+      // numbers to absorb run-to-run variance while still catching a real regression. NOTE: these
+      // are ISTANBUL numbers — lower than the old v8 figures for the SAME code because the two
+      // providers count statements/branches differently (istanbul instruments the AST; v8 maps
+      // byte ranges). The provider was switched from v8 to istanbul to fix an out-of-memory in the
+      // coverage step (see the provider comment above), so the floors were re-measured to match.
       thresholds: {
-        statements: 92,
-        branches: 85,
-        functions: 89,
-        lines: 94,
+        statements: 88,
+        branches: 80,
+        functions: 84,
+        lines: 90,
       },
     },
   },

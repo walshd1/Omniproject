@@ -3454,7 +3454,7 @@ Settings incompatibility registry — the ONE place cross-field settings constra
 
 ### `artifacts/api-server/src/lib/settings-guard.ts`
 
-The single-chokepoint enforcement of the governing invariant (§0, §6a): a settings change that REDUCES the security posture doesn't apply immediately — it becomes a passkey-signed sign-off.
+CI / contract-test escape hatch.
 
 | Function | What it does |
 | --- | --- |
@@ -5463,11 +5463,12 @@ The canonical field superset = the base vocabulary (assets/fields.json) UNION ev
 
 ### `scripts/src/lib/ts-ast.ts`
 
-Compiler-API helper shared by the AST-driven generators (gen-contract, gen-api-reference, gen-function-map): the single place that opens a source file into a `ts.SourceFile`, so all three parse with the same options (`ScriptTarget.Latest`, parent pointers set) rather than re-typing the `ts.createSourceFile(...)` boilerplate.
+Shared TypeScript-AST access for the guard/generator scripts.
 
 | Function | What it does |
 | --- | --- |
-| `parseSourceFile` | Parse a TS/JS file into a `ts.SourceFile` with parent pointers set (`setParentNodes: true`), reading from disk unless `text` is supplied (callers that already have the file contents pass them to avoid a second read). |
+| `parseSourceFile` | Parse a source file on disk into a syntactic `SourceFile` AST via the TS7 native API. |
+| `getModifiers` | The modifiers on any node, or an empty array — replaces TS7-removed `ts.canHaveModifiers` / `ts.getModifiers`. |
 
 ### `scripts/src/lib/ts-source.ts`
 
