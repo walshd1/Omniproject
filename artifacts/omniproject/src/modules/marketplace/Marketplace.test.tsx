@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { screen, fireEvent } from "@testing-library/react";
-import { renderWithProviders } from "../test/utils";
-import type { ExtensionMeta } from "../lib/marketplace";
+import { renderWithProviders } from "../../test/utils";
+import type { ExtensionMeta } from "./marketplace";
 
 /**
  * The Marketplace page: installed-extension list, empty / loading / error states, the install-manifest
@@ -31,8 +31,8 @@ const mutateWith = (spy: (vars: unknown) => void, getMode: () => "ok" | "err", r
 
 vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast }) }));
 
-vi.mock("../lib/marketplace", async (importActual) => {
-  const actual = await importActual<typeof import("../lib/marketplace")>();
+vi.mock("./marketplace", async (importActual) => {
+  const actual = await importActual<typeof import("./marketplace")>();
   return {
     ...actual,
     useExtensions: () => ({ data: extensions, isLoading, isError, error: isError ? new Error("nope") : null, refetch }),

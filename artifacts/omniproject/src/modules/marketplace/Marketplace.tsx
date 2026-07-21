@@ -1,11 +1,11 @@
 import { useState } from "react";
 import { Blocks, Trash2, Power } from "lucide-react";
-import { DataState } from "../components/DataState";
+import { DataState } from "../../components/DataState";
 import {
   useExtensions, useInstallExtension, useSetExtensionStatus, useUninstallExtension,
   contributionKindLabel, type ExtensionMeta,
-} from "../lib/marketplace";
-import { safeParseJson } from "../lib/safe-json";
+} from "./marketplace";
+import { safeParseJson } from "../../lib/safe-json";
 import { useToast } from "@/hooks/use-toast";
 
 /**

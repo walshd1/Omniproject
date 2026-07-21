@@ -42,7 +42,7 @@ const Whiteboards = lazy(() => import("./pages/Whiteboards").then((m) => ({ defa
 const Proofs = lazy(() => import("./modules/proof").then((m) => ({ default: m.Proofs })));
 const Goals = lazy(() => import("./modules/goals").then((m) => ({ default: m.Goals })));
 const Invoices = lazy(() => import("./modules/invoicing").then((m) => ({ default: m.Invoices })));
-const Marketplace = lazy(() => import("./pages/Marketplace").then((m) => ({ default: m.Marketplace })));
+const Marketplace = lazy(() => import("./modules/marketplace").then((m) => ({ default: m.Marketplace })));
 const Registry = lazy(() => import("./pages/Registry").then((m) => ({ default: m.Registry })));
 const Studio = lazy(() => import("./pages/Studio").then((m) => ({ default: m.Studio })));
 const Definitions = lazy(() => import("./pages/Definitions").then((m) => ({ default: m.Definitions })));
