@@ -203,7 +203,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
+        shard: [1, 2, 3, 4]
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
       - name: Install pnpm
@@ -219,25 +219,21 @@ jobs:
         run: pnpm install --frozen-lockfile --ignore-scripts
 
       - name: Unit tests (SPA) — shard ${{ matrix.shard }}/${{ strategy.job-total }}
-        # No --coverage: the TESTS run flat (per-file heap <200 MB, resets every file). What grows is
-        # memory the reused vitest fork RETAINS across files — jsdom environment churn plus references
-        # that survive vitest's per-file module-graph reset. A full source audit confirmed the app code
-        # is leak-free (every timer/listener/observer/EventSource/subscription has matching teardown),
-        # and the OOM is "Ineffective mark-compacts near heap limit" — i.e. the retained memory is LIVE
-        # (referenced), so a bigger heap only delays the death and a forced GC can't reclaim it (proven:
-        # a 4 GB heap OOM'd at ~165 s, an 8 GB heap OOM'd at ~370 s, same shard). The reliable fix is to
-        # cut FILES PER FORK so each fork's cumulative retention peaks well under the ceiling: at ~110
-        # files/fork (4 shards) it blows 8 GB; 12 shards (~37 files/fork) keeps the peak ~3 GB. This is a
-        # different regime from the old coverage runs that "relocated" — those retained ~0.9 GB PER FILE
-        # of coverage state (≈10× tests-only), so no shard count tamed them; tests-only does shard down
-        # cleanly. The real structural fix (per-feature packages, each tested in isolation) is tracked as
-        # high priority in docs/TECH-DEBT-AND-ROADMAP.md §5/§6. Skipped on direct pushes to main.
+        # No --coverage: the TESTS run flat (per-file heap <200 MB, resets every file), so a 4 GB heap
+        # across 4 shards is ample. The earlier "wandering" shard OOM was NOT a memory-tuning problem:
+        # one test file (use-issue-form.test.ts) drove an unbounded React render loop that allocated
+        # gigabytes on its own, and it just moved between shards as the shard count changed — which is
+        # why more shards / more heap only relocated the failure. That test is fixed (stable hook input),
+        # so the suite is green at the original 4×4 GB. The coverage GATE stays SUSPENDED (separately)
+        # because the istanbul REPORT over this ~440-file monolith OOMs even at 12 GB — the real fix
+        # there is splitting the SPA into per-feature packages that each measure coverage in isolation,
+        # tracked as high priority in docs/TECH-DEBT-AND-ROADMAP.md §5/§6. Skipped on direct pushes to main.
         run: >-
           pnpm --filter @workspace/omniproject exec
           vitest run --reporter=default
           --shard=${{ matrix.shard }}/${{ strategy.job-total }}
         env:
-          NODE_OPTIONS: --max-old-space-size=8192
+          NODE_OPTIONS: --max-old-space-size=4096
 
   # Remaining unit suites that carry no coverage gate — grouped into one parallel job.
   # Skipped on direct pushes to main (see two-tier note).
