@@ -1,7 +1,7 @@
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import crypto from "node:crypto";
-import { startHarness, adminCookie, type Harness } from "./_harness";
+import { startHarness, adminCookie, cookie, type Harness } from "./_harness";
 
 /**
  * In-process HTTP coverage for the approval-chain router (routes/approvals.ts): passkey enrolment, the
@@ -88,6 +88,20 @@ test("writing a SECURITY collection (approvalChains) is held for a signed sign-o
   const body = await json(r);
   assert.ok(body.pending?.proposalId);
   assert.deepEqual(body.pending.relaxes, ["approvalChains"]);
+});
+
+test("an autonomous principal is refused from the human approver surface (no session→actor, no passkey, no acceptance)", async () => {
+  // A namespaced non-human sub that somehow holds a session must never be treated as a human approver —
+  // `via:"human"` is the only thing engaging the AI-approver gate + the engine's humanOnly restriction.
+  const bot = cookie({ sub: "automation:bot-1", name: "bot", email: "bot@x.io", roles: ["omni-admins"] });
+  // No actor is minted → the approver surface reads as unauthenticated (401), never as a human approver.
+  assert.equal((await h.req("/approvals/inbox", { method: "GET", cookie: bot })).status, 401);
+  // Cannot enrol a human passkey (403), and cannot sign a responsibility acceptance (403).
+  assert.equal((await h.req("/approvals/passkey", { method: "POST", cookie: bot, body: { credentialId: "c", publicKeySpki: spki } })).status, 403);
+  assert.equal((await h.req("/approvals/workflow-acceptances/wf-x", { method: "POST", cookie: bot, body: sign("x", "approve") })).status, 403);
+  // An `agent:`-namespaced sub is treated the same way.
+  const agent = cookie({ sub: "agent:run-9:approver", name: "a", email: "a@x.io", roles: ["omni-admins"] });
+  assert.equal((await h.req("/approvals/passkey", { method: "POST", cookie: agent, body: { credentialId: "c", publicKeySpki: spki } })).status, 403);
 });
 
 test("a tampered signature is refused (403), executor does not run", async () => {
