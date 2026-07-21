@@ -3,8 +3,9 @@ process.env["SESSION_SECRET"] = "test-acceptance-mac-secret-do-not-use";
 
 import { test, beforeEach } from "node:test";
 import assert from "node:assert/strict";
-import { createHmac } from "node:crypto";
+import crypto, { createHmac } from "node:crypto";
 import { updateSettings } from "./settings";
+import { registerCredential } from "./passkey";
 import { workflowContentHash, type WorkflowAcceptance } from "./responsibility-acceptance";
 import { activeAcceptanceFor, aiApprovalAuthorization } from "./responsibility-acceptance-service";
 import { derivedKey } from "./key-registry";
@@ -26,28 +27,34 @@ const validMac = (a: Pick<WorkflowAcceptance, "workflowId" | "workflowHash" | "a
     .digest("hex");
 const base = { workflowId: "wf-1", workflowHash: HASH, acceptedBy: "u-signer", sigRef: "sig-1", acceptedAt: "2026-01-01T00:00:00.000Z" };
 
-beforeEach(() => { updateSettings({ workflows: [WF], workflowAcceptances: [] }); });
+// The signer holds a registered credential throughout — so these tests isolate the MAC gate, not the
+// separate passkey-revocation void (activeAcceptanceFor also voids when the signer has no credential).
+const { publicKey } = crypto.generateKeyPairSync("ec", { namedCurve: "P-256" });
+beforeEach(async () => {
+  updateSettings({ workflows: [WF], workflowAcceptances: [] });
+  await registerCredential("u-signer", { credentialId: "k", publicKeySpki: publicKey.export({ type: "spki", format: "der" }).toString("base64") });
+});
 
-test("a MAC-LESS injected acceptance is void — the AI grant is NOT honoured (forgery closed)", () => {
+test("a MAC-LESS injected acceptance is void — the AI grant is NOT honoured (forgery closed)", async () => {
   updateSettings({ workflowAcceptances: [{ ...base }] }); // no mac (settings/config-dir injection)
-  assert.equal(activeAcceptanceFor("wf-1"), null);
-  assert.equal(aiApprovalAuthorization("wf-1").ok, false);
+  assert.equal(await activeAcceptanceFor("wf-1"), null);
+  assert.equal((await aiApprovalAuthorization("wf-1")).ok, false);
 });
 
-test("a WRONG-MAC acceptance is void", () => {
+test("a WRONG-MAC acceptance is void", async () => {
   updateSettings({ workflowAcceptances: [{ ...base, mac: "deadbeef" }] });
-  assert.equal(activeAcceptanceFor("wf-1"), null);
-  assert.equal(aiApprovalAuthorization("wf-1").ok, false);
+  assert.equal(await activeAcceptanceFor("wf-1"), null);
+  assert.equal((await aiApprovalAuthorization("wf-1")).ok, false);
 });
 
-test("a correctly-MAC'd acceptance IS honoured (the gate doesn't break legitimate acceptances)", () => {
+test("a correctly-MAC'd acceptance IS honoured (the gate doesn't break legitimate acceptances)", async () => {
   updateSettings({ workflowAcceptances: [{ ...base, mac: validMac(base) }] });
-  assert.equal(activeAcceptanceFor("wf-1")?.acceptedBy, "u-signer");
-  assert.equal(aiApprovalAuthorization("wf-1").ok, true);
+  assert.equal((await activeAcceptanceFor("wf-1"))?.acceptedBy, "u-signer");
+  assert.equal((await aiApprovalAuthorization("wf-1")).ok, true);
 });
 
-test("a valid MAC over a DIFFERENT workflow hash is void (can't be replayed onto an edited workflow)", () => {
+test("a valid MAC over a DIFFERENT workflow hash is void (can't be replayed onto an edited workflow)", async () => {
   const stale = { ...base, workflowHash: workflowContentHash({ ...WF, steps: [{ id: "s1", kind: "action" as const, action: "noop" }] }) };
   updateSettings({ workflowAcceptances: [{ ...stale, mac: validMac(stale) }] });
-  assert.equal(activeAcceptanceFor("wf-1"), null); // MAC is valid but bound to a hash that no longer matches
+  assert.equal(await activeAcceptanceFor("wf-1"), null); // MAC is valid but bound to a hash that no longer matches
 });

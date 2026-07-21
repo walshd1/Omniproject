@@ -138,7 +138,7 @@ export async function submitDecision(proposalId: string, actor: Actor, signed: S
   if (actor.via === "ai" && signed.decision === "approve") {
     const workflowId = WORKFLOW_RUN_PREFIX.test(p.action) ? p.action.slice(p.action.indexOf(":") + 1) : "";
     if (!workflowId) throw new ApprovalServiceError("AI approval is only permitted for a workflow run under a signed acceptance");
-    const auth = aiApprovalAuthorization(workflowId);
+    const auth = await aiApprovalAuthorization(workflowId);
     if (!auth.ok) throw new ApprovalServiceError(`AI approval refused: ${auth.reason}`);
   }
 

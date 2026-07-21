@@ -201,7 +201,7 @@ function workflowScopeGate(req: Request, res: Response, workflowId: string): boo
 
 // GET /approvals/workflow-acceptances — every stored acceptance with its LIVE active/void status (pmo+).
 router.get("/approvals/workflow-acceptances", requireRole("manager"), async (_req: Request, res: Response) => {
-  res.json({ acceptances: listAcceptances() });
+  res.json({ acceptances: await listAcceptances() });
 });
 
 // POST /approvals/workflow-acceptances/:workflowId/challenge — challenge to sign, bound to the CURRENT version.

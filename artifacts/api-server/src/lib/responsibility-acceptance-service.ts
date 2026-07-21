@@ -6,7 +6,7 @@ import { derivedKey } from "./key-registry";
 import { constantTimeEqual } from "./crypto-keys";
 import { canonicalJson } from "./canonical-json";
 import {
-  issueChallenge, consumeChallenge, getCredential, verifyWebAuthnAssertion,
+  issueChallenge, consumeChallenge, getCredential, credentialsFor, verifyWebAuthnAssertion,
 } from "./passkey";
 import {
   workflowContentHash, ResponsibilityAcceptanceError, type WorkflowAcceptance,
@@ -110,14 +110,18 @@ function acceptanceMacValid(a: WorkflowAcceptance): boolean {
  * content hash (any edit voids it) AND signed by a still-current person (offboarding voids it). Computed on
  * demand — the void is implicit, never a stored flag, so it can't drift from reality.
  */
-export function activeAcceptanceFor(workflowId: string): WorkflowAcceptance | null {
+export async function activeAcceptanceFor(workflowId: string): Promise<WorkflowAcceptance | null> {
   const def = workflowById(workflowId);
   if (!def) return null;
   const a = acceptances().find((x) => x.workflowId === workflowId);
   if (!a) return null;
   if (!acceptanceMacValid(a)) return null;                       // forged/injected (no valid internal MAC) → void
   if (a.workflowHash !== workflowContentHash(def)) return null; // workflow edited since acceptance → voided
-  if (!signerIsCurrent(a)) return null;                          // signer offboarded → voided
+  if (!signerIsCurrent(a)) return null;                          // signer offboarded (SCIM directory) → voided
+  // Revoking the signer's passkey MUST cut off AI autonomy — the documented offboarding mitigation
+  // (passkey.ts revokeCredentials). This works even where SCIM isn't wired (the signerIsCurrent fail-open
+  // case): no registered credential for the accepting user ⇒ their signature can no longer be made ⇒ voided.
+  if ((await credentialsFor(a.acceptedBy)).length === 0) return null;
   return a;
 }
 
@@ -126,20 +130,23 @@ export function activeAcceptanceFor(workflowId: string): WorkflowAcceptance | nu
  * must exist. The deny `reason` distinguishes the recovery path for the UX — never signed, voided by an
  * edit, or voided by offboarding (all three route the scope owner to select an approver + re-sign, §4.2).
  */
-export function aiApprovalAuthorization(workflowId: string): { ok: boolean; reason?: string } {
-  if (activeAcceptanceFor(workflowId)) return { ok: true };
+export async function aiApprovalAuthorization(workflowId: string): Promise<{ ok: boolean; reason?: string }> {
+  if (await activeAcceptanceFor(workflowId)) return { ok: true };
   const stored = acceptances().find((x) => x.workflowId === workflowId);
   if (!stored) return { ok: false, reason: "no responsibility acceptance — a human must review the workflow and passkey-sign before an AI may approve it" };
   const def = workflowById(workflowId);
   if (def && stored.workflowHash !== workflowContentHash(def)) {
     return { ok: false, reason: "the workflow changed since it was accepted — its scope owner must review and re-sign a fresh acceptance" };
   }
+  if ((await credentialsFor(stored.acceptedBy)).length === 0) {
+    return { ok: false, reason: "the accepting user's passkey was revoked — the scope owner must select a new human approver and sign" };
+  }
   return { ok: false, reason: "the accepting user was removed — the scope owner must select a new human approver and sign" };
 }
 
 /** List every stored acceptance with its live active/void status (for the governance UX). */
-export function listAcceptances(): Array<WorkflowAcceptance & { active: boolean }> {
-  return acceptances().map((a) => ({ ...a, active: activeAcceptanceFor(a.workflowId)?.acceptedAt === a.acceptedAt }));
+export async function listAcceptances(): Promise<Array<WorkflowAcceptance & { active: boolean }>> {
+  return Promise.all(acceptances().map(async (a) => ({ ...a, active: (await activeAcceptanceFor(a.workflowId))?.acceptedAt === a.acceptedAt })));
 }
 
 /** Revoke the acceptance for a workflow (strengthens the posture → applies immediately). No-op if none. */
