@@ -1,8 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  sortRows, filterRows, applyView, compareRows, ordinalLevel, ordinalSortKey,
-  asNumber, asDateMs, ORDINAL_LEVELS_BY_KIND, type Row,
+  sortRows, filterRows, filterRowsBoolean, evalFilterNode, applyView, compareRows, ordinalLevel, ordinalSortKey,
+  asNumber, asDateMs, ORDINAL_LEVELS_BY_KIND, type Row, type FilterNode,
 } from "./sort-filter";
 import { PRIORITY_RANK } from "./work-vocabulary";
 
@@ -100,6 +100,34 @@ test("filterRows: an ordinal op compares by level (severity >= high keeps high +
   const rows: Row[] = [{ id: 1, sev: "low" }, { id: 2, sev: "critical" }, { id: 3, sev: "high" }, { id: 4, sev: "medium" }];
   const kept = filterRows(rows, [{ field: "sev", op: "gte", value: "high", kind: "ordinal", levels: ORDINAL_LEVELS_BY_KIND.severity }]);
   assert.deepEqual(ids(kept).sort(), [2, 3]);
+});
+
+test("boolean filtering: AND / OR / NOT nest to any depth", () => {
+  const rows: Row[] = [
+    { id: 1, status: "todo", priority: "low" },
+    { id: 2, status: "in_progress", priority: "urgent" },
+    { id: 3, status: "done", priority: "urgent" },
+    { id: 4, status: "todo", priority: "high" },
+  ];
+  // (status = todo OR status = in_progress) AND NOT (priority < high)
+  const where: FilterNode = {
+    all: [
+      { any: [{ field: "status", op: "eq", value: "todo" }, { field: "status", op: "eq", value: "in_progress" }] },
+      { not: { field: "priority", op: "lt", value: "high", kind: "ordinal", levels: ORDINAL_LEVELS_BY_KIND.priority } },
+    ],
+  };
+  assert.deepEqual(ids(filterRowsBoolean(rows, where)).sort(), [2, 4]); // id1 low<high excluded; id3 not todo/in_progress
+  // Vacuous groups follow boolean algebra: all:[] ⇒ true, any:[] ⇒ false.
+  assert.equal(evalFilterNode({ all: [] }, rows[0]!), true);
+  assert.equal(evalFilterNode({ any: [] }, rows[0]!), false);
+  // No tree ⇒ everything passes.
+  assert.deepEqual(ids(filterRowsBoolean(rows)), [1, 2, 3, 4]);
+});
+
+test("applyView accepts a boolean `where` tree as well as a flat filter list", () => {
+  const rows: Row[] = [{ id: 1, status: "todo" }, { id: 2, status: "done" }, { id: 3, status: "blocked" }];
+  const out = applyView(rows, { where: { any: [{ field: "status", op: "eq", value: "todo" }, { field: "status", op: "eq", value: "blocked" }] } });
+  assert.deepEqual(ids(out).sort(), [1, 3]);
 });
 
 test("applyView filters THEN sorts in one pass", () => {

@@ -5272,6 +5272,8 @@ SORT + FILTER — the ONE shared, pure "view controls" engine a screen table or 
 | `sortRows` | Sort rows by one or more keys (earlier keys dominate), stably (original order breaks a full tie). |
 | `evalFilter` | Evaluate one predicate against a row. |
 | `filterRows` | Keep rows matching EVERY predicate (AND). |
+| `evalFilterNode` | Evaluate a boolean filter node against a row. |
+| `filterRowsBoolean` | Keep rows matching the boolean filter tree. |
 | `applyView` | The common "view" application: filter THEN sort, in one pure pass. |
 
 ### `lib/backend-catalogue/src/task-vocabulary.generated.ts`

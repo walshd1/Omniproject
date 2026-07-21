@@ -188,8 +188,47 @@ export function filterRows<T extends Row>(rows: readonly T[], predicates: readon
   return rows.filter((r) => predicates.every((p) => evalFilter(p, r)));
 }
 
+/**
+ * BOOLEAN FILTERING — a nestable AND/OR/NOT tree over the same {@link FilterPredicate} leaves, so a user can
+ * build "(status = todo OR status = in_progress) AND NOT (priority < high)" and any depth beyond. A node is
+ * either a leaf predicate or a group:
+ *   - `{ all: [...] }`  → every child must match (AND);
+ *   - `{ any: [...] }`  → at least one child must match (OR);
+ *   - `{ not: node }`   → the child must NOT match (negation).
+ * An empty `all`/`any` is vacuous: `all: []` ⇒ true (nothing to fail), `any: []` ⇒ false (nothing to satisfy),
+ * matching boolean algebra. Pure.
+ */
+export type FilterNode =
+  | FilterPredicate
+  | { all: readonly FilterNode[] }
+  | { any: readonly FilterNode[] }
+  | { not: FilterNode };
+
+const isGroupAll = (n: FilterNode): n is { all: readonly FilterNode[] } => Array.isArray((n as { all?: unknown }).all);
+const isGroupAny = (n: FilterNode): n is { any: readonly FilterNode[] } => Array.isArray((n as { any?: unknown }).any);
+const isNot = (n: FilterNode): n is { not: FilterNode } => (n as { not?: unknown }).not !== undefined && !isGroupAll(n) && !isGroupAny(n);
+
+/** Evaluate a boolean filter node against a row. */
+export function evalFilterNode(node: FilterNode, row: Row): boolean {
+  if (isGroupAll(node)) return node.all.every((c) => evalFilterNode(c, row));
+  if (isGroupAny(node)) return node.any.some((c) => evalFilterNode(c, row));
+  if (isNot(node)) return !evalFilterNode(node.not, row);
+  return evalFilter(node as FilterPredicate, row); // leaf
+}
+
+/** Keep rows matching the boolean filter tree. An absent tree ⇒ every row passes. Pure. */
+export function filterRowsBoolean<T extends Row>(rows: readonly T[], node?: FilterNode): T[] {
+  if (!node) return rows.slice();
+  return rows.filter((r) => evalFilterNode(node, r));
+}
+
 /** The common "view" application: filter THEN sort, in one pure pass. This is what a screen table or a report
- *  row-set calls to honour a user's live column sort + filters over any row shape. */
-export function applyView<T extends Row>(rows: readonly T[], opts: { filters?: readonly FilterPredicate[]; sort?: readonly SortKey[] } = {}): T[] {
-  return sortRows(filterRows(rows, opts.filters ?? []), opts.sort ?? []);
+ *  row-set calls to honour a user's live column sort + filters over any row shape. Accepts either a flat AND
+ *  predicate list (`filters`) OR a boolean AND/OR/NOT tree (`where`); pass whichever the surface authored. */
+export function applyView<T extends Row>(
+  rows: readonly T[],
+  opts: { filters?: readonly FilterPredicate[]; where?: FilterNode; sort?: readonly SortKey[] } = {},
+): T[] {
+  const filtered = opts.where ? filterRowsBoolean(rows, opts.where) : filterRows(rows, opts.filters ?? []);
+  return sortRows(filtered, opts.sort ?? []);
 }
