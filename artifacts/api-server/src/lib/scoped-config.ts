@@ -160,6 +160,19 @@ export function writeOrgConfigCollection(configId: string, name: string, value: 
   writeScopedConfigCollection(configId, name, value, { kind: "org" });
 }
 
+/** Read ONLY the value stored AT `scope` for `configId` (no scope fold), or undefined when that scope has no
+ *  stored value. Used by resolvers that need a per-layer view (e.g. a tighten-only ruleset fold) rather than the
+ *  default nearest-wins fold. */
+export function readScopedConfigValue<T>(configId: string, scope: ConfigWriteScope): T | undefined {
+  const def = getDef(scope, scopedConfigCollectionId(configId, scope));
+  if (!def || def.kind !== "config") return undefined;
+  const p = (def.payload ?? {}) as Record<string, unknown>;
+  if (p["id"] !== configId) return undefined;
+  const values = p["values"];
+  if (!values || typeof values !== "object" || Array.isArray(values)) return undefined;
+  return (values as { value?: T }).value;
+}
+
 /** The methodology COMPOSITION — the PMO/admin's curated set of visible artifact/output/ruleset ids, or `null`
  *  when uncurated (everything on). A config-def-backed collection whose value is nullable (so `null` — the
  *  meaningful "uncurated" — survives, unlike an array collection's `[]` default). */
