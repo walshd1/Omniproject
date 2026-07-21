@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { Sparkles, Check, AlertTriangle, Send, RefreshCw, Wand2, ImagePlus, X } from "lucide-react";
-import { ChartView, type ChartViewSpec } from "../components/charts/ChartView";
-import { useStudioStatus, useGeneratePrimitive, type PrimitiveStudioResult, type StudioImage } from "../lib/studio";
-import { useImportDef, type DefStorage } from "../lib/defs";
+import { ChartView, type ChartViewSpec } from "../../components/charts/ChartView";
+import { useStudioStatus, useGeneratePrimitive, type PrimitiveStudioResult, type StudioImage } from "./studio";
+import { useImportDef, type DefStorage } from "../../lib/defs";
 import type { PrimitiveDefShape } from "@workspace/backend-catalogue";
 import { useToast } from "@/hooks/use-toast";
 

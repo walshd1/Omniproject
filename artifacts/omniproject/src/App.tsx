@@ -44,7 +44,7 @@ const Goals = lazy(() => import("./modules/goals").then((m) => ({ default: m.Goa
 const Invoices = lazy(() => import("./modules/invoicing").then((m) => ({ default: m.Invoices })));
 const Marketplace = lazy(() => import("./modules/marketplace").then((m) => ({ default: m.Marketplace })));
 const Registry = lazy(() => import("./modules/registry").then((m) => ({ default: m.Registry })));
-const Studio = lazy(() => import("./pages/Studio").then((m) => ({ default: m.Studio })));
+const Studio = lazy(() => import("./modules/studio").then((m) => ({ default: m.Studio })));
 const Definitions = lazy(() => import("./pages/Definitions").then((m) => ({ default: m.Definitions })));
 const FieldMapping = lazy(() => import("./modules/field-mapping").then((m) => ({ default: m.FieldMapping })));
 const ScreenPage = lazy(() => import("./pages/ScreenPage").then((m) => ({ default: m.ScreenPage })));

@@ -1,6 +1,6 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { getJson, sendJson } from "./api";
-import { useFeatures, featureEnabled } from "./features";
+import { getJson, sendJson } from "../../lib/api";
+import { useFeatures, featureEnabled } from "../../lib/features";
 import type { PrimitiveDefShape } from "@workspace/backend-catalogue";
 
 /**

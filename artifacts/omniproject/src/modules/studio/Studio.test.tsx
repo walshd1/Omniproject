@@ -2,8 +2,8 @@ import { describe, it, expect, vi, afterEach } from "vitest";
 import { screen, fireEvent, waitFor, renderHook } from "@testing-library/react";
 import { QueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
-import { renderWithProviders, mockFetchRouter, resetFetchMock } from "../test/utils";
-import { studioStatusKey, type PrimitiveStudioResult } from "../lib/studio";
+import { renderWithProviders, mockFetchRouter, resetFetchMock } from "../../test/utils";
+import { studioStatusKey, type PrimitiveStudioResult } from "./studio";
 import { Studio } from "./Studio";
 
 /**
@@ -16,7 +16,7 @@ import { Studio } from "./Studio";
 
 // The chart preview is a heavy recharts wrapper; stub it so a previewable primitive is observable
 // without a real SVG render (coverage here is Studio's own branches, not ChartView's).
-vi.mock("../components/charts/ChartView", () => ({
+vi.mock("../../components/charts/ChartView", () => ({
   ChartView: (props: { type: string }) => <div data-testid="mock-chartview">{props.type}</div>,
 }));
 
