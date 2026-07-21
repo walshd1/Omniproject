@@ -5,6 +5,7 @@ import { buildCompositionItems, methodologyLabel } from "../../lib/methodology-c
 import { applyPreset, toggleItem, isEnabled, derivePresets, type Composition, type CompositionKind } from "../../lib/methodology-composition";
 import { MethodologyDeploy } from "./MethodologyDeploy";
 import { DelegationPolicyAdmin } from "./DelegationPolicyAdmin";
+import { ScopeOverrideAdmin } from "./ScopeOverrideAdmin";
 
 /**
  * Methodology composer (PMO/admin) — pick which artifacts, outputs and rulesets are visible. A preset is
@@ -92,6 +93,9 @@ export function MethodologyComposer() {
 
       {/* Governance: how far down the scope hierarchy local variation of rulesets/settings/methodology is allowed. */}
       <DelegationPolicyAdmin />
+
+      {/* Author a specific programme's/project's own tightened ruleset + allow-listed settings (within those limits). */}
+      <ScopeOverrideAdmin />
 
       {/* One-click deploy — the inverse of hand-ticking items: turn a whole methodology (its screens,
           ruleset, business rules, settings + nomenclature) on in a single action. */}
