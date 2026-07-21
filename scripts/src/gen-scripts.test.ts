@@ -88,6 +88,10 @@ const CASES: GenCase[] = [
   { name: "gen-work-vocabulary", script: "src/gen-work-vocabulary.ts", outputs: [`${BC}/work-vocabulary.generated.ts`] },
   { name: "gen-task-vocabulary", script: "src/gen-task-vocabulary.ts", outputs: [`${BC}/task-vocabulary.generated.ts`] },
   { name: "gen-energy-vocabulary", script: "src/gen-energy-vocabulary.ts", outputs: [`${BC}/energy-vocabulary.generated.ts`] },
+  { name: "gen-severity-vocabulary", script: "src/gen-severity-vocabulary.ts", outputs: [`${BC}/severity-vocabulary.generated.ts`] },
+  { name: "gen-impact-vocabulary", script: "src/gen-impact-vocabulary.ts", outputs: [`${BC}/impact-vocabulary.generated.ts`] },
+  { name: "gen-likelihood-vocabulary", script: "src/gen-likelihood-vocabulary.ts", outputs: [`${BC}/likelihood-vocabulary.generated.ts`] },
+  { name: "gen-rag-vocabulary", script: "src/gen-rag-vocabulary.ts", outputs: [`${BC}/rag-vocabulary.generated.ts`] },
   { name: "gen-priority-weights", script: "src/gen-priority-weights.ts", outputs: [`${BC}/priority-weights.generated.ts`] },
 ];
 

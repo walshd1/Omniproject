@@ -33,6 +33,24 @@ export { CANONICAL_TASK_STATUS, TASK_STATUS_CLASS, type CanonicalTaskStatus, typ
 import { CANONICAL_ENERGY, ENERGY_LEVEL, type CanonicalEnergy } from "@workspace/backend-catalogue";
 export { CANONICAL_ENERGY, ENERGY_LEVEL, type CanonicalEnergy };
 
+// The canonical RAID/risk graded vocabularies — severity / impact / likelihood — plus their internal ordinal
+// level are likewise shared reference data, sourced from the backend-catalogue *-vocabulary assets (mirroring
+// the energy axis above) so the gateway and the SPA can't drift on WHICH grades exist. Re-exported here so
+// this module stays the gateway's single import surface for the risk vocabularies. The ordinal LEVELs are the
+// anchors the risk-exposure maths (P×I) key off (see the api-server resolvers' nearest-band fallback).
+import { CANONICAL_SEVERITY, SEVERITY_LEVEL, type CanonicalSeverity } from "@workspace/backend-catalogue";
+export { CANONICAL_SEVERITY, SEVERITY_LEVEL, type CanonicalSeverity };
+import { CANONICAL_IMPACT, IMPACT_LEVEL, type CanonicalImpact } from "@workspace/backend-catalogue";
+export { CANONICAL_IMPACT, IMPACT_LEVEL, type CanonicalImpact };
+import { CANONICAL_LIKELIHOOD, LIKELIHOOD_LEVEL, type CanonicalLikelihood } from "@workspace/backend-catalogue";
+export { CANONICAL_LIKELIHOOD, LIKELIHOOD_LEVEL, type CanonicalLikelihood };
+
+// The canonical RAG/health BANDS + their internal ordinal band are shared reference data too, sourced from
+// the backend-catalogue rag-vocabulary asset — the DISPLAY/relabel layer for the bands. The classifier
+// (classifyRag → GREEN/AMBER/RED) below stays fixed in code; this vocabulary only re-skins the bands.
+import { CANONICAL_RAG, RAG_BAND_LEVEL, type CanonicalRag } from "@workspace/backend-catalogue";
+export { CANONICAL_RAG, RAG_BAND_LEVEL, type CanonicalRag };
+
 // Common native synonyms seen across backends, folded onto a canonical status so
 // completion detection works without a per-backend mapping. A backend can still
 // declare an explicit StatusVocabulary (below) to override these.

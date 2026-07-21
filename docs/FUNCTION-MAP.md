@@ -1843,6 +1843,15 @@ User-defined endpoint validation + reachability probing.
 | `validEndpoint` | Validate a user-defined endpoint: a well-formed http(s) URL (capped at 2048 chars), or null. |
 | `checkEndpointReachable` | Probe a user-defined endpoint: any HTTP response = reachable; a network error or timeout = not. |
 
+### `artifacts/api-server/src/lib/energy-vocabulary-config.ts`
+
+SCOPE-OVERRIDABLE GTD energy-level vocabulary — the resolver + write sanitiser behind `GET`/`PUT /api/energy-vocabulary`.
+
+| Function | What it does |
+| --- | --- |
+| `resolveEnergyVocabulary` | The effective GTD energy vocabulary at the given scopes: the shipped default with every `energy-vocabulary` config-def layer folded on top (system → org → programme → project → user), nearest scope winning within each (id-keyed arrays merge by id). |
+| `sanitizeEnergyVocabularyOverride` | Validate + normalise a PUT body into the config-def `values` to store. |
+
 ### `artifacts/api-server/src/lib/env-config.ts`
 
 Validated, typed environment access — the zero-trust stance applied to configuration: env vars are UNTRUSTED input too, so read them through typed accessors that enforce a rule (presence, type, range, format) instead of scattering `process.env[X]` casts.
@@ -2147,6 +2156,15 @@ Identity-provider presets for the setup wizard — "Sign in with Google / Micros
 | --- | --- |
 | `idpPreset` | A preset by id, or undefined. |
 
+### `artifacts/api-server/src/lib/impact-vocabulary-config.ts`
+
+SCOPE-OVERRIDABLE RAID/risk IMPACT vocabulary — the resolver + write sanitiser behind `GET`/`PUT /api/impact-vocabulary`.
+
+| Function | What it does |
+| --- | --- |
+| `resolveImpactVocabulary` | The effective RAID/risk impact vocabulary at the given scopes: the shipped default with every `impact-vocabulary` config-def layer folded on top (system → org → programme → project → user), nearest scope winning within each (id-keyed arrays merge by id). |
+| `sanitizeImpactVocabularyOverride` | Validate + normalise a PUT body into the config-def `values` to store. |
+
 ### `artifacts/api-server/src/lib/impersonation.ts`
 
 Ephemeral dev-mode impersonation — let a developer act AS another user to reproduce a role-specific issue, with hard guardrails:
@@ -2345,6 +2363,15 @@ Licensing / entitlements — the paywall for premium overlay features.
 | `isEntitled` | Is a premium feature currently entitled? |
 | `licenseSummary` | A safe summary for the UI / status endpoints (no signature material). |
 | `requireEntitlement` | Express middleware: 402 Payment Required unless `feature` is entitled. |
+
+### `artifacts/api-server/src/lib/likelihood-vocabulary-config.ts`
+
+SCOPE-OVERRIDABLE RAID/risk LIKELIHOOD vocabulary — the resolver + write sanitiser behind `GET`/`PUT /api/likelihood-vocabulary`.
+
+| Function | What it does |
+| --- | --- |
+| `resolveLikelihoodVocabulary` | The effective RAID/risk likelihood vocabulary at the given scopes: the shipped default with every `likelihood-vocabulary` config-def layer folded on top (system → org → programme → project → user), nearest scope winning within each (id-keyed arrays merge by id). |
+| `sanitizeLikelihoodVocabularyOverride` | Validate + normalise a PUT body into the config-def `values` to store. |
 
 ### `artifacts/api-server/src/lib/logger.ts`
 
@@ -2905,6 +2932,15 @@ RACI register — the DATA only.
 | `validateRaci` | Validate + normalise the stored RACI list. |
 | `raciRows` | The RACI entries as GENERIC ROWS the generic rollup / table renders. |
 
+### `artifacts/api-server/src/lib/rag-vocabulary-config.ts`
+
+SCOPE-OVERRIDABLE RAG/health BAND vocabulary — the resolver + write sanitiser behind `GET`/`PUT /api/rag-vocabulary`.
+
+| Function | What it does |
+| --- | --- |
+| `resolveRagVocabulary` | The effective RAG/health band vocabulary at the given scopes: the shipped default with every `rag-vocabulary` config-def layer folded on top (system → org → programme → project → user), nearest scope winning within each (id-keyed arrays merge by id). |
+| `sanitizeRagVocabularyOverride` | Validate + normalise a PUT body into the config-def `values` to store. |
+
 ### `artifacts/api-server/src/lib/rate-card-source.ts`
 
 Rate-card SOURCING — keep the system of record as the single source of truth.
@@ -3147,6 +3183,15 @@ Push onto a bounded, in-memory ring (oldest evicted once `max` is exceeded) — 
 | Function | What it does |
 | --- | --- |
 | `pushBounded` | Push onto a bounded, in-memory ring (oldest evicted once `max` is exceeded) — the shared shape behind every RAM-only "recent N events" list (the broker log, health-watch findings, …): memory-safe by construction, nothing persisted, gone on restart. |
+
+### `artifacts/api-server/src/lib/risk-exposure.ts`
+
+RISK-EXPOSURE maths, routed through the SCOPE-RESOLVED graded vocabularies.
+
+| Function | What it does |
+| --- | --- |
+| `nearestBand` | Snap an arbitrary ordinal `level` onto the NEAREST shipped anchor band (ties break toward the higher, i.e. more-severe, band). |
+| `resolveRiskExposure` | The risk exposure (P×I) for a RAID/risk entry at the caller's scope: the resolved LIKELIHOOD grade's ordinal (snapped onto the nearest shipped likelihood anchor) times the resolved IMPACT grade's ordinal (snapped onto the nearest shipped impact anchor). |
 
 ### `artifacts/api-server/src/lib/rollup.ts`
 
@@ -3496,6 +3541,15 @@ Setup-status report — a registry of SECTIONS, each contributing a slice of the
 | `brokerConfigured` | Whether a broker is wired at all — the ONE fact the public/outer surface needs (e.g. every session's demo-mode banner), independent of the caller's role. |
 | `buildSetupStatus` | Assemble the setup/status report from the registered sections. |
 | `buildPublicSetupStatus` | The "outer surface" of setup status — the one fact every authenticated session needs regardless of role (e.g. the demo-mode banner in the global chrome). |
+
+### `artifacts/api-server/src/lib/severity-vocabulary-config.ts`
+
+SCOPE-OVERRIDABLE RAID/risk SEVERITY vocabulary — the resolver + write sanitiser behind `GET`/`PUT /api/severity-vocabulary`.
+
+| Function | What it does |
+| --- | --- |
+| `resolveSeverityVocabulary` | The effective RAID/risk severity vocabulary at the given scopes: the shipped default with every `severity-vocabulary` config-def layer folded on top (system → org → programme → project → user), nearest scope winning within each (id-keyed arrays merge by id). |
+| `sanitizeSeverityVocabularyOverride` | Validate + normalise a PUT body into the config-def `values` to store. |
 
 ### `artifacts/api-server/src/lib/shared-state.ts`
 
@@ -3930,6 +3984,7 @@ SCOPE-OVERRIDABLE work-item vocabulary — the resolver + write sanitiser behind
 | Function | What it does |
 | --- | --- |
 | `resolveWorkVocabulary` | The effective vocabulary at the given scopes. |
+| `resolvePriorityWeight` | Resolve the effective WEIGHT of a priority against a resolved set — the canonical rank band the sorting + RICE/WSJF weighting key off. |
 | `sanitizeWorkVocabularyOverride` | Validate + normalise a PUT body into the config-def `values` to store. |
 
 ### `artifacts/api-server/src/lib/workflow-run.ts`
@@ -4132,6 +4187,10 @@ Dev-mode routes.
 
 The OFF switch for screens.
 
+### `artifacts/api-server/src/routes/energy-vocabulary.ts`
+
+Scope-overridable GTD energy-level vocabulary (the "how much have I got in the tank" axis, orthogonal to an hour estimate).
+
 ### `artifacts/api-server/src/routes/error-telemetry.ts`
 
 ERROR TELEMETRY — the admin opt-in for internal client-error reporting (Settings → Diagnostics).
@@ -4180,6 +4239,10 @@ Liveness vs readiness — deliberately two different probes (the k8s distinction
 
 Time-travel replay — read recorded portfolio states back from the operator's logging server (via the broker).
 
+### `artifacts/api-server/src/routes/impact-vocabulary.ts`
+
+Scope-overridable RAID/risk IMPACT vocabulary (the consequence magnitude — the I in risk-exposure P×I).
+
 ### `artifacts/api-server/src/routes/import.ts`
 
 Hard cap on rows per commit — each row is a broker write, so an unbounded array is a write-amplification DoS.
@@ -4203,6 +4266,10 @@ SPDX-License-Identifier: LicenseRef-OmniProject-Premium Premium feature — gove
 ### `artifacts/api-server/src/routes/license.ts`
 
 Licence endpoint — GET /api/license reports the current licence summary + premium-feature entitlements (white-label, webhooks, enterprise workflows).
+
+### `artifacts/api-server/src/routes/likelihood-vocabulary.ts`
+
+Scope-overridable RAID/risk LIKELIHOOD vocabulary (the probability a risk occurs — the P in risk-exposure P×I).
 
 ### `artifacts/api-server/src/routes/logging-sync.ts`
 
@@ -4304,6 +4371,10 @@ Browser Web Push subscription routes (roadmap 2.5 slice 3), behind the default-o
 
 RACI register store.
 
+### `artifacts/api-server/src/routes/rag-vocabulary.ts`
+
+Scope-overridable RAG/health BAND vocabulary (a project/programme's traffic-light status).
+
 ### `artifacts/api-server/src/routes/rate-card.ts`
 
 Rate card + hashed identity→role map + project types, and the server-side staff time-and-cost roll-up.
@@ -4387,6 +4458,10 @@ Setup connections plane — the broker-facing wiring surface: the non-destructiv
 ### `artifacts/api-server/src/routes/setup/environments.ts`
 
 Setup environments plane — the sandbox → promote → rollback lifecycle over versioned config: list/create/activate environments, promote one env's config onto another, pin a known-good version, and fast-rollback.
+
+### `artifacts/api-server/src/routes/severity-vocabulary.ts`
+
+Scope-overridable RAID/risk SEVERITY vocabulary ("how bad is it if this bites").
 
 ### `artifacts/api-server/src/routes/snapshots.ts`
 
@@ -4711,6 +4786,20 @@ Composition ancestry refs — the shipped `{ id, extends }` of every def of a ki
 
 DRILL-TO — the declarative "red number → filtered work-item list" descriptor (backlog #122).
 
+### `lib/backend-catalogue/src/energy-vocabulary.generated.ts`
+
+GENERATED by scripts/src/gen-energy-vocabulary.ts — do not edit.
+
+### `lib/backend-catalogue/src/energy-vocabulary.ts`
+
+Canonical GTD ENERGY-LEVEL vocabulary — the single source of truth for the energy/effort levels OmniProject knows about, their internal ordinal level and their display order.
+
+| Function | What it does |
+| --- | --- |
+| `energyVocabulary` | The full energy vocabulary (a defensive copy) — for a consumer that needs the raw entries. |
+| `energyVocabularyValues` | Build the shipped-default {@link EnergyVocabularyValues} from the canonical entries. |
+| `energyLevelsForMethodology` | The energy levels that apply to `methodologyId` — its tagged ones plus the neutral ("*") ones. |
+
 ### `lib/backend-catalogue/src/entity-resolution.ts`
 
 ENTITY RESOLUTION — stateless helpers for reconciling the SAME real-world entity appearing in more than one backend (the person who is a Jira assignee AND a Salesforce contact; the project that spans a PM tool AND an ERP).
@@ -4778,6 +4867,20 @@ GOALS / OKRs model — the neutral, primitive-built shape for OmniProject's goal
 | `isBinaryKeyResultKind` | Whether a key-result kind's attainment is binary (met ⇒ 100, else 0). |
 | `formatKeyResultValue` | Format a key-result value for display by its kind — the primitive's presentational "method", shared by every surface so a `percent` always reads "75%" and a `currency` "$1,000". |
 
+### `lib/backend-catalogue/src/impact-vocabulary.generated.ts`
+
+GENERATED by scripts/src/gen-impact-vocabulary.ts — do not edit.
+
+### `lib/backend-catalogue/src/impact-vocabulary.ts`
+
+Canonical RAID/risk IMPACT vocabulary — the single source of truth for the impact grades OmniProject knows about, their internal ordinal level and their display order.
+
+| Function | What it does |
+| --- | --- |
+| `impactVocabulary` | The full impact vocabulary (a defensive copy) — for a consumer that needs the raw entries. |
+| `impactVocabularyValues` | Build the shipped-default {@link ImpactVocabularyValues} from the canonical entries. |
+| `impactLevelsForMethodology` | The impact grades that apply to `methodologyId` — its tagged ones plus the neutral ("*") ones. |
+
 ### `lib/backend-catalogue/src/index.ts`
 
 @workspace/backend-catalogue — the shared source of truth for OmniProject's three integration planes, each modelled the same way (neutral manifest + capabilities kept SEPARATE from its concrete tools, linked into one definition):
@@ -4801,6 +4904,20 @@ KEY-FORMAT resolution — what key does a target require to be reached?
 | `backendKeyFormat` | The key a backend requires — explicit JSON override, else derived from the binding. |
 | `brokerKeyFormat` | The key a broker requires — explicit JSON override, else the BROKER_PSK default. |
 | `isKeyless` | True when reaching this target genuinely needs no key (import sources, demo). |
+
+### `lib/backend-catalogue/src/likelihood-vocabulary.generated.ts`
+
+GENERATED by scripts/src/gen-likelihood-vocabulary.ts — do not edit.
+
+### `lib/backend-catalogue/src/likelihood-vocabulary.ts`
+
+Canonical RAID/risk LIKELIHOOD vocabulary — the single source of truth for the likelihood grades OmniProject knows about, their internal ordinal level and their display order.
+
+| Function | What it does |
+| --- | --- |
+| `likelihoodVocabulary` | The full likelihood vocabulary (a defensive copy) — for a consumer that needs the raw entries. |
+| `likelihoodVocabularyValues` | Build the shipped-default {@link LikelihoodVocabularyValues} from the canonical entries. |
+| `likelihoodLevelsForMethodology` | The likelihood grades that apply to `methodologyId` — its tagged ones plus the neutral ("*") ones. |
 
 ### `lib/backend-catalogue/src/mapping-catalogue.ts`
 
@@ -5032,6 +5149,20 @@ Tiny, dependency-free PROPERTY-TESTING harness — the structured approach to ed
 | `mulberry32` | mulberry32 — a fast, well-distributed seedable PRNG (no crypto needed here). |
 | `check` | Assert `prop` holds for `runs` generated inputs. |
 
+### `lib/backend-catalogue/src/rag-vocabulary.generated.ts`
+
+GENERATED by scripts/src/gen-rag-vocabulary.ts — do not edit.
+
+### `lib/backend-catalogue/src/rag-vocabulary.ts`
+
+Canonical RAG/health BAND vocabulary — the single source of truth for the health reporting bands OmniProject knows about (Red/Amber/Green), their internal ordinal band and their display order.
+
+| Function | What it does |
+| --- | --- |
+| `ragVocabulary` | The full RAG vocabulary (a defensive copy) — for a consumer that needs the raw entries. |
+| `ragVocabularyValues` | Build the shipped-default {@link RagVocabularyValues} from the canonical entries. |
+| `ragBandsForMethodology` | The RAG bands that apply to `methodologyId` — its tagged ones plus the neutral ("*") ones. |
+
 ### `lib/backend-catalogue/src/registry-catalogue.ts`
 
 ORG REGISTRY model — the neutral, primitive-built shape for OmniProject's org-wide store of APPROVED bespoke items (templates, reports, plugins, primitives, JSON defs …).
@@ -5102,6 +5233,20 @@ SETTINGS-PRESET archetypes — known-good posture blueprints an operator loads i
 ### `lib/backend-catalogue/src/settings-presets.generated.ts`
 
 GENERATED by scripts/src/gen-settings-presets.ts — do not edit.
+
+### `lib/backend-catalogue/src/severity-vocabulary.generated.ts`
+
+GENERATED by scripts/src/gen-severity-vocabulary.ts — do not edit.
+
+### `lib/backend-catalogue/src/severity-vocabulary.ts`
+
+Canonical RAID/risk SEVERITY vocabulary — the single source of truth for the severity grades OmniProject knows about, their internal ordinal level and their display order.
+
+| Function | What it does |
+| --- | --- |
+| `severityVocabulary` | The full severity vocabulary (a defensive copy) — for a consumer that needs the raw entries. |
+| `severityVocabularyValues` | Build the shipped-default {@link SeverityVocabularyValues} from the canonical entries. |
+| `severityLevelsForMethodology` | The severity grades that apply to `methodologyId` — its tagged ones plus the neutral ("*") ones. |
 
 ### `lib/backend-catalogue/src/task-vocabulary.generated.ts`
 
@@ -5215,6 +5360,7 @@ Canonical WORK-ITEM vocabulary — the single source of truth for the statuses a
 | `vocabMethodologies` | A token's methodology tags, defaulting to neutral ("*") when untagged. |
 | `localeLabel` | The label a viewer in `locale` sees: an exact locale match, else the base language ("de-DE" → "de"), else the default `label`. |
 | `vocabAppliesTo` | True when a token applies to `methodologyId` — neutral ("*") tokens always apply. |
+| `priorityWeightBand` | Snap an arbitrary priority rank onto the NEAREST canonical priority weight band (one of the five shipped anchor ranks). |
 | `canonicalStatusOf` | Resolve ANY status id (core or adjustable) to its internal canonical status — the broker lifecycle anchor. |
 | `statusClassOf` | The lifecycle class of ANY status id (core or adjustable), via its canonical binding. |
 | `workVocabulary` | The full vocabulary (a defensive copy) — for a consumer that needs the raw entries. |
@@ -5256,6 +5402,10 @@ Broker-contract generator.
 
 Dashboard-preset catalogue generator.
 
+### `scripts/src/gen-energy-vocabulary.ts`
+
+Canonical GTD energy-level vocabulary generator.
+
 ### `scripts/src/gen-fields.ts`
 
 Canonical field-vocabulary generator.
@@ -5267,6 +5417,14 @@ Form catalogue generator.
 ### `scripts/src/gen-function-map.ts`
 
 Function-map generator.
+
+### `scripts/src/gen-impact-vocabulary.ts`
+
+Canonical RAID/risk impact vocabulary generator.
+
+### `scripts/src/gen-likelihood-vocabulary.ts`
+
+Canonical RAID/risk likelihood vocabulary generator.
 
 ### `scripts/src/gen-mappings.ts`
 
@@ -5300,6 +5458,10 @@ Preset catalogue generator.
 
 Prioritisation-weights generator.
 
+### `scripts/src/gen-rag-vocabulary.ts`
+
+Canonical RAG/health band vocabulary generator.
+
 ### `scripts/src/gen-reports.ts`
 
 Report catalogue generator.
@@ -5311,6 +5473,10 @@ Screen catalogue generator.
 ### `scripts/src/gen-settings-presets.ts`
 
 Settings-preset (archetype blueprint) generator.
+
+### `scripts/src/gen-severity-vocabulary.ts`
+
+Canonical RAID/risk severity vocabulary generator.
 
 ### `scripts/src/gen-task-vocabulary.ts`
 

@@ -387,6 +387,15 @@ The OFF switch for screens.
 | GET | `/api/disabled-screens` | requireAuth | Read the collection. |
 | PUT | `/api/disabled-screens` | requireAuth + requireAnyRole(admin, pmo) | Replace the collection (write-guarded). |
 
+### `artifacts/api-server/src/routes/energy-vocabulary.ts`
+
+Scope-overridable GTD energy-level vocabulary (the "how much have I got in the tank" axis, orthogonal to an hour estimate).
+
+| Method | Path | Gate | Description |
+| --- | --- | --- | --- |
+| GET | `/api/energy-vocabulary` | — | GET /api/energy-vocabulary — the effective GTD energy levels for this scope (any authed user). |
+| PUT | `/api/energy-vocabulary` | requireAnyRole(pmo, admin) | { levels?: [{ id, label?, order?, level?, methodologies?, color?, labels?, removed? }] }. |
+
 ### `artifacts/api-server/src/routes/error-telemetry.ts`
 
 ERROR TELEMETRY — the admin opt-in for internal client-error reporting (Settings → Diagnostics).
@@ -514,6 +523,15 @@ Time-travel replay — read recorded portfolio states back from the operator's l
 | POST | `/api/history/dispose` | requireRole(admin) + requireStepUp | POST /history/dispose — run disposal: prune retained history older than the configured window (`retentionDays`), skipping legal-held keys. |
 | POST | `/api/history/erase` | requireRole(admin) + requireStepUp | POST /history/erase — right-to-erasure / DSAR delete of ALL retained history for one entity id. |
 
+### `artifacts/api-server/src/routes/impact-vocabulary.ts`
+
+Scope-overridable RAID/risk IMPACT vocabulary (the consequence magnitude — the I in risk-exposure P×I).
+
+| Method | Path | Gate | Description |
+| --- | --- | --- | --- |
+| GET | `/api/impact-vocabulary` | — | GET /api/impact-vocabulary — the effective RAID impact grades for this scope (any authed user). |
+| PUT | `/api/impact-vocabulary` | requireAnyRole(pmo, admin) | { levels?: [{ id, label?, order?, level?, methodologies?, color?, labels?, removed? }] }. |
+
 ### `artifacts/api-server/src/routes/import.ts`
 
 Hard cap on rows per commit — each row is a broker write, so an unbounded array is a write-amplification DoS.
@@ -563,6 +581,15 @@ Licence endpoint — GET /api/license reports the current licence summary + prem
 | Method | Path | Gate | Description |
 | --- | --- | --- | --- |
 | GET | `/api/license` | — | GET /api/license — current entitlement status (no signature material). |
+
+### `artifacts/api-server/src/routes/likelihood-vocabulary.ts`
+
+Scope-overridable RAID/risk LIKELIHOOD vocabulary (the probability a risk occurs — the P in risk-exposure P×I).
+
+| Method | Path | Gate | Description |
+| --- | --- | --- | --- |
+| GET | `/api/likelihood-vocabulary` | — | GET /api/likelihood-vocabulary — the effective RAID likelihood grades for this scope (any authed user). |
+| PUT | `/api/likelihood-vocabulary` | requireAnyRole(pmo, admin) | { levels?: [{ id, label?, order?, level?, methodologies?, color?, labels?, removed? }] }. |
 
 ### `artifacts/api-server/src/routes/logging-sync.ts`
 
@@ -806,6 +833,15 @@ RACI register store.
 | GET | `/api/raci/rows` | — | — |
 | GET | `/api/raci` | requireAuth | Read the collection. |
 | PUT | `/api/raci` | requireAuth | Replace the collection (write-guarded). |
+
+### `artifacts/api-server/src/routes/rag-vocabulary.ts`
+
+Scope-overridable RAG/health BAND vocabulary (a project/programme's traffic-light status).
+
+| Method | Path | Gate | Description |
+| --- | --- | --- | --- |
+| GET | `/api/rag-vocabulary` | — | GET /api/rag-vocabulary — the effective RAG/health bands for this scope (any authed user). |
+| PUT | `/api/rag-vocabulary` | requireAnyRole(pmo, admin) | { bands?: [{ id, label?, order?, level?, methodologies?, color?, labels?, removed? }] }. |
 
 ### `artifacts/api-server/src/routes/rate-card.ts`
 
@@ -1086,6 +1122,15 @@ Setup environments plane — the sandbox → promote → rollback lifecycle over
 | POST | `/api/setup/promote` | requireRole(admin) | POST /api/setup/promote { from, to } — copy one env's config onto another. |
 | POST | `/api/setup/versions/:id/known-good` | requireRole(admin) | POST /api/setup/versions/:id/known-good — pin a version as known-good. |
 | POST | `/api/setup/rollback` | requireRole(admin) | POST /api/setup/rollback { versionId? , toKnownGood? } — fast rollback. |
+
+### `artifacts/api-server/src/routes/severity-vocabulary.ts`
+
+Scope-overridable RAID/risk SEVERITY vocabulary ("how bad is it if this bites").
+
+| Method | Path | Gate | Description |
+| --- | --- | --- | --- |
+| GET | `/api/severity-vocabulary` | — | GET /api/severity-vocabulary — the effective RAID severity grades for this scope (any authed user). |
+| PUT | `/api/severity-vocabulary` | requireAnyRole(pmo, admin) | { levels?: [{ id, label?, order?, level?, methodologies?, color?, labels?, removed? }] }. |
 
 ### `artifacts/api-server/src/routes/snapshots.ts`
 
