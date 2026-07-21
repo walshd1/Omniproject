@@ -39,6 +39,7 @@ import { planWbsWrite } from "../lib/wbs-write";
 import { requireArtifactStore } from "../lib/artifact-store";
 import { resolveMapping } from "../lib/mapping-resolve";
 import { projectMappingRows, planMappingWrite, resolveMappingTargets } from "../lib/mapping";
+import { omnistoreLastResort } from "../lib/omnistore-homing";
 import { getSidecarRows, upsertSidecarRow, removeSidecarRow } from "../lib/mapping-sidecar";
 import { resolveLiveSuperset } from "../lib/capabilities";
 import { deriveMappingValidation } from "../lib/superset";
@@ -603,7 +604,8 @@ router.get("/projects/:projectId/mapping/:slot", async (req, res) => {
     // Surface homeless fields + the validation each UI field inherits from its live home, so the admin sees
     // both which fields need a home and what each one will accept.
     const { rules } = deriveMappingValidation(mapping.fields, await resolveLiveSuperset(req));
-    res.json({ ...mapping, homeless: resolveMappingTargets(mapping).homeless, validation: rules });
+    // With OmniStore enabled it homes any orphan, so the effective homeless set collapses (100% when sole).
+    res.json({ ...mapping, homeless: resolveMappingTargets(mapping, omnistoreLastResort() ?? undefined).homeless, validation: rules });
   }, { projectId });
 });
 
@@ -619,7 +621,7 @@ router.get("/projects/:projectId/mapping/:slot/rows", async (req, res) => {
     const ctx = contextFromReq(req);
     const mapping = resolveMapping({ projectId, ...(ctx.sub ? { sub: ctx.sub } : {}) }, slot);
     if (!mapping) { res.status(404).json({ error: `no mapping for slot "${slot}"` }); return; }
-    res.json({ rows: projectMappingRows(getSidecarRows(projectId, slot), mapping) });
+    res.json({ rows: projectMappingRows(getSidecarRows(projectId, slot), mapping, omnistoreLastResort() ?? undefined) });
   }, { projectId });
 });
 
@@ -646,7 +648,7 @@ router.put("/projects/:projectId/mapping/:slot/:rowId", requireRole("contributor
     const { rules, typeByUi } = deriveMappingValidation(mapping.fields, await resolveLiveSuperset(req));
     const violations = checkFieldValues(rules, values, (f) => typeByUi[f] ?? "string");
     if (violations.length) { res.status(400).json({ error: "field validation failed", violations }); return; }
-    const plan = planMappingWrite(mapping, values);
+    const plan = planMappingWrite(mapping, values, omnistoreLastResort() ?? undefined);
     upsertSidecarRow(projectId, slot, plan.sidecarIdField, rowId, plan.sidecar);
     recordAudit({ ts: new Date().toISOString(), category: "admin", action: `mapping_write:${slot}:${rowId}`, projectId, result: "success", status: 200 });
     res.json({
@@ -677,7 +679,7 @@ router.delete("/projects/:projectId/mapping/:slot/:rowId", requireRole("contribu
     if (!mapping) { res.status(404).json({ error: `no mapping for slot "${slot}"` }); return; }
     // Use the SAME id field the write path keys on (join field, else the id key's native name), so a delete
     // always targets the row an upsert created.
-    removeSidecarRow(projectId, slot, planMappingWrite(mapping, {}).sidecarIdField, rowId);
+    removeSidecarRow(projectId, slot, planMappingWrite(mapping, {}, omnistoreLastResort() ?? undefined).sidecarIdField, rowId);
     recordAudit({ ts: new Date().toISOString(), category: "admin", action: `mapping_delete:${slot}:${rowId}`, projectId, result: "success", status: 200 });
     res.status(204).end();
   }, { projectId });

@@ -30,6 +30,7 @@ import { inScope } from "../../lib/scope";
 import { programmeIdsOf } from "../../lib/programmes";
 import { getSettings } from "../../lib/settings";
 import { whiteboardVisibleTo, newWhiteboardRow, mergeWhiteboardUpdate } from "../whiteboard-ownership";
+import { omnistoreSupersetCapabilities } from "../../lib/omnistore-homing";
 import type { BuiltinStore } from "./store";
 
 /**
@@ -213,9 +214,14 @@ export class BuiltinBroker implements Broker {
     return INDICATIVE_FX_RATES;
   }
   async capabilities(): Promise<CapabilityFlags> {
-    // What a built-in store genuinely serves: work items + their scheduling, RAID, and the derived
-    // portfolio roll-up. The enterprise tail (financials, resources, baselines, history, blockers,
-    // and the superset domains) is honestly OFF — it carries no such data.
+    // A SoR-of-last-resort store (OmniStore) HOMES any orphaned data — it persists the whole row for any
+    // vendor shape — so a domain whose data it homes is one it can honestly serve. It therefore offers the
+    // full capability superset; when it is the sole backend that is 100% of the data. (Roll-ups a Phase-1
+    // store doesn't compute still return honest empties; the raw fields round-trip, which the flag gates.)
+    if (this.store.homesOrphans) return omnistoreSupersetCapabilities();
+    // Otherwise: what a small first-party store genuinely serves — work items + their scheduling, RAID, and
+    // the derived portfolio roll-up. The enterprise tail (financials, resources, baselines, history,
+    // blockers, and the superset domains) is honestly OFF — it carries no such data.
     return {
       issues: true, scheduling: true, portfolio: true, raid: true,
       resources: false, financials: false, baseline: false, blockers: false, history: false,

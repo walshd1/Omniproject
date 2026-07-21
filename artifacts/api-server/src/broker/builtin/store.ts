@@ -17,6 +17,11 @@ import { isDone, isTaskClosed } from "../vocabulary";
 export interface BuiltinStore {
   /** A short label for diagnostics (e.g. "memory", "postgres"). */
   readonly name: string;
+  /** SoR-of-last-resort marker: this store HOMES any orphaned data (persists the whole row for any vendor
+   *  shape). When set, the built-in broker offers the full capability superset — a domain whose data the
+   *  store homes is one it can honestly serve, so a sole such backend covers 100% of the data. OmniStore
+   *  sets this; the ephemeral MemoryStore and the field-mapped SQL sidecar do not. */
+  readonly homesOrphans?: boolean;
   listProjects(): Promise<Project[]>;
   getProject(id: string): Promise<Project | null>;
   createProject(input: ProjectWrite): Promise<Project>;
