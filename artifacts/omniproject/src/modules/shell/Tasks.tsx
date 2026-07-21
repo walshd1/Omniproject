@@ -1,10 +1,14 @@
-import { useState } from "react";
 import { useTaskSummary, useCreateTask, PRIORITIES, type Task, type Priority } from "../../lib/tasks";
 import { TaskDetailDialog } from "../../components/TaskDetailDialog";
 import { EntityViews } from "../../components/view-engine/EntityViews";
 import { taskDescriptor } from "../../lib/view-engine/task-descriptor";
+import { useMemo, useState } from "react";
 import { usePriorityLabels } from "../../lib/priority-labels";
 import { parseQuickAdd } from "../../lib/quick-add";
+import { parseTaskSearch } from "../../lib/task-search";
+import { taskAttention } from "../../lib/task-urgency";
+import { filterRowsBoolean, type Row } from "@workspace/backend-catalogue";
+import type { ViewRecord } from "../../lib/view-engine/types";
 import { Button } from "@/components/ui/button";
 
 function Stat({ label, value }: { label: string; value: number }) {
@@ -30,6 +34,24 @@ export function Tasks() {
   const [context, setContext] = useState("");
   const [priority, setPriority] = useState<Priority>("none");
   const [detail, setDetail] = useState<Task | null>(null);
+  const [search, setSearch] = useState("");
+
+  // Compile the search box into a predicate: parse the syntax, then for each record enrich its raw task
+  // with the derived _urgency/_untouched fields and match the boolean filter tree + free text on the title.
+  const recordFilter = useMemo(() => {
+    const q = search.trim();
+    if (!q) return undefined;
+    const { text, where } = parseTaskSearch(q);
+    const today = new Date();
+    const needle = text.toLowerCase();
+    return (rec: ViewRecord<Task>): boolean => {
+      const t = rec.raw;
+      const att = taskAttention(t, today);
+      const row: Row = { ...(t as unknown as Row), _urgency: att.band, _untouched: att.untouched };
+      if (filterRowsBoolean([row], where).length === 0) return false;
+      return needle === "" || rec.title.toLowerCase().includes(needle);
+    };
+  }, [search]);
 
   const add = () => {
     const raw = title.trim();
@@ -98,8 +120,17 @@ export function Tasks() {
           <Button className="rounded-none" onClick={add} disabled={!title.trim() || create.isPending}>Add</Button>
         </div>
 
+        {/* Search — free text + syntax (#tag @context is:overdue priority>=high -is:done). */}
+        <input
+          className="w-full rounded-none border border-border bg-card px-3 py-2 text-sm font-mono"
+          placeholder="Search…  #tag @context is:overdue priority>=high -is:done"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          aria-label="Search tasks"
+        />
+
         {/* Views — list / GTD board / flow board, all driven by the generic engine. */}
-        <EntityViews descriptor={taskDescriptor} onOpen={(r) => setDetail(r.raw)} />
+        <EntityViews descriptor={taskDescriptor} onOpen={(r) => setDetail(r.raw)} {...(recordFilter ? { recordFilter } : {})} />
       </div>
 
       <TaskDetailDialog task={detail} open={!!detail} onOpenChange={(o) => { if (!o) setDetail(null); }} />

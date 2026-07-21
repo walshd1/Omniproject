@@ -25,6 +25,7 @@ export function EntityViews<T>({
   onOpen,
   onCreate,
   lockView,
+  recordFilter,
 }: {
   descriptor: EntityDescriptor<T>;
   scope?: ViewScope;
@@ -35,8 +36,12 @@ export function EntityViews<T>({
   /** OPTIONAL: lock the engine to a single view id and hide the switcher chrome — how a methodology
    *  single-view renderer (kanban/list) reuses the generic engine without the multi-view switcher. */
   lockView?: string;
+  /** OPTIONAL: an entity-agnostic predicate applied to the records BEFORE the view's own filters/sort —
+   *  how a page adds a free search box (e.g. task-search syntax) without the engine knowing the entity. */
+  recordFilter?: (record: ViewRecord<T>) => boolean;
 }) {
-  const { records, isLoading, error, refetch } = descriptor.useRecords(scope);
+  const { records: rawRecords, isLoading, error, refetch } = descriptor.useRecords(scope);
+  const records = useMemo(() => (recordFilter ? rawRecords.filter(recordFilter) : rawRecords), [rawRecords, recordFilter]);
   const move = descriptor.useMove();
   const labelForPriority = descriptor.usePriorityLabel();
   // Optional vocab seams — a given descriptor either always supplies these or never does (module
