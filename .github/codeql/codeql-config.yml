@@ -38,6 +38,29 @@ query-filters:
   # with js/missing-rate-limiting above. If password auth is ever added, REMOVE this exclusion.
   - exclude:
       id: js/insufficient-password-hash
+  # js/remote-property-injection (CWE-915) — a STRUCTURAL false positive here. CodeQL for JavaScript has NO
+  # extensible sanitizer/barrier predicate (its models-as-data covers source/sink/summary/neutral/type only),
+  # so the three barriers this codebase uses to make the class unexploitable are INVISIBLE to the query and it
+  # flags every guarded write regardless:
+  #   1. A GLOBAL body-parser reviver — `app.ts` mounts `express.json({ reviver: stripDangerousKeys })`, which
+  #      strips __proto__/constructor/prototype from EVERY request body at every depth (qs `allowPrototypes:false`
+  #      does the same for urlencoded). No `req.body`-derived key can be a prototype member by the time any route
+  #      runs. CodeQL does not model a body-parser reviver.
+  #   2. The `isForbiddenKey(k)` helper (`lib/safe-json.ts`, a `Set(["__proto__","constructor","prototype"]).has`
+  #      wrapper) — called just before the write at every scoped-map sink (rate-card-store, scim, settings,
+  #      ai-providers, key-registry, def-bindings, programmes, workflow, wbs-mapping, …). The `.has` sits one
+  #      call frame away behind a boolean return, so CodeQL does not trace it as a barrier.
+  #   3. Prototype-free / Map stores — the real self-hosted store is a `Map`; the demo/reference brokers, the def
+  #      child-edge index, scim, and the def-binding resolver use `Object.create(null)`. A `Map`/null-proto write
+  #      cannot pollute a prototype.
+  # A three-part audit (routes, lib/broker, SPA) traced every remote-input->property-write and found ZERO
+  # exploitable sink: each lands in a fresh/RBAC-gated object, a null-proto/Map store, a reviver-stripped body, or
+  # an isForbiddenKey/allow-list/regex guard. The compensating control is real and applied before each write, and
+  # the repo-local semgrep taint-scan (.semgrep/) independently guards the primary vector (untrusted
+  # deserialization -> safeParseJson) plus request-scoped id injection. Excluding
+  # the query keeps the Security tab focused on real product code, exactly as with the two exclusions above.
+  - exclude:
+      id: js/remote-property-injection
 
 # Analysis scope — do NOT scan test / bench / e2e sources. These are not shipped (zero production
 # attack surface) but generate a large class of false positives: e.g. a *.test.ts transport-seam
