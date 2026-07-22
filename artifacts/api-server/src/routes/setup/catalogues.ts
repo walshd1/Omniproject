@@ -9,6 +9,7 @@
  */
 import { Router } from "express";
 import { getSettings, updateSettings } from "../../lib/settings";
+import { isForbiddenKey } from "../../lib/safe-json";
 import { resolveSupport } from "../../lib/capabilities";
 import { connectedBrokerKinds } from "../../broker/registry";
 import { requireRole, requireAnyRole, hasRole } from "../../lib/rbac";
@@ -148,6 +149,8 @@ router.get("/setup/screens/:id/layout", (req, res) => {
 
 router.put("/setup/screens/:id/layout", requireRole("manager"), (req, res) => {
   const id = String(req.params["id"]);
+  // `id` is a route param that keys the shared screenLayouts map — reject a reserved prototype name.
+  if (isForbiddenKey(id)) { res.status(400).json({ error: "invalid screen id" }); return; }
   const body = (req.body ?? {}) as { order?: unknown; spans?: unknown; hidden?: unknown };
   const layout: { order?: string[]; spans?: Record<string, number>; hidden?: string[] } = {};
   if (Array.isArray(body.order)) layout.order = body.order.filter((x): x is string => typeof x === "string");
