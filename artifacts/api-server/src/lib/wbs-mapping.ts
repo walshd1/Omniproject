@@ -128,7 +128,9 @@ export function applyWbsMapping(sources: WbsSources, m: WbsFieldMapping, project
   const financials: Record<string, WbsFinancials> = {};
   for (const r of homeRows) {
     const id = str(r[m.id]);
-    if (!id) continue;
+    // `id` (a backend row value) keys the `financials` map below; skip a reserved name so a crafted row
+    // can't reparent it (same posture as the empty-id skip).
+    if (!id || isForbiddenKey(id)) continue;
     const parentId = m.parentId ? (str(r[m.parentId]) || null) : null;
     const el: WbsElement = { id, projectId, parentId, name: str(r[m.name]) || id, level: levelOf(id, parentOf) };
     if (m.status) el.status = str(r[m.status]);

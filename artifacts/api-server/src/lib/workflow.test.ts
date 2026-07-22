@@ -78,3 +78,11 @@ test("validateWorkflow enforces id, scope, kinds, required fields, unique step i
   assert.throws(() => validateWorkflow({ id: "w", scope: { kind: "org" }, steps: [{ id: "a", kind: "bogus" }] }), /unknown kind/);
   assert.throws(() => validateWorkflow({ id: "w", scope: { kind: "org" }, steps: [{ id: "a", kind: "action", action: "x" }, { id: "a", kind: "action", action: "y" }] }), /duplicate step id/);
 });
+
+test("validateWorkflow rejects a reserved-key step id (it would reparent ctx.results)", () => {
+  // A step id is used as an object key (`ctx.results[step.id] = …`) and is a JSON value the express.json
+  // reviver never strips, so the validator is the choke point that must reject reserved names.
+  for (const bad of ["__proto__", "constructor", "prototype"]) {
+    assert.throws(() => validateWorkflow({ id: "w", scope: { kind: "org" }, steps: [{ id: bad, kind: "action", action: "x" }] }), /not allowed/);
+  }
+});

@@ -11,6 +11,7 @@
  * they run, and are stored as JSON (params only, never code) in project/org config.
  */
 import { envInt } from "./env-config";
+import { isForbiddenKey } from "./safe-json";
 
 export class WorkflowError extends Error {
   constructor(message: string) { super(message); this.name = "WorkflowError"; }
@@ -117,6 +118,10 @@ function validateSteps(raw: unknown, ids: Set<string>, depth: number): WorkflowS
     const s = (sr ?? {}) as Record<string, unknown>;
     const id = str(s["id"]);
     if (!id) throw new WorkflowError("each step needs an id");
+    // A step id is used as an object key (`ctx.results[step.id] = …`); reject reserved names so a stored
+    // workflow can't reparent the run context. The id is a JSON VALUE, so the express.json reviver never
+    // strips it — this is the choke point that must.
+    if (isForbiddenKey(id)) throw new WorkflowError(`step id "${id}" is not allowed`);
     if (ids.has(id)) throw new WorkflowError(`duplicate step id "${id}"`);
     ids.add(id);
     const kind = s["kind"];
