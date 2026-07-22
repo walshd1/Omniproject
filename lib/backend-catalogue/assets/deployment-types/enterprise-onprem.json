@@ -1,0 +1,39 @@
+{
+  "id": "enterprise-onprem",
+  "label": "Enterprise on-prem",
+  "description": "Your data centre, your SSO, a durable SQL system of record and strict audit. Portfolio-scale governance.",
+  "order": 40,
+  "questions": [
+    {
+      "id": "external-sor",
+      "label": "Federate to existing enterprise systems (Jira, SAP, ServiceNow)?",
+      "options": [
+        { "value": "no", "label": "No — OmniProject is the SoR" },
+        { "value": "yes", "label": "Yes — broker + federate" }
+      ],
+      "default": "yes"
+    },
+    {
+      "id": "residency",
+      "label": "Pin data residency to a region?",
+      "options": [
+        { "value": "off", "label": "No restriction" },
+        { "value": "on", "label": "Yes — enforce residency" }
+      ],
+      "default": "on"
+    }
+  ],
+  "setup": {
+    "storage": "sql-sidecar",
+    "auth": "idp",
+    "broker": "builtin:postgres",
+    "residency": "on",
+    "methodology": "safe",
+    "audit": "strict",
+    "backups": "scheduled"
+  },
+  "refinements": [
+    { "when": { "external-sor": "yes" }, "set": { "broker": "n8n" } },
+    { "when": { "residency": "off" }, "set": { "residency": "off" } }
+  ]
+}

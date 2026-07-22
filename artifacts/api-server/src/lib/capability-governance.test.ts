@@ -201,3 +201,14 @@ test("resolveCapability exposes options + current state for the admin UI", () =>
   assert.equal(r.state, "user-defined");
   assert.equal(r.endpoint, "http://localhost:11434");
 });
+
+test("a custom-role permission set lifts an off capability's gate for that caller (X.6)", () => {
+  const id = "portfolio-insights"; // an AI tool, OFF by default
+  assert.throws(() => enforceCapability(id, {}), CapabilityBlockedError);
+  // Granted via the caller's permission set → allowed even though the org/surface state is still "off".
+  const dec = enforceCapability(id, { granted: new Set([id]) });
+  assert.equal(dec.allowed, true);
+  assert.equal(dec.state, "off"); // the grant lifts the gate; it never changes the stored state
+  // A grant for a DIFFERENT capability doesn't help.
+  assert.throws(() => enforceCapability(id, { granted: new Set(["ai-estimate"]) }), CapabilityBlockedError);
+});

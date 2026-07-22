@@ -1,0 +1,16 @@
+{
+  "id": "data-slot",
+  "label": "Data-slot register",
+  "category": "data-structure",
+  "extends": "register",
+  "description": "An editable register bound to a generic mapping slot — rows read/written through the same generic mapping surface every slot uses, so a register/board over any slot is a pure JSON screen def.",
+  "params": [
+    {
+      "key": "slot",
+      "label": "Slot",
+      "type": "string",
+      "required": true,
+      "description": "The mapping slot this register is bound to (its one added constraint over a plain register)."
+    }
+  ]
+}

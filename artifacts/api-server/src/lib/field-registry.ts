@@ -30,6 +30,18 @@ export interface EnumeratedField {
    *  "duedate", "customfield_10016") — supplied by the broker/workflow, so the
    *  overlay can say exactly which backend field a value came from. */
   sourceField?: string;
+  // ── Advertised data constraints (roadmap §4.6) — "what type + length this backend field can hold", so a
+  //    UI field linked to it inherits the backend's own validation. Absent ⇒ unconstrained on that facet.
+  /** Max character length the backend accepts for this field. */
+  maxLength?: number;
+  /** Decimal places for a numeric/currency/percent field. */
+  precision?: number;
+  /** Allowed values for an enum field. */
+  options?: string[];
+  /** A regular expression the value must match (postcode/email/date shapes). ReDoS-guarded before use. */
+  pattern?: string;
+  /** Whether the backend accepts an empty value (⇒ the UI field is optional). */
+  nullable?: boolean;
 }
 
 export interface FieldReconciliation {

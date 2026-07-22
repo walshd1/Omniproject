@@ -1,0 +1,16 @@
+{
+  "id": "regulated-selfhost",
+  "label": "Regulated / Self-hosted",
+  "audience": "Regulated or air-gap-leaning orgs that self-host and minimise egress",
+  "description": "Minimal external surface: self-hosted profile, on-device speech only, no external integrations, and period-close FX. AI stays off; enable a LOCAL provider (Ollama) if you want it without egress.",
+  "order": 50,
+  "settings": {
+    "deploymentProfile": "self-hosted",
+    "reportingCurrency": "USD",
+    "fxRatePolicy": "periodClose",
+    "aiProvider": "none",
+    "sttProvider": "browser",
+    "priorityWeights": { "rice": 20, "wsjf": 20, "moscow": 20, "strategic": 25, "benefit": 15 },
+    "disabledFeatures": ["integrations"]
+  }
+}

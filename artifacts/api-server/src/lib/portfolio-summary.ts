@@ -1,11 +1,15 @@
 import type { Request } from "express";
+import { consolidateByGroup, consolidationSpec, numLoose as num, round1 } from "@workspace/backend-catalogue";
 import { getBroker, contextFromReq, type PortfolioRow, type Row, type Project } from "../broker";
+import { classifyRag } from "../broker/vocabulary";
 import { getSettings } from "./settings";
 import { getFxRates } from "./currency";
 import { resolveCapabilities } from "./capabilities";
-import { createConcurrencyLimiter } from "./concurrency-pool";
+import { createConcurrencyLimiter, poolMapWith, type Limiter } from "./concurrency-pool";
 import { summariseTasks, type TaskSummary } from "./task-summary";
 import { planProjectSources, type SourcePlan } from "./closed-projects";
+import { getReadCache } from "./read-cache";
+import { actorKey } from "../broker/cache";
 
 /**
  * Portfolio-wide AGGREGATE summary — the one shape allowed to cross an instance boundary for
@@ -78,31 +82,6 @@ export interface PortfolioSummary {
   sources: SourcePlan;
 }
 
-/** Coerce a possibly-dirty number (string, null, NaN, Infinity) to a finite number, else 0. Same
- *  defensive coercion the frontend rollups apply — the read model is untrusted. */
-function num(v: unknown): number {
-  const n = typeof v === "number" ? v : Number(v);
-  return Number.isFinite(n) ? n : 0;
-}
-
-const round1 = (n: number) => Math.round(n * 10) / 10;
-const round2 = (n: number) => Math.round(n * 100) / 100;
-
-/** The multiplicative factor to convert `from`→`to` via a base-anchored rate table, or `null` when
- *  the conversion is impossible (a foreign currency with no rate). Returns 1 for a same-currency
- *  row (no rate table needed), so target-currency projects always fold correctly even when the FX
- *  fetch failed. A `null` here means "cannot faithfully convert" — the caller EXCLUDES the row
- *  rather than summing a raw foreign amount as if it were the target currency, which would silently
- *  corrupt the portfolio total (e.g. ₩1,000,000,000 added straight into a GBP rollup). */
-function conversionFactor(from: string, to: string, rates: Record<string, number> | undefined): number | null {
-  if (!from || from === to) return 1;
-  if (!rates) return null;
-  const rFrom = rates[from];
-  const rTo = rates[to];
-  if (!rFrom || !rTo) return null;
-  return rFrom / rTo;
-}
-
 /** The result of folding per-project financials: the portfolio-total wire row plus how the fold was
  *  composed, so the caller can tell a complete total from a partial one. */
 export interface FinanceFold {
@@ -120,10 +99,10 @@ export function summarizeHealth(rows: PortfolioRow[]): HealthTotals {
   const rag: RagCounts = { green: 0, amber: 0, red: 0, other: 0 };
   let schedSum = 0, schedN = 0, budgetSum = 0, budgetN = 0, blockers = 0;
   for (const r of rows) {
-    const status = String(r.ragStatus ?? "").toLowerCase();
-    if (status === "green") rag.green++;
-    else if (status === "amber") rag.amber++;
-    else if (status === "red") rag.red++;
+    const c = classifyRag(r.ragStatus);
+    if (c === "GREEN") rag.green++;
+    else if (c === "AMBER") rag.amber++;
+    else if (c === "RED") rag.red++;
     else rag.other++;
 
     const sv = r.scheduleVarianceDays;
@@ -146,49 +125,46 @@ export function summarizeHealth(rows: PortfolioRow[]): HealthTotals {
  *  A row whose currency can't be converted to the target is EXCLUDED (counted in `droppedForFx`),
  *  never summed as-is — mixing currencies would silently produce a wildly wrong total. */
 export function foldFinance(rows: Row[], target: string, rates?: Record<string, number>): FinanceFold {
-  let budget = 0, actual = 0, forecast = 0, earnedValue = 0;
-  let includedRows = 0, droppedForFx = 0;
-  for (const p of rows) {
-    const currency = String(p["currency"] ?? target);
-    const factor = conversionFactor(currency, target, rates);
-    if (factor === null) { droppedForFx++; continue; }
-    includedRows++;
-    budget += num(p["budgetAllocated"]) * factor;
-    actual += num(p["actualBurn"]) * factor;
-    forecast += num(p["forecastCostAtCompletion"]) * factor;
-    earnedValue += num(p["earnedValue"]) * factor;
-  }
+  // The org-scope reduction of the `financials` consolidation: every row in ONE group. The engine's
+  // measures/derived/FX-exclusion ARE this fold — an absent currency defaults to the target so it always
+  // converts, matching the previous behaviour. `excludedForFx` is the dropped-for-FX count.
+  const inputs = rows.map((p) => ({
+    groupKey: "__portfolio__",
+    groupLabel: "Portfolio",
+    currency: String(p["currency"] ?? target),
+    items: [p],
+  }));
+  const { total } = consolidateByGroup(inputs, consolidationSpec("financials"), target, rates);
+  const m = total.metrics;
   return {
     totals: {
       currency: target,
-      budget: round2(budget),
-      actual: round2(actual),
-      forecast: round2(forecast),
-      earnedValue: round2(earnedValue),
-      variance: round2(budget - forecast),
-      cpi: actual > 0 ? round2(earnedValue / actual) : null,
+      budget: (m["budget"] as number) ?? 0,
+      actual: (m["actual"] as number) ?? 0,
+      forecast: (m["forecast"] as number) ?? 0,
+      earnedValue: (m["earnedValue"] as number) ?? 0,
+      variance: (m["variance"] as number) ?? 0,
+      cpi: (m["cpi"] as number | null) ?? null,
     },
-    includedRows,
-    droppedForFx,
+    includedRows: total.projects - total.excludedForFx,
+    droppedForFx: total.excludedForFx,
   };
 }
 
 /** Fold every project's resource rows (the existing `GET /projects/:id/capacity` rows, flattened
  *  across the portfolio) into ONE portfolio total — the portfolio-only reduction of `rollupByProgramme`. */
 export function foldCapacity(rows: Row[]): CapacityTotals {
-  let allocations = 0, overAllocated = 0, assignedHours = 0, availableHours = 0;
-  for (const r of rows) {
-    allocations += 1;
-    if (num(r["allocationPercentage"]) > 100) overAllocated += 1;
-    assignedHours += num(r["assignedHours"]);
-    availableHours += num(r["availableHours"]);
-  }
+  // The org-scope reduction of the `capacity` consolidation: every resource row in ONE group, with a
+  // nominal single currency so the engine's FX pass is inert (capacity has no money dimension).
+  const inputs = rows.map((r) => ({ groupKey: "__portfolio__", groupLabel: "Portfolio", currency: "•", items: [r] }));
+  const { total } = consolidateByGroup(inputs, consolidationSpec("capacity"), "•");
+  const m = total.metrics;
   return {
-    allocations,
-    overAllocated,
-    assignedHours: round1(assignedHours),
-    availableHours: round1(availableHours),
-    utilisation: availableHours > 0 ? Math.round((assignedHours / availableHours) * 1000) / 10 : null,
+    allocations: (m["allocations"] as number) ?? 0,
+    overAllocated: (m["overAllocated"] as number) ?? 0,
+    assignedHours: (m["assignedHours"] as number) ?? 0,
+    availableHours: (m["availableHours"] as number) ?? 0,
+    utilisation: (m["utilisation"] as number | null) ?? null,
   };
 }
 
@@ -216,7 +192,6 @@ function resolveFxAsOf(settings: ReturnType<typeof getSettings>): string | undef
 type Broker = ReturnType<typeof getBroker>;
 type Ctx = ReturnType<typeof contextFromReq>;
 type Caps = Awaited<ReturnType<typeof resolveCapabilities>> | null;
-type Limiter = ReturnType<typeof createConcurrencyLimiter>;
 
 async function summaryHealth(broker: Broker, ctx: Ctx, caps: Caps): Promise<HealthTotals | null> {
   if (caps && !caps.portfolio) return null;
@@ -229,7 +204,7 @@ async function summaryFinance(req: Request, broker: Broker, ctx: Ctx, caps: Caps
   const settings = getSettings();
   // FX is independent of the financials rows (needed only at fold time) — fetch it alongside the fan-out.
   const [rows, fx] = await Promise.all([
-    Promise.all(projects.map((p) => run(() => broker.projectFinancials(ctx, p.id).catch(() => null)))),
+    poolMapWith(run, projects, (p) => broker.projectFinancials(ctx, p.id).catch(() => null)),
     getFxRates(req, resolveFxAsOf(settings)).catch(() => null),
   ]);
   const valid = rows.filter((r): r is Row => !!r);
@@ -255,9 +230,17 @@ async function summaryFinance(req: Request, broker: Broker, ctx: Ctx, caps: Caps
 
 async function summaryCapacity(broker: Broker, ctx: Ctx, caps: Caps, projects: Project[], run: Limiter): Promise<CapacityTotals | null> {
   if ((caps && !caps.resources) || !projects.length) return null;
-  const lists = await Promise.all(projects.map((p) => run(() => broker.resourceCapacity(ctx, p.id).catch(() => [] as Row[]))));
+  const lists = await poolMapWith(run, projects, (p) => broker.resourceCapacity(ctx, p.id).catch(() => [] as Row[]));
   const all = lists.flat();
   return all.length ? foldCapacity(all) : null;
+}
+
+/** The read-cache key for a portfolio summary — the caller's identity+data-scope (`actorKey`, the scope-safe
+ *  fingerprint the broker cache uses) plus the reporting-currency posture. Exported + pure so the
+ *  no-cross-scope-collision property is unit-testable: two callers differing only in data scope MUST get
+ *  different keys, or an all-scope admin's rollup could be served to a programme-scoped token. */
+export function portfolioSummaryCacheKey(ctx: Ctx, settings: ReturnType<typeof getSettings>): string {
+  return `portfolio-summary:${actorKey(ctx)}:cur=${settings.reportingCurrency || ""}:fx=${resolveFxAsOf(settings) ?? "spot"}`;
 }
 
 async function summaryTasks(broker: Broker, ctx: Ctx): Promise<TaskSummary | null> {
@@ -273,6 +256,18 @@ async function summaryTasks(broker: Broker, ctx: Ctx): Promise<TaskSummary | nul
 export async function computeLocalPortfolioSummary(req: Request): Promise<PortfolioSummary> {
   const broker = getBroker();
   const ctx = contextFromReq(req);
+  // SCALING.md §3: org-wide this fans one broker call per project (up to N round-trips). When the shared
+  // read cache is opted in (`READ_CACHE_TTL_MS`), memoise the whole computed summary for the TTL — keyed by
+  // the caller's IDENTITY+DATA SCOPE (`actorKey`, the same scope-safe key the broker cache uses, so an
+  // all-scope admin's rollup is never served to a programme-scoped token) and the reporting-currency posture
+  // (so a currency switch can't serve a wrong-currency total). Off by default ⇒ a pass-through (recomputes).
+  const key = portfolioSummaryCacheKey(ctx, getSettings());
+  return getReadCache().wrap(key, () => computeFreshPortfolioSummary(req, broker, ctx));
+}
+
+/** The uncached fold: fan the four sections out over the broker and reduce them. Split from the cached entry
+ *  point above so the fan-out logic has one home whether or not the read cache is enabled. */
+async function computeFreshPortfolioSummary(req: Request, broker: Broker, ctx: Ctx): Promise<PortfolioSummary> {
   // Capabilities and the project list are independent — fetch them concurrently.
   const [caps, projects] = await Promise.all([
     resolveCapabilities(req).catch(() => null),

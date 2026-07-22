@@ -53,7 +53,9 @@ export function programmesFromGroups(groups: readonly string[]): string[] {
  */
 export function resolveScope(grants: Grants, opts: { sub?: string | undefined; groups: readonly string[] }): Scope {
   if (grants.authorities.has("admin") || grants.authorities.has("pmo")) return { level: "all" };
-  if (grants.base === "manager") {
+  // A project `manager` and a `programmeManager` both resolve to programme scope (their programmes, from the
+  // group claims); the tier RBAC gate + this row-level scope together bound a programme manager to their programmes.
+  if (grants.base === "manager" || grants.base === "programmeManager") {
     return { level: "programme", sub: opts.sub, programmes: programmesFromGroups(opts.groups) };
   }
   return { level: "user", sub: opts.sub };

@@ -1,18 +1,26 @@
 import { test, before, after, afterEach } from "node:test";
 import assert from "node:assert/strict";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import { startHarness, adminCookie, type Harness } from "./_harness";
 
 /**
  * routes/templates.ts over the REAL app (demo broker). The template definitions store (admin/PMO write) plus
- * INSTANTIATE — create a project + seed its work items through the broker (manager+).
+ * INSTANTIATE — create a project + seed its work items through the broker (manager+). Templates are a config
+ * def now, so enable the sealed store.
  */
+process.env["SESSION_SECRET"] ??= "integration-harness-secret";
+const CONFIG_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "templates-routes-"));
+process.env["OMNI_CONFIG_DIR"] = CONFIG_DIR;
+
 let h: Harness;
 const ADMIN = adminCookie();
 before(async () => { h = await startHarness(); });
-after(() => h?.close());
+after(() => { h?.close(); fs.rmSync(CONFIG_DIR, { recursive: true, force: true }); });
 afterEach(async () => {
-  const { updateSettings } = await import("../lib/settings");
-  updateSettings({ templates: [] });
+  const { writeOrgConfigCollection } = await import("../lib/scoped-config");
+  writeOrgConfigCollection("templates", "Templates", []);
   const { resetDemoBrokerState } = await import("../broker/demo");
   resetDemoBrokerState();
 });

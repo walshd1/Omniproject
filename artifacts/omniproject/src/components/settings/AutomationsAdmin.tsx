@@ -32,7 +32,7 @@ export function AutomationsAdmin() {
   const { data: server } = useAutomations();
   const save = useSaveAutomations();
   const { toast } = useToast();
-  const { draft, setDraft, dirty, reset } = useDraftAdmin<Automation[], Automation[]>(server, structuredClone);
+  const { draft, setDraft, dirty, reset } = useDraftAdmin<Automation[], Automation[]>(server);
   const [preview, setPreview] = useState<Record<string, AutomationPreview>>({});
   const [runResult, setRunResult] = useState<Record<string, AutomationRun>>({});
 

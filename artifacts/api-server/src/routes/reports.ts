@@ -2,6 +2,7 @@ import { Router } from "express";
 import { requireRole } from "../lib/rbac";
 import { getSettings } from "../lib/settings";
 import { settingsCollectionRouter } from "../lib/settings-collection-router";
+import { resolveMethodologyComposition } from "../lib/scoped-config";
 import { filterComposed } from "@workspace/backend-catalogue";
 
 /**
@@ -16,7 +17,7 @@ const router = Router();
 
 router.get("/reports", (_req, res) => {
   const s = getSettings();
-  const reports = filterComposed(s.methodologyComposition, "report", s.reports ?? [], (r) => r.id);
+  const reports = filterComposed(resolveMethodologyComposition(), "report", s.reports ?? [], (r) => r.id);
   res.json({ reports });
 });
 

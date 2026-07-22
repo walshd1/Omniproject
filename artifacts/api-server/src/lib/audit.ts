@@ -211,7 +211,7 @@ export function recordRequestAudit(req: Request, ev: Omit<AuditEvent, "ts" | "ac
  * ids they can't see. Emitted at the single-resource guard boundary only (never inside a list filter,
  * which would be noise). The refused id is recorded so the alert names what was reached for.
  */
-export function auditScopeDenied(req: Request, kind: "project" | "task" | "room", id: string, reason: string): void {
+export function auditScopeDenied(req: Request, kind: "project" | "programme" | "task" | "room", id: string, reason: string): void {
   recordAudit({
     ts: new Date().toISOString(),
     category: "security",

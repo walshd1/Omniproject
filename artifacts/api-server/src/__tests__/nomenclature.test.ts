@@ -1,13 +1,22 @@
-import { test } from "node:test";
+import { test, after } from "node:test";
 import assert from "node:assert/strict";
-import { nomenclaturePresets, applyNomenclaturePreset } from "../lib/nomenclature";
-import { effectiveLabels } from "../lib/labels";
-import { updateSettings } from "../lib/settings";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 
 /**
  * Nomenclature-preset tests — a vendor's wording (from its JSON) is offered as a
- * one-click preset and applied through the label-override allow-list.
+ * one-click preset and applied through the label-override allow-list. The overrides live as an org
+ * `label-overrides` config def, so enable the sealed store.
  */
+process.env["SESSION_SECRET"] = "test-session-secret-do-not-use-in-prod";
+const CONFIG_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "nomenclature-"));
+process.env["OMNI_CONFIG_DIR"] = CONFIG_DIR;
+
+const { nomenclaturePresets, applyNomenclaturePreset } = await import("../lib/nomenclature");
+const { effectiveLabels, saveLabels } = await import("../lib/labels");
+
+after(() => fs.rmSync(CONFIG_DIR, { recursive: true, force: true }));
 
 test("presets expose vendors that ship a nomenclature map", () => {
   const presets = nomenclaturePresets();
@@ -19,12 +28,12 @@ test("presets expose vendors that ship a nomenclature map", () => {
 });
 
 test("applying a preset writes the vendor's terms to the label overrides", () => {
-  updateSettings({ labelOverrides: {} });
+  saveLabels({});
   const saved = applyNomenclaturePreset("servicenow");
   assert.ok(saved);
   assert.equal(saved!["term.issue"], "Incident");
   assert.equal(effectiveLabels().overrides["term.issue"], "Incident");
-  updateSettings({ labelOverrides: {} });
+  saveLabels({});
 });
 
 test("applying an unknown preset returns null (no change)", () => {

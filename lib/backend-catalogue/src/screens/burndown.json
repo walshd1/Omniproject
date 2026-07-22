@@ -1,0 +1,1 @@
+{ "id": "burndown", "label": "Burndown", "methodologies": ["scrum", "scrumban", "safe"], "route": "/burndown", "nav": { "label": "Burndown" }, "bare": true, "panels": [ { "id": "burndown", "kind": "component", "config": { "component": "burndown" } } ] }

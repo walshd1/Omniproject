@@ -1,5 +1,7 @@
+import { useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAuth, roleAtLeast } from "../../lib/auth";
+import { useVirtualRows } from "../../lib/use-virtual-rows";
 import {
   useGovernance, useGovernanceLog, STATE_INFO, KIND_LABEL,
   type CapabilityKind, type DeploymentState, type CapabilityLogEntry,
@@ -37,11 +39,19 @@ export function GovernanceDashboard() {
   const onToggleKill = (engage: boolean): Promise<unknown> =>
     withStepUp(async () => { await setAiKill(engage); await qc.invalidateQueries({ queryKey: ["autonomous-grants"] }); });
 
+  // Virtualize the activity trail so a long audit feed renders only the visible slice within its
+  // fixed-height scroll box. The hook falls back to rendering every entry when unmeasured (tests) or
+  // short — so behaviour is unchanged for small feeds. Declared before the early returns to keep the
+  // hook order stable.
+  const activityRef = useRef<HTMLUListElement | null>(null);
+  const activity = useVirtualRows(activityRef, log?.entries?.length ?? 0, { estimate: 22, min: 60 });
+
   if (!roleAtLeast(auth?.role, "admin")) return null;
   if (!data?.capabilities) return null;
 
   const caps = data.capabilities;
   const entries = log?.entries ?? [];
+  const visibleEntries = entries.slice(activity.start, activity.end);
 
   return (
     <Card data-testid="governance-dashboard">
@@ -155,9 +165,12 @@ export function GovernanceDashboard() {
           {entries.length === 0 ? (
             <p className="text-sm text-muted-foreground">No activity yet.</p>
           ) : (
-            <ul className="max-h-64 space-y-1 overflow-auto text-xs" data-testid="activity-log">
-              {entries.map((e, i) => (
-                <li key={i} className="flex items-center justify-between gap-2 border-b border-border/50 py-0.5">
+            <ul ref={activityRef} className="max-h-64 space-y-1 overflow-auto text-xs" data-testid="activity-log">
+              {activity.padTop > 0 && <li aria-hidden="true" style={{ height: activity.padTop }} />}
+              {visibleEntries.map((e, idx) => {
+                const i = activity.start + idx;
+                return (
+                <li key={i} data-vrow className="flex items-center justify-between gap-2 border-b border-border/50 py-0.5">
                   <span className="truncate">
                     <span className={`font-semibold ${ACTION_STYLE[e.action].cls}`}>{ACTION_STYLE[e.action].label}</span>{" "}
                     <span className="font-mono">{e.capability}</span>
@@ -166,7 +179,9 @@ export function GovernanceDashboard() {
                   </span>
                   <span className="shrink-0 text-muted-foreground">{STATE_INFO[e.state].label}</span>
                 </li>
-              ))}
+                );
+              })}
+              {activity.padBottom > 0 && <li aria-hidden="true" style={{ height: activity.padBottom }} />}
             </ul>
           )}
         </div>

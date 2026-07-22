@@ -1,0 +1,15 @@
+{
+  "id": "agency-services",
+  "label": "Agency / Professional Services",
+  "audience": "Agencies and consultancies running client-billable delivery",
+  "description": "Client-billable delivery: budget-rate FX so margin isn't polluted by day-to-day drift, a value/benefit-weighted backlog, and the comments + grid collaboration modules to the fore.",
+  "order": 40,
+  "settings": {
+    "deploymentProfile": "business",
+    "reportingCurrency": "USD",
+    "fxRatePolicy": "budgetRate",
+    "aiProvider": "none",
+    "sttProvider": "browser",
+    "priorityWeights": { "rice": 20, "wsjf": 20, "moscow": 10, "strategic": 20, "benefit": 30 }
+  }
+}

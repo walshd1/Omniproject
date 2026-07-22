@@ -1,0 +1,33 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// REFERENCE SKELETON — a SCREEN definition
+//
+// A commented skeleton to copy & adapt (never loaded by the app). A screen def is
+// stored org-wide, merged OVER the built-in screen catalogue (your `id` wins), and
+// rendered by the one generic builder. Mirrors `OrgScreenDef` in
+// artifacts/api-server/src/lib/screen-def.ts (structurally validated; unknown
+// fields are preserved verbatim, so a def authored against a newer builder still
+// stores — an unknown panel kind degrades to a labelled placeholder).
+// ─────────────────────────────────────────────────────────────────────────────
+{
+  "kind": "screen",
+  "name": "<Human name>",           // e.g. "Delivery health screen"
+  "publisher": "<Your team/org>",
+  "version": "1.0.0",
+  "description": "<One line: what this screen is for>",
+  "tags": ["screen", "<domain>"],
+
+  "payload": {
+    "id": "<screen-id>",            // targets a built-in to OVERRIDE, or names a new screen
+    "label": "<Screen title>",
+    "route": "/<route>",            // optional: the path this screen mounts at
+
+    // Ordered panels. Each needs a UNIQUE `id` and a `kind` (a registered panel
+    // renderer). Anything else on a panel (source/config/title/…) is passed
+    // through untouched to that renderer.
+    "panels": [
+      { "id": "kpis",  "kind": "metrics",  "title": "<Panel title>", "source": { "metric": "<metricId>" } },
+      { "id": "risks", "kind": "register", "title": "<Panel title>", "source": { "register": "risk", "status": "open" } }
+      // Add more panels here. Unknown kinds render as a labelled placeholder.
+    ]
+  }
+}

@@ -1,0 +1,30 @@
+{
+  "id": "table",
+  "label": "Data table",
+  "category": "table",
+  "extends": "canvas",
+  "description": "The VISUAL that renders a record set as generic sortable columns and rows (accessible DOM) with per-column rendering and an optional footer — a canvas made specific. Binds to a record set via `source`, or takes inline columns/rows.",
+  "params": [
+    {
+      "key": "source",
+      "label": "Record set",
+      "type": "string",
+      "required": false,
+      "description": "Id of the record set to render (binds the visual to a data structure); omit to supply columns/rows inline."
+    },
+    {
+      "key": "columns",
+      "label": "Columns",
+      "type": "columns",
+      "required": true,
+      "description": "Display columns: key, label, alignment, and render."
+    },
+    {
+      "key": "rows",
+      "label": "Rows",
+      "type": "rows",
+      "required": true,
+      "description": "One object per row (inline, when not bound to a source)."
+    }
+  ]
+}

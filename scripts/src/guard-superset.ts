@@ -7,13 +7,10 @@
  *
  * Run: pnpm --filter @workspace/scripts run guard-superset
  */
-import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { REPO_ROOT as ROOT } from "./lib/repo-root";
 import { loadSuperset, backendFieldRefs } from "./lib/superset";
 import { reportGuard } from "./lib/guard-harness";
 
-const HERE = path.dirname(fileURLToPath(import.meta.url));
-const ROOT = path.resolve(HERE, "../..");
 
 const { keys } = loadSuperset(ROOT); // throws on a conflicting field redefinition
 const refs = backendFieldRefs(ROOT);

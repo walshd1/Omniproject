@@ -33,16 +33,16 @@ test("hasStrongAuth: acr is checked only against OIDC_STRONG_ACR_VALUES (empty b
   assert.equal(hasStrongAuth({ acr: "urn:mfa:hardware" }), false); // not in the default (empty) acr set
 });
 
-test("grantsFromClaims: withholds admin/pmo authority without strongAuth, but keeps manager base", () => {
+test("grantsFromClaims: withholds admin/pmo authority without strongAuth, but keeps programmeManager base", () => {
   process.env["OIDC_ADMIN_ROLES"] = "omni-admins";
   try {
     const weak = grantsFromClaims(["omni-admins"], { isDemo: false, strongAuth: false });
     assert.equal(weak.authorities.size, 0, "authority withheld without proof of strong auth");
-    assert.equal(weak.base, "manager", "the claim still proves at least manager-level trust");
+    assert.equal(weak.base, "programmeManager", "the claim still proves programme-management-level trust");
 
     const strong = grantsFromClaims(["omni-admins"], { isDemo: false, strongAuth: true });
     assert.deepEqual([...strong.authorities], ["admin"]);
-    assert.equal(strong.base, "manager");
+    assert.equal(strong.base, "programmeManager");
   } finally {
     delete process.env["OIDC_ADMIN_ROLES"];
   }

@@ -84,8 +84,11 @@ acknowledgement — enforced in three places so it can't be bypassed:
 1. **Wizard** (`guardrails`/`canComplete`): a non-off mode can't complete until acknowledged; the
    other three guardrails are *warnings* that inform the choice (prefer an existing tool; augmenting
    fills gaps only; system-of-record makes your DB authoritative).
-2. **Settings validation** (`validateSelfHost`): a non-off `selfHost.mode` without
-   `acknowledgedDataResponsibility: true` is rejected (400) — same trust class as `loggingSync`.
+2. **Config validation** (`sanitizeSelfHost`, `lib/self-host-config.ts`): a non-off `selfHost.mode`
+   without `acknowledgedDataResponsibility: true` is rejected (400). `self-host` is a scope-layered
+   **config def** in the composition model (migrated out of `SettingsState` in Phase C), classified as
+   a **CHOICE** — its ack IS the gate, so it is not floor-gated (unlike `logging-sync`); see
+   [FEATURE-ROADMAP.md](FEATURE-ROADMAP.md) Phase C.
 3. **UI** (`SelfHostDbStep`): the "in your database — your responsibility" disclosure + ack checkbox
    gate the Save button; the admin screen surfaces the "holds the only copy" banner.
 

@@ -1,4 +1,5 @@
 import type { DrillTo, DrillToCondition, DrillToFieldCondition } from "@workspace/backend-catalogue";
+import { getComponent } from "@workspace/backend-catalogue";
 import { safeParseJson } from "./safe-json";
 import type { ConditionSet, Predicate, Op } from "./rate-card";
 
@@ -136,6 +137,38 @@ export function costOverrunDrillTo(): DrillTo {
     projectIdField: "projectId",
     predicate: { all: [{ field: "actualCost", op: "gt", value: 0 }] },
     label: "Cost-incurring items",
+  };
+}
+
+/** One resolved health drill-through: the navigation target (or null when undrillable) and whether the
+ *  figure actually has anything to drill into. */
+export interface HealthDrill { drill: ResolvedDrillTo | null; canDrill: boolean; }
+
+/** The three portfolio-health drill-throughs for one row. */
+export interface HealthDrills { blockers: HealthDrill; schedule: HealthDrill; budget: HealthDrill; }
+
+/**
+ * Resolve the blockers/schedule/budget drill-throughs for ONE portfolio-health row — the shared
+ * derivation behind both the dashboard KPI cards (PortfolioKpi) and the exec board-pack exceptions table
+ * (ExecBoardPack), so the catalogue read + the "nothing to show ⇒ not drillable" predicates live in one
+ * place. Blockers reuses the declarative `widget:portfolioHealth` `drillTo`; schedule/budget use the
+ * built-in overdue / cost-overrun descriptors. A figure with nothing to show (0 blocked, on-schedule,
+ * on-budget) is not drillable.
+ */
+export function resolveHealthDrills(item: {
+  activeBlockersCount: number;
+  scheduleVarianceDays: number;
+  budgetVariancePercentage: number;
+}): HealthDrills {
+  const row = item as unknown as Record<string, unknown>;
+  const blockersDrillTo = getComponent("widget:portfolioHealth")?.drillTo;
+  const blockers = blockersDrillTo ? resolveDrillTo(blockersDrillTo, row) : null;
+  const schedule = resolveDrillTo(overdueDrillTo(), row);
+  const budget = resolveDrillTo(costOverrunDrillTo(), row);
+  return {
+    blockers: { drill: blockers, canDrill: !!blockers && item.activeBlockersCount > 0 },
+    schedule: { drill: schedule, canDrill: !!schedule && item.scheduleVarianceDays < 0 },
+    budget: { drill: budget, canDrill: !!budget && item.budgetVariancePercentage > 0 },
   };
 }
 

@@ -1,0 +1,44 @@
+{
+  "id": "stat-tile",
+  "label": "Stat tile",
+  "category": "tile",
+  "extends": "tile",
+  "description": "A KPI tile — a headline value with a label, optional hint, and tone. A tile specialized for a metric.",
+  "params": [
+    {
+      "key": "label",
+      "label": "Label",
+      "type": "string",
+      "required": true,
+      "description": "What the number measures."
+    },
+    {
+      "key": "value",
+      "label": "Value",
+      "type": "string",
+      "required": true,
+      "description": "The headline figure."
+    },
+    {
+      "key": "hint",
+      "label": "Hint",
+      "type": "string",
+      "required": false,
+      "description": "Secondary context line."
+    },
+    {
+      "key": "tone",
+      "label": "Tone",
+      "type": "enum",
+      "required": false,
+      "description": "State colour.",
+      "options": [
+        "neutral",
+        "good",
+        "warn",
+        "bad",
+        "info"
+      ]
+    }
+  ]
+}

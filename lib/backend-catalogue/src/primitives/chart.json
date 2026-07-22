@@ -1,0 +1,23 @@
+{
+  "id": "chart",
+  "label": "Chart",
+  "category": "chart",
+  "extends": "geometry-canvas",
+  "description": "A geometry-canvas that plots DATA as atoms — the abstract base every concrete chart inherits. Adds presentation (palette, legend); the data shape is added by each concrete chart.",
+  "params": [
+    {
+      "key": "legend",
+      "label": "Legend",
+      "type": "boolean",
+      "required": false,
+      "description": "Show the series legend (auto for ≥2 series)."
+    },
+    {
+      "key": "palette",
+      "label": "Palette",
+      "type": "palette",
+      "required": false,
+      "description": "Ordered hex colours; series/slices take them in turn."
+    }
+  ]
+}

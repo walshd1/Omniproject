@@ -200,6 +200,70 @@ export const FEATURE_MODULES: readonly FeatureModule[] = [
     reason: "storage", // holds proof + annotation metadata in the encrypted-JSON store
   },
   {
+    id: "goals",
+    label: "Goals & OKRs",
+    description: "First-class objectives with measurable key results, progress roll-up, and check-ins.",
+    load: () => import("../routes/goals"),
+    defaultOff: true,
+    reason: "storage", // holds goal + key-result data in the encrypted-JSON store
+  },
+  {
+    id: "timeTracking",
+    label: "Live time tracking",
+    description: "A start/stop timer that books elapsed time into a timesheet entry; billing-ready.",
+    load: () => import("../routes/timer"),
+    defaultOff: true,
+    reason: "cost", // ephemeral per-user timer state in the shared-state KV
+  },
+  {
+    id: "invoicing",
+    label: "Invoicing",
+    description: "Generate client-facing invoices with typed line items, derived totals and a status flow.",
+    load: () => import("../routes/invoices"),
+    defaultOff: true,
+    reason: "storage", // holds invoice data in the encrypted-JSON store
+  },
+  {
+    id: "marketplace",
+    label: "Plugin marketplace",
+    description: "Install org-wide extensions that contribute pure-JSON reports, pages, dashboards and screens.",
+    load: () => import("../routes/marketplace"),
+    defaultOff: true,
+    reason: "storage", // holds installed-extension config in the encrypted-JSON store; install is admin-gated
+  },
+  {
+    id: "registry",
+    label: "Approved-items registry",
+    description: "An org store of approved bespoke templates, reports, primitives and JSON defs, with optional community release.",
+    load: () => import("../routes/registry"),
+    defaultOff: true,
+    reason: "storage", // holds curated registry items in the encrypted-JSON store; review/release admin-gated
+  },
+  {
+    id: "studio",
+    label: "AI primitive studio",
+    description: "Turn a description into a candidate primitive (chart/graphic) definition with an LLM, validated against the app's schema, then submit it to the registry.",
+    load: () => import("../routes/studio"),
+    defaultOff: true,
+    reason: "cost", // calls an AI provider; further gated by the ai-authoring capability + contributor role
+  },
+  {
+    id: "defImporter",
+    label: "JSON definition importer",
+    description: "The single validated write-path for any user-defined JSON definition (primitive/screen/form/report/dashboard) into the per-user, project, or org-wide encrypted stores.",
+    load: () => import("../routes/defs"),
+    defaultOff: true,
+    reason: "storage", // writes user-defined JSON into the encrypted-JSON store; scope-gated per storage target
+  },
+  {
+    id: "nativeHandoff",
+    label: "Native handoff (companion apps)",
+    description: "Hand off an artifact to the specialist SaaS tool a connected backend fronts (Miro, Notion, MS Project, Power BI, …) and bring a reference back through the broker.",
+    load: () => import("../routes/native"),
+    defaultOff: true,
+    reason: "cost", // outbound handoff to external tools; content/screenshot import (later slices) egresses
+  },
+  {
     // Admin bulk-action runner: apply one canonical broker write (create/update project) to many
     // projects at once, declaratively. Has a backend route (POST /api/admin/bulk), so it loads
     // lazily; OFF until an admin opts in — it fans out project-level writes (high blast radius), so

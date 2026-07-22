@@ -1,5 +1,4 @@
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { getJson, sendJson } from "./api";
+import { configResource } from "./config-resource";
 import {
   WIDGETS,
   widgetDef,
@@ -75,23 +74,12 @@ export function clampSpan(span: number | undefined): 1 | 2 | 3 {
 
 export const dashboardsQueryKey = ["dashboards"] as const;
 
-export function useDashboards() {
-  return useQuery({
-    queryKey: dashboardsQueryKey,
-    queryFn: () => getJson<{ dashboards: Dashboard[] }>("/api/dashboards").then((r) => r.dashboards),
-    staleTime: 30_000,
-  });
-}
-
+const resource = configResource<Dashboard[]>({
+  queryKey: dashboardsQueryKey,
+  path: "/api/dashboards",
+  envelopeKey: "dashboards",
+  saveErrorMessage: "Failed to save dashboards",
+});
+export const useDashboards = resource.useResource;
 /** Persist the full dashboards list (CSRF attached by the global fetch patch). */
-export function useSaveDashboards() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: async (dashboards: Dashboard[]) => {
-      return sendJson<unknown>("/api/dashboards", { dashboards }, "PUT", "Failed to save dashboards");
-    },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: dashboardsQueryKey });
-    },
-  });
-}
+export const useSaveDashboards = resource.useSaveResource;

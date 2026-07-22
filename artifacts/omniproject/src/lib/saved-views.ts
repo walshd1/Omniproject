@@ -1,5 +1,4 @@
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { getJson, sendJson } from "./api";
+import { configResource } from "./config-resource";
 import type { StyleSpec } from "./artifact-style";
 
 /**
@@ -29,23 +28,12 @@ export interface SavedView {
 
 export const savedViewsQueryKey = ["saved-views"] as const;
 
-export function useSavedViews() {
-  return useQuery({
-    queryKey: savedViewsQueryKey,
-    queryFn: () => getJson<{ views: SavedView[] }>("/api/views").then((r) => r.views),
-    staleTime: 30_000,
-  });
-}
-
+const resource = configResource<SavedView[]>({
+  queryKey: savedViewsQueryKey,
+  path: "/api/views",
+  envelopeKey: "views",
+  saveErrorMessage: "Failed to save views",
+});
+export const useSavedViews = resource.useResource;
 /** Persist the full saved-views list (CSRF attached by the global fetch patch). */
-export function useSaveViews() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: async (views: SavedView[]) => {
-      return sendJson<unknown>("/api/views", { views }, "PUT", "Failed to save views");
-    },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: savedViewsQueryKey });
-    },
-  });
-}
+export const useSaveViews = resource.useSaveResource;

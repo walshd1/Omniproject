@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import type { Capabilities } from "@workspace/api-client-react";
 import { loadDeltas, type LoadInput } from "../../lib/resource-load";
+import { isTerminal } from "../../lib/status-vocab";
 
 interface IssueLike {
   id: string;
@@ -38,7 +39,7 @@ export function useResourceContention({ issues, result, caps, itemsLength }: Use
   }, [issues]);
   const hasAssignees = Object.values(assigneeOf).some(Boolean);
   const contention = useMemo(() => {
-    const active = (status: string) => status !== "done" && status !== "cancelled";
+    const active = (status: string) => !isTerminal(status);
     const toLoad = (resolved: boolean): LoadInput[] =>
       result.items.map((it) => ({
         id: it.id,

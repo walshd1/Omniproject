@@ -3,6 +3,7 @@ import { getSettings } from "./settings";
 import { logger } from "./logger";
 import { SealedFile, resolveConfigFile } from "./sealed-file";
 import { createUndoBuffer } from "./undo-buffer";
+import { isForbiddenKey } from "./safe-json";
 
 /**
  * AI provider registry + capability→provider mapping.
@@ -242,6 +243,53 @@ export function providersSnapshot(): { providers: Array<AiProviderConfig & { has
     providers: state.providers.map((p) => ({ ...p, ...providerKeyState(p.id), ready: providerReady(p.id) })),
     mapping: { ...state.mapping },
   };
+}
+
+/**
+ * BACKUP export/import (roadmap X.14). Provider ENTITIES (id/kind/label/endpoint/model) + the capability
+ * mapping are config, NOT secrets — the API keys live in the vault and NEVER travel. Because an `endpoint` is
+ * an egress target, this rides ONLY the ENCRYPTED full backup (an authenticated sealed bundle), never the
+ * plaintext one, so a restore can't silently redirect a provider. `importAiProviders` re-validates every
+ * provider (id + known kind + string fields) and every mapping entry (drops forbidden/oversized keys, unknown
+ * provider ids) — a tampered/injected row is dropped, not written.
+ */
+export interface AiProvidersExport { providers: AiProviderConfig[]; mapping: Record<string, string[]> }
+
+/** Capture the provider entities + capability mapping for a sealed backup (no API keys — those stay in the vault). */
+export function exportAiProviders(): AiProvidersExport {
+  ensureLoaded();
+  return { providers: listProviders(), mapping: { ...state.mapping } };
+}
+
+/** Coerce one exported provider row to a valid `AiProviderConfig`, or null to drop it. */
+function sanitizeProviderConfig(raw: unknown): AiProviderConfig | null {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
+  const r = raw as Record<string, unknown>;
+  const id = typeof r["id"] === "string" ? r["id"].trim() : "";
+  if (!id || isForbiddenKey(id)) return null;
+  if (!AI_PROVIDER_KINDS.includes(r["kind"] as AiProviderKind)) return null;
+  const cfg: AiProviderConfig = { id, kind: r["kind"] as AiProviderKind, label: typeof r["label"] === "string" ? r["label"] : "" };
+  if (typeof r["endpoint"] === "string") cfg.endpoint = r["endpoint"];
+  if (typeof r["model"] === "string") cfg.model = r["model"];
+  return cfg;
+}
+
+/** Restore provider entities + mapping from a (decrypted, sealed) backup, re-validating each. Returns how many
+ *  of each were written. */
+export function importAiProviders(data: unknown): { providers: number; mappings: number } {
+  const d = (data ?? {}) as { providers?: unknown; mapping?: unknown };
+  let providers = 0;
+  if (Array.isArray(d.providers)) {
+    for (const raw of d.providers) { const cfg = sanitizeProviderConfig(raw); if (cfg) { upsertProvider(cfg); providers++; } }
+  }
+  let mappings = 0;
+  if (d.mapping && typeof d.mapping === "object" && !Array.isArray(d.mapping)) {
+    for (const [cap, ids] of Object.entries(d.mapping as Record<string, unknown>)) {
+      if (isForbiddenKey(cap) || !cap) continue;
+      if (Array.isArray(ids) && ids.every((x) => typeof x === "string")) { setCapabilityProviders(cap, ids as string[]); mappings++; }
+    }
+  }
+  return { providers, mappings };
 }
 
 /** Test-only: reset to seed defaults and force reload. */

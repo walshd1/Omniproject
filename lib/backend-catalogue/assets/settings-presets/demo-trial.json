@@ -1,0 +1,14 @@
+{
+  "id": "demo-trial",
+  "label": "Demo / Trial",
+  "audience": "Evaluators exploring the product with the built-in demo data",
+  "description": "Everything on for exploration: demo profile, default prioritisation, on-device speech. No reporting currency so FX stays out of the way until you're ready.",
+  "order": 60,
+  "settings": {
+    "deploymentProfile": "demo",
+    "reportingCurrency": null,
+    "fxRatePolicy": "spot",
+    "aiProvider": "none",
+    "sttProvider": "browser"
+  }
+}

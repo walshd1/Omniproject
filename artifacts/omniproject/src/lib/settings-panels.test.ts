@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { SETTINGS_PANEL_KEYS, settingsPanelLabel, settingsAnchorId } from "./settings-panels";
-import { ADMIN_PANEL_KEYS } from "../pages/Settings";
+import { ADMIN_PANEL_KEYS } from "../modules/settings/Settings";
 
 describe("settings-panels (palette ↔ Settings drift guard)", () => {
   it("SETTINGS_PANEL_KEYS matches the Settings page's ADMIN_PANELS exactly, in order", () => {

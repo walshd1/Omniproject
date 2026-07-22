@@ -82,11 +82,14 @@ export function TranslationLayer() {
   const [entities, setEntities] = useState<Overrides>({});
   const [filter, setFilter] = useState("");
 
+  // Hoist the cast to a typed local: `settings` is `unknown`-typed here, and an inline `as` cast inside
+  // the effect defeats exhaustive-deps' dependency analysis. `settingsOverrides` is a stable property
+  // read off the react-query-stable `settings`, so keying on it re-seeds only when the server value changes.
+  const settingsOverrides = (settings as { fieldOverrides?: { fields?: Overrides; entities?: Overrides } } | undefined)?.fieldOverrides;
   useEffect(() => {
-    const ov = (settings as { fieldOverrides?: { fields?: Overrides; entities?: Overrides } } | undefined)?.fieldOverrides;
-    setFields(ov?.fields ?? {});
-    setEntities(ov?.entities ?? {});
-  }, [settings]);
+    setFields(settingsOverrides?.fields ?? {});
+    setEntities(settingsOverrides?.entities ?? {});
+  }, [settingsOverrides]);
 
   const fieldKeys = useMemo(
     () => Object.keys({ ...(caps?.fields ?? {}), ...fields }).sort().filter((k) => k.toLowerCase().includes(filter.toLowerCase())),

@@ -103,7 +103,9 @@ export function NewProjectDialog({ open, onOpenChange }: { open: boolean; onOpen
               onChange={(e) => setForm((p) => ({ ...p, programmeId: e.target.value }))}
               className="rounded-none border-border font-mono h-11" placeholder="None (standalone project)" />
             <datalist id="np-programmes">
-              {(programmes ?? []).map((pr) => (
+              {/* A generated list hook can momentarily resolve to a non-array (loading/error/unexpected
+                  payload); `?? []` only guards null/undefined, so narrow with Array.isArray. */}
+              {(Array.isArray(programmes) ? programmes : []).map((pr) => (
                 <option key={pr.id} value={pr.id}>{pr.name}</option>
               ))}
             </datalist>

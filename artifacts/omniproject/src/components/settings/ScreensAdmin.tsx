@@ -1,10 +1,16 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { MonitorCog } from "lucide-react";
 import { useAuth, isPmoOrAdmin } from "../../lib/auth";
 import { useToast } from "@/hooks/use-toast";
-import { useResolvedScreens, useOrgScreenDefs, useSaveOrgScreenDefs, type OrgScreenDef } from "../../lib/org-screens";
+import {
+  useResolvedScreens, useOrgScreenDefs, useLegacyOrgScreenDefs, useDrainLegacyScreenDefs,
+  screenDefsResolvedKey, type OrgScreenDef,
+} from "../../lib/org-screens";
+import { useResolvedDefs, useImportDef, useUpdateDef, useDeleteDef } from "../../lib/defs";
+import { useScreenLayouts, useDrainLegacyScreenLayouts } from "../../lib/screen-layouts";
 import { screenIsCore } from "../../lib/screen-catalogue";
 import { useDisabledScreens, useSaveDisabledScreens, isScreenDisabled } from "../../lib/screen-state";
 import { useCollectionEditRoles, useSaveCollectionEditRoles, type EditPolicy } from "../../lib/collection-edit-roles";
@@ -39,7 +45,20 @@ export function ScreensAdmin() {
   const { data: auth } = useAuth();
   const screens = useResolvedScreens();
   const { data: orgDefs } = useOrgScreenDefs();
-  const saveDefs = useSaveOrgScreenDefs();
+  // Screen overrides are ARTIFACTS in the def store; edit the ORG-scoped `screen` defs through the importer.
+  // Memoised so the derived arrays keep a stable identity across renders.
+  const { data: defs } = useResolvedDefs<OrgScreenDef>("screen");
+  const orgScreenDefs = useMemo(() => (Array.isArray(defs) ? defs : []).filter((d) => d.id.startsWith("org~")), [defs]);
+  const scopedIdByScreenId = useMemo(() => new Map(orgScreenDefs.map((d) => [(d.payload as OrgScreenDef).id, d.id])), [orgScreenDefs]);
+  const importDef = useImportDef();
+  const updateDef = useUpdateDef();
+  const deleteDef = useDeleteDef();
+  const qc = useQueryClient();
+  const { data: legacy } = useLegacyOrgScreenDefs();
+  const drain = useDrainLegacyScreenDefs();
+  const { data: legacyLayouts } = useScreenLayouts(); // legacy screenLayouts map (pre-fold), for migration
+  const drainLayouts = useDrainLegacyScreenLayouts();
+  const savingDef = importDef.isPending || updateDef.isPending || deleteDef.isPending || drain.isPending || drainLayouts.isPending;
   const { data: disabled } = useDisabledScreens();
   const saveDisabled = useSaveDisabledScreens();
   const { data: editRoles } = useCollectionEditRoles();
@@ -75,28 +94,89 @@ export function ScreensAdmin() {
   const defFor = (id: string): OrgScreenDef =>
     org.find((s) => s.id === id) ?? screens.find((s) => s.id === id) ?? { id, label: id, panels: [] };
 
-  const saveOverride = (id: string, edited: OrgScreenDef) => {
-    // The editor can't change which screen this overrides — pin the id.
-    const next = [...org.filter((s) => s.id !== id), { ...edited, id }];
-    saveDefs.mutate(next, {
-      onSuccess: () => { setEditingId(null); toast({ title: "SCREEN OVERRIDDEN", description: id }); },
-      onError: (e) => toast({ title: "COULD NOT SAVE", description: e instanceof Error ? e.message : "Try again.", variant: "destructive" }),
-    });
+  const legacyDefs = legacy ?? [];
+  const invalidate = () => qc.invalidateQueries({ queryKey: screenDefsResolvedKey });
+
+  // An override is a per-def upsert through the importer: PUT an existing override's def in place, else POST a
+  // new org `screen` def (payload.id pinned to the screen it overrides). The editor can't change the id.
+  const saveOverride = async (id: string, edited: OrgScreenDef) => {
+    const payload = { ...edited, id };
+    const scopedId = scopedIdByScreenId.get(id);
+    try {
+      if (scopedId) await updateDef.mutateAsync({ id: scopedId, name: String(payload.label ?? id), payload });
+      else await importDef.mutateAsync({ kind: "screen", storage: "org", name: String(payload.label ?? id), payload });
+      await invalidate();
+      setEditingId(null); toast({ title: "SCREEN OVERRIDDEN", description: id });
+    } catch (e) {
+      toast({ title: "COULD NOT SAVE", description: e instanceof Error ? e.message : "Try again.", variant: "destructive" });
+    }
   };
 
-  const resetOverride = (id: string) => {
-    saveDefs.mutate(org.filter((s) => s.id !== id), {
-      onSuccess: () => { setEditingId(null); toast({ title: "RESET TO DEFAULT", description: id }); },
-      onError: (e) => toast({ title: "COULD NOT SAVE", description: e instanceof Error ? e.message : "Try again.", variant: "destructive" }),
-    });
+  // Reset = delete the override def, reverting to the shipped/built-in screen. A legacy-only override (not yet
+  // migrated to a def) has no def to delete — prompt a migration first.
+  const resetOverride = async (id: string) => {
+    const scopedId = scopedIdByScreenId.get(id);
+    if (!scopedId) { toast({ title: "MIGRATE FIRST", description: "This override is a legacy setting — migrate legacy screens, then reset." }); return; }
+    try {
+      await deleteDef.mutateAsync(scopedId);
+      await invalidate();
+      setEditingId(null); toast({ title: "RESET TO DEFAULT", description: id });
+    } catch (e) {
+      toast({ title: "COULD NOT RESET", description: e instanceof Error ? e.message : "Try again.", variant: "destructive" });
+    }
+  };
+
+  // One-shot migration of any pre-convergence `settings.screenDefs` into the def store, then drain the slice.
+  const migrateLegacy = async () => {
+    try {
+      for (const d of legacyDefs) if (!scopedIdByScreenId.has(d.id)) await importDef.mutateAsync({ kind: "screen", storage: "org", name: String(d.label ?? d.id), payload: d });
+      await drain.mutateAsync();
+      await invalidate();
+      toast({ title: "MIGRATED", description: "Legacy screen overrides moved into the def store." });
+    } catch (e) {
+      toast({ title: "MIGRATION FAILED", description: e instanceof Error ? e.message : "Try again.", variant: "destructive" });
+    }
+  };
+
+  // Fold any legacy `settings.screenLayouts` INTO the screen defs — for each customised screen, upsert its org
+  // def carrying the layout, then drain the legacy map. (Layouts folded per-screen also happen live via the
+  // Edit-layout mode; this bulk-migrates whatever predates the fold.)
+  const legacyLayoutEntries = Object.entries(legacyLayouts ?? {});
+  const migrateLayouts = async () => {
+    try {
+      for (const [id, layout] of legacyLayoutEntries) {
+        const base = screens.find((s) => s.id === id);
+        if (!base) continue;
+        const def = { ...base, layout } as OrgScreenDef;
+        const scopedId = scopedIdByScreenId.get(id);
+        if (scopedId) await updateDef.mutateAsync({ id: scopedId, name: String(def.label ?? id), payload: def });
+        else await importDef.mutateAsync({ kind: "screen", storage: "org", name: String(def.label ?? id), payload: def });
+      }
+      await drainLayouts.mutateAsync();
+      await invalidate();
+      toast({ title: "MIGRATED", description: "Legacy screen layouts folded into the def store." });
+    } catch (e) {
+      toast({ title: "MIGRATION FAILED", description: e instanceof Error ? e.message : "Try again.", variant: "destructive" });
+    }
   };
 
   return (
     <AdminSection icon={MonitorCog} title="Screens" testId="screens-admin" bodyClassName="space-y-3">
       <p className="text-xs text-muted-foreground">
-        Turn a screen off, or override it with custom JSON (e.g. a customised Kanban). Overrides are stored in
-        your org’s config and merged over the shipped screen by id; Reset returns to the default.
+        Turn a screen off, or override it with custom JSON (e.g. a customised Kanban). Overrides are stored as
+        definitions in your org’s encrypted def store and merged over the shipped screen by id; Reset returns to
+        the default.
       </p>
+      {legacyDefs.length > 0 && (
+        <Button type="button" variant="outline" size="sm" onClick={migrateLegacy} disabled={savingDef} data-testid="screens-migrate-legacy">
+          Migrate {legacyDefs.length} legacy screen override{legacyDefs.length === 1 ? "" : "s"}
+        </Button>
+      )}
+      {legacyLayoutEntries.length > 0 && (
+        <Button type="button" variant="outline" size="sm" onClick={migrateLayouts} disabled={savingDef} data-testid="screens-migrate-layouts">
+          Fold {legacyLayoutEntries.length} legacy layout{legacyLayoutEntries.length === 1 ? "" : "s"} into defs
+        </Button>
+      )}
       <div className="divide-y divide-border border-2 border-border">
         {screens.map((s) => {
           const core = screenIsCore(s.id);
@@ -149,7 +229,7 @@ export function ScreensAdmin() {
                 <ScreenEditor
                   def={defFor(s.id)}
                   allowRoute={!core}
-                  saving={saveDefs.isPending}
+                  saving={savingDef}
                   onSave={(edited) => saveOverride(s.id, edited)}
                   onCancel={() => setEditingId(null)}
                 />

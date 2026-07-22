@@ -1,0 +1,21 @@
+{
+  "id": "multiselect",
+  "extends": "form-field",
+  "label": "Multiselect",
+  "params": [
+    {
+      "key": "options",
+      "required": true
+    }
+  ],
+  "constraints": [
+    {
+      "id": "multiselect-options",
+      "kind": "floor",
+      "type": "cardinality",
+      "path": "options",
+      "min": 1,
+      "message": "a multiselect field needs at least one option"
+    }
+  ]
+}

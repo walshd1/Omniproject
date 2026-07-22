@@ -63,6 +63,10 @@ const WRITE_CLASSIFIERS = {
   // ANY mutating action (create/update/delete_project, RAID, …). Guard it under its own action name
   // so a grant must name that action; an ungranted autonomous command is denied by construction.
   commandWithSource: (args, now): WriteRequest => ({ action: str(args[1]) ?? "command", projectId: str(rec(args[2])["projectId"]), now }),
+  // nativeImport(ctx, req) brings a native artifact back THROUGH the broker as an attachment written to the
+  // target project/issue (route stamps write:true) — a genuine mutation. Guard it under `native_import`,
+  // project-scoped by the target, so an autonomous actor must be granted it (fail-closed if ungranted).
+  nativeImport: (args, now): WriteRequest => ({ action: "native_import", projectId: str(rec(rec(args[1])["target"])["projectId"]), now }),
 } satisfies Record<string, (args: unknown[], now: number) => WriteRequest>;
 
 /** A broker method the autonomous gate must run authorization for. */

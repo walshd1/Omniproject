@@ -1,0 +1,16 @@
+{
+  "id": "record-set",
+  "label": "Record set",
+  "category": "data-structure",
+  "extends": "record",
+  "description": "The SET a record belongs to — a record's schema (inherited fields) plus the collection of records (rows). The working data structure; a visual (table/board/chart) binds to it to show it.",
+  "params": [
+    {
+      "key": "rows",
+      "label": "Rows",
+      "type": "rows",
+      "required": true,
+      "description": "One object per record — the set's records."
+    }
+  ]
+}

@@ -32,7 +32,7 @@ export function useScheduleShifts({ items, getSpan }: UseScheduleShiftsArgs) {
   const [succ, setSucc] = useState("");
   const dragRef = useRef<{ id: string; startX: number; origShift: number; pxPerDay: number } | null>(null);
 
-  const touch = () => markExplorationDirty();
+  const touch = () => markExplorationDirty("shifts");
   const reset = () => {
     setShifts({});
     setEdges([]);

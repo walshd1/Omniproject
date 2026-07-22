@@ -13,7 +13,10 @@
  * admin-gated; this is the operator-facing surface for wiring + lifecycle, not project data.
  */
 import { Router } from "express";
-import { getSettings, updateSettings } from "../lib/settings";
+import { updateSettings } from "../lib/settings";
+import { resolveSelfHost, sanitizeSelfHost, SELF_HOST_CONFIG_ID } from "../lib/self-host-config";
+import { writeOrgConfigCollection } from "../lib/scoped-config";
+import { requireArtifactStore } from "../lib/artifact-store";
 import { requireRole, requireAnyRole, getRoleMap } from "../lib/rbac";
 import { isTruthy } from "../lib/env-config";
 import { selfHostGatingForScope } from "../selfhost";
@@ -133,7 +136,7 @@ router.post("/setup/profile", requireRole("admin"), (req, res) => {
 // scope (admin/PMO). Programme/project narrowing reuses the existing governance maps, so the admin
 // screen sees the same resolution the composition tier runs. Read-only; never project data.
 router.get("/setup/self-host", requireAnyRole("admin", "pmo"), (req, res) => {
-  const config = getSettings().selfHost;
+  const config = resolveSelfHost();
   const programmeId = (req.query["programmeId"] as string | undefined)?.trim() || null;
   const projectId = (req.query["projectId"] as string | undefined)?.trim() || null;
   const gating = selfHostGatingForScope({ programmeId, projectId });
@@ -147,21 +150,22 @@ router.get("/setup/self-host", requireAnyRole("admin", "pmo"), (req, res) => {
 });
 
 // POST /api/setup/self-host — adopt (or turn off) the self-host DB from the wizard/admin (admin).
-// The "disclose, don't insure" gate lives in `updateSettings` → `validateSelfHost`: a non-off mode
-// without the data-responsibility acknowledgement is rejected (400), so this can never persist an
-// un-acknowledged adoption. Persisting rides the config bundle like any other setting.
+// The "disclose, don't insure" gate lives in `sanitizeSelfHost`: a non-off mode without the data-responsibility
+// acknowledgement is rejected (400), so this can never persist an un-acknowledged adoption. It's a CHOICE config
+// def (`self-host`) — the ack is the gate, so this applies immediately (never a sign-off), unchanged from before.
 router.post("/setup/self-host", requireRole("admin"), (req, res) => {
+  if (!requireArtifactStore(res)) return;
   const body = (req.body ?? {}) as Record<string, unknown>;
   const mode = typeof body["mode"] === "string" ? body["mode"] : "off";
   const adopted = Array.isArray(body["adopted"]) ? body["adopted"].filter((x): x is string => typeof x === "string") : [];
   const ack = body["acknowledgedDataResponsibility"] === true;
   try {
-    updateSettings({ selfHost: { mode, adopted, acknowledgedDataResponsibility: ack } });
+    writeOrgConfigCollection(SELF_HOST_CONFIG_ID, "Self-host", sanitizeSelfHost({ mode, adopted, acknowledgedDataResponsibility: ack }));
   } catch (err) {
     res.status(400).json({ error: err instanceof Error ? err.message : "invalid self-host config" });
     return;
   }
-  const config = getSettings().selfHost;
+  const config = resolveSelfHost();
   const gating = selfHostGatingForScope();
   res.json({ config, domains: gating.rows, enabledDomains: [...gating.enabledDomainIds], holdsOnlyCopy: config.mode !== "off" });
 });

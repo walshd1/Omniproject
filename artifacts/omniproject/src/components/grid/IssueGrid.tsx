@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useSearchParams } from "wouter";
 import {
   useGetProjectIssues,
@@ -12,6 +12,7 @@ import { useFeatures, featureEnabled } from "../../lib/features";
 import { useSidePanel } from "../../lib/side-panel";
 import { STATUS_ORDER, PRIORITY_ORDER, statusLabel, priorityLabel } from "../../lib/constants";
 import { matchRow } from "../../lib/custom-report";
+import { useVirtualRows } from "../../lib/use-virtual-rows";
 import { readDrillFilter, DRILL_FILTER_PARAMS } from "../../lib/drill-to";
 import { DataState } from "../DataState";
 import { SkeletonRows } from "../Skeletons";
@@ -134,6 +135,15 @@ export function IssueGrid({ projectId }: { projectId: string }) {
   const toggleSort = (field: string) =>
     setSort((s) => (s?.field === field ? { field, dir: s.dir === "asc" ? "desc" : "asc" } : { field, dir: "asc" }));
 
+  // Virtualize the row list so a project with thousands of work items renders only the visible slice
+  // instead of one DOM row each. Falls back to rendering every row when the container is unmeasured
+  // (jsdom/tests) or the list is short — see useVirtualRows. The bounded, scrollable body + sticky
+  // header is what lets the windowing engage.
+  const scrollRef = useRef<HTMLDivElement | null>(null);
+  const { start, end, padTop, padBottom } = useVirtualRows(scrollRef, rows.length, { estimate: 33, min: 80 });
+  const visibleRows = rows.slice(start, end);
+  const colSpan = columns.length + 1;
+
   /** Write one field on one issue via the shared writer (optimistic + expectedVersion + 409-safe).
    *  `undoable` (single inline edits) adds a one-click Undo toast; bulk edits pass it off. */
   function commit(issue: Issue, col: GridColumn, raw: string, undoable = false) {
@@ -202,8 +212,9 @@ export function IssueGrid({ projectId }: { projectId: string }) {
           <button onClick={bulkApply} className="border-2 border-foreground px-2 py-0.5 font-bold uppercase">Apply</button>
         </div>
       )}
+      <div ref={scrollRef} className="max-h-[70vh] overflow-auto">
       <table className="w-full text-left text-sm" data-testid="grid-table">
-        <thead>
+        <thead className="sticky top-0 z-10 bg-background">
           <tr className="border-b-2 border-foreground text-xs uppercase tracking-wider">
             <th className="w-8 py-1" />
             {columns.map((c) => (
@@ -220,8 +231,9 @@ export function IssueGrid({ projectId }: { projectId: string }) {
           </tr>
         </thead>
         <tbody>
-          {rows.map((issue) => (
-            <tr key={issue.id} className="border-b border-border/50">
+          {padTop > 0 && <tr aria-hidden="true" style={{ height: padTop }}><td colSpan={colSpan} /></tr>}
+          {visibleRows.map((issue) => (
+            <tr key={issue.id} data-vrow className="border-b border-border/50">
               <td className="py-1">
                 <div className="flex items-center gap-1">
                   <input
@@ -268,8 +280,10 @@ export function IssueGrid({ projectId }: { projectId: string }) {
               })}
             </tr>
           ))}
+          {padBottom > 0 && <tr aria-hidden="true" style={{ height: padBottom }}><td colSpan={colSpan} /></tr>}
         </tbody>
       </table>
+      </div>
     </div>
     </DataState>
   );

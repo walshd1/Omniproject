@@ -40,6 +40,11 @@ import { registerBrokerRetentionFromEnv } from "./history/broker-source";
 import { brokerKind } from "./broker";
 import { getSettings, updateSettings } from "./lib/settings";
 import { restoreActiveEnvironment } from "./lib/config-store";
+import { seedSystemDefaultsIfEmpty } from "./lib/system-defs";
+import { ensureOrgIdentity } from "./lib/org-identity";
+import { engageRecoveryConfigDir } from "./lib/recovery-mode";
+import { ensureInstanceKey } from "./lib/instance-key";
+import { invalidateDefIndex } from "./lib/def-index";
 import { SAMPLE_PROGRAMME_REGISTRY } from "./broker/demo-data";
 
 const app: Express = express();
@@ -91,6 +96,11 @@ runDevModeGuard(process.env, logger);
  * app without calling bootstrap() still work.
  */
 export async function bootstrap(): Promise<void> {
+  // FIRST, before any sealed store is read: if the LOCAL_PASSWORD_RECOVERY break-glass is engaged, redirect
+  // OMNI_CONFIG_DIR to an isolated `recovery/` dir so the whole system runs BLANK (original data preserved but
+  // not loaded). Re-enabling local passwords on a compromised box then yields no readable data — restore from
+  // backup or start afresh. Reversible: disengaging recovery returns to the original data.
+  engageRecoveryConfigDir();
   await initKms();
   loadSecurityState();
   await hydrateVault();
@@ -103,6 +113,20 @@ export async function bootstrap(): Promise<void> {
   // the gateway stays SDK-free — the broker process holds the cloud SDK. See history/broker-source.
   registerBrokerRetentionFromEnv();
   seedDemoProgrammeRegistry();
+  // First-boot install of OUR shipped defaults (reports/forms/business-rules/dashboards) into the read-only
+  // system def store, sourced from the bundled catalogues. One-shot; no-op when already installed or the store
+  // is off. Runtime UPDATES go through the admin-gated approved-update route, not this.
+  seedSystemDefaultsIfEmpty();
+  // Mint the org's canonical identity (a stable id + placeholder name) as the FIRST row of the org-level JSON, so
+  // "org id at the top of the org JSON" holds from first boot. Idempotent — an already-minted id is never
+  // rewritten, and it's a no-op when the encrypted store is disabled. The name is set later in first-run setup.
+  ensureOrgIdentity({ sub: "system", name: "system" }, new Date().toISOString());
+  // Mint the INSTANCE RECOVERY KEY (wrapped at rest) so first-setup always has a key to reveal + save offline.
+  // Idempotent; no-op when the encrypted store is disabled.
+  ensureInstanceKey(new Date().toISOString());
+  // Rebuild-on-doubt: drop the composition child-edge index at boot so a crash that stranded a stale index can't
+  // let the importer's fast path wrongly skip a cascade. It is rebuilt from a full scan on first use.
+  invalidateDefIndex();
 }
 
 /**
