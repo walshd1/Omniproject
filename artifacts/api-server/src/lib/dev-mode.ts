@@ -1,5 +1,7 @@
 import { DEV_PERSIST_ENABLED } from "./dev-persist";
 import { getMessyConfig } from "./messy-data";
+import { devModeActive } from "./dev-mode-guard";
+import { isProductionEnv } from "./node-env";
 
 /**
  * Dev mode — the single source of truth for "is this a developer/debug instance?".
@@ -16,10 +18,6 @@ import { getMessyConfig } from "./messy-data";
  * tells an operator — and the on-screen watermark — exactly which surfaces are hot.
  */
 
-function notProd(): boolean {
-  return process.env["NODE_ENV"] !== "production";
-}
-
 function traceArmed(): boolean {
   return process.env["BROKER_TRACE"] === "1";
 }
@@ -28,10 +26,16 @@ function captureArmed(): boolean {
   return !!process.env["BROKER_CAPTURE"]?.trim();
 }
 
-/** Is this a developer/debug instance? Always false in production. */
+/**
+ * Is this a developer/debug instance? Always false in production.
+ *
+ * Delegates to {@link devModeActive} (lib/dev-mode-guard) over `process.env` so the
+ * runtime surfaces gated on `isDevMode()` and the boot interlock (`runDevModeGuard`)
+ * share ONE definition and can never drift. Production is decided fail-safe by
+ * {@link isProductionEnv} — a mis-cased / unknown NODE_ENV reads as production.
+ */
 export function isDevMode(): boolean {
-  if (!notProd()) return false;
-  return process.env["OMNI_DEV_MODE"] === "1" || DEV_PERSIST_ENABLED || traceArmed() || captureArmed();
+  return devModeActive(process.env);
 }
 
 export interface DevModeStatus {
@@ -50,15 +54,18 @@ export interface DevModeStatus {
 
 /** A small, public-safe projection — no paths, no secrets, just which surfaces are on. */
 export function devModeStatus(): DevModeStatus {
-  const prod = !notProd();
+  // Every surface flag is gated on `active` (not merely non-prod), so the watermark can
+  // never advertise a surface as hot when dev mode itself is off — e.g. OMNI_MESSY_DATA is
+  // not a dev-mode trigger, so `messy` must stay false unless a real trigger armed dev mode.
+  const active = isDevMode();
   return {
-    devMode: isDevMode(),
+    devMode: active,
     env: process.env["NODE_ENV"] ?? "development",
     surfaces: {
-      persist: !prod && DEV_PERSIST_ENABLED,
-      trace: !prod && traceArmed(),
-      capture: !prod && captureArmed(),
-      messy: !prod && getMessyConfig().on,
+      persist: active && DEV_PERSIST_ENABLED,
+      trace: active && traceArmed(),
+      capture: active && captureArmed(),
+      messy: active && getMessyConfig().on,
     },
   };
 }
