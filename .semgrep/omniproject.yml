@@ -57,3 +57,63 @@ rules:
         - "artifacts/api-server/src/routes/**/*.ts"
       exclude:
         - "**/*.test.ts"
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # 3. Remote property injection (CWE-915): a request VALUE (params/query/body/headers)
+  #    used as a computed object WRITE-key. This is the exact vector the excluded
+  #    js/remote-property-injection query leaves uncovered (see
+  #    .github/codeql/codeql-config.yml): the global express.json reviver strips dangerous
+  #    KEYS from bodies, but NOT a request VALUE later used as a key. Taint-mode, with
+  #    focus-metavariable so only taint in the KEY position fires (a request used as a
+  #    VALUE — `store[k] = req.body.v` — is fine and does not match), and the codebase's
+  #    key-guards as sanitizers. Verified ZERO findings on the current tree (the audited
+  #    sinks are guarded / String()-wrapped / interprocedural); it exists to catch a
+  #    FUTURE `const id = req.params.id; store[id] = …` regression. Advisory (the
+  #    taint-scan job is continue-on-error) — a rare guarded-but-flagged case can carry a
+  #    `// nosemgrep: request-value-as-object-write-key` with a reason.
+  # ────────────────────────────────────────────────────────────────────────────
+  - id: request-value-as-object-write-key
+    languages: [typescript]
+    severity: WARNING
+    mode: taint
+    message: >
+      A request value is used as a computed object write-key (remote property injection,
+      CWE-915). A key of "__proto__"/"constructor"/… would mutate the target's prototype or
+      shadow a member. Reject a reserved key first (isForbiddenKey from lib/safe-json, or an
+      allow-list check), or write into a prototype-free store (Object.create(null) / Map).
+      The express.json reviver does NOT help — it strips dangerous body KEYS, not a request
+      VALUE used as a key.
+    pattern-sources:
+      - patterns:
+          - pattern-either:
+              - pattern: $REQ.params.$X
+              - pattern: $REQ.params[$X]
+              - pattern: $REQ.query.$X
+              - pattern: $REQ.query[$X]
+              - pattern: $REQ.body.$X
+              - pattern: $REQ.body[$X]
+              - pattern: $REQ.headers[$X]
+          - metavariable-regex:
+              metavariable: $REQ
+              regex: ^(req|request)$
+    pattern-sinks:
+      - patterns:
+          - pattern-either:
+              - pattern: $O[$SINK] = $V
+              - pattern: $O[$SINK] ??= $V
+              - pattern: delete $O[$SINK]
+          - focus-metavariable: $SINK
+    pattern-sanitizers:
+      - pattern: isForbiddenKey(...)
+      - pattern: safeScopeKey(...)
+      - pattern: safeId(...)
+      - pattern: $C.has(...)
+      - pattern: $C.includes(...)
+      - pattern: $C.test(...)
+      - pattern: assertProjectScope(...)
+      - pattern: inScope(...)
+    paths:
+      include:
+        - "artifacts/api-server/src/**/*.ts"
+      exclude:
+        - "**/*.test.ts"

@@ -57,7 +57,9 @@ query-filters:
   # exploitable sink: each lands in a fresh/RBAC-gated object, a null-proto/Map store, a reviver-stripped body, or
   # an isForbiddenKey/allow-list/regex guard. The compensating control is real and applied before each write, and
   # the repo-local semgrep taint-scan (.semgrep/) independently guards the primary vector (untrusted
-  # deserialization -> safeParseJson) plus request-scoped id injection. Excluding
+  # deserialization -> safeParseJson), request-scoped id injection, AND — restoring the exact write-vector
+  # this exclusion drops — a request VALUE used as a computed object write-key (rule
+  # `request-value-as-object-write-key`, taint-mode, guard-aware). Excluding
   # the query keeps the Security tab focused on real product code, exactly as with the two exclusions above.
   - exclude:
       id: js/remote-property-injection
