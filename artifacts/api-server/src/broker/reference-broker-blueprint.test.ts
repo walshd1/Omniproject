@@ -49,6 +49,24 @@ test("blueprint: an unknown action is a 400 bad request (not a 5xx)", async () =
   }
 });
 
+test("blueprint: a reserved-name action (constructor/toString) is a 400, never an inherited method call", async () => {
+  // `action` is caller-supplied and used to index the handler registry. A reserved name must NOT resolve to
+  // an inherited Object.prototype member and get invoked (CWE-749 unvalidated dynamic method call) — the
+  // dispatcher validates OWN membership, so these are plain unknown actions (400), not 200/5xx.
+  const server = createReferenceBrokerBlueprint();
+  await new Promise<void>((r) => server.listen(0, () => r()));
+  const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+  try {
+    for (const action of ["constructor", "__proto__", "toString", "hasOwnProperty", "valueOf"]) {
+      const r = await post(base, { action, payload: {} });
+      assert.equal(r.status, 400, `action "${action}" must be rejected`);
+      assert.equal(r.json["success"], false);
+    }
+  } finally {
+    await new Promise<void>((r) => server.close(() => r()));
+  }
+});
+
 test("blueprint: every backend method is a stub that throws NotImplemented", async () => {
   // The whole surface is present but unimplemented — a complete design, no shortcuts.
   await assert.rejects(() => backend.listProjects({}), (e) => e instanceof NotImplemented);
