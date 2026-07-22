@@ -25,7 +25,17 @@ describe("useDraftAdmin", () => {
     expect(seenThis.every((t) => t === undefined)).toBe(true); // never bound to the internal ref
   });
 
-  it("seeds a real clone of the server (native structuredClone) without throwing", async () => {
+  it("defaults to a bound deep clone when no transform is passed (callers omit structuredClone entirely)", async () => {
+    const server = [{ id: "a", nested: { v: 1 } }];
+    const { result } = renderHook(() => useDraftAdmin(server)); // no toDraft — uses the built-in bound clone
+    await waitFor(() => expect(result.current.draft).not.toBeNull());
+    expect(result.current.draft).toEqual(server);
+    expect(result.current.draft).not.toBe(server);
+    expect(result.current.draft?.[0]).not.toBe(server[0]); // a DEEP clone, not a shallow copy
+    expect(result.current.dirty).toBe(false);
+  });
+
+  it("seeds a real clone of the server (explicit native structuredClone) without throwing", async () => {
     const server = [{ id: "a", task: "T", role: "R" }];
     const { result } = renderHook(() => useDraftAdmin<typeof server, typeof server>(server, structuredClone));
     await waitFor(() => expect(result.current.draft).not.toBeNull());

@@ -64,7 +64,7 @@ export function RegisterPanel({ panel }: { panel: Panel }) {
   const serverRows = useMemo<Row[]>(() => (slot ? (slotRows as Row[] | undefined) : settingsRows) ?? [], [slot, slotRows, settingsRows]);
   // Slot mode writes through the generic surface (contributor+, server-enforced); settings mode needs an endpoint.
   const canEdit = (slot ? !!projectId : !!endpoint) && effective !== "readonly" && roleAtLeast(auth?.role, effective as Role);
-  const { draft, setDraft, dirty, reset } = useDraftAdmin<Row[], Row[]>(serverRows, structuredClone);
+  const { draft, setDraft, dirty, reset } = useDraftAdmin<Row[], Row[]>(serverRows);
   const qc = useQueryClient();
   const { toast } = useToast();
 

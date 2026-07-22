@@ -32,7 +32,7 @@ export function TemplatesAdmin() {
   const save = useSaveTemplates();
   const { toast } = useToast();
   const [, navigate] = useLocation();
-  const { draft, setDraft, dirty, reset } = useDraftAdmin<Template[], Template[]>(server, structuredClone);
+  const { draft, setDraft, dirty, reset } = useDraftAdmin<Template[], Template[]>(server);
   const [names, setNames] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState<string | null>(null);
   const org = draft ?? [];

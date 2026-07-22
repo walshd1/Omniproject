@@ -27,7 +27,7 @@ export function CostRulesAdmin() {
   const { data: auth } = useAuth();
   const { data: server } = useCostRules();
   const save = useSaveCostRules();
-  const { draft, setDraft, dirty, reset } = useDraftAdmin<CostRule[], CostRule[]>(server, structuredClone);
+  const { draft, setDraft, dirty, reset } = useDraftAdmin<CostRule[], CostRule[]>(server);
   // Stable keys held alongside the draft (never inside it — see use-row-keys); called before the
   // early returns to keep the hook order stable.
   const rowKeys = useRowKeys(draft?.length ?? 0);

@@ -48,4 +48,42 @@ export default [
       "react-hooks/exhaustive-deps": "error",
     },
   },
+
+  // Wrong-`this` / detached-native-callable gate (non-test source only). A native WebIDL global
+  // (`structuredClone`, `queueMicrotask`, …) or a host-object METHOD (`performance.now`,
+  // `crypto.getRandomValues`, `localStorage.getItem`, …) is bound to its defining global/object: invoke
+  // it with the wrong `this` and the browser throws "TypeError: Illegal invocation" (Node/jsdom are
+  // lenient, so unit tests miss it — it only bites in a real browser). The concrete trap this repo hit:
+  // passing the bare global as a CALLBACK ARGUMENT to a helper that later re-invokes it as a member
+  // (`ref.current(x)`, `obj.fn(x)`) — the RACI screen crashed exactly this way via `useDraftAdmin(rows,
+  // structuredClone)`. Passing it as a call argument is the tell; a plain wrapper `(x) => structuredClone(x)`
+  // is always safe. Also flags `arr.map(parseInt)` — a bare native fn as an iteratee gets the index as a
+  // second arg (radix), a classic correctness bug of the same "don't pass a native callable bare" family.
+  {
+    files: ["src/**/*.{ts,tsx}"],
+    ignores: ["src/**/*.test.{ts,tsx}", "src/**/*.spec.{ts,tsx}", "src/test/**"],
+    rules: {
+      "no-restricted-syntax": [
+        "error",
+        {
+          selector:
+            "CallExpression > Identifier.arguments[name=/^(structuredClone|queueMicrotask|reportError|requestAnimationFrame|cancelAnimationFrame|requestIdleCallback|cancelIdleCallback|fetch|atob|btoa|createImageBitmap)$/]",
+          message:
+            "Don't pass a bare WebIDL global (e.g. structuredClone) as a callback — if the receiver invokes it as a member (ref.current(x) / obj.fn(x)) its `this` is wrong and the browser throws 'Illegal invocation'. Wrap it: (x) => structuredClone(x).",
+        },
+        {
+          selector:
+            "CallExpression > MemberExpression.arguments[object.name='performance'][property.name='now'], CallExpression > MemberExpression.arguments[object.name='crypto'][property.name=/^(getRandomValues|randomUUID|subtle)$/], CallExpression > MemberExpression.arguments[object.name=/^(localStorage|sessionStorage)$/][property.name=/^(getItem|setItem|removeItem|clear|key)$/], CallExpression > MemberExpression.arguments[object.name='history'][property.name=/^(pushState|replaceState|go|back|forward)$/]",
+          message:
+            "Don't pass a bare host-object method (e.g. performance.now, crypto.getRandomValues, localStorage.getItem) as a callback — detached from its receiver it throws 'Illegal invocation' in the browser. Wrap it: (...a) => performance.now(...a).",
+        },
+        {
+          selector:
+            "CallExpression[callee.property.name=/^(map|forEach|flatMap)$/] > Identifier.arguments:nth-child(1)[name='parseInt']",
+          message:
+            "Don't pass bare parseInt to map/forEach — it receives the element INDEX as its radix argument, silently corrupting results. Use (s) => parseInt(s, 10).",
+        },
+      ],
+    },
+  },
 ];
