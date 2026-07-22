@@ -108,6 +108,20 @@ function cookieBase() {
   };
 }
 
+// Flow cookies (OIDC / OAuth2 / SAML step-up) carry short-lived SECRETS — the PKCE code_verifier, the OIDC
+// nonce, the CSRF `state`, and the bound `sub`. They are cookie-parser `signed` (tamper-proof), but the payload
+// must ALSO be SEALED (AES-256-GCM) so those secrets are never stored in CLEAR TEXT in the browser (CWE-312).
+// This mirrors the session cookie: seal on write, open on read, with a plaintext fallback so a flow begun just
+// before this rolled out still completes within its 10-minute TTL.
+export function sealFlowCookie(payload: unknown): string {
+  return seal(JSON.stringify(payload));
+}
+export function openFlowCookie<T>(raw: unknown): T | null {
+  if (typeof raw !== "string" || !raw) return null;
+  const json = open(raw) ?? raw; // sealed → plaintext; a legacy plaintext cookie (pre-seal, within TTL) passes through
+  try { return JSON.parse(json) as T; } catch { return null; }
+}
+
 /** Thrown by `resolveBaseUrl` when a production-like deployment has no `PUBLIC_URL` — building
  *  a security-sensitive link (magic-link, OAuth/OIDC redirect) from a client-supplied Host
  *  header would let a request forger poison it. The route's own error handling turns this into
@@ -366,7 +380,7 @@ router.get("/auth/login", async (req, res) => {
     const redirectUri = `${baseUrl(req)}/api/auth/callback`;
 
     // The flow cookie carries the provider id so the callback verifies against the SAME provider.
-    res.cookie(FLOW_COOKIE, JSON.stringify({ state, verifier, nonce, returnTo, provider: provider.id }), {
+    res.cookie(FLOW_COOKIE, sealFlowCookie({ state, verifier, nonce, returnTo, provider: provider.id }), {
       ...cookieBase(),
       maxAge: FLOW_COOKIE_TTL_MS,
     });
@@ -385,22 +399,22 @@ router.get("/auth/callback", async (req, res) => {
     return;
   }
 
-  const flowRaw = req.signedCookies?.[FLOW_COOKIE];
-  res.clearCookie(FLOW_COOKIE, cookieBase());
-
-  if (!flowRaw) {
-    res.status(400).send("Login session expired. Please try again.");
-    return;
-  }
-
-  const { state, verifier, nonce, returnTo, stepup, provider: providerId } = JSON.parse(flowRaw) as {
+  const flow = openFlowCookie<{
     state: string;
     verifier: string;
     nonce?: string;
     returnTo: string;
     stepup?: boolean;
     provider?: string;
-  };
+  }>(req.signedCookies?.[FLOW_COOKIE]);
+  res.clearCookie(FLOW_COOKIE, cookieBase());
+
+  if (!flow) {
+    res.status(400).send("Login session expired. Please try again.");
+    return;
+  }
+
+  const { state, verifier, nonce, returnTo, stepup, provider: providerId } = flow;
 
   // Resolve the SAME provider the flow began with (the flow cookie is signed/sealed).
   const provider = getOidcProvider(providerId);
@@ -539,7 +553,7 @@ router.get("/auth/oauth2/login", async (req, res) => {
   if (!oauth2Config) { res.status(404).send("OAuth2 sign-in is not configured."); return; }
   const returnTo = safeLocalPath(req.query["returnTo"]);
   const { state, verifier } = newOAuth2Flow();
-  res.cookie(OAUTH2_FLOW_COOKIE, JSON.stringify({ state, verifier, returnTo }), {
+  res.cookie(OAUTH2_FLOW_COOKIE, sealFlowCookie({ state, verifier, returnTo }), {
     ...cookieBase(),
     maxAge: FLOW_COOKIE_TTL_MS,
   });
@@ -553,11 +567,11 @@ router.get("/auth/oauth2/login", async (req, res) => {
 router.get("/auth/oauth2/callback", async (req, res) => {
   if (!oauth2Config) { res.redirect("/"); return; }
 
-  const flowRaw = req.signedCookies?.[OAUTH2_FLOW_COOKIE];
+  const flow = openFlowCookie<{ state: string; verifier: string; returnTo: string; stepup?: boolean; sub?: string }>(req.signedCookies?.[OAUTH2_FLOW_COOKIE]);
   res.clearCookie(OAUTH2_FLOW_COOKIE, cookieBase());
-  if (!flowRaw) { res.status(400).send("Login session expired. Please try again."); return; }
+  if (!flow) { res.status(400).send("Login session expired. Please try again."); return; }
 
-  const { state, verifier, returnTo, stepup, sub: stepUpSub } = JSON.parse(flowRaw) as { state: string; verifier: string; returnTo: string; stepup?: boolean; sub?: string };
+  const { state, verifier, returnTo, stepup, sub: stepUpSub } = flow;
 
   if (req.query["error"]) {
     // Log for diagnosis but do NOT reflect the provider-supplied error into the HTML response body
@@ -780,16 +794,12 @@ function stepUpMethodFor(session: Session): StepUpMethod {
 
 interface StepUpFlow { sub: string; returnTo: string }
 function setStepUpFlow(res: Response, flow: StepUpFlow): void {
-  res.cookie(STEPUP_COOKIE, JSON.stringify(flow), { ...cookieBase(), maxAge: FLOW_COOKIE_TTL_MS });
+  res.cookie(STEPUP_COOKIE, sealFlowCookie(flow), { ...cookieBase(), maxAge: FLOW_COOKIE_TTL_MS });
 }
 /** The step-up flow binding, when present + well-formed. */
 function readStepUpFlow(req: Request): StepUpFlow | null {
-  const raw = req.signedCookies?.[STEPUP_COOKIE];
-  if (typeof raw !== "string") return null;
-  try {
-    const d = JSON.parse(raw) as StepUpFlow;
-    return typeof d?.sub === "string" && typeof d?.returnTo === "string" ? d : null;
-  } catch { return null; }
+  const d = openFlowCookie<StepUpFlow>(req.signedCookies?.[STEPUP_COOKIE]);
+  return d && typeof d.sub === "string" && typeof d.returnTo === "string" ? d : null;
 }
 
 router.post("/auth/step-up", (req, res) => {
@@ -858,7 +868,7 @@ router.get("/auth/step-up", async (req, res) => {
   // OAuth2: prompt=login re-challenge; the callback stamps step-up only when the SAME sub returns.
   if (method === "oauth2" && oauth2Config) {
     const { state, verifier } = newOAuth2Flow();
-    res.cookie(OAUTH2_FLOW_COOKIE, JSON.stringify({ state, verifier, returnTo, stepup: true, sub: session.sub }), { ...cookieBase(), maxAge: FLOW_COOKIE_TTL_MS });
+    res.cookie(OAUTH2_FLOW_COOKIE, sealFlowCookie({ state, verifier, returnTo, stepup: true, sub: session.sub }), { ...cookieBase(), maxAge: FLOW_COOKIE_TTL_MS });
     const redirectUri = `${baseUrl(req)}/api/auth/oauth2/callback`;
     res.redirect(await buildAuthUrl({ config: oauth2Config, redirectUri, state, codeVerifier: verifier, reauth: true }));
     return;
@@ -882,7 +892,7 @@ router.get("/auth/step-up", async (req, res) => {
     const verifier = randomToken(48);
     const nonce = randomToken();
     const redirectUri = `${baseUrl(req)}/api/auth/callback`;
-    res.cookie(FLOW_COOKIE, JSON.stringify({ state, verifier, nonce, returnTo, stepup: true, provider: provider.id }), { ...cookieBase(), maxAge: FLOW_COOKIE_TTL_MS });
+    res.cookie(FLOW_COOKIE, sealFlowCookie({ state, verifier, nonce, returnTo, stepup: true, provider: provider.id }), { ...cookieBase(), maxAge: FLOW_COOKIE_TTL_MS });
     res.redirect(await buildOidcAuthUrl({ config, provider, redirectUri, state, nonce, verifier, prompt: "login" }));
   } catch (err) {
     req.log.error({ err }, "step-up initiation failed");
