@@ -4145,6 +4145,8 @@ Authentication routes + the session helpers the rest of the gateway reads from.
 
 | Function | What it does |
 | --- | --- |
+| `sealFlowCookie` | Flow cookies (OIDC / OAuth2 / SAML step-up) carry short-lived SECRETS — the PKCE code_verifier, the OIDC nonce, the CSRF `state`, and the bound `sub`. |
+| `openFlowCookie` | Open a sealed flow cookie back to its payload (null if absent/tampered/garbage), tolerating a legacy plaintext cookie during rollout. |
 | `resolveBaseUrl` | Pure decision for the gateway's own public base URL, used to construct every security- sensitive link (magic-link verification, OAuth2/OIDC redirect URIs). |
 | `baseUrl` | The gateway's own public base URL for THIS request — see `resolveBaseUrl` for the hardening. |
 | `slideSession` | Slide the idle timeout forward on activity: re-stamp `seen` (throttled) so an active user stays signed in, and tidy up an expired/garbage session cookie. |

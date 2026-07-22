@@ -103,6 +103,8 @@ async function runSteps(steps: readonly WorkflowStep[], ctx: WorkflowRunContext,
 /** Run a validated workflow against an injected effect surface. Returns the final run context (each action
  *  step's result). Deterministic given the effect; bounded by the step + depth caps. */
 export async function runWorkflow(def: WorkflowDef, effect: WorkflowEffect): Promise<WorkflowRunContext> {
+  // `results` is keyed by step ids, `vars` by loop-var names. A reserved key can't reach here —
+  // validateWorkflow rejects a reserved step id at the input choke point (see isForbiddenKey there).
   const ctx: WorkflowRunContext = { results: {}, vars: {} };
   await runSteps(def.steps, ctx, effect, { n: 0 }, 0);
   return ctx;

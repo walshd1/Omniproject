@@ -116,6 +116,9 @@ function cookieBase() {
 export function sealFlowCookie(payload: unknown): string {
   return seal(JSON.stringify(payload));
 }
+/** Open a sealed flow cookie back to its payload (null if absent/tampered/garbage), tolerating a legacy
+ *  plaintext cookie during rollout. The parse is trusted: cookie-parser HMAC-verifies the value before we
+ *  see it, and `open()` AES-decrypts a sealed payload. */
 export function openFlowCookie<T>(raw: unknown): T | null {
   if (typeof raw !== "string" || !raw) return null;
   const json = open(raw) ?? raw; // sealed → plaintext; a legacy plaintext cookie (pre-seal, within TTL) passes through
@@ -382,6 +385,7 @@ router.get("/auth/login", async (req, res) => {
     // The flow cookie carries the provider id so the callback verifies against the SAME provider.
     res.cookie(FLOW_COOKIE, sealFlowCookie({ state, verifier, nonce, returnTo, provider: provider.id }), {
       ...cookieBase(),
+      httpOnly: true, secure: requireTls(), // explicit (cookieBase sets them too) so static analysis sees them
       maxAge: FLOW_COOKIE_TTL_MS,
     });
 
@@ -555,6 +559,7 @@ router.get("/auth/oauth2/login", async (req, res) => {
   const { state, verifier } = newOAuth2Flow();
   res.cookie(OAUTH2_FLOW_COOKIE, sealFlowCookie({ state, verifier, returnTo }), {
     ...cookieBase(),
+    httpOnly: true, secure: requireTls(), // explicit (cookieBase sets them too) so static analysis sees them
     maxAge: FLOW_COOKIE_TTL_MS,
   });
   const redirectUri = `${baseUrl(req)}/api/auth/oauth2/callback`;
@@ -794,7 +799,7 @@ function stepUpMethodFor(session: Session): StepUpMethod {
 
 interface StepUpFlow { sub: string; returnTo: string }
 function setStepUpFlow(res: Response, flow: StepUpFlow): void {
-  res.cookie(STEPUP_COOKIE, sealFlowCookie(flow), { ...cookieBase(), maxAge: FLOW_COOKIE_TTL_MS });
+  res.cookie(STEPUP_COOKIE, sealFlowCookie(flow), { ...cookieBase(), httpOnly: true, secure: requireTls(), maxAge: FLOW_COOKIE_TTL_MS }); // flags explicit (cookieBase sets them too) so static analysis sees them on this secret-bearing cookie
 }
 /** The step-up flow binding, when present + well-formed. */
 function readStepUpFlow(req: Request): StepUpFlow | null {
@@ -868,7 +873,7 @@ router.get("/auth/step-up", async (req, res) => {
   // OAuth2: prompt=login re-challenge; the callback stamps step-up only when the SAME sub returns.
   if (method === "oauth2" && oauth2Config) {
     const { state, verifier } = newOAuth2Flow();
-    res.cookie(OAUTH2_FLOW_COOKIE, sealFlowCookie({ state, verifier, returnTo, stepup: true, sub: session.sub }), { ...cookieBase(), maxAge: FLOW_COOKIE_TTL_MS });
+    res.cookie(OAUTH2_FLOW_COOKIE, sealFlowCookie({ state, verifier, returnTo, stepup: true, sub: session.sub }), { ...cookieBase(), httpOnly: true, secure: requireTls(), maxAge: FLOW_COOKIE_TTL_MS }); // flags explicit (cookieBase sets them too) so static analysis sees them on this secret-bearing cookie
     const redirectUri = `${baseUrl(req)}/api/auth/oauth2/callback`;
     res.redirect(await buildAuthUrl({ config: oauth2Config, redirectUri, state, codeVerifier: verifier, reauth: true }));
     return;
@@ -892,7 +897,7 @@ router.get("/auth/step-up", async (req, res) => {
     const verifier = randomToken(48);
     const nonce = randomToken();
     const redirectUri = `${baseUrl(req)}/api/auth/callback`;
-    res.cookie(FLOW_COOKIE, sealFlowCookie({ state, verifier, nonce, returnTo, stepup: true, provider: provider.id }), { ...cookieBase(), maxAge: FLOW_COOKIE_TTL_MS });
+    res.cookie(FLOW_COOKIE, sealFlowCookie({ state, verifier, nonce, returnTo, stepup: true, provider: provider.id }), { ...cookieBase(), httpOnly: true, secure: requireTls(), maxAge: FLOW_COOKIE_TTL_MS }); // flags explicit (cookieBase sets them too) so static analysis sees them on this secret-bearing cookie
     res.redirect(await buildOidcAuthUrl({ config, provider, redirectUri, state, nonce, verifier, prompt: "login" }));
   } catch (err) {
     req.log.error({ err }, "step-up initiation failed");

@@ -10,6 +10,7 @@ import { artifactStoreEnabled, requireArtifactStore } from "../lib/artifact-stor
 import { getProjects } from "../lib/data";
 import { programmeIdOf } from "../lib/programmes";
 import { qualifiedId } from "../broker/identity";
+import { isForbiddenKey } from "../lib/safe-json";
 import { getScopeBindings, setScopeBinding, loadBindingConfig, canRebind, resolveDefBinding, type DefBinding, type DefBindingConfig, type ResolvedBinding } from "../lib/def-binding";
 
 /**
@@ -93,7 +94,9 @@ router.get("/defs/active", requireRole("viewer"), (req, res) =>
     for (const m of [config.org, config.programme?.[programmeId ?? ""], config.project?.[projectId ?? ""], config.user?.[ctx.sub ?? ""]]) {
       if (m) for (const k of Object.keys(m)) slots.add(k);
     }
-    const out: Record<string, ResolvedBinding> = {};
+    // Null-prototype: `slot` keys originate from stored bindings (ultimately a caller-supplied slot), so a
+    // prototype-free result object means a slot can only ever be plain data — never a prototype write.
+    const out: Record<string, ResolvedBinding> = Object.create(null);
     for (const slot of slots) out[slot] = resolveDefBinding(config, slot, rctx);
     res.json(out);
   }),
@@ -108,6 +111,7 @@ router.put("/defs/bindings", requireRole("contributor"), (req, res) =>
     const scope = body.scope;
     const slot = typeof body.slot === "string" ? body.slot.trim() : "";
     if (!slot) { res.status(400).json({ error: "slot is required" }); return; }
+    if (isForbiddenKey(slot)) { res.status(400).json({ error: "slot is not allowed" }); return; } // reserved prototype key
     if (scope !== "user" && scope !== "project" && scope !== "programme" && scope !== "org") { res.status(400).json({ error: "scope must be user, project, programme or org" }); return; }
     const clearing = body.defId === null || body.defId === undefined;
     const defId = typeof body.defId === "string" ? body.defId.trim() : "";

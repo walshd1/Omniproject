@@ -193,6 +193,13 @@ test("a programme LOCK binds its projects — derived SERVER-SIDE, so a project 
   assert.equal(active["prog-mandate"]?.lockedBy, "programme");
 });
 
+test("a reserved-key slot is rejected (400) — never reaches the binding store", async () => {
+  for (const bad of ["__proto__", "constructor", "prototype"]) {
+    const r = await req("/defs/bindings", { method: "PUT", body: { scope: "org", slot: bad, defId: "x" }, cookie: ADMIN });
+    assert.equal(r.status, 400);
+  }
+});
+
 test("a STANDALONE project (no programme) is unaffected — the programme tier stays absent", async () => {
   // proj-004 is in no programme (programmeId: null). A project binding on a fresh slot is NOT blocked by any
   // programme lock (there is none to derive), and resolves as the project's own selection.
