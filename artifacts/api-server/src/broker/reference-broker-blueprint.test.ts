@@ -49,6 +49,29 @@ test("blueprint: an unknown action is a 400 bad request (not a 5xx)", async () =
   }
 });
 
+test("blueprint: an inherited Object.prototype key as the action is a 400, never an invoked method", async () => {
+  // BINDING_ACTIONS is a plain object literal, so it inherits Object.prototype. Without an own-property
+  // gate, an action of "constructor"/"toString"/"valueOf"/"hasOwnProperty"/"__proto__" resolves to an
+  // inherited function, passes the truthy handler check, and gets invoked — "constructor" would echo the
+  // internal {be,ctx,payload} argument object back into the response, the others 500. Every one must be a
+  // clean 400 "unknown action" exactly like any other unregistered verb.
+  const server = createReferenceBrokerBlueprint();
+  await new Promise<void>((r) => server.listen(0, () => r()));
+  const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+  try {
+    for (const action of ["constructor", "toString", "valueOf", "hasOwnProperty", "isPrototypeOf", "__proto__", "__defineGetter__"]) {
+      const r = await post(base, { action, payload: { projectId: "p1" } });
+      assert.equal(r.status, 400, `${action} must be a 400, not an invoked inherited method`);
+      assert.equal(r.json["success"], false);
+      assert.match(String(r.json["message"]), /unknown action/i);
+      // The internal dispatch argument (be/ctx/payload) must never leak into the response body.
+      assert.equal(r.json["data"], undefined, `${action} must not echo the dispatch context as data`);
+    }
+  } finally {
+    await new Promise<void>((r) => server.close(() => r()));
+  }
+});
+
 test("blueprint: every backend method is a stub that throws NotImplemented", async () => {
   // The whole surface is present but unimplemented — a complete design, no shortcuts.
   await assert.rejects(() => backend.listProjects({}), (e) => e instanceof NotImplemented);

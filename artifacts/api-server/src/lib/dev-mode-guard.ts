@@ -16,20 +16,27 @@
  */
 
 import { isDemoAuthFrom } from "./auth-config";
+import { isProductionEnv } from "./node-env";
 
 type Env = Record<string, string | undefined>;
 
 const set = (v: string | undefined) => !!v?.trim();
 
-/** Dev mode computed purely from an env map (mirrors lib/dev-mode.isDevMode). */
+/**
+ * Dev mode computed purely from an env map — the SINGLE source of truth for
+ * "is a dev/debug surface allowed to be active?". `lib/dev-mode.isDevMode()`
+ * delegates straight to this over `process.env`, so the runtime surfaces and this
+ * boot interlock can never disagree. Fail-closed via `isProductionEnv` (a mis-cased
+ * or unknown NODE_ENV reads as production → dev off).
+ */
 export function devModeActive(env: Env): boolean {
-  if (env["NODE_ENV"] === "production") return false;
+  if (isProductionEnv(env)) return false;
   return env["OMNI_DEV_MODE"] === "1" || set(env["DEV_PERSIST_FILE"]) || env["BROKER_TRACE"] === "1" || set(env["BROKER_CAPTURE"]);
 }
 
-/** Does this environment look like production — literally, or via `productionSignals`? */
+/** Does this environment look like production — by NODE_ENV, or via `productionSignals`? */
 export function isProductionLike(env: Env): boolean {
-  return env["NODE_ENV"] === "production" || productionSignals(env).length > 0;
+  return isProductionEnv(env) || productionSignals(env).length > 0;
 }
 
 /** Production signals that must not coexist with dev mode (or a default SESSION_SECRET). */

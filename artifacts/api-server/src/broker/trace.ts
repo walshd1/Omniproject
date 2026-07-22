@@ -1,4 +1,5 @@
 import { logger } from "../lib/logger";
+import { isProductionEnv } from "../lib/node-env";
 import { BrokerError, type Broker } from "./types";
 import { captureEnabled, recordExchange } from "./capture";
 
@@ -26,9 +27,10 @@ import { captureEnabled, recordExchange } from "./capture";
 
 const log = logger.child({ mod: "plane-trace" });
 
-/** Debug surfaces are inert in production, full stop. */
+/** Debug surfaces are inert in production, full stop. Fail-safe via `isProductionEnv`
+ *  (a mis-cased / unknown NODE_ENV counts as production), shared with the dev-mode gate. */
 export function debugAllowed(): boolean {
-  return process.env["NODE_ENV"] !== "production";
+  return !isProductionEnv(process.env);
 }
 
 /** Is method-boundary tracing active? (Non-prod + opt-in.) */
