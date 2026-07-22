@@ -9,7 +9,7 @@
  * mode. Capability gating hides a panel whose backend domain isn't available.
  */
 
-export type PanelKind = "metric" | "text" | "table" | "list" | "view" | "board" | "chart" | "timeline" | "register" | "graph" | "map" | "component" | "widget" | "form";
+export type PanelKind = "metric" | "text" | "table" | "list" | "view" | "board" | "chart" | "timeline" | "register" | "graph" | "map" | "component" | "widget" | "form" | "geometry" | "field" | "tile";
 
 export interface Panel {
   id: string;
@@ -50,6 +50,10 @@ export interface ScreenDef {
   methodologies?: string[];
   requiresRole?: "viewer" | "contributor" | "manager" | "admin";
   panels: Panel[];
+  /** The customer's saved arrangement (drag order / spans / hidden), FOLDED INTO the def (roadmap X.10):
+   *  a saved layout rides on the screen def artifact in the def store rather than a separate `screenLayouts`
+   *  settings map. Applied at render by `applyLayout`; absent for a def that ships no customised arrangement. */
+  layout?: ScreenLayout;
 }
 
 /** A saved arrangement for one screen (drag-customised, persisted to config JSON). */

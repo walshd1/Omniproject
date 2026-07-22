@@ -1,0 +1,17 @@
+{
+  "id": "sap-project-cost",
+  "label": "Project cost (SAP)",
+  "hint": "The WBS cost structure and financial roll-up for the active project, brokered live from SAP — or your backend of choice, or the sidecar store. Read-only; nothing is stored here.",
+  "route": "/project-cost",
+  "nav": { "label": "Project cost" },
+  "panels": [
+    {
+      "id": "sap-cost",
+      "kind": "table",
+      "title": "WBS cost structure",
+      "span": 12,
+      "source": { "url": "/api/projects/{projectId}/wbs/cost-rows" },
+      "config": { "columns": ["wbs", "name", "status", "budget", "actual", "committed", "available"] }
+    }
+  ]
+}

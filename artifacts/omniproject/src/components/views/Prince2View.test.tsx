@@ -30,7 +30,8 @@ function issue(p: Partial<Issue>): Issue {
   } as Issue;
 }
 
-// backlog/todo → Initiation, in_progress/in_review → Delivery, done → Closure.
+// Statuses map onto the asset's ordered stages: backlog→starting-up, todo→initiating,
+// in_progress/in_review→delivering, done/cancelled→closing.
 const ISSUES: Issue[] = [
   issue({ id: "a", title: "Charter", status: "todo" }),
   issue({ id: "b", title: "Build module", status: "in_progress" }),
@@ -56,9 +57,9 @@ describe("Prince2View", () => {
     qc.setQueryData(getGetProjectIssuesQueryKey(PROJECT), ISSUES);
     renderWithProviders(<Prince2View projectId={PROJECT} />, { client: qc });
 
-    expect(screen.getByText("Stage · Initiation")).toBeInTheDocument();
-    expect(screen.getByText("Stage · Delivery")).toBeInTheDocument();
-    expect(screen.getByText("Stage · Closure")).toBeInTheDocument();
+    expect(screen.getByText("Stage · initiating")).toBeInTheDocument();
+    expect(screen.getByText("Stage · delivering")).toBeInTheDocument();
+    expect(screen.getByText("Stage · closing")).toBeInTheDocument();
     expect(screen.getByText("Charter")).toBeInTheDocument();
     expect(screen.getByText("Build module")).toBeInTheDocument();
   });

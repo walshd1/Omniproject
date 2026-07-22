@@ -2,7 +2,7 @@ import { Router } from "express";
 import { backendCatalogue } from "@workspace/backend-catalogue";
 import { devModeStatus, isDevMode } from "../lib/dev-mode";
 import { requireRole, roleFromClaims, hasRole, hasStrongAuth } from "../lib/rbac";
-import { isDemoAuth } from "../lib/auth-config";
+import { isDemoAuth } from "../lib/auth-runtime";
 import { requireStepUp } from "../lib/step-up";
 import { getDevBrokerConfig, setDevBrokerConfig, DEV_DATA_SOURCES, type DevDataSource } from "../broker/dev-broker";
 import { resetBroker } from "../broker";

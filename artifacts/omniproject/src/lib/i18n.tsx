@@ -31,13 +31,19 @@ const EN: Dict = {
   "nav.content": "Content",
   "nav.wiki": "Wiki",
   "nav.proofs": "Proofs",
+  "nav.goals": "Goals",
   "nav.programmes": "Programmes",
   "nav.projects": "Projects",
   "nav.budgets": "Budgets",
+  "nav.invoices": "Invoices",
   "nav.reports": "Reports",
   "nav.resources": "Resources",
   "nav.resourcePlanning": "Resource planning",
   "nav.explore": "Explore",
+  "nav.studio": "Studio",
+  "nav.marketplace": "Marketplace",
+  "nav.registry": "Registry",
+  "nav.definitions": "Definitions",
   "nav.settings": "Settings",
   "nav.configurator": "Configurator",
   "nav.advanced": "Advanced",
@@ -75,6 +81,7 @@ const FR: Dict = {
   "nav.content": "Contenu",
   "nav.wiki": "Wiki",
   "nav.proofs": "Proofs",
+  "nav.goals": "Objectifs",
   "nav.programmes": "Programmes",
   "nav.projects": "Projets",
   "nav.reports": "Rapports",
@@ -115,6 +122,7 @@ const DE: Dict = {
   "nav.content": "Inhalte",
   "nav.wiki": "Wiki",
   "nav.proofs": "Proofs",
+  "nav.goals": "Ziele",
   "nav.programmes": "Programme",
   "nav.projects": "Projekte",
   "nav.reports": "Berichte",
@@ -155,6 +163,7 @@ const ES: Dict = {
   "nav.content": "Contenido",
   "nav.wiki": "Wiki",
   "nav.proofs": "Proofs",
+  "nav.goals": "Objetivos",
   "nav.programmes": "Programas",
   "nav.projects": "Proyectos",
   "nav.reports": "Informes",
@@ -246,25 +255,28 @@ export function I18nProvider({ children, labelOverrides }: { children: ReactNode
     if (typeof document !== "undefined") document.documentElement.lang = locale;
   }, [locale]);
 
-  const value: I18nContextValue = {
-    locale,
-    setLocale,
-    t: useCallback((key, vars) => translate(locale, key, vars, overrides), [locale, overrides]),
-    formatNumber: useCallback((n, opts) => new Intl.NumberFormat(locale, opts).format(n), [locale]),
-    formatCurrency: useCallback(
-      (n, currency, opts) => {
-        // A backend can supply a malformed currency code; Intl throws RangeError on it.
-        // Fall back to a plain number so one bad value never blanks the whole report.
-        try {
-          return new Intl.NumberFormat(locale, { style: "currency", currency, maximumFractionDigits: 0, ...opts }).format(n);
-        } catch {
-          return `${new Intl.NumberFormat(locale, { maximumFractionDigits: 0 }).format(n)} ${currency ?? ""}`.trim();
-        }
-      },
-      [locale],
-    ),
-    formatDate: useCallback((d, opts) => new Intl.DateTimeFormat(locale, opts).format(typeof d === "string" ? new Date(d) : d), [locale]),
-  };
+  const t = useCallback((key: string, vars?: Record<string, string | number>) => translate(locale, key, vars, overrides), [locale, overrides]);
+  const formatNumber = useCallback((n: number, opts?: Intl.NumberFormatOptions) => new Intl.NumberFormat(locale, opts).format(n), [locale]);
+  const formatCurrency = useCallback(
+    (n: number, currency?: string, opts?: Intl.NumberFormatOptions) => {
+      // A backend can supply a malformed currency code; Intl throws RangeError on it.
+      // Fall back to a plain number so one bad value never blanks the whole report.
+      try {
+        return new Intl.NumberFormat(locale, { style: "currency", currency, maximumFractionDigits: 0, ...opts }).format(n);
+      } catch {
+        return `${new Intl.NumberFormat(locale, { maximumFractionDigits: 0 }).format(n)} ${currency ?? ""}`.trim();
+      }
+    },
+    [locale],
+  );
+  const formatDate = useCallback((d: string | Date, opts?: Intl.DateTimeFormatOptions) => new Intl.DateTimeFormat(locale, opts).format(typeof d === "string" ? new Date(d) : d), [locale]);
+
+  // Memoise the context value: a fresh object literal each render re-renders EVERY useT() consumer regardless
+  // of whether the callbacks changed. Now it changes identity only when a member callback does.
+  const value = useMemo<I18nContextValue>(
+    () => ({ locale, setLocale, t, formatNumber, formatCurrency, formatDate }),
+    [locale, setLocale, t, formatNumber, formatCurrency, formatDate],
+  );
 
   return <I18nContext.Provider value={value}>{children}</I18nContext.Provider>;
 }

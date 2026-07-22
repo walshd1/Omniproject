@@ -8,18 +8,15 @@
  * Same "JSON def in the encrypted config store, rendered by a generic primitive" pattern as screen defs and
  * the RACI / stakeholder registers.
  */
-import { ISSUE_WRITE_TARGETS, FORM_FIELD_TYPES, LIKERT_DEFAULT_OPTIONS, ADDRESS_SUBFIELDS, type FormDefinition, type FormFieldDef, type FormFieldType, type FormTargetDef } from "@workspace/backend-catalogue";
+import { ISSUE_WRITE_TARGETS, LIKERT_DEFAULT_OPTIONS, ADDRESS_SUBFIELDS, FORM_CONTAINER_CONSTRAINTS, evaluateConstraints, kindElementErrors, type FormDefinition, type FormFieldDef, type FormFieldType, type FormTargetDef } from "@workspace/backend-catalogue";
 
 export class FormDefError extends Error {
   constructor(message: string) { super(message); this.name = "FormDefError"; }
 }
 
-// Derived from the shared list — the server's accepted field types can't drift from the FormFieldType union.
-const FIELD_TYPES = new Set<string>(FORM_FIELD_TYPES);
-/** Field types that offer a fixed set of choices (author-supplied `options`). `likert` defaults its scale. */
-const CHOICE_TYPES = new Set<string>(["select", "radio", "multiselect", "likert"]);
 /** Hard ceiling on any text-ish field even when a def sets a larger (or no) maxLength — defence in depth
- *  beneath the global 256kb body limit, so a single field can't carry an unbounded blob into an issue. */
+ *  beneath the global 256kb body limit, so a single field can't carry an unbounded blob into an issue.
+ *  Enforced at SUBMISSION (`capLength`), the point the value actually lands. */
 const ABSOLUTE_MAX_LEN = 10_000;
 const DEFAULT_MAX_LEN = 2_000;
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -39,79 +36,23 @@ export const ISSUE_WRITE_ALLOWLIST = new Set<string>(ISSUE_WRITE_TARGETS);
 export const AGGREGATING_TARGETS = new Set<string>(["description", "labels"]);
 
 const str = (v: unknown): string => (typeof v === "string" ? v.trim() : "");
-const isForbiddenKey = (k: string): boolean => k === "__proto__" || k === "constructor" || k === "prototype";
 
-/** Validate + normalise the stored forms list. Pure — throws {@link FormDefError}. */
-export function validateForms(value: unknown): FormDef[] {
-  if (!Array.isArray(value)) throw new FormDefError("forms must be an array");
-  const ids = new Set<string>();
-  return value.map((raw) => {
-    const o = (raw ?? {}) as Record<string, unknown>;
-    const id = str(o["id"]);
-    const label = str(o["label"]);
-    if (!id || !label) throw new FormDefError("each form needs an id and a label");
-    if (ids.has(id)) throw new FormDefError(`duplicate form id "${id}"`);
-    ids.add(id);
 
-    if (!Array.isArray(o["fields"]) || o["fields"].length === 0) throw new FormDefError(`form "${id}" needs at least one field`);
-    const fieldKeys = new Set<string>();
-    const scalarTargets = new Set<string>(); // a non-aggregating target may be claimed by only ONE field
-    let titleFields = 0;
-    const fields = (o["fields"] as unknown[]).map((rawF) => {
-      const f = (rawF ?? {}) as Record<string, unknown>;
-      const key = str(f["key"]);
-      const fLabel = str(f["label"]);
-      const type = str(f["type"]);
-      if (!key || isForbiddenKey(key)) throw new FormDefError(`form "${id}" has a field with a missing/invalid key`);
-      if (fieldKeys.has(key)) throw new FormDefError(`form "${id}" has a duplicate field key "${key}"`);
-      fieldKeys.add(key);
-      if (!fLabel) throw new FormDefError(`form "${id}" field "${key}" needs a label`);
-      if (!FIELD_TYPES.has(type)) throw new FormDefError(`form "${id}" field "${key}" type must be one of text, textarea, number, date, select, checkbox, email, url`);
-      // EVERY field must map to a writable issue field — nothing a user types is homeless.
-      const mapTo = str(f["mapTo"]);
-      if (!mapTo) throw new FormDefError(`form "${id}" field "${key}" must map to a backend field (mapTo)`);
-      if (!ISSUE_WRITE_ALLOWLIST.has(mapTo)) throw new FormDefError(`form "${id}" field "${key}" maps to "${mapTo}", which is not a writable issue field`);
-      if (mapTo === "title") titleFields++;
-      if (!AGGREGATING_TARGETS.has(mapTo)) {
-        if (scalarTargets.has(mapTo)) throw new FormDefError(`form "${id}" has two fields mapping to "${mapTo}" (only description/labels may be shared)`);
-        scalarTargets.add(mapTo);
-      }
-      const field: FormField = { key, label: fLabel, type: type as FormFieldType, mapTo };
-      if (f["required"] === true) field.required = true;
-      if (CHOICE_TYPES.has(type)) {
-        let options = Array.isArray(f["options"]) ? (f["options"] as unknown[]).map(str).filter(Boolean) : [];
-        if (options.length === 0 && type === "likert") options = [...LIKERT_DEFAULT_OPTIONS]; // a likert defaults its scale
-        if (options.length === 0) throw new FormDefError(`form "${id}" ${type} field "${key}" needs options`);
-        field.options = options;
-      }
-      if (f["maxLength"] != null) {
-        const ml = Number(f["maxLength"]);
-        if (!Number.isInteger(ml) || ml <= 0) throw new FormDefError(`form "${id}" field "${key}" maxLength must be a positive integer`);
-        field.maxLength = Math.min(ml, ABSOLUTE_MAX_LEN);
-      }
-      if (str(f["placeholder"])) field.placeholder = str(f["placeholder"]);
-      if (str(f["help"])) field.help = str(f["help"]);
-      return field;
-    });
-    // An issue needs exactly one title source.
-    if (titleFields !== 1) throw new FormDefError(`form "${id}" must have exactly one field mapping to "title" (has ${titleFields})`);
 
-    const rawTarget = (o["target"] ?? {}) as Record<string, unknown>;
-    if (str(rawTarget["kind"]) !== "issue") throw new FormDefError(`form "${id}" target.kind must be "issue"`);
-    // projectId is OPTIONAL on a def: a shipped/template form is untargeted until an admin binds it. The
-    // submit endpoint refuses an untargeted form (400) — validation here allows it so templates can be stored.
-    const projectId = str(rawTarget["projectId"]);
-    const target: FormTarget = { kind: "issue", ...(projectId ? { projectId } : {}) };
-    if (str(rawTarget["status"])) target.status = str(rawTarget["status"]);
-    if (Array.isArray(rawTarget["labels"])) target.labels = (rawTarget["labels"] as unknown[]).map(str).filter(Boolean);
-
-    const def: FormDef = { id, label, fields, target };
-    if (str(o["description"])) def.description = str(o["description"]);
-    if (str(o["submitLabel"])) def.submitLabel = str(o["submitLabel"]);
-    if (o["enabled"] === false) def.enabled = false;
-    if (Array.isArray(o["methodologies"])) def.methodologies = (o["methodologies"] as unknown[]).map(str).filter(Boolean);
-    return def;
-  });
+/**
+ * Validate a form DEFINITION's container invariants (≥1 field, exactly one title, distinct scalar targets) by
+ * running the shared engine floors against it — the SAME rules the importer enforces on a form's composed whole.
+ * Called at the point of USE (submission) so the submission path validates the RESOLVED def through the one
+ * engine rather than trusting an authoring-time validator: single source of truth, and it catches a def that a
+ * scope override may have drifted. Returns one message per broken invariant ([] = sound). Value validation
+ * (types / options / required) stays in `validateSubmission`.
+ */
+export function formContainerErrors(def: FormDef): string[] {
+  const rec = def as unknown as Record<string, unknown>;
+  return [
+    ...evaluateConstraints(rec, FORM_CONTAINER_CONSTRAINTS),
+    ...kindElementErrors("form", rec),
+  ];
 }
 
 /**
@@ -149,7 +90,10 @@ export function validateSubmission(def: FormDef, values: unknown): Record<string
       case "radio":
       case "likert": {
         const s = str(v);
-        if (!field.options?.includes(s)) throw new FormDefError(`"${field.label}" must be one of: ${(field.options ?? []).join(", ")}`);
+        // A likert defaults its scale when the author supplied none (kept here now that the monolithic form
+        // validator, which used to bake the default into the stored def, is gone).
+        const options = (field.options && field.options.length) ? field.options : (field.type === "likert" ? [...LIKERT_DEFAULT_OPTIONS] : field.options);
+        if (!options?.includes(s)) throw new FormDefError(`"${field.label}" must be one of: ${(options ?? []).join(", ")}`);
         clean[field.key] = s;
         break;
       }
@@ -197,9 +141,10 @@ export function validateSubmission(def: FormDef, values: unknown): Record<string
   return clean;
 }
 
-/** Enforce a text field's length: its own maxLength (already clamped to ABSOLUTE_MAX_LEN) or the default. */
+/** Enforce a text field's length: its own maxLength (hard-clamped to ABSOLUTE_MAX_LEN) or the default. The clamp
+ *  lives here now — the point the value actually lands — rather than at authoring time. */
 function capLength(field: FormFieldDef, s: string): void {
-  const limit = field.maxLength ?? DEFAULT_MAX_LEN;
+  const limit = Math.min(field.maxLength ?? DEFAULT_MAX_LEN, ABSOLUTE_MAX_LEN);
   if (s.length > limit) throw new FormDefError(`"${field.label}" must be at most ${limit} characters`);
 }
 

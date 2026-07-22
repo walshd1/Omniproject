@@ -109,7 +109,6 @@ export function PortfolioTrends() {
     tick(); // fire once immediately so "capture now" is honoured at start
     const id = window.setInterval(tick, tickMs);
     return () => window.clearInterval(id);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [schedule]);
 
   const onImport = async (file: File | undefined) => {

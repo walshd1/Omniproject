@@ -1,0 +1,44 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://omniproject.dev/assets/preset.schema.json",
+  "title": "OmniProject preset",
+  "description": "A quick-load preset: a named bundle that configures an org for a way of working in one action, by referencing the pieces that already exist (a methodology to curate to, a reference ruleset, a starter project template, a persona dashboard, and a posture blueprint). One file per preset under assets/presets/<id>.json.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["id", "label", "description", "methodology", "order"],
+  "properties": {
+    "id": { "type": "string", "pattern": "^[a-z0-9-]+$" },
+    "label": { "type": "string", "minLength": 1 },
+    "description": { "type": "string", "minLength": 1 },
+    "methodology": {
+      "type": "string",
+      "pattern": "^[a-z0-9-]+$",
+      "description": "The methodology this preset curates the org to (must resolve in the methodology catalogue)."
+    },
+    "settingsPreset": {
+      "type": "string",
+      "pattern": "^[a-z0-9-]+$",
+      "description": "Optional posture blueprint (settings-preset archetype) applied at apply-time; validated by the server, not this catalogue."
+    },
+    "referenceRuleset": {
+      "type": "string",
+      "pattern": "^[a-z0-9-]+$",
+      "description": "Optional reference-ruleset methodology id to apply (must resolve in the reference-ruleset catalogue)."
+    },
+    "projectTemplate": {
+      "type": "string",
+      "pattern": "^[a-z0-9-]+$",
+      "description": "Optional project-template id to instantiate as a starter project (must resolve in the template catalogue)."
+    },
+    "dashboardPreset": {
+      "type": "string",
+      "pattern": "^[a-z0-9-]+$",
+      "description": "Optional dashboard-preset id to mint for the operator (must resolve in the dashboard-preset catalogue)."
+    },
+    "tags": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "order": { "type": "integer" }
+  }
+}

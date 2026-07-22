@@ -1,0 +1,12 @@
+{
+  "id": "self-hosted-scrum",
+  "label": "Self-hosted Scrum",
+  "description": "Scrum on your own infrastructure with OmniProject's built-in database as the system of record — no external backend to connect and no external database. Minimal egress, on-device speech, AI off. The Scrum methodology is curated in with its reference ruleset, a starter sprint project and a delivery dashboard. Pair with the self-hosted deployment preset (BUILTIN_BROKER) so the built-in store is the SoR.",
+  "methodology": "scrum",
+  "settingsPreset": "regulated-selfhost",
+  "referenceRuleset": "scrum",
+  "projectTemplate": "scrum-starter",
+  "dashboardPreset": "project-manager-today",
+  "tags": ["agile", "scrum", "self-hosted"],
+  "order": 30
+}

@@ -3,10 +3,10 @@ import assert from "node:assert/strict";
 import { startHarness, adminCookie, memberCookie, type Harness } from "./_harness";
 
 /**
- * routes/screen-layouts.ts over the REAL app. Screen layouts are customer-level presentation config:
- * any authenticated session may READ them, but a WRITE is gated to `pmo` so a viewer / read-only token
- * can't rearrange shared screens. The collection is an OBJECT (keyed by screen id), so the reachable
- * branches are the read (default `{}`), a valid save, the settings-validation 400, and the RBAC gate.
+ * routes/screen-layouts.ts over the REAL app after the FOLD (roadmap X.10): a saved layout now rides on the
+ * screen def in the def store, so this legacy `screenLayouts` slice is READ-ONLY save-wise — GET stays open
+ * (migration bridge), and the only permitted write is DRAINING to `{}`; a non-empty write is 410 Gone. Writes
+ * stay pmo-gated.
  */
 let h: Harness;
 const ADMIN = adminCookie();
@@ -30,21 +30,17 @@ test("GET /screen-layouts returns the (empty by default) layout map", async () =
   assert.deepEqual(body.screenLayouts, {});
 });
 
-test("PUT /screen-layouts saves a valid layout and reads it back", async () => {
+test("the legacy PUT /screen-layouts is retired — a non-empty write is 410, draining to {} is allowed", async () => {
   const screenLayouts = { "resource-planning": { order: ["over-capacity", "capacity-grid"], spans: { "capacity-grid": 8 }, hidden: ["what-if-allocation"] } };
-  const r = await req("/screen-layouts", { method: "PUT", body: { screenLayouts } });
-  assert.equal(r.status, 200);
-  const saved = (await r.json()) as { screenLayouts: Record<string, { order: string[]; spans: Record<string, number>; hidden: string[] }> };
-  assert.deepEqual(saved.screenLayouts["resource-planning"], { order: ["over-capacity", "capacity-grid"], spans: { "capacity-grid": 8 }, hidden: ["what-if-allocation"] });
-  const readBack = (await (await req("/screen-layouts")).json()) as { screenLayouts: Record<string, unknown> };
-  assert.ok(readBack.screenLayouts["resource-planning"]);
+  assert.equal((await req("/screen-layouts", { method: "PUT", body: { screenLayouts } })).status, 410);
+  assert.equal((await req("/screen-layouts", { method: "PUT", body: { screenLayouts: {} } })).status, 200);
 });
 
-test("PUT /screen-layouts with a non-object payload → 400 (settings validation)", async () => {
-  const r = await req("/screen-layouts", { method: "PUT", body: { screenLayouts: ["nope"] } });
-  assert.equal(r.status, 400);
-  const body = (await r.json()) as { error: string };
-  assert.ok(/object/.test(body.error));
+test("a legacy screenLayouts entry still reads back (migration bridge)", async () => {
+  const { updateSettings } = await import("../lib/settings");
+  updateSettings({ screenLayouts: { "resource-planning": { order: ["a", "b"] } } });
+  const readBack = (await (await req("/screen-layouts")).json()) as { screenLayouts: Record<string, unknown> };
+  assert.ok(readBack.screenLayouts["resource-planning"]);
 });
 
 test("screen-layouts write is gated to pmo (reads stay open) under real RBAC", async () => {

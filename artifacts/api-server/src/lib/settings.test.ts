@@ -1,17 +1,14 @@
 import { test, afterEach } from "node:test";
 import assert from "node:assert/strict";
-import { updateSettings, getSettings, redactSettingsForRead, SettingsValidationError, DEFAULT_PRIORITY_WEIGHTS } from "./settings";
+import { updateSettings, getSettings, redactSettingsForRead, SettingsValidationError, DEFAULT_PRIORITY_WEIGHTS, validateSavedViews } from "./settings";
 
 afterEach(() => {
-  updateSettings({ savedViews: [], hiddenFields: [], disabledFeatures: [], dashboards: [], reportingCurrency: null, fxRatePolicy: "spot", fxRateAsOfDate: null, customReports: [], reportOverrides: [], contentPages: [], priorityWeights: { ...DEFAULT_PRIORITY_WEIGHTS }, federatedPeers: [] }); // reset shared store
+  updateSettings({ disabledFeatures: [], dashboards: [], reportingCurrency: null, fxRatePolicy: "spot", fxRateAsOfDate: null, customReports: [], reportOverrides: [], contentPages: [], priorityWeights: { ...DEFAULT_PRIORITY_WEIGHTS }, federatedPeers: [] }); // reset shared store
 });
 
-test("errorTelemetry: accepts a boolean, rejects a non-boolean, defaults off", () => {
-  assert.equal(getSettings().errorTelemetry, false); // off by default
-  assert.equal(updateSettings({ errorTelemetry: true }).errorTelemetry, true);
-  assert.equal(updateSettings({ errorTelemetry: false }).errorTelemetry, false);
-  assert.throws(() => updateSettings({ errorTelemetry: "yes" as unknown as boolean }), SettingsValidationError);
-});
+// errorTelemetry left SettingsState for the `error-telemetry` config def (roadmap Phase C, slice 7b) — it is now
+// a SECURITY-classified config governed by the floor gate. Its boolean validation + guard round-trip is covered
+// by error-telemetry-routes.test / config-guard.test, not here.
 
 test("reportOverrides: accepts partial metadata overrides and rejects bad shape", () => {
   const ok = updateSettings({ reportOverrides: [{ id: "evm", label: "Earned value", order: 5, hidden: true }, { id: "burndown" }] });
@@ -101,60 +98,51 @@ test("fxRateAsOfDate: accepts an ISO date, null to clear, rejects an unparseable
   assert.throws(() => updateSettings({ fxRateAsOfDate: "not-a-date" }), SettingsValidationError);
 });
 
-test("savedViews: accepts well-formed views and persists them", () => {
-  const views = [
-    { id: "v1", name: "My grid", scope: "grid", columns: ["title", "status"], sort: { field: "status", dir: "asc" as const } },
+// savedViews left settings for a `saved-views` config def (routes/views); its validator `validateSavedViews`
+// (throws on a bad shape) is exercised directly here — the same coverage the updateSettings path had.
+test("savedViews: accepts well-formed views", () => {
+  assert.doesNotThrow(() => validateSavedViews([
+    { id: "v1", name: "My grid", scope: "grid", columns: ["title", "status"], sort: { field: "status", dir: "asc" } },
     { id: "v2", name: "Due soon" },
-  ];
-  const s = updateSettings({ savedViews: views });
-  assert.equal(s.savedViews.length, 2);
-  assert.equal(getSettings().savedViews[0]!.name, "My grid");
+  ]));
 });
 
 test("savedViews: rejects a non-array and a view missing id/name", () => {
-  assert.throws(() => updateSettings({ savedViews: "nope" }), SettingsValidationError);
-  assert.throws(() => updateSettings({ savedViews: [{ name: "no id" }] }), SettingsValidationError);
-  assert.throws(() => updateSettings({ savedViews: [{ id: "x" }] }), SettingsValidationError);
+  assert.throws(() => validateSavedViews("nope"), SettingsValidationError);
+  assert.throws(() => validateSavedViews([{ name: "no id" }]), SettingsValidationError);
+  assert.throws(() => validateSavedViews([{ id: "x" }]), SettingsValidationError);
 });
 
 test("savedViews: accepts view-engine fields (entity/viewKind/filters/groupBy)", () => {
-  const s = updateSettings({ savedViews: [
-    { id: "e1", name: "Blocked", entity: "issue", viewKind: "board", filters: [{ field: "status", value: "in_progress" }], groupBy: "assignee", sort: { field: "priority", dir: "desc" as const } },
-  ] });
-  assert.equal(s.savedViews[0]!.entity, "issue");
-  assert.equal(s.savedViews[0]!.viewKind, "board");
+  assert.doesNotThrow(() => validateSavedViews([
+    { id: "e1", name: "Blocked", entity: "issue", viewKind: "board", filters: [{ field: "status", value: "in_progress" }], groupBy: "assignee", sort: { field: "priority", dir: "desc" } },
+  ]));
 });
 
 test("savedViews: accepts the table viewKind with columns", () => {
-  const s = updateSettings({ savedViews: [{ id: "t1", name: "Table", entity: "task", viewKind: "table", columns: ["status", "assignee"] }] });
-  assert.equal(s.savedViews[0]!.viewKind, "table");
+  assert.doesNotThrow(() => validateSavedViews([{ id: "t1", name: "Table", entity: "task", viewKind: "table", columns: ["status", "assignee"] }]));
 });
 
 test("savedViews: accepts the chart viewKind with a chart spec, rejects a bad chart type", () => {
-  const s = updateSettings({ savedViews: [{ id: "cv1", name: "By status", entity: "task", viewKind: "chart", chart: { type: "gantt", startField: "startDate", endField: "dueDate" } }] });
-  assert.equal(s.savedViews[0]!.viewKind, "chart");
-  assert.equal(s.savedViews[0]!.chart!.type, "gantt");
-  assert.throws(() => updateSettings({ savedViews: [{ id: "x", name: "n", viewKind: "chart", chart: { type: "sunburst" } }] }), SettingsValidationError);
+  assert.doesNotThrow(() => validateSavedViews([{ id: "cv1", name: "By status", entity: "task", viewKind: "chart", chart: { type: "gantt", startField: "startDate", endField: "dueDate" } }]));
+  assert.throws(() => validateSavedViews([{ id: "x", name: "n", viewKind: "chart", chart: { type: "sunburst" } }]), SettingsValidationError);
 });
 
 test("savedViews: accepts the timeline viewKind with a dateField", () => {
-  const s = updateSettings({ savedViews: [{ id: "tl1", name: "Timeline", entity: "issue", viewKind: "timeline", dateField: "dueDate" }] });
-  assert.equal(s.savedViews[0]!.viewKind, "timeline");
-  assert.equal(s.savedViews[0]!.dateField, "dueDate");
-  assert.throws(() => updateSettings({ savedViews: [{ id: "x", name: "n", dateField: 5 }] }), SettingsValidationError);
+  assert.doesNotThrow(() => validateSavedViews([{ id: "tl1", name: "Timeline", entity: "issue", viewKind: "timeline", dateField: "dueDate" }]));
+  assert.throws(() => validateSavedViews([{ id: "x", name: "n", dateField: 5 }]), SettingsValidationError);
 });
 
 test("savedViews: rejects malformed view-engine fields", () => {
-  assert.throws(() => updateSettings({ savedViews: [{ id: "x", name: "n", entity: "widget" }] }), SettingsValidationError);
-  assert.throws(() => updateSettings({ savedViews: [{ id: "x", name: "n", viewKind: "grid" }] }), SettingsValidationError);
-  assert.throws(() => updateSettings({ savedViews: [{ id: "x", name: "n", sort: { field: "s", dir: "up" } }] }), SettingsValidationError);
-  assert.throws(() => updateSettings({ savedViews: [{ id: "x", name: "n", filters: [{ field: "s" }] }] }), SettingsValidationError);
+  assert.throws(() => validateSavedViews([{ id: "x", name: "n", entity: "widget" }]), SettingsValidationError);
+  assert.throws(() => validateSavedViews([{ id: "x", name: "n", viewKind: "grid" }]), SettingsValidationError);
+  assert.throws(() => validateSavedViews([{ id: "x", name: "n", sort: { field: "s", dir: "up" } }]), SettingsValidationError);
+  assert.throws(() => validateSavedViews([{ id: "x", name: "n", filters: [{ field: "s" }] }]), SettingsValidationError);
 });
 
-test("hiddenFields: rejects a non-string-array", () => {
-  assert.throws(() => updateSettings({ hiddenFields: [1, 2] as unknown as string[] }), SettingsValidationError);
-  assert.deepEqual(updateSettings({ hiddenFields: ["dueDate"] }).hiddenFields, ["dueDate"]);
-});
+// NB hiddenFields is no longer a settings key — it's a config-def-backed collection (`hidden-fields`, via
+// settingsCollectionRouter's config mode). Its sanitiser (sanitizeHiddenFields) is exercised in the
+// availability-curation route test.
 
 test("dashboards: accepts well-formed dashboards and persists them", () => {
   const dashboards = [
@@ -203,26 +191,10 @@ test("redactSettingsForRead: masks federated-peer tokens (never leaked over GET)
   assert.equal(redacted.federatedPeers[0]!.baseUrl, "https://eu.omni.example"); // non-secret fields preserved
 });
 
-test("branding is sanitised through the bulk PATCH — a font-family injection is rejected, a good value kept", () => {
-  // fontFamily is injected into an inline style, so the bulk PATCH must apply saveBranding's font-stack guard.
-  assert.throws(() => updateSettings({ branding: { fontFamily: "x; } body { background: url(javascript:alert(1)) }" } }), SettingsValidationError);
-  assert.throws(() => updateSettings({ branding: { logoUrl: "javascript:alert(1)" } }), SettingsValidationError); // non-http URL
-  const ok = updateSettings({ branding: { appName: "Acme", fontFamily: "Inter, sans-serif", primaryColor: "#2563eb" } });
-  assert.equal(ok.branding?.fontFamily, "Inter, sans-serif");
-  updateSettings({ branding: null });
-});
-
-test("labelOverrides keeps only string values (the i18n layer assumes strings)", () => {
-  // labelOverrides is the label catalogue — the bulk PATCH runs the SAME sanitizer as saveLabels:
-  // catalogue allow-list + length cap + string-only. A real catalogue key is kept; everything else drops.
-  const s = updateSettings({ labelOverrides: JSON.parse('{"nav.dashboard":"Home","not.a.catalogue.key":"x","__proto__":"y"}') });
-  assert.equal(s.labelOverrides["nav.dashboard"], "Home");                                             // catalogue key kept
-  assert.equal(Object.prototype.hasOwnProperty.call(s.labelOverrides, "not.a.catalogue.key"), false);  // non-catalogue dropped
-  assert.equal(Object.prototype.hasOwnProperty.call(s.labelOverrides, "__proto__"), false);            // forbidden (non-catalogue) key dropped
-  assert.throws(() => updateSettings({ labelOverrides: JSON.parse('{"nav.projects":123}') }), SettingsValidationError);     // non-string at a catalogue key rejected
-  assert.throws(() => updateSettings({ labelOverrides: { "nav.dashboard": "x".repeat(200) } }), SettingsValidationError); // over the length cap
-  updateSettings({ labelOverrides: {} });
-});
+// NB branding + labelOverrides are no longer settings keys — they're `branding`/`label-overrides` config defs
+// (see lib/branding, lib/labels). The bulk PATCH can no longer set them; the font-stack / catalogue guards are
+// applied by saveBranding/saveLabels on write AND defensively on read (orgBranding/orgLabels), covered by
+// premium-config.test + labels tests.
 
 test("scope feature maps reject a feature that is both required and forbidden in a scope", () => {
   // programmeFeatures / projectFeatures are per-scope require/forbid maps. Mirror validateGovernance's

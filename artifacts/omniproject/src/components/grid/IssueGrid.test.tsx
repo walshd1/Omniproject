@@ -97,6 +97,14 @@ describe("IssueGrid component", () => {
     expect(screen.getByText("Beta task")).toBeInTheDocument();
   });
 
+  it("virtualizes the row list (rows are windowing rows; all render when short/unmeasured)", () => {
+    renderWithProviders(<IssueGrid projectId="p1" />, { client: seed([issue(), issue({ id: "i2", title: "Beta task" })]) });
+    // Each data row is tagged for the windowing hook; in jsdom (unmeasured) every row still renders.
+    const table = screen.getByTestId("grid-table");
+    const vrows = table.querySelectorAll("tr[data-vrow]");
+    expect(vrows.length).toBe(2);
+  });
+
   it("edits a cell and writes through with the optimistic-concurrency token", async () => {
     const client = seed([issue()]);
     renderWithProviders(<IssueGrid projectId="p1" />, { client });

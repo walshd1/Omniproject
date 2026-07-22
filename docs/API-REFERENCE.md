@@ -18,6 +18,15 @@ The **Gate** column shows gates declared inline on the route. Most routes additi
 
 ## Endpoints by router
 
+### `artifacts/api-server/src/routes/accessibility.ts`
+
+The ORG-wide accessibility DEFAULTS — a partial UserPrefs the org sets as everyone's starting point (a default font, reduced motion for a sensitive environment, …).
+
+| Method | Path | Gate | Description |
+| --- | --- | --- | --- |
+| GET | `/api/accessibility-defaults` | requireAnyRole(pmo, admin) | — |
+| PUT | `/api/accessibility-defaults` | requireAnyRole(pmo, admin) | — |
+
 ### `artifacts/api-server/src/routes/ai-providers.ts`
 
 Typed + bounded schemas for the admin write bodies (untrusted boundary input).
@@ -63,6 +72,36 @@ The consumer (northbound) API spec — exposed at runtime, broker-agnostic.
 | GET | `/api/docs` | — | calls and holds no data — so, like /openapi.yaml, it needs no auth when an operator opts in. |
 | GET | `/api/discovery` | — | broker contract, and the other outward interfaces. |
 
+### `artifacts/api-server/src/routes/approval-chains.ts`
+
+Approval-chain DEFINITIONS — GET (any authenticated session, so the chains apply for everyone) and PUT (pmo+; PMO authors org chains, and a PM authoring a project chain is a pmo-or-above act here).
+
+| Method | Path | Gate | Description |
+| --- | --- | --- | --- |
+| GET | `/api/approval-chains` | requireAuth | Read the collection. |
+| PUT | `/api/approval-chains` | requireAuth + requireRole(pmo) | Replace the collection (write-guarded). |
+
+### `artifacts/api-server/src/routes/approvals.ts`
+
+Approval-chain endpoints — the human, passkey-signed approver surface (design §3–4).
+
+| Method | Path | Gate | Description |
+| --- | --- | --- | --- |
+| POST | `/api/approvals/passkey` | — | POST /approvals/passkey — register this user's passkey PUBLIC key (from the browser's create ceremony). |
+| GET | `/api/approvals/passkey` | — | GET /approvals/passkey — this user's registered passkeys (metadata only, never key material secrets). |
+| POST | `/api/approvals/passkey/revoke` | requireRole(pmo) | Revocation is fail-SAFE (removes the ability to approve), so admin/PMO gating suffices — no chain needed. |
+| POST | `/api/approvals/passkey/revoke-all` | requireRole(pmo) | POST /approvals/passkey/revoke-all — revoke EVERYONE's passkeys (emergency reset). |
+| GET | `/api/approvals/inbox` | — | GET /approvals/inbox — proposals awaiting THIS caller's decision. |
+| POST | `/api/approvals/:id/challenge` | — | POST /approvals/:id/challenge — issue a one-time challenge to sign the current stage. |
+| POST | `/api/approvals/:id/decision` | — | POST /approvals/:id/decision — submit a passkey-signed approve/reject. |
+| POST | `/api/approvals/:id/redirect` | requireRole(pmo) | POST /approvals/:id/redirect — reassign the current stage's approvers. |
+| POST | `/api/approvals/:id/bypass/challenge` | requireRole(pmo) | POST /approvals/:id/bypass/challenge — challenge for a PMO bypass signature. |
+| POST | `/api/approvals/:id/bypass` | requireRole(pmo) | POST /approvals/:id/bypass — force-approve the chain with a PMO passkey signature (never silent). |
+| GET | `/api/approvals/workflow-acceptances` | requireRole(manager) | GET /approvals/workflow-acceptances — every stored acceptance with its LIVE active/void status (pmo+). |
+| POST | `/api/approvals/workflow-acceptances/:workflowId/challenge` | — | POST /approvals/workflow-acceptances/:workflowId/challenge — challenge to sign, bound to the CURRENT version. |
+| POST | `/api/approvals/workflow-acceptances/:workflowId` | — | POST /approvals/workflow-acceptances/:workflowId — record the passkey-signed acceptance (scope owner only). |
+| DELETE | `/api/approvals/workflow-acceptances/:workflowId` | — | DELETE /approvals/workflow-acceptances/:workflowId — revoke the grant (strengthens → immediate; scope owner). |
+
 ### `artifacts/api-server/src/routes/archive.ts`
 
 Read the self-managed ARCHIVE — the closed projects whose data was migrated out of the SOR (the `archive` disposition).
@@ -88,10 +127,25 @@ Authentication routes + the session helpers the rest of the gateway reads from.
 | GET | `/api/auth/oauth2/callback` | — | every other auth path. |
 | POST | `/api/auth/magic/request` | — | email exists); rate-limited at the router mount. |
 | GET | `/api/auth/magic/verify` | — | Verify a magic token and establish the session (single-use). |
+| POST | `/api/auth/local` | — | present at login time, so the CSRF gate naturally exempts these (defence rides the per-IP loginLimiter). |
+| POST | `/api/auth/local/bootstrap` | — | user exists, this 404s and further accounts go through the admin-gated /api/users route. |
+| POST | `/api/auth/passkey/step-up/challenge` | — | — |
+| POST | `/api/auth/passkey/step-up` | — | — |
 | POST | `/api/auth/logout` | — | POST /api/auth/logout |
 | POST | `/api/auth/step-up` | — | — |
 | GET | `/api/auth/providers` | — | branded "Sign in with <label>" button per provider. |
 | GET | `/api/auth/step-up` | — | cookie). |
+
+### `artifacts/api-server/src/routes/automations.ts`
+
+Automation RECIPES — the user-facing "when X, do Y" builder (Phase 1.2).
+
+| Method | Path | Gate | Description |
+| --- | --- | --- | --- |
+| POST | `/api/automations/preview` | — | Dry-run: validate + compile a DRAFT recipe (in the body) and report the compiled workflow, the RBAC requirements, whether it mutates (⇒ needs an autonomous grant to run), and whether the caller could author it. |
+| POST | `/api/automations/:id/run` | — | Run a stored recipe now against a `subject` (the triggering entity, or a manual test payload). |
+| GET | `/api/automations` | requireAuth | Read the collection. |
+| PUT | `/api/automations` | requireAuth | Replace the collection (write-guarded). |
 
 ### `artifacts/api-server/src/routes/branding.ts`
 
@@ -139,6 +193,24 @@ Admin-only live broker log.
 | GET | `/api/admin/broker-log` | requireRole(admin) | — |
 | GET | `/api/admin/broker-log/stream` | requireRole(admin) | — |
 
+### `artifacts/api-server/src/routes/budget-plans.ts`
+
+Multi-year / period budget-plan store (the planning side of financials).
+
+| Method | Path | Gate | Description |
+| --- | --- | --- | --- |
+| GET | `/api/budget-plans/rows` | — | — |
+| GET | `/api/budget-plans` | requireAuth | Read the collection. |
+| PUT | `/api/budget-plans` | requireAuth | Replace the collection (write-guarded). |
+
+### `artifacts/api-server/src/routes/bulk.ts`
+
+Declarative BULK-ACTION runner — the admin "apply one canonical write to many projects" endpoint.
+
+| Method | Path | Gate | Description |
+| --- | --- | --- | --- |
+| POST | `/api/admin/bulk` | requireRole(manager) + requireStepUp | — |
+
 ### `artifacts/api-server/src/routes/calendar.ts`
 
 Personal calendar feed — GET /api/calendar.ics renders the signed-in user's OPEN, due-dated work as an iCalendar file to download and import (or host as a subscription) in Google/Outlook/Apple Calendar.
@@ -161,6 +233,7 @@ Capability + field-manifest endpoints.
 | GET | `/api/availability/curation` | requireAuth | Read the collection. |
 | PUT | `/api/availability/curation` | requireAuth | Replace the collection (write-guarded). |
 | GET | `/api/fields/manifest` | requireRole(manager) | exposes, incl. |
+| GET | `/api/fields/superset` | requireRole(manager) | Manager+ (same schema-detail exposure as the manifest). |
 
 ### `artifacts/api-server/src/routes/client-errors.ts`
 
@@ -178,6 +251,24 @@ The closed-project location registry: projectGuid → where its data now lives (
 | --- | --- | --- | --- |
 | GET | `/api/closed-projects` | requireAuth | Read the collection. |
 | PUT | `/api/closed-projects` | requireAuth + requireAnyRole(pmo, admin) | Replace the collection (write-guarded). |
+
+### `artifacts/api-server/src/routes/collab.ts`
+
+Real-time collaborative-edit relay (the "wikiCoEdit" feature module, roadmap 2.1 slice 6).
+
+| Method | Path | Gate | Description |
+| --- | --- | --- | --- |
+| GET | `/api/collab/rooms/:roomId/stream` | requireRole(contributor) | GET /api/collab/rooms/:roomId/stream — join a co-edit room and receive peers' messages (contributor+). |
+| POST | `/api/collab/rooms/:roomId` | requireRole(contributor) | it is fanned out verbatim to the OTHER members under the `collab` event. |
+
+### `artifacts/api-server/src/routes/collection-edit-roles.ts`
+
+The per-collection EDIT-policy store.
+
+| Method | Path | Gate | Description |
+| --- | --- | --- | --- |
+| GET | `/api/collection-edit-roles` | requireAuth | Read the collection. |
+| PUT | `/api/collection-edit-roles` | requireAuth + requireAnyRole(admin, pmo) | Replace the collection (write-guarded). |
 
 ### `artifacts/api-server/src/routes/comments.ts`
 
@@ -217,21 +308,78 @@ Admin-defined custom fields that EXTEND the reference superset.
 
 ### `artifacts/api-server/src/routes/custom-reports.ts`
 
-Bespoke report definitions (the report generator).
+Bespoke REPORT DEFINITIONS (roadmap X.10 — reports convergence).
 
 | Method | Path | Gate | Description |
 | --- | --- | --- | --- |
-| GET | `/api/reports/custom` | requireAuth | Read the collection. |
-| PUT | `/api/reports/custom` | requireAuth + requireRole(pmo) | Replace the collection (write-guarded). |
+| GET | `/api/reports/custom` | — | — |
+| GET | `/api/reports/custom/resolved` | — | reports, def store winning). |
+| PUT | `/api/reports/custom` | requireRole(pmo) | — |
+
+### `artifacts/api-server/src/routes/custom-roles.ts`
+
+ADMIN custom-roles + permission-sets editor.
+
+| Method | Path | Gate | Description |
+| --- | --- | --- | --- |
+| GET | `/api/admin/custom-roles` | requireRole(admin) | GET /api/admin/custom-roles — the current config + the pickers the editor needs (base roles + capabilities). |
+| PUT | `/api/admin/custom-roles` | requireRole(admin) + requireStepUp | gated: custom roles now resolve into real grants, so changing them is as consequential as a role-map edit. |
 
 ### `artifacts/api-server/src/routes/dashboards.ts`
 
-Custom dashboards — named, ordered collections of widget instances composed from the widget catalogue.
+Custom dashboards — the LEGACY settings-bundle path (roadmap X.10).
 
 | Method | Path | Gate | Description |
 | --- | --- | --- | --- |
-| GET | `/api/dashboards` | requireAuth | Read the collection. |
-| PUT | `/api/dashboards` | requireAuth + requireRole(pmo) | Replace the collection (write-guarded). |
+| GET | `/api/dashboards` | — | — |
+| PUT | `/api/dashboards` | requireRole(pmo) | — |
+
+### `artifacts/api-server/src/routes/def-bindings.ts`
+
+DEF SELECTION BINDINGS routes (roadmap X.12).
+
+| Method | Path | Gate | Description |
+| --- | --- | --- | --- |
+| GET | `/api/defs/bindings` | requireRole(viewer) | GET /api/defs/bindings?projectId=&programmeId= — the org + (the caller's) programme + project + user maps. |
+| GET | `/api/defs/active` | requireRole(viewer) | is in that scope (opt-in / fail-closed), exactly like GET /defs/bindings. |
+| PUT | `/api/defs/bindings` | requireRole(contributor) | body: { scope: "user"\|"project"\|"programme"\|"org", slot, defId?\|null, locked?, projectId?, programmeId? } |
+
+### `artifacts/api-server/src/routes/defs.ts`
+
+THE DEFINITION IMPORTER routes (roadmap X.3), behind the default-off `defImporter` module.
+
+| Method | Path | Gate | Description |
+| --- | --- | --- | --- |
+| POST | `/api/defs/validate` | requireRole(contributor) | POST /api/defs/validate — dry-run: validate a payload by kind without writing (contributor+). |
+| GET | `/api/defs/policy` | requireRole(viewer) | GET /api/defs/policy — the per-scope write policy (viewer+ may read it; the UI shows what each scope needs). |
+| PUT | `/api/defs/policy` | requireRole(admin) | PUT /api/defs/policy — change who may write at each scope (admin only — altering the permission model). |
+| GET | `/api/defs` | requireRole(viewer) | their private area, the org area, and the requested project's area (when in scope). |
+| GET | `/api/defs/resolved/:kind` | requireRole(viewer) | (Two path segments after /defs, so it never collides with the one-segment /defs/:id.) |
+| GET | `/api/defs/:id` | requireRole(viewer) | GET /api/defs/:id — one stored def with its payload (viewer+, subject to the target gate). |
+| POST | `/api/defs` | requireRole(contributor) | The target may be user / project / programme / org (never the read-only system store, nor sidecar). |
+| PUT | `/api/defs/:id` | requireRole(contributor) | the def's own scope). |
+| DELETE | `/api/defs/:id` | requireRole(contributor) | DELETE /api/defs/:id — remove a stored def (contributor+, subject to the target gate). |
+
+### `artifacts/api-server/src/routes/delegation-policy.ts`
+
+DELEGATION POLICY — the org's governance dial for how far DOWN the scope hierarchy local variation is allowed, per governed area (ruleset / settings / methodology).
+
+| Method | Path | Gate | Description |
+| --- | --- | --- | --- |
+| GET | `/api/admin/delegation-policy` | — | — |
+| PUT | `/api/admin/delegation-policy` | requireAnyRole(pmo, admin) | — |
+
+### `artifacts/api-server/src/routes/deployment-types.ts`
+
+DEPLOYMENT TYPES — the on-ramp archetypes (solo self-hoster, small team, managed cloud, enterprise on-prem, regulated self-host).
+
+| Method | Path | Gate | Description |
+| --- | --- | --- | --- |
+| GET | `/api/deployment-types` | — | — |
+| GET | `/api/deployment-types/:id` | — | — |
+| POST | `/api/deployment-types/:id/resolve` | — | — |
+| GET | `/api/deployment-type` | — | The org's ONE active deployment type (admin-gated) + the change function |
+| PUT | `/api/deployment-type` | requireAnyRole(admin) | — |
 
 ### `artifacts/api-server/src/routes/dev-mode.ts`
 
@@ -250,6 +398,33 @@ Dev-mode routes.
 | GET | `/api/dev-mode/entitlements` | requireDevMode + requireRole(admin) | GET — the catalogue, current overrides, and the effective entitlements. |
 | POST | `/api/dev-mode/entitlements` | requireDevMode + requireRealAdmin | POST — force a feature: { feature, enabled: true\|false\|null(clear) }. |
 | DELETE | `/api/dev-mode/entitlements` | requireDevMode + requireRealAdmin | DELETE — clear all overrides. |
+
+### `artifacts/api-server/src/routes/disabled-screens.ts`
+
+The OFF switch for screens.
+
+| Method | Path | Gate | Description |
+| --- | --- | --- | --- |
+| GET | `/api/disabled-screens` | requireAuth | Read the collection. |
+| PUT | `/api/disabled-screens` | requireAuth + requireAnyRole(admin, pmo) | Replace the collection (write-guarded). |
+
+### `artifacts/api-server/src/routes/energy-vocabulary.ts`
+
+Scope-overridable GTD energy-level vocabulary (the "how much have I got in the tank" axis, orthogonal to an hour estimate).
+
+| Method | Path | Gate | Description |
+| --- | --- | --- | --- |
+| GET | `/api/energy-vocabulary` | — | GET /api/energy-vocabulary — the effective GTD energy levels for this scope (any authed user). |
+| PUT | `/api/energy-vocabulary` | requireAnyRole(pmo, admin) | { levels?: [{ id, label?, order?, level?, methodologies?, color?, labels?, removed? }] }. |
+
+### `artifacts/api-server/src/routes/error-telemetry.ts`
+
+ERROR TELEMETRY — the admin opt-in for internal client-error reporting (Settings → Diagnostics).
+
+| Method | Path | Gate | Description |
+| --- | --- | --- | --- |
+| GET | `/api/error-telemetry` | — | — |
+| PUT | `/api/error-telemetry` | requireRole(admin) | — |
 
 ### `artifacts/api-server/src/routes/export.ts`
 
@@ -297,6 +472,33 @@ Admin-declared per-field DATA VALIDATION RULES (min/max, pattern, allowed set, r
 | GET | `/api/field-validation` | requireAuth | Read the collection. |
 | PUT | `/api/field-validation` | requireAuth + requireRole(admin) | Replace the collection (write-guarded). |
 
+### `artifacts/api-server/src/routes/forms.ts`
+
+The set of issue fields the connected backend ADVERTISES as storable (`FieldSupport.store`).
+
+| Method | Path | Gate | Description |
+| --- | --- | --- | --- |
+| POST | `/api/forms/:formId/submit` | requireRole(contributor) | Submit a filled-in form → create an issue in the form's target project. |
+| GET | `/api/forms` | — | the old list; a non-empty write is a retired bypass → 410 Gone, pointing at the importer. |
+| GET | `/api/forms/resolved` | — | an un-migrated one still does until the drain. |
+| PUT | `/api/forms` | requireRole(pmo) | — |
+
+### `artifacts/api-server/src/routes/goals.ts`
+
+Dedupe TTL for a fired check-in reminder — long enough that a period's nudge fires once.
+
+| Method | Path | Gate | Description |
+| --- | --- | --- | --- |
+| GET | `/api/goals` | requireRole(viewer) | GET /api/goals?projectId= — goals (key results omitted) across every accessible store (viewer+). |
+| GET | `/api/goals/:id` | requireRole(viewer) | GET /api/goals/:id — one goal with its key results (viewer+). |
+| POST | `/api/goals` | requireRole(contributor) | POST /api/goals — create a goal in the chosen storage target (contributor+). |
+| PUT | `/api/goals/:id` | requireRole(contributor) | PUT /api/goals/:id — update a goal in place (contributor+); progress is recomputed from the key results. |
+| POST | `/api/goals/:id/checkin` | requireRole(contributor) | optionally set status + a note, and append a bounded history entry (contributor+; org goal ⇒ manager+). |
+| POST | `/api/goals/:id/links` | requireRole(contributor) | POST /api/goals/:id/links — link a work item to the goal (reference-only, idempotent) (contributor+). |
+| DELETE | `/api/goals/:id/links/:key` | requireRole(contributor) | DELETE /api/goals/:id/links/:key — unlink a work item by its link key (contributor+). |
+| POST | `/api/goals/checkins/sweep` | requireRole(pmo) | and rolls the cadence forward so it recurs. |
+| DELETE | `/api/goals/:id` | requireRole(contributor) | DELETE /api/goals/:id — remove a goal (contributor+; an org goal additionally needs manager+). |
+
 ### `artifacts/api-server/src/routes/guid-aliases.ts`
 
 The GUID translation table: oldGuid → newGuid, for relinking a project to a new correlation GUID.
@@ -342,6 +544,15 @@ Time-travel replay — read recorded portfolio states back from the operator's l
 | POST | `/api/history/dispose` | requireRole(admin) + requireStepUp | POST /history/dispose — run disposal: prune retained history older than the configured window (`retentionDays`), skipping legal-held keys. |
 | POST | `/api/history/erase` | requireRole(admin) + requireStepUp | POST /history/erase — right-to-erasure / DSAR delete of ALL retained history for one entity id. |
 
+### `artifacts/api-server/src/routes/impact-vocabulary.ts`
+
+Scope-overridable RAID/risk IMPACT vocabulary (the consequence magnitude — the I in risk-exposure P×I).
+
+| Method | Path | Gate | Description |
+| --- | --- | --- | --- |
+| GET | `/api/impact-vocabulary` | — | GET /api/impact-vocabulary — the effective RAID impact grades for this scope (any authed user). |
+| PUT | `/api/impact-vocabulary` | requireAnyRole(pmo, admin) | { levels?: [{ id, label?, order?, level?, methodologies?, color?, labels?, removed? }] }. |
+
 ### `artifacts/api-server/src/routes/import.ts`
 
 Hard cap on rows per commit — each row is a broker write, so an unbounded array is a write-amplification DoS.
@@ -359,6 +570,19 @@ BI / observability integration endpoints.
 | --- | --- | --- | --- |
 | GET | `/api/metrics` | — | — |
 | GET | `/api/bi/feeds` | — | — |
+
+### `artifacts/api-server/src/routes/invoices.ts`
+
+INVOICES (roadmap 3.3).
+
+| Method | Path | Gate | Description |
+| --- | --- | --- | --- |
+| GET | `/api/invoices` | requireRole(manager) | GET /api/invoices?projectId= — invoices (lines omitted) across the org + a project store (manager+). |
+| GET | `/api/invoices/:id` | requireRole(manager) | GET /api/invoices/:id — one invoice with its lines (manager+). |
+| POST | `/api/invoices` | requireRole(manager) | POST /api/invoices — create an invoice in the chosen storage target (manager+). |
+| PUT | `/api/invoices/:id` | requireRole(manager) | PUT /api/invoices/:id — update an invoice in place; only a DRAFT may be edited (manager+). |
+| POST | `/api/invoices/:id/status` | requireRole(manager) | POST /api/invoices/:id/status — transition an invoice (draft→issued→paid; live→void) (manager+). |
+| DELETE | `/api/invoices/:id` | requireRole(manager) | DELETE /api/invoices/:id — remove an invoice (manager+). |
 
 ### `artifacts/api-server/src/routes/labels.ts`
 
@@ -379,6 +603,36 @@ Licence endpoint — GET /api/license reports the current licence summary + prem
 | --- | --- | --- | --- |
 | GET | `/api/license` | — | GET /api/license — current entitlement status (no signature material). |
 
+### `artifacts/api-server/src/routes/likelihood-vocabulary.ts`
+
+Scope-overridable RAID/risk LIKELIHOOD vocabulary (the probability a risk occurs — the P in risk-exposure P×I).
+
+| Method | Path | Gate | Description |
+| --- | --- | --- | --- |
+| GET | `/api/likelihood-vocabulary` | — | GET /api/likelihood-vocabulary — the effective RAID likelihood grades for this scope (any authed user). |
+| PUT | `/api/likelihood-vocabulary` | requireAnyRole(pmo, admin) | { levels?: [{ id, label?, order?, level?, methodologies?, color?, labels?, removed? }] }. |
+
+### `artifacts/api-server/src/routes/logging-sync.ts`
+
+LOGGING SYNC — the opt-in egress of the gateway's event log to an operator-owned destination (unlocks historical time-travel).
+
+| Method | Path | Gate | Description |
+| --- | --- | --- | --- |
+| GET | `/api/logging-sync` | — | — |
+| PUT | `/api/logging-sync` | requireRole(admin) | — |
+
+### `artifacts/api-server/src/routes/marketplace.ts`
+
+PLUGIN MARKETPLACE routes (roadmap 3.4), behind the default-off `marketplace` feature module.
+
+| Method | Path | Gate | Description |
+| --- | --- | --- | --- |
+| GET | `/api/extensions` | requireRole(manager) | GET /api/extensions — the installed extensions (contribution defs omitted) (manager+). |
+| GET | `/api/extensions/:id` | requireRole(manager) | GET /api/extensions/:id — one installed extension with its contributions (manager+). |
+| POST | `/api/extensions` | requireRole(admin) | POST /api/extensions — install an extension from a manifest (admin — a governance decision). |
+| POST | `/api/extensions/:id/status` | requireRole(admin) | POST /api/extensions/:id/status — enable / disable an installed extension (admin). |
+| DELETE | `/api/extensions/:id` | requireRole(admin) | DELETE /api/extensions/:id — uninstall an extension (admin). |
+
 ### `artifacts/api-server/src/routes/mcp.ts`
 
 MCP endpoint — POST /api/mcp (JSON-RPC 2.0).
@@ -396,6 +650,27 @@ The signed-in user's own preferences.
 | GET | `/api/me/prefs` | — | — |
 | PUT | `/api/me/prefs` | — | — |
 
+### `artifacts/api-server/src/routes/methodology-composition.ts`
+
+The methodology COMPOSITION — the PMO/admin's curated set of visible artifact/output/ruleset ids, or `null` (uncurated: everything the catalogues offer stays visible).
+
+| Method | Path | Gate | Description |
+| --- | --- | --- | --- |
+| GET | `/api/methodology-composition` | — | — |
+| PUT | `/api/methodology-composition` | requireAnyRole(pmo, admin) | — |
+| GET | `/api/methodology-composition/deployment/:id` | — | PREVIEW: what deploying this methodology would turn on (read-only, any authed user). |
+| POST | `/api/methodology-composition/deploy/:id` | requireAnyRole(pmo, admin) | org by default, or a programme/project named in the body (a nearer scope overrides the org in the read fold). |
+
+### `artifacts/api-server/src/routes/native.ts`
+
+NATIVE HANDOFF routes (companion-app bridge, roadmap X.1 — see docs/NATIVE-HANDOFF.md), behind the default-off `nativeHandoff` module.
+
+| Method | Path | Gate | Description |
+| --- | --- | --- | --- |
+| GET | `/api/native/surfaces` | requireRole(viewer) | GET /api/native/surfaces — the native surfaces connected backends front (viewer+; empty when none). |
+| POST | `/api/native/handoff` | requireRole(contributor) | POST /api/native/handoff — mint the vetted vendor handoff URL (contributor+). |
+| POST | `/api/native/import` | requireRole(contributor) | POST /api/native/import — bring the native artifact back as a reference attachment (contributor+). |
+
 ### `artifacts/api-server/src/routes/odata.ts`
 
 OData v4 read service — so SAP / Dynamics / Oracle / Power BI can pull OmniProject data in their native feed format (read-only API token works).
@@ -405,6 +680,33 @@ OData v4 read service — so SAP / Dynamics / Oracle / Power BI can pull OmniPro
 | GET | `/api/odata` | — | Service document. |
 | GET | `/api/odata/` | — | — |
 | GET | `/api/odata/$metadata` | — | $metadata (EDMX). |
+
+### `artifacts/api-server/src/routes/org-identity.ts`
+
+ORG IDENTITY — the org's canonical id + name (see lib/org-identity).
+
+| Method | Path | Gate | Description |
+| --- | --- | --- | --- |
+| GET | `/api/org-identity` | — | — |
+| PUT | `/api/org-identity` | requireAnyRole(pmo, admin) | — |
+
+### `artifacts/api-server/src/routes/panel-views.ts`
+
+Org-saved PANEL VIEWS store.
+
+| Method | Path | Gate | Description |
+| --- | --- | --- | --- |
+| GET | `/api/panel-views` | requireAuth | Read the collection. |
+| PUT | `/api/panel-views` | requireAuth | Replace the collection (write-guarded). |
+
+### `artifacts/api-server/src/routes/portal.ts`
+
+Client-facing GUEST PORTAL (roadmap 2.2).
+
+| Method | Path | Gate | Description |
+| --- | --- | --- | --- |
+| POST | `/api/portal/invites` | requireRole(manager) | POST /api/portal/invites — invite an external client as a scoped guest (manager+, project-scoped). |
+| GET | `/api/portal/status` | requireRole(guest) | GET /api/portal/status — the guest's ONE project's curated, read-only status (guest+). |
 
 ### `artifacts/api-server/src/routes/portfolio-priority-weights.ts`
 
@@ -423,6 +725,7 @@ Portfolio analytics endpoints — portfolio-wide RAG/health and resource-capacit
 | --- | --- | --- | --- |
 | GET | `/api/portfolio/health` | — | GET /api/portfolio/health — portfolio-wide multi-project aggregation. |
 | GET | `/api/portfolio/summary` | — | than a bearer token, no new cross-instance auth scheme. |
+| GET | `/api/portfolio/financials` | — | this endpoint instead of a bespoke client renderer. |
 
 ### `artifacts/api-server/src/routes/presence.ts`
 
@@ -433,14 +736,24 @@ Live-collaboration presence routes (the "presence" feature module).
 | GET | `/api/presence/rooms/:roomId/stream` | — | GET /api/presence/rooms/:roomId/stream — live peer presence for a shared surface. |
 | POST | `/api/presence/rooms/:roomId` | — | soft TTL; sending null releases it. |
 
+### `artifacts/api-server/src/routes/presets.ts`
+
+QUICK-LOAD PRESETS — land an org on a way of working in one action.
+
+| Method | Path | Gate | Description |
+| --- | --- | --- | --- |
+| GET | `/api/presets` | requireRole(viewer) | GET /api/presets — the quick-load presets, resolved from system JSON + org overrides (copy-and-override). |
+| GET | `/api/presets/:id` | requireRole(viewer) | GET /api/presets/:id — one resolved preset. |
+| POST | `/api/presets/:id/apply` | requireRole(pmo) | POST /api/presets/:id/apply — apply the preset (pmo). |
+
 ### `artifacts/api-server/src/routes/priority-labels.ts`
 
 Custom display names for the canonical priority levels.
 
 | Method | Path | Gate | Description |
 | --- | --- | --- | --- |
-| GET | `/api/priority-labels` | — | GET /api/priority-labels — the canonical levels + the current custom labels (any authed user, for display). |
-| PUT | `/api/priority-labels` | requireAnyRole(pmo, admin) | PUT /api/priority-labels — set the custom labels (admin or PMO). |
+| GET | `/api/priority-labels` | — | GET /api/priority-labels — the canonical levels + the resolved custom labels (any authed user, for display). |
+| PUT | `/api/priority-labels` | requireAnyRole(pmo, admin) | PUT /api/priority-labels — set the org-scope custom labels (admin or PMO). |
 
 ### `artifacts/api-server/src/routes/programme-registry.ts`
 
@@ -484,12 +797,34 @@ Project, programme-membership, issue + task-item endpoints — the core read/wri
 | DELETE | `/api/projects/:projectId/issues/:issueId` | requireRole(contributor) | — |
 | GET | `/api/projects/:projectId/capacity` | — | Analytics: capacity + financials (strict rate limit) |
 | GET | `/api/projects/:projectId/financials` | — | — |
+| GET | `/api/projects/:projectId/wbs` | — | a backend that doesn't front an ERP omits the broker method and these answer 501. |
+| GET | `/api/projects/:projectId/wbs/cost-rows` | — | serve it. |
+| GET | `/api/projects/:projectId/wbs/mapping` | — | reads it to show "where each field comes from", and it's the mapping the (slice B) dispatch will apply. |
+| PUT | `/api/projects/:projectId/wbs/:wbsId` | requireRole(contributor) | dropped). |
+| GET | `/api/projects/:projectId/wbs/:wbsId/financials` | — | — |
+| GET | `/api/projects/:projectId/mapping/:slot` | — | comes from"). |
+| GET | `/api/projects/:projectId/mapping/:slot/rows` | — | mapping into `{ rows }` (the generic table shape). |
+| PUT | `/api/projects/:projectId/mapping/:slot/:rowId` | requireRole(contributor) | sidecar-targeted fields written to our sealed store, external-targeted fields reported (no adapter yet). |
+| DELETE | `/api/projects/:projectId/mapping/:slot/:rowId` | requireRole(contributor) | no bespoke endpoint. |
 | GET | `/api/projects/:projectId/history` | — | History + baseline (sourced from the system of record via the broker) |
 | GET | `/api/projects/:projectId/baseline` | — | — |
 | GET | `/api/projects/:projectId/raid` | — | RAID log |
 | POST | `/api/projects/:projectId/raid` | requireRole(manager) | baselines, portfolio actions"), and this route has no compensating ruleset gate — so gate at manager. |
 | GET | `/api/fx-rates` | — | Multi-currency FX rates (read-through; demo fallback) |
 | GET | `/api/notifications` | — | Notifications |
+
+### `artifacts/api-server/src/routes/proofs.ts`
+
+PROOFING / deliverable review (roadmap 2.4).
+
+| Method | Path | Gate | Description |
+| --- | --- | --- | --- |
+| GET | `/api/proofs` | requireRole(viewer) | GET /api/proofs?projectId= — the proofs (deliverable + annotations omitted) across every accessible store (viewer+). |
+| GET | `/api/proofs/:id` | requireRole(viewer) | GET /api/proofs/:id — one proof with its deliverable + annotations (viewer+). |
+| POST | `/api/proofs` | requireRole(contributor) | POST /api/proofs — create a proof in the chosen storage target (contributor+). |
+| PUT | `/api/proofs/:id` | requireRole(contributor) | PUT /api/proofs/:id — update a proof in place (contributor+); a changed deliverable re-opens the decision. |
+| POST | `/api/proofs/:id/decision` | requireRole(contributor) | auditable + non-repudiable. |
+| DELETE | `/api/proofs/:id` | requireRole(contributor) | DELETE /api/proofs/:id — remove a proof (contributor+; an org proof additionally needs manager+). |
 
 ### `artifacts/api-server/src/routes/provenance.ts`
 
@@ -501,6 +836,35 @@ Provenance verification (admin) — read + verify the broker-call chain.
 | GET | `/api/provenance/anchor` | requireRole(admin) | configured) — the gateway non-repudiably attesting to the provenance tip. |
 | GET | `/api/provenance/call/:callId` | requireRole(admin) | One call's hops (invoke / result / error), with the running chain still verified. |
 | POST | `/api/provenance/call/:callId/verify` | requireRole(admin) | Prove "nothing changed": re-present the content for a hop and confirm the fingerprint. |
+
+### `artifacts/api-server/src/routes/push.ts`
+
+Browser Web Push subscription routes (roadmap 2.5 slice 3), behind the default-off `pushNotifications` feature module.
+
+| Method | Path | Gate | Description |
+| --- | --- | --- | --- |
+| GET | `/api/push/vapid-key` | requireRole(viewer) | GET /api/push/vapid-key — the public VAPID key the client needs for pushManager.subscribe (viewer+). |
+| POST | `/api/push/subscribe` | requireRole(viewer) | POST /api/push/subscribe — register this device's push subscription for the caller (viewer+). |
+| POST | `/api/push/unsubscribe` | requireRole(viewer) | POST /api/push/unsubscribe — drop this device's subscription (viewer+). |
+
+### `artifacts/api-server/src/routes/raci.ts`
+
+RACI register store.
+
+| Method | Path | Gate | Description |
+| --- | --- | --- | --- |
+| GET | `/api/raci/rows` | — | — |
+| GET | `/api/raci` | requireAuth | Read the collection. |
+| PUT | `/api/raci` | requireAuth | Replace the collection (write-guarded). |
+
+### `artifacts/api-server/src/routes/rag-vocabulary.ts`
+
+Scope-overridable RAG/health BAND vocabulary (a project/programme's traffic-light status).
+
+| Method | Path | Gate | Description |
+| --- | --- | --- | --- |
+| GET | `/api/rag-vocabulary` | — | GET /api/rag-vocabulary — the effective RAG/health bands for this scope (any authed user). |
+| PUT | `/api/rag-vocabulary` | requireAnyRole(pmo, admin) | { bands?: [{ id, label?, order?, level?, methodologies?, color?, labels?, removed? }] }. |
 
 ### `artifacts/api-server/src/routes/rate-card.ts`
 
@@ -529,6 +893,21 @@ Rate card + hashed identity→role map + project types, and the server-side staf
 | --- | --- | --- | --- |
 | POST | `/api/admin/raw` | requireRole(admin) + requireStepUp | — |
 
+### `artifacts/api-server/src/routes/registry.ts`
+
+Parse the activation target from a review body — org-wide by default, or a programme/project to CONFINE the activated primitive to (downward-only).
+
+| Method | Path | Gate | Description |
+| --- | --- | --- | --- |
+| GET | `/api/registry/community/status` | requireRole(viewer) | GET /api/registry/community/status — whether a community marketplace is connected (viewer+). |
+| GET | `/api/registry` | requireRole(viewer) | GET /api/registry?kind=&status=&visibility= — the visible items (payload omitted) (viewer+). |
+| GET | `/api/registry/:id` | requireRole(viewer) | GET /api/registry/:id — one item with its payload (viewer+, subject to visibility). |
+| POST | `/api/registry` | requireRole(contributor) | POST /api/registry — submit an item for review (contributor+). |
+| POST | `/api/registry/:id/review` | requireRole(admin) | POST /api/registry/:id/review — approve or reject a submission (admin — a governance decision). |
+| POST | `/api/registry/:id/release` | requireRole(admin) | seam best-effort; the item is marked `community` locally regardless (queued until a marketplace connects). |
+| POST | `/api/registry/:id/retract` | requireRole(admin) | POST /api/registry/:id/retract — pull a released item back to internal-only (admin). |
+| DELETE | `/api/registry/:id` | requireRole(contributor) | DELETE /api/registry/:id — remove an item (admin, or the submitter while it's still a draft). |
+
 ### `artifacts/api-server/src/routes/report-overrides.ts`
 
 Metadata overrides for the built-in (catalogue) reports.
@@ -537,6 +916,26 @@ Metadata overrides for the built-in (catalogue) reports.
 | --- | --- | --- | --- |
 | GET | `/api/reports/overrides` | requireAuth | Read the collection. |
 | PUT | `/api/reports/overrides` | requireAuth + requireRole(pmo) | Replace the collection (write-guarded). |
+
+### `artifacts/api-server/src/routes/reports.ts`
+
+The per-deployment REPORT DEFINITION store.
+
+| Method | Path | Gate | Description |
+| --- | --- | --- | --- |
+| GET | `/api/reports` | — | — |
+| GET | `/api/reports` | requireAuth | Read the collection. |
+| PUT | `/api/reports` | requireAuth + requireRole(pmo) | Replace the collection (write-guarded). |
+
+### `artifacts/api-server/src/routes/resource-allocations.ts`
+
+Resource allocation / booking store (the write side of resource management).
+
+| Method | Path | Gate | Description |
+| --- | --- | --- | --- |
+| GET | `/api/resource-allocations/rows` | — | — |
+| GET | `/api/resource-allocations` | requireAuth | Read the collection. |
+| PUT | `/api/resource-allocations` | requireAuth | Replace the collection (write-guarded). |
 
 ### `artifacts/api-server/src/routes/role-map.ts`
 
@@ -569,6 +968,18 @@ Whether a methodology's reference ruleset is enabled by the methodology composit
 | PUT | `/api/admin/ruleset/fields` | requireRole(pmo) | — |
 | GET | `/api/admin/ruleset/reference` | requireRole(pmo) | the methodology composition enables (uncurated ⇒ all). |
 | POST | `/api/admin/ruleset/apply-reference` | requireRole(pmo) | (routes through applyRuleset → setRuleModes/setFieldRules). |
+| GET | `/api/admin/ruleset/scope` | requireRole(pmo) | GET the override stored at a programme/project scope (for the admin UI). |
+| PUT | `/api/admin/ruleset/scope` | requireRole(pmo) | policy: a scoped ruleset change is only permitted when the admin has opened `ruleset` variation to that depth. |
+
+### `artifacts/api-server/src/routes/scheduling.ts`
+
+The working-time policy for the (client-side, projected) scheduling engine, held in the composition model as a scope-layered `scheduling` config def (NOT a settings key — see lib/scoped-config).
+
+| Method | Path | Gate | Description |
+| --- | --- | --- | --- |
+| GET | `/api/scheduling/resolved` | — | — |
+| GET | `/api/scheduling` | requireAnyRole(pmo, admin) | — |
+| PUT | `/api/scheduling` | requireAnyRole(pmo, admin) | — |
 
 ### `artifacts/api-server/src/routes/scim.ts`
 
@@ -592,6 +1003,25 @@ SCIM 2.0 provisioning endpoints (RFC 7644).
 | PATCH | `/api/scim/v2/Groups/:id` | — | — |
 | DELETE | `/api/scim/v2/Groups/:id` | — | — |
 
+### `artifacts/api-server/src/routes/screen-defs.ts`
+
+Org-authored SCREEN DEFINITIONS (roadmap X.10 — screens convergence).
+
+| Method | Path | Gate | Description |
+| --- | --- | --- | --- |
+| GET | `/api/screen-defs` | — | — |
+| GET | `/api/screen-defs/resolved` | — | def-store screens, def store winning). |
+| PUT | `/api/screen-defs` | requireRole(pmo) | — |
+
+### `artifacts/api-server/src/routes/screen-layouts.ts`
+
+Per-screen saved LAYOUTS — the drag-customised arrangement (panel order / spans / hidden).
+
+| Method | Path | Gate | Description |
+| --- | --- | --- | --- |
+| GET | `/api/screen-layouts` | — | — |
+| PUT | `/api/screen-layouts` | requireRole(pmo) | — |
+
 ### `artifacts/api-server/src/routes/security.ts`
 
 Typed + bounded bodies for the admin write endpoints (untrusted input).
@@ -611,6 +1041,8 @@ Typed + bounded bodies for the admin write endpoints (untrusted input).
 | POST | `/api/security/data-residency/validate` | requireRole(admin) + requireStepUp | Admin + step-up; audited. |
 | GET | `/api/security/audit/anchor` | requireRole(admin) | the gateway says it does — and that the gateway attests to it. |
 | POST | `/api/security/audit/verify` | requireRole(admin) | recomputes the keyed hash chain and reports the first broken link, if any. |
+| GET | `/api/security/audit/log` | requireRole(admin) | whether it's durable at rest (a config dir is set) or RAM-only. |
+| POST | `/api/security/audit/log/dispose` | requireRole(admin) + requireStepUp | `historyRetention.retentionDays` (+ the hard cap). |
 | GET | `/api/admin/approvals` | requireRole(admin) | The pending proposals awaiting a second approver (any admin can view the queue). |
 | POST | `/api/admin/approvals/:id/approve` | requireRole(admin) + requireStepUp | from the proposer. |
 | POST | `/api/admin/approvals/:id/reject` | requireRole(admin) + requireStepUp | Reject a proposal (admin + step-up; any admin, incl. |
@@ -625,6 +1057,8 @@ Gateway-local settings (the broker URL, AI provider, …).
 | GET | `/api/settings/constraints` | — | grey out illegal choices proactively — same non-secret, read-safe audience as GET /settings. |
 | GET | `/api/settings/presets` | — | loads one as a starting point, then the operator tweaks + saves. |
 | PATCH | `/api/settings` | requireRole(admin) | Each change is versioned so it can be rolled back (see config-store). |
+| GET | `/api/settings/scope` | requireRole(admin) | GET a scope's stored settings override (the allow-listed keys it varies). |
+| PUT | `/api/settings/scope` | requireRole(admin) | are rejected (never stored); an invalid value is rejected by the same field validation as org settings. |
 
 ### `artifacts/api-server/src/routes/setup.ts`
 
@@ -638,7 +1072,7 @@ Setup-wizard + operations plane.
 | GET | `/api/setup/idp` | requireRole(admin) | the admin exactly how to give staff real accounts + roles. |
 | POST | `/api/setup/profile` | requireRole(admin) | Infra-level env (DEPLOYMENT_PROFILE) remains the source of truth across a fresh boot. |
 | GET | `/api/setup/self-host` | requireAnyRole(admin, pmo) | screen sees the same resolution the composition tier runs. |
-| POST | `/api/setup/self-host` | requireRole(admin) | un-acknowledged adoption. |
+| POST | `/api/setup/self-host` | requireRole(admin) | def (`self-host`) — the ack is the gate, so this applies immediately (never a sign-off), unchanged from before. |
 | POST | `/api/setup/charity-onboarding` | requireRole(admin) | one exists and the deployment is entitled to it. |
 
 ### `artifacts/api-server/src/routes/setup/catalogues.ts`
@@ -671,6 +1105,11 @@ Setup config-I/O plane — moving durable gateway config in and out: env/compose
 
 | Method | Path | Gate | Description |
 | --- | --- | --- | --- |
+| GET | `/api/setup/instance-key` | requireRole(admin) | GET /api/setup/instance-key — status: whether it's available, already revealed, and its non-secret fingerprint. |
+| POST | `/api/setup/instance-key/reveal` | requireRole(admin) + requireStepUp | POST /api/setup/instance-key/reveal — ONE-TIME reveal of the raw key (base64) for the operator to save. |
+| POST | `/api/setup/instance-key/rotate` | requireRole(admin) + requireStepUp | POST /api/setup/instance-key/rotate — mint + reveal a fresh key (invalidates the old for future backups). |
+| GET | `/api/setup/portable-backup` | requireRole(admin) + requireStepUp | GET /api/setup/portable-backup — the complete backup sealed under the IRK (ciphertext only). |
+| POST | `/api/setup/portable-restore` | requireRole(admin) + requireStepUp | POST /api/setup/portable-restore — { bundle, key } — decrypt the portable backup with the OLD key the operator saved, apply both halves, then ROTATE to a fresh key and return it (the "same reveal screen"). |
 | GET | `/api/setup/export` | requireRole(admin) | settings, so the operator can persist it in their environment. |
 | GET | `/api/setup/config-dir` | requireRole(admin) | `.old` backup's age — the SPA nudges the admin to clear it out once `stale`. |
 | POST | `/api/setup/config-dir/refresh` | requireRole(admin) + requireStepUp | running on a half-applied broken config. |
@@ -678,6 +1117,11 @@ Setup config-I/O plane — moving durable gateway config in and out: env/compose
 | GET | `/api/setup/config-bundle` | requireRole(admin) | effective config as the exact folder-of-JSON the loader reads (read ≡ dump). |
 | GET | `/api/setup/snapshot` | requireRole(admin) | GET /api/setup/snapshot — download a portable JSON backup of gateway config. |
 | POST | `/api/setup/restore` | requireRole(admin) | port/setup). |
+| GET | `/api/setup/defs-export` | requireRole(admin) + requireStepUp | plaintext the operator secures. |
+| POST | `/api/setup/defs-import` | requireRole(admin) + requireStepUp | Admin + a fresh step-up (a bulk write to every customer store), audited with the per-collection report. |
+| GET | `/api/setup/full-backup` | requireRole(admin) + requireStepUp | backup + your keys = the whole system state"). |
+| POST | `/api/setup/config-diff` | requireRole(admin) + requireStepUp | every store to build the live side — same surface as the export); read-only + content-free (no secrets emitted). |
+| POST | `/api/setup/full-restore` | requireRole(admin) + requireStepUp | a fresh step-up, audited. |
 | GET | `/api/setup/debug-bundle` | requireRole(admin) | mode (refused in production — dev mode is hard-gated off there), admin-only. |
 
 ### `artifacts/api-server/src/routes/setup/connections.ts`
@@ -706,6 +1150,15 @@ Setup environments plane — the sandbox → promote → rollback lifecycle over
 | POST | `/api/setup/versions/:id/known-good` | requireRole(admin) | POST /api/setup/versions/:id/known-good — pin a version as known-good. |
 | POST | `/api/setup/rollback` | requireRole(admin) | POST /api/setup/rollback { versionId? , toKnownGood? } — fast rollback. |
 
+### `artifacts/api-server/src/routes/severity-vocabulary.ts`
+
+Scope-overridable RAID/risk SEVERITY vocabulary ("how bad is it if this bites").
+
+| Method | Path | Gate | Description |
+| --- | --- | --- | --- |
+| GET | `/api/severity-vocabulary` | — | GET /api/severity-vocabulary — the effective RAID severity grades for this scope (any authed user). |
+| PUT | `/api/severity-vocabulary` | requireAnyRole(pmo, admin) | { levels?: [{ id, label?, order?, level?, methodologies?, color?, labels?, removed? }] }. |
+
 ### `artifacts/api-server/src/routes/snapshots.ts`
 
 Provably-immutable snapshots.
@@ -716,9 +1169,46 @@ Provably-immutable snapshots.
 | POST | `/api/snapshots/verify` | — | Verify a bundle (manifest + data) — recompute the hash and check the signature. |
 | GET | `/api/snapshots/key` | — | The public key a third party uses to verify a signed snapshot offline (no server round-trip). |
 
+### `artifacts/api-server/src/routes/stakeholders.ts`
+
+Stakeholder register store.
+
+| Method | Path | Gate | Description |
+| --- | --- | --- | --- |
+| GET | `/api/stakeholders/rows` | — | — |
+| GET | `/api/stakeholders` | requireAuth | Read the collection. |
+| PUT | `/api/stakeholders` | requireAuth | Replace the collection (write-guarded). |
+
+### `artifacts/api-server/src/routes/studio.ts`
+
+PRIMITIVE STUDIO routes — the AI authoring "skill" (roadmap X.2), behind the default-off `studio` module.
+
+| Method | Path | Gate | Description |
+| --- | --- | --- | --- |
+| GET | `/api/studio/status` | requireRole(contributor) | GET /api/studio/status — whether an AI provider is configured (the studio needs one). |
+| POST | `/api/studio/primitive` | requireRole(contributor) | POST /api/studio/primitive — generate + validate a candidate primitive from a description (contributor+). |
+
+### `artifacts/api-server/src/routes/system-defs.ts`
+
+The SYSTEM DEFAULTS update mechanism (roadmap X.11).
+
+| Method | Path | Gate | Description |
+| --- | --- | --- | --- |
+| GET | `/api/admin/system-defs` | requireRole(admin) | GET /api/admin/system-defs — a read-only summary of the installed shipped defaults (count per kind). |
+| POST | `/api/admin/system-defs/apply` | requireRole(admin) + requireStepUp | the content is always the approved-from-us catalogue, so this can't be used to inject custom system defs. |
+
+### `artifacts/api-server/src/routes/task-vocabulary.ts`
+
+Scope-overridable GTD task-status vocabulary (next-actions axis, distinct from the work-item/issue status axis).
+
+| Method | Path | Gate | Description |
+| --- | --- | --- | --- |
+| GET | `/api/task-vocabulary` | — | GET /api/task-vocabulary — the effective GTD task statuses for this scope (any authed user). |
+| PUT | `/api/task-vocabulary` | requireAnyRole(pmo, admin) | { statuses?: [{ id, label?, order?, class?, methodologies?, color?, labels?, removed? }] }. |
+
 ### `artifacts/api-server/src/routes/tasks.ts`
 
-The caller's identity tokens, for the personal-task owner check.
+Task routes — GTD actionable next-actions (distinct from issues): list/create/update, comments, attachments, plus recurring-task expansion on completion and the in-app reminder sweep.
 
 | Method | Path | Gate | Description |
 | --- | --- | --- | --- |
@@ -727,10 +1217,31 @@ The caller's identity tokens, for the personal-task owner check.
 | GET | `/api/tasks/:taskId` | — | GET /api/tasks/:taskId — one task, 404 if unknown, 403 if out of the caller's scope. |
 | POST | `/api/tasks` | requireRole(manager) | POST /api/tasks — create a next-action (manager+). |
 | PATCH | `/api/tasks/:taskId` | requireRole(manager) | PATCH /api/tasks/:taskId — update a task (manager+). |
+| POST | `/api/tasks/reminders/sweep` | requireRole(pmo) | the caller's scope, so a portfolio-wide sweep needs a portfolio (pmo/admin) caller. |
 | GET | `/api/tasks/:taskId/comments` | — | — |
 | POST | `/api/tasks/:taskId/comments` | requireRole(contributor) | — |
 | GET | `/api/tasks/:taskId/attachments` | — | — |
 | POST | `/api/tasks/:taskId/attachments` | requireRole(contributor) | — |
+
+### `artifacts/api-server/src/routes/templates.ts`
+
+Project TEMPLATES — the "spin up a project from a template" gallery.
+
+| Method | Path | Gate | Description |
+| --- | --- | --- | --- |
+| POST | `/api/templates/:id/instantiate` | requireRole(manager) | Instantiate a template: create a project + seed its work items. |
+| GET | `/api/templates` | requireAuth | Read the collection. |
+| PUT | `/api/templates` | requireAuth + requireAnyRole(admin, pmo) | Replace the collection (write-guarded). |
+
+### `artifacts/api-server/src/routes/timer.ts`
+
+LIVE TIMER routes (roadmap 3.3).
+
+| Method | Path | Gate | Description |
+| --- | --- | --- | --- |
+| GET | `/api/timer` | requireRole(contributor) | GET /api/timer — the caller's running timer + its live elapsed hours, or {running:false}. |
+| POST | `/api/timer/start` | requireRole(contributor) | POST /api/timer/start — start the caller's timer (replaces any already-running one). |
+| POST | `/api/timer/stop` | requireRole(contributor) | POST /api/timer/stop — stop the caller's timer and return the timesheet entry it produced (or 404 if none). |
 
 ### `artifacts/api-server/src/routes/timesheets.ts`
 
@@ -760,6 +1271,30 @@ Capability governance plane — the admin-set deployment state (off / user-defin
 | POST | `/api/governance/:id/test` | requireRole(admin) | request body, or the one already stored for the capability. |
 | PUT | `/api/governance/:id` | requireRole(admin) + requireStepUp | it can be rolled back like any other config change. |
 
+### `artifacts/api-server/src/routes/usage.ts`
+
+External-API USAGE + LIMITS surface.
+
+| Method | Path | Gate | Description |
+| --- | --- | --- | --- |
+| GET | `/api/usage` | requireAnyRole(pmo, admin) | — |
+| POST | `/api/usage/notify` | requireAnyRole(pmo, admin) | POST /usage/notify — the shortcut: compute each vendor's current usage-vs-limit and push a notification (targeted to the caller) summarising anything at/over 50/75/90/100%. |
+| GET | `/api/usage/policies` | requireAuth | Read the collection. |
+| PUT | `/api/usage/policies` | requireAuth + requireAnyRole(pmo, admin) | Replace the collection (write-guarded). |
+
+### `artifacts/api-server/src/routes/users.ts`
+
+NATIVE USER MANAGEMENT (admin) — create/manage in-app users + assign their groups (which map to roles the same way IdP claims do), so a deployment can run WITHOUT an external IdP.
+
+| Method | Path | Gate | Description |
+| --- | --- | --- | --- |
+| GET | `/api/users` | requireRole(admin) | — |
+| POST | `/api/users` | requireRole(admin) | — |
+| PATCH | `/api/users/:id` | requireRole(admin) | — |
+| POST | `/api/users/:id/password` | requireRole(admin) | — |
+| DELETE | `/api/users/:id/password` | requireRole(admin) | — |
+| DELETE | `/api/users/:id` | requireRole(admin) | — |
+
 ### `artifacts/api-server/src/routes/views.ts`
 
 Saved views — named filter/sort/column/grouping presets.
@@ -779,4 +1314,52 @@ SPDX-License-Identifier: LicenseRef-OmniProject-Premium Premium feature — gove
 | POST | `/api/webhooks` | requireRole(admin) + requireStepUp + requireEntitlement(webhooks) | — |
 | DELETE | `/api/webhooks/:id` | requireRole(admin) + requireStepUp | — |
 | POST | `/api/webhooks/:id/test` | requireRole(admin) + requireEntitlement(webhooks) | — |
+
+### `artifacts/api-server/src/routes/whiteboard.ts`
+
+WHITEBOARDS / visual canvas (roadmap 2.3).
+
+| Method | Path | Gate | Description |
+| --- | --- | --- | --- |
+| GET | `/api/whiteboards` | requireRole(viewer) | the sidecar. |
+| GET | `/api/whiteboards/:id` | requireRole(viewer) | GET /api/whiteboards/:id — one board with its scene (viewer+); the id encodes which store to read. |
+| POST | `/api/whiteboards` | requireRole(contributor) | POST /api/whiteboards — create a board in the chosen storage target (contributor+). |
+| PUT | `/api/whiteboards/:id` | requireRole(contributor) | PUT /api/whiteboards/:id — update a board in place (contributor+); the id governs which store is written. |
+| DELETE | `/api/whiteboards/:id` | requireRole(contributor) | DELETE /api/whiteboards/:id — remove a board (contributor+; the org target additionally needs manager+). |
+| GET | `/api/whiteboards/rooms/:roomId/stream` | requireRole(viewer) | GET /api/whiteboards/rooms/:roomId/stream — join a board's live-cursor room, receive peers' cursors (viewer+). |
+| POST | `/api/whiteboards/rooms/:roomId` | requireRole(viewer) | Body: { cid, msg: { x, y } }. |
+
+### `artifacts/api-server/src/routes/wiki.ts`
+
+WIKI / collaborative docs (roadmap 2.1).
+
+| Method | Path | Gate | Description |
+| --- | --- | --- | --- |
+| GET | `/api/wiki/spaces` | requireRole(viewer) | any spaceId referenced by accessible JSON docs (so a JSON-only deployment can still group + create) (viewer+). |
+| GET | `/api/wiki/docs` | requireRole(viewer) | the caller's private area, the org area, a requested project's area (when in scope) and the sidecar (viewer+). |
+| GET | `/api/wiki/docs/:id` | requireRole(viewer) | GET /api/wiki/docs/:id — one document with its blocks + resolved backlinks (viewer+). |
+| GET | `/api/wiki/docs/:id/versions` | requireRole(viewer) | GET /api/wiki/docs/:id/versions — the document's saved revisions, newest first (viewer+). |
+| GET | `/api/wiki/docs/:id/versions/:versionId` | requireRole(viewer) | GET /api/wiki/docs/:id/versions/:versionId — one revision with its blocks, for preview / diff / restore (viewer+). |
+| POST | `/api/wiki/docs` | requireRole(contributor) | POST /api/wiki/docs — create a document in the chosen storage target (contributor+). |
+| PUT | `/api/wiki/docs/:id` | requireRole(contributor) | PUT /api/wiki/docs/:id — update a document in place (contributor+); the id governs which store is written. |
+| DELETE | `/api/wiki/docs/:id` | requireRole(contributor) | DELETE /api/wiki/docs/:id — remove a document (contributor+; the org target additionally needs manager+). |
+
+### `artifacts/api-server/src/routes/work-vocabulary.ts`
+
+Scope-overridable work-item vocabulary (statuses + priorities).
+
+| Method | Path | Gate | Description |
+| --- | --- | --- | --- |
+| GET | `/api/work-vocabulary` | — | GET /api/work-vocabulary — the effective statuses + priorities for this scope (any authed user). |
+| PUT | `/api/work-vocabulary` | requireAnyRole(pmo, admin) | { statuses?: [{ id, label?, order? }], priorities?: [{ id, label?, order? }] }. |
+
+### `artifacts/api-server/src/routes/workflows.ts`
+
+WORKFLOW authoring + running (design §5).
+
+| Method | Path | Gate | Description |
+| --- | --- | --- | --- |
+| POST | `/api/workflows/:id/run` | — | — |
+| GET | `/api/workflows` | requireAuth | Read the collection. |
+| PUT | `/api/workflows` | requireAuth + requireRole(pmo) | Replace the collection (write-guarded). |
 

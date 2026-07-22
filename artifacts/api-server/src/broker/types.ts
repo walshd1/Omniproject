@@ -607,6 +607,57 @@ export interface SchemaManifest {
   populated?: string[];
 }
 
+// ── Native handoff (companion-app bridge) — see docs/NATIVE-HANDOFF.md ──────────────────────────────────────
+/** An artifact kind OmniProject renders inline and a backend can front NATIVELY (Miro, Notion, …). Matches
+ *  our primitive/artifact kinds so the SPA can offer "Use native" on the right surfaces. */
+export type NativeSurfaceKind =
+  | "whiteboard" | "document" | "diagram" | "sheet" | "board"
+  | "schedule" | "dashboard" | "report" | "form" | "wiki";
+
+/** What a connected backend advertises it can do natively for a given artifact kind. Pure metadata — no
+ *  secrets, no URLs (URLs are minted per-request by `nativeHandoff`, host-allowlisted server-side). */
+export interface NativeSurface {
+  kind: NativeSurfaceKind;
+  vendor: string;                 // catalogue vendor id, e.g. "miro", "notion", "smartsheet"
+  label: string;                  // "Open in Miro"
+  actions: Array<"open" | "create" | "embed">;
+  /** How the artifact comes back: "reference" (a bare link; always available, zero-at-rest),
+   *  "content" (pull data via the vendor API), or "screenshot" (capture + AI vision). */
+  importMode: "reference" | "content" | "screenshot";
+}
+
+/** Anchor: WHAT OmniProject entity the native surface is bound to, so a reimport attaches back. */
+export interface NativeContextRef {
+  projectId?: string;
+  issueId?: string;
+  entity?: string;
+  id?: string;
+}
+
+export interface NativeHandoffRequest {
+  kind: NativeSurfaceKind;
+  vendor: string;
+  action: "open" | "create" | "embed";
+  contextRef?: NativeContextRef;
+  externalRef?: string;           // for "open": deep-link to an artifact from a prior import
+}
+
+/** The vetted, connector-minted handoff. `url` is built by the connector against the vendor's REAL domain
+ *  (host-allowlisted) — never from user input. `embedUrl` is the vendor's sandboxed Live-Embed, if any. */
+export interface NativeHandoff {
+  url: string;
+  embedUrl?: string;
+  handoffId: string;
+}
+
+export interface NativeImportRequest {
+  kind: NativeSurfaceKind;
+  vendor: string;
+  handoffId?: string;             // correlate a just-completed handoff…
+  externalRef?: string;           // …or import a known external artifact by id/url
+  target: { projectId: string; issueId?: string };
+}
+
 /**
  * The broker contract. Domain operations only — implementers translate to/from
  * their transport. `kind` and `live` are for diagnostics, not behaviour.
@@ -738,4 +789,61 @@ export interface Broker {
    * back to the env/Docker-secret scaffolding.
    */
   storeCredential?(ctx: ActorContext, input: { backend: string; name: string; value: string }): Promise<{ stored: boolean; ref?: string }>;
+
+  // ── Native handoff (companion-app bridge) — OPTIONAL. A connector implements only what it fronts; the
+  //    routes answer 501/empty when absent. See docs/NATIVE-HANDOFF.md. A NEW capability, not a new boundary:
+  //    handoff URLs are connector-minted + host-allowlisted; the reimport is a normal broker read/write.
+  /** The native surfaces this backend fronts (unioned across connected backends, capability-gating the SPA's
+   *  "Use native" affordance). */
+  nativeSurfaces?(ctx: ActorContext): Promise<NativeSurface[]>;
+  /** Mint the vetted vendor handoff URL — built against the vendor's real domain (host-allowlisted); the user
+   *  opens it in THEIR OWN browser and authenticates to the vendor directly (we never wrap its auth screen). */
+  nativeHandoff?(ctx: ActorContext, req: NativeHandoffRequest): Promise<NativeHandoff>;
+  /** Bring the native artifact back THROUGH the broker: a reference (importMode "reference") or enriched
+   *  content. Returns the attachment written to `target`; sanitised + provenance-stamped + audited. */
+  nativeImport?(ctx: ActorContext, req: NativeImportRequest): Promise<TaskAttachment>;
+
+  // ── SAP / ERP project + finance READ MODELS (docs/SAP-CONNECTOR.md §4.6) — OPTIONAL. A connector that fronts
+  //    an ERP (SAP S/4HANA) implements these; every other backend omits them and the routes answer 501/empty.
+  //    READ-ONLY references + numbers from the system of record — SAP keeps the ledger; we never post, never
+  //    settle, never store the values at rest.
+  /** The WBS elements (the project cost-structure tree; `parentId` gives the nesting). */
+  listWbsElements?(ctx: ActorContext, projectId: string): Promise<WbsElement[]>;
+  /** The financial roll-up for one WBS element (actual / commitment / budget / WIP / planned), read from the ERP. */
+  getWbsFinancials?(ctx: ActorContext, wbsId: string): Promise<WbsFinancials | null>;
+
+  // Dependency graph (roadmap §5.5): NOT a bespoke broker entity. A dependency edge is a row in the generic
+  //   `dependencies` mapping slot (`{fromId, toId, kind, note}`), read/written/deleted through the SAME generic
+  //   mapping + sidecar surface every other slot uses (`/mapping/:slot/rows`, `PUT`/`DELETE /mapping/:slot/:rowId`).
+  //   Nothing methodology- or agile-specific lives on the engine contract.
+}
+
+/**
+ * SAP read model — a WBS element in a project's cost structure (docs/SAP-CONNECTOR.md §4.6). SAP owns these;
+ * we render them by reference (the id is the cost-collecting key), never copying at rest.
+ */
+export interface WbsElement {
+  id: string;
+  projectId: string;
+  parentId: string | null;
+  name: string;
+  level: number;
+  /** SAP system/user status label (display-only). */
+  status?: string;
+  responsible?: string | null;
+}
+
+/**
+ * SAP read model — the financial roll-up for one WBS element, READ from SAP's ledger (ACDOCA). We never post
+ * or settle; all amounts are in `currency`. `available` = budget − (actual + commitment).
+ */
+export interface WbsFinancials {
+  wbsId: string;
+  currency: string;
+  budget: number;
+  actual: number;
+  commitment: number;
+  wip: number;
+  planned: number;
+  available: number;
 }

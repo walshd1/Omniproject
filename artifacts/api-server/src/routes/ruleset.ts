@@ -3,13 +3,14 @@ import { requireRole } from "../lib/rbac";
 import { rulesetCatalogue, setRuleModes, getFieldRules, setFieldRules, applyRuleset } from "../lib/ruleset";
 import { referenceRulesetCatalogue, getReferenceRuleset } from "@workspace/backend-catalogue";
 import { recordRequestAudit } from "../lib/audit";
-import { getSettings } from "../lib/settings";
+import { resolveMethodologyComposition, assertDelegationAllowed, DelegationDeniedError, type ConfigWriteScope } from "../lib/scoped-config";
+import { getRulesetOverride, setRulesetOverride } from "../lib/ruleset-scope";
 import { v, parseOr400 } from "../lib/validate";
 
 /** Whether a methodology's reference ruleset is enabled by the methodology composition. The composition
  *  stores enabled item ids as `ruleset:<methodology>`; `null` = uncurated (everything enabled). */
 function rulesetInComposition(methodology: string): boolean {
-  const composition = getSettings().methodologyComposition;
+  const composition = resolveMethodologyComposition();
   return composition === null || composition.includes(`ruleset:${methodology}`);
 }
 
@@ -99,5 +100,48 @@ router.post("/admin/ruleset/apply-reference", requireRole("pmo"), (req, res) => 
 function rulesetCatalogueWithFields() {
   return { rules: rulesetCatalogue(), fieldRules: getFieldRules() };
 }
+
+// ── Scoped ruleset overrides — a programme/project may TIGHTEN the org ruleset (never loosen) ──────────────
+// The scope for a scoped-ruleset op: a programme or project named in the body/query. Throws on a bad shape.
+function rulesetScope(src: { programmeId?: unknown; projectId?: unknown } | undefined): ConfigWriteScope {
+  const programmeId = typeof src?.programmeId === "string" && src.programmeId ? src.programmeId : undefined;
+  const projectId = typeof src?.projectId === "string" && src.projectId ? src.projectId : undefined;
+  if (programmeId && projectId) throw new Error("name only one of programmeId / projectId");
+  if (programmeId) return { kind: "programme", programmeId };
+  if (projectId) return { kind: "project", projectId };
+  throw new Error("name a programmeId or projectId");
+}
+
+// GET the override stored at a programme/project scope (for the admin UI). Restrict-only by construction.
+router.get("/admin/ruleset/scope", requireRole("pmo"), (req, res) => {
+  let scope: ConfigWriteScope;
+  try { scope = rulesetScope(req.query as { programmeId?: unknown; projectId?: unknown }); }
+  catch (e) { res.status(400).json({ error: e instanceof Error ? e.message : "invalid scope" }); return; }
+  res.json({ scope: scope.kind, override: getRulesetOverride(scope) ?? { modes: {}, fieldRules: [] } });
+});
+
+// PUT a scope's ruleset override — TIGHTEN-ONLY (raise a mode, require more fields). Gated by the delegation
+// policy: a scoped ruleset change is only permitted when the admin has opened `ruleset` variation to that depth.
+router.put("/admin/ruleset/scope", requireRole("pmo"), (req, res) => {
+  const body = (req.body ?? {}) as { programmeId?: unknown; projectId?: unknown; override?: unknown };
+  let scope: ConfigWriteScope;
+  try { scope = rulesetScope(body); }
+  catch (e) { res.status(400).json({ error: e instanceof Error ? e.message : "invalid scope" }); return; }
+  try { assertDelegationAllowed("ruleset", scope); }
+  catch (e) {
+    if (e instanceof DelegationDeniedError) { res.status(403).json({ error: e.message, code: "delegation_denied", area: e.area, allowed: e.allowed, attempted: e.attempted }); return; }
+    throw e;
+  }
+  const o = (body.override ?? {}) as { modes?: Record<string, unknown>; fieldRules?: unknown };
+  const saved = setRulesetOverride(scope, {
+    modes: (o.modes ?? {}) as Record<string, import("../lib/ruleset").RuleMode>,
+    fieldRules: Array.isArray(o.fieldRules) ? (o.fieldRules as import("../lib/ruleset").FieldRule[]) : [],
+  });
+  recordRequestAudit(req, {
+    category: "admin", action: "ruleset_scope_override", result: "success", status: 200,
+    meta: { scope: scope.kind, modes: Object.keys(saved.modes ?? {}).length, fieldRules: saved.fieldRules?.length ?? 0 },
+  });
+  res.json({ scope: scope.kind, override: saved });
+});
 
 export default router;

@@ -18,6 +18,7 @@ function seed(role: string | undefined): QueryClient {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity, gcTime: Infinity } } });
   if (role) qc.setQueryData(["auth", "me"], { sub: "u1", role });
   qc.setQueryData(["security-keys"], { keys: KEYS });
+  qc.setQueryData(["audit-log"], { retained: 1234, retentionDays: 90, oldest: "2026-01-01T00:00:00Z", newest: "2026-07-17T00:00:00Z", durable: true, cap: 200000 });
   return qc;
 }
 
@@ -133,6 +134,24 @@ describe("SecurityKeys — maintenance, export, and session actions", () => {
       expect(JSON.parse(String(call!.init!.body))).toEqual({ engaged: true, reason: "incident" });
     });
     expect(await screen.findByTestId("maintenance-release")).toBeInTheDocument();
+  });
+
+  it("shows the audit evidence log status and disposes it behind a confirm + step-up", async () => {
+    const calls = mockFetchRouter({
+      "POST /api/security/audit/log/dispose": { ok: true, body: { disposed: 12, remaining: 1222 } },
+    });
+    renderWithProviders(<SecurityKeys />, { client: seed("admin") });
+    expect(screen.getByTestId("audit-log")).toBeInTheDocument();
+    expect(screen.getByText(/1,234 retained event/)).toBeInTheDocument();
+    expect(screen.getByText(/retention 90 day/)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("dispose-audit-log"));
+    const dialog = await screen.findByRole("alertdialog");
+    fireEvent.click(within(dialog).getByRole("button", { name: /dispose now/i }));
+    await waitFor(() => {
+      const call = calls.find((c) => c.url.includes("/api/security/audit/log/dispose") && c.init?.method === "POST");
+      expect(call).toBeTruthy();
+    });
   });
 
   it("lifts maintenance lockdown directly (no confirm dialog) when already engaged", async () => {

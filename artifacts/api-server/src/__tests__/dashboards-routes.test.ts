@@ -3,9 +3,10 @@ import assert from "node:assert/strict";
 import { startHarness, adminCookie, memberCookie, type Harness } from "./_harness";
 
 /**
- * routes/dashboards.ts over the REAL app. Dashboards are benign, customer-level presentation
- * config any authenticated user may read/save, so there is no role branch to exercise — the
- * reachable branches are the read, the valid save, and the settings-validation 400.
+ * routes/dashboards.ts over the REAL app. Dashboards are now DEFINITIONS authored through the importer
+ * (X.10), so this LEGACY settings route is read-only plus a single permitted write — draining the slice to
+ * `[]` (the migration). A non-empty write is a retired bypass → 410. We cover: the read, the allowed drain,
+ * the 410 on a real dashboard write, and the pmo write-gate.
  */
 let h: Harness;
 const ADMIN = adminCookie();
@@ -29,21 +30,27 @@ test("GET /dashboards returns the (empty by default) dashboard list", async () =
   assert.ok(Array.isArray(body.dashboards));
 });
 
-test("PUT /dashboards saves a valid dashboard and reads it back", async () => {
+test("PUT /dashboards with real dashboards is a retired bypass → 410 (author via the importer)", async () => {
   const dashboards = [{ id: "d1", name: "Delivery", widgets: [{ id: "w1", type: "burndown" }] }];
   const r = await req("/dashboards", { method: "PUT", body: { dashboards } });
-  assert.equal(r.status, 200);
-  const saved = (await r.json()) as { dashboards: { id: string }[] };
-  assert.deepEqual(saved.dashboards.map((d) => d.id), ["d1"]);
-  const readBack = (await (await req("/dashboards")).json()) as { dashboards: { id: string }[] };
-  assert.deepEqual(readBack.dashboards.map((d) => d.id), ["d1"]);
+  assert.equal(r.status, 410);
+  const body = (await r.json()) as { error: string };
+  assert.ok(/importer|definition/i.test(body.error));
+  // …and nothing was persisted through the retired path.
+  const readBack = (await (await req("/dashboards")).json()) as { dashboards: unknown[] };
+  assert.deepEqual(readBack.dashboards, []);
 });
 
-test("PUT /dashboards with a non-array payload → 400 (settings validation)", async () => {
+test("PUT /dashboards accepts the empty drain (the one-time migration to definitions)", async () => {
+  const r = await req("/dashboards", { method: "PUT", body: { dashboards: [] } });
+  assert.equal(r.status, 200);
+  const body = (await r.json()) as { dashboards: unknown[] };
+  assert.deepEqual(body.dashboards, []);
+});
+
+test("PUT /dashboards with a non-array payload is refused (410, not a write)", async () => {
   const r = await req("/dashboards", { method: "PUT", body: { dashboards: "not-an-array" } });
-  assert.equal(r.status, 400);
-  const body = (await r.json()) as { error: string };
-  assert.ok(/array/.test(body.error));
+  assert.equal(r.status, 410);
 });
 
 test("dashboards write is gated to pmo (reads stay open) under real RBAC", async () => {

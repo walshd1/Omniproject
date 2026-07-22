@@ -1,7 +1,8 @@
 import { Router, type Request, type RequestHandler } from "express";
 import { getActionDef, recipeMutates, type AutomationRecipe } from "@workspace/backend-catalogue";
-import { getSettings } from "../lib/settings";
+import { normalisedBy } from "../lib/settings";
 import { settingsCollectionRouter } from "../lib/settings-collection-router";
+import { readConfigCollection } from "../lib/scoped-config";
 import { validateAutomations, compileRecipe, matchesConditions, recipeRequirements, actionProjectId, AutomationError } from "../lib/automation";
 import { grantsForReq, grantsSatisfy } from "../lib/rbac";
 import { assertProjectScope } from "../lib/project-scope";
@@ -92,7 +93,7 @@ router.post("/automations/preview", async (req, res) => {
  */
 router.post("/automations/:id/run", async (req, res) => {
   const id = String((req.params as { id?: unknown }).id ?? "");
-  const recipe = (getSettings().automations ?? []).find((r) => r.id === id);
+  const recipe = readConfigCollection<AutomationRecipe[]>("automations", []).find((r) => r.id === id);
   if (!recipe || recipe.enabled === false) { res.status(404).json({ error: "Automation not found" }); return; }
 
   const denial = await authorDenial(req, recipe);
@@ -115,7 +116,9 @@ router.post("/automations/:id/run", async (req, res) => {
 // The recipe store — read open (the SPA lists them), write gated to what the author may edit.
 router.use(settingsCollectionRouter({
   path: "/automations",
-  settingsKey: "automations",
+  responseKey: "automations",
+  configId: "automations", // config-def-backed (CHOICE) — no longer a settings key
+  validate: normalisedBy((v) => validateAutomations(v), AutomationError),
   versionLabel: "automations updated",
   writeGuards: [gateAutomationPermissions],
 }));

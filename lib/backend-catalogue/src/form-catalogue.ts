@@ -9,6 +9,7 @@
  * "built-in catalogue + org override" split screens use.
  */
 import { matchesMethodology } from "./methodology-match";
+import { FORMS_DATA } from "./forms.generated";
 
 /**
  * The supported field input types — each is effectively a small CLASS: its config are properties (options,
@@ -80,40 +81,15 @@ export interface FormDefinition {
   enabled?: boolean;
   /** Methodology tags — "*"/omitted = neutral (all). */
   methodologies?: string[];
+  /** COMPOSITION: the id of a parent form this one is built on (see def-compose). A customer fork records its
+   *  parent here so the importer traces its ancestry + guards the chain. Omitted = a root/template form. */
+  extends?: string;
 }
 
-/** The shipped form TEMPLATES, in display order. Untargeted — an admin binds `target.projectId`. */
-export const FORMS: FormDefinition[] = [
-  {
-    id: "intake-request",
-    label: "Work request",
-    description: "Submit a new piece of work for triage.",
-    submitLabel: "Submit request",
-    methodologies: ["*"],
-    fields: [
-      { key: "summary", label: "Summary", type: "text", mapTo: "title", required: true, placeholder: "Short title for the request", maxLength: 200 },
-      { key: "details", label: "What do you need?", type: "textarea", mapTo: "description", required: true, maxLength: 4000 },
-      { key: "priority", label: "Priority", type: "select", mapTo: "priority", options: ["low", "medium", "high", "urgent"], required: true },
-      { key: "neededBy", label: "Needed by", type: "date", mapTo: "dueDate" },
-      { key: "requestedBy", label: "Requested by", type: "text", mapTo: "description", maxLength: 120 },
-    ],
-    target: { kind: "issue", status: "triage", labels: ["intake"] },
-  },
-  {
-    id: "change-request",
-    label: "Change request",
-    description: "Request a change to an in-flight project (governance intake).",
-    submitLabel: "Raise change",
-    methodologies: ["prince2", "waterfall", "governance"],
-    fields: [
-      { key: "summary", label: "Change summary", type: "text", mapTo: "title", required: true, maxLength: 200 },
-      { key: "rationale", label: "Rationale / business case", type: "textarea", mapTo: "description", required: true, maxLength: 4000 },
-      { key: "impact", label: "Impact", type: "select", mapTo: "impact", options: ["low", "medium", "high"], required: true },
-      { key: "urgency", label: "Urgency", type: "select", mapTo: "urgency", options: ["low", "medium", "high"], required: true },
-    ],
-    target: { kind: "issue", status: "triage", labels: ["change-request"] },
-  },
-];
+/** The shipped form TEMPLATES — authored as JSON under assets/forms/ and generated into `forms.generated.ts`
+ *  (mirrors reports/screens/views, per this module's own "form is a neutral JSON definition" principle). Add a
+ *  form by dropping a JSON file, not by editing code. Untargeted — an admin binds `target.projectId`. */
+export const FORMS: FormDefinition[] = FORMS_DATA;
 
 /** The issue fields a form field may map onto (`FormFieldDef.mapTo`). The single source both the server
  *  validator and the admin builder's "maps to" picker draw from. `description`/`labels` aggregate several
@@ -122,6 +98,10 @@ export const ISSUE_WRITE_TARGETS = [
   "title", "description", "priority", "assignee", "labels", "dueDate", "startDate",
   "storyPoints", "estimateHours", "budget", "impact", "urgency", "riskLevel", "healthStatus",
 ] as const;
+
+/** The targets that AGGREGATE several fields (many-to-one) — every other target is scalar (one field each).
+ *  Single source of truth for the form uniqueness rule (the `except` set of its unique constraint). */
+export const FORM_AGGREGATING_TARGETS = ["description", "labels"] as const;
 
 const byId = new Map(FORMS.map((f) => [f.id, f]));
 

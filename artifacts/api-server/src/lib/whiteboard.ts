@@ -14,6 +14,8 @@ import { getBroker, contextFromReq } from "../broker";
 import type { ActorContext, Whiteboard, WhiteboardMeta, WhiteboardWrite, WhiteboardScene } from "../broker/types";
 import type { StorageTarget } from "./artifact-store";
 import { makeScopedId, parseScopedId, scopeFromParsed, isStorageTarget } from "./artifact-store";
+import { sanitizeText as cleanText } from "./coerce";
+import { actorLabel } from "./actor";
 import {
   CANVAS_ELEMENT_TYPES, CANVAS_LIMITS, SHAPE_KINDS, STICKY_COLORS,
   type CanvasElement, type CanvasElementType, type ShapeKind, type StickyColor,
@@ -46,15 +48,19 @@ export interface SanitizedWhiteboardWrite {
 /** Build a self-describing whiteboard id (shared scoped-id primitive). */
 export const makeWhiteboardId = makeScopedId;
 
-/** Parse a self-describing whiteboard id back to its storage + parts, or null if malformed. */
-export const parseWhiteboardId = parseScopedId;
+/** Parse a self-describing whiteboard id back to its storage + parts, or null if malformed / not a whiteboard
+ *  target (the def-only `programme` tier is rejected — a whiteboard is never programme-scoped). */
+export function parseWhiteboardId(id: string): { storage: StorageTarget; projectId?: string; localId: string } | null {
+  const p = parseScopedId(id);
+  if (!p || !isStorageTarget(p.storage)) return null;
+  return p.projectId !== undefined
+    ? { storage: p.storage, projectId: p.projectId, localId: p.localId }
+    : { storage: p.storage, localId: p.localId };
+}
 
 /** The encrypted-JSON scope for a non-sidecar id. The caller's OWN sub is always used for a user board, so
  *  the id can never address another user's private area. */
 export const whiteboardScope = scopeFromParsed;
-
-/** A board's actor label for the audit `updatedBy` field (email > name > sub). */
-const actorLabel = (ctx: ActorContext): string | null => ctx.email ?? ctx.name ?? ctx.sub ?? null;
 
 /**
  * Build the row for a NEW board destined for an encrypted-JSON store. The owner is stamped from `ctx.sub`
@@ -105,19 +111,6 @@ const SAFE_LINK_SCHEMES = new Set(["http:", "https:", "mailto:"]);
 /** Coordinates are clamped to a finite range so a rogue value can't blow up a renderer. */
 const COORD_MIN = -1_000_000;
 const COORD_MAX = 1_000_000;
-
-/** Strip control characters and cap length on a free-text value (note text, board name). */
-function cleanText(value: unknown, max: number): string {
-  if (typeof value !== "string") return "";
-  let out = "";
-  for (const ch of value) {
-    const c = ch.codePointAt(0)!;
-    const printable = c === 9 || c === 10 || (c >= 32 && c !== 127 && !(c >= 128 && c <= 159));
-    if (printable) out += ch;
-    if (out.length >= max) break;
-  }
-  return out.slice(0, max);
-}
 
 /** A finite number clamped to the canvas coordinate range (defaulted when absent/NaN). */
 function coord(v: unknown, def = 0): number {

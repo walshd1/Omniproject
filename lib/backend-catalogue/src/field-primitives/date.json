@@ -1,0 +1,6 @@
+{
+  "id": "date",
+  "extends": "form-field",
+  "label": "Date",
+  "params": []
+}

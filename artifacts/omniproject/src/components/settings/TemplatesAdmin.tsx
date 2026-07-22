@@ -32,12 +32,14 @@ export function TemplatesAdmin() {
   const save = useSaveTemplates();
   const { toast } = useToast();
   const [, navigate] = useLocation();
-  const { draft, setDraft, dirty, reset } = useDraftAdmin<Template[], Template[]>(server, structuredClone);
+  const { draft, setDraft, dirty, reset } = useDraftAdmin<Template[], Template[]>(server);
   const [names, setNames] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState<string | null>(null);
   const org = draft ?? [];
   // The gallery merges the shipped catalogue with the org's (draft) overrides so edits show live.
-  const resolved = useMemo(() => resolveProjectTemplates(org), [org]);
+  // Fold `draft ?? []` inside and depend on `draft` — an `org` intermediate is a fresh `[]` on the
+  // null tick, which would thrash this memo.
+  const resolved = useMemo(() => resolveProjectTemplates(draft ?? []), [draft]);
 
   if (!roleAtLeast(auth?.role, "manager")) return null;
   const canEdit = isPmoOrAdmin(auth?.role);

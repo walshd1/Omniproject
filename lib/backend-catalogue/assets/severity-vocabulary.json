@@ -1,0 +1,6 @@
+[
+  { "id": "low", "label": "Low", "order": 0, "level": 1, "color": "#22c55e" },
+  { "id": "medium", "label": "Medium", "order": 1, "level": 2, "color": "#f59e0b" },
+  { "id": "high", "label": "High", "order": 2, "level": 3, "color": "#ef4444" },
+  { "id": "critical", "label": "Critical", "order": 3, "level": 4, "color": "#b91c1c" }
+]

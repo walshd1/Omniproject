@@ -13,13 +13,11 @@
  */
 import fs from "node:fs";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { REPO_ROOT as ROOT } from "./lib/repo-root";
 import { type JsonSchema } from "../../lib/backend-catalogue/src/vendor-schema";
 import { loadGroup, emitRegistry, type AssetGroup } from "./lib/gen-registry";
 import { checkCatalogueFreeze } from "./lib/backend-freeze";
 
-const HERE = path.dirname(fileURLToPath(import.meta.url));
-const ROOT = path.resolve(HERE, "../..");
 const VENDORS = path.join(ROOT, "lib/backend-catalogue/vendors");
 const OUT_TS = path.join(ROOT, "lib/backend-catalogue/src/vendors.generated.ts");
 const OUT_SCHEMAS = path.join(ROOT, "lib/backend-catalogue/src/vendor-schemas.generated.ts");

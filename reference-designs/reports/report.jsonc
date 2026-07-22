@@ -1,0 +1,39 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// REFERENCE SKELETON — a custom REPORT
+//
+// A commented skeleton to copy & adapt (never loaded by the app). A report is a
+// declarative query plus a visualisation — no code, curated for reuse. It
+// references a PRIMITIVE (see ../primitives/) rather than embedding a chart, so it
+// inherits any primitive improvements automatically.
+// ─────────────────────────────────────────────────────────────────────────────
+{
+  "kind": "report",
+  "name": "<Human name>",           // e.g. "Open work by assignee"
+  "publisher": "<Your team/org>",
+  "version": "1.0.0",
+  "description": "<One line: the question this report answers>",
+  "tags": ["report", "<domain>"],
+
+  "payload": {
+    "id": "<report-id>",
+    "label": "<Report title>",
+    "description": "<Longer help text>",
+
+    // The declarative data request the report engine runs.
+    "query": {
+      "entity": "issue",            // what to count/aggregate
+      "filter": { "status": "open" },
+      "groupBy": "assignee",
+      "measure": "count"            // count | sum:<field> | avg:<field> | …
+    },
+
+    // How to draw it: name a primitive `id` and map query columns onto its inputs.
+    "viz": {
+      "primitive": "bar",           // a primitive id (see ../primitives/)
+      "map": {
+        "data": "$rows",            // $rows = the query result set
+        "series": [{ "key": "count", "label": "<Series label>" }]
+      }
+    }
+  }
+}

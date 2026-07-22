@@ -6,7 +6,7 @@ process.env["WEBAUTHN_RP_ID"] = "omni.test";
 process.env["WEBAUTHN_ORIGIN"] = "https://omni.test";
 process.env["SCIM_TOKEN"] = "test-scim-token-000000000000"; // ≥ MIN_SCIM_TOKEN_LEN (24): enable the IdP directory so offboarding voids an acceptance
 
-const { registerCredential } = await import("./passkey");
+const { registerCredential, revokeCredentials } = await import("./passkey");
 const { getSettings, updateSettings } = await import("./settings");
 const { workflowContentHash } = await import("./responsibility-acceptance");
 const {
@@ -50,54 +50,66 @@ test("workflowContentHash changes when the workflow's steps change", () => {
   assert.equal(workflowContentHash(WF), h1); // stable
 });
 
-test("default-DENY: no acceptance ⇒ AI approval is refused with a 'must sign' reason", () => {
-  assert.equal(activeAcceptanceFor("wf-1"), null);
-  const auth = aiApprovalAuthorization("wf-1");
+test("default-DENY: no acceptance ⇒ AI approval is refused with a 'must sign' reason", async () => {
+  assert.equal(await activeAcceptanceFor("wf-1"), null);
+  const auth = await aiApprovalAuthorization("wf-1");
   assert.equal(auth.ok, false);
   assert.match(auth.reason!, /must review the workflow and passkey-sign/);
 });
 
 test("a passkey-signed acceptance authorizes AI approval for that exact version", async () => {
   await signAcceptance("owner-1", "owner@x.io");
-  assert.equal(aiApprovalAuthorization("wf-1").ok, true);
-  assert.equal(activeAcceptanceFor("wf-1")?.acceptedBy, "owner-1");
-  assert.deepEqual(listAcceptances().map((a) => a.active), [true]);
+  assert.equal((await aiApprovalAuthorization("wf-1")).ok, true);
+  assert.equal((await activeAcceptanceFor("wf-1"))?.acceptedBy, "owner-1");
+  assert.deepEqual((await listAcceptances()).map((a) => a.active), [true]);
 });
 
 test("VOID on edit: changing the workflow after acceptance voids it (content hash no longer matches)", async () => {
   await signAcceptance("owner-1", "owner@x.io");
-  assert.equal(aiApprovalAuthorization("wf-1").ok, true);
+  assert.equal((await aiApprovalAuthorization("wf-1")).ok, true);
   // Edit the workflow (a new step) — the stored acceptance is bound to the OLD hash.
   updateSettings({ workflows: [{ ...WF, steps: [...WF.steps, { id: "s2", kind: "action", action: "broker.notifications" }] }] });
-  assert.equal(activeAcceptanceFor("wf-1"), null);
-  const auth = aiApprovalAuthorization("wf-1");
+  assert.equal(await activeAcceptanceFor("wf-1"), null);
+  const auth = await aiApprovalAuthorization("wf-1");
   assert.equal(auth.ok, false);
   assert.match(auth.reason!, /changed since it was accepted/);
-  assert.deepEqual(listAcceptances().map((a) => a.active), [false]); // stored but void
+  assert.deepEqual((await listAcceptances()).map((a) => a.active), [false]); // stored but void
 });
 
 test("VOID on offboarding: deprovisioning the signer voids the acceptance (key no longer points to a current person)", async () => {
   await signAcceptance("owner-1", "owner@x.io");
-  assert.equal(aiApprovalAuthorization("wf-1").ok, true);
+  assert.equal((await aiApprovalAuthorization("wf-1")).ok, true);
   // The IdP marks the signer inactive → directoryDecision(known:true, active:false) → void.
   createUser({ userName: "owner", externalId: "owner-1", active: false, emails: [{ value: "owner@x.io", primary: true }] });
-  assert.equal(activeAcceptanceFor("wf-1"), null);
-  const auth = aiApprovalAuthorization("wf-1");
+  assert.equal(await activeAcceptanceFor("wf-1"), null);
+  const auth = await aiApprovalAuthorization("wf-1");
   assert.equal(auth.ok, false);
   assert.match(auth.reason!, /removed/);
+});
+
+test("VOID on passkey revocation: revoking the signer's credential voids the AI grant even without SCIM", async () => {
+  await signAcceptance("owner-1", "owner@x.io");
+  assert.equal((await aiApprovalAuthorization("wf-1")).ok, true);
+  // Security admin does the documented offboarding mitigation: revoke the signer's passkey.
+  await revokeCredentials("owner-1");
+  assert.equal(await activeAcceptanceFor("wf-1"), null); // no credential ⇒ signature can't be made ⇒ voided
+  const auth = await aiApprovalAuthorization("wf-1");
+  assert.equal(auth.ok, false);
+  assert.match(auth.reason!, /passkey was revoked/);
+  assert.deepEqual((await listAcceptances()).map((a) => a.active), [false]);
 });
 
 test("re-signing after a void restores authority; revoke removes it", async () => {
   await signAcceptance("owner-1", "owner@x.io");
   updateSettings({ workflows: [{ ...WF, steps: [...WF.steps, { id: "s2", kind: "action", action: "broker.notifications" }] }] });
-  assert.equal(aiApprovalAuthorization("wf-1").ok, false); // voided by the edit
+  assert.equal((await aiApprovalAuthorization("wf-1")).ok, false); // voided by the edit
   // The scope owner reviews + re-signs the NEW version.
   const ch = (await challengeForAcceptance("wf-1", "owner-1"))!;
   await acceptResponsibility("wf-1", { sub: "owner-1", email: "owner@x.io" }, signAssertion(ch.challenge));
-  assert.equal(aiApprovalAuthorization("wf-1").ok, true);
+  assert.equal((await aiApprovalAuthorization("wf-1")).ok, true);
   // Revoke → strengthens → immediate.
   revokeAcceptance("wf-1");
-  assert.equal(aiApprovalAuthorization("wf-1").ok, false);
+  assert.equal((await aiApprovalAuthorization("wf-1")).ok, false);
   assert.equal(getSettings().workflowAcceptances.length, 0);
 });
 
@@ -110,5 +122,5 @@ test("a stale challenge (signed against the OLD version) can't be replayed after
   const acc = await acceptResponsibility("wf-1", { sub: "owner-1" }, signAssertion(ch.challenge));
   assert.ok(acc.workflowHash);
   updateSettings({ workflows: [{ ...WF, steps: [] }] });
-  assert.equal(activeAcceptanceFor("wf-1"), null);
+  assert.equal(await activeAcceptanceFor("wf-1"), null);
 });

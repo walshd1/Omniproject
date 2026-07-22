@@ -1,0 +1,1 @@
+{ "id": "user-stories", "label": "User stories", "methodologies": ["scrum", "scrumban", "safe"], "route": "/user-stories", "nav": { "label": "Stories" }, "bare": true, "panels": [ { "id": "stories", "kind": "view", "config": { "view": "list" } } ] }

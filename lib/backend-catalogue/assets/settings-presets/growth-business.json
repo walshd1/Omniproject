@@ -1,0 +1,15 @@
+{
+  "id": "growth-business",
+  "label": "Growth Business",
+  "audience": "Scaling companies delivering with agile squads",
+  "description": "Velocity-first: business profile, live spot FX, and a RICE/WSJF-weighted backlog. Lean governance, all modules on so teams can adopt dashboards and integrations as they grow.",
+  "order": 20,
+  "settings": {
+    "deploymentProfile": "business",
+    "reportingCurrency": "USD",
+    "fxRatePolicy": "spot",
+    "aiProvider": "none",
+    "sttProvider": "browser",
+    "priorityWeights": { "rice": 35, "wsjf": 30, "moscow": 15, "strategic": 10, "benefit": 10 }
+  }
+}

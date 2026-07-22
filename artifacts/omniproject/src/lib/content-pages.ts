@@ -1,5 +1,4 @@
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { getJson, sendJson } from "./api";
+import { configResource } from "./config-resource";
 
 /**
  * Content pages client — a named, flat, ordered list of unified-library component ids (reports +
@@ -16,20 +15,13 @@ export interface ContentPageDef {
 
 export const contentPagesQueryKey = ["content-pages"] as const;
 
+const resource = configResource<ContentPageDef[]>({
+  queryKey: contentPagesQueryKey,
+  path: "/api/content-pages",
+  envelopeKey: "contentPages",
+  reconcile: "set-from-response", // pmo-gated; the endpoint echoes the saved list back
+});
 /** The saved content-page definitions. */
-export function useContentPages() {
-  return useQuery({
-    queryKey: contentPagesQueryKey,
-    queryFn: () => getJson<{ contentPages: ContentPageDef[] }>("/api/content-pages").then((r) => r.contentPages),
-    staleTime: 30_000,
-  });
-}
-
+export const useContentPages = resource.useResource;
 /** Persist the full content-page list (pmo). */
-export function useSaveContentPages() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (contentPages: ContentPageDef[]) => sendJson<{ contentPages: ContentPageDef[] }>("/api/content-pages", { contentPages }),
-    onSuccess: (data) => qc.setQueryData(contentPagesQueryKey, data.contentPages),
-  });
-}
+export const useSaveContentPages = resource.useSaveResource;

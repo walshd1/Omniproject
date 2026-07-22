@@ -1,1 +1,0 @@
-{ "id": "sprints", "label": "Sprints", "methodologies": ["scrum"], "route": "/sprints", "nav": { "label": "Sprints" }, "bare": true, "panels": [ { "id": "sprint-board", "kind": "view", "config": { "view": "scrum" } } ] }

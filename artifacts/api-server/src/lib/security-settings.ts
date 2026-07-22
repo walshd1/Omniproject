@@ -32,7 +32,9 @@ export const SECURITY_SETTINGS: Record<string, RelaxPredicate> = {
   brokerUrl: changed,
   backendSource: changed,
   oidcIssuerUrl: changed,
-  selfHost: changed,
+  // (`selfHost` moved to the `self-host` CHOICE config def — Phase C. Its real gate is the data-responsibility
+  //  acknowledgement on the setup route, not a sign-off; the `changed` classification here only ever guarded the
+  //  bulk PATCH /settings backdoor, which can no longer reach it once it leaves settings.)
   // Egress / cross-instance data sharing. DIRECTIONAL: opening a NEW active egress target (a webhook to a
   // new/redirected url, a peer at a new baseUrl) is the relaxation; removing/deactivating one strengthens
   // and applies immediately (the invariant lets you increase posture freely). A same-target credential
@@ -51,16 +53,8 @@ export const SECURITY_SETTINGS: Record<string, RelaxPredicate> = {
     const before = activeBases(o);
     return [...activeBases(n)].some((b) => !before.has(b)); // any newly-active peer target ⇒ relax
   },
-  // Egress TOGGLES have a clear direction too: turning egress ON (or redirecting where it goes) is the
-  // relaxation; turning it OFF strengthens and applies immediately. So these are directional, not
-  // fail-closed `changed` — a disable is never gated.
-  errorTelemetry: (o, n) => n === true && o !== true, // enabling external error telemetry only
-  loggingSync: (o, n) => {
-    const on = (v: Val): boolean => !!(v && typeof v === "object" && (v as { enabled?: unknown }).enabled === true);
-    const dest = (v: Val): unknown => (v && typeof v === "object" ? (v as { url?: unknown }).url : undefined);
-    // Relax = ending up enabled with a NEW destination: newly turned on, or redirected while on.
-    return on(n) && (!on(o) || dest(o) !== dest(n));
-  },
+  // (`errorTelemetry` + `loggingSync` egress toggles moved to the `error-telemetry` / `logging-sync` config
+  //  defs — their relaxation predicates live in `security-config`, evaluated by the floor gate. Roadmap Phase C.)
   // The controls themselves — weakening any is the classic insider move; fail-closed on any edit.
   approvalChains: changed,
   approvalBindings: changed,
@@ -94,13 +88,8 @@ export const SECURITY_SETTINGS: Record<string, RelaxPredicate> = {
     return false;
   },
   // Audit retention has a CLEAR scale: a shorter window loses audit trail (relax); longer strengthens (free).
-  historyRetention: (o, n) => {
-    const days = (v: Val): number => {
-      const d = (v as { retentionDays?: unknown } | null | undefined)?.retentionDays;
-      return typeof d === "number" ? d : Number.POSITIVE_INFINITY; // absent/null ⇒ "keep forever"
-    };
-    return days(n) < days(o); // shortening retention is the only relaxation
-  },
+  // (`historyRetention` moved to the `history-retention` config def — its shortening-is-a-relaxation predicate
+  //  lives in `security-config`, evaluated by the floor gate. Roadmap Phase C.)
 };
 
 /** Keys with NO security dimension — a "just a choice". Changes apply immediately, never gated. */
@@ -117,16 +106,13 @@ export const CHOICE_SETTINGS: readonly string[] = [
   // GovernanceConfig (feature toggles — functional, not the governance controls)
   "disabledFeatures", "enabledFeatures", "programmeFeatures", "projectFeatures",
   // PresentationConfig (all presentation)
-  "branding", "labelOverrides", "priorityLabels", "screenLayouts", "hiddenFields",
-  "savedViews", "dashboards", "customReports", "reportOverrides", "reports", "resourceAllocations", "budgetPlans", "methodologyComposition", "contentPages",
+  "screenLayouts",
+  "dashboards", "customReports", "reportOverrides", "reports", "resourceAllocations", "budgetPlans", "contentPages",
   // Editable-screens config — org-authored screen defs/content + on-screen registers. All presentation:
   // screen definitions, the on/off list, per-collection edit policy, the saved pivot views, and the RACI /
   // stakeholder register content. None is a fail-closed security control (edit access is content
   // authorization, tuned freely by admins), so each is a choice, not a sign-off-gated security setting.
-  "screenDefs", "disabledScreens", "collectionEditRoles", "panelViews", "raci", "stakeholders", "forms",
-  // Automation recipes — authored config; the security of what they DO is enforced at authoring + run time
-  // (RBAC gate + the workflow runner's no-silent-mutation invariant), not at the edit gate.
-  "automations", "templates",
+  "screenDefs", "forms",
   // UserConfig
   "userPrefs",
   // PlatformConfig

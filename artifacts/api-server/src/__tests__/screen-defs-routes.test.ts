@@ -1,58 +1,74 @@
 import { test, before, after, afterEach } from "node:test";
 import assert from "node:assert/strict";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+// The def store must be configured + the importer module on BEFORE the app is imported by the harness.
+process.env["OMNI_CONFIG_DIR"] = fs.mkdtempSync(path.join(os.tmpdir(), "screens-conv-"));
+process.env["ENABLED_FEATURES"] = "defImporter";
 import { startHarness, adminCookie, memberCookie, type Harness } from "./_harness";
 
 /**
- * routes/screen-defs.ts over the REAL app. Org screen defs are the encrypted per-deployment store a PMO
- * overrides/extends the built-in screen catalogue with. READ open (the SPA merges them); WRITE gated to
- * `pmo`. Reachable branches: read default, valid save round-trip, validation 400, RBAC gate.
+ * routes/screen-defs.ts after the def-store convergence (roadmap X.10 screens). Org screen OVERRIDES are now
+ * artifacts authored through the importer (`POST /api/defs`, kind `screen`); the SPA merges them over its
+ * built-in catalogue. `GET /screen-defs/resolved` serves the effective override set (legacy bridge + def
+ * store), and the legacy `PUT /screen-defs` survives only to DRAIN to `[]`.
  */
 let h: Harness;
 const ADMIN = adminCookie();
-
-before(async () => {
-  h = await startHarness();
-});
-after(() => h?.close());
-
+before(async () => { h = await startHarness(); });
+after(() => { h?.close(); fs.rmSync(process.env["OMNI_CONFIG_DIR"]!, { recursive: true, force: true }); });
 afterEach(async () => {
   const { updateSettings } = await import("../lib/settings");
   updateSettings({ screenDefs: [] });
+  const { replaceArtifacts } = await import("../lib/artifact-store");
+  const { DEF_ARTIFACT } = await import("../lib/def-import");
+  replaceArtifacts(DEF_ARTIFACT, { kind: "org" }, []); // clear org-authored screen defs between tests
 });
-
 const req = (path: string, opts: Parameters<Harness["req"]>[1] = {}) => h.req(path, { cookie: ADMIN, ...opts });
 
-test("GET /screen-defs returns the (empty by default) list", async () => {
+const SCREEN = { id: "budget-plans", label: "Our Budgets", panels: [{ id: "t", kind: "table", source: { url: "/api/budget-plans/rows" } }] };
+const authorScreen = (screen: object, cookie = ADMIN) =>
+  req("/defs", { method: "POST", cookie, body: { kind: "screen", storage: "org", name: (screen as { label?: string }).label ?? "Screen", payload: screen } });
+
+test("GET /screen-defs returns the (empty by default) legacy list", async () => {
   const r = await req("/screen-defs");
   assert.equal(r.status, 200);
-  const body = (await r.json()) as { screenDefs: unknown[] };
-  assert.deepEqual(body.screenDefs, []);
+  assert.deepEqual(((await r.json()) as { screenDefs: unknown[] }).screenDefs, []);
 });
 
-test("PUT /screen-defs saves an org screen def (overriding a default id) and reads it back", async () => {
-  const screenDefs = [{ id: "budget-plans", label: "Our Budgets", panels: [{ id: "t", kind: "table", source: { url: "/api/budget-plans/rows" } }] }];
-  const r = await req("/screen-defs", { method: "PUT", body: { screenDefs } });
-  assert.equal(r.status, 200);
-  const saved = (await r.json()) as { screenDefs: { id: string; label: string }[] };
-  assert.deepEqual(saved.screenDefs.map((s) => s.id), ["budget-plans"]);
-  assert.equal(saved.screenDefs[0]!.label, "Our Budgets");
+test("an override authored via the importer shows up in GET /screen-defs/resolved (overriding a default id)", async () => {
+  assert.equal((await authorScreen(SCREEN)).status, 201);
+  const resolved = (await req("/screen-defs/resolved").then((x) => x.json())) as { screenDefs: { id: string; label: string }[] };
+  const budgets = resolved.screenDefs.find((s) => s.id === "budget-plans");
+  assert.ok(budgets, "the override is in the resolved set");
+  assert.equal(budgets!.label, "Our Budgets");
 });
 
-test("PUT /screen-defs with a malformed def → 400 (settings validation)", async () => {
-  const r = await req("/screen-defs", { method: "PUT", body: { screenDefs: [{ label: "no id", panels: [] }] } });
+test("a legacy settings.screenDefs override still resolves (migration bridge)", async () => {
+  const { updateSettings } = await import("../lib/settings");
+  updateSettings({ screenDefs: [SCREEN] });
+  const resolved = (await req("/screen-defs/resolved").then((x) => x.json())) as { screenDefs: { id: string }[] };
+  assert.ok(resolved.screenDefs.some((s) => s.id === "budget-plans"));
+});
+
+test("the legacy PUT /screen-defs is retired — a non-empty write is 410, draining to [] is allowed", async () => {
+  assert.equal((await req("/screen-defs", { method: "PUT", body: { screenDefs: [SCREEN] } })).status, 410);
+  assert.equal((await req("/screen-defs", { method: "PUT", body: { screenDefs: [] } })).status, 200);
+});
+
+test("a malformed screen def is rejected at the importer → 400", async () => {
+  const r = await authorScreen({ label: "no id", panels: [] });
   assert.equal(r.status, 400);
-  const body = (await r.json()) as { error: string };
-  assert.ok(/id/.test(body.error));
 });
 
-test("screen-defs write is gated to pmo (reads stay open) under real RBAC", async () => {
+test("draining screen-defs is gated to pmo (reads stay open) under real RBAC", async () => {
   const prev = process.env["OIDC_ISSUER_URL"];
   process.env["OIDC_ISSUER_URL"] = "https://idp.example";
   try {
-    const write = await h.req("/screen-defs", { cookie: memberCookie(), method: "PUT", body: { screenDefs: [] } });
-    assert.equal(write.status, 403); // a non-pmo member cannot rewrite the org's screens
-    const read = await h.req("/screen-defs", { cookie: memberCookie() });
-    assert.equal(read.status, 200); // …but reads remain open
+    assert.equal((await h.req("/screen-defs", { cookie: memberCookie(), method: "PUT", body: { screenDefs: [] } })).status, 403);
+    assert.equal((await h.req("/screen-defs", { cookie: memberCookie() })).status, 200);           // reads open
+    assert.equal((await h.req("/screen-defs/resolved", { cookie: memberCookie() })).status, 200);   // resolved reads open
   } finally {
     if (prev === undefined) delete process.env["OIDC_ISSUER_URL"]; else process.env["OIDC_ISSUER_URL"] = prev;
   }

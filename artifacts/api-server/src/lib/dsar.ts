@@ -1,8 +1,9 @@
 import { scimEnabled, listUsers, type ScimUser } from "./scim";
 import { recentProvenance } from "./provenance";
 import { userSessionsRevokedAt } from "./key-registry";
-import { auditAnchor } from "./audit-chain";
+import { auditAnchor, auditLogSubjectRefs } from "./audit-chain";
 import { configuredBrokerUrls } from "./broker-url";
+import { retentionDaysNow } from "./history-retention";
 
 /**
  * DSAR (data-subject access request) evidence report — the automated, honest answer to
@@ -36,8 +37,14 @@ export interface DsarReport {
   };
   /** Where the subject's real data lives — pointers to the systems of record. */
   systemsOfRecord: { note: string; brokerEndpoints: string[] };
-  /** External audit evidence: events are emitted to the SIEM, not retained here. */
-  auditEvidence: { note: string; anchor: ReturnType<typeof auditAnchor> };
+  /** Audit evidence: the tamper-evident chain anchor + how many retained events name the subject. */
+  auditEvidence: {
+    note: string;
+    anchor: ReturnType<typeof auditAnchor>;
+    /** Retained evidence events naming this subject (content-free count), and the disposal window. */
+    retainedReferences: number;
+    retentionDays: number | null;
+  };
 }
 
 const matches = (value: string | null | undefined, subject: DsarSubject): boolean => {
@@ -88,11 +95,17 @@ export function buildDsarReport(subject: DsarSubject, now: number): DsarReport {
         "The subject's actual data lives in the connected backend(s) reached via the broker. Satisfy access/portability/erasure THERE; the gateway holds no copy. Endpoints (origins only) below.",
       brokerEndpoints: brokerOrigins(),
     },
-    auditEvidence: {
-      note:
-        "Audit events naming the subject (sub/email) are emitted to your external SIEM/stdout sink, NOT retained in the gateway — query the SIEM by sub/email and apply its retention/erasure. The chain anchor below lets you verify that SIEM slice is intact (see /api/security/audit/verify).",
-      anchor: auditAnchor(),
-    },
+    auditEvidence: (() => {
+      const refs = auditLogSubjectRefs((actor) => matches(actor?.sub, subject) || matches(actor?.email, subject));
+      const retentionDays = retentionDaysNow();
+      return {
+        note:
+          "Audit events are emitted to your external SIEM/stdout sink AND retained in the gateway's sealed, tamper-evident evidence log (bounded by the history-retention window; carried only in an encrypted backup). Audit records are kept under a legal-obligation / legitimate-interest basis for security + integrity: they are EXEMPT from erasure, but disposed once past the retention window (unless under a legal hold). The chain anchor below verifies the slice is intact (see /api/security/audit/verify).",
+        anchor: auditAnchor(),
+        retainedReferences: refs.retained,
+        retentionDays: typeof retentionDays === "number" && retentionDays > 0 ? retentionDays : null,
+      };
+    })(),
   };
 }
 
@@ -111,7 +124,7 @@ export function dsarSummaryText(r: DsarReport): string {
     ...r.notRetained.map((s) => `• ${s}`),
     "",
     `SYSTEMS OF RECORD (where the data actually lives): ${r.systemsOfRecord.brokerEndpoints.join(", ") || "(none configured)"}`,
-    `AUDIT EVIDENCE: in your SIEM (chain tip seq ${r.auditEvidence.anchor.seq}).`,
+    `AUDIT EVIDENCE: SIEM + sealed local log (chain tip seq ${r.auditEvidence.anchor.seq}); ${r.auditEvidence.retainedReferences} retained event(s) name this subject; retention ${r.auditEvidence.retentionDays === null ? "unbounded" : `${r.auditEvidence.retentionDays} day(s)`} (audit is erasure-exempt).`,
   ];
   return lines.join("\n");
 }

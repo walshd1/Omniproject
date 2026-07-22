@@ -22,9 +22,50 @@ import { recordUsage as recordVendorUsage } from "./usage-metering";
  * Settings default). This module owns only HOW to talk to each provider KIND.
  */
 
+/** An image attached to a chat message (base64), for vision-capable providers. */
+export interface ChatImage {
+  /** MIME type, e.g. "image/png". */
+  mime: string;
+  /** Base64-encoded image bytes (no data: prefix). */
+  dataBase64: string;
+}
+
 export interface ChatMessage {
   role: "system" | "user" | "assistant";
   content: string;
+  /** Optional attached images (multimodal). Only vision-capable providers use them; text-only providers and
+   *  the governance/DLP/token paths ignore them (redaction spreads the message, so images pass through). */
+  images?: ChatImage[];
+}
+
+const asDataUri = (img: ChatImage): string => `data:${img.mime};base64,${img.dataBase64}`;
+
+/** Map to the OpenAI/OpenRouter message shape — a plain string when there are no images, else content-parts
+ *  (a text part + one image_url part per image). Byte-identical to the old body when no image is attached. */
+export function toOpenAiMessages(messages: ChatMessage[]): Array<Record<string, unknown>> {
+  return messages.map((m) =>
+    m.images && m.images.length
+      ? { role: m.role, content: [{ type: "text", text: m.content }, ...m.images.map((img) => ({ type: "image_url", image_url: { url: asDataUri(img) } }))] }
+      : { role: m.role, content: m.content },
+  );
+}
+
+/** Map to the Anthropic message shape — a text block + base64 image blocks when images are attached. */
+export function toAnthropicMessages(turns: ChatMessage[]): Array<Record<string, unknown>> {
+  return turns.map((m) =>
+    m.images && m.images.length
+      ? { role: m.role, content: [{ type: "text", text: m.content }, ...m.images.map((img) => ({ type: "image", source: { type: "base64", media_type: img.mime, data: img.dataBase64 } }))] }
+      : { role: m.role, content: m.content },
+  );
+}
+
+/** Map to the Ollama message shape — images ride as a sibling base64 array on the message. */
+export function toOllamaMessages(messages: ChatMessage[]): Array<Record<string, unknown>> {
+  return messages.map((m) =>
+    m.images && m.images.length
+      ? { role: m.role, content: m.content, images: m.images.map((img) => img.dataBase64) }
+      : { role: m.role, content: m.content },
+  );
 }
 
 // OLLAMA_URL is an endpoint, not a secret, so it may stay in the environment as the default
@@ -96,7 +137,7 @@ const KINDS: Record<ChatKind, ChatKindDef> = {
   ollama: {
     endpoint: OLLAMA_DEFAULT,
     chat: async (endpoint, _key, model, messages) => {
-      const json = (await postJson(`${endpoint}/api/chat`, {}, { model, messages, stream: false })) as { message?: { content?: string } };
+      const json = (await postJson(`${endpoint}/api/chat`, {}, { model, messages: toOllamaMessages(messages), stream: false })) as { message?: { content?: string } };
       const content = json.message?.content;
       if (content === undefined) throw new AiError("Ollama response has no message content");
       return content;
@@ -108,7 +149,7 @@ const KINDS: Record<ChatKind, ChatKindDef> = {
       const json = (await postJson(
         `${endpoint}/chat/completions`,
         { Authorization: `Bearer ${key}`, "HTTP-Referer": "https://github.com/walshd1/Omniproject", "X-Title": "OmniProject" },
-        { model, messages },
+        { model, messages: toOpenAiMessages(messages) },
       )) as { choices?: Array<{ message?: { content?: string } }> };
       const content = json.choices?.[0]?.message?.content;
       if (content === undefined) throw new AiError("OpenRouter response has no message content");
@@ -121,7 +162,7 @@ const KINDS: Record<ChatKind, ChatKindDef> = {
       const json = (await postJson(
         `${endpoint}/chat/completions`,
         { Authorization: `Bearer ${key}` },
-        { model, messages },
+        { model, messages: toOpenAiMessages(messages) },
       )) as { choices?: Array<{ message?: { content?: string } }> };
       const content = json.choices?.[0]?.message?.content;
       if (content === undefined) throw new AiError("OpenAI response has no message content");
@@ -140,7 +181,7 @@ const KINDS: Record<ChatKind, ChatKindDef> = {
       const json = (await postJson(
         `${endpoint}/chat/completions`,
         key ? { Authorization: `Bearer ${key}` } : {},
-        { model, messages },
+        { model, messages: toOpenAiMessages(messages) },
       )) as { choices?: Array<{ message?: { content?: string } }> };
       const content = json.choices?.[0]?.message?.content;
       if (content === undefined) throw new AiError("Self-hosted provider response has no message content");
@@ -156,7 +197,7 @@ const KINDS: Record<ChatKind, ChatKindDef> = {
       const json = (await postJson(
         `${endpoint}/messages`,
         { "x-api-key": key as string, "anthropic-version": "2023-06-01" },
-        { model, max_tokens: 1024, system, messages: turns },
+        { model, max_tokens: 1024, system, messages: toAnthropicMessages(turns) },
       )) as { content?: Array<{ text?: string }> };
       const text = json.content?.[0]?.text;
       if (text === undefined) throw new AiError("Anthropic response has no content");

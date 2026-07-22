@@ -18,11 +18,11 @@
  * from but genuinely shouldn't be browsing (e.g. the Configurator, which reads live
  * broker/backend state a plain contributor has no reason to poke at even read-only).
  */
-import { Layers, Briefcase, BarChart3, FlaskConical, Settings as SettingsIcon, PlugZap, Boxes, Users, Inbox, LayoutDashboard, FileText, BookOpen, PenTool, Stamp, ListChecks, Wallet, Columns3, type LucideIcon } from "lucide-react";
+import { Layers, Briefcase, BarChart3, FlaskConical, Settings as SettingsIcon, PlugZap, Boxes, Users, Inbox, LayoutDashboard, FileText, BookOpen, PenTool, Stamp, Target, Receipt, Blocks, Package, Wand2, Database, ListChecks, Wallet, Columns3, type LucideIcon } from "lucide-react";
 import { useGetCapabilities } from "@workspace/api-client-react";
 import { canSurfaceEntity } from "./capabilities-fields";
 import { useFeatures, featureEnabled } from "./features";
-import { useAuth, isPmoOrAdmin, type Role } from "./auth";
+import { useAuth, isPmoOrAdmin, roleAtLeast, type Role } from "./auth";
 import { useMethodologyComposition } from "./methodology-composition-api";
 import { visibleRoutedScreens, screenVisibleUnder, type ScreenCatalogueEntry } from "./screen-catalogue";
 import { useRoutedScreens } from "./org-screens";
@@ -62,13 +62,22 @@ export const NAV_ITEMS: NavItem[] = [
   { href: "/wiki", i18nKey: "nav.wiki", label: "Wiki", icon: BookOpen, match: (l) => l.startsWith("/wiki"), group: "primary" },
   { href: "/whiteboards", i18nKey: "nav.whiteboards", label: "Whiteboards", icon: PenTool, match: (l) => l.startsWith("/whiteboards"), requiresFeature: "whiteboard", group: "primary" },
   { href: "/proofs", i18nKey: "nav.proofs", label: "Proofs", icon: Stamp, match: (l) => l.startsWith("/proofs"), requiresFeature: "proofing", group: "primary" },
+  { href: "/goals", i18nKey: "nav.goals", label: "Goals", icon: Target, match: (l) => l.startsWith("/goals"), requiresFeature: "goals", group: "primary" },
   { href: "/programmes", i18nKey: "nav.programmes", label: "Programmes", icon: Boxes, match: (l) => l.startsWith("/programmes"), requiresEntity: "programme", group: "primary" },
   { href: "/projects", i18nKey: "nav.projects", label: "Projects", icon: Briefcase, chord: "G+P", match: (l) => l.startsWith("/projects"), group: "primary" },
   { href: "/budgets", i18nKey: "nav.budgets", label: "Budgets", icon: Wallet, match: (l) => l.startsWith("/budgets"), group: "primary" },
+  { href: "/invoices", i18nKey: "nav.invoices", label: "Invoices", icon: Receipt, match: (l) => l.startsWith("/invoices"), requiresFeature: "invoicing", group: "primary" },
   { href: "/reports", i18nKey: "nav.reports", label: "Reports", icon: BarChart3, chord: "G+R", match: (l) => l.startsWith("/reports"), group: "primary" },
   { href: "/resources", i18nKey: "nav.resources", label: "Resources", icon: Users, match: (l) => l.startsWith("/resources"), requiresEntity: "member", group: "primary" },
   { href: "/resource-planning", i18nKey: "nav.resourcePlanning", label: "Resource planning", icon: Users, match: (l) => l.startsWith("/resource-planning"), group: "primary" },
+  { href: "/studio", i18nKey: "nav.studio", label: "Studio", icon: Wand2, match: (l) => l.startsWith("/studio"), requiresFeature: "studio", group: "primary" },
   { href: "/explore", i18nKey: "nav.explore", label: "Explore", icon: FlaskConical, chord: "G+E", match: (l) => l.startsWith("/explore"), group: "admin" },
+  { href: "/marketplace", i18nKey: "nav.marketplace", label: "Marketplace", icon: Blocks, match: (l) => l.startsWith("/marketplace"), requiresFeature: "marketplace", group: "admin", visibleToRoles: isPmoOrAdmin },
+  { href: "/registry", i18nKey: "nav.registry", label: "Registry", icon: Package, match: (l) => l.startsWith("/registry"), requiresFeature: "registry", group: "admin", visibleToRoles: isPmoOrAdmin },
+  // The importer/editor is for EVERY author — access to each STORE is RBAC-scoped by the def-policy (own
+  // private area for any contributor; project = manager; org = pmo/admin), so the surface itself is visible to
+  // contributor+, not admin-only.
+  { href: "/definitions", i18nKey: "nav.definitions", label: "Definitions", icon: Database, match: (l) => l.startsWith("/definitions"), requiresFeature: "defImporter", group: "primary", visibleToRoles: (r) => roleAtLeast(r, "contributor") },
   { href: "/settings", i18nKey: "nav.settings", label: "Settings", icon: SettingsIcon, chord: "G+S", match: (l) => l.startsWith("/settings"), group: "admin" },
   { href: "/configurator", i18nKey: "nav.configurator", label: "Configurator", icon: PlugZap, chord: "G+C", match: (l) => l.startsWith("/configurator") || l.startsWith("/setup"), group: "admin", visibleToRoles: isPmoOrAdmin },
 ];

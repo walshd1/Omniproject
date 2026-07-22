@@ -51,11 +51,14 @@ router.get("/presence/rooms/:roomId/stream", async (req: Request, res: Response)
   if (!(await guardRoomScope(req, res, roomId))) return;
 
   const session = getSession(req);
-  const sub = session?.sub ?? "anonymous";
+  // SSE requires an interactive session: a subless (API-token) principal can't be counted against the
+  // per-principal cap, so it must be refused rather than exempted (uncapped held-stream DoS).
+  if (!session?.sub) { res.status(403).json({ error: "Presence streaming requires an interactive session." }); return; }
+  const sub = session.sub;
   const label = session?.name || session?.email || sub;
 
   // Cap concurrent presence streams per principal before opening the SSE response.
-  if (sub !== "anonymous" && presenceConnectionCount(sub) >= MAX_PRESENCE_STREAMS_PER_SUB) {
+  if (presenceConnectionCount(sub) >= MAX_PRESENCE_STREAMS_PER_SUB) {
     res.status(429).json({ error: "too many concurrent presence streams for this account" });
     return;
   }

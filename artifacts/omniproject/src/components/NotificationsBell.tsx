@@ -73,6 +73,9 @@ export function NotificationsBell() {
   useEffect(() => {
     if (!open) return;
     panelRef.current?.focus();
+    // Capture the trigger node now (it's the stable bell button) so the cleanup restores focus to
+    // the same element even if the ref has since changed — the pattern react-hooks/exhaustive-deps wants.
+    const trigger = triggerRef.current;
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         e.stopPropagation();
@@ -82,7 +85,7 @@ export function NotificationsBell() {
     document.addEventListener("keydown", onKeyDown);
     return () => {
       document.removeEventListener("keydown", onKeyDown);
-      triggerRef.current?.focus();
+      trigger?.focus();
     };
   }, [open]);
 

@@ -2,7 +2,7 @@ import { test, afterEach } from "node:test";
 import assert from "node:assert/strict";
 import { contentSecurityPolicy, cspHeaderName, cspNonce } from "./csp";
 
-const KEYS = ["CONTENT_SECURITY_POLICY", "CSP_IMG_SRC", "CSP_CONNECT_SRC", "CSP_REPORT_ONLY", "CSP_REPORT_URI"];
+const KEYS = ["CONTENT_SECURITY_POLICY", "CSP_IMG_SRC", "CSP_CONNECT_SRC", "CSP_REPORT_ONLY", "CSP_REPORT_URI", "CSP_FRAME_SRC"];
 afterEach(() => { for (const k of KEYS) delete process.env[k]; });
 
 test("the default policy is strict but SPA-compatible", () => {
@@ -12,6 +12,15 @@ test("the default policy is strict but SPA-compatible", () => {
   assert.match(csp, /object-src 'none'/);
   assert.match(csp, /script-src 'self'/);
   assert.match(csp, /base-uri 'self'/);
+  // No third-party framing by default (native-handoff embed is opt-in per deployment).
+  assert.match(csp, /frame-src 'none'/);
+});
+
+test("CSP_FRAME_SRC REPLACES the 'none' default (appending to 'none' would be invalid)", () => {
+  process.env["CSP_FRAME_SRC"] = "https://miro.com https://app.powerbi.com";
+  const csp = contentSecurityPolicy();
+  assert.match(csp, /frame-src https:\/\/miro\.com https:\/\/app\.powerbi\.com/);
+  assert.doesNotMatch(csp.match(/frame-src[^;]*/)?.[0] ?? "", /'none'/);
 });
 
 test("a full override is used verbatim", () => {

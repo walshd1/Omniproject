@@ -21,8 +21,12 @@ import { startProactiveDigestScheduler, runProactiveDigest } from "./lib/proacti
 import { startScheduledExportScheduler, runScheduledExport } from "./lib/scheduled-export";
 import { startDriftCanaryScheduler, runDriftCanary } from "./lib/drift-canary";
 import { loadConfigDir } from "./lib/config-dir";
+import { assertSessionSecretForLocalPrincipals } from "./lib/session-secret-guard";
+import { localUsersActive } from "./lib/user-directory";
 import { readCacheEnabled, readCacheTtlMs } from "./broker/cache";
 import { startMetricExport } from "./lib/otlp-metrics";
+import { installProcessGuards } from "./lib/process-guards";
+import { configureServerTimeouts } from "./lib/server-timeouts";
 
 const rawPort = process.env["PORT"];
 
@@ -57,6 +61,12 @@ async function start(): Promise<void> {
   // overlay + settings from the operator's folder of JSON are in place when the first request
   // lands. Runs after bootstrap() so a KMS-wrapped config key is already unwrapped.
   loadConfigDir();
+
+  // SECURITY: the import-time SESSION_SECRET guard (app.ts) ran BEFORE the store loaded, so it could not see
+  // native local accounts — a real password login that may have been bootstrapped while the env still read as
+  // "demo". Now that the directory is loaded, refuse to serve on the public default secret if a real local
+  // principal exists (this also transitively protects the at-rest master key, which derives from SESSION_SECRET).
+  assertSessionSecretForLocalPrincipals(localUsersActive());
 
   // Start the broker-log fan-out so this replica begins RECEIVING the fleet's live entries
   // immediately. In-process unless REDIS_URL is set — see lib/broker-log-bus.ts.
@@ -139,9 +149,17 @@ async function start(): Promise<void> {
     );
   });
 
+  // Slowloris / slow-body defence + optional concurrent-connection cap (env-tunable). Applies to request
+  // RECEIPT only, so long-lived SSE responses are unaffected.
+  configureServerTimeouts(server);
+
   // Clean up on SIGTERM/SIGINT: drain SSE streams, finish in-flight requests, exit.
   installShutdownHandlers(server, logger);
 }
+
+// Crash backstop: an escaped throw / unhandled rejection is logged and SURVIVED, not fatal (see
+// lib/process-guards). Installed before boot so it also covers an async boot failure.
+installProcessGuards(logger);
 
 start().catch((err) => {
   logger.error({ err }, "Fatal error during boot");

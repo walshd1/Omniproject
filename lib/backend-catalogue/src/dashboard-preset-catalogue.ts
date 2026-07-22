@@ -64,6 +64,28 @@ export function dashboardPresetCatalogue(): DashboardPreset[] {
   return DASHBOARD_PRESETS.map((p) => ({ ...p, widgets: p.widgets.map((w) => ({ ...w })) }));
 }
 
+/** A shipped dashboard DEFINITION — the `dashboard` def a preset becomes once seeded (id + name + widgets,
+ *  each widget given a synthesised id). COMPOSITION: `extends` lets a customer fork a shipped dashboard and
+ *  alter it property-by-property (see def-compose). Presets ship as roots; the field is here so a fork can
+ *  record its parent. */
+export interface DashboardDef {
+  id: string;
+  name: string;
+  widgets: Array<{ id: string; type: string; span?: number; title?: string }>;
+  extends?: string;
+}
+
+/** The shipped dashboard DEFS — the SAME payloads the system store is seeded with and the importer treats as
+ *  composition roots, so one transform is the single source of truth (no drift between the seeder and the
+ *  ancestry graph). Each preset widget gets a stable synthesised id (`<type>-<index>`). */
+export function dashboardDefCatalogue(): DashboardDef[] {
+  return DASHBOARD_PRESETS.map((p) => ({
+    id: p.id,
+    name: p.name,
+    widgets: p.widgets.map((w, i) => ({ id: `${w.type}-${i}`, type: w.type, ...(w.span ? { span: w.span } : {}), ...(w.title ? { title: w.title } : {}) })),
+  }));
+}
+
 /** The presets whose every widget the active backend can surface — drops any preset that needs an
  *  entity-gated widget the backend can't surface. `canSurface` mirrors the SPA capabilities predicate. */
 export function availablePresets(canSurface: (entity: string) => boolean): DashboardPreset[] {

@@ -33,6 +33,10 @@
       "note": "schedule / Gantt"
     }
   ],
+  "settings": {
+    "fxRatePolicy": "periodClose",
+    "priorityWeights": { "rice": 15, "wsjf": 10, "moscow": 20, "strategic": 40, "benefit": 15 }
+  },
   "notes": "Sequential phases, baselines, critical path.",
   "order": 40
 }

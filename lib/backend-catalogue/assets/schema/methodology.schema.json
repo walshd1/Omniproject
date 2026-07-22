@@ -45,6 +45,26 @@
         }
       }
     },
+    "invariants": {
+      "type": "array",
+      "description": "Declarative cross-entity business rules the methodology asserts (e.g. GTD: every active project has a next action).",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "kind", "message"],
+        "properties": {
+          "id": { "type": "string" },
+          "kind": { "type": "string", "description": "The shipped checker id (see METHODOLOGY_INVARIANT_KINDS)." },
+          "message": { "type": "string" },
+          "severity": { "enum": ["error", "warn"] }
+        }
+      }
+    },
+    "settings": {
+      "type": "object",
+      "description": "Preset settings (first-class fields) this methodology lands on a one-click deploy — validated against the settings field descriptors at apply time. Keys must be writable settings keys (e.g. reportingCurrency, fxRatePolicy, priorityWeights).",
+      "additionalProperties": true
+    },
     "notes": { "type": "string" },
     "order": { "type": "integer", "description": "Display order in the methodology picker." }
   }

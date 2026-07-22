@@ -61,13 +61,18 @@ function capsWithStore(store: boolean): Capabilities {
 
 describe("useIssueForm hydrate effect", () => {
   it("does not hydrate while the dialog is closed", () => {
-    const { result } = renderHook(() => useIssueForm(fullIssue(), undefined, false, undefined));
+    // `issue` MUST be a stable reference across renders: it is a dependency of the hook's
+    // hydrate effect, so recreating it inline in the render callback would re-fire the effect
+    // (setForm → re-render → new object → …) into an unbounded render loop.
+    const issue = fullIssue();
+    const { result } = renderHook(() => useIssueForm(issue, undefined, false, undefined));
     // Effect returns early on !open — form keeps its empty initial state.
     expect(result.current.form).toEqual(EMPTY_FORM);
   });
 
   it("hydrates every field from the issue being edited (present ternary arms)", () => {
-    const { result } = renderHook(() => useIssueForm(fullIssue(), undefined, true, undefined));
+    const issue = fullIssue(); // stable ref — see note above
+    const { result } = renderHook(() => useIssueForm(issue, undefined, true, undefined));
     const f = result.current.form;
     expect(f.title).toBe("Full issue");
     expect(f.description).toBe("some detail");
@@ -129,7 +134,8 @@ describe("useIssueForm hydrate effect", () => {
 describe("useIssueForm buildPayload", () => {
   it("includes every capability-gated field when the backend can store them (fallback caps=undefined)", () => {
     // caps=undefined → editF falls back to true, so every optional field is sent.
-    const { result } = renderHook(() => useIssueForm(fullIssue(), undefined, true, undefined));
+    const issue = fullIssue(); // stable ref — see note above
+    const { result } = renderHook(() => useIssueForm(issue, undefined, true, undefined));
     const payload = result.current.buildPayload() as Record<string, unknown>;
     expect(payload.title).toBe("Full issue");
     expect(payload.description).toBe("some detail");
@@ -157,7 +163,9 @@ describe("useIssueForm buildPayload", () => {
   });
 
   it("also includes them when caps explicitly allow storing", () => {
-    const { result } = renderHook(() => useIssueForm(fullIssue(), undefined, true, capsWithStore(true)));
+    const issue = fullIssue(); // stable ref — see note above
+    const caps = capsWithStore(true);
+    const { result } = renderHook(() => useIssueForm(issue, undefined, true, caps));
     const payload = result.current.buildPayload() as Record<string, unknown>;
     expect(payload).toHaveProperty("budget");
     expect(payload).toHaveProperty("mitigation");
@@ -165,7 +173,9 @@ describe("useIssueForm buildPayload", () => {
   });
 
   it("omits every capability-gated field when the backend cannot store them", () => {
-    const { result } = renderHook(() => useIssueForm(fullIssue(), undefined, true, capsWithStore(false)));
+    const issue = fullIssue(); // stable ref — see note above
+    const caps = capsWithStore(false);
+    const { result } = renderHook(() => useIssueForm(issue, undefined, true, caps));
     const payload = result.current.buildPayload() as Record<string, unknown>;
     // Core fields still present…
     expect(payload.title).toBe("Full issue");
