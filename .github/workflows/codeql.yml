@@ -29,7 +29,7 @@ jobs:
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
       - name: Initialize CodeQL
-        uses: github/codeql-action/init@v3
+        uses: github/codeql-action/init@v4
         with:
           languages: javascript-typescript
           build-mode: none # TypeScript is analysed from source; no compile step needed
@@ -37,6 +37,6 @@ jobs:
           # the /api surface has a global express-rate-limit CodeQL can't trace). See the config.
           config-file: ./.github/codeql/codeql-config.yml
       - name: Perform CodeQL analysis
-        uses: github/codeql-action/analyze@v3
+        uses: github/codeql-action/analyze@v4
         with:
           category: "/language:javascript-typescript"
