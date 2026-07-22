@@ -2,7 +2,8 @@ import { Router } from "express";
 import { requireCollectionEdit } from "../lib/collection-edit-policy";
 import { getSettings } from "../lib/settings";
 import { settingsCollectionRouter } from "../lib/settings-collection-router";
-import { budgetPeriodRows } from "../lib/budget-plan";
+import { budgetPeriodRows, type BudgetPlan } from "../lib/budget-plan";
+import { filterRowsByProjectScope } from "../lib/project-scope";
 import { rollup, parseRollupQuery } from "../lib/rollup";
 
 /**
@@ -13,8 +14,10 @@ import { rollup, parseRollupQuery } from "../lib/rollup";
  */
 const router = Router();
 
-router.get("/budget-plans/rows", (req, res) => {
-  const rows = budgetPeriodRows(getSettings().budgetPlans ?? []);
+router.get("/budget-plans/rows", async (req, res) => {
+  // Each row is per-project financial data — only expose the caller's in-scope budget plans.
+  const scoped = await filterRowsByProjectScope(req, getSettings().budgetPlans ?? [], (b: BudgetPlan) => b.projectId);
+  const rows = budgetPeriodRows(scoped);
   const spec = parseRollupQuery(req.query as Record<string, unknown>);
   res.json({ rows: spec ? rollup(rows, spec) : rows });
 });
@@ -24,6 +27,7 @@ router.use(settingsCollectionRouter({
   settingsKey: "budgetPlans",
   versionLabel: "budget plans updated",
   writeGuards: [requireCollectionEdit("budgetPlans", "manager")],
+  scopeByProject: (r) => (r as BudgetPlan).projectId,
 }));
 
 export default router;

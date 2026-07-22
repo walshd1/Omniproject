@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { SealedFile } from "./sealed-file";
 import { safeParseJson } from "./safe-json";
+import { cachedDecryptedRead } from "./sealed-read-cache";
 
 /**
  * SCOPED ENCRYPTED-JSON ARTIFACT STORE — the canonical home for user-authored artifacts (whiteboards,
@@ -116,11 +117,21 @@ function scopeFileName(scope: ArtifactScope): string {
   return `project-${safeToken(scope.projectId)}.json`;
 }
 
-/** The on-disk file for a (type, scope) collection, or null when no OMNI_CONFIG_DIR (store disabled). */
+/** Resolve `parts` under the `<dir>/artifacts` base, or null if any component would escape it. A
+ *  path-injection barrier (defence in depth on top of `safeToken`): even if a token slipped a `..`
+ *  through, the resolved path is asserted to stay inside the artifacts tree before any fs call sees it. */
+function underArtifacts(dir: string, ...parts: string[]): string | null {
+  const base = path.resolve(dir, "artifacts");
+  const full = path.resolve(base, ...parts);
+  return full === base || full.startsWith(base + path.sep) ? full : null;
+}
+
+/** The on-disk file for a (type, scope) collection, or null when no OMNI_CONFIG_DIR (store disabled)
+ *  or the resolved path would escape the artifacts base. */
 function fileFor(type: string, scope: ArtifactScope): string | null {
   const dir = process.env["OMNI_CONFIG_DIR"]?.trim();
   if (!dir) return null;
-  return path.join(dir, "artifacts", safeToken(type), scopeFileName(scope));
+  return underArtifacts(dir, safeToken(type), scopeFileName(scope));
 }
 
 /** Whether the encrypted-JSON artifact store is available (an OMNI_CONFIG_DIR is configured). */
@@ -128,10 +139,26 @@ export function artifactStoreEnabled(): boolean {
   return !!process.env["OMNI_CONFIG_DIR"]?.trim();
 }
 
+/**
+ * Route guard for endpoints that need the encrypted-JSON store: when it isn't configured on this
+ * deployment, write the standard `501` and return false; otherwise return true. Collapses the
+ * `if (!artifactStoreEnabled()) { res.status(501)… ; return; }` block copy-pasted across ~24 routes into
+ * `if (!requireArtifactStore(res)) return;`. Typed structurally so this storage module stays free of an
+ * express dependency.
+ */
+export function requireArtifactStore(res: { status(code: number): { json(body: unknown): unknown } }): boolean {
+  if (artifactStoreEnabled()) return true;
+  res.status(501).json({ error: "no encrypted-JSON store is configured on this deployment" });
+  return false;
+}
+
 function readCollection<T>(type: string, scope: ArtifactScope): T[] {
   const f = fileFor(type, scope);
   if (!f) return [];
-  const raw = new SealedFile(() => f, `artifact:${type}`).read();
+  // The decrypted string is memoised per (path, mtime, size) when SEALED_READ_CACHE is on (SCALING.md §4);
+  // parse still runs per call so every caller gets a FRESH array (no shared-mutable-state — read-modify-write
+  // callers like putArtifact/deleteArtifact mutate their own copy). A write bumps mtime → the next read misses.
+  const raw = cachedDecryptedRead(f, () => new SealedFile(() => f, `artifact:${type}`).read());
   if (raw === null) return [];
   const parsed = safeParseJson(raw);
   return Array.isArray(parsed) ? (parsed as T[]) : [];
@@ -203,7 +230,8 @@ function scopeFromFileName(name: string): ArtifactScope | null {
 export function listAllArtifactCollections<T extends { id: string }>(type: string): { scope: ArtifactScope; items: T[] }[] {
   const dir = process.env["OMNI_CONFIG_DIR"]?.trim();
   if (!dir) return [];
-  const typeDir = path.join(dir, "artifacts", safeToken(type));
+  const typeDir = underArtifacts(dir, safeToken(type));
+  if (!typeDir) return [];
   let names: string[];
   try { names = fs.readdirSync(typeDir); } catch { return []; }
   const out: { scope: ArtifactScope; items: T[] }[] = [];

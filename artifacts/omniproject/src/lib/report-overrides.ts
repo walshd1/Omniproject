@@ -1,6 +1,5 @@
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { type ReportDefinition } from "@workspace/backend-catalogue";
-import { getJson, sendJson } from "./api";
+import { configResource } from "./config-resource";
 
 /**
  * Built-in report metadata overrides. Presentation-only: a per-report-id override of label / order /
@@ -40,21 +39,13 @@ export function mergeReportOverrides(
 
 export const reportOverridesQueryKey = ["report-overrides"] as const;
 
+const resource = configResource<ReportOverride[]>({
+  queryKey: reportOverridesQueryKey,
+  path: "/api/reports/overrides",
+  envelopeKey: "reportOverrides",
+  reconcile: "set-from-response", // pmo-gated; the endpoint echoes the saved list back
+});
 /** The saved built-in report overrides. */
-export function useReportOverrides() {
-  return useQuery({
-    queryKey: reportOverridesQueryKey,
-    queryFn: () => getJson<{ reportOverrides: ReportOverride[] }>("/api/reports/overrides").then((r) => r.reportOverrides),
-    staleTime: 30_000,
-  });
-}
-
+export const useReportOverrides = resource.useResource;
 /** Persist the built-in report overrides (pmo). */
-export function useSaveReportOverrides() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (reportOverrides: ReportOverride[]) =>
-      sendJson<{ reportOverrides: ReportOverride[] }>("/api/reports/overrides", { reportOverrides }),
-    onSuccess: (data) => qc.setQueryData(reportOverridesQueryKey, data.reportOverrides),
-  });
-}
+export const useSaveReportOverrides = resource.useSaveResource;

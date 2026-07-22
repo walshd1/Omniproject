@@ -14,6 +14,7 @@
  *
  * Pure + deterministic given an injected `rng`, so it's fully unit-testable; defaults to Math.random.
  */
+import { clamp } from "./num";
 
 export interface RiskTask {
   id: string;
@@ -46,8 +47,6 @@ export interface SimResult {
   /** Tornado: tasks ranked by |correlation| of their duration to the total (variance drivers). */
   sensitivity: { id: string; label: string; correlation: number }[];
 }
-
-const clamp = (n: number, lo: number, hi: number): number => Math.min(hi, Math.max(lo, n));
 
 /** Inverse-CDF sample from a triangular(o, m, p) given a uniform u01. */
 function triangular(o: number, m: number, p: number, u01: number): number {

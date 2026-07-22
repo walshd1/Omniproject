@@ -1,0 +1,4 @@
+{ "id": "scrumban-overview", "label": "Scrumban overview", "methodologies": ["scrumban"], "panels": [
+  { "id": "board", "kind": "table", "title": "Board", "config": { "source": "issues" } },
+  { "id": "burndown", "kind": "chart", "title": "Burndown", "config": { "chart": { "type": "sparkline" } } }
+] }

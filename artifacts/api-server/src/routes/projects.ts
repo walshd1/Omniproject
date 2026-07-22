@@ -36,9 +36,10 @@ import { resolveWbsMapping } from "../lib/wbs-mapping-resolve";
 import { applyWbsMapping, WbsMappingError } from "../lib/wbs-mapping";
 import { getSidecarWbs, hasSidecarWbs, upsertSidecarWbsRow } from "../lib/wbs-sidecar";
 import { planWbsWrite } from "../lib/wbs-write";
-import { artifactStoreEnabled } from "../lib/artifact-store";
+import { requireArtifactStore } from "../lib/artifact-store";
 import { resolveMapping } from "../lib/mapping-resolve";
 import { projectMappingRows, planMappingWrite, resolveMappingTargets } from "../lib/mapping";
+import { omnistoreLastResort } from "../lib/omnistore-homing";
 import { getSidecarRows, upsertSidecarRow, removeSidecarRow } from "../lib/mapping-sidecar";
 import { resolveLiveSuperset } from "../lib/capabilities";
 import { deriveMappingValidation } from "../lib/superset";
@@ -64,6 +65,10 @@ import { getFxRates } from "../lib/currency";
 import { evaluateRuleset } from "../lib/ruleset";
 import { recordAudit } from "../lib/audit";
 import { CreateRaidEntryBody } from "@workspace/api-zod";
+import { resolveSeverityVocabulary } from "../lib/severity-vocabulary-config";
+import { resolveImpactVocabulary } from "../lib/impact-vocabulary-config";
+import { resolveLikelihoodVocabulary } from "../lib/likelihood-vocabulary-config";
+import type { ConfigScopes } from "../lib/scoped-config";
 import type { Request, Response } from "express";
 
 const router = Router();
@@ -544,7 +549,7 @@ router.put("/projects/:projectId/wbs/:wbsId", requireRole("contributor"), async 
   await withBrokerErrors(req, res, "wbs_write failed", async () => {
     if (!(await guardProjectScope(req, res, projectId))) return;
     if (!wbsId) { res.status(400).json({ error: "a WBS id is required" }); return; }
-    if (!artifactStoreEnabled()) { res.status(501).json({ error: "no encrypted-JSON store is configured on this deployment" }); return; }
+    if (!requireArtifactStore(res)) return;
     const body = (req.body ?? {}) as { fields?: unknown };
     const values = body.fields && typeof body.fields === "object" && !Array.isArray(body.fields) ? (body.fields as Record<string, unknown>) : null;
     if (!values) { res.status(400).json({ error: "fields must be an object of semanticKey → value" }); return; }
@@ -599,7 +604,8 @@ router.get("/projects/:projectId/mapping/:slot", async (req, res) => {
     // Surface homeless fields + the validation each UI field inherits from its live home, so the admin sees
     // both which fields need a home and what each one will accept.
     const { rules } = deriveMappingValidation(mapping.fields, await resolveLiveSuperset(req));
-    res.json({ ...mapping, homeless: resolveMappingTargets(mapping).homeless, validation: rules });
+    // With OmniStore enabled it homes any orphan, so the effective homeless set collapses (100% when sole).
+    res.json({ ...mapping, homeless: resolveMappingTargets(mapping, omnistoreLastResort() ?? undefined).homeless, validation: rules });
   }, { projectId });
 });
 
@@ -615,7 +621,7 @@ router.get("/projects/:projectId/mapping/:slot/rows", async (req, res) => {
     const ctx = contextFromReq(req);
     const mapping = resolveMapping({ projectId, ...(ctx.sub ? { sub: ctx.sub } : {}) }, slot);
     if (!mapping) { res.status(404).json({ error: `no mapping for slot "${slot}"` }); return; }
-    res.json({ rows: projectMappingRows(getSidecarRows(projectId, slot), mapping) });
+    res.json({ rows: projectMappingRows(getSidecarRows(projectId, slot), mapping, omnistoreLastResort() ?? undefined) });
   }, { projectId });
 });
 
@@ -630,7 +636,7 @@ router.put("/projects/:projectId/mapping/:slot/:rowId", requireRole("contributor
   await withBrokerErrors(req, res, "mapping_write failed", async () => {
     if (!(await guardProjectScope(req, res, projectId))) return;
     if (!rowId) { res.status(400).json({ error: "a row id is required" }); return; }
-    if (!artifactStoreEnabled()) { res.status(501).json({ error: "no encrypted-JSON store is configured on this deployment" }); return; }
+    if (!requireArtifactStore(res)) return;
     const body = (req.body ?? {}) as { fields?: unknown };
     const values = body.fields && typeof body.fields === "object" && !Array.isArray(body.fields) ? (body.fields as Record<string, unknown>) : null;
     if (!values) { res.status(400).json({ error: "fields must be an object of semanticKey → value" }); return; }
@@ -642,7 +648,7 @@ router.put("/projects/:projectId/mapping/:slot/:rowId", requireRole("contributor
     const { rules, typeByUi } = deriveMappingValidation(mapping.fields, await resolveLiveSuperset(req));
     const violations = checkFieldValues(rules, values, (f) => typeByUi[f] ?? "string");
     if (violations.length) { res.status(400).json({ error: "field validation failed", violations }); return; }
-    const plan = planMappingWrite(mapping, values);
+    const plan = planMappingWrite(mapping, values, omnistoreLastResort() ?? undefined);
     upsertSidecarRow(projectId, slot, plan.sidecarIdField, rowId, plan.sidecar);
     recordAudit({ ts: new Date().toISOString(), category: "admin", action: `mapping_write:${slot}:${rowId}`, projectId, result: "success", status: 200 });
     res.json({
@@ -667,13 +673,13 @@ router.delete("/projects/:projectId/mapping/:slot/:rowId", requireRole("contribu
   await withBrokerErrors(req, res, "mapping_delete failed", async () => {
     if (!(await guardProjectScope(req, res, projectId))) return;
     if (!rowId) { res.status(400).json({ error: "a row id is required" }); return; }
-    if (!artifactStoreEnabled()) { res.status(501).json({ error: "no encrypted-JSON store is configured on this deployment" }); return; }
+    if (!requireArtifactStore(res)) return;
     const ctx = contextFromReq(req);
     const mapping = resolveMapping({ projectId, ...(ctx.sub ? { sub: ctx.sub } : {}) }, slot);
     if (!mapping) { res.status(404).json({ error: `no mapping for slot "${slot}"` }); return; }
     // Use the SAME id field the write path keys on (join field, else the id key's native name), so a delete
     // always targets the row an upsert created.
-    removeSidecarRow(projectId, slot, planMappingWrite(mapping, {}).sidecarIdField, rowId);
+    removeSidecarRow(projectId, slot, planMappingWrite(mapping, {}, omnistoreLastResort() ?? undefined).sidecarIdField, rowId);
     recordAudit({ ts: new Date().toISOString(), category: "admin", action: `mapping_delete:${slot}:${rowId}`, projectId, result: "success", status: 200 });
     res.status(204).end();
   }, { projectId });
@@ -710,20 +716,69 @@ router.get("/projects/:projectId/raid", async (req, res) => {
   }, { projectId: params.projectId });
 });
 
+// The RAID/risk GRADED vocabularies (severity/impact/likelihood) are now SCOPE-OVERRIDABLE (an org/methodology
+// can add, relabel or remove grades — see the *-vocabulary-config resolvers). The frozen generated enum on
+// those three fields is relaxed here: the body's structure is still validated by the zod contract (minus the
+// three graded fields), and each grade is membership-checked against the RESOLVED vocabulary for the request
+// scope, so a scope-added grade is accepted while garbage is 400. `severity` stays required; `likelihood`/
+// `impact` stay optional/clearable (null passes).
+const RaidBodyStructure = CreateRaidEntryBody.omit({ severity: true, likelihood: true, impact: true });
+
+/** Read the RAID request's resolution scopes: the project from the route, the user from the auth context. */
+function raidScopesFromReq(req: Request, projectId: string): ConfigScopes {
+  const scopes: ConfigScopes = { projectId };
+  const sub = contextFromReq(req).sub;
+  if (sub) scopes.sub = sub;
+  return scopes;
+}
+
+/** Membership-check one graded RAID field against its resolved vocabulary. Returns the value on success, or
+ *  sends a 400 (and returns undefined) on a miss. `required` fields 400 when absent; optional ones let a
+ *  null/absent value through (returned as null). */
+function checkRaidGrade(res: Response, field: string, value: unknown, ids: Set<string>, required: boolean): string | null | undefined {
+  if (value === undefined || value === null) {
+    if (required) { res.status(400).json({ error: "invalid request", issues: [`${field} is required`] }); return undefined; }
+    return null;
+  }
+  if (typeof value === "string" && ids.has(value)) return value;
+  res.status(400).json({ error: "invalid request", issues: [`${field} "${String(value)}" is not a ${field} grade in this scope`] });
+  return undefined;
+}
+
 // RAID is a manager capability per the RBAC model (rbac.ts: "manager — contributor + RAID,
 // baselines, portfolio actions"), and this route has no compensating ruleset gate — so gate at manager.
 router.post("/projects/:projectId/raid", requireRole("manager"), async (req, res) => {
   const paramsParse = GetProjectSummaryParams.safeParse(req.params);
-  const bodyParse = CreateRaidEntryBody.safeParse(req.body);
+  const bodyParse = RaidBodyStructure.safeParse(req.body);
   if (!paramsParse.success || !bodyParse.success) {
     res.status(400).json({ error: "Invalid request" });
     return;
   }
   const { projectId } = paramsParse.data;
+  const scopes = raidScopesFromReq(req, projectId);
+  const raw = (req.body ?? {}) as Record<string, unknown>;
+
+  // Relaxed, scope-resolved gate for the three graded fields (severity required; likelihood/impact optional).
+  const severityIds = new Set(resolveSeverityVocabulary(scopes).levels.map((l) => l.id));
+  const impactIds = new Set(resolveImpactVocabulary(scopes).levels.map((l) => l.id));
+  const likelihoodIds = new Set(resolveLikelihoodVocabulary(scopes).levels.map((l) => l.id));
+  const severity = checkRaidGrade(res, "severity", raw["severity"], severityIds, true);
+  if (severity === undefined) return;
+  const likelihood = checkRaidGrade(res, "likelihood", raw["likelihood"], likelihoodIds, false);
+  if (likelihood === undefined) return;
+  const impact = checkRaidGrade(res, "impact", raw["impact"], impactIds, false);
+  if (impact === undefined) return;
+
+  const body: Record<string, unknown> = {
+    ...(bodyParse.data as Record<string, unknown>),
+    severity,
+    ...(likelihood !== null ? { likelihood } : {}),
+    ...(impact !== null ? { impact } : {}),
+  };
 
   await withBrokerErrors(req, res, "create_raid_entry failed", async () => {
     if (!(await guardProjectScope(req, res, projectId))) return;
-    const entry = await getBroker().addRaid(contextFromReq(req), projectId, bodyParse.data as Record<string, unknown>);
+    const entry = await getBroker().addRaid(contextFromReq(req), projectId, body);
     res.status(201).json(entry);
   }, { projectId });
 });

@@ -95,4 +95,36 @@ describe("ExportMenu", () => {
     await user.click(await screen.findByText("This project's issues (.csv)"));
     expect(hrefs.some((h) => h.includes("projectId=a%2Fb%20c"))).toBe(true);
   });
+
+  it("downloads the projects and activity CSVs", async () => {
+    const user = await open();
+    await user.click(await screen.findByText("Projects (.csv)"));
+    expect(hrefs.some((h) => h.endsWith("/api/export.csv?dataset=projects"))).toBe(true);
+    await user.click(screen.getByTestId("export-menu"));
+    await user.click(await screen.findByText("Activity (.csv)"));
+    expect(hrefs.some((h) => h.endsWith("/api/export.csv?dataset=activity"))).toBe(true);
+  });
+
+  it("downloads the pdf and markdown report formats", async () => {
+    const user = await open();
+    await user.click(await screen.findByText("All issues report (.pdf)"));
+    expect(hrefs.some((h) => h.includes("/api/export.pdf?dataset=issues"))).toBe(true);
+    await user.click(screen.getByTestId("export-menu"));
+    await user.click(await screen.findByText("All issues report (.md)"));
+    expect(hrefs.some((h) => h.includes("/api/export.md?dataset=issues"))).toBe(true);
+  });
+
+  it("offers all due dates as a calendar (.ics) download", async () => {
+    const user = await open();
+    await user.click(await screen.findByText("All due dates → calendar (.ics)"));
+    expect(hrefs.some((h) => h.endsWith("/api/calendar.ics?scope=all"))).toBe(true);
+  });
+
+  it("scopes the pdf report to a project when given a projectId", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<ExportMenu projectId="proj-7" />);
+    await user.click(screen.getByTestId("export-menu"));
+    await user.click(await screen.findByText("Issues report (.pdf)"));
+    expect(hrefs.some((h) => h.includes("/api/export.pdf?dataset=issues") && h.includes("projectId=proj-7"))).toBe(true);
+  });
 });

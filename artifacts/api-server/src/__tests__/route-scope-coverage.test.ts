@@ -121,6 +121,12 @@ const CLASSIFICATION: Record<string, ScopeClass> = {
   "PUT /scim/v2/Groups/:id": "admin-nontenant",
   "PATCH /scim/v2/Groups/:id": "admin-nontenant",
   "DELETE /scim/v2/Groups/:id": "admin-nontenant",
+  // Native in-app user management — admin-gated; the `:id` names a local user record (roster), not per-tenant
+  // data. Same posture as the SCIM directory above.
+  "PATCH /users/:id": "admin-nontenant",
+  "POST /users/:id/password": "admin-nontenant",
+  "DELETE /users/:id/password": "admin-nontenant",
+  "DELETE /users/:id": "admin-nontenant",
   "DELETE /webhooks/:id": "admin-nontenant",
   "POST /webhooks/:id/test": "admin-nontenant",
   "PUT /governance/:id": "admin-nontenant",
@@ -140,6 +146,20 @@ const CLASSIFICATION: Record<string, ScopeClass> = {
   // Template id names an org-global config object (the `templates` collection), NOT tenant data; instantiate
   // is manager+ gated and creates a NEW project via the scope-checked broker, so the id is not a lateral vector.
   "POST /templates/:id/instantiate": "global-config",
+  // Preset id names a fixed GLOBAL catalogue entry (a quick-load bundle), NOT tenant data. Read is viewer+;
+  // apply is pmo-gated and only applies a global reference ruleset + creates a NEW project via the scope-checked
+  // broker (same posture as template instantiate), so the id is not a cross-tenant lateral vector.
+  "GET /presets/:id": "global-config",
+  "POST /presets/:id/apply": "global-config",
+  // A deployment-type id names a fixed GLOBAL catalogue archetype (solo-selfhost, …), NOT tenant data. Read +
+  // resolve are read-only previews of a global template; there is no per-tenant deployment-type object to breach.
+  "GET /deployment-types/:id": "global-config",
+  "POST /deployment-types/:id/resolve": "global-config",
+  // A methodology id names a fixed GLOBAL catalogue entry (gtd, scrum, …). Preview is read-only; deploy is
+  // pmo/admin-gated AND delegation-policy-gated, and writes the methodology's own tagged surfaces at the chosen
+  // scope — the id is a global methodology id, not a cross-tenant lateral vector.
+  "GET /methodology-composition/deployment/:id": "global-config",
+  "POST /methodology-composition/deploy/:id": "global-config",
   // A wiki-doc id is SELF-DESCRIBING (`<target>~…~<localId>`) — it names a store, not a bare tenant id (same
   // storage-target model as whiteboards):
   //  - `user~…`    the caller's PRIVATE area — the scope always uses the CALLER's own sub, so one user's id

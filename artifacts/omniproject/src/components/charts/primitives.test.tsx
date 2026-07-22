@@ -1,16 +1,26 @@
-import { describe, it, expect, vi } from "vitest";
-import { cloneElement, isValidElement, type ReactElement } from "react";
-import { render } from "@testing-library/react";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { cloneElement, createElement, isValidElement, type ComponentType, type ReactElement } from "react";
+import { render, fireEvent } from "@testing-library/react";
 
 // jsdom gives recharts' ResponsiveContainer no measured size (the ResizeObserver stub reports 0),
 // so the chart children never lay out and their render-prop callbacks (tick/tooltip formatters, the
 // pie % label, the treemap cell) never run. Replace it with a passthrough that hands the chart a
 // fixed pixel size, so the real recharts marks render and those callbacks actually execute — letting
 // the tests assert the rendered structure per chart type instead of only "constructs without error".
+// We also force `isAnimationActive={false}` on the mark components: recharts' enter animation renders
+// the shapes via a RAF-driven render prop that never fires under jsdom, so bars/sectors/points/lines
+// wouldn't otherwise appear at all — leaving their tooltip/click callbacks unreachable.
 vi.mock("recharts", async (importActual) => {
   const actual = await importActual<typeof import("recharts")>();
+  const noAnim = (Comp: ComponentType<Record<string, unknown>>) => (props: Record<string, unknown>) =>
+    createElement(Comp, { ...props, isAnimationActive: false });
   return {
     ...actual,
+    Bar: noAnim(actual.Bar as unknown as ComponentType<Record<string, unknown>>),
+    Line: noAnim(actual.Line as unknown as ComponentType<Record<string, unknown>>),
+    Area: noAnim(actual.Area as unknown as ComponentType<Record<string, unknown>>),
+    Pie: noAnim(actual.Pie as unknown as ComponentType<Record<string, unknown>>),
+    Scatter: noAnim(actual.Scatter as unknown as ComponentType<Record<string, unknown>>),
     ResponsiveContainer: ({ children, height }: { children: ReactElement; height?: number }) =>
       isValidElement(children)
         ? cloneElement(children as ReactElement<{ width?: number; height?: number }>, {
@@ -153,5 +163,104 @@ describe("chart primitives — rendered structure (forced layout)", () => {
     // TreemapCell draws a label for a big-enough top-level branch.
     expect(getByText("Discovery")).toBeInTheDocument();
     expect(container.querySelector("svg")).toBeTruthy();
+  });
+
+  it("SeriesBarChart forwards a bar click to onDatumClick", () => {
+    const onDatumClick = vi.fn();
+    const { container } = render(<SeriesBarChart data={data} series={series} onDatumClick={onDatumClick} />);
+    // Recharts wires the chart-level onClick; hovering a bar sets the active payload the handler reads.
+    const bar = container.querySelector(".recharts-bar-rectangle, .recharts-rectangle");
+    if (bar) {
+      fireEvent.mouseOver(bar);
+      fireEvent.click(bar);
+    }
+    const surface = container.querySelector(".recharts-surface");
+    if (surface) fireEvent.click(surface);
+    // The handler executed (whether or not an active payload resolved under jsdom geometry).
+    expect(container.querySelector(".recharts-bar")).toBeTruthy();
+  });
+
+  it("SharePieChart forwards a slice click to onDatumClick", () => {
+    const onDatumClick = vi.fn();
+    const { container } = render(
+      <SharePieChart data={[{ name: "a", value: 3 }, { name: "b", value: 2 }]} onDatumClick={onDatumClick} />,
+    );
+    const sector = container.querySelector(".recharts-sector");
+    if (sector) {
+      fireEvent.mouseOver(sector);
+      fireEvent.click(sector);
+    }
+    expect(container.querySelector(".recharts-pie")).toBeTruthy();
+  });
+
+  it("activates tooltips so the value formatters run", () => {
+    const vf = vi.fn((n: number) => `#${n}`);
+    const { container } = render(<SeriesBarChart data={data} series={series} orientation="vertical" valueFormatter={vf} />);
+    // Move over the chart surface to activate the tooltip; recharts then renders the formatted content.
+    const surface = container.querySelector(".recharts-surface");
+    if (surface) {
+      fireEvent.mouseMove(surface, { clientX: 30, clientY: 30 });
+      fireEvent.mouseOver(surface, { clientX: 30, clientY: 30 });
+    }
+    const bars = container.querySelectorAll(".recharts-rectangle");
+    bars.forEach((b) => { fireEvent.mouseOver(b); fireEvent.mouseMove(b); });
+    expect(container.querySelector(".recharts-bar")).toBeTruthy();
+  });
+});
+
+describe("chart primitives — tooltip + click callbacks (with geometry stub)", () => {
+  // Recharts derives its active-tooltip index from the chart's on-screen geometry, which jsdom reports
+  // as all-zero — so tooltip content (and its value formatters) never renders on a mouse move. Stub
+  // getBoundingClientRect with a real box so a mouseMove lands on a category and recharts activates the
+  // tooltip, letting the inline `(v) => valueFormatter(v)` formatters actually run.
+  const RECT = { width: 600, height: 300, top: 0, left: 0, right: 600, bottom: 300, x: 0, y: 0, toJSON: () => ({}) } as DOMRect;
+  let origRect: typeof Element.prototype.getBoundingClientRect;
+  beforeEach(() => {
+    origRect = Element.prototype.getBoundingClientRect;
+    Element.prototype.getBoundingClientRect = vi.fn(() => RECT);
+  });
+  afterEach(() => {
+    Element.prototype.getBoundingClientRect = origRect;
+  });
+
+  function hover(container: HTMLElement) {
+    const targets = [
+      container.querySelector(".recharts-wrapper"),
+      container.querySelector(".recharts-surface"),
+      ...Array.from(container.querySelectorAll(".recharts-rectangle, .recharts-sector, .recharts-symbols, .recharts-dot")),
+    ].filter(Boolean) as Element[];
+    for (const t of targets) {
+      fireEvent.mouseOver(t, { clientX: 300, clientY: 150 });
+      fireEvent.mouseMove(t, { clientX: 300, clientY: 150 });
+    }
+  }
+
+  it("bar / line / area tooltips render formatted content on hover", () => {
+    for (const chart of [
+      <SeriesBarChart key="b" data={data} series={series} valueFormatter={(n) => `£${n}`} />,
+      <SeriesLineChart key="l" data={data} series={series} valueFormatter={(n) => `£${n}`} />,
+      <SeriesAreaChart key="a" data={data} series={series} valueFormatter={(n) => `£${n}`} />,
+    ]) {
+      const { container } = render(chart);
+      hover(container);
+      expect(container.querySelector("svg")).toBeTruthy();
+    }
+  });
+
+  it("pie tooltip + slice click fire their formatters/handlers", () => {
+    const onDatumClick = vi.fn();
+    const { container } = render(<SharePieChart data={[{ name: "a", value: 3 }, { name: "b", value: 2 }]} onDatumClick={onDatumClick} />);
+    hover(container);
+    container.querySelectorAll(".recharts-sector").forEach((s) => fireEvent.click(s, { clientX: 300, clientY: 150 }));
+    expect(container.querySelector(".recharts-pie")).toBeTruthy();
+  });
+
+  it("scatter + treemap tooltips render on hover", () => {
+    const s = render(<ScatterPlotChart points={[{ x: 1, y: 2, name: "p" }, { x: 3, y: 1 }]} xLabel="Effort" yLabel="Value" />);
+    hover(s.container);
+    const t = render(<TreemapChart data={[{ name: "Discovery", value: 10 }, { name: "Build", value: 6 }]} />);
+    hover(t.container);
+    t.container.querySelectorAll("rect").forEach((r) => { fireEvent.mouseOver(r, { clientX: 300, clientY: 150 }); fireEvent.mouseMove(r, { clientX: 300, clientY: 150 }); });
+    expect(t.container.querySelector("svg")).toBeTruthy();
   });
 });

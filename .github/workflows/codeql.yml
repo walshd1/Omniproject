@@ -6,11 +6,12 @@ name: codeql
 
 on:
   push:
-    branches: [main]
+    branches: [main, next]
   pull_request:
-    branches: [main]
+    branches: [main, next]
   schedule:
     - cron: "0 6 * * 2" # Tuesdays 06:00 UTC
+  workflow_dispatch: {} # allow an on-demand re-scan (e.g. after a config/exclusion change)
 
 concurrency:
   group: codeql-${{ github.ref }}

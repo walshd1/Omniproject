@@ -141,14 +141,17 @@ describe("EntityViews (generic engine)", () => {
     const d = makeDescriptor();
     d.useRecords = () => ({ records: [], isLoading: true, error: null });
     renderWithProviders(<EntityViews descriptor={d} onOpen={() => {}} />);
-    expect(screen.getByText("Loading…")).toBeInTheDocument();
+    // The engine now routes EVERY view's loading state through the shared DataState (brutalist LOADING…).
+    expect(screen.getByText("LOADING…")).toBeInTheDocument();
   });
 
-  it("shows an error placeholder for the list view when loading failed", () => {
+  it("shows an error placeholder (with the message) for the list view when loading failed", () => {
     const d = makeDescriptor();
     d.useRecords = () => ({ records: [], isLoading: false, error: new Error("nope") });
     renderWithProviders(<EntityViews descriptor={d} onOpen={() => {}} />);
-    expect(screen.getByText("Couldn't load widgets.")).toBeInTheDocument();
+    // DataState error surface: a role="alert" block with the "Could not load" title + the message.
+    expect(screen.getByRole("alert")).toHaveTextContent("Could not load");
+    expect(screen.getByText("nope")).toBeInTheDocument();
   });
 
   it("groups the list under headings when a saved view sets groupBy", () => {

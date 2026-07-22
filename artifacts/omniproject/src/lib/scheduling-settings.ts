@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { getJson } from "./api";
 import { makeWorkingCalendar, DEFAULT_WORKING_CALENDAR, type WorkingCalendar, type Weekday } from "./working-calendar";
@@ -46,5 +47,7 @@ export function useSchedulingSettings(): SchedulingSettings {
     queryFn: () => getJson<{ scheduling: RawSchedulingConfig }>("/api/scheduling/resolved"),
     staleTime: 15_000,
   });
-  return resolveSchedulingSettings(data?.scheduling);
+  // Memoise: resolveSchedulingSettings builds a fresh WorkingCalendar (new Set/object) each call, so an
+  // unmemoised return re-triggers every consumer's forecast/CPM memo on every render (broken-memo thrash).
+  return useMemo(() => resolveSchedulingSettings(data?.scheduling), [data]);
 }

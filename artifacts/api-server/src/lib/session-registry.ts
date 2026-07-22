@@ -13,7 +13,7 @@
  * Redis round-trip inline in auth. That async refactor of the auth path is higher-risk and out
  * of scope here, so the per-replica cap is a knowingly-accepted limit rather than an oversight.
  */
-import { sharedKv, sharedStateMode } from "./shared-state";
+import { sharedKv } from "./shared-state";
 
 interface Entry { first: number; last: number }
 const users = new Map<string, Map<string, Entry>>();
@@ -78,10 +78,13 @@ export function activeSessionCount(sub: string): number {
 // legitimate user simply signs in again. A small GRACE window absorbs normal browser request
 // concurrency (many in-flight requests share the pre-re-seal cookie) so it never false-kills.
 //
-// HONEST SCOPE: like the concurrent-session cap above, this high-water mark is per-replica RAM (the
-// read is a SYNC auth hot-path). With sticky sessions it is exact; without them, a replay could land
-// on a replica that hasn't yet seen the newer seq (a missed detection, never a false lockout of a real
-// user). A shared store would make it fleet-global; that async refactor is out of scope here.
+// SCOPE: the high-water mark is per-replica RAM for the SYNC auth-hot-path read. In MULTI-REPLICA mode
+// (a fleet declared via REDIS_URL) the mark is ALSO published to — and reconciled from — shared state
+// (below), so a replay of a superseded cookie that lands FIRST on a replica which never served the
+// session is still caught on its next request. That cross-replica publish is NON-OPTIONAL in a declared
+// fleet: sequence enforcement can't be switched off there (see `sequenceEnforced`), and the publish is
+// gated on the fleet declaration rather than on Redis having finished connecting, so it is never silently
+// dropped during warm-up. A single-replica deployment keeps the pure per-replica mark (exact by design).
 interface SeqEntry { high: number; last: number; killed: boolean }
 const seqs = new Map<string, SeqEntry>();
 
@@ -93,9 +96,21 @@ function seqGrace(): number {
   return Number.isFinite(n) && n >= 0 ? Math.floor(n) : 5;
 }
 
-/** Whether rotating-token sequence enforcement is on (default ON; set SESSION_SEQUENCE_ENFORCE=0 to
- *  disable, e.g. for a non-sticky fleet that would rather not risk per-replica missed detections). */
+/** Whether a fleet is DECLARED (multi-replica) — the same signal fleet-readiness uses: REDIS_URL set.
+ *  A replica that declared it but hasn't actually achieved Redis-backed shared state is held out of the
+ *  load balancer by /readyz (lib/fleet-readiness), so "declared" is the operative multi-replica marker. */
+function fleetDeclared(): boolean {
+  return !!process.env["REDIS_URL"]?.trim();
+}
+
+/** Whether rotating-token sequence enforcement is on. Default ON; `SESSION_SEQUENCE_ENFORCE=0` disables
+ *  it — but ONLY in a single-replica deployment. In MULTI-REPLICA mode (a fleet declared via REDIS_URL)
+ *  enforcement is NON-OPTIONAL: the shared cross-replica seq-mark makes fork detection reliable across
+ *  replicas, so the one documented reason to disable it (per-replica missed detections on a non-sticky
+ *  fleet) no longer applies — the off-switch is ignored there rather than silently dropping fleet-wide
+ *  session-fork detection. */
 export function sequenceEnforced(): boolean {
+  if (fleetDeclared()) return true;
   const v = process.env["SESSION_SEQUENCE_ENFORCE"]?.trim().toLowerCase();
   return v !== "0" && v !== "false" && v !== "off" && v !== "no";
 }
@@ -105,15 +120,20 @@ function pruneSeqs(now: number): void {
   for (const [id, e] of seqs) if (e.last < cutoff) seqs.delete(id);
 }
 
-// ── Cross-replica mark (best-effort fleet detection of a replay that lands on a fresh replica) ──────
-// The high-water mark is per-replica for the SYNC read, but we also publish it to shared state so a
-// replay of a superseded cookie that lands FIRST on a replica which never served the session can still
-// be caught. Redis-mode only: in single-replica the issuing replica already has the mark locally, so
-// there is no cross-replica "first sight" to reconcile.
+// ── Cross-replica mark (fleet detection of a replay that lands on a fresh replica) ──────────────────
+// The high-water mark is per-replica for the SYNC read, but in a DECLARED FLEET (REDIS_URL set) we also
+// publish it to — and reconcile it from — shared state, so a replay of a superseded cookie that lands
+// FIRST on a replica which never served the session is still caught. This is gated on the fleet being
+// DECLARED, not on `sharedStateMode()` being "redis" at the instant of the call: `sharedKv` awaits its
+// own readiness and routes to Redis once connected, so the mark is published even during the brief
+// warm-up window rather than being silently skipped. In single-replica (no fleet declared) the issuing
+// replica already holds the mark locally, so there is no cross-replica "first sight" to reconcile and
+// the publish is skipped. Sequence enforcement is always on in a declared fleet, so this publish is
+// non-optional there — it can't be turned off, and it can't be missed while Redis is still connecting.
 const SEQ_MARK_PREFIX = "seq:mark:";
 
 function publishSeqMark(salt: string, high: number): void {
-  if (!sequenceEnforced() || sharedStateMode() !== "redis") return;
+  if (!sequenceEnforced() || !fleetDeclared()) return;
   void sharedKv.set(SEQ_MARK_PREFIX + salt, String(high), { ttlMs: absoluteWindowMs() }).catch(() => { /* best-effort */ });
 }
 
@@ -121,7 +141,7 @@ function publishSeqMark(salt: string, high: number): void {
  *  the presented seq, this is a replay of a superseded copy that landed here first ⇒ mark the session
  *  killed so its NEXT request forks (and readSession revokes it fleet-wide). Never blocks the read. */
 function reconcileFirstSight(salt: string, seq: number): void {
-  if (sharedStateMode() !== "redis") return;
+  if (!fleetDeclared()) return;
   void (async () => {
     try {
       const raw = await sharedKv.get(SEQ_MARK_PREFIX + salt);

@@ -22,7 +22,7 @@ export function ResourceAllocationsAdmin() {
   const { data: server } = useResourceAllocations();
   const save = useSaveResourceAllocations();
   const { toast } = useToast();
-  const { draft, setDraft, dirty, reset } = useDraftAdmin<ResourceAllocation[], ResourceAllocation[]>(server, structuredClone);
+  const { draft, setDraft, dirty, reset } = useDraftAdmin<ResourceAllocation[], ResourceAllocation[]>(server);
 
   if (!roleAtLeast(auth?.role, "manager")) return null;
 

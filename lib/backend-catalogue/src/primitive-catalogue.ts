@@ -1,119 +1,135 @@
 import type { PrimitiveCategory, PrimitiveParamShape, PrimitiveDefShape } from "./primitive-schema";
+// DERIVED primitives — everything that COMPOSES from a root (`extends`) is DATA, authored as JSON recipes under
+// primitives/ (like screens/reports/mappings). Only the ROOT primitives below stay in TypeScript. A derived
+// primitive is a thin recipe: an id + label + category + `extends` + the params it adds/re-declares.
+import geometryCanvas from "./primitives/geometry-canvas.json";
+import screenPrim from "./primitives/screen.json";
+import formPrim from "./primitives/form.json";
+import reportPrim from "./primitives/report.json";
+import chartPrim from "./primitives/chart.json";
+import interactiveChart from "./primitives/interactive-chart.json";
+import barPrim from "./primitives/bar.json";
+import lineChart from "./primitives/line-chart.json";
+import areaPrim from "./primitives/area.json";
+import piePrim from "./primitives/pie.json";
+import donutPrim from "./primitives/donut.json";
+import scatterPrim from "./primitives/scatter.json";
+import treemapPrim from "./primitives/treemap.json";
+import ganttPrim from "./primitives/gantt.json";
+import recordSet from "./primitives/record-set.json";
+import tablePrim from "./primitives/table.json";
+import registerPrim from "./primitives/register.json";
+import dataSlot from "./primitives/data-slot.json";
+import statTile from "./primitives/stat-tile.json";
+import badgePrim from "./primitives/badge.json";
 
 /**
- * THE SHIPPED PRIMITIVE CATALOGUE — a data-only library of every rendering primitive the product ships, so the
- * view/report/chart builders (and the def store) can discover what artifacts compose from. Relocated here from
- * the SPA (roadmap X.11: "make … primitives system JSON") so ONE source of truth feeds both the BACKEND seeder
- * (system `primitive` defs) and the SPA palette — the React RENDERERS stay engine, only these definitions are
- * data. It is metadata, not components: each entry names a primitive, the shape of data it consumes, and its
- * options; nothing here imports React, so it serialises straight into a def. The shared shapes come from
- * `primitive-schema` (the ONE primitive contract, also used by `validatePrimitiveDef`); `PrimitiveDef` /
- * `PrimitiveParam` are re-exported as the render-facing aliases the SPA already imports.
+ * THE SHIPPED PRIMITIVE CATALOGUE — the library of every rendering primitive the product ships, so the
+ * view/report/chart builders (and the def store) can discover what artifacts compose from. ONE source of truth
+ * feeds both the BACKEND seeder (system `primitive` defs) and the SPA palette — the React RENDERERS stay engine,
+ * only these definitions are data.
+ *
+ * ROOTS vs DERIVED: the ROOT primitives (built on nothing — no `extends`) live in TypeScript below, because a
+ * root is code-level foundation. Everything that COMPOSES from a root (`extends`) is DATA and is authored as a
+ * JSON recipe under primitives/ (the same rule screens/reports/mappings follow) — see the imports above. The
+ * catalogue is roots ⧺ derived. The shared shapes come from `primitive-schema` (the ONE primitive contract, also
+ * used by `validatePrimitiveDef`); `PrimitiveDef` / `PrimitiveParam` are the render-facing aliases.
  */
 export type PrimitiveDef = PrimitiveDefShape;
 export type PrimitiveParam = PrimitiveParamShape;
 
-const PALETTE_PARAM: PrimitiveParam = { key: "palette", label: "Palette", type: "palette", required: false, description: "Ordered hex colours; series/slices take them in turn." };
-const LEGEND_PARAM: PrimitiveParam = { key: "legend", label: "Legend", type: "boolean", required: false, description: "Show the series legend (auto for ≥2 series)." };
 const HEIGHT_PARAM: PrimitiveParam = { key: "height", label: "Height", type: "number", required: false, description: "Pixel height, or a percent string for responsive containers." };
 
-export const PRIMITIVE_CATALOGUE: PrimitiveDef[] = [
-  {
-    id: "bar",
-    label: "Bar chart",
-    category: "chart",
-    chartType: "bar",
-    description: "Compare a measure across categories; multiple series can be grouped or stacked, horizontal or vertical.",
-    params: [
-      { key: "data", label: "Rows", type: "rows", required: true, description: "One object per category; keys are the plotted fields." },
-      { key: "series", label: "Series", type: "series", required: true, description: "Which row keys to plot and their labels." },
-      { key: "stacked", label: "Stacked", type: "boolean", required: false, description: "Stack series into one bar instead of grouping." },
-      { key: "orientation", label: "Orientation", type: "enum", required: false, description: "Bar direction.", options: ["horizontal", "vertical"] },
-      LEGEND_PARAM, HEIGHT_PARAM, PALETTE_PARAM,
-    ],
-  },
+const ROOT_PRIMITIVES: PrimitiveDef[] = [
+  // ── GEOMETRY — the fundamental atoms of the drawable plane ──────────────────────────────────────
+  // The true building blocks: a line, a rectangle, a text run, a point. Every chart/diagram/gantt and
+  // every visual grid composes UP from these; each instance's geometry (coordinates/size) and style
+  // (colour, thickness) is supplied from system JSON. These are roots (no `extends`) — the smallest
+  // set everything drawable is built on. The semantic plane (tables/tiles) is NOT drawn from these.
   {
     id: "line",
-    label: "Line chart",
-    category: "chart",
-    chartType: "line",
-    description: "Show change over an ordered axis (usually time) for one or more series.",
+    label: "Line",
+    category: "geometry",
+    description: "A straight line segment between two points — the atom behind axes, gridlines, connectors and any drawn rule. Length is the distance between its endpoints.",
     params: [
-      { key: "data", label: "Rows", type: "rows", required: true, description: "One object per x position." },
-      { key: "series", label: "Series", type: "series", required: true, description: "Which row keys to plot." },
-      { key: "xKey", label: "X key", type: "string", required: false, description: "Row field for the x axis (defaults to name)." },
-      LEGEND_PARAM, HEIGHT_PARAM, PALETTE_PARAM,
+      { key: "x1", label: "Start X", type: "number", required: true, description: "First endpoint, x (canvas units)." },
+      { key: "y1", label: "Start Y", type: "number", required: true, description: "First endpoint, y (canvas units)." },
+      { key: "x2", label: "End X", type: "number", required: true, description: "Second endpoint, x (canvas units)." },
+      { key: "y2", label: "End Y", type: "number", required: true, description: "Second endpoint, y (canvas units)." },
+      { key: "stroke", label: "Stroke", type: "string", required: false, description: "Line colour as a hex string (defaults to the current foreground)." },
+      { key: "thickness", label: "Thickness", type: "number", required: false, description: "Stroke width in canvas units (default 1)." },
+      { key: "dash", label: "Dash", type: "string", required: false, description: "SVG dash pattern, e.g. \"4 4\" for a dashed line (solid when unset)." },
     ],
   },
   {
-    id: "area",
-    label: "Area chart",
-    category: "chart",
-    chartType: "area",
-    description: "A line chart with the area below filled; stack series to show composition over time.",
+    id: "rect",
+    label: "Rectangle",
+    category: "geometry",
+    description: "An axis-aligned rectangle — the atom behind bars, gantt spans, allocation blocks, tiles' frames and grid cells.",
     params: [
-      { key: "data", label: "Rows", type: "rows", required: true, description: "One object per x position." },
-      { key: "series", label: "Series", type: "series", required: true, description: "Which row keys to plot." },
-      { key: "stacked", label: "Stacked", type: "boolean", required: false, description: "Stack series to show cumulative composition." },
-      { key: "xKey", label: "X key", type: "string", required: false, description: "Row field for the x axis." },
-      LEGEND_PARAM, HEIGHT_PARAM, PALETTE_PARAM,
+      { key: "x", label: "X", type: "number", required: true, description: "Top-left corner, x (canvas units)." },
+      { key: "y", label: "Y", type: "number", required: true, description: "Top-left corner, y (canvas units)." },
+      { key: "width", label: "Width", type: "number", required: true, description: "Rectangle width (canvas units)." },
+      { key: "height", label: "Height", type: "number", required: true, description: "Rectangle height (canvas units)." },
+      { key: "fill", label: "Fill", type: "string", required: false, description: "Fill colour as a hex string (none when unset)." },
+      { key: "stroke", label: "Stroke", type: "string", required: false, description: "Border colour as a hex string." },
+      { key: "thickness", label: "Thickness", type: "number", required: false, description: "Border stroke width (default 1)." },
+      { key: "radius", label: "Corner radius", type: "number", required: false, description: "Rounded-corner radius (0 = square)." },
     ],
   },
   {
-    id: "pie",
-    label: "Pie chart",
-    category: "chart",
-    chartType: "pie",
-    description: "Show each category's share of a whole. Best for a handful of slices.",
+    id: "text",
+    label: "Text",
+    category: "geometry",
+    description: "A single run of text positioned on the canvas — the atom behind axis labels, data labels and legends on the drawable plane.",
     params: [
-      { key: "data", label: "Slices", type: "slices", required: true, description: "{ name, value } per slice." },
-      LEGEND_PARAM, HEIGHT_PARAM, PALETTE_PARAM,
+      { key: "x", label: "X", type: "number", required: true, description: "Anchor point, x (canvas units)." },
+      { key: "y", label: "Y", type: "number", required: true, description: "Anchor point, y (canvas units)." },
+      { key: "content", label: "Content", type: "string", required: true, description: "The text to draw." },
+      { key: "size", label: "Font size", type: "number", required: false, description: "Font size in canvas units (default 12)." },
+      { key: "fill", label: "Fill", type: "string", required: false, description: "Text colour as a hex string." },
+      { key: "weight", label: "Weight", type: "enum", required: false, description: "Font weight.", options: ["normal", "bold"] },
+      { key: "anchor", label: "Anchor", type: "enum", required: false, description: "Horizontal anchoring of the text to (x, y).", options: ["start", "middle", "end"] },
     ],
   },
   {
-    id: "donut",
-    label: "Donut chart",
-    category: "chart",
-    chartType: "donut",
-    description: "A pie with a hollow centre — the same share-of-whole read, with room for a centre total.",
+    id: "point",
+    label: "Point",
+    category: "geometry",
+    description: "A single marked point (a small filled circle) — the atom behind scatter marks, network nodes and line-chart vertices.",
     params: [
-      { key: "data", label: "Slices", type: "slices", required: true, description: "{ name, value } per slice." },
-      LEGEND_PARAM, HEIGHT_PARAM, PALETTE_PARAM,
+      { key: "x", label: "X", type: "number", required: true, description: "Centre, x (canvas units)." },
+      { key: "y", label: "Y", type: "number", required: true, description: "Centre, y (canvas units)." },
+      { key: "r", label: "Radius", type: "number", required: false, description: "Marker radius in canvas units (default 2)." },
+      { key: "fill", label: "Fill", type: "string", required: false, description: "Marker colour as a hex string." },
     ],
   },
   {
-    id: "scatter",
-    label: "Scatter plot",
-    category: "chart",
-    chartType: "scatter",
-    description: "Plot points on two numeric axes to reveal correlation or clustering.",
+    id: "path",
+    label: "Path",
+    category: "geometry",
+    description: "An arbitrary SVG path — the atom behind CURVES and FILLED regions the straight-edged atoms can't express: pie/donut arcs, area-chart fills, smooth trend lines.",
     params: [
-      { key: "points", label: "Points", type: "points", required: true, description: "{ x, y, label? } per point." },
-      { key: "xLabel", label: "X label", type: "string", required: false, description: "Axis caption." },
-      { key: "yLabel", label: "Y label", type: "string", required: false, description: "Axis caption." },
-      HEIGHT_PARAM,
+      { key: "d", label: "Path data", type: "string", required: true, description: "SVG path commands (the `d` attribute), e.g. \"M0 0 L10 10 …\"." },
+      { key: "fill", label: "Fill", type: "string", required: false, description: "Fill colour as a hex string (none when unset — a stroked outline)." },
+      { key: "stroke", label: "Stroke", type: "string", required: false, description: "Outline colour as a hex string." },
+      { key: "thickness", label: "Thickness", type: "number", required: false, description: "Outline stroke width (default 1)." },
     ],
   },
+  // ── THE VISUALS TREE — canvas is the root of everything the user SEES ────────────────────────────
+  // `canvas` is an abstract surface (content + layout). Everything visual is a canvas made specific: the
+  // DRAWABLE branch (geometry-canvas ← chart ← interactive-chart ← bar/line/…), and the DOM surfaces
+  // (screen / form / report / table). Each level DOWN is a thinner def and more specific; the resolved
+  // def gets richer as it inherits. The atomic building blocks placed INTO these visuals — geometry
+  // marks, tiles, and controls (switch/label) — are their own primitives, not ancestors of canvas.
   {
-    id: "treemap",
-    label: "Treemap / work breakdown",
-    category: "chart",
-    chartType: "treemap",
-    description: "Nested rectangles sized by value — a work-breakdown structure or any part-of-whole hierarchy.",
+    id: "canvas",
+    label: "Canvas",
+    category: "surface",
+    description: "The abstract visual surface — a bounded space with content and layout that EVERY visual specializes. A screen, a chart, a form and a report are all a canvas made specific. The root of the visuals tree.",
     params: [
-      { key: "data", label: "Tree", type: "tree", required: true, description: "{ name, value | children } hierarchy." },
-      HEIGHT_PARAM,
-    ],
-  },
-  {
-    id: "gantt",
-    label: "Gantt chart",
-    category: "chart",
-    chartType: "gantt",
-    description: "One bar per item positioned by its start/end dates on a shared time axis, with optional progress.",
-    params: [
-      { key: "items", label: "Items", type: "items", required: true, description: "{ label, start, end, progress? } per bar." },
-      HEIGHT_PARAM, PALETTE_PARAM,
+      { key: "width", label: "Width", type: "number", required: false, description: "Surface width (user units for a drawing; grid columns for a layout). Scales to its container." },
+      { key: "height", label: "Height", type: "number", required: false, description: "Surface height (user units), where meaningful." },
     ],
   },
   {
@@ -175,70 +191,119 @@ export const PRIMITIVE_CATALOGUE: PrimitiveDef[] = [
       { key: "segments", label: "Segments", type: "slices", required: true, description: "{ value, className }[] shares." },
     ],
   },
+  // ── DATA-STRUCTURES TREE — the SHAPE of data, independent of how it's shown ─────────────────────
+  // `record-set` is the root: a set of typed records (columns/fields + rows). Its editable
+  // specialisations (register → data-slot) are DATA, not visuals — they're bound to a store and own
+  // CRUD. A VISUAL that shows a record set (the `table` below) BINDS to one; it does not extend it.
+  // ── DATA-STRUCTURES TREE — root is `record`; all records belong to a set ─────────────────────────
+  // A `record` is the atomic data structure (its typed fields). But a record never lives alone — it
+  // belongs to a `record-set`, which extends `record` by adding the collection (rows) over that
+  // schema. The editable sets (register → data-slot) specialise the set. A VISUAL (table) binds to a
+  // record-set to show it. Lineage: data-slot → register → record-set → record.
   {
-    id: "table",
-    label: "Data table",
-    category: "table",
-    description: "Generic sortable columns and rows with per-column rendering and an optional footer.",
+    id: "record",
+    label: "Record",
+    category: "data-structure",
+    description: "The atomic data structure — a single record's typed fields (its schema). Pure DATA. A record never stands alone: it belongs to a `record-set`.",
     params: [
-      { key: "columns", label: "Columns", type: "columns", required: true, description: "Column key, label, alignment, and render." },
-      { key: "rows", label: "Rows", type: "rows", required: true, description: "One object per row." },
+      { key: "columns", label: "Fields", type: "columns", required: true, description: "The record's typed fields: key, label, type/alignment. Its schema." },
+    ],
+  },
+  // ── CONTROL ATOMS — the building blocks of settings & forms ──────────────────────────────────────
+  // A setting is atomic: a SWITCH (the input) with a LABEL (the caption). Forms and the settings tree
+  // compose from these — expressed as primitives, not bespoke UI. They are placed INTO visuals
+  // (screens/forms), not ancestors of canvas.
+  {
+    id: "label",
+    label: "Label",
+    category: "control",
+    description: "A caption for a control or value — the atom that names a setting/field. Pure text, optionally bound to the control it labels.",
+    params: [
+      { key: "text", label: "Text", type: "string", required: true, description: "The caption text." },
+      { key: "for", label: "For", type: "string", required: false, description: "Id of the control this labels (accessible association)." },
     ],
   },
   {
-    id: "register",
-    label: "Editable register",
-    category: "table",
-    // COMPOSITION: a `table` that you can also edit in place. Thin child — inherits `columns`, ALTERS `rows`
-    // (now sourced, not authored), and ADDS the editable-source params. Its new functionality vs `table` is the
-    // add/edit/delete + Save round-trip. Renders via the `register` panel.
-    extends: "table",
-    description: "A data table you can complete and update in place — add / edit / delete rows and Save. Rows come from a settings collection or a generic mapping slot; the server owns the write.",
+    id: "switch",
+    label: "Switch",
+    category: "control",
+    description: "A control that selects a state — the input atom every setting is built from (a switch + a label). A boolean toggle by default; supply `positions` for a multi-position switch.",
     params: [
-      { key: "rows", label: "Rows", type: "rows", required: false, description: "Rows come from the bound source (a settings collection or a mapping slot), not authored inline." },
-      { key: "collection", label: "Settings collection", type: "string", required: false, description: "Settings field key to read/write (settings-collection source)." },
-      { key: "endpoint", label: "Endpoint", type: "string", required: false, description: "PUT target for the settings-collection source." },
-      { key: "slot", label: "Slot", type: "string", required: false, description: "Mapping slot to read/write via the generic surface (slot source); mutually exclusive with collection." },
-      { key: "addLabel", label: "Add-button label", type: "string", required: false, description: "Caption on the add-row button." },
-      { key: "defaultEditRole", label: "Edit role", type: "enum", required: false, description: "Minimum role allowed to edit; anyone below sees it read-only.", options: ["contributor", "manager", "pmo", "admin", "readonly"] },
+      { key: "value", label: "Value", type: "string", required: true, description: "The current position (\"on\"/\"off\" for a toggle, or one of `positions`)." },
+      { key: "positions", label: "Positions", type: "items", required: false, description: "The allowed positions for a multi-position switch; omit for a boolean on/off toggle." },
     ],
   },
   {
-    id: "data-slot",
-    label: "Data-slot register",
-    category: "table",
-    // COMPOSITION: a `register` specialised to the generic mapping-slot source. The thinnest possible child —
-    // it ONLY alters `slot` to required. Its genuinely-new functionality: a register over ANY mapping slot
-    // (epics, sprints, raid, milestones, …) as a pure screen def, no bespoke endpoint. Renders via `register`.
-    extends: "register",
-    description: "An editable register bound to a generic mapping slot — rows read/written through the same generic mapping surface every slot uses, so a register/board over any slot is a pure JSON screen def.",
+    id: "field",
+    label: "Field",
+    category: "control",
+    description: "A labelled input placed on ANY visual (form/screen/report) — a reusable atom like a tile. Binds to a `decision` (its `source`): the decision's TYPE tells the field which control to render (toggle / select / number / text) and with what options.",
     params: [
-      { key: "slot", label: "Slot", type: "string", required: true, description: "The mapping slot this register is bound to (its one added constraint over a plain register)." },
+      { key: "label", label: "Label", type: "string", required: true, description: "The field's caption." },
+      { key: "source", label: "Decision", type: "string", required: false, description: "Id of the decision this field renders; its type drives the control shown. Omit to configure inline." },
+      { key: "value", label: "Value", type: "string", required: false, description: "The current value (the chosen position/option/number/text)." },
     ],
   },
+  // ── SETTINGS TREE — the DECISION (data), which drives the visual control ─────────────────────────
+  // A setting is a DECISION with a TYPE (boolean / single-choice / … ) and its options. This is DATA,
+  // like a record-set; a `field` (visual) binds to it and the decision's type tells the field what to
+  // render and with what options — the same data→visual seam as record-set → table.
   {
-    id: "stat-tile",
-    label: "Stat tile",
+    id: "decision",
+    label: "Decision",
+    category: "setting",
+    description: "A setting to be decided — its TYPE (boolean, single-choice, multi-choice, number, text) plus options and current value. Pure DATA (the settings tree); a `field` visual binds to it and renders the control its type calls for. Every non-`label` decision carries a validation + sanitise policy (defaulted securely by type), so the field it drives always cleans and checks input.",
+    params: [
+      { key: "type", label: "Decision type", type: "enum", required: true, description: "What kind of decision this is — drives which control the visual renders. `label` is display-only (no input).", options: ["boolean", "single-choice", "multi-choice", "number", "text", "label"] },
+      { key: "options", label: "Options", type: "items", required: false, description: "The allowed choices (for single-choice / multi-choice); ignored for boolean/number/text." },
+      { key: "value", label: "Value", type: "string", required: false, description: "The current/default decision value." },
+      { key: "validation", label: "Validation", type: "string", required: false, description: "Validation floor for a non-label field (required/min/max/pattern/options). Tightens the secure default the type provides; every non-label field is validated either way." },
+      { key: "sanitise", label: "Sanitise", type: "items", required: false, description: "Extra sanitise steps ADDED to the secure default (trim/escape/…). A non-label field is always sanitised before its value is stored; these can only tighten, never remove, the floor." },
+    ],
+  },
+  // ── TILE — a cross-cutting atom (goes on a screen, a report, a chart) ────────────────────────────
+  // A tile has a size, a colour, a shape and a content field; it's STATIC by default and INTERACTIVE
+  // when `clickable` (the additive interactivity level, as for charts). The specific tiles (stat-tile,
+  // badge) are thinner children that add their own content shape.
+  {
+    id: "tile",
+    label: "Tile",
     category: "tile",
-    description: "A KPI tile — a headline value with a label, optional hint, and tone.",
+    description: "A bounded content block placed on ANY visual (screen/report/chart) — has a size, colour, shape and a content field. Static by default; set `clickable` to make it interactive (the additive interactivity level). The base every specific tile specializes.",
     params: [
-      { key: "label", label: "Label", type: "string", required: true, description: "What the number measures." },
-      { key: "value", label: "Value", type: "string", required: true, description: "The headline figure." },
-      { key: "hint", label: "Hint", type: "string", required: false, description: "Secondary context line." },
-      { key: "tone", label: "Tone", type: "enum", required: false, description: "State colour.", options: ["neutral", "good", "warn", "bad", "info"] },
+      { key: "content", label: "Content", type: "string", required: false, description: "The tile's content (text, or a reference resolved by the renderer)." },
+      { key: "size", label: "Size", type: "enum", required: false, description: "Tile size.", options: ["small", "medium", "large"] },
+      { key: "color", label: "Colour", type: "string", required: false, description: "Fill/accent colour as a hex string or theme token." },
+      { key: "shape", label: "Shape", type: "enum", required: false, description: "Tile shape.", options: ["square", "rounded", "pill", "circle"] },
+      { key: "clickable", label: "Clickable", type: "boolean", required: false, description: "Make the tile interactive — clickable, with an optional `action`." },
+      { key: "action", label: "Action", type: "string", required: false, description: "What a click does (route / command); only meaningful when clickable." },
     ],
   },
+  // ── CUSTOM — the bootstrap anchor for org-authored primitives ─────────────────────────────────────
+  // A neutral, UNCONNECTED root belonging to no tree. It exists only so a bespoke primitive that doesn't
+  // specialise an existing family still has a SYSTEM root to extend — an org authors `my-thing extends blank`
+  // to start a fresh primitive family while keeping "a customer primitive always sits below a system
+  // primitive" true. Empty by design: it carries a single free-form `props` bag the bespoke child defines.
   {
-    id: "badge",
-    label: "Badge",
-    category: "tile",
-    description: "A small status pill — a labelled chip toned for genuine state.",
+    id: "blank",
+    label: "Blank",
+    category: "custom",
+    description: "A neutral, unconnected base — the SYSTEM root a bespoke primitive extends when it doesn't specialise an existing family. The bootstrap anchor for org-authored primitives; it renders nothing on its own.",
     params: [
-      { key: "children", label: "Text", type: "string", required: true, description: "The pill label." },
-      { key: "tone", label: "Tone", type: "enum", required: false, description: "State colour.", options: ["neutral", "good", "warn", "bad", "info"] },
+      { key: "props", label: "Properties", type: "items", required: false, description: "The free-form properties the bespoke primitive that extends this defines." },
     ],
   },
 ];
+
+/** The DERIVED primitives — authored as JSON recipes (each `extends` a root/ancestor), in catalogue order. */
+const DERIVED_PRIMITIVES = [
+  geometryCanvas, screenPrim, formPrim, reportPrim, chartPrim, interactiveChart,
+  barPrim, lineChart, areaPrim, piePrim, donutPrim, scatterPrim, treemapPrim, ganttPrim,
+  recordSet, tablePrim, registerPrim, dataSlot, statTile, badgePrim,
+] as unknown as PrimitiveDef[];
+
+/** The whole shipped catalogue: the TypeScript ROOTS ⧺ the JSON-authored DERIVED recipes. */
+export const PRIMITIVE_CATALOGUE: PrimitiveDef[] = [...ROOT_PRIMITIVES, ...DERIVED_PRIMITIVES];
 
 /** Look up a primitive by id. */
 export function getPrimitive(id: string): PrimitiveDef | undefined {

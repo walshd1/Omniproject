@@ -7,14 +7,11 @@ import { assertProjectScope, guardProgrammeScope } from "../lib/project-scope";
 import { authorizeStorageTarget } from "../lib/storage-target-authz";
 import { authorizeDefWrite, getDefScopePolicy, setDefScopePolicy, DEF_GATES } from "../lib/def-policy";
 import { runDefWriteHook } from "../lib/def-write-hooks";
-import {
-  artifactStoreEnabled, makeScopedId, parseScopedId, scopeFromParsed, isStorageTarget,
-  type ScopedTarget,
-} from "../lib/artifact-store";
+import { artifactStoreEnabled, makeScopedId, parseScopedId, scopeFromParsed, isStorageTarget, type ScopedTarget, requireArtifactStore } from "../lib/artifact-store";
 import {
   sanitizeDef, sanitizeDefUpdate, validateDef, newStoredDef, updateStoredDef, storedDefMeta,
   listDefs, listSystemDefs, getDef, putDef, deleteDef, DefError, DEF_KINDS, checkImportAncestry,
-  checkImportIntegrity, checkDeleteIntegrity,
+  checkImportIntegrity, checkDeleteIntegrity, isVendorControlledKind,
   type DefKind, type StoredDef, type StoredDefMeta,
 } from "../lib/def-import";
 import defBindingsRouter from "./def-bindings";
@@ -61,7 +58,7 @@ router.get("/defs/policy", requireRole("viewer"), (_req, res) => {
 
 // PUT /api/defs/policy — change who may write at each scope (admin only — altering the permission model).
 router.put("/defs/policy", requireRole("admin"), (req, res) => {
-  if (!artifactStoreEnabled()) { res.status(501).json({ error: "no encrypted-JSON store is configured on this deployment" }); return; }
+  if (!requireArtifactStore(res)) return;
   const body = (req.body ?? {}) as Record<string, unknown>;
   for (const scope of ["user", "project", "programme", "org"] as const) {
     if (body[scope] !== undefined && !(DEF_GATES as readonly string[]).includes(String(body[scope]))) {
@@ -157,10 +154,14 @@ router.post("/defs", requireRole("contributor"), (req, res) => {
   try { input = sanitizeDef(req.body); }
   catch (e) { if (e instanceof DefError) { res.status(400).json({ error: e.message }); return; } throw e; }
 
+  // Primitives (and any vendor-controlled kind) are OURS — an org composes recipes FROM them but cannot author
+  // or fork one. There is no customer scope at which a primitive may be written.
+  if (isVendorControlledKind(input.kind)) { res.status(403).json({ error: `${input.kind} definitions are vendor-controlled and cannot be authored` }); return; }
+
   return withBrokerErrors(req, res, "def import failed", async () => {
     if (!(await authorizeDefWrite(req, res, storage, { projectId, programmeId }))) return;
     if (!(await runDefWriteHook(req, res, input.kind, input.payload))) return;
-    if (!artifactStoreEnabled()) { res.status(501).json({ error: "no encrypted-JSON store is configured on this deployment" }); return; }
+    if (!requireArtifactStore(res)) return;
     const ctx = contextFromReq(req);
     // COMPOSITION: reject a def whose `extends` ancestor is missing or cyclic (checked against the shipped
     // catalogue + every scope the author can see + this def), then the BIDIRECTIONAL integrity check — the def
@@ -193,6 +194,8 @@ router.put("/defs/:id", requireRole("contributor"), (req, res) =>
     const scope = scopeFromParsed(parsed, ctx.sub);
     const existing = scope ? getDef(scope, id) : null;
     if (!existing || !scope) { res.status(404).json({ error: "Not found" }); return; }
+    // A vendor-controlled kind (primitive) can never be edited at a customer scope — it can't exist there.
+    if (isVendorControlledKind(existing.kind)) { res.status(403).json({ error: `${existing.kind} definitions are vendor-controlled and cannot be edited` }); return; }
     let upd;
     try { upd = sanitizeDefUpdate(existing.kind, req.body); }
     catch (e) { if (e instanceof DefError) { res.status(400).json({ error: e.message }); return; } throw e; }

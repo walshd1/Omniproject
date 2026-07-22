@@ -5,6 +5,7 @@
  * teams / load / objectives / dependencies it's given; the plan itself is derived, nothing stored.
  */
 
+import { round1 } from "./num";
 /** A team on the ART, with its capacity (story points) for each iteration of the PI. */
 export interface Team {
   id: string;
@@ -80,7 +81,6 @@ export interface PiPlan {
   overCommittedTeams: string[];
 }
 
-const round1 = (n: number): number => Math.round(n * 10) / 10;
 
 export interface PiPlanInput {
   iterations: number;

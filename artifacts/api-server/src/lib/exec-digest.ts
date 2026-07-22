@@ -1,4 +1,5 @@
 import type { ActorContext, Broker, PortfolioRow } from "../broker/types";
+import { classifyRag } from "../broker/vocabulary";
 import { mintAutonomousContext } from "./autonomous";
 import { getNotifyBus } from "./notify-bus";
 import { deliverDigestEmail } from "./digest-delivery";
@@ -28,15 +29,13 @@ export interface ExecDigest {
   stats: { total: number; red: number; amber: number; green: number; atRisk: number; worstScheduleSlipDays: number; worstBudgetOverrunPct: number; totalBlockers: number };
 }
 
-const rag = (r: PortfolioRow): string => r.ragStatus.trim().toLowerCase();
-
 /** Build the digest from portfolio rows (pure). `at` is an ISO timestamp for the heading. */
 export function buildExecDigest(rows: PortfolioRow[], at: string): ExecDigest {
   // One pass folds the rows into every counter/max (was six separate traversals). Same output.
   let red = 0, amber = 0, green = 0, worstScheduleSlipDays = 0, worstBudgetOverrunPct = 0, totalBlockers = 0;
   for (const r of rows) {
-    const g = rag(r);
-    if (g === "red") red++; else if (g === "amber") amber++; else if (g === "green") green++;
+    const c = classifyRag(r.ragStatus);
+    if (c === "RED") red++; else if (c === "AMBER") amber++; else if (c === "GREEN") green++;
     if (r.scheduleVarianceDays > worstScheduleSlipDays) worstScheduleSlipDays = r.scheduleVarianceDays;
     if (r.budgetVariancePercentage > worstBudgetOverrunPct) worstBudgetOverrunPct = r.budgetVariancePercentage;
     totalBlockers += r.activeBlockersCount;

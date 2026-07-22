@@ -1,6 +1,7 @@
 import type { Row } from "./data";
 import type { TaskSummary } from "./task-summary";
 import { type RagStatus, ragFor, financialHealthFrom } from "../broker/vocabulary";
+import { numLoose as num, optNum } from "@workspace/backend-catalogue";
 
 /**
  * Programmes are a grouping of related projects, **derived** from each project's
@@ -71,18 +72,6 @@ export interface ProgrammeDetail extends ProgrammeRollup {
   /** GTD task roll-up across this programme's projects, or null when the backend models no tasks.
    *  Folded in by the route (the pure rollup stays over project rows only). */
   tasks?: TaskSummary | null;
-}
-
-function num(v: unknown): number {
-  const n = Number(v);
-  return Number.isFinite(n) ? n : 0;
-}
-
-/** A finite number from a row field, or null when the field is absent/non-numeric. */
-function optNum(v: unknown): number | null {
-  if (v === null || v === undefined || v === "") return null;
-  const n = Number(v);
-  return Number.isFinite(n) ? n : null;
 }
 
 /**

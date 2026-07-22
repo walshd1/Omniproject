@@ -1,0 +1,40 @@
+{
+  "id": "small-team",
+  "label": "Small team",
+  "description": "A handful of people sharing a board. OmniStore by default, or point at a system of record you already run.",
+  "order": 20,
+  "questions": [
+    {
+      "id": "idp",
+      "label": "Sign in with an identity provider?",
+      "options": [
+        { "value": "no", "label": "No — internal login" },
+        { "value": "yes", "label": "Yes — SSO / IdP" }
+      ],
+      "default": "no"
+    },
+    {
+      "id": "external-sor",
+      "label": "Do you already run a system of record (Jira, Todoist, …)?",
+      "help": "If yes, OmniProject brokers to it; if no, OmniStore is the home.",
+      "options": [
+        { "value": "no", "label": "No — use OmniStore" },
+        { "value": "yes", "label": "Yes — broker to it" }
+      ],
+      "default": "no"
+    }
+  ],
+  "setup": {
+    "storage": "omnistore",
+    "auth": "internal",
+    "broker": "builtin:omnistore",
+    "residency": "off",
+    "methodology": "kanban",
+    "audit": "standard",
+    "backups": "scheduled"
+  },
+  "refinements": [
+    { "when": { "idp": "yes" }, "set": { "auth": "both" } },
+    { "when": { "external-sor": "yes" }, "set": { "storage": "external", "broker": "n8n" } }
+  ]
+}

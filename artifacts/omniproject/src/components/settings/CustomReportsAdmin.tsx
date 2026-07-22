@@ -111,7 +111,7 @@ export function CustomReportsAdmin() {
   const { data: legacy } = useLegacyCustomReports();
   const drain = useDrainLegacyCustomReports();
   const savingReports = importDef.isPending || updateDef.isPending || deleteDef.isPending || drain.isPending;
-  const { draft, setDraft, dirty, reset } = useDraftAdmin<CustomReportDef[], CustomReportDef[]>(server, structuredClone);
+  const { draft, setDraft, dirty, reset } = useDraftAdmin<CustomReportDef[], CustomReportDef[]>(server);
   const [importError, setImportError] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -195,7 +195,7 @@ export function CustomReportsAdmin() {
       <details className="border border-border rounded-md p-2">
         <summary className="text-[10px] uppercase tracking-widest text-muted-foreground cursor-pointer">Primitive library — what you can build from</summary>
         <div className="mt-3">
-          <PrimitiveLibrary />
+          <PrimitiveLibrary surface="report" includeActivated />
         </div>
       </details>
 

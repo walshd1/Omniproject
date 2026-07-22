@@ -1,0 +1,11 @@
+{
+  "id": "likert",
+  "extends": "form-field",
+  "label": "Likert",
+  "params": [
+    {
+      "key": "options",
+      "required": false
+    }
+  ]
+}

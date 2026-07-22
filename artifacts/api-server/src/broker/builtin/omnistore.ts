@@ -130,6 +130,9 @@ export function applyEvent(state: OmniState, link: OmniLink): void {
 
 export class OmniStore implements BuiltinStore {
   readonly name = "omnistore";
+  /** OmniStore HOMES any orphaned data (it persists the whole row for any vendor shape), so the built-in
+   *  broker offers the full capability superset over it — a sole OmniStore backend covers 100% of the data. */
+  readonly homesOrphans = true;
   private readonly root: Buffer;
   private readonly log: OmniEventLog;
   private readonly state: OmniState = emptyState();

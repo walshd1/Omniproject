@@ -7,6 +7,10 @@ import { captureVersion } from "../lib/config-store";
 import { resetBroker } from "../broker";
 import { getSession } from "./auth";
 import { applySettingsGuarded } from "../lib/settings-guard";
+import { aiProviderAllowed, aiModelAllowed, sttProviderAllowed } from "../lib/ai-allowlist";
+import { resolveScopedSettings, getSettingsOverride, setSettingsOverride } from "../lib/settings-scope";
+import { assertDelegationAllowed, DelegationDeniedError, type ConfigWriteScope } from "../lib/scoped-config";
+import { recordRequestAudit } from "../lib/audit";
 
 /**
  * Gateway-local settings (the broker URL, AI provider, …). Control-plane, never
@@ -14,10 +18,15 @@ import { applySettingsGuarded } from "../lib/settings-guard";
  */
 const router = Router();
 
-router.get("/settings", (_req, res) => {
+router.get("/settings", (req, res) => {
   // Read-safe: webhook signing secrets are masked (any authenticated session,
-  // incl. read-only API tokens, can reach this).
-  res.json(redactSettingsForRead(getSettings()));
+  // incl. read-only API tokens, can reach this). When a programme/project scope is named, the SCOPE-VARIABLE
+  // keys (reporting currency, fx policy, priority weights) are folded to that scope's effective value; all
+  // other keys stay the org value.
+  const programmeId = typeof req.query["programmeId"] === "string" ? req.query["programmeId"] : undefined;
+  const projectId = typeof req.query["projectId"] === "string" ? req.query["projectId"] : undefined;
+  const effective = programmeId || projectId ? resolveScopedSettings(getSettings(), { programmeId, projectId }) : getSettings();
+  res.json(redactSettingsForRead(effective));
 });
 
 // The current cross-field incompatibility LOCKS (which admin controls must be disabled or forced,
@@ -58,6 +67,21 @@ router.patch("/settings", requireRole("admin"), async (req, res) => {
       return;
     }
   }
+  // FLOOR gate (§0, roadmap Phase C): a selected AI provider / model / STT engine must be within the org's
+  // corresponding allowlist (a lower scope may only narrow it). "none" (off) and the empty model (provider
+  // default) are always allowed. Rejected before the write.
+  if ("aiProvider" in body && typeof body["aiProvider"] === "string" && !aiProviderAllowed(body["aiProvider"])) {
+    res.status(400).json({ error: `AI provider "${body["aiProvider"]}" is not permitted by this deployment's AI provider allowlist` });
+    return;
+  }
+  if ("aiModel" in body && typeof body["aiModel"] === "string" && !aiModelAllowed(body["aiModel"])) {
+    res.status(400).json({ error: `AI model "${body["aiModel"]}" is not permitted by this deployment's AI model allowlist` });
+    return;
+  }
+  if ("sttProvider" in body && typeof body["sttProvider"] === "string" && !sttProviderAllowed(body["sttProvider"])) {
+    res.status(400).json({ error: `STT provider "${body["sttProvider"]}" is not permitted by this deployment's STT provider allowlist` });
+    return;
+  }
   try {
     const before = getSettings().backendSource;
     // Governing invariant (§0): a change that REDUCES the security posture is held for a signed sign-off
@@ -84,6 +108,50 @@ router.patch("/settings", requireRole("admin"), async (req, res) => {
     }
     throw err;
   }
+});
+
+// ── Scoped settings overrides — a programme/project may override the SCOPE-VARIABLE allow-list only ─────────
+function settingsScope(src: { programmeId?: unknown; projectId?: unknown } | undefined): ConfigWriteScope {
+  const programmeId = typeof src?.programmeId === "string" && src.programmeId ? src.programmeId : undefined;
+  const projectId = typeof src?.projectId === "string" && src.projectId ? src.projectId : undefined;
+  if (programmeId && projectId) throw new Error("name only one of programmeId / projectId");
+  if (programmeId) return { kind: "programme", programmeId };
+  if (projectId) return { kind: "project", projectId };
+  throw new Error("name a programmeId or projectId");
+}
+
+// GET a scope's stored settings override (the allow-listed keys it varies). Admin-authored → admin-gated read.
+router.get("/settings/scope", requireRole("admin"), (req, res) => {
+  let scope: ConfigWriteScope;
+  try { scope = settingsScope(req.query as { programmeId?: unknown; projectId?: unknown }); }
+  catch (e) { res.status(400).json({ error: e instanceof Error ? e.message : "invalid scope" }); return; }
+  res.json({ scope: scope.kind, override: getSettingsOverride(scope) });
+});
+
+// PUT a scope's settings override — allow-list only, delegation-gated on `settings`. Non-scope-variable keys
+// are rejected (never stored); an invalid value is rejected by the same field validation as org settings.
+router.put("/settings/scope", requireRole("admin"), (req, res) => {
+  const body = (req.body ?? {}) as { programmeId?: unknown; projectId?: unknown; patch?: unknown };
+  let scope: ConfigWriteScope;
+  try { scope = settingsScope(body); }
+  catch (e) { res.status(400).json({ error: e instanceof Error ? e.message : "invalid scope" }); return; }
+  try { assertDelegationAllowed("settings", scope); }
+  catch (e) {
+    if (e instanceof DelegationDeniedError) { res.status(403).json({ error: e.message, code: "delegation_denied", area: e.area, allowed: e.allowed, attempted: e.attempted }); return; }
+    throw e;
+  }
+  const patch = (body.patch ?? {}) as Record<string, unknown>;
+  let result: { override: unknown; rejected: string[] };
+  try { result = setSettingsOverride(scope, patch); }
+  catch (e) {
+    if (e instanceof SettingsValidationError) { res.status(400).json({ error: e.message }); return; }
+    throw e;
+  }
+  recordRequestAudit(req, {
+    category: "admin", action: "settings_scope_override", result: "success", status: 200,
+    meta: { scope: scope.kind, keys: Object.keys((result.override ?? {}) as object), rejected: result.rejected },
+  });
+  res.json({ scope: scope.kind, ...result });
 });
 
 export default router;

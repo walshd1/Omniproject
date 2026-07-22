@@ -45,6 +45,7 @@ const ALLOWLIST: Record<string, { count: number; reason: string }> = {
   "lib/vault-aws.ts": { count: 1, reason: "AWS Secrets Manager response (authenticated infra)" },
   "lib/vault-azure.ts": { count: 1, reason: "Azure Key Vault response (authenticated infra)" },
   "lib/vault-store.ts": { count: 1, reason: "sealed vault-store load" },
+  "lib/user-credentials.ts": { count: 1, reason: "separately-keyed credential store load (AES-256-GCM aesGcmOpen-authenticated before parse — integrity established)" },
   // The built-in store / broker's OWN at-rest data (not a cross-trust boundary).
   "broker/builtin/sidecar-store.ts": { count: 1, reason: "built-in broker's own SQLite sidecar rows" },
   "broker/reference-broker/index.ts": { count: 3, reason: "reference broker's own sealed/opened storage" },

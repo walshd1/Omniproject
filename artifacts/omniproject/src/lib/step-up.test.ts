@@ -31,8 +31,32 @@ describe("stepUp", () => {
     }
   });
 
+  it("navigates to an ABSOLUTE same-origin step-up url (URL-parse allow arm)", async () => {
+    vi.stubGlobal("fetch", vi.fn(() => Promise.resolve(new Response(JSON.stringify({ url: "https://app.local/api/auth/step-up" }), { status: 409 }))));
+    const loc = { href: "https://app.local/current", origin: "https://app.local" };
+    Object.defineProperty(window, "location", { value: loc, writable: true });
+    expect(await stepUp("/")).toBe(false);
+    expect(loc.href).toBe("https://app.local/api/auth/step-up");
+  });
+
+  it("does NOT navigate when the redirect url can't be parsed (URL constructor throws → catch)", async () => {
+    vi.stubGlobal("fetch", vi.fn(() => Promise.resolve(new Response(JSON.stringify({ url: "http://[" }), { status: 409 }))));
+    const loc = { href: "unchanged", origin: "https://app.local" };
+    Object.defineProperty(window, "location", { value: loc, writable: true });
+    expect(await stepUp("/")).toBe(false);
+    expect(loc.href).toBe("unchanged");
+  });
+
   it("resolves false without navigating on a 409 that carries no redirect url", async () => {
     vi.stubGlobal("fetch", vi.fn(() => Promise.resolve(new Response(JSON.stringify({}), { status: 409 }))));
+    const loc = { href: "unchanged" };
+    Object.defineProperty(window, "location", { value: loc, writable: true });
+    expect(await stepUp("/")).toBe(false);
+    expect(loc.href).toBe("unchanged");
+  });
+
+  it("resolves false on a 409 whose body is not valid JSON (json().catch arm)", async () => {
+    vi.stubGlobal("fetch", vi.fn(() => Promise.resolve(new Response("<html>not json</html>", { status: 409 }))));
     const loc = { href: "unchanged" };
     Object.defineProperty(window, "location", { value: loc, writable: true });
     expect(await stepUp("/")).toBe(false);
@@ -83,6 +107,14 @@ describe("withStepUp", () => {
     vi.stubGlobal("fetch", vi.fn(() => Promise.resolve(new Response("{}", { status: 200 }))));
     Object.defineProperty(window, "location", { value: { pathname: "/settings", href: "" }, writable: true });
     const fn = vi.fn(() => Promise.reject(new Error("boom")));
+    expect(await withStepUp(fn)).toBeNull();
+    expect(fn).toHaveBeenCalledOnce();
+  });
+
+  it("returns null (generic-message arm) when fn throws a non-Error", async () => {
+    vi.stubGlobal("fetch", vi.fn(() => Promise.resolve(new Response("{}", { status: 200 }))));
+    Object.defineProperty(window, "location", { value: { pathname: "/settings", href: "" }, writable: true });
+    const fn = vi.fn(() => Promise.reject("just a string"));
     expect(await withStepUp(fn)).toBeNull();
     expect(fn).toHaveBeenCalledOnce();
   });

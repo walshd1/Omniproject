@@ -28,9 +28,15 @@ import { logger } from "../lib/logger";
 
 const router: IRouter = Router();
 
+/** An autonomous principal's identity is namespaced (`automation:<id>` / `agent:<id>:<who>`, see lib/autonomous).
+ *  The human approval surface hardcodes `via:"human"`, and that flag is the ONLY thing engaging the AI-approver
+ *  gate + the engine's `humanOnly` restriction — so a non-human sub that obtained a session must never be
+ *  treated as a human approver, or it would bypass both. Reject it everywhere the human surface mints an actor. */
+const isAutonomousSub = (sub: string): boolean => /^(?:automation|agent):/i.test(sub);
+
 function actorFor(req: Request): Actor | null {
   const s = getSession(req);
-  if (!s?.sub) return null;
+  if (!s?.sub || isAutonomousSub(s.sub)) return null; // no session, or an autonomous (non-human) principal
   return { sub: s.sub, roles: ROLES.filter((r) => hasRole(req, r)), via: "human" };
 }
 
@@ -68,6 +74,7 @@ function fail(res: Response, err: unknown, req: Request, action: string): void {
 router.post("/approvals/passkey", async (req: Request, res: Response) => {
   const s = getSession(req);
   if (!s?.sub) { res.status(401).json({ error: "authentication required" }); return; }
+  if (isAutonomousSub(s.sub)) { res.status(403).json({ error: "autonomous principals cannot enrol a human passkey" }); return; }
   const credentialId = str((req.body as Record<string, unknown>)?.["credentialId"], 512);
   const publicKeySpki = str((req.body as Record<string, unknown>)?.["publicKeySpki"], 4096);
   if (!credentialId || !publicKeySpki) { res.status(400).json({ error: "credentialId and publicKeySpki are required" }); return; }
@@ -194,7 +201,7 @@ function workflowScopeGate(req: Request, res: Response, workflowId: string): boo
 
 // GET /approvals/workflow-acceptances — every stored acceptance with its LIVE active/void status (pmo+).
 router.get("/approvals/workflow-acceptances", requireRole("manager"), async (_req: Request, res: Response) => {
-  res.json({ acceptances: listAcceptances() });
+  res.json({ acceptances: await listAcceptances() });
 });
 
 // POST /approvals/workflow-acceptances/:workflowId/challenge — challenge to sign, bound to the CURRENT version.
@@ -212,6 +219,7 @@ router.post("/approvals/workflow-acceptances/:workflowId/challenge", async (req:
 router.post("/approvals/workflow-acceptances/:workflowId", async (req: Request, res: Response) => {
   const s = getSession(req);
   if (!s?.sub) { res.status(401).json({ error: "authentication required" }); return; }
+  if (isAutonomousSub(s.sub)) { res.status(403).json({ error: "only a human may sign a responsibility acceptance" }); return; }
   const workflowId = String(req.params["workflowId"]);
   if (!workflowScopeGate(req, res, workflowId)) return;
   const signed = parseSigned(req.body, false);

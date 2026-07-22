@@ -79,7 +79,9 @@ export class SealedFile {
       const sealed = sealConfig(content);
       const tmp = `${f}.${process.pid}.${Date.now()}.tmp`;
       try {
-        const fd = fs.openSync(tmp, "w");
+        // mode 0o600: the sealed store holds secrets (vault/config/audit/security-state) — even though
+        // the content is encrypted, a world-readable ciphertext is needless exposure on a shared host.
+        const fd = fs.openSync(tmp, "w", 0o600);
         try {
           fs.writeSync(fd, sealed);
           fs.fsyncSync(fd); // flush to disk before the rename so the durable file is never partial

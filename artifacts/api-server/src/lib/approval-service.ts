@@ -42,6 +42,9 @@ export interface StoredProposal {
   /** SHA-256 (hex) of the canonical {action, params} — binds a signature to this exact request. */
   contentHash: string;
   createdAt: string;
+  /** Outcome of running the action's executor once the chain reached `approved`. Recorded so a FAILED
+   *  apply is visible + retryable rather than a silent approved-but-unexecuted proposal + a bare 500. */
+  execution?: { status: "executed" | "no-executor" | "failed"; at: string; error?: string } | undefined;
 }
 
 /** The registered "how to apply once approved" for an action id. Params only — never code in the queue. */
@@ -135,7 +138,7 @@ export async function submitDecision(proposalId: string, actor: Actor, signed: S
   if (actor.via === "ai" && signed.decision === "approve") {
     const workflowId = WORKFLOW_RUN_PREFIX.test(p.action) ? p.action.slice(p.action.indexOf(":") + 1) : "";
     if (!workflowId) throw new ApprovalServiceError("AI approval is only permitted for a workflow run under a signed acceptance");
-    const auth = aiApprovalAuthorization(workflowId);
+    const auth = await aiApprovalAuthorization(workflowId);
     if (!auth.ok) throw new ApprovalServiceError(`AI approval refused: ${auth.reason}`);
   }
 
@@ -155,10 +158,18 @@ export async function submitDecision(proposalId: string, actor: Actor, signed: S
   const d: Decision = { stageId: stage.id, by: actor.sub, via: actor.via, decision: signed.decision, at: new Date().toISOString(), sigRef };
   const nextState = applyDecision(p.def, p.state, d, actor); // throws on ineligibility / SoD / etc.
   await saveProposal(proposalId, { ...p, state: nextState });
+  if (nextState.status !== "approved") return { status: nextState.status, executed: false };
 
-  let executed = false;
-  if (nextState.status === "approved") executed = await runExecutor(p.action, p.params);
-  return { status: nextState.status, executed };
+  // Approved → run the executor and RECORD the outcome on the proposal, so a failed apply is visible and
+  // retryable instead of a silent approved-but-unexecuted proposal behind a bare 500.
+  try {
+    const executed = await runExecutor(p.action, p.params);
+    await saveProposal(proposalId, { ...p, state: nextState, execution: { status: executed ? "executed" : "no-executor", at: new Date().toISOString() } });
+    return { status: nextState.status, executed };
+  } catch (err) {
+    await saveProposal(proposalId, { ...p, state: nextState, execution: { status: "failed", at: new Date().toISOString(), error: err instanceof Error ? err.message : String(err) } });
+    throw err; // surfaced to the caller, but the proposal now records the failure for retry/visibility
+  }
 }
 
 async function runExecutor(action: string, params: unknown): Promise<boolean> {
@@ -176,15 +187,26 @@ export async function redirectProposal(proposalId: string, newApprovers: Approve
   await saveProposal(proposalId, { ...p, def });
 }
 
+/** A genuine dual-control chain: distinct approvers required across two or more stages. A SINGLE actor must
+ *  not be able to override it — that would collapse the two-person control the chain exists to enforce
+ *  (e.g. a security relaxation bound to a 2-admin chain). Single-approver chains stay bypassable. */
+export function isDualControl(def: ChainDef): boolean {
+  return def.requireDistinctApprovers === true && def.stages.length >= 2;
+}
+const BYPASS_DUAL_CONTROL_MSG =
+  "this proposal requires distinct approvers (dual-control) and cannot be overridden by a single approver — " +
+  "reassign it to eligible approvers via redirect and have them sign, instead of bypassing";
+
 /**
  * PMO BYPASS — force the chain to approved and run the executor. The bypass itself is a passkey-signed PMO
  * act (verified here against a challenge over the proposal), so it is never silent. Authority is the
- * caller's to check.
+ * caller's to check. A genuine dual-control chain cannot be bypassed by a single actor (see isDualControl).
  */
 export async function bypassProposal(proposalId: string, pmo: Actor, signed: SignedDecision): Promise<{ executed: boolean }> {
   const p = await loadProposal(proposalId);
   if (!p) throw new ApprovalServiceError("unknown proposal");
   if (p.state.status !== "pending") throw new ApprovalServiceError(`proposal is already ${p.state.status}`);
+  if (isDualControl(p.def)) throw new ApprovalServiceError(BYPASS_DUAL_CONTROL_MSG);
   const scope = `${proposalId}:bypass:${pmo.sub}`;
   const clientData = safeParseJson<Record<string, unknown>>(Buffer.from(signed.clientDataJSON, "base64url").toString("utf8"));
   const presented = String(clientData["challenge"] ?? "");
@@ -202,6 +224,7 @@ export async function bypassProposal(proposalId: string, pmo: Actor, signed: Sig
 export async function challengeForBypass(proposalId: string, sub: string): Promise<{ challenge: string; rpId: string } | null> {
   const p = await loadProposal(proposalId);
   if (!p || p.state.status !== "pending") return null;
+  if (isDualControl(p.def)) return null; // no bypass challenge for a dual-control chain (see bypassProposal)
   const challenge = await issueChallenge(`${proposalId}:bypass:${sub}`, p.contentHash);
   return { challenge, rpId: rpId() };
 }

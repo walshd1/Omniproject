@@ -12,7 +12,21 @@ delete process.env["OIDC_ISSUER_URL"];
 delete process.env["OIDC_PROVIDERS"];
 process.env["MAGIC_LINK_ENABLED"] = "true";
 
-const { isDemoAuth, isDemoAuthFrom } = await import("./auth-config");
+const { isDemoAuthFrom, strongerAuthConfigured, localPasswordsAllowed } = await import("./auth-config");
+const { isDemoAuth } = await import("./auth-runtime");
+
+test("downgrade prevention: local passwords are DISABLED once stronger SSO is configured", () => {
+  // No SSO → local passwords allowed (the entry tier).
+  assert.equal(strongerAuthConfigured({}), false);
+  assert.equal(localPasswordsAllowed({}), true);
+  // Magic-link is same-tier (passwordless) — it does NOT disable local passwords.
+  assert.equal(localPasswordsAllowed({ MAGIC_LINK_ENABLED: "true" }), true);
+  // A real SSO (OIDC/OAuth2/SAML) disables local passwords.
+  assert.equal(strongerAuthConfigured({ OIDC_ISSUER_URL: "https://idp/realm" }), true);
+  assert.equal(localPasswordsAllowed({ OIDC_ISSUER_URL: "https://idp/realm" }), false);
+  // …unless the DESTRUCTIVE recovery break-glass is engaged.
+  assert.equal(localPasswordsAllowed({ OIDC_ISSUER_URL: "https://idp/realm", LOCAL_PASSWORD_RECOVERY: "true" }), true);
+});
 
 test("isDemoAuth is FALSE when a real auth method is configured but the legacy OIDC_ISSUER_URL is unset", () => {
   // magic-link is a real login method; the gateway must NOT treat this as demo mode.

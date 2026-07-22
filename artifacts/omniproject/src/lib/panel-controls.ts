@@ -1,4 +1,7 @@
-import { rollup, type Agg } from "@workspace/backend-catalogue";
+import {
+  rollup, sortRows, ordinalSortKey, ORDINAL_LEVELS_BY_KIND,
+  type Agg, type SortKey, type SortKind, type SortDir, type OrdinalKind,
+} from "@workspace/backend-catalogue";
 
 /**
  * Generic PANEL CONTROLS — an optional, JSON-enabled period selector + pivot-style filter/group/aggregate
@@ -22,6 +25,10 @@ export interface ControlsConfig {
   aggs?: Agg[];
   /** Fields the user may filter on (a value picker per field). */
   filters?: string[];
+  /** Columns the user may sort on. Each names how to compare it: a plain {@link SortKind}
+   *  (string/number/date) OR a graded {@link OrdinalKind} (priority/severity/status/…), so a graded column
+   *  sorts by its internal LEVEL not its label. Absent ⇒ no sort control. */
+  sortable?: Array<{ field: string; label?: string; kind?: SortKind | OrdinalKind }>;
   /** Optional period bucketing: derive year/quarter/month buckets from a date-ish `field`. */
   period?: { field: string; buckets: Array<"year" | "quarter" | "month"> };
 }
@@ -33,6 +40,20 @@ export interface ControlsState {
   agg: Agg;
   /** field → the set of allowed values (empty ⇒ all). */
   filters: Record<string, string[]>;
+  /** Active column sort (absent ⇒ the natural row order). */
+  sort?: { field: string; dir: SortDir };
+}
+
+/** Resolve a config sort entry to a {@link SortKey}: a graded kind wires its shipped level map (sort by
+ *  internal level), otherwise it's a plain string/number/date compare. */
+function toSortKey(field: string, kind: SortKind | OrdinalKind | undefined, dir: SortDir): SortKey {
+  if (kind && kind in ORDINAL_LEVELS_BY_KIND) return ordinalSortKey(field, kind as OrdinalKind, dir);
+  return { field, kind: (kind as SortKind) ?? "string", dir };
+}
+
+/** The sortable-column options for the UI (empty when none configured). */
+export function sortOptions(config: ControlsConfig): Array<{ value: string; label: string }> {
+  return (config.sortable ?? []).map((s) => ({ value: s.field, label: s.label ?? s.field }));
 }
 
 const s = (v: unknown): string => (v == null ? "" : String(v));
@@ -105,8 +126,14 @@ export function applyControls(rawRows: readonly Record<string, unknown>[], confi
   // 3. Roll up with the ONE shared engine.
   const metricField = config.metricField ?? "";
   const metrics = state.agg === "count" ? [{ field: "", agg: "count" as Agg }] : [{ field: metricField, agg: state.agg }];
-  const out = groupByField ? rollup(rows, { groupBy: groupByField, metrics }) : rows.slice();
+  let out = groupByField ? rollup(rows, { groupBy: groupByField, metrics }) : rows.slice();
   const metricKey = state.agg === "count" ? "count" : metricField;
   const metricLabel = config.metricLabel ?? (state.agg === "count" ? "count" : `${state.agg} ${metricField}`);
+
+  // 4. Sort (if the user picked a column) with the ONE shared comparator — dates + ordinal levels included.
+  if (state.sort) {
+    const kind = (config.sortable ?? []).find((s) => s.field === state.sort!.field)?.kind;
+    out = sortRows(out, [toSortKey(state.sort.field, kind, state.sort.dir)]);
+  }
   return { rows: out, groupByField, metricKey, metricLabel };
 }

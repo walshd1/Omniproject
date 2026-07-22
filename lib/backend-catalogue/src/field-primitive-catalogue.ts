@@ -1,20 +1,40 @@
-import { FORM_FIELD_TYPES, ISSUE_WRITE_TARGETS } from "./form-catalogue";
 import { evaluateConstraints, type DefConstraint } from "./def-constraints";
+import { assertFieldHasPolicy, type FieldValidation, type SanitisePolicy } from "./field-validation";
+// DERIVED field primitives — everything that COMPOSES from the `field` root (`extends`) is DATA, authored as
+// JSON recipes under field-primitives/ (the same rule the visual primitives, screens, reports and mappings
+// follow). Only the `field` ROOT below stays in TypeScript. `form-field` (the intermediate) and every concrete
+// type (text/select/…) is a recipe carrying its added params + constraints — including form-field's `mapTo`
+// writable-issue-field allow-list, which is DATA (the enforcement, `validateFieldInstance`, stays code).
+import formField from "./field-primitives/form-field.json";
+import textField from "./field-primitives/text.json";
+import textareaField from "./field-primitives/textarea.json";
+import numberField from "./field-primitives/number.json";
+import dateField from "./field-primitives/date.json";
+import emailField from "./field-primitives/email.json";
+import urlField from "./field-primitives/url.json";
+import selectField from "./field-primitives/select.json";
+import radioField from "./field-primitives/radio.json";
+import likertField from "./field-primitives/likert.json";
+import multiselectField from "./field-primitives/multiselect.json";
+import checkboxField from "./field-primitives/checkbox.json";
+import yesnoField from "./field-primitives/yesno.json";
+import addressField from "./field-primitives/address.json";
 
 /**
  * FIELD PRIMITIVES — `field` is a ROOT primitive (sibling to `table` / `bar`). Per the model, a root is the MOST
  * PERMISSIVE shape possible and is NEVER used raw: it holds only what is universal to any input (an identity +
  * a label + a type) and imposes no restrictive floors. The restrictions arrive in specialisations:
  *
- *   field (root, abstract, permissive)
+ *   field (root, abstract, permissive)              ← TypeScript (a root)
  *     └─ form-field (abstract) — a field BOUND INTO A FORM: adds `mapTo` and the security FLOOR that it be a
- *          writable issue field. This is where "an issue needs a real target" lives — it is a property of using
- *          a field to write an issue, not of field-ness, so it is NOT on the permissive root.
+ *          writable issue field.                     ← JSON recipe (derived data)
  *          └─ text / select / date / … (concrete) — each adds only its type specifics (a choice needs options).
+ *                                                    ← JSON recipes (derived data)
  *
  * Only the concrete leaves are ever instantiated (a form field's `type` is `text`/`select`/…); the two abstract
- * ancestors can never be used raw (`validateFieldInstance` rejects them). The leaf type ids are DERIVED from
- * `FORM_FIELD_TYPES` (the one source the SPA field family also uses), so they can't drift from the accepted set.
+ * ancestors can never be used raw (`validateFieldInstance` rejects them). The derived recipes carry the leaf set;
+ * a drift test pins it to `FORM_FIELD_TYPES` (the one type union the SPA field family also uses) + the `mapTo`
+ * allow-list to `ISSUE_WRITE_TARGETS`, so the JSON can't silently drift from the accepted set.
  */
 
 export interface FieldParam { key: string; required?: boolean }
@@ -32,9 +52,7 @@ export interface FieldPrimitive {
   constraints?: DefConstraint[];
 }
 
-const titleCase = (s: string): string => s.replace(/(^|[-_])(\w)/g, (_m, _p, c: string) => (_p ? " " : "") + c.toUpperCase());
-
-/** ROOT — the most permissive shape: identity + label + type + the common optional config. No floors. */
+/** ROOT — the most permissive shape: identity + label + type + the common optional config. No floors. Code. */
 const FIELD_ROOT: FieldPrimitive = {
   id: "field",
   label: "Field",
@@ -47,35 +65,13 @@ const FIELD_ROOT: FieldPrimitive = {
   ],
 };
 
-/** INTERMEDIATE — a field bound into a form: adds `mapTo` and the writable-issue-field FLOOR (the security
- *  allow-list) plus the positive-`maxLength` policy. Abstract; concrete field types extend THIS. */
-const FORM_FIELD: FieldPrimitive = {
-  id: "form-field",
-  extends: "field",
-  label: "Form field",
-  abstract: true,
-  params: [{ key: "mapTo", required: true }],
-  constraints: [
-    { id: "form-field-target", kind: "floor", type: "enum", path: "mapTo", values: [...ISSUE_WRITE_TARGETS], message: "a field must map to a writable issue field" },
-    { id: "form-field-maxlength", kind: "policy", type: "bound", path: "maxLength", min: 1, message: "maxLength must be a positive number" },
-  ],
-};
+/** The DERIVED field recipes (form-field + one per concrete type), authored as JSON. */
+const DERIVED_FIELD_PRIMITIVES = [
+  formField, textField, textareaField, numberField, dateField, emailField, urlField,
+  selectField, radioField, likertField, multiselectField, checkboxField, yesnoField, addressField,
+] as unknown as FieldPrimitive[];
 
-/** Types offering a fixed choice set need `options` (likert DEFAULTS its scale, so its options aren't required). */
-const CHOICE_TYPES = new Set(["select", "radio", "multiselect", "likert"]);
-
-function childFor(type: string): FieldPrimitive {
-  const params: FieldParam[] = [];
-  const constraints: DefConstraint[] = [];
-  if (CHOICE_TYPES.has(type)) {
-    const optionsRequired = type !== "likert";
-    params.push({ key: "options", required: optionsRequired });
-    if (optionsRequired) constraints.push({ id: `${type}-options`, kind: "floor", type: "cardinality", path: "options", min: 1, message: `a ${type} field needs at least one option` });
-  }
-  return { id: type, extends: "form-field", label: titleCase(type), params, ...(constraints.length ? { constraints } : {}) };
-}
-
-const FIELD_PRIMITIVES: FieldPrimitive[] = [FIELD_ROOT, FORM_FIELD, ...FORM_FIELD_TYPES.map(childFor)];
+const FIELD_PRIMITIVES: FieldPrimitive[] = [FIELD_ROOT, ...DERIVED_FIELD_PRIMITIVES];
 const byId = new Map(FIELD_PRIMITIVES.map((p) => [p.id, p]));
 
 /** The field primitives (root + intermediate + one per form-field type). A fresh array each call. */
@@ -124,6 +120,14 @@ export function validateFieldInstance(field: Record<string, unknown>): string[] 
     if (!present) errors.push(`"${label}" is missing required "${key}"`);
   }
   errors.push(...evaluateConstraints(field, effectiveFieldConstraints(type)));
+  // SECURITY FLOOR: a field that captures input (not a display-only `label`) must resolve to a sanitise policy
+  // + validation. The policy engine guarantees this for every input type, so this proves the invariant holds
+  // (and would catch a future field type shipped without one).
+  const overrides: { validation?: FieldValidation; sanitise?: SanitisePolicy; options?: unknown } = { options: field["options"] };
+  if (field["validation"] !== undefined) overrides.validation = field["validation"] as FieldValidation;
+  if (field["sanitise"] !== undefined) overrides.sanitise = field["sanitise"] as SanitisePolicy;
+  const policyError = assertFieldHasPolicy(type, overrides, label);
+  if (policyError) errors.push(policyError);
   return errors;
 }
 

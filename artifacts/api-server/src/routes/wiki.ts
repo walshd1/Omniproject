@@ -6,10 +6,7 @@ import type { WikiDoc, WikiSpace } from "../broker/types";
 import { requireRole } from "../lib/rbac";
 import { assertProjectScope } from "../lib/project-scope";
 import { authorizeStorageTarget } from "../lib/storage-target-authz";
-import {
-  artifactStoreEnabled, listArtifacts, getArtifact, putArtifact, deleteArtifact,
-  type ArtifactScope,
-} from "../lib/artifact-store";
+import { artifactStoreEnabled, listArtifacts, getArtifact, putArtifact, deleteArtifact, type ArtifactScope, requireArtifactStore } from "../lib/artifact-store";
 import {
   brokerHasWiki, listWikiSpaces, listWikiDocs, getWikiDoc, writeWikiDoc,
   brokerHasWikiVersions, listWikiDocVersions, getWikiDocVersion,
@@ -199,7 +196,7 @@ router.post("/wiki/docs", requireRole("contributor"), (req, res) => {
       res.status(201).json(await writeWikiDoc(req, "create", input).then((d) => (d ? { ...d, id: makeWikiDocId("sidecar", d.id) } : d)));
       return;
     }
-    if (!artifactStoreEnabled()) { res.status(501).json({ error: "no encrypted-JSON store is configured on this deployment" }); return; }
+    if (!requireArtifactStore(res)) return;
     const ctx = contextFromReq(req);
     const scope = wikiDocScope(input, ctx.sub);
     if (!scope) { res.status(400).json({ error: "invalid storage target" }); return; }

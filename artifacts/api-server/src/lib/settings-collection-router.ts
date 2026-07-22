@@ -4,6 +4,9 @@ import { captureVersion } from "./config-store";
 import { applySettingsGuarded } from "./settings-guard";
 import { actorForAudit } from "./audit";
 import { readConfigCollection, writeOrgConfigCollection } from "./scoped-config";
+import { isSecurityConfig } from "./security-config";
+import { applyConfigCollectionGuarded } from "./config-guard";
+import { filterRowsByProjectScope, mergeRowsByProjectScope } from "./project-scope";
 
 /**
  * Factory for the recurring "settings collection" route shape: a GET that reads one
@@ -41,15 +44,21 @@ export interface SettingsCollectionOptions {
   /**
    * Opt-in: persist to a scope-layered `config` DEF (org scope) with this logical id, INSTEAD of a
    * `SettingsState` key — the settings→composition-model migration. The collection leaves settings entirely, so
-   * `settingsKey` becomes just the response-key hint. CHOICE collections ONLY: config-def mode does NOT run
-   * `applySettingsGuarded`, so a security-classified collection (one whose relaxation needs a sign-off) must
-   * stay settings-backed until the floor gate is wired onto this path (roadmap Phase C). Requires `validate`.
+   * `settingsKey` becomes just the response-key hint. A CHOICE config writes immediately; a config registered in
+   * `SECURITY_CONFIGS` is guarded by the floor gate — a relaxation is held for a signed sign-off (§0), exactly as
+   * `applySettingsGuarded` guards a settings key. Requires `validate`.
    */
   configId?: string;
   /** Validator for config-def mode — settings validation lives in `updateSettings`, so off settings we carry
    *  the collection's own sanitiser here. Return the normalised value; throw {@link SettingsValidationError}
    *  (→ 400) on bad input. */
   validate?: (value: unknown) => unknown;
+  /** OPT-IN data-seam scoping for collections whose rows are per-PROJECT data (resource allocations,
+   *  budget plans) rather than global presentation config. When set, `scopeByProject` extracts a row's owning
+   *  project id, and the router: (a) returns only in-scope rows on GET, and (b) on write, lets a scoped
+   *  caller add/replace/remove ONLY their in-scope rows while preserving every out-of-scope row (a submitted
+   *  out-of-scope row is a 403). Omitted ⇒ the collection is global config (unchanged behaviour). */
+  scopeByProject?: (row: unknown) => string | null | undefined;
 }
 
 /** Build a `Router` exposing the GET + write pair for one settings-collection field. Mountable
@@ -63,19 +72,43 @@ export function settingsCollectionRouter(opts: SettingsCollectionOptions): Route
   const fallback = opts.default ?? [];
   const router = Router();
 
-  router.get(path, ...(opts.readGuards ?? []), (_req, res) => {
-    if (configId) { res.json({ [responseKey]: readConfigCollection(configId, fallback) }); return; }
-    res.json({ [responseKey]: getSettings()[settingsKey!] ?? fallback });
+  router.get(path, ...(opts.readGuards ?? []), async (req, res) => {
+    const rows = configId ? readConfigCollection(configId, fallback) : (getSettings()[settingsKey!] ?? fallback);
+    // Per-project collections only expose the caller's in-scope rows; global config is returned as-is.
+    const out = opts.scopeByProject && Array.isArray(rows)
+      ? await filterRowsByProjectScope(req, rows as unknown[], opts.scopeByProject)
+      : rows;
+    res.json({ [responseKey]: out });
   });
 
   const write: RequestHandler = async (req, res) => {
-    const value = (req.body as Record<string, unknown> | undefined)?.[responseKey];
+    let value = (req.body as Record<string, unknown> | undefined)?.[responseKey];
+    // Data-seam enforcement for per-project collections: a scoped caller may only touch their in-scope
+    // rows; out-of-scope rows are preserved, and a submitted out-of-scope row is refused. Runs BEFORE the
+    // security-guard/persist so the merged (safe) value is what gets validated and stored.
+    if (opts.scopeByProject) {
+      if (!Array.isArray(value)) { res.status(400).json({ error: `${responseKey} must be an array` }); return; }
+      const existing = settingsKey ? getSettings()[settingsKey] : [];
+      const merge = await mergeRowsByProjectScope(req, Array.isArray(existing) ? existing as unknown[] : [], value as unknown[], opts.scopeByProject);
+      if ("forbidden" in merge) { res.status(403).json({ error: merge.forbidden }); return; }
+      value = merge.merged;
+    }
     try {
-      // CONFIG-DEF MODE: validate with the carried sanitiser, then persist as the org config def. CHOICE-only
-      // (no security sign-off gate on this path yet — see the `configId` doc), so no `applySettingsGuarded`.
+      // CONFIG-DEF MODE: validate with the carried sanitiser, then persist as the org config def. A CHOICE
+      // config writes immediately; a SECURITY-classified config (registered in `SECURITY_CONFIGS`) goes through
+      // the floor gate — a relaxation is held for a signed sign-off, exactly as `applySettingsGuarded` does for
+      // a settings key. The gate reads the current resolved value itself, so it's the same governing invariant.
       if (configId) {
         const normalised = validate ? validate(value) : value;
-        writeOrgConfigCollection(configId, versionLabel, normalised);
+        if (isSecurityConfig(configId)) {
+          const guarded = await applyConfigCollectionGuarded(configId, versionLabel, normalised, actorForAudit(req)?.sub ?? "admin");
+          if (!guarded.applied) {
+            res.status(202).json({ pending: guarded.pending, message: "This change reduces the security posture and needs a signed sign-off before it applies. See /api/approvals/inbox." });
+            return;
+          }
+        } else {
+          writeOrgConfigCollection(configId, versionLabel, normalised);
+        }
         captureVersion(versionLabel);
         res.json({ [responseKey]: readConfigCollection(configId, fallback) });
         return;

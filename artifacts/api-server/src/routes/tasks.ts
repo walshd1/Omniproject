@@ -10,7 +10,10 @@ import { assertTaskScope, filterTasksInScope } from "../lib/project-scope";
 import { auditScopeDenied } from "../lib/audit";
 import { getSession } from "./auth";
 import { parseOr400, v } from "../lib/validate";
-import { CANONICAL_TASK_STATUS, CANONICAL_PRIORITY, CANONICAL_ENERGY, isTaskDone } from "../broker/vocabulary";
+import { CANONICAL_PRIORITY, isTaskDone } from "../broker/vocabulary";
+import { resolveTaskVocabulary } from "../lib/task-vocabulary-config";
+import { resolveEnergyVocabulary } from "../lib/energy-vocabulary-config";
+import type { ConfigScopes } from "../lib/scoped-config";
 import { summariseTasks } from "../lib/task-summary";
 import { nextOccurrence } from "../lib/recurrence";
 import { runReminderSweep } from "../lib/reminder-sweep";
@@ -33,6 +36,10 @@ async function maybeSpawnRecurrence(req: Request, completed: Task, patch: Record
   const ref = completed.dueDate ?? completed.startDate ?? completed.completedAt ?? new Date().toISOString();
   const nextDue = nextOccurrence(rule, ref);
   if (!nextDue) return null; // one-off / unparseable rule → nothing to spawn
+  // Idempotent spawn: a double-clicked "complete", a client retry, or two concurrent PATCH-to-done must not
+  // each create the next occurrence. Only the sweep that wins this atomic claim (keyed by the completed task
+  // + its next due date) spawns; the rest are no-ops.
+  if (!(await sharedKv.cas(`recur:spawned:${completed.id}:${nextDue}`, null, "1", { ttlMs: REMINDER_TTL_MS }))) return null;
   // Carry the defining fields forward; the next instance starts fresh (actionable, not done).
   const nextStart = completed.startDate && completed.dueDate
     ? nextOccurrence(rule, completed.startDate) // keep the same lead time when both dates were set
@@ -66,6 +73,48 @@ function whoami(req: Request): string[] {
   return [s?.sub, s?.email, s?.name].filter((x): x is string => typeof x === "string" && !!x);
 }
 
+/** The scopes for resolving the task vocabulary on a write: programme from the query, project from the write
+ *  body (falling back to the query), user from the auth session — so a scope-added task status is honoured. */
+function taskScopesFromReq(req: Request, body?: { projectId?: string | null | undefined }): ConfigScopes {
+  const q = (req.query ?? {}) as Record<string, unknown>;
+  const scopes: ConfigScopes = {};
+  if (typeof q["programmeId"] === "string" && q["programmeId"]) scopes.programmeId = q["programmeId"];
+  const projectId = body && typeof body.projectId === "string" && body.projectId
+    ? body.projectId
+    : (typeof q["projectId"] === "string" && q["projectId"] ? q["projectId"] : undefined);
+  if (projectId) scopes.projectId = projectId;
+  const s = getSession(req);
+  if (s?.sub) scopes.sub = s.sub;
+  return scopes;
+}
+
+/**
+ * Membership-check a write's `status` against the RESOLVED task vocabulary for the request scope (the relaxed
+ * gate that replaces the frozen `v.enum`). An absent status passes (it's optional); a status present in the
+ * scoped set passes; a truly-unknown id is rejected with 400. Returns false (having sent the 400) on a miss.
+ */
+function checkTaskStatus(req: Request, res: Response, body: { status?: string | undefined; projectId?: string | null | undefined }): boolean {
+  if (body.status === undefined) return true;
+  const { statuses } = resolveTaskVocabulary(taskScopesFromReq(req, body));
+  if (statuses.some((s) => s.id === body.status)) return true;
+  res.status(400).json({ error: "invalid request", issues: [`status "${body.status}" is not a task status in this scope`] });
+  return false;
+}
+
+/**
+ * Membership-check a write's `energy` against the RESOLVED energy vocabulary for the request scope (the relaxed
+ * gate that replaces the frozen `v.enum(CANONICAL_ENERGY)`). An absent or null energy passes (it's optional /
+ * clearable); an energy present in the scoped set passes; a truly-unknown id is rejected with 400. Returns
+ * false (having sent the 400) on a miss.
+ */
+function checkTaskEnergy(req: Request, res: Response, body: { energy?: string | null | undefined; projectId?: string | null | undefined }): boolean {
+  if (body.energy === undefined || body.energy === null) return true;
+  const { levels } = resolveEnergyVocabulary(taskScopesFromReq(req, body));
+  if (levels.some((l) => l.id === body.energy)) return true;
+  res.status(400).json({ error: "invalid request", issues: [`energy "${body.energy}" is not an energy level in this scope`] });
+  return false;
+}
+
 /**
  * Fetch a task by id and enforce the caller's scope on it (IDOR guard — getTask is scope-blind at the
  * broker). Sends 404 if unknown, 403 if out of scope, and returns null in both cases; otherwise the task.
@@ -91,7 +140,11 @@ const router = Router();
 
 const TaskBody = v.object({
   title: v.optional(v.string({ min: 1, max: 500, trim: true })),
-  status: v.optional(v.enum(CANONICAL_TASK_STATUS)),
+  // Status is a GTD state, but the task status axis is now SCOPE-OVERRIDABLE (an org/methodology can add,
+  // relabel or remove statuses — see task-vocabulary-config). The frozen `v.enum(CANONICAL_TASK_STATUS)` gate
+  // is relaxed to a bounded string here; the handler membership-checks it against the RESOLVED task vocabulary
+  // for the request scope (`checkTaskStatus`), so any scope-added status is accepted while garbage is 400.
+  status: v.optional(v.string({ min: 1, max: 100, trim: true })),
   projectId: v.optional(v.nullable(v.string({ max: 200 }))),
   context: v.optional(v.nullable(v.string({ max: 200 }))),
   waitingOn: v.optional(v.nullable(v.string({ max: 500 }))),
@@ -107,7 +160,11 @@ const TaskBody = v.object({
   url: v.optional(v.nullable(v.string({ max: 2000 }))),
   completedAt: v.optional(v.nullable(v.string({ max: 40 }))),
   reminderAt: v.optional(v.nullable(v.string({ max: 40 }))),
-  energy: v.optional(v.nullable(v.enum(CANONICAL_ENERGY))),
+  // Energy is a GTD "in the tank" level, now SCOPE-OVERRIDABLE (an org/methodology can add, relabel or remove
+  // levels — see energy-vocabulary-config). The frozen `v.enum(CANONICAL_ENERGY)` gate is relaxed to a bounded
+  // string here; the handler membership-checks it against the RESOLVED energy vocabulary for the request scope
+  // (`checkTaskEnergy`), so any scope-added level is accepted while garbage is 400.
+  energy: v.optional(v.nullable(v.string({ min: 1, max: 100, trim: true }))),
   section: v.optional(v.nullable(v.string({ max: 200 }))),
   sortOrder: v.optional(v.nullable(v.number())),
   collaborators: v.optional(v.array(v.string({ min: 1, max: 200, trim: true }), { max: 100 })),
@@ -151,6 +208,8 @@ router.post("/tasks", requireRole("manager"), (req, res) => {
   const body = parseOr400(req, res, TaskBody);
   if (!body) return;
   if (!body.title) { res.status(400).json({ error: "title is required" }); return; }
+  if (!checkTaskStatus(req, res, body)) return;
+  if (!checkTaskEnergy(req, res, body)) return;
   return withBrokerErrors(req, res, "create_task failed", async () => {
     res.status(201).json(await createTask(req, body));
   });
@@ -161,6 +220,8 @@ router.patch("/tasks/:taskId", requireRole("manager"), (req, res) => {
   if (!brokerHasTasks()) { res.status(501).json({ error: "this backend does not support tasks" }); return; }
   const body = parseOr400(req, res, TaskBody);
   if (!body) return;
+  if (!checkTaskStatus(req, res, body)) return;
+  if (!checkTaskEnergy(req, res, body)) return;
   return withBrokerErrors(req, res, "update_task failed", async () => {
     if (!(await guardTaskAccess(req, res, String(req.params["taskId"])))) return;
     const updated = await updateTask(req, String(req.params["taskId"]), body);
@@ -182,7 +243,9 @@ router.post("/tasks/reminders/sweep", requireRole("pmo"), (req, res) =>
       tasks,
       nowMs: Date.now(),
       isFired: async (key) => !!(await sharedKv.get(key)),
-      markFired: async (key) => { await sharedKv.set(key, "1", { ttlMs: REMINDER_TTL_MS }); },
+      // Atomic claim (set-if-absent) — only the sweep that wins delivers, so overlapping or multi-replica
+      // sweeps can't double-fire the same reminder.
+      claim: async (key) => sharedKv.cas(key, null, "1", { ttlMs: REMINDER_TTL_MS }),
       notify: (n, target) => void bus.publish({
         notification: { id: `rem-${crypto.randomUUID()}`, kind: n.kind, title: n.title, body: n.body, read: false, timestamp: Date.now() },
         ...(target.sub || target.email ? { target } : {}),

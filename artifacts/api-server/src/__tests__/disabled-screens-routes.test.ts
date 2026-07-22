@@ -1,19 +1,26 @@
 import { test, before, after, afterEach } from "node:test";
 import assert from "node:assert/strict";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import { startHarness, adminCookie, memberCookie, type Harness } from "./_harness";
 
 /**
  * routes/disabled-screens.ts over the REAL app. The OFF switch for screens: a list of screen ids an admin
  * or PMO turned off. READ open (the SPA needs it to hide them); WRITE gated to admin OR pmo.
+ * disabledScreens is a config def now, so enable the sealed store.
  */
+process.env["SESSION_SECRET"] ??= "integration-harness-secret";
+const CONFIG_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "disabled-screens-routes-"));
+process.env["OMNI_CONFIG_DIR"] = CONFIG_DIR;
+
 let h: Harness;
 const ADMIN = adminCookie();
 
 before(async () => { h = await startHarness(); });
-after(() => h?.close());
+after(() => { h?.close(); fs.rmSync(CONFIG_DIR, { recursive: true, force: true }); });
 afterEach(async () => {
-  const { updateSettings } = await import("../lib/settings");
-  updateSettings({ disabledScreens: [] });
+  await h.req("/disabled-screens", { method: "PUT", cookie: ADMIN, body: { disabledScreens: [] } });
 });
 
 const req = (path: string, opts: Parameters<Harness["req"]>[1] = {}) => h.req(path, { cookie: ADMIN, ...opts });

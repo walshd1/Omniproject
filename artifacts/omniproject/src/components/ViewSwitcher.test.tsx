@@ -92,7 +92,7 @@ describe("ViewSwitcher", () => {
     useStore.setState({ currentView: "kanban" });
     const qc = seeded(caps());
     // Curate to just the kanban view — RAID and Gantt are excluded.
-    qc.setQueryData(["settings"], { methodologyComposition: ["view:kanban"] });
+    qc.setQueryData(["methodology-composition"], { methodologyComposition: ["view:kanban"] });
     renderWithProviders(<ViewSwitcher />, { client: qc });
     await user.click(screen.getByTestId("view-switcher"));
     expect(await screen.findByText("Kanban Board")).toBeInTheDocument(); // current, kept

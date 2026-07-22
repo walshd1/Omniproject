@@ -26,10 +26,11 @@ const FORBIDDEN_DATA_KEYS = new Set([
 
 // CONFIG subtrees whose OWN field names legitimately collide with entity words but are app-authored config,
 // NOT brokered SoR data — so the deep scan skips inside them (it still guards everything else). These are the
-// in-app registers/policy the org authors (directive: they travel as part of "total state") plus the
-// retention-cadence map whose keys are SCOPE labels ("project"/"programme"/"org"), not project data.
+// in-app registers/policy the org authors (directive: they travel as part of "total state").
+// (`historyRetention`, whose keys are SCOPE labels, left the settings snapshot for the `history-retention`
+//  config def — Phase C — so it's no longer scanned here.)
 const CONFIG_SUBTREES = new Set([
-  "raci", "stakeholders", "resourceAllocations", "budgetPlans", "historyRetention",
+  "raci", "stakeholders", "resourceAllocations", "budgetPlans",
 ]);
 
 /** Every object key in a value, recursively, lower-cased — but not descending into the known config subtrees

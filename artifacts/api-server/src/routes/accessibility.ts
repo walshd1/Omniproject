@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { requireAnyRole } from "../lib/rbac";
-import { artifactStoreEnabled } from "../lib/artifact-store";
+import { requireArtifactStore } from "../lib/artifact-store";
 import { contextFromReq } from "../broker";
 import { orgAccessibilityDefaults, setOrgAccessibilityDefaults } from "../lib/user-prefs";
 
@@ -24,7 +24,7 @@ router.get("/accessibility-defaults", requireAnyRole("pmo", "admin"), (_req, res
 });
 
 router.put("/accessibility-defaults", requireAnyRole("pmo", "admin"), (req, res) => {
-  if (!artifactStoreEnabled()) { res.status(501).json({ error: "no encrypted-JSON store is configured on this deployment" }); return; }
+  if (!requireArtifactStore(res)) return;
   const ctx = contextFromReq(req);
   const label = ctx.email ?? ctx.name ?? ctx.sub ?? null;
   const saved = setOrgAccessibilityDefaults(req.body, label);

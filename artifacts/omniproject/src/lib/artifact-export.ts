@@ -12,6 +12,8 @@
  * The pure parts (serialize, filename) are unit-tested; the browser parts (canvas, download) are guarded
  * and run only where the APIs exist.
  */
+import { slug } from "./slug";
+
 export type ExportFormat = "svg" | "png" | "jpeg";
 
 // The paint + typography properties that must travel with the markup for a faithful standalone render.
@@ -57,7 +59,7 @@ export function serializeSvg(svg: SVGSVGElement): string {
 
 /** A safe download filename from a human title + format (spaces → dashes, dropped punctuation). */
 export function buildExportFilename(title: string, format: ExportFormat): string {
-  const base = title.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "artifact";
+  const base = slug(title, "artifact");
   return `${base}.${format}`;
 }
 

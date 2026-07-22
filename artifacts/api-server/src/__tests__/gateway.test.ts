@@ -947,9 +947,7 @@ const SAMPLE_SETTINGS = {
   fxRateAsOfDate: null,
   customReports: [],
   reportOverrides: [],
-  methodologyComposition: null,
   oidcIssuerUrl: "https://idp",
-  errorTelemetry: false,
   fieldRouting: [],
   customFields: [],
   fieldValidation: [],
@@ -960,9 +958,6 @@ const SAMPLE_SETTINGS = {
   retiredGuids: [],
   webhooks: [],
   federatedPeers: [],
-  loggingSync: { enabled: false, url: null, acknowledgedWarranty: false },
-  selfHost: { mode: "off" as const, adopted: [], acknowledgedDataResponsibility: false },
-  historyRetention: { orgDefault: { kind: "interval" as const, everyHours: 24 }, programme: {}, project: {} },
   digestDelivery: { emailRecipients: [] },
   skillsPlanning: { matrix: [], demand: [] },
   fieldOverrides: { fields: {}, entities: {} },
@@ -976,7 +971,6 @@ const SAMPLE_SETTINGS = {
   programmeFeatures: {},
   projectFeatures: {},
   governanceRules: [],
-  savedViews: [],
   dashboards: [],
   contentPages: [],
   priorityWeights: { rice: 25, wsjf: 25, moscow: 15, strategic: 15, benefit: 20 },
@@ -988,14 +982,7 @@ const SAMPLE_SETTINGS = {
   resourceAllocations: [],
   budgetPlans: [],
   screenDefs: [],
-  disabledScreens: [],
-  raci: [],
-  stakeholders: [],
-  collectionEditRoles: {},
-  panelViews: [],
   forms: [],
-  automations: [],
-  templates: [],
 };
 
 test("redactSettingsForRead: masks webhook signing secrets (never leaked over GET)", async () => {
@@ -1028,11 +1015,9 @@ test("buildSnapshot: carries the portable presentation config (curation, views, 
   const snap = buildSnapshot({
     ...SAMPLE_SETTINGS,
     disabledFeatures: ["odata"],
-    savedViews: [{ id: "v1", name: "Triage", scope: "grid", columns: ["title"] }],
     dashboards: [{ id: "d1", name: "Exec", widgets: [{ id: "w1", type: "portfolioHealth" }] }],
   });
   assert.deepEqual(snap.settings.disabledFeatures, ["odata"]);
-  assert.equal(snap.settings.savedViews![0]!.name, "Triage");
   assert.equal(snap.settings.dashboards![0]!.widgets[0]!.type, "portfolioHealth");
   // …and they round-trip back into a settings patch with no warnings.
   const { patch, warnings } = applySnapshot(snap);
