@@ -54,6 +54,21 @@ export function invalidateDefIndex(): void {
 const logicalId = (d: StoredDef): string => (typeof (d.payload as { id?: unknown })?.id === "string" ? String((d.payload as { id: string }).id) : "");
 const extendsOf = (d: StoredDef): string => (typeof (d.payload as { extends?: unknown })?.extends === "string" ? String((d.payload as { extends: string }).extends) : "");
 
+const hasOwn = (o: object, k: string): boolean => Object.prototype.hasOwnProperty.call(o, k);
+
+/**
+ * A logical id / `extends` ref is UNTRUSTED (a def author picks it; the importer only checks it is a non-empty
+ * string). An Object.prototype member name (`__proto__`, `constructor`, `toString`, `valueOf`, …) can't be a
+ * safe plain-object dictionary key: reading `byParent[key]` returns the INHERITED member (so the `.includes` /
+ * `.push` array ops below throw a TypeError), and assigning `byParent["__proto__"] = …` mutates the prototype
+ * instead of storing an edge. Such an id is pathological; we NEVER index it as a parent key and NEVER fast-path
+ * it — `defHasChildren` OVER-reports (returns true, forcing the authoritative full scan), so the never-under-report
+ * safety invariant holds without a prototype key ever being touched. (`kind` is a fixed allow-list, so it needs
+ * no such guard.)
+ */
+const RESERVED_KEYS = new Set(["__proto__", "constructor", "prototype"]);
+const isUnsafeKey = (k: string): boolean => RESERVED_KEYS.has(k) || hasOwn(Object.prototype, k);
+
 /** Build the index from the FULL set of stored def collections (the authoritative source of every edge). */
 export function buildDefIndex(collections: { items: StoredDef[] }[]): DefIndex {
   const ix = emptyIndex();
@@ -61,7 +76,7 @@ export function buildDefIndex(collections: { items: StoredDef[] }[]): DefIndex {
     for (const d of items) {
       const child = logicalId(d);
       const parent = extendsOf(d);
-      if (!child || !parent) continue;
+      if (!child || !parent || isUnsafeKey(parent)) continue; // reserved parent → never indexed (full scan covers it)
       const byParent = (ix.children[d.kind] ??= {});
       const arr = (byParent[parent] ??= []);
       if (!arr.includes(child)) arr.push(child);
@@ -84,13 +99,16 @@ export function ensureDefIndex(collections: { items: StoredDef[] }[]): DefIndex 
 /** Does ANY stored def of `kind` extend `parentId`? Over-reporting is safe (forces the full path); never
  *  under-reports (every edge is added write-through, and a boot/reseed rebuild reconciles). */
 export function defHasChildren(ix: DefIndex, kind: string, parentId: string): boolean {
-  return (ix.children[kind]?.[parentId]?.length ?? 0) > 0;
+  if (isUnsafeKey(parentId)) return true; // never fast-path a reserved id — force the safe full scan
+  const byParent = ix.children[kind];
+  const arr = byParent && hasOwn(byParent, parentId) ? byParent[parentId] : undefined;
+  return Array.isArray(arr) && arr.length > 0;
 }
 
 /** Write-through: record that `childId` (of `kind`) extends `parentId`. Additive + idempotent — it can only
  *  ever OVER-report children, which is safe. On ANY failure the caller invalidates the whole index. */
 export function defIndexAddEdge(kind: string, childId: string, parentId: string): void {
-  if (!childId || !parentId) return;
+  if (!childId || !parentId || isUnsafeKey(parentId)) return; // reserved parent → never indexed (full scan covers it)
   const ix = readDefIndex();
   if (!ix) return; // absent → a later ensureDefIndex rebuilds from scan; nothing to keep current
   const byParent = (ix.children[kind] ??= {});
