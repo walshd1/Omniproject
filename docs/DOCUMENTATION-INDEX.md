@@ -115,6 +115,7 @@ Fit, maturity, and evaluation.
 - **[TESTING.md](TESTING.md)** — the test pillars and the CI coverage gates.
 - **[MUTATION-TESTING.md](MUTATION-TESTING.md)** — StrykerJS mutation testing over the financial-derivation core: what's mutated, the score thresholds, and the weekly CI job.
 - **[TECH-DEBT-AND-ROADMAP.md](TECH-DEBT-AND-ROADMAP.md)** — a living, honest register of known limitations, deferred work and roadmap.
+- **[FEATURE-ROADMAP.md](FEATURE-ROADMAP.md)** — the durable competitive-gap backlog: phased feature work (intake forms, automations, wiki, whiteboards, scheduling engine, …) plus the SOTA parity-review dispositions, explicit won't-build calls, and the RFC-002 residue.
 - **[RELEASE.md](RELEASE.md)** — the repeatable release-cut checklist.
 - **[launch/LAUNCH.md](launch/LAUNCH.md)** — the launch plan and checklist.
 - **[launch/DEMO-SCRIPT.md](launch/DEMO-SCRIPT.md)** — the guided demo script.

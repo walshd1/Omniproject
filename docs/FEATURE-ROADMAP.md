@@ -1912,6 +1912,27 @@ external infrastructure a CI sandbox can't reach (so they are execution/attestat
   `f565521`). One blocker to promoting time-travel/exploration out of Experimental/Beta is now cleared; the rest
   is end-to-end verification of the time-travel plane.
 
+## Phase 6 — absorbed from the predecessor backlog (RFC-002)
+
+[archive/design/RFC-002-roadmap.md](archive/design/RFC-002-roadmap.md) was the previous living
+feature backlog (post-0.4.0), now marked superseded-as-live and pointing here. Most of its open
+rows have since shipped (IssueDialog field-level gating via `GatedTextField`, `FinancialsPanel`,
+duplicate-task, the `/resources` page, live Gantt drag, the explore replica workbench, a
+catalogued Salesforce backend). Its still-open residue, carried so nothing is lost:
+
+- ⬜ ✳ **Programme-as-entity** (`createProgramme` for backends with a real programme object) —
+  gate on a backend declaring programme-as-entity; pairs with the §5.5 entity work and the
+  programme def/binding tier (X.12/X.13).
+- ⬜ ✳ **Per-backend manifest field declaration + generator emission** (RFC-002 §A) — re-verify
+  against the current manifest/generator and the §4.6 field-mapping series before scoping;
+  several sibling rows shipped since.
+- ⬜ 🔌 **CRM entity read surfaces** (accounts / opportunities / contacts / cases) — Salesforce
+  is catalogued as a backend; first-class CRM *entities* beyond the project/issue mapping remain
+  unbuilt.
+- ❄ **Delegation / temporary access transfer** — designed (RFC-004/RFC-005), deliberate NO-GO.
+  Greenlight conditions recorded in RFC-002 §G: a real user asking, a token-exchange-capable
+  IdP, and a named security reviewer owning the checklist.
+
 ## Status legend
 
 - ⬜ **Todo** — not started.
