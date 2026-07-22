@@ -16,7 +16,10 @@ export function useDraftAdmin<S, D>(server: S | undefined, toDraft: (server: S) 
   // transform in a ref so the effect always uses it while keeping `server` as its sole dependency.
   const toDraftRef = useRef(toDraft);
   toDraftRef.current = toDraft;
-  useEffect(() => { if (server) setDraft(toDraftRef.current(server)); }, [server]);
+  // Call the transform as a PLAIN function, not via `toDraftRef.current(server)` — a member call sets
+  // `this` to the ref object, and a native global cloner passed straight in (e.g. `structuredClone`) then
+  // throws "Illegal invocation" because its `this` isn't the global. Binding it to a local fixes that.
+  useEffect(() => { if (server) { const toDraft = toDraftRef.current; setDraft(toDraft(server)); } }, [server]);
 
   const dirty = draft !== null && server !== undefined && JSON.stringify(draft) !== JSON.stringify(toDraft(server));
   const reset = () => { if (server) setDraft(toDraft(server)); };
