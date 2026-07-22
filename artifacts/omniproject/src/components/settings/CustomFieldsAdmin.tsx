@@ -23,7 +23,7 @@ export function CustomFieldsAdmin() {
   const { data: server } = useCustomFields();
   const save = useSaveCustomFields();
   const { toast } = useToast();
-  const { draft, setDraft, dirty, reset } = useDraftAdmin<CustomField[], CustomField[]>(server, structuredClone);
+  const { draft, setDraft, dirty, reset } = useDraftAdmin<CustomField[], CustomField[]>(server);
 
   if (!roleAtLeast(auth?.role, "admin")) return null;
 

@@ -82,10 +82,17 @@ const CASES: GenCase[] = [
   { name: "gen-dashboard-presets", script: "src/gen-dashboard-presets.ts", outputs: [`${BC}/dashboard-presets.generated.ts`] },
   { name: "gen-screens", script: "src/gen-screens.ts", outputs: [`${BC}/screens.generated.ts`] },
   { name: "gen-methodologies", script: "src/gen-methodologies.ts", outputs: [`${BC}/methodologies.generated.ts`] },
+  { name: "gen-deployment-types", script: "src/gen-deployment-types.ts", outputs: [`${BC}/deployment-types.generated.ts`] },
   { name: "gen-personas", script: "src/gen-personas.ts", outputs: [`${BC}/personas.generated.ts`] },
   { name: "gen-methodology-rulesets", script: "src/gen-methodology-rulesets.ts", outputs: [`${BC}/methodology-rulesets.generated.ts`] },
   { name: "gen-consolidations", script: "src/gen-consolidations.ts", outputs: [`${BC}/consolidations.generated.ts`] },
   { name: "gen-work-vocabulary", script: "src/gen-work-vocabulary.ts", outputs: [`${BC}/work-vocabulary.generated.ts`] },
+  { name: "gen-task-vocabulary", script: "src/gen-task-vocabulary.ts", outputs: [`${BC}/task-vocabulary.generated.ts`] },
+  { name: "gen-energy-vocabulary", script: "src/gen-energy-vocabulary.ts", outputs: [`${BC}/energy-vocabulary.generated.ts`] },
+  { name: "gen-severity-vocabulary", script: "src/gen-severity-vocabulary.ts", outputs: [`${BC}/severity-vocabulary.generated.ts`] },
+  { name: "gen-impact-vocabulary", script: "src/gen-impact-vocabulary.ts", outputs: [`${BC}/impact-vocabulary.generated.ts`] },
+  { name: "gen-likelihood-vocabulary", script: "src/gen-likelihood-vocabulary.ts", outputs: [`${BC}/likelihood-vocabulary.generated.ts`] },
+  { name: "gen-rag-vocabulary", script: "src/gen-rag-vocabulary.ts", outputs: [`${BC}/rag-vocabulary.generated.ts`] },
   { name: "gen-priority-weights", script: "src/gen-priority-weights.ts", outputs: [`${BC}/priority-weights.generated.ts`] },
 ];
 

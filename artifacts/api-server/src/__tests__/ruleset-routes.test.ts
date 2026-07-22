@@ -31,7 +31,18 @@ afterEach(async () => {
   setRuleModes({});
   setFieldRules([]);
   await setComposition(null);
+  // Reset the delegation policy + any scoped ruleset override so tests stay isolated.
+  const { writeOrgConfigCollection, writeScopedConfigCollection, DELEGATION_POLICY_ID } = await import("../lib/scoped-config");
+  const { DEFAULT_DELEGATION_POLICY } = await import("@workspace/backend-catalogue");
+  writeOrgConfigCollection(DELEGATION_POLICY_ID, "Delegation policy", DEFAULT_DELEGATION_POLICY);
+  writeScopedConfigCollection("ruleset-override", "Ruleset override", { modes: {}, fieldRules: [] }, { kind: "project", projectId: "pr-1" });
 });
+
+/** Open the delegation policy so `ruleset` may vary down to `level`. */
+async function openRulesetDelegation(level: "programme" | "project"): Promise<void> {
+  const { writeOrgConfigCollection, DELEGATION_POLICY_ID } = await import("../lib/scoped-config");
+  writeOrgConfigCollection(DELEGATION_POLICY_ID, "Delegation policy", { ruleset: level, settings: "org", methodologyComposition: "org" });
+}
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const json = async (r: Response): Promise<any> => r.json();
@@ -123,4 +134,43 @@ test("methodology composition gates the reference rulesets (list filtered + appl
   } finally {
     await setComposition(null);
   }
+});
+
+test("PUT /admin/ruleset/scope is DENIED by the default (centralized) delegation policy", async () => {
+  const r = await h.req("/admin/ruleset/scope", { method: "PUT", cookie: adminCookie(), body: { projectId: "pr-1", override: { modes: { "some-rule": "hard" } } } });
+  assert.equal(r.status, 403);
+  const out = await json(r);
+  assert.equal(out.code, "delegation_denied");
+  assert.equal(out.allowed, "org");
+  assert.equal(out.attempted, "project");
+});
+
+test("once delegation opens ruleset to project, a scope override persists (tighten-only, restrict shape)", async () => {
+  await openRulesetDelegation("project");
+  const r = await h.req("/admin/ruleset/scope", {
+    method: "PUT", cookie: adminCookie(),
+    body: { projectId: "pr-1", override: { modes: { "due-before-start": "hard" }, fieldRules: [{ id: "own", action: "any-write", field: "owner", mode: "hard" }] } },
+  });
+  assert.equal(r.status, 200);
+  const out = await json(r);
+  assert.equal(out.scope, "project");
+  assert.equal(out.override.modes["due-before-start"], "hard");
+  assert.equal(out.override.fieldRules.length, 1);
+  // It reads back at that scope.
+  const got = await json(await h.req("/admin/ruleset/scope?projectId=pr-1", { cookie: adminCookie() }));
+  assert.equal(got.override.modes["due-before-start"], "hard");
+  // A PROGRAMME override is still denied — the policy only reached project via project (programme is deeper-or-equal? no: programme is shallower). Programme depth (1) <= project depth (2) ⇒ allowed too.
+  const prog = await h.req("/admin/ruleset/scope", { method: "PUT", cookie: adminCookie(), body: { programmeId: "prog-1", override: { modes: {} } } });
+  assert.equal(prog.status, 200); // programme is shallower than the allowed project depth
+});
+
+test("a garbage mode in a scope override is dropped (only valid modes stored)", async () => {
+  await openRulesetDelegation("project");
+  const r = await h.req("/admin/ruleset/scope", {
+    method: "PUT", cookie: adminCookie(),
+    body: { projectId: "pr-1", override: { modes: { good: "warn", bad: "galaxy" } } },
+  });
+  const out = await json(r);
+  assert.equal(out.override.modes.good, "warn");
+  assert.equal("bad" in out.override.modes, false);
 });

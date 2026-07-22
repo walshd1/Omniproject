@@ -18,6 +18,11 @@
     },
     "order": { "type": "integer", "minimum": 0 },
     "lifecycle": { "enum": ["open", "active", "done", "cancelled"] },
+    "rank": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "PRIORITY ONLY — the internal RANK (ordinal level, higher = more urgent) a priority binds to: the invariant the sorting + RICE/WSJF weighting key off, kept SEPARATE from `order` (display position). The five shipped priorities ARE the rank anchors (none=0 … urgent=4); an adjustable priority declares which rank band it binds to. Absent on statuses (they bind via `lifecycle`)."
+    },
     "color": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$", "description": "Swatch colour as a 6-digit hex (rendered via inline style, so a custom status can carry any colour). Absent ⇒ a neutral swatch." },
     "methodologies": {
       "type": "array",

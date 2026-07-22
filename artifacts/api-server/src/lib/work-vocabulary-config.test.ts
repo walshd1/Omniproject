@@ -7,8 +7,9 @@ import { sanitizeWorkVocabularyOverride } from "./work-vocabulary-config";
 
 /**
  * Scope-overridable work vocabulary. Statuses are org-owned (relabel/reorder/ADD/REMOVE, methodology-tagged,
- * lifecycle-required); priorities are a fixed relabel/reorder scale. The sanitiser (pure) enforces those
- * boundaries; the resolver folds an org override over the shipped default.
+ * lifecycle-required); priorities are symmetric (relabel/reorder/ADD/REMOVE, methodology-tagged) but bound to
+ * an internal RANK rather than a lifecycle class — the ordinal the sorting/weighting maths key off. The
+ * sanitiser (pure) enforces those boundaries; the resolver folds an org override over the shipped default.
  */
 
 process.env["SESSION_SECRET"] = "test-session-secret-do-not-use-in-prod";
@@ -53,21 +54,65 @@ test("sanitizer: a colour must be a 6-digit hex", () => {
   assert.throws(() => sanitizeWorkVocabularyOverride({ statuses: [{ id: "done", color: "red" }] }), /must be a 6-digit hex/);
 });
 
-test("sanitizer: priorities are symmetric with statuses (add/remove/methodology) but have NO lifecycle", () => {
+test("sanitizer: priorities are symmetric with statuses (relabel/reorder/ADD/REMOVE) — bound to a RANK not a lifecycle", () => {
   const out = sanitizeWorkVocabularyOverride({
     priorities: [
       { id: "urgent", label: "P0" }, // relabel existing
-      { id: "blocker", label: "Blocker", order: 5, methodologies: ["kanban"] }, // add new (no lifecycle needed)
+      { id: "blocker", label: "Blocker", order: 5, rank: 5, methodologies: ["kanban"] }, // add new (needs a rank)
       { id: "low", removed: true }, // remove shipped
     ],
   });
   assert.deepEqual(out.priorities, [
     { id: "urgent", label: "P0" },
-    { id: "blocker", label: "Blocker", order: 5, methodologies: ["kanban"] },
+    { id: "blocker", label: "Blocker", order: 5, rank: 5, methodologies: ["kanban"] },
     { id: "low", removed: true },
   ]);
-  assert.throws(() => sanitizeWorkVocabularyOverride({ priorities: [{ id: "blocker", label: "B", order: 5, lifecycle: "open" }] }), /has no lifecycle/);
-  assert.throws(() => sanitizeWorkVocabularyOverride({ priorities: [{ id: "blocker", label: "B" }] }), /needs a label and an order/);
+  // A priority binds to a rank, NOT a lifecycle class (that is the status axis).
+  assert.throws(() => sanitizeWorkVocabularyOverride({ priorities: [{ id: "blocker", label: "B", order: 5, rank: 5, lifecycle: "open" }] }), /has no lifecycle/);
+});
+
+test("sanitizer: a NEW priority must carry a rank (its internal level) + a rank must be a non-negative integer", () => {
+  // No rank ⇒ rejected (mirrors a new status needing its lifecycle class).
+  assert.throws(() => sanitizeWorkVocabularyOverride({ priorities: [{ id: "blocker", label: "Blocker", order: 5 }] }), /needs a label, a rank and an order/);
+  // A rank must be a non-negative integer.
+  assert.throws(() => sanitizeWorkVocabularyOverride({ priorities: [{ id: "blocker", label: "B", order: 5, rank: -1 }] }), /rank must be a non-negative integer/);
+  assert.throws(() => sanitizeWorkVocabularyOverride({ priorities: [{ id: "blocker", label: "B", order: 5, rank: 1.5 }] }), /rank must be a non-negative integer/);
+  // Relabelling a SHIPPED priority never needs a rank (it already has one in the base).
+  assert.deepEqual(sanitizeWorkVocabularyOverride({ priorities: [{ id: "high", label: "P1" }] }).priorities, [{ id: "high", label: "P1" }]);
+});
+
+test("resolver: priorities carry their rank; a scope-added priority's weight resolves via its nearest band", async () => {
+  const { resolveWorkVocabulary, resolvePriorityWeight, WORK_VOCABULARY_CONFIG_ID, ORG_WORK_VOCABULARY_ID } = await import("./work-vocabulary-config");
+  const { PRIORITY_RANK } = await import("@workspace/backend-catalogue");
+  const { seedSystemDefaultsIfEmpty } = await import("./system-defs");
+  const { putDef } = await import("./def-import");
+
+  seedSystemDefaultsIfEmpty();
+
+  // Shipped: the five priorities resolve with their internal ranks (none=0 … urgent=4).
+  const base = resolveWorkVocabulary();
+  assert.deepEqual(base.priorities.map((p) => p.id), ["urgent", "high", "medium", "low", "none"]);
+  assert.equal(base.priorities.find((p) => p.id === "urgent")!.rank, PRIORITY_RANK.urgent);
+  assert.equal(resolvePriorityWeight("urgent", base.priorities), PRIORITY_RANK.urgent);
+
+  const now = new Date().toISOString();
+  putDef({ kind: "org" }, {
+    id: ORG_WORK_VOCABULARY_ID, kind: "config", name: "Work vocabulary",
+    payload: { id: WORK_VOCABULARY_CONFIG_ID, values: { priorities: [
+      { id: "blocker", label: "Blocker", order: 5, rank: 6 }, // add — rank above every anchor
+      { id: "none", removed: true }, // remove shipped
+    ] } },
+    createdBy: "test", createdAt: now, updatedAt: now, rowVersion: 1,
+  });
+
+  const resolved = resolveWorkVocabulary();
+  const ids = resolved.priorities.map((p) => p.id);
+  assert.ok(ids.includes("blocker"), "added priority is present");
+  assert.ok(!ids.includes("none"), "removed priority is gone");
+  // The added priority still resolves a weight — snapped onto the nearest canonical band (urgent=4).
+  assert.equal(resolvePriorityWeight("blocker", resolved.priorities), PRIORITY_RANK.urgent);
+  // An unknown priority resolves to null (the weighting never throws).
+  assert.equal(resolvePriorityWeight("nope", resolved.priorities), null);
 });
 
 test("resolver: an org can add, remove and relabel statuses; methodology tags filter", async () => {

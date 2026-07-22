@@ -3,6 +3,7 @@
 import { isDone } from "../vocabulary";
 import { BrokerHttpError, type BrokerBackend } from "../reference-broker-blueprint";
 import { OmniEventLog, resolveStoreKey, deriveKeys, type OmniLink } from "../builtin/omnistore-log";
+import { omnistoreSupersetCapabilities } from "../../lib/omnistore-homing";
 
 type Row = Record<string, unknown>;
 
@@ -108,10 +109,10 @@ export function applyEvent(state: State, link: OmniLink): void {
   }
 }
 
-const CAPABILITIES = {
-  issues: true, scheduling: true, resources: false, financials: false, portfolio: true,
-  baseline: false, blockers: true, history: false, raid: true, quality: false, crm: false, service: false,
-};
+// OmniStore is the SoR-of-last-resort SUPERSET store — it persists the WHOLE row for any vendor shape, so
+// every capability domain it homes is one it can honestly serve (roll-ups it doesn't compute still return
+// honest empties below; the raw fields round-trip, which the domain flag gates). Sole backend ⇒ 100%.
+const CAPABILITIES: Record<string, boolean> = omnistoreSupersetCapabilities();
 
 /** Build an OmniStore `BrokerBackend` over the encrypted log engine. `onCommit` persists the sealed
  *  log after each write (durability); omit for ephemeral/in-memory. */

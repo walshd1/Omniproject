@@ -57,6 +57,7 @@ export const WORK_VOCABULARY_DATA: WorkVocabEntry[] = [
     "id": "urgent",
     "label": "Urgent",
     "order": 0,
+    "rank": 4,
     "color": "#ef4444"
   },
   {
@@ -64,6 +65,7 @@ export const WORK_VOCABULARY_DATA: WorkVocabEntry[] = [
     "id": "high",
     "label": "High",
     "order": 1,
+    "rank": 3,
     "color": "#f97316"
   },
   {
@@ -71,6 +73,7 @@ export const WORK_VOCABULARY_DATA: WorkVocabEntry[] = [
     "id": "medium",
     "label": "Medium",
     "order": 2,
+    "rank": 2,
     "color": "#eab308"
   },
   {
@@ -78,12 +81,14 @@ export const WORK_VOCABULARY_DATA: WorkVocabEntry[] = [
     "id": "low",
     "label": "Low",
     "order": 3,
+    "rank": 1,
     "color": "#71717a"
   },
   {
     "kind": "priority",
     "id": "none",
     "label": "None",
-    "order": 4
+    "order": 4,
+    "rank": 0
   }
 ];

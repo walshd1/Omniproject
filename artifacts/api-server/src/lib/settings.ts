@@ -984,7 +984,7 @@ const FIELD_DESCRIPTORS: { [K in keyof SettingsState]: FieldDescriptor<K> } = {
   // The per-deployment report store — seeded from the built-in catalogue, then deployment-owned JSON.
   reports: { seed: () => reportCatalogue() as unknown as ReportDefinition[], validate: shapeChecked(validateReports) },
   resourceAllocations: { seed: () => [], validate: normalisedBy((v) => validateResourceAllocations(v), ResourceAllocationError) },
-  budgetPlans: { seed: () => [], validate: normalisedBy((v) => validateBudgetPlans(v), BudgetPlanError) },
+  budgetPlans: { seed: () => [], validate: normalisedBy((v) => validateBudgetPlans(v, getSettings().reportingCurrency ?? undefined), BudgetPlanError) },
   screenDefs: { seed: () => [], validate: normalisedBy((v) => validateScreenDefs(v), ScreenDefError) },
   forms: { seed: () => [], validate: normalisedBy((v) => { if (!Array.isArray(v)) throw new FormDefError("forms must be an array"); return v as FormDef[]; }, FormDefError) },
   dashboards: { seed: () => [], validate: shapeChecked(validateDashboards) },
@@ -1011,6 +1011,15 @@ const store: SettingsState = (() => {
 // EVERY persisted field and prove none is a prototype-pollution / dangerous-key sink on the bulk-PATCH
 // path — a new field is automatically probed, no per-field test to remember.
 export const ALLOWED_KEYS = Object.keys(FIELD_DESCRIPTORS) as (keyof SettingsState)[];
+
+/**
+ * SCOPE-VARIABLE settings — the CONSERVATIVE allow-list of setting keys a programme/project may override for
+ * itself (governed by the delegation policy). These are reporting/prioritisation PRESENTATION choices with no
+ * security or egress implication — safe to differ per scope. Everything else (deployment profile, TLS, AI
+ * provider/egress, security, session, governance, webhooks, …) stays ORG-GLOBAL and is never scope-variable.
+ * Expand this set deliberately; never add a key that carries a secret, an egress target, or a capability grant.
+ */
+export const SCOPE_VARIABLE_SETTINGS: readonly (keyof SettingsState)[] = ["reportingCurrency", "fxRatePolicy", "priorityWeights"];
 
 // A FROZEN read snapshot of the store, rebuilt ONLY on write (updateSettings is the sole mutator).
 // getSettings() returns it directly: reads are hot (100+ call sites, several per request) while writes

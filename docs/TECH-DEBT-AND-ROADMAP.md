@@ -14,6 +14,84 @@ deliberate, documented limitation (not a defect) · **[idea]** worth doing, unsc
 These are the items most likely to bite in production, because they're verified against
 **mocks**, not the real third parties.
 
+### Security findings — offensive red-team review, 2026-07-21 (fix before the next release)
+
+A six-surface pass (authn/session/sign-off, RBAC/delegation, SSRF/egress, injection/deserialization,
+client-side, crypto/sealed-store) found the crypto, egress, and client-side layers **strong**, with
+one confirmed CRITICAL and a corroborating cluster — most sharing one root cause: the env-only
+"is this production?" detector is blind to the product's own flagship *real-local-accounts, no-SSO* profile.
+
+- **[security — CRITICAL, FIXED 2026-07-21] The boot-time secret guard was blind to runtime local users, so a
+  SUPPORTED deployment booted on the PUBLIC default `SESSION_SECRET` → forgeable admin cookies.**
+  `productionSignals()` (`lib/dev-mode-guard.ts:36-55`) is env-pure and decides "real auth" via the env-only
+  `isDemoAuthFrom` (`lib/auth-config.ts:78-92`), which counts only SSO / `MAGIC_LINK_ENABLED` /
+  `LOCAL_USERS_ENABLED`. But native local accounts work whenever `OMNI_CONFIG_DIR` is set
+  (`userDirectoryEnabled = artifactStoreEnabled`, `lib/user-directory.ts:56-58`) — `LOCAL_USERS_ENABLED` is
+  only an OPTIONAL declare-intent flag. So a deployment that sets `OMNI_CONFIG_DIR`, bootstraps an admin at
+  runtime, and leaves SSO + `SESSION_SECRET` + `NODE_ENV` unset (the documented self-hosted / charity /
+  homelab profile) has `productionSignals()` empty, and `evaluateSessionSecret`
+  (`lib/session-secret-guard.ts:35-41`) accepts the public `DEV_SESSION_SECRET`. An attacker who read this
+  Apache-2.0 source HKDF-derives the seal + cookie-signing keys and forges a signed+sealed admin cookie
+  (`amr:["hwk"]`, fresh step-up) — full admin, defeating `LOCAL_ADMIN_REQUIRE_PASSKEY` and every
+  `requireStepUp` route, zero interaction. **Same root cause, corroborated:** the sealed config store /
+  vault / key-registry fall back to PUBLIC source-embedded dev masters on those same deployments
+  (`lib/config-crypto.ts:35`, `lib/vault-store.ts:69`, `lib/key-registry.ts:50` — "zero-at-rest" becomes
+  theatre; the vault holds AI keys); `OMNI_APPROVALS_AUTO_APPLY` is NOT inert there
+  (`lib/settings-guard.ts:19-21`), so a posture-reducing `brokerUrl`/webhook change skips the passkey
+  sign-off; and session/CSRF cookies ship without `Secure` (`auth.ts:101-108`). **Fixed:** a post-config-load
+  re-check — `assertSessionSecretForLocalPrincipals(localUsersActive())`, called from `index.ts` after
+  `loadConfigDir()` (`session-secret-guard.ts`) — refuses to serve on a missing/default `SESSION_SECRET` once a
+  real *active* local account exists. Because the at-rest master-key ladder (`crypto-keys.masterSecret`)
+  resolves to `SESSION_SECRET` before its dev fallback, forcing a real secret ALSO closes the public
+  dev-master-key exposure; and `approvalsAutoApply()` now additionally gates on `!localUsersActive()`, so the
+  sign-off can't be silently skipped either. `localUsersActive()` is the precise signal — it stays false for
+  the zero-account CI/throwaway-store shape, so nothing legitimate is forced. Regression:
+  `lib/session-secret-local-users.test.ts` drives the real directory signal end-to-end. **Residual (LOW,
+  unfixed):** the `Secure` cookie flag on `lan-ok` profiles is a deliberate LAN-without-TLS posture, left as-is.
+- **[security — HIGH, FIXED 2026-07-21] The generic def importer (`POST /api/defs`, kind `config`) bypassed the
+  governance guards on the SAME config store.** Security-classified configs (`history-retention`,
+  `logging-sync`, `error-telemetry` — `lib/security-config.ts`) must, on a relaxing change, be held for a
+  passkey sign-off; their dedicated writers route through `applyConfigCollectionGuarded`
+  (`lib/settings-collection-router.ts:86`, `lib/config-guard.ts:63`). `/api/defs` writes the identical store
+  with none of it — `routes/defs.ts:144-181` blocks only vendor-controlled kinds, `runDefWriteHook` guards
+  only `kind==="form"` (`lib/def-write-hooks.ts:20`), then `putDef`s directly. Because `resolveHistoryRetention`
+  reads via LOGICAL-ID fold (`readConfigCollection`→`configDefLayers`→`scopeLayers`, `lib/scoped-config.ts:54-71`),
+  a smuggled org `config` def with `payload.id:"history-retention"` is folded into the resolved value — so a
+  `pmo` (org def gate = pmoOrAdmin) shrinks the audit-retention window (or repoints `logging-sync`) with NO
+  proposal and NO passkey: an admin-classified relaxation performed by the wrong authority. **Same root cause
+  (MEDIUM):** the admin-only `def-scope-policy` (who may author defs where) is folded from an org config def
+  (`lib/def-policy.ts:70`) a `pmo` can write via `/api/defs`, lowering the authoring gate itself. **Caveat:**
+  in DEMO mode pmo/admin orthogonality collapses (all authorities granted, `lib/rbac.ts:268`), so this only
+  bites a REAL IdP deployment with `defImporter` enabled. **Fixed:** a shared `isGovernedConfigId` predicate
+  (`lib/governed-config-ids.ts`, composing `isSecurityConfig` + the `def-scope-policy` id) is now enforced at
+  BOTH write choke points — `runDefWriteHook` refuses a `config` def carrying a governed logical id (`POST`/`PUT
+  /api/defs`), and `applyDefStoreExport` drops one smuggled through a backup bundle (the second, previously
+  unnoted, entry point). This closes the MEDIUM `def-scope-policy` sibling in the same guard. Benign configs
+  (e.g. `scheduling`) still write. NB — the ruleset/settings scope-overrides were never affected: they read by
+  exact singleton id (`readScopedConfigValue`), which a random-UUID importer id cannot forge. Regression tests:
+  `def-write-hooks.test.ts` + `def-store-export.test.ts` (governed-id drop; benign round-trip preserved).
+- **[security — HIGH, FIXED 2026-07-21] Custom-roles reimport skipped the sanitizer → base-role privilege
+  escalation.** `applyDefStoreExport` wrote `custom-roles` on only an `{id}`-shape check (no per-kind validator),
+  and `getCustomRolesConfig` (`lib/custom-roles.ts:125-130`) trusts the stored row at read time — so a crafted
+  plaintext `defs-import` bundle (admin + step-up gated, `routes/setup/config-io.ts:220`) carrying a role whose
+  `id` shadows a built-in (mapping `[<attacker IdP group>]` onto elevated grants) conferred write-capable
+  capabilities without ever passing `sanitizeCustomRolesConfig`. **Fixed:** a new `CONFIG_SANITIZERS` map routes
+  the `custom-roles` blob through `sanitizeCustomRolesConfig` on import — a TRANSFORM (not a keep/drop validator)
+  so the WRITTEN row is the normalised shape; a blob the authoring path would reject is dropped (fails toward no
+  custom grants). Regression tests in `def-store-export.test.ts` (shadow-a-built-in dropped; valid role still
+  round-trips). `def-policy` / `user-prefs` were left on the shape gate — their getters re-validate at read time.
+- **[security — LOW/MED, FIXED 2026-07-21] Sealed secret-store files written world-readable (no `0600`).**
+  `lib/sealed-file.ts`, `lib/user-credentials.ts`, `lib/instance-key.ts` now pass `0o600` to `openSync` (the
+  temp file's mode survives the atomic rename); a `sealed-file` test asserts the resulting mode is `0600`.
+- **[security — LOW/MED, hardening] Internal-network SSRF reachable by an admin in the default config.**
+  The RFC1918/loopback egress block (`lib/egress.ts:117`) is opt-in (`EGRESS_BLOCK_PRIVATE`, off by default
+  so `http://n8n:5678` works); cloud-metadata stays blocked always and the broker seam pins IPs + refuses
+  redirects (verified solid — no metadata-SSRF). Recommend documenting `EGRESS_BLOCK_PRIVATE=true` +
+  `EGRESS_ALLOWLIST` as the hardened default. Lesser hardening notes: `Login.tsx` post-auth redirect leans
+  on the server's `safeLocalPath` with no client-side guard (add `isSafeRedirect` for symmetry with
+  step-up); the CSP is strong but env-overridable (`CONTENT_SECURITY_POLICY`/`CSP_SCRIPT_SRC` are
+  security-sensitive config).
+
 - **[gap] The entire n8n contract has never executed inside real n8n.** CI's "n8n contract
   verification (bidirectional)" step (`.github/workflows/ci.yml`) and `verify-broker-contract.ts`
   both run the gateway against a hand-rolled Node HTTP server standing in for "whatever the broker
@@ -136,8 +214,9 @@ These are documented in `docs/AI-SECURITY.md §6`; restated here so they're not 
   screen/def engine, …) lives in one `src/` tree tested by one Vitest project. This has become
   untenable at the CI seam: producing a single coverage report over all ~440 files in one process
   needs >12 GB and OOMs regardless of coverage provider (this is the root cause behind the
-  `unit-spa` OOM saga — see the sharding note in `.github/workflows/ci.yml`; we contained it by
-  switching v8→istanbul coverage and sharding the run + a merge job, but that's a workaround, not a
+  `unit-spa` OOM saga — see the sharding note in `.github/workflows/ci.yml`; CI now runs the SPA suite
+  SHARDED WITHOUT suite-wide coverage — the coverage GATE is SUSPENDED (the istanbul provider + thresholds
+  remain in `vitest.config.ts` only for a narrower local `test:coverage`), a workaround, not a
   fix). The same monolith slows typecheck, build, and IDE responsiveness, and makes ownership
   boundaries mushy. **Fix:** split the SPA into workspace packages by feature domain, each with its
   own tests + coverage gate + build, composed at the app shell. Each package's coverage then runs

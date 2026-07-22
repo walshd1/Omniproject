@@ -360,6 +360,27 @@ THE DEFINITION IMPORTER routes (roadmap X.3), behind the default-off `defImporte
 | PUT | `/api/defs/:id` | requireRole(contributor) | the def's own scope). |
 | DELETE | `/api/defs/:id` | requireRole(contributor) | DELETE /api/defs/:id — remove a stored def (contributor+, subject to the target gate). |
 
+### `artifacts/api-server/src/routes/delegation-policy.ts`
+
+DELEGATION POLICY — the org's governance dial for how far DOWN the scope hierarchy local variation is allowed, per governed area (ruleset / settings / methodology).
+
+| Method | Path | Gate | Description |
+| --- | --- | --- | --- |
+| GET | `/api/admin/delegation-policy` | — | — |
+| PUT | `/api/admin/delegation-policy` | requireAnyRole(pmo, admin) | — |
+
+### `artifacts/api-server/src/routes/deployment-types.ts`
+
+DEPLOYMENT TYPES — the on-ramp archetypes (solo self-hoster, small team, managed cloud, enterprise on-prem, regulated self-host).
+
+| Method | Path | Gate | Description |
+| --- | --- | --- | --- |
+| GET | `/api/deployment-types` | — | — |
+| GET | `/api/deployment-types/:id` | — | — |
+| POST | `/api/deployment-types/:id/resolve` | — | — |
+| GET | `/api/deployment-type` | — | The org's ONE active deployment type (admin-gated) + the change function |
+| PUT | `/api/deployment-type` | requireAnyRole(admin) | — |
+
 ### `artifacts/api-server/src/routes/dev-mode.ts`
 
 Dev-mode routes.
@@ -386,6 +407,15 @@ The OFF switch for screens.
 | --- | --- | --- | --- |
 | GET | `/api/disabled-screens` | requireAuth | Read the collection. |
 | PUT | `/api/disabled-screens` | requireAuth + requireAnyRole(admin, pmo) | Replace the collection (write-guarded). |
+
+### `artifacts/api-server/src/routes/energy-vocabulary.ts`
+
+Scope-overridable GTD energy-level vocabulary (the "how much have I got in the tank" axis, orthogonal to an hour estimate).
+
+| Method | Path | Gate | Description |
+| --- | --- | --- | --- |
+| GET | `/api/energy-vocabulary` | — | GET /api/energy-vocabulary — the effective GTD energy levels for this scope (any authed user). |
+| PUT | `/api/energy-vocabulary` | requireAnyRole(pmo, admin) | { levels?: [{ id, label?, order?, level?, methodologies?, color?, labels?, removed? }] }. |
 
 ### `artifacts/api-server/src/routes/error-telemetry.ts`
 
@@ -514,6 +544,15 @@ Time-travel replay — read recorded portfolio states back from the operator's l
 | POST | `/api/history/dispose` | requireRole(admin) + requireStepUp | POST /history/dispose — run disposal: prune retained history older than the configured window (`retentionDays`), skipping legal-held keys. |
 | POST | `/api/history/erase` | requireRole(admin) + requireStepUp | POST /history/erase — right-to-erasure / DSAR delete of ALL retained history for one entity id. |
 
+### `artifacts/api-server/src/routes/impact-vocabulary.ts`
+
+Scope-overridable RAID/risk IMPACT vocabulary (the consequence magnitude — the I in risk-exposure P×I).
+
+| Method | Path | Gate | Description |
+| --- | --- | --- | --- |
+| GET | `/api/impact-vocabulary` | — | GET /api/impact-vocabulary — the effective RAID impact grades for this scope (any authed user). |
+| PUT | `/api/impact-vocabulary` | requireAnyRole(pmo, admin) | { levels?: [{ id, label?, order?, level?, methodologies?, color?, labels?, removed? }] }. |
+
 ### `artifacts/api-server/src/routes/import.ts`
 
 Hard cap on rows per commit — each row is a broker write, so an unbounded array is a write-amplification DoS.
@@ -564,6 +603,15 @@ Licence endpoint — GET /api/license reports the current licence summary + prem
 | --- | --- | --- | --- |
 | GET | `/api/license` | — | GET /api/license — current entitlement status (no signature material). |
 
+### `artifacts/api-server/src/routes/likelihood-vocabulary.ts`
+
+Scope-overridable RAID/risk LIKELIHOOD vocabulary (the probability a risk occurs — the P in risk-exposure P×I).
+
+| Method | Path | Gate | Description |
+| --- | --- | --- | --- |
+| GET | `/api/likelihood-vocabulary` | — | GET /api/likelihood-vocabulary — the effective RAID likelihood grades for this scope (any authed user). |
+| PUT | `/api/likelihood-vocabulary` | requireAnyRole(pmo, admin) | { levels?: [{ id, label?, order?, level?, methodologies?, color?, labels?, removed? }] }. |
+
 ### `artifacts/api-server/src/routes/logging-sync.ts`
 
 LOGGING SYNC — the opt-in egress of the gateway's event log to an operator-owned destination (unlocks historical time-travel).
@@ -610,6 +658,8 @@ The methodology COMPOSITION — the PMO/admin's curated set of visible artifact/
 | --- | --- | --- | --- |
 | GET | `/api/methodology-composition` | — | — |
 | PUT | `/api/methodology-composition` | requireAnyRole(pmo, admin) | — |
+| GET | `/api/methodology-composition/deployment/:id` | — | PREVIEW: what deploying this methodology would turn on (read-only, any authed user). |
+| POST | `/api/methodology-composition/deploy/:id` | requireAnyRole(pmo, admin) | org by default, or a programme/project named in the body (a nearer scope overrides the org in the read fold). |
 
 ### `artifacts/api-server/src/routes/native.ts`
 
@@ -807,6 +857,15 @@ RACI register store.
 | GET | `/api/raci` | requireAuth | Read the collection. |
 | PUT | `/api/raci` | requireAuth | Replace the collection (write-guarded). |
 
+### `artifacts/api-server/src/routes/rag-vocabulary.ts`
+
+Scope-overridable RAG/health BAND vocabulary (a project/programme's traffic-light status).
+
+| Method | Path | Gate | Description |
+| --- | --- | --- | --- |
+| GET | `/api/rag-vocabulary` | — | GET /api/rag-vocabulary — the effective RAG/health bands for this scope (any authed user). |
+| PUT | `/api/rag-vocabulary` | requireAnyRole(pmo, admin) | { bands?: [{ id, label?, order?, level?, methodologies?, color?, labels?, removed? }] }. |
+
 ### `artifacts/api-server/src/routes/rate-card.ts`
 
 Rate card + hashed identity→role map + project types, and the server-side staff time-and-cost roll-up.
@@ -909,6 +968,8 @@ Whether a methodology's reference ruleset is enabled by the methodology composit
 | PUT | `/api/admin/ruleset/fields` | requireRole(pmo) | — |
 | GET | `/api/admin/ruleset/reference` | requireRole(pmo) | the methodology composition enables (uncurated ⇒ all). |
 | POST | `/api/admin/ruleset/apply-reference` | requireRole(pmo) | (routes through applyRuleset → setRuleModes/setFieldRules). |
+| GET | `/api/admin/ruleset/scope` | requireRole(pmo) | GET the override stored at a programme/project scope (for the admin UI). |
+| PUT | `/api/admin/ruleset/scope` | requireRole(pmo) | policy: a scoped ruleset change is only permitted when the admin has opened `ruleset` variation to that depth. |
 
 ### `artifacts/api-server/src/routes/scheduling.ts`
 
@@ -996,6 +1057,8 @@ Gateway-local settings (the broker URL, AI provider, …).
 | GET | `/api/settings/constraints` | — | grey out illegal choices proactively — same non-secret, read-safe audience as GET /settings. |
 | GET | `/api/settings/presets` | — | loads one as a starting point, then the operator tweaks + saves. |
 | PATCH | `/api/settings` | requireRole(admin) | Each change is versioned so it can be rolled back (see config-store). |
+| GET | `/api/settings/scope` | requireRole(admin) | GET a scope's stored settings override (the allow-listed keys it varies). |
+| PUT | `/api/settings/scope` | requireRole(admin) | are rejected (never stored); an invalid value is rejected by the same field validation as org settings. |
 
 ### `artifacts/api-server/src/routes/setup.ts`
 
@@ -1087,6 +1150,15 @@ Setup environments plane — the sandbox → promote → rollback lifecycle over
 | POST | `/api/setup/versions/:id/known-good` | requireRole(admin) | POST /api/setup/versions/:id/known-good — pin a version as known-good. |
 | POST | `/api/setup/rollback` | requireRole(admin) | POST /api/setup/rollback { versionId? , toKnownGood? } — fast rollback. |
 
+### `artifacts/api-server/src/routes/severity-vocabulary.ts`
+
+Scope-overridable RAID/risk SEVERITY vocabulary ("how bad is it if this bites").
+
+| Method | Path | Gate | Description |
+| --- | --- | --- | --- |
+| GET | `/api/severity-vocabulary` | — | GET /api/severity-vocabulary — the effective RAID severity grades for this scope (any authed user). |
+| PUT | `/api/severity-vocabulary` | requireAnyRole(pmo, admin) | { levels?: [{ id, label?, order?, level?, methodologies?, color?, labels?, removed? }] }. |
+
 ### `artifacts/api-server/src/routes/snapshots.ts`
 
 Provably-immutable snapshots.
@@ -1124,6 +1196,15 @@ The SYSTEM DEFAULTS update mechanism (roadmap X.11).
 | --- | --- | --- | --- |
 | GET | `/api/admin/system-defs` | requireRole(admin) | GET /api/admin/system-defs — a read-only summary of the installed shipped defaults (count per kind). |
 | POST | `/api/admin/system-defs/apply` | requireRole(admin) + requireStepUp | the content is always the approved-from-us catalogue, so this can't be used to inject custom system defs. |
+
+### `artifacts/api-server/src/routes/task-vocabulary.ts`
+
+Scope-overridable GTD task-status vocabulary (next-actions axis, distinct from the work-item/issue status axis).
+
+| Method | Path | Gate | Description |
+| --- | --- | --- | --- |
+| GET | `/api/task-vocabulary` | — | GET /api/task-vocabulary — the effective GTD task statuses for this scope (any authed user). |
+| PUT | `/api/task-vocabulary` | requireAnyRole(pmo, admin) | { statuses?: [{ id, label?, order?, class?, methodologies?, color?, labels?, removed? }] }. |
 
 ### `artifacts/api-server/src/routes/tasks.ts`
 

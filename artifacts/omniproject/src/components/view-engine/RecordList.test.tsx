@@ -75,4 +75,50 @@ describe("RecordList", () => {
     expect(screen.queryByText("NONE")).not.toBeInTheDocument();
     expect(screen.getAllByRole("listitem")).toHaveLength(2);
   });
+
+  describe("subtask tree (parentOf opt-in)", () => {
+    // A record carrying its parent link — the descriptor's parentOf reads this.
+    const treeRec = (id: string, parent: string | null): ViewRecord<W> & { parent: string | null } => ({
+      ...rec({ id }), parent,
+    });
+    function renderTree(records: Array<ViewRecord<W> & { parent: string | null }>, key = "test-tree-fold") {
+      localStorage.clear();
+      return render(
+        <RecordList
+          records={records}
+          noun="widget"
+          labelForPriority={label}
+          closedStatuses={["done"]}
+          onToggleDone={() => {}}
+          onOpen={() => {}}
+          emptyMessage="Nothing here."
+          parentOf={(r) => (r as ViewRecord<W> & { parent: string | null }).parent}
+          treeStorageKey={key}
+        />,
+      );
+    }
+
+    it("indents a child under its parent and shows a collapse caret on the parent", () => {
+      renderTree([treeRec("root", null), treeRec("child", "root")]);
+      // Parent has a fold control (children present); child is indented (non-zero padding-left).
+      expect(screen.getByRole("button", { name: /Collapse ROOT/ })).toBeInTheDocument();
+      const childRow = screen.getByText("CHILD").closest("li")!;
+      expect(childRow.style.paddingLeft).not.toBe("");
+    });
+
+    it("folds a subtree — collapsing the parent hides its child", () => {
+      renderTree([treeRec("root", null), treeRec("child", "root")]);
+      expect(screen.getByText("CHILD")).toBeInTheDocument();
+      fireEvent.click(screen.getByRole("button", { name: /Collapse ROOT/ }));
+      expect(screen.queryByText("CHILD")).not.toBeInTheDocument();
+      // The caret flips to an expand affordance.
+      expect(screen.getByRole("button", { name: /Expand ROOT/ })).toBeInTheDocument();
+    });
+
+    it("persists fold state to localStorage under the given key", () => {
+      renderTree([treeRec("root", null), treeRec("child", "root")], "persist-key");
+      fireEvent.click(screen.getByRole("button", { name: /Collapse ROOT/ }));
+      expect(JSON.parse(localStorage.getItem("persist-key")!)).toContain("root");
+    });
+  });
 });

@@ -503,7 +503,7 @@ Canonical value vocabularies — the cross-backend meanings the gateway reasons 
 
 | Function | What it does |
 | --- | --- |
-| `normaliseStatus` | Resolve a native status to a canonical one: a backend's declared vocabulary wins, then the shared synonyms, then null. |
+| `normaliseStatus` | Resolve a native status to a canonical one. |
 | `statusClassOf` | The lifecycle class of a native status; "open" when it can't be classified. |
 | `isDone` | True when a native status means the work is finished (the completion test). |
 | `isClosed` | True when a status is terminal (done OR cancelled) — e.g. excluded from "overdue". |
@@ -844,6 +844,7 @@ The action-id prefix a workflow RUN binds to (`workflow.run:<id>`) — matched h
 | `challengeForStage` | Issue a one-time passkey challenge for `sub` to sign the CURRENT stage of a proposal. |
 | `submitDecision` | Submit a passkey-signed decision for the current stage. |
 | `redirectProposal` | PMO REDIRECT — reassign the current stage's approvers. |
+| `isDualControl` | A genuine dual-control chain: distinct approvers required across two or more stages. |
 | `bypassProposal` | PMO BYPASS — force the chain to approved and run the executor. |
 | `challengeForBypass` | Issue a challenge for a PMO bypass of a proposal (signed like any approval, over a `:bypass` scope). |
 
@@ -1843,6 +1844,15 @@ User-defined endpoint validation + reachability probing.
 | `validEndpoint` | Validate a user-defined endpoint: a well-formed http(s) URL (capped at 2048 chars), or null. |
 | `checkEndpointReachable` | Probe a user-defined endpoint: any HTTP response = reachable; a network error or timeout = not. |
 
+### `artifacts/api-server/src/lib/energy-vocabulary-config.ts`
+
+SCOPE-OVERRIDABLE GTD energy-level vocabulary — the resolver + write sanitiser behind `GET`/`PUT /api/energy-vocabulary`.
+
+| Function | What it does |
+| --- | --- |
+| `resolveEnergyVocabulary` | The effective GTD energy vocabulary at the given scopes: the shipped default with every `energy-vocabulary` config-def layer folded on top (system → org → programme → project → user), nearest scope winning within each (id-keyed arrays merge by id). |
+| `sanitizeEnergyVocabularyOverride` | Validate + normalise a PUT body into the config-def `values` to store. |
+
 ### `artifacts/api-server/src/lib/env-config.ts`
 
 Validated, typed environment access — the zero-trust stance applied to configuration: env vars are UNTRUSTED input too, so read them through typed accessors that enforce a rule (presence, type, range, format) instead of scattering `process.env[X]` casts.
@@ -2094,6 +2104,15 @@ Conditional governance rules — a PMO mandate that applies only WHEN its predic
 | `governanceOverridesFor` | Collect the effects of every rule whose condition matches the context (deduped, declared order). |
 | `firedGovernanceRuleIds` | The ids of the governance rules that fired for a context — for explainability + audit. |
 
+### `artifacts/api-server/src/lib/governed-config-ids.ts`
+
+GOVERNED logical config ids — the `config`-def logical ids whose write is reserved to a DEDICATED, governed surface and must NOT be authorable through the generic def importer (`routes/defs`) or a def-store reimport (`lib/def-store-export`).
+
+| Function | What it does |
+| --- | --- |
+| `isGovernedConfigId` | GOVERNED logical config ids — the `config`-def logical ids whose write is reserved to a DEDICATED, governed surface and must NOT be authorable through the generic def importer (`routes/defs`) or a def-store reimport (`lib/def-store-export`). |
+| `configPayloadId` | The logical `id` a `config` def carries in its payload (empty string when absent / not a string). |
+
 ### `artifacts/api-server/src/lib/guid-aliases.ts`
 
 GUID TRANSLATION — the alias table that lets an admin RELINK a project to a new correlation GUID without losing the history that referenced the old one.
@@ -2146,6 +2165,15 @@ Identity-provider presets for the setup wizard — "Sign in with Google / Micros
 | Function | What it does |
 | --- | --- |
 | `idpPreset` | A preset by id, or undefined. |
+
+### `artifacts/api-server/src/lib/impact-vocabulary-config.ts`
+
+SCOPE-OVERRIDABLE RAID/risk IMPACT vocabulary — the resolver + write sanitiser behind `GET`/`PUT /api/impact-vocabulary`.
+
+| Function | What it does |
+| --- | --- |
+| `resolveImpactVocabulary` | The effective RAID/risk impact vocabulary at the given scopes: the shipped default with every `impact-vocabulary` config-def layer folded on top (system → org → programme → project → user), nearest scope winning within each (id-keyed arrays merge by id). |
+| `sanitizeImpactVocabularyOverride` | Validate + normalise a PUT body into the config-def `values` to store. |
 
 ### `artifacts/api-server/src/lib/impersonation.ts`
 
@@ -2346,6 +2374,15 @@ Licensing / entitlements — the paywall for premium overlay features.
 | `licenseSummary` | A safe summary for the UI / status endpoints (no signature material). |
 | `requireEntitlement` | Express middleware: 402 Payment Required unless `feature` is entitled. |
 
+### `artifacts/api-server/src/lib/likelihood-vocabulary-config.ts`
+
+SCOPE-OVERRIDABLE RAID/risk LIKELIHOOD vocabulary — the resolver + write sanitiser behind `GET`/`PUT /api/likelihood-vocabulary`.
+
+| Function | What it does |
+| --- | --- |
+| `resolveLikelihoodVocabulary` | The effective RAID/risk likelihood vocabulary at the given scopes: the shipped default with every `likelihood-vocabulary` config-def layer folded on top (system → org → programme → project → user), nearest scope winning within each (id-keyed arrays merge by id). |
+| `sanitizeLikelihoodVocabularyOverride` | Validate + normalise a PUT body into the config-def `values` to store. |
+
 ### `artifacts/api-server/src/lib/logger.ts`
 
 The shared pino logger — one configured instance for the whole gateway (level from LOG_LEVEL, pretty in dev, JSON in prod).
@@ -2421,14 +2458,14 @@ MAPPING — the first-class data-routing object (roadmap §4.6, "mappings become
 
 | Function | What it does |
 | --- | --- |
-| `mappingHome` | The mapping's DECLARED home (broker and/or backend). |
+| `mappingHome` | The mapping's EFFECTIVE home (broker and/or backend). |
 | `resolveMappingTargets` | Resolve every field to a {@link FieldTarget}, inheriting the mapping's declared home. |
 | `sanitizeMapping` | Validate + coerce an authored mapping (the importer choke point for `kind: "mapping"`). |
 | `mergeMappings` | Merge mapping layers (base → nearest). |
 | `mappingFromFieldRoutes` | Bridge the legacy org `fieldRouting` (an array of `{ uiElement, vendor, broker, sourceField }`) into a generic {@link Mapping} — each route becomes `fields[uiElement] = { broker, backend: vendor, field: sourceField }`. |
 | `mappingIdKey` | Which semantic key is the row id (default `"id"`). |
 | `projectMappingRows` | Project records (per-`(broker,backend)` bucket, keyed by {@link targetKey}) into rows of semantic values via a mapping. |
-| `planMappingWrite` | Plan a generic write of `values` (semanticKey → value) under mapping `m`: split each provided field to the sidecar (written locally), `external` (routed elsewhere, no adapter yet), or `homeless` (no home — never written, surfaced for the admin to decide). |
+| `planMappingWrite` | Plan a generic write of `values` (semanticKey → value) under mapping `m`: split each provided field to the local built-in store (sidecar or OmniStore — written locally), `external` (routed elsewhere, no adapter yet), or `homeless` (no home — never written, surfaced for the admin to decide). |
 
 ### `artifacts/api-server/src/lib/mcp.ts`
 
@@ -2561,6 +2598,16 @@ OpenID Connect (Authorization Code + PKCE) relying-party.
 | `buildOidcAuthUrl` | Build a provider's authorization-endpoint URL (Authorization Code + S256 PKCE + nonce) via openid-client. |
 | `completeOidcLogin` | Complete the Authorization-Code callback: openid-client exchanges the code (with the PKCE verifier) at the token endpoint and validates the ID token end-to-end — signature against the issuer JWKS, plus `iss`/`aud`/`exp` and the `state`/`nonce` bindings. |
 | `claimsToSessionUser` | Map validated ID-token claims onto the app's SessionUser (app-specific claim shapes). |
+
+### `artifacts/api-server/src/lib/omnistore-homing.ts`
+
+OMNISTORE HOMING — OmniStore as the System-of-Record OF LAST RESORT.
+
+| Function | What it does |
+| --- | --- |
+| `omnistoreEnabled` | True when the built-in broker is running the OmniStore store — the enablement signal, the same env the built-in factory switches on (`BUILTIN_BROKER=omnistore`). |
+| `omnistoreLastResort` | The last-resort home to fold into routing: the OmniStore home when enabled, else null — with null the orphans stay HOMELESS (a decision surfaced to the admin), exactly as before OmniStore was turned on. |
+| `omnistoreSupersetCapabilities` | The full {@link CapabilityFlags} OmniStore declares when it homes the data — every superset domain true. |
 
 ### `artifacts/api-server/src/lib/optional-dependency.ts`
 
@@ -2773,6 +2820,16 @@ Proactive "what needs me" digest.
 | `startProactiveDigestScheduler` | Start the in-process digest timer (single-instance / homelab). |
 | `__stopProactiveDigestScheduler` | Test-only: stop the timer. |
 
+### `artifacts/api-server/src/lib/process-guards.ts`
+
+Process-level crash backstop.
+
+| Function | What it does |
+| --- | --- |
+| `onUnhandledRejection` | Handler for an unhandled promise rejection: log and keep running. |
+| `onUncaughtException` | Handler for an uncaught exception (a throw that escaped Express — a timer/stream/emitter callback): log and keep running. |
+| `installProcessGuards` | Install the backstop. |
+
 ### `artifacts/api-server/src/lib/programmes.ts`
 
 Programmes are a grouping of related projects, **derived** from each project's optional `programmeId` (owned by the backend).
@@ -2806,6 +2863,9 @@ Gateway-side per-project authorization — the deployment-independent scope gate
 | `guardProjectScope` | Express convenience: enforce {@link assertProjectScope}, sending a 403 and returning false when the caller is out of scope. |
 | `guardProgrammeScope` | Express convenience: enforce that the caller is within a PROGRAMME's scope, sending a 403 (and auditing the cross-scope attempt) when not. |
 | `filterTasksInScope` | Filter a task LIST to only those the caller may see — the batched form of {@link assertTaskScope} for a list endpoint, resolving the caller's in-scope project set ONCE (not per task). |
+| `inScopeProjectIds` | The caller's in-scope project-id set (both raw and qualified id forms), resolved ONCE from the broker-visible project list + the programme registry — or `null` for all-scope (everything visible). |
+| `filterRowsByProjectScope` | Filter per-project settings rows to only those the caller's scope permits (all-scope ⇒ unchanged). |
+| `mergeRowsByProjectScope` | Scope-safe write-merge for a per-project settings collection. |
 | `assertTaskScope` | Whether a caller may see/mutate a single task. |
 
 ### `artifacts/api-server/src/lib/project-template.ts`
@@ -2904,6 +2964,15 @@ RACI register — the DATA only.
 | --- | --- |
 | `validateRaci` | Validate + normalise the stored RACI list. |
 | `raciRows` | The RACI entries as GENERIC ROWS the generic rollup / table renders. |
+
+### `artifacts/api-server/src/lib/rag-vocabulary-config.ts`
+
+SCOPE-OVERRIDABLE RAG/health BAND vocabulary — the resolver + write sanitiser behind `GET`/`PUT /api/rag-vocabulary`.
+
+| Function | What it does |
+| --- | --- |
+| `resolveRagVocabulary` | The effective RAG/health band vocabulary at the given scopes: the shipped default with every `rag-vocabulary` config-def layer folded on top (system → org → programme → project → user), nearest scope winning within each (id-keyed arrays merge by id). |
+| `sanitizeRagVocabularyOverride` | Validate + normalise a PUT body into the config-def `values` to store. |
 
 ### `artifacts/api-server/src/lib/rate-card-source.ts`
 
@@ -3069,7 +3138,7 @@ Active reminder delivery.
 | `reminderFireKey` | The one-time fire key for a task's current reminder — includes the timestamp so RESCHEDULING (a new reminderAt) is a fresh reminder that fires again, while the same one never double-fires. |
 | `dueReminders` | Tasks whose reminder is DUE at `nowMs`: a reminderAt in the past, not done/dropped, not already fired. |
 | `reminderNotification` | A reminder notification for a task + the target derived from its assignee (email addressing when the assignee is an email; otherwise untargeted — delivered to the task's watchers by the hub). |
-| `runReminderSweep` | Run one reminder sweep: fire every due reminder exactly once (mark-then-notify, so a mid-sweep failure can't produce a duplicate on the next run), returning the count fired. |
+| `runReminderSweep` | Run one reminder sweep: deliver every due reminder exactly once. |
 
 ### `artifacts/api-server/src/lib/report-store.ts`
 
@@ -3148,9 +3217,31 @@ Push onto a bounded, in-memory ring (oldest evicted once `max` is exceeded) — 
 | --- | --- |
 | `pushBounded` | Push onto a bounded, in-memory ring (oldest evicted once `max` is exceeded) — the shared shape behind every RAM-only "recent N events" list (the broker log, health-watch findings, …): memory-safe by construction, nothing persisted, gone on restart. |
 
+### `artifacts/api-server/src/lib/risk-exposure.ts`
+
+RISK-EXPOSURE maths, routed through the SCOPE-RESOLVED graded vocabularies.
+
+| Function | What it does |
+| --- | --- |
+| `nearestBand` | Snap an arbitrary ordinal `level` onto the NEAREST shipped anchor band (ties break toward the higher, i.e. more-severe, band). |
+| `resolveRiskExposure` | The risk exposure (P×I) for a RAID/risk entry at the caller's scope: the resolved LIKELIHOOD grade's ordinal (snapped onto the nearest shipped likelihood anchor) times the resolved IMPACT grade's ordinal (snapped onto the nearest shipped impact anchor). |
+
 ### `artifacts/api-server/src/lib/rollup.ts`
 
 Re-export of the ONE shared, artifact-agnostic roll-up (`@workspace/backend-catalogue`), so the backend (rollup endpoints, exports) and the SPA (no-code report engine) run the SAME aggregation implementation — a single roll-up behind every output of the system.
+
+### `artifacts/api-server/src/lib/ruleset-scope.ts`
+
+SCOPED RULESET OVERLAY — lets a programme or project TIGHTEN the org's business ruleset for its own work, never loosen it.
+
+| Function | What it does |
+| --- | --- |
+| `stricterMode` | The stricter of two modes (used to tighten, never loosen). |
+| `tightenModes` | Fold an override's MODES onto a base, keeping only the stricter mode per rule (tighten-only). |
+| `tightenFieldRules` | Fold an override's FIELD RULES onto a base. |
+| `resolveEffectiveRuleset` | Resolve the EFFECTIVE ruleset for a request scope: the org baseline, tightened by the programme override (if any), then the project override (if any) — system < org < programme < project, each only able to make things stricter. |
+| `getRulesetOverride` | The stored override for one scope (for an admin UI to read/edit), or undefined. |
+| `setRulesetOverride` | Persist a scope's ruleset override (already delegation-gated by the caller). |
 
 ### `artifacts/api-server/src/lib/ruleset.ts`
 
@@ -3291,9 +3382,15 @@ SCOPED CONFIG RESOLUTION — the reusable vehicle for the model migration (roadm
 | `resolveFloorConfig` | Fold `base` then every `layer`, base→leaf, clamping each layer to be no looser than what it inherits via `tighten(parent, child)` (which returns the child narrowed to the parent's ceiling). |
 | `tightenAllowlist` | The FLOOR tighten step for an ALLOWLIST (a set of permitted ids, or `null` = "no restriction / allow all"). |
 | `readConfigCollection` | The scope-folded value of a config-def-backed collection, or `fallback` when unset. |
-| `writeOrgConfigCollection` | Persist a collection as the ORG-scope config def `{ id, values: { value } }`. |
+| `scopedConfigCollectionId` | The stable storage id of a scope's config-collection def (one singleton row per logical config per scope). |
 | `orgConfigCollectionId` | The stable storage id of an org-scope config-collection def (one singleton row per logical config). |
+| `writeScopedConfigCollection` | Persist a collection as the config def `{ id, values: { value } }` AT `scope` (org / programme / project). |
+| `writeOrgConfigCollection` | Persist a collection at ORG scope (the common case) — a thin delegate over {@link writeScopedConfigCollection}. |
+| `readScopedConfigValue` | Read ONLY the value stored AT `scope` for `configId` (no scope fold), or undefined when that scope has no stored value. |
 | `resolveMethodologyComposition` | — |
+| `resolveDelegationPolicy` | — |
+| `delegationLevelOf` | The delegation LEVEL a config-write scope corresponds to (org / programme / project). |
+| `assertDelegationAllowed` | Assert a scoped write for `area` is permitted under the current delegation policy; throws a {@link DelegationDeniedError} when the target scope is deeper than the admin allows. |
 | `resolveErrorTelemetry` | — |
 | `sanitizeSchedulingValues` | Validate + normalise a partial scheduling `values` payload (the org admin's working-time edit) into a clean partial: hours/day in (0,24], working weekdays a non-empty set of integers 0–6 (a week with no working day would make the scheduler's day arithmetic non-terminating), holidays a de-duped sorted list of ISO dates. |
 | `resolveScheduling` | The effective working-time policy at a scope: the code default with every `scheduling` config-def layer folded on top (system < org < programme < project < user), nearest scope winning. |
@@ -3383,6 +3480,14 @@ SELF-HOST DB ADOPTION — the operator's choice to let OmniProject's OWN databas
 | `sanitizeSelfHost` | Validate + normalise the self-host adoption config: a valid mode, a string[] of adopted domain ids, and — the "disclose, don't insure" gate — an explicit acknowledgement whenever the mode isn't `off`. |
 | `resolveSelfHost` | The resolved self-host adoption config (org config def → built-in default). |
 
+### `artifacts/api-server/src/lib/server-timeouts.ts`
+
+Inbound HTTP-server hardening (slowloris / slow-body defence).
+
+| Function | What it does |
+| --- | --- |
+| `configureServerTimeouts` | Apply the inbound-HTTP hardening timeouts (slowloris defence) to a live server: request/headers/keep-alive windows from env with safe defaults, and an opt-in max-connection cap. |
+
 ### `artifacts/api-server/src/lib/session-crypto.ts`
 
 Authenticated encryption for the session cookie.
@@ -3410,7 +3515,7 @@ Concurrent-session cap.
 | `maxSessionsPerUser` | The configured per-user concurrent-session cap (0 / unset ⇒ unlimited). |
 | `registerSession` | Record activity for (sub, sid) and report whether this session is within the cap. |
 | `activeSessionCount` | How many sessions the registry currently tracks for a user (diagnostics). |
-| `sequenceEnforced` | Whether rotating-token sequence enforcement is on (default ON; set SESSION_SEQUENCE_ENFORCE=0 to disable, e.g. for a non-sticky fleet that would rather not risk per-replica missed detections). |
+| `sequenceEnforced` | Whether rotating-token sequence enforcement is on. |
 | `issueSequence` | Issue the next sequence number for a session (called when its cookie is (re)sealed). |
 | `checkSequence` | Check a presented sequence against the session's high-water mark. |
 | `__resetSessionRegistry` | Test-only: clear the registry. |
@@ -3422,6 +3527,7 @@ The session-cookie signing secret's boot-time guard, factored out of app.ts so t
 | Function | What it does |
 | --- | --- |
 | `evaluateSessionSecret` | Evaluate the guard (pure). |
+| `assertSessionSecretForLocalPrincipals` | Post-config-load re-check for NATIVE LOCAL ACCOUNTS. |
 | `resolveSessionSecret` | Boot hook: evaluate the guard and throw (refuse to boot) when it fails. |
 
 ### `artifacts/api-server/src/lib/session-timeout.ts`
@@ -3469,6 +3575,16 @@ Known-good settings blueprints for common customer archetypes — a starting poi
 | `listSettingsPresets` | The known-good settings blueprints, in display order. |
 | `settingsPreset` | One blueprint by id, or null. |
 
+### `artifacts/api-server/src/lib/settings-scope.ts`
+
+SCOPED SETTINGS OVERLAY — lets a programme/project override a SMALL, SAFE allow-list of settings for itself (see SCOPE_VARIABLE_SETTINGS), governed by the delegation policy.
+
+| Function | What it does |
+| --- | --- |
+| `resolveScopedSettings` | Resolve the EFFECTIVE settings for a request scope: the org base, with allow-listed keys overridden by the programme override then the project override (nearest wins). |
+| `getSettingsOverride` | The stored override for one scope (for an admin UI), or an empty object. |
+| `setSettingsOverride` | Persist a scope's settings override (already delegation-gated by the caller). |
+
 ### `artifacts/api-server/src/lib/settings.ts`
 
 Gateway-local settings store.
@@ -3496,6 +3612,15 @@ Setup-status report — a registry of SECTIONS, each contributing a slice of the
 | `brokerConfigured` | Whether a broker is wired at all — the ONE fact the public/outer surface needs (e.g. every session's demo-mode banner), independent of the caller's role. |
 | `buildSetupStatus` | Assemble the setup/status report from the registered sections. |
 | `buildPublicSetupStatus` | The "outer surface" of setup status — the one fact every authenticated session needs regardless of role (e.g. the demo-mode banner in the global chrome). |
+
+### `artifacts/api-server/src/lib/severity-vocabulary-config.ts`
+
+SCOPE-OVERRIDABLE RAID/risk SEVERITY vocabulary — the resolver + write sanitiser behind `GET`/`PUT /api/severity-vocabulary`.
+
+| Function | What it does |
+| --- | --- |
+| `resolveSeverityVocabulary` | The effective RAID/risk severity vocabulary at the given scopes: the shipped default with every `severity-vocabulary` config-def layer folded on top (system → org → programme → project → user), nearest scope winning within each (id-keyed arrays merge by id). |
+| `sanitizeSeverityVocabularyOverride` | Validate + normalise a PUT body into the config-def `values` to store. |
 
 ### `artifacts/api-server/src/lib/shared-state.ts`
 
@@ -3618,6 +3743,15 @@ Task roll-up — the report/rollup INPUT for tasks (GTD next-actions), the analo
 | Function | What it does |
 | --- | --- |
 | `summariseTasks` | Summarise a set of tasks for reporting. |
+
+### `artifacts/api-server/src/lib/task-vocabulary-config.ts`
+
+SCOPE-OVERRIDABLE GTD task-status vocabulary — the resolver + write sanitiser behind `GET`/`PUT /api/task-vocabulary`.
+
+| Function | What it does |
+| --- | --- |
+| `resolveTaskVocabulary` | The effective GTD task vocabulary at the given scopes: the shipped default with every `task-vocabulary` config-def layer folded on top (system → org → programme → project → user), nearest scope winning within each (id-keyed arrays merge by id). |
+| `sanitizeTaskVocabularyOverride` | Validate + normalise a PUT body into the config-def `values` to store. |
 
 ### `artifacts/api-server/src/lib/timeout-error.ts`
 
@@ -3921,6 +4055,7 @@ SCOPE-OVERRIDABLE work-item vocabulary — the resolver + write sanitiser behind
 | Function | What it does |
 | --- | --- |
 | `resolveWorkVocabulary` | The effective vocabulary at the given scopes. |
+| `resolvePriorityWeight` | Resolve the effective WEIGHT of a priority against a resolved set — the canonical rank band the sorting + RICE/WSJF weighting key off. |
 | `sanitizeWorkVocabularyOverride` | Validate + normalise a PUT body into the config-def `values` to store. |
 
 ### `artifacts/api-server/src/lib/workflow-run.ts`
@@ -4115,6 +4250,14 @@ DEF SELECTION BINDINGS routes (roadmap X.12).
 
 THE DEFINITION IMPORTER routes (roadmap X.3), behind the default-off `defImporter` module.
 
+### `artifacts/api-server/src/routes/delegation-policy.ts`
+
+DELEGATION POLICY — the org's governance dial for how far DOWN the scope hierarchy local variation is allowed, per governed area (ruleset / settings / methodology).
+
+### `artifacts/api-server/src/routes/deployment-types.ts`
+
+DEPLOYMENT TYPES — the on-ramp archetypes (solo self-hoster, small team, managed cloud, enterprise on-prem, regulated self-host).
+
 ### `artifacts/api-server/src/routes/dev-mode.ts`
 
 Dev-mode routes.
@@ -4122,6 +4265,10 @@ Dev-mode routes.
 ### `artifacts/api-server/src/routes/disabled-screens.ts`
 
 The OFF switch for screens.
+
+### `artifacts/api-server/src/routes/energy-vocabulary.ts`
+
+Scope-overridable GTD energy-level vocabulary (the "how much have I got in the tank" axis, orthogonal to an hour estimate).
 
 ### `artifacts/api-server/src/routes/error-telemetry.ts`
 
@@ -4171,6 +4318,10 @@ Liveness vs readiness — deliberately two different probes (the k8s distinction
 
 Time-travel replay — read recorded portfolio states back from the operator's logging server (via the broker).
 
+### `artifacts/api-server/src/routes/impact-vocabulary.ts`
+
+Scope-overridable RAID/risk IMPACT vocabulary (the consequence magnitude — the I in risk-exposure P×I).
+
 ### `artifacts/api-server/src/routes/import.ts`
 
 Hard cap on rows per commit — each row is a broker write, so an unbounded array is a write-amplification DoS.
@@ -4194,6 +4345,10 @@ SPDX-License-Identifier: LicenseRef-OmniProject-Premium Premium feature — gove
 ### `artifacts/api-server/src/routes/license.ts`
 
 Licence endpoint — GET /api/license reports the current licence summary + premium-feature entitlements (white-label, webhooks, enterprise workflows).
+
+### `artifacts/api-server/src/routes/likelihood-vocabulary.ts`
+
+Scope-overridable RAID/risk LIKELIHOOD vocabulary (the probability a risk occurs — the P in risk-exposure P×I).
 
 ### `artifacts/api-server/src/routes/logging-sync.ts`
 
@@ -4295,6 +4450,10 @@ Browser Web Push subscription routes (roadmap 2.5 slice 3), behind the default-o
 
 RACI register store.
 
+### `artifacts/api-server/src/routes/rag-vocabulary.ts`
+
+Scope-overridable RAG/health BAND vocabulary (a project/programme's traffic-light status).
+
 ### `artifacts/api-server/src/routes/rate-card.ts`
 
 Rate card + hashed identity→role map + project types, and the server-side staff time-and-cost roll-up.
@@ -4379,6 +4538,10 @@ Setup connections plane — the broker-facing wiring surface: the non-destructiv
 
 Setup environments plane — the sandbox → promote → rollback lifecycle over versioned config: list/create/activate environments, promote one env's config onto another, pin a known-good version, and fast-rollback.
 
+### `artifacts/api-server/src/routes/severity-vocabulary.ts`
+
+Scope-overridable RAID/risk SEVERITY vocabulary ("how bad is it if this bites").
+
 ### `artifacts/api-server/src/routes/snapshots.ts`
 
 Provably-immutable snapshots.
@@ -4394,6 +4557,10 @@ PRIMITIVE STUDIO routes — the AI authoring "skill" (roadmap X.2), behind the d
 ### `artifacts/api-server/src/routes/system-defs.ts`
 
 The SYSTEM DEFAULTS update mechanism (roadmap X.11).
+
+### `artifacts/api-server/src/routes/task-vocabulary.ts`
+
+Scope-overridable GTD task-status vocabulary (next-actions axis, distinct from the work-item/issue status axis).
 
 ### `artifacts/api-server/src/routes/tasks.ts`
 
@@ -4694,9 +4861,65 @@ Composition ancestry refs — the shipped `{ id, extends }` of every def of a ki
 | `shippedDefRefs` | — |
 | `shippedDefs` | The full shipped def PAYLOADS of a kind. |
 
+### `lib/backend-catalogue/src/delegation-policy.ts`
+
+DELEGATION POLICY — the admin-set governance dial for how far DOWN the scope hierarchy local variation is allowed for each governed area (rulesets, settings, methodology).
+
+| Function | What it does |
+| --- | --- |
+| `levelDepth` | A level's depth (org=0 … user=3); unknown → 0 (org, the safe/tightest). |
+| `isDelegationAllowed` | May a write at `target` scope proceed under a policy that allows variation down to `allowed`? True when the target is no deeper than the allowed level. |
+| `cleanDelegationPolicy` | Coerce untrusted input (imported/stored) into a valid policy, filling unknowns from the default. |
+
+### `lib/backend-catalogue/src/deployment-resolve.ts`
+
+DEPLOYMENT RESOLVE — pure.
+
+| Function | What it does |
+| --- | --- |
+| `withDefaults` | The answers with every question's `default` filled in for anything the caller left out (unknown answer keys are ignored — only declared questions count). |
+| `resolveDeploymentSetup` | Resolve the known-good setup for a deployment type + answers. |
+
+### `lib/backend-catalogue/src/deployment-settings.ts`
+
+DEPLOYMENT SETTINGS — the settings a deployment type tags with a value.
+
+| Function | What it does |
+| --- | --- |
+| `deploymentSettings` | The deployment settings catalogue — every setting a deployment type can tag, with its options. |
+| `describeDeploymentSetup` | A resolved setup annotated with each setting's descriptor + the value the deployment type tagged it with — "settings tagged with the deployment type and the value it sets". |
+| `applyDeploymentOverrides` | Apply admin OVERRIDES onto a resolved setup — only PICKABLE settings whose new value is a valid option are accepted (so an admin can swap the broker/backend the type recommended, but can't set a non-pickable setting or an unknown value). |
+
+### `lib/backend-catalogue/src/deployment-type-catalogue.ts`
+
+DEPLOYMENT-TYPE catalogue — the archetypes a user picks on the way in (solo self-hoster, small team, managed cloud, enterprise on-prem, regulated self-host).
+
+| Function | What it does |
+| --- | --- |
+| `getDeploymentType` | One deployment type by id, or undefined. |
+| `deploymentTypeCatalogue` | All deployment types (a defensive copy). |
+
+### `lib/backend-catalogue/src/deployment-types.generated.ts`
+
+GENERATED by scripts/src/gen-deployment-types.ts — do not edit.
+
 ### `lib/backend-catalogue/src/drill-to.ts`
 
 DRILL-TO — the declarative "red number → filtered work-item list" descriptor (backlog #122).
+
+### `lib/backend-catalogue/src/energy-vocabulary.generated.ts`
+
+GENERATED by scripts/src/gen-energy-vocabulary.ts — do not edit.
+
+### `lib/backend-catalogue/src/energy-vocabulary.ts`
+
+Canonical GTD ENERGY-LEVEL vocabulary — the single source of truth for the energy/effort levels OmniProject knows about, their internal ordinal level and their display order.
+
+| Function | What it does |
+| --- | --- |
+| `energyVocabulary` | The full energy vocabulary (a defensive copy) — for a consumer that needs the raw entries. |
+| `energyVocabularyValues` | Build the shipped-default {@link EnergyVocabularyValues} from the canonical entries. |
+| `energyLevelsForMethodology` | The energy levels that apply to `methodologyId` — its tagged ones plus the neutral ("*") ones. |
 
 ### `lib/backend-catalogue/src/entity-resolution.ts`
 
@@ -4765,6 +4988,20 @@ GOALS / OKRs model — the neutral, primitive-built shape for OmniProject's goal
 | `isBinaryKeyResultKind` | Whether a key-result kind's attainment is binary (met ⇒ 100, else 0). |
 | `formatKeyResultValue` | Format a key-result value for display by its kind — the primitive's presentational "method", shared by every surface so a `percent` always reads "75%" and a `currency` "$1,000". |
 
+### `lib/backend-catalogue/src/impact-vocabulary.generated.ts`
+
+GENERATED by scripts/src/gen-impact-vocabulary.ts — do not edit.
+
+### `lib/backend-catalogue/src/impact-vocabulary.ts`
+
+Canonical RAID/risk IMPACT vocabulary — the single source of truth for the impact grades OmniProject knows about, their internal ordinal level and their display order.
+
+| Function | What it does |
+| --- | --- |
+| `impactVocabulary` | The full impact vocabulary (a defensive copy) — for a consumer that needs the raw entries. |
+| `impactVocabularyValues` | Build the shipped-default {@link ImpactVocabularyValues} from the canonical entries. |
+| `impactLevelsForMethodology` | The impact grades that apply to `methodologyId` — its tagged ones plus the neutral ("*") ones. |
+
 ### `lib/backend-catalogue/src/index.ts`
 
 @workspace/backend-catalogue — the shared source of truth for OmniProject's three integration planes, each modelled the same way (neutral manifest + capabilities kept SEPARATE from its concrete tools, linked into one definition):
@@ -4788,6 +5025,20 @@ KEY-FORMAT resolution — what key does a target require to be reached?
 | `backendKeyFormat` | The key a backend requires — explicit JSON override, else derived from the binding. |
 | `brokerKeyFormat` | The key a broker requires — explicit JSON override, else the BROKER_PSK default. |
 | `isKeyless` | True when reaching this target genuinely needs no key (import sources, demo). |
+
+### `lib/backend-catalogue/src/likelihood-vocabulary.generated.ts`
+
+GENERATED by scripts/src/gen-likelihood-vocabulary.ts — do not edit.
+
+### `lib/backend-catalogue/src/likelihood-vocabulary.ts`
+
+Canonical RAID/risk LIKELIHOOD vocabulary — the single source of truth for the likelihood grades OmniProject knows about, their internal ordinal level and their display order.
+
+| Function | What it does |
+| --- | --- |
+| `likelihoodVocabulary` | The full likelihood vocabulary (a defensive copy) — for a consumer that needs the raw entries. |
+| `likelihoodVocabularyValues` | Build the shipped-default {@link LikelihoodVocabularyValues} from the canonical entries. |
+| `likelihoodLevelsForMethodology` | The likelihood grades that apply to `methodologyId` — its tagged ones plus the neutral ("*") ones. |
 
 ### `lib/backend-catalogue/src/mapping-catalogue.ts`
 
@@ -4823,6 +5074,14 @@ METHODOLOGY registry — the PM methodologies OmniProject can shape itself to (S
 | `getMethodology` | One methodology definition by id, or undefined. |
 | `methodologyCatalogue` | All methodology definitions (a defensive copy). |
 
+### `lib/backend-catalogue/src/methodology-deploy.ts`
+
+METHODOLOGY DEPLOY — the pure resolver behind "one-click deploy this methodology".
+
+| Function | What it does |
+| --- | --- |
+| `resolveMethodologyDeployment` | Resolve the one-click deploy plan for a methodology, or null when the id is unknown. |
+
 ### `lib/backend-catalogue/src/methodology-group.ts`
 
 GROUP any methodology-tagged definitions by methodology — generic over EVERY catalogue plane (reports, views, screens, personas, …), since they all carry the same optional `methodologies` tag and share one matcher.
@@ -4832,6 +5091,14 @@ GROUP any methodology-tagged definitions by methodology — generic over EVERY c
 | `groupByMethodology` | Bucket `defs` by methodology. |
 | `neutralDefs` | The NEUTRAL defs — untagged or `"*"`, i.e. those that apply to every methodology (the "always shown" set). |
 | `artifactsForMethodology` | — |
+
+### `lib/backend-catalogue/src/methodology-invariants.ts`
+
+METHODOLOGY INVARIANTS — the engine behind a methodology's declarative business rules (see MethodologyInvariant).
+
+| Function | What it does |
+| --- | --- |
+| `evaluateMethodologyInvariants` | Evaluate every invariant a methodology declares against the portfolio snapshot, returning all breaches. |
 
 ### `lib/backend-catalogue/src/methodology-match.ts`
 
@@ -5019,6 +5286,20 @@ Tiny, dependency-free PROPERTY-TESTING harness — the structured approach to ed
 | `mulberry32` | mulberry32 — a fast, well-distributed seedable PRNG (no crypto needed here). |
 | `check` | Assert `prop` holds for `runs` generated inputs. |
 
+### `lib/backend-catalogue/src/rag-vocabulary.generated.ts`
+
+GENERATED by scripts/src/gen-rag-vocabulary.ts — do not edit.
+
+### `lib/backend-catalogue/src/rag-vocabulary.ts`
+
+Canonical RAG/health BAND vocabulary — the single source of truth for the health reporting bands OmniProject knows about (Red/Amber/Green), their internal ordinal band and their display order.
+
+| Function | What it does |
+| --- | --- |
+| `ragVocabulary` | The full RAG vocabulary (a defensive copy) — for a consumer that needs the raw entries. |
+| `ragVocabularyValues` | Build the shipped-default {@link RagVocabularyValues} from the canonical entries. |
+| `ragBandsForMethodology` | The RAG bands that apply to `methodologyId` — its tagged ones plus the neutral ("*") ones. |
+
 ### `lib/backend-catalogue/src/registry-catalogue.ts`
 
 ORG REGISTRY model — the neutral, primitive-built shape for OmniProject's org-wide store of APPROVED bespoke items (templates, reports, plugins, primitives, JSON defs …).
@@ -5089,6 +5370,55 @@ SETTINGS-PRESET archetypes — known-good posture blueprints an operator loads i
 ### `lib/backend-catalogue/src/settings-presets.generated.ts`
 
 GENERATED by scripts/src/gen-settings-presets.ts — do not edit.
+
+### `lib/backend-catalogue/src/severity-vocabulary.generated.ts`
+
+GENERATED by scripts/src/gen-severity-vocabulary.ts — do not edit.
+
+### `lib/backend-catalogue/src/severity-vocabulary.ts`
+
+Canonical RAID/risk SEVERITY vocabulary — the single source of truth for the severity grades OmniProject knows about, their internal ordinal level and their display order.
+
+| Function | What it does |
+| --- | --- |
+| `severityVocabulary` | The full severity vocabulary (a defensive copy) — for a consumer that needs the raw entries. |
+| `severityVocabularyValues` | Build the shipped-default {@link SeverityVocabularyValues} from the canonical entries. |
+| `severityLevelsForMethodology` | The severity grades that apply to `methodologyId` — its tagged ones plus the neutral ("*") ones. |
+
+### `lib/backend-catalogue/src/sort-filter.ts`
+
+SORT + FILTER — the ONE shared, pure "view controls" engine a screen table or a report row-set runs so a user can sort by ANY column (or row) and filter, with the SAME comparators everywhere.
+
+| Function | What it does |
+| --- | --- |
+| `asNumber` | Parse a number-ish value (a real number, or a numeric string), else null (missing/uncomparable). |
+| `asDateMs` | Parse a date-ish string to epoch millis, else null. |
+| `ordinalLevel` | The internal ordinal level of a graded `value` in `kind`, using the shipped default map. |
+| `ordinalSortKey` | Build a {@link SortKey} for a known graded column, wiring its shipped default level map. |
+| `compareRows` | A comparator for one sort key. |
+| `sortRows` | Sort rows by one or more keys (earlier keys dominate), stably (original order breaks a full tie). |
+| `evalFilter` | Evaluate one predicate against a row. |
+| `filterRows` | Keep rows matching EVERY predicate (AND). |
+| `evalFilterNode` | Evaluate a boolean filter node against a row. |
+| `filterRowsBoolean` | Keep rows matching the boolean filter tree. |
+| `applyView` | The common "view" application: filter THEN sort, in one pure pass. |
+
+### `lib/backend-catalogue/src/task-vocabulary.generated.ts`
+
+GENERATED by scripts/src/gen-task-vocabulary.ts — do not edit.
+
+### `lib/backend-catalogue/src/task-vocabulary.ts`
+
+Canonical GTD TASK-STATUS vocabulary — the single source of truth for the next-action statuses OmniProject knows about, their workflow class and their display order.
+
+| Function | What it does |
+| --- | --- |
+| `taskStatusClassOf` | The workflow class of ANY task status id, via its shipped binding (unknown ⇒ null). |
+| `isTaskStatusClosed` | True when a task status is CLOSED — its class is `done` or `dropped`. |
+| `isTaskStatusDone` | True when a task status is specifically DONE (not merely dropped). |
+| `taskVocabulary` | The full task vocabulary (a defensive copy) — for a consumer that needs the raw entries. |
+| `taskVocabularyValues` | Build the shipped-default {@link TaskVocabularyValues} from the canonical entries. |
+| `taskStatusesForMethodology` | The task statuses that apply to `methodologyId` — its tagged ones plus the neutral ("*") ones — a methodology's normal GTD nomenclature. |
 
 ### `lib/backend-catalogue/src/template-catalogue.ts`
 
@@ -5188,6 +5518,9 @@ Canonical WORK-ITEM vocabulary — the single source of truth for the statuses a
 | `vocabMethodologies` | A token's methodology tags, defaulting to neutral ("*") when untagged. |
 | `localeLabel` | The label a viewer in `locale` sees: an exact locale match, else the base language ("de-DE" → "de"), else the default `label`. |
 | `vocabAppliesTo` | True when a token applies to `methodologyId` — neutral ("*") tokens always apply. |
+| `priorityWeightBand` | Snap an arbitrary priority rank onto the NEAREST canonical priority weight band (one of the five shipped anchor ranks). |
+| `canonicalStatusOf` | Resolve ANY status id (core or adjustable) to its internal canonical status — the broker lifecycle anchor. |
+| `statusClassOf` | The lifecycle class of ANY status id (core or adjustable), via its canonical binding. |
 | `workVocabulary` | The full vocabulary (a defensive copy) — for a consumer that needs the raw entries. |
 | `workVocabularyValues` | Build the shipped-default {@link WorkVocabularyValues} from the canonical entries. |
 | `tokensForMethodology` | The tokens (statuses OR priorities) that apply to `methodologyId` — its tagged ones plus the neutral ("*") ones — a methodology's normal nomenclature. |
@@ -5227,6 +5560,14 @@ Broker-contract generator.
 
 Dashboard-preset catalogue generator.
 
+### `scripts/src/gen-deployment-types.ts`
+
+Deployment-type catalogue generator.
+
+### `scripts/src/gen-energy-vocabulary.ts`
+
+Canonical GTD energy-level vocabulary generator.
+
 ### `scripts/src/gen-fields.ts`
 
 Canonical field-vocabulary generator.
@@ -5238,6 +5579,14 @@ Form catalogue generator.
 ### `scripts/src/gen-function-map.ts`
 
 Function-map generator.
+
+### `scripts/src/gen-impact-vocabulary.ts`
+
+Canonical RAID/risk impact vocabulary generator.
+
+### `scripts/src/gen-likelihood-vocabulary.ts`
+
+Canonical RAID/risk likelihood vocabulary generator.
 
 ### `scripts/src/gen-mappings.ts`
 
@@ -5271,6 +5620,10 @@ Preset catalogue generator.
 
 Prioritisation-weights generator.
 
+### `scripts/src/gen-rag-vocabulary.ts`
+
+Canonical RAG/health band vocabulary generator.
+
 ### `scripts/src/gen-reports.ts`
 
 Report catalogue generator.
@@ -5282,6 +5635,14 @@ Screen catalogue generator.
 ### `scripts/src/gen-settings-presets.ts`
 
 Settings-preset (archetype blueprint) generator.
+
+### `scripts/src/gen-severity-vocabulary.ts`
+
+Canonical RAID/risk severity vocabulary generator.
+
+### `scripts/src/gen-task-vocabulary.ts`
+
+Canonical GTD task-status vocabulary generator.
 
 ### `scripts/src/gen-templates.ts`
 

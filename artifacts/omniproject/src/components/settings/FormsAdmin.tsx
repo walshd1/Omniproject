@@ -55,7 +55,7 @@ export function FormsAdmin() {
   const CORE_TARGETS = new Set(["title", "description", "labels"]);
   const mapTargets = ISSUE_WRITE_TARGETS.filter((t) => CORE_TARGETS.has(t) || canStoreField(caps, t));
   const { toast } = useToast();
-  const { draft, setDraft, dirty, reset } = useDraftAdmin<FormDef[], FormDef[]>(server, structuredClone);
+  const { draft, setDraft, dirty, reset } = useDraftAdmin<FormDef[], FormDef[]>(server);
   const [templateId, setTemplateId] = useState("");
 
   if (!isPmoOrAdmin(auth?.role)) return null;

@@ -283,6 +283,13 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile --ignore-scripts
 
+      # React Hooks correctness gate (SPA): rules-of-hooks + exhaustive-deps as ERRORS. This catches
+      # the unstable-reference / stale-closure dependency-array bugs (infinite effect loops, defeated
+      # memoisation) that tsc and unit tests don't reliably surface. --max-warnings 0 (in the `lint`
+      # script) also fails on any stale/unused eslint-disable directive, so suppressions can't rot.
+      - name: Lint SPA (React Hooks — exhaustive-deps + rules-of-hooks)
+        run: pnpm --filter @workspace/omniproject run lint
+
       - name: Verify codegen is in sync with the OpenAPI contract
         run: |
           pnpm --filter @workspace/api-spec run codegen

@@ -111,7 +111,7 @@ export function CustomReportsAdmin() {
   const { data: legacy } = useLegacyCustomReports();
   const drain = useDrainLegacyCustomReports();
   const savingReports = importDef.isPending || updateDef.isPending || deleteDef.isPending || drain.isPending;
-  const { draft, setDraft, dirty, reset } = useDraftAdmin<CustomReportDef[], CustomReportDef[]>(server, structuredClone);
+  const { draft, setDraft, dirty, reset } = useDraftAdmin<CustomReportDef[], CustomReportDef[]>(server);
   const [importError, setImportError] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);

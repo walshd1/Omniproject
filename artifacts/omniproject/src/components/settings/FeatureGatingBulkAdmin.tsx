@@ -50,8 +50,10 @@ export function FeatureGatingBulkAdmin() {
   const fileRef = useRef<HTMLInputElement>(null);
 
   const validFeatureIds = useMemo(() => new Set((catalogue ?? []).map((f) => f.id)), [catalogue]);
-  const knownProgrammeIds = useMemo(() => new Set((Array.isArray(programmes) ? programmes : []).map((p) => p.id)), [programmes]);
-  const knownProjectIds = useMemo(() => new Set((Array.isArray(projects) ? projects : []).map((p) => p.id)), [projects]);
+  // Depend on the raw query data (react-query-stable), not the `programmes`/`projects` `Array.isArray`
+  // narrowings — those allocate a fresh `[]` on any non-array tick and would thrash these memos.
+  const knownProgrammeIds = useMemo(() => new Set((Array.isArray(programmesData) ? programmesData : []).map((p) => p.id)), [programmesData]);
+  const knownProjectIds = useMemo(() => new Set((Array.isArray(projectsData) ? projectsData : []).map((p) => p.id)), [projectsData]);
 
   if (!canProject && !canProgramme) return null; // no scope this session can bulk-edit
 

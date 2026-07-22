@@ -15,8 +15,41 @@
 // can't drift on WHICH statuses exist. Re-exported here so this module stays the gateway's single
 // import surface for status vocabulary; the native⇄canonical synonym/dialect behaviour below stays
 // above the seam.
-import { CANONICAL_STATUS, STATUS_CLASS, type CanonicalStatus, type StatusClass } from "@workspace/backend-catalogue";
-export { CANONICAL_STATUS, STATUS_CLASS, type CanonicalStatus, type StatusClass };
+import { CANONICAL_STATUS, STATUS_CLASS, canonicalStatusOf, type CanonicalStatus, type StatusClass } from "@workspace/backend-catalogue";
+export { CANONICAL_STATUS, STATUS_CLASS, canonicalStatusOf, type CanonicalStatus, type StatusClass };
+
+// The canonical GTD task states + their workflow class are likewise shared reference data, sourced from the
+// backend-catalogue task-vocabulary asset (assets/task-vocabulary.json) — mirroring the work-item status axis
+// above — so the gateway and the SPA can't drift on WHICH task statuses exist. Re-exported here so this module
+// stays the gateway's single import surface for task vocabulary; the native⇄canonical synonym behaviour below
+// stays above the seam.
+import { CANONICAL_TASK_STATUS, TASK_STATUS_CLASS, type CanonicalTaskStatus, type TaskStatusClass } from "@workspace/backend-catalogue";
+export { CANONICAL_TASK_STATUS, TASK_STATUS_CLASS, type CanonicalTaskStatus, type TaskStatusClass };
+
+// The canonical GTD ENERGY levels + their ordinal level are likewise shared reference data, sourced from the
+// backend-catalogue energy-vocabulary asset (assets/energy-vocabulary.json) — mirroring the task-status axis
+// above — so the gateway and the SPA can't drift on WHICH energy levels exist. Re-exported here so this module
+// stays the gateway's single import surface for energy vocabulary.
+import { CANONICAL_ENERGY, ENERGY_LEVEL, type CanonicalEnergy } from "@workspace/backend-catalogue";
+export { CANONICAL_ENERGY, ENERGY_LEVEL, type CanonicalEnergy };
+
+// The canonical RAID/risk graded vocabularies — severity / impact / likelihood — plus their internal ordinal
+// level are likewise shared reference data, sourced from the backend-catalogue *-vocabulary assets (mirroring
+// the energy axis above) so the gateway and the SPA can't drift on WHICH grades exist. Re-exported here so
+// this module stays the gateway's single import surface for the risk vocabularies. The ordinal LEVELs are the
+// anchors the risk-exposure maths (P×I) key off (see the api-server resolvers' nearest-band fallback).
+import { CANONICAL_SEVERITY, SEVERITY_LEVEL, type CanonicalSeverity } from "@workspace/backend-catalogue";
+export { CANONICAL_SEVERITY, SEVERITY_LEVEL, type CanonicalSeverity };
+import { CANONICAL_IMPACT, IMPACT_LEVEL, type CanonicalImpact } from "@workspace/backend-catalogue";
+export { CANONICAL_IMPACT, IMPACT_LEVEL, type CanonicalImpact };
+import { CANONICAL_LIKELIHOOD, LIKELIHOOD_LEVEL, type CanonicalLikelihood } from "@workspace/backend-catalogue";
+export { CANONICAL_LIKELIHOOD, LIKELIHOOD_LEVEL, type CanonicalLikelihood };
+
+// The canonical RAG/health BANDS + their internal ordinal band are shared reference data too, sourced from
+// the backend-catalogue rag-vocabulary asset — the DISPLAY/relabel layer for the bands. The classifier
+// (classifyRag → GREEN/AMBER/RED) below stays fixed in code; this vocabulary only re-skins the bands.
+import { CANONICAL_RAG, RAG_BAND_LEVEL, type CanonicalRag } from "@workspace/backend-catalogue";
+export { CANONICAL_RAG, RAG_BAND_LEVEL, type CanonicalRag };
 
 // Common native synonyms seen across backends, folded onto a canonical status so
 // completion detection works without a per-backend mapping. A backend can still
@@ -39,14 +72,16 @@ export interface StatusVocabulary {
 }
 
 /**
- * Resolve a native status to a canonical one: a backend's declared vocabulary
- * wins, then the shared synonyms, then null. Pure + data-driven — this is how a
- * vendor's status dialect is abstracted below the seam.
+ * Resolve a native status to a canonical one. Precedence: a backend's declared vocabulary wins; then an
+ * ADJUSTABLE status we defined ourselves (its `canonical` binding — so a custom/methodology status like a
+ * GTD "next" classifies onto its internal lifecycle anchor); then the shared cross-vendor synonyms; then
+ * null. Pure + data-driven — this is how any status (vendor-native OR our own adjustable one) is tied to
+ * the internal lifecycle the gateway reasons about.
  */
 export function normaliseStatus(native: string | null | undefined, vocab?: StatusVocabulary): CanonicalStatus | null {
   if (!native) return null;
   const key = native.trim().toLowerCase();
-  return vocab?.toCanonical[key] ?? STATUS_SYNONYMS[key] ?? null;
+  return vocab?.toCanonical[key] ?? canonicalStatusOf(native) ?? canonicalStatusOf(key) ?? STATUS_SYNONYMS[key] ?? null;
 }
 
 /** The lifecycle class of a native status; "open" when it can't be classified. */
@@ -114,26 +149,10 @@ export function isProjectLive(native: string | null | undefined): boolean {
 
 // ── Task lifecycle (GTD) ─────────────────────────────────────────────────────
 // A TASK is an ACTIONABLE next-action (David Allen's GTD), distinct from an ISSUE (a problem/blocker
-// from a helpdesk or a project). Its lifecycle is the GTD workflow, not the issue board.
-
-/** Canonical GTD task states a backend's native task status normalises into.
- *  next = actionable now · waiting = delegated/blocked on someone · scheduled = deferred to a time ·
- *  someday = someday/maybe (incubating) · done · dropped (decided not to do). */
-export const CANONICAL_TASK_STATUS = ["next", "waiting", "scheduled", "someday", "done", "dropped"] as const;
-export type CanonicalTaskStatus = (typeof CANONICAL_TASK_STATUS)[number];
-
-/** The workflow class a task status falls in. */
-export type TaskStatusClass = "actionable" | "waiting" | "deferred" | "done" | "dropped";
-
-/** Canonical task status → workflow class. */
-export const TASK_STATUS_CLASS: Record<CanonicalTaskStatus, TaskStatusClass> = {
-  next: "actionable",
-  waiting: "waiting",
-  scheduled: "deferred",
-  someday: "deferred",
-  done: "done",
-  dropped: "dropped",
-};
+// from a helpdesk or a project). Its lifecycle is the GTD workflow, not the issue board. The canonical
+// GTD states + their workflow class (CANONICAL_TASK_STATUS / TASK_STATUS_CLASS) are sourced from the
+// backend-catalogue task-vocabulary asset and re-exported at the top of this module (like the issue axis);
+// the native⇄canonical synonym folding below is the above-the-seam dialect behaviour.
 
 // Native synonyms across tools, folded onto a canonical GTD status.
 const TASK_STATUS_SYNONYMS: Record<string, CanonicalTaskStatus> = {
@@ -179,12 +198,7 @@ export function isTaskDone(native: string | null | undefined): boolean {
 export const CANONICAL_PRIORITY = ["none", "low", "medium", "high", "urgent"] as const;
 export type CanonicalPriority = (typeof CANONICAL_PRIORITY)[number];
 
-// ── Energy (GTD) ─────────────────────────────────────────────────────────────
-
-/** Canonical GTD energy/effort level — the "how much have I got in the tank" filter,
- *  distinct from an hour estimate (mirrors the light effort tag in leading task apps). */
-export const CANONICAL_ENERGY = ["low", "medium", "high"] as const;
-export type CanonicalEnergy = (typeof CANONICAL_ENERGY)[number];
+// (GTD energy levels are re-exported near the top of this module — sourced from the energy-vocabulary asset.)
 
 // ── RAG (red/amber/green) ────────────────────────────────────────────────────
 

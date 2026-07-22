@@ -7,6 +7,7 @@ import { useConfiguratorMode, ConfiguratorModeProvider } from "../lib/configurat
 import { LoadingState } from "../components/LoadingState";
 import { DataState } from "../components/DataState";
 import { ProfileStep } from "../components/setup/ProfileStep";
+import { DeploymentStep } from "../components/setup/DeploymentStep";
 import { PresetStep } from "../components/setup/PresetStep";
 import { OrgIdentityStep } from "../components/setup/OrgIdentityStep";
 import { InviteTeamStep } from "../components/setup/InviteTeamStep";
@@ -147,6 +148,7 @@ export function Configurator() {
             </div>
           )}
 
+          <DeploymentStep isAdmin={isAdmin} />
           <PresetStep isAdmin={isAdmin} />
           <OrgIdentityStep isAdmin={isAdmin} />
           <InviteTeamStep authMode={status?.auth?.mode} />

@@ -4,6 +4,7 @@ import {
   BUILTIN_BROKER, SIDECAR_BACKEND,
   type FieldRef, type FieldTarget, type BrokerBackend,
 } from "./field-target";
+import { OMNISTORE_BACKEND } from "./omnistore-homing";
 import type { FieldRoute } from "./field-routing";
 
 /**
@@ -40,20 +41,24 @@ export interface Mapping {
   extends?: string;
 }
 
-/** The mapping's DECLARED home (broker and/or backend). Absent halves stay absent — there is no implicit
- *  built-in fallback; a field that can't inherit a full home is homeless (an admin decision). */
-export function mappingHome(m: Pick<Mapping, "broker" | "backend">): Partial<BrokerBackend> {
+/** The mapping's EFFECTIVE home (broker and/or backend). The mapping's own declaration wins; a half it
+ *  leaves absent is filled from `lastResort` when one is supplied (OmniStore-as-SoR-of-last-resort — see
+ *  omnistore-homing), else stays absent so a field that still can't inherit a full home is homeless (an
+ *  admin decision). With no `lastResort` this is exactly the mapping's declared home — unchanged. */
+export function mappingHome(m: Pick<Mapping, "broker" | "backend">, lastResort?: BrokerBackend): Partial<BrokerBackend> {
+  const broker = m.broker ?? lastResort?.broker;
+  const backend = m.backend ?? lastResort?.backend;
   const home: Partial<BrokerBackend> = {};
-  if (m.broker !== undefined) home.broker = m.broker;
-  if (m.backend !== undefined) home.backend = m.backend;
+  if (broker !== undefined) home.broker = broker;
+  if (backend !== undefined) home.backend = backend;
   return home;
 }
 
 /** Resolve every field to a {@link FieldTarget}, inheriting the mapping's declared home. Fields that can't
  *  resolve to a full (broker, backend) are returned as `homeless` — the admin must give each a home (an external
  *  backend or our sidecar) or remove it. */
-export function resolveMappingTargets(m: Mapping): { targets: Record<string, FieldTarget>; homeless: string[] } {
-  const home = mappingHome(m);
+export function resolveMappingTargets(m: Mapping, lastResort?: BrokerBackend): { targets: Record<string, FieldTarget>; homeless: string[] } {
+  const home = mappingHome(m, lastResort);
   const targets: Record<string, FieldTarget> = {};
   const homeless: string[] = [];
   for (const [key, ref] of Object.entries(m.fields)) {
@@ -179,8 +184,8 @@ export const mappingIdKey = (m: Mapping): string => (m.fields["id"] ? "id" : Obj
  * row is `{ [idKey]: id, …semanticValues }` — exactly what a generic table panel binds to. A bare `Src[]` is the
  * home bucket (the common single-backend case).
  */
-export function projectMappingRows(sources: Src[] | Record<string, Src[]>, m: Mapping): Record<string, unknown>[] {
-  const home = mappingHome(m);
+export function projectMappingRows(sources: Src[] | Record<string, Src[]>, m: Mapping, lastResort?: BrokerBackend): Record<string, unknown>[] {
+  const home = mappingHome(m, lastResort);
   const idKey = mappingIdKey(m);
   const idTarget = resolveFieldTarget(m.fields[idKey] ?? idKey, home);
   if (!idTarget) return []; // homeless structure — nothing to read; surfaced via resolveMappingTargets
@@ -229,15 +234,21 @@ export interface MappingWritePlan {
   unmapped: string[];
 }
 
-const isSidecarTarget = (t: FieldTarget): boolean => t.broker === BUILTIN_BROKER && t.backend === SIDECAR_BACKEND;
+/** A field whose home is the built-in broker's own local store — the sidecar OR OmniStore (the SoR-of-last
+ *  resort). Both are the first-party local home the generic slot store persists, so both are written locally
+ *  rather than reported as an un-adapted external backend. */
+const isLocalBuiltinTarget = (t: FieldTarget): boolean =>
+  t.broker === BUILTIN_BROKER && (t.backend === SIDECAR_BACKEND || t.backend === OMNISTORE_BACKEND);
 
 /**
  * Plan a generic write of `values` (semanticKey → value) under mapping `m`: split each provided field to the
- * sidecar (written locally), `external` (routed elsewhere, no adapter yet), or `homeless` (no home — never
- * written, surfaced for the admin to decide). The id key is the row key, not a writable field.
+ * local built-in store (sidecar or OmniStore — written locally), `external` (routed elsewhere, no adapter
+ * yet), or `homeless` (no home — never written, surfaced for the admin to decide). When a `lastResort` home
+ * is supplied (OmniStore enabled), an orphan field inherits it and so lands in the local `sidecar` bucket
+ * rather than staying homeless. The id key is the row key, not a writable field.
  */
-export function planMappingWrite(m: Mapping, values: Record<string, unknown>): MappingWritePlan {
-  const home = mappingHome(m);
+export function planMappingWrite(m: Mapping, values: Record<string, unknown>, lastResort?: BrokerBackend): MappingWritePlan {
+  const home = mappingHome(m, lastResort);
   const idKey = mappingIdKey(m);
   const idField = refFieldName(m.fields[idKey], idKey);
   const plan: MappingWritePlan = { sidecarIdField: m.joinField || idField, sidecar: {}, external: [], homeless: [], unmapped: [] };
@@ -247,7 +258,7 @@ export function planMappingWrite(m: Mapping, values: Record<string, unknown>): M
     if (ref === undefined) { plan.unmapped.push(key); continue; }
     const t = resolveFieldTarget(ref, home);
     if (!t) { plan.homeless.push(key); continue; }
-    if (isSidecarTarget(t)) plan.sidecar[t.field] = value;
+    if (isLocalBuiltinTarget(t)) plan.sidecar[t.field] = value;
     else plan.external.push({ key, target: t, value });
   }
   return plan;

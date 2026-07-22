@@ -1,12 +1,15 @@
 import { test, afterEach } from "node:test";
 import assert from "node:assert/strict";
 import { registerSession, activeSessionCount, maxSessionsPerUser, issueSequence, checkSequence, sequenceEnforced, __resetSessionRegistry } from "./session-registry";
+import { __resetSharedStateForTest } from "./shared-state";
 
 afterEach(() => {
   delete process.env["MAX_SESSIONS_PER_USER"];
   delete process.env["SESSION_SEQUENCE_ENFORCE"];
   delete process.env["SESSION_SEQUENCE_GRACE"];
+  delete process.env["REDIS_URL"];
   __resetSessionRegistry();
+  __resetSharedStateForTest(); // drop any seq-mark the fleet-declared tests published via sharedKv
 });
 
 test("unset cap is a no-op (every session allowed)", () => {
@@ -53,10 +56,25 @@ test("sessions past the absolute window are pruned", () => {
 
 // ── Rotating-token sequence (replay / reuse detection) ───────────────────────────────────────────
 
-test("sequence enforcement is ON by default; disable-able", () => {
+test("sequence enforcement is ON by default; disable-able in single-replica", () => {
   assert.equal(sequenceEnforced(), true);
   process.env["SESSION_SEQUENCE_ENFORCE"] = "0";
   assert.equal(sequenceEnforced(), false);
+});
+
+test("in a DECLARED FLEET (REDIS_URL set) enforcement is NON-OPTIONAL — the off-switch is ignored", () => {
+  process.env["REDIS_URL"] = "redis://localhost:6379";
+  process.env["SESSION_SEQUENCE_ENFORCE"] = "0"; // an operator trying to disable it in a fleet…
+  assert.equal(sequenceEnforced(), true, "cross-replica fork detection can't be silently switched off at scale");
+});
+
+test("force-on drives real behaviour: a well-behind cookie still forks in a fleet despite ENFORCE=0", () => {
+  process.env["REDIS_URL"] = "redis://localhost:6379";
+  process.env["SESSION_SEQUENCE_ENFORCE"] = "0"; // ignored because a fleet is declared
+  process.env["SESSION_SEQUENCE_GRACE"] = "1";
+  const s = "salt-fleet";
+  for (let i = 1; i <= 6; i++) issueSequence(s, 1000 + i); // mark advances to 6 (also publishes to sharedKv)
+  assert.equal(checkSequence(s, 2, 3000), "fork"); // a replay of an old cookie is still caught
 });
 
 test("in-order use is fine; each re-seal advances the mark", () => {

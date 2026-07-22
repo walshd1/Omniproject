@@ -1,5 +1,11 @@
-import { reportCatalogue, formCatalogue, dashboardDefCatalogue, referenceRulesetCatalogue, methodologyCatalogue, screenDefCatalogue, primitiveCatalogue, mappingCatalogue, workVocabularyValues } from "@workspace/backend-catalogue";
+import { reportCatalogue, formCatalogue, dashboardDefCatalogue, referenceRulesetCatalogue, methodologyCatalogue, screenDefCatalogue, primitiveCatalogue, mappingCatalogue, workVocabularyValues, taskVocabularyValues, energyVocabularyValues, severityVocabularyValues, impactVocabularyValues, likelihoodVocabularyValues, ragVocabularyValues } from "@workspace/backend-catalogue";
 import { WORK_VOCABULARY_CONFIG_ID } from "./work-vocabulary-config";
+import { TASK_VOCABULARY_CONFIG_ID } from "./task-vocabulary-config";
+import { ENERGY_VOCABULARY_CONFIG_ID } from "./energy-vocabulary-config";
+import { SEVERITY_VOCABULARY_CONFIG_ID } from "./severity-vocabulary-config";
+import { IMPACT_VOCABULARY_CONFIG_ID } from "./impact-vocabulary-config";
+import { LIKELIHOOD_VOCABULARY_CONFIG_ID } from "./likelihood-vocabulary-config";
+import { RAG_VOCABULARY_CONFIG_ID } from "./rag-vocabulary-config";
 import { DEF_SCOPE_POLICY_CONFIG_ID, DEFAULT_DEF_SCOPE_POLICY } from "./def-policy";
 import { PRESETS_CONFIG_ID, presetConfigValues } from "./preset-config";
 import { artifactStoreEnabled } from "./artifact-store";
@@ -44,6 +50,30 @@ export function buildSystemDefaultRows(): StoredDef[] {
   // layer the scope resolver folds org/programme/project/user overrides onto (see work-vocabulary-config).
   // Sourced from the SAME catalogue accessor the build-time consumers export, so the base can't drift.
   rows.push(buildSystemDefRow("config", "Work vocabulary", { id: WORK_VOCABULARY_CONFIG_ID, values: workVocabularyValues() }, SEED_AT));
+  // The canonical GTD TASK-status vocabulary (next-actions axis, distinct from the work-item/issue axis) —
+  // authored as JSON (assets/task-vocabulary.json), seeded here as the SYSTEM-scope `task-vocabulary` config
+  // def: the base layer the scope resolver folds org/programme/project/user overrides onto (see
+  // task-vocabulary-config). Sourced from the SAME catalogue accessor the write-path uses, so it can't drift.
+  rows.push(buildSystemDefRow("config", "Task vocabulary", { id: TASK_VOCABULARY_CONFIG_ID, values: taskVocabularyValues() }, SEED_AT));
+  // The canonical GTD ENERGY-level vocabulary (the "how much have I got in the tank" axis, orthogonal to an
+  // hour estimate) — authored as JSON (assets/energy-vocabulary.json), seeded here as the SYSTEM-scope
+  // `energy-vocabulary` config def: the base layer the scope resolver folds org/programme/project/user
+  // overrides onto (see energy-vocabulary-config). Sourced from the SAME catalogue accessor the write-path
+  // uses, so it can't drift.
+  rows.push(buildSystemDefRow("config", "Energy vocabulary", { id: ENERGY_VOCABULARY_CONFIG_ID, values: energyVocabularyValues() }, SEED_AT));
+  // The canonical RAID/risk GRADED vocabularies (severity / impact / likelihood) — authored as JSON
+  // (assets/severity-vocabulary.json, …), seeded here as the SYSTEM-scope `<kind>-vocabulary` config defs:
+  // the base layer the scope resolver folds org/programme/project/user overrides onto (see the
+  // *-vocabulary-config resolvers). Each grade binds to an internal ordinal level the risk-exposure maths
+  // (P×I) key off. Sourced from the SAME catalogue accessors the write-path uses, so they can't drift.
+  rows.push(buildSystemDefRow("config", "Severity vocabulary", { id: SEVERITY_VOCABULARY_CONFIG_ID, values: severityVocabularyValues() }, SEED_AT));
+  rows.push(buildSystemDefRow("config", "Impact vocabulary", { id: IMPACT_VOCABULARY_CONFIG_ID, values: impactVocabularyValues() }, SEED_AT));
+  rows.push(buildSystemDefRow("config", "Likelihood vocabulary", { id: LIKELIHOOD_VOCABULARY_CONFIG_ID, values: likelihoodVocabularyValues() }, SEED_AT));
+  // The canonical RAG/health BAND vocabulary — authored as JSON (assets/rag-vocabulary.json), seeded here as
+  // the SYSTEM-scope `rag-vocabulary` config def: the DISPLAY/relabel layer the scope resolver folds
+  // org/programme/project/user overrides onto (see rag-vocabulary-config). The 3-way classifier (classifyRag)
+  // and its consumers are UNCHANGED — this only re-skins the bands. Sourced from the SAME catalogue accessor.
+  rows.push(buildSystemDefRow("config", "RAG vocabulary", { id: RAG_VOCABULARY_CONFIG_ID, values: ragVocabularyValues() }, SEED_AT));
   // The definition-write POLICY LEVELS (which role each scope needs to write a def) — the baseline as a system
   // `config` def, scope-overridable via copy-and-override (an org tightens/relaxes per key). The ENFORCEMENT
   // stays in code (def-policy.ts); only the levels are data.

@@ -20,7 +20,6 @@ const STT_ENGINES = [
   { id: "whisper", label: "AI-assisted — Whisper" },
 ];
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 type SaveMutation = UseMutationResult<any, unknown, string[] | null, unknown>;
 
 /** A "restrict to a ticked set" allowlist section (providers, STT engines). `null` = unrestricted. */
@@ -30,7 +29,11 @@ function ChecklistAllowlist({ title, testid, options, allowlist, save }: {
   const { toast } = useToast();
   const restricted = allowlist != null;
   const [selected, setSelected] = useState<string[]>([]);
-  useEffect(() => { setSelected(allowlist ?? []); }, [allowlist?.join(",")]);
+  // Sync local selection to the incoming allowlist by VALUE, not array identity: a new-but-equal array
+  // from the query must not clobber the ticks. Key on the joined string (ids are comma-free slugs);
+  // reconstruct inside so the effect closes over only the primitive key (exhaustive-deps clean).
+  const allowlistKey = allowlist == null ? null : allowlist.join(",");
+  useEffect(() => { setSelected(allowlistKey ? allowlistKey.split(",") : []); }, [allowlistKey]);
   const persist = (value: string[] | null) => save.mutate(value, { onError: () => toast({ title: "COULD NOT SAVE", description: "Please try again.", variant: "destructive" }) });
   const toggle = (id: string) => setSelected((s) => (s.includes(id) ? s.filter((x) => x !== id) : [...s, id]));
 

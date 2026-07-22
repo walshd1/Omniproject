@@ -6,6 +6,7 @@ import { actorForAudit } from "./audit";
 import { readConfigCollection, writeOrgConfigCollection } from "./scoped-config";
 import { isSecurityConfig } from "./security-config";
 import { applyConfigCollectionGuarded } from "./config-guard";
+import { filterRowsByProjectScope, mergeRowsByProjectScope } from "./project-scope";
 
 /**
  * Factory for the recurring "settings collection" route shape: a GET that reads one
@@ -52,6 +53,12 @@ export interface SettingsCollectionOptions {
    *  the collection's own sanitiser here. Return the normalised value; throw {@link SettingsValidationError}
    *  (→ 400) on bad input. */
   validate?: (value: unknown) => unknown;
+  /** OPT-IN data-seam scoping for collections whose rows are per-PROJECT data (resource allocations,
+   *  budget plans) rather than global presentation config. When set, `scopeByProject` extracts a row's owning
+   *  project id, and the router: (a) returns only in-scope rows on GET, and (b) on write, lets a scoped
+   *  caller add/replace/remove ONLY their in-scope rows while preserving every out-of-scope row (a submitted
+   *  out-of-scope row is a 403). Omitted ⇒ the collection is global config (unchanged behaviour). */
+  scopeByProject?: (row: unknown) => string | null | undefined;
 }
 
 /** Build a `Router` exposing the GET + write pair for one settings-collection field. Mountable
@@ -65,13 +72,27 @@ export function settingsCollectionRouter(opts: SettingsCollectionOptions): Route
   const fallback = opts.default ?? [];
   const router = Router();
 
-  router.get(path, ...(opts.readGuards ?? []), (_req, res) => {
-    if (configId) { res.json({ [responseKey]: readConfigCollection(configId, fallback) }); return; }
-    res.json({ [responseKey]: getSettings()[settingsKey!] ?? fallback });
+  router.get(path, ...(opts.readGuards ?? []), async (req, res) => {
+    const rows = configId ? readConfigCollection(configId, fallback) : (getSettings()[settingsKey!] ?? fallback);
+    // Per-project collections only expose the caller's in-scope rows; global config is returned as-is.
+    const out = opts.scopeByProject && Array.isArray(rows)
+      ? await filterRowsByProjectScope(req, rows as unknown[], opts.scopeByProject)
+      : rows;
+    res.json({ [responseKey]: out });
   });
 
   const write: RequestHandler = async (req, res) => {
-    const value = (req.body as Record<string, unknown> | undefined)?.[responseKey];
+    let value = (req.body as Record<string, unknown> | undefined)?.[responseKey];
+    // Data-seam enforcement for per-project collections: a scoped caller may only touch their in-scope
+    // rows; out-of-scope rows are preserved, and a submitted out-of-scope row is refused. Runs BEFORE the
+    // security-guard/persist so the merged (safe) value is what gets validated and stored.
+    if (opts.scopeByProject) {
+      if (!Array.isArray(value)) { res.status(400).json({ error: `${responseKey} must be an array` }); return; }
+      const existing = settingsKey ? getSettings()[settingsKey] : [];
+      const merge = await mergeRowsByProjectScope(req, Array.isArray(existing) ? existing as unknown[] : [], value as unknown[], opts.scopeByProject);
+      if ("forbidden" in merge) { res.status(403).json({ error: merge.forbidden }); return; }
+      value = merge.merged;
+    }
     try {
       // CONFIG-DEF MODE: validate with the carried sanitiser, then persist as the org config def. A CHOICE
       // config writes immediately; a SECURITY-classified config (registered in `SECURITY_CONFIGS`) goes through

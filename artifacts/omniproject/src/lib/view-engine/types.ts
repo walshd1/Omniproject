@@ -5,12 +5,27 @@
  * data-model constraint — it's just one board column-preset among others, selectable like any view.
  */
 
+/** A chip's semantic tone — drives an urgency/attention colour (e.g. an overdue due-date reads red). */
+export type ChipTone = "overdue" | "warn" | "info" | "muted";
+
 /** A small metadata chip shown under a record's title (e.g. a context tag, assignee, due date). */
 export interface Chip {
   text: string;
   /** Render in a monospace face (for tags / ids / contexts). */
   mono?: boolean;
+  /** Optional semantic colour (urgency). Absent ⇒ the default muted chip. */
+  tone?: ChipTone;
+  /** Optional explicit CSS colour (hex/hsl) — used for user-coloured tag chips. Wins over `tone`. */
+  color?: string;
 }
+
+/** Tailwind classes for each chip tone — theme-aware (light/dark). Used by every view that renders chips. */
+export const CHIP_TONE_CLASS: Record<ChipTone, string> = {
+  overdue: "text-red-600 dark:text-red-400 font-semibold",
+  warn: "text-amber-600 dark:text-amber-400",
+  info: "text-blue-600 dark:text-blue-400",
+  muted: "text-muted-foreground",
+};
 
 /** A record normalised for display, carrying a reference to the raw entity for detail/open. */
 export interface ViewRecord<T = unknown> {
@@ -93,4 +108,8 @@ export interface EntityDescriptor<T = unknown> {
   useBoardColumns?: () => BoardColumn[];
   /** OPTIONAL: display label for a status value (a hook returning the mapper). */
   useStatusLabel?: () => (s: string | null | undefined) => string;
+  /** OPTIONAL: a record's parent id (its subtask link). When present the LIST view renders a fold/unfold
+   *  subtask tree over it. `treeStorageKey` names the per-user fold store. */
+  parentOf?: (record: ViewRecord<T>) => string | null | undefined;
+  treeStorageKey?: string;
 }

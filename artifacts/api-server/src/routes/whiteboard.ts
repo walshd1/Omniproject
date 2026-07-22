@@ -195,8 +195,11 @@ router.get("/whiteboards/rooms/:roomId/stream", requireRole("viewer"), async (re
   const cid = cleanRoom(req.query["cid"], 80);
   if (!roomId || !cid) { res.status(400).json({ error: "roomId and cid are required" }); return; }
   if (!(await guardCursorRoom(req, res, roomId))) return;
-  const sub = getSession(req)?.sub ?? "anonymous";
-  if (sub !== "anonymous" && collabConnectionCount(sub) >= MAX_COLLAB_STREAMS_PER_SUB) {
+  // SSE requires an interactive session: a subless (API-token) principal can't be capped, so refuse it
+  // rather than exempt it from the per-principal held-stream cap (uncapped-socket DoS).
+  const sub = getSession(req)?.sub;
+  if (!sub) { res.status(403).json({ error: "Cursor streaming requires an interactive session." }); return; }
+  if (collabConnectionCount(sub) >= MAX_COLLAB_STREAMS_PER_SUB) {
     res.status(429).json({ error: "too many concurrent cursor streams for this account" });
     return;
   }

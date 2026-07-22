@@ -43,7 +43,9 @@ export function ProjectHistoryChart<T>({
 }: ProjectHistoryChartProps<T>) {
   const { data, isLoading, isError, error, refetch } = useGetProjectHistory(projectId);
   const points = data ?? [];
-  const series = useMemo(() => select(points), [select, points]);
+  // Fold `data ?? []` INSIDE the memo and depend on `data`, not `points` — `points` is a fresh array
+  // each render (when data is undefined), which would thrash this memo. `data` is react-query-stable.
+  const series = useMemo(() => select(data ?? []), [select, data]);
   const provenance = points[0]?.provenance;
 
   return (

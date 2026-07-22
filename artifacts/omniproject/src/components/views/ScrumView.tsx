@@ -3,6 +3,7 @@ import { useGetProjectIssues, type Issue } from "@workspace/api-client-react";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
 import { useWorkVocabulary } from "../../lib/work-vocabulary";
 import { inActiveSprint, storyPoints, isDone, SPRINT_COLUMNS } from "../../lib/methodology";
+import { isCancelled } from "../../lib/status-vocab";
 import { IssueDialog } from "../IssueDialog";
 import { DataState } from "../DataState";
 import { PriorityDot } from "../StatusDot";
@@ -53,7 +54,7 @@ export function ScrumView({ projectId }: { projectId: string }) {
   const model = useMemo(() => {
     const all = issues ?? [];
     const sprint = all.filter(inActiveSprint);
-    const backlog = all.filter((i) => !inActiveSprint(i) && i.status !== "cancelled");
+    const backlog = all.filter((i) => !inActiveSprint(i) && !isCancelled(i.status));
     const committed = sprint.reduce((sum, i) => sum + storyPoints(i), 0);
     const completed = sprint.filter((i) => isDone(i.status)).reduce((sum, i) => sum + storyPoints(i), 0);
     // Group sprint issues by status once (preserving sprint order) so each column is an

@@ -105,7 +105,7 @@ function persist(stored: StoredKey): void {
   if (!f) throw new Error("instance-key store is not configured (set OMNI_CONFIG_DIR or INSTANCE_KEY_FILE)");
   fs.mkdirSync(path.dirname(f), { recursive: true });
   const tmp = `${f}.${process.pid}.${crypto.randomBytes(6).toString("hex")}.tmp`;
-  const fd = fs.openSync(tmp, "w");
+  const fd = fs.openSync(tmp, "w", 0o600); // 0o600: wraps the instance root key — never world-readable
   try { fs.writeSync(fd, JSON.stringify(stored)); fs.fsyncSync(fd); } finally { fs.closeSync(fd); }
   fs.renameSync(tmp, f);
   cache = stored; loaded = true;

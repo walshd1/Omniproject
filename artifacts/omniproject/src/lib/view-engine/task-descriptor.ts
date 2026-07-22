@@ -1,6 +1,10 @@
+import { useMemo } from "react";
 import { useTasks, useUpdateTask, type Task } from "../tasks";
 import { usePriorityLabels } from "../priority-labels";
-import type { BoardColumn, Chip, EntityDescriptor, ViewRecord } from "./types";
+import { taskAttention, type UrgencyBand } from "../task-urgency";
+import { useTagPrefs } from "../use-tag-prefs";
+import { resolveTagColor, type TagPrefs } from "../tag-prefs";
+import type { BoardColumn, Chip, ChipTone, EntityDescriptor, ViewRecord } from "./types";
 
 /**
  * The TASK entity's view-engine descriptor. Tasks render through the generic engine exactly like
@@ -24,12 +28,27 @@ export const FLOW_COLUMNS: BoardColumn[] = [
   { status: "done", label: "Done" },
 ];
 
-function toRecord(t: Task): ViewRecord<Task> {
+/** Due-date chip tone + label by urgency band — overdue reads red, due-soon/today amber. */
+const BAND_TONE: Partial<Record<UrgencyBand, ChipTone>> = { overdue: "overdue", "due-today": "warn", "due-soon": "warn" };
+const DAY_LABEL = (n: number | null): string =>
+  n === null ? "" : n < 0 ? `${-n}d overdue` : n === 0 ? "due today" : n === 1 ? "due tomorrow" : `due in ${n}d`;
+
+function toRecord(t: Task, today: Date, tagPrefs: TagPrefs): ViewRecord<Task> {
   const chips: Chip[] = [];
   if (t.context) chips.push({ text: t.context, mono: true });
   if (t.assignee) chips.push({ text: t.assignee });
-  if (t.dueDate) chips.push({ text: `due ${t.dueDate}` });
+  // User-coloured tag chips (per-user prefs overlay; default colour derived from the tag name).
+  for (const tag of t.tags ?? []) chips.push({ text: `#${tag}`, mono: true, color: resolveTagColor(tag, tagPrefs) });
+  if (t.dueDate) {
+    // Colour the due-date chip by urgency (from the shared pure rule), and label it relative to today.
+    const att = taskAttention(t, today);
+    const tone = BAND_TONE[att.band];
+    chips.push({ text: DAY_LABEL(att.daysUntilDue) || `due ${t.dueDate}`, ...(tone ? { tone } : {}) });
+  }
   if (t.waitingOn) chips.push({ text: `waiting on ${t.waitingOn}` });
+  if (t.recurrence) chips.push({ text: `↻ ${t.recurrence}`, mono: true });
+  // Flag an open task that's gone stale (untouched past the window).
+  if (taskAttention(t, today).untouched) chips.push({ text: "untouched", tone: "muted" });
   return { id: t.id, title: t.title, status: t.status, priority: t.priority ?? null, chips, raw: t };
 }
 
@@ -55,12 +74,23 @@ export const taskDescriptor: EntityDescriptor<Task> = {
   doneStatus: "done",
   reopenStatus: "next",
   useRecords: (scope) => {
-    const { data = [], isLoading, error } = useTasks(scope.projectId);
-    return { records: data.map(toRecord), isLoading, error };
+    const { data, isLoading, error } = useTasks(scope.projectId);
+    const tagPrefs = useTagPrefs((s) => s.prefs);
+    // Memoise the mapped records so their identity is stable across renders (react-query `data` is stable;
+    // `tagPrefs` changes only on a pref edit). Without this the fresh `.map` array re-triggers the whole
+    // view-engine filter/sort memo chain in EntityViews on every render (broken-memo thrash).
+    const records = useMemo(() => {
+      const today = new Date(); // browser-edge reference; the urgency maths itself is pure (see task-urgency)
+      return (data ?? []).map((t) => toRecord(t, today, tagPrefs));
+    }, [data, tagPrefs]);
+    return { records, isLoading, error };
   },
   useMove: () => {
     const update = useUpdateTask();
     return (record, status) => { if (record.status !== status) update.mutate({ id: record.id, patch: { status } }); };
   },
   usePriorityLabel: () => usePriorityLabels().labelFor,
+  // Tasks carry a subtask link (parentTaskId) → the list view renders a fold/unfold subtask tree.
+  parentOf: (r) => r.raw.parentTaskId ?? null,
+  treeStorageKey: "task-tree-fold",
 };

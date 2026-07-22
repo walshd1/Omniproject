@@ -36,6 +36,9 @@
       "note": "sprint board"
     }
   ],
+  "settings": {
+    "priorityWeights": { "rice": 20, "wsjf": 40, "moscow": 10, "strategic": 20, "benefit": 10 }
+  },
   "notes": "Time-boxed sprints, story points, the four ceremonies.",
   "order": 10
 }

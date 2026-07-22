@@ -56,7 +56,6 @@ vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast: h.toast }) }));
 
 // Child components stubbed to the minimum surface each interaction needs.
 vi.mock("./DocEditor", () => ({
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   DocEditor: ({ onSave, onCancel, saving }: any) => (
     <div data-testid="doc-editor">
       <span data-testid="editor-saving">{String(saving)}</span>
@@ -66,7 +65,6 @@ vi.mock("./DocEditor", () => ({
   ),
 }));
 vi.mock("./DocHistory", () => ({
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   DocHistory: ({ onRestore, onClose }: any) => (
     <div data-testid="doc-history">
       <button data-testid="history-restore" onClick={() => onRestore({ versionId: "v1", docId: "d1", at: "", title: "Old Title", blocks: [] })}>restore</button>
@@ -75,15 +73,12 @@ vi.mock("./DocHistory", () => ({
   ),
 }));
 vi.mock("./DocRenderer", () => ({
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   DocRenderer: ({ blocks }: any) => <div data-testid="doc-renderer">{blocks?.length ?? 0} blocks</div>,
 }));
 vi.mock("../../components/presence/PresenceAvatars", () => ({
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   PresenceAvatars: ({ peers }: any) => <div data-testid="presence-avatars">{peers.length}</div>,
 }));
 vi.mock("../../components/issue-dialog/CommentsPanel", () => ({
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   CommentsPanel: ({ roomId }: any) => <div data-testid="comments-panel">{roomId}</div>,
 }));
 
