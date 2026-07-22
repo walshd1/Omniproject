@@ -177,3 +177,27 @@ test("RBAC: project needs manager, org needs pmo/admin", async () => {
     }
   }
 });
+
+test("a programme LOCK binds its projects — derived SERVER-SIDE, so a project can't dodge it by omitting programmeId", async () => {
+  // proj-001 belongs to programme "prog-platform" (its backend-owned programmeId). The programme LOCKS a slot.
+  assert.equal((await req("/defs/bindings", { method: "PUT", body: { scope: "programme", slot: "prog-mandate", defId: "programme~mandated", locked: true, programmeId: "prog-platform" }, cookie: ADMIN_STEPPED })).status, 200);
+  // A project rebind of that slot is REFUSED (409) — the route now derives proj-001's programme itself and
+  // sees the lock, even though the request carries no programmeId. (Previously the programme tier was skipped
+  // and this returned 200, letting the project shadow a programme mandate.)
+  const rebind = await req("/defs/bindings", { method: "PUT", body: { scope: "project", slot: "prog-mandate", defId: "project~override", projectId: "proj-001" } });
+  assert.equal(rebind.status, 409);
+  // …and GET /defs/active for a project caller honours the programme lock WITHOUT being told the programmeId.
+  const active = (await req("/defs/active?projectId=proj-001").then((x) => x.json())) as Record<string, { defId: string; locked: boolean; lockedBy?: string }>;
+  assert.equal(active["prog-mandate"]?.defId, "programme~mandated");
+  assert.equal(active["prog-mandate"]?.locked, true);
+  assert.equal(active["prog-mandate"]?.lockedBy, "programme");
+});
+
+test("a STANDALONE project (no programme) is unaffected — the programme tier stays absent", async () => {
+  // proj-004 is in no programme (programmeId: null). A project binding on a fresh slot is NOT blocked by any
+  // programme lock (there is none to derive), and resolves as the project's own selection.
+  assert.equal((await req("/defs/bindings", { method: "PUT", body: { scope: "project", slot: "solo-slot", defId: "project~solo", projectId: "proj-004" } })).status, 200);
+  const active = (await req("/defs/active?projectId=proj-004").then((x) => x.json())) as Record<string, { defId: string; source: string }>;
+  assert.equal(active["solo-slot"]?.defId, "project~solo");
+  assert.equal(active["solo-slot"]?.source, "project");
+});
