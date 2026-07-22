@@ -22,44 +22,15 @@ rules:
         - "**/*.test.ts"
         - "artifacts/api-server/src/lib/safe-json.ts"
 
-  # ────────────────────────────────────────────────────────────────────────────
-  # 2. A route that reads a caller-supplied projectId should enforce data scope.
-  #    Heuristic (advisory): flags a handler that pulls projectId off the request but
-  #    whose enclosing function never calls a scope guard. Complements the enumerated
-  #    route-scope-coverage.test.ts ratchet with a source-pattern second opinion.
-  # ────────────────────────────────────────────────────────────────────────────
-  - id: projectid-from-request-without-scope-guard
-    languages: [typescript]
-    severity: WARNING
-    message: >
-      A caller-supplied projectId is read here but the enclosing handler does not call
-      guardProjectScope / assertProjectScope. The broker enforces scope only on
-      listProjects/updateProject; every other per-project method is scope-blind, so a
-      handler that forwards this id without a gateway scope check is an IDOR. Add
-      guardProjectScope(req, res, projectId) (or classify the route in
-      route-scope-coverage.test.ts if the id is not tenant data).
-    patterns:
-      - pattern-either:
-          - pattern: $REQ.params.projectId
-          - pattern: $REQ.query.projectId
-          - pattern: $REQ.params["projectId"]
-          - pattern: $REQ.query["projectId"]
-      - pattern-not-inside: |
-          function $F(...) { ... guardProjectScope(...) ... }
-      - pattern-not-inside: |
-          function $F(...) { ... assertProjectScope(...) ... }
-      - pattern-not-inside: |
-          ($ARGS) => { ... guardProjectScope(...) ... }
-      - pattern-not-inside: |
-          ($ARGS) => { ... assertProjectScope(...) ... }
-    paths:
-      include:
-        - "artifacts/api-server/src/routes/**/*.ts"
-      exclude:
-        - "**/*.test.ts"
+  # NOTE: the former rule 2 (projectid-from-request-without-scope-guard) was removed. Its
+  # `{ ... guardProjectScope(...) ... }` idiom no longer parses under semgrep 1.90.0, and every
+  # parse-safe rewrite is high-FP (it can't see guards behind withBrokerErrors wrappers, async
+  # arrows, or custom scope helpers like filterTasksInScope / trendScopeAllowed). It was only ever
+  # a "second opinion" — the authoritative IDOR control is the enumerated, behaviourally-probing
+  # route-scope-coverage.test.ts ratchet (asserts 403 for an out-of-scope id), which stands.
 
   # ────────────────────────────────────────────────────────────────────────────
-  # 3. Remote property injection (CWE-915): a request VALUE (params/query/body/headers)
+  # 2. Remote property injection (CWE-915): a request VALUE (params/query/body/headers)
   #    used as a computed object WRITE-key. This is the exact vector the excluded
   #    js/remote-property-injection query leaves uncovered (see
   #    .github/codeql/codeql-config.yml): the global express.json reviver strips dangerous
