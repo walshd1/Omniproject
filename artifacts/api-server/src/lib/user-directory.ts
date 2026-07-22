@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { isEmailShape } from "./email-shape";
 import { artifactStoreEnabled, listArtifacts, getArtifact, putArtifact, deleteArtifact } from "./artifact-store";
 import { sanitizeText } from "./coerce";
 import { hasPassword, removePassword } from "./user-credentials";
@@ -106,7 +107,6 @@ export function anyUserExists(): boolean {
 }
 
 const isStrArray = (v: unknown): v is string[] => Array.isArray(v) && v.every((x) => typeof x === "string");
-const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 /** A validated create payload. Throws on a bad/duplicate handle or invalid email. */
 export interface CreateUserInput { userName: unknown; displayName?: unknown; email?: unknown; groups?: unknown; active?: unknown }
@@ -124,7 +124,7 @@ export function createUser(input: CreateUserInput, createdBy: string | null, now
     throw new UserDirectoryError(`userName "${userName}" is already taken`);
   }
   const email = input.email === undefined || input.email === null || input.email === "" ? "" : sanitizeText(input.email, 200, { newlines: false, trim: true });
-  if (email && !EMAIL.test(email)) throw new UserDirectoryError("email is not a valid address");
+  if (email && !isEmailShape(email)) throw new UserDirectoryError("email is not a valid address");
   const displayName = sanitizeText(input.displayName ?? userName, 200, { newlines: false, trim: true }) || userName;
   const groups = isStrArray(input.groups) ? input.groups.map((g) => g.trim()).filter(Boolean) : [];
   const user: LocalUser = {
@@ -147,7 +147,7 @@ export function updateUser(id: string, patch: UpdateUserInput, now: string): Loc
   if (patch.displayName !== undefined) next.displayName = sanitizeText(patch.displayName, 200, { newlines: false, trim: true }) || existing.userName;
   if (patch.email !== undefined) {
     const email = patch.email === null || patch.email === "" ? "" : sanitizeText(patch.email, 200, { newlines: false, trim: true });
-    if (email && !EMAIL.test(email)) throw new UserDirectoryError("email is not a valid address");
+    if (email && !isEmailShape(email)) throw new UserDirectoryError("email is not a valid address");
     next.email = email;
   }
   if (patch.groups !== undefined) {

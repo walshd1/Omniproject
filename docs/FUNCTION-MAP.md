@@ -1826,6 +1826,14 @@ Egress / SSRF guard for the gateway's outbound HTTP.
 | `__setEgressLookupForTest` | Install (or clear, with null) the TEST-ONLY resolver seam used by safeFetch/assertEgressAllowed. |
 | `safeFetch` | fetch() with the egress guard applied first — throws EgressError before any network call when the target is disallowed. |
 
+### `artifacts/api-server/src/lib/email-shape.ts`
+
+Linear (ReDoS-free) email-shape validation.
+
+| Function | What it does |
+| --- | --- |
+| `isEmailShape` | Linear (ReDoS-free) email-shape validation. |
+
 ### `artifacts/api-server/src/lib/email.ts`
 
 Real SMTP email sending — off unless `SMTP_URL` is set (e.g. `smtps://user:pass@smtp.example.com`), so passwordless sign-in (magic-link) can actually deliver mail for a small org with real SMTP (Google Workspace / Microsoft 365 / any relay) instead of only logging the link.
