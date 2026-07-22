@@ -1,0 +1,246 @@
+import fs from "node:fs";
+import path from "node:path";
+import { SealedFile } from "./sealed-file";
+import { safeParseJson } from "./safe-json";
+import { cachedDecryptedRead } from "./sealed-read-cache";
+
+/**
+ * SCOPED ENCRYPTED-JSON ARTIFACT STORE — the canonical home for user-authored artifacts (whiteboards,
+ * wiki pages, …) that OmniProject holds itself rather than in an external system of record.
+ *
+ * A collection is one SEALED JSON file per (artifact type, SCOPE), under `OMNI_CONFIG_DIR/artifacts/<type>/`:
+ *   - `user-<sub>.json`        — a person's PRIVATE area (only they can see it; the caller's own sub is
+ *                                always used, so cross-user access is structurally impossible).
+ *   - `project-<id>.json`      — shared within one project (the route gates on the caller's project scope).
+ *   - `org.json`               — shared org-wide (the route gates on org-write permission).
+ *
+ * Each file is written atomically + AES-256-GCM sealed at rest (see lib/sealed-file). Zero-at-rest holds:
+ * nothing is stored in plaintext, and where no `OMNI_CONFIG_DIR` is configured the store is simply disabled
+ * (the routes fall back to the sidecar, or 501). This module owns ONLY the scoped, sealed I/O; callers
+ * enforce permission before choosing a scope and sanitise the items before putting them.
+ */
+
+export type ArtifactScope =
+  | { kind: "user"; sub: string }
+  | { kind: "project"; projectId: string }
+  // PROGRAMME sits between project and org in the override chain (a project inherits its programme's defs when
+  // it belongs to one). Governance-owned (pmo / a programme's manager); one sealed blob per programme.
+  | { kind: "programme"; programmeId: string }
+  | { kind: "org" }
+  // The SYSTEM scope: one encrypted blob holding OUR shipped defaults (default screens/reports/rulesets and the
+  // other defs we ship). READ-ONLY to users — it is deliberately NOT a StorageTarget, so the importer/editor can
+  // never write it; only the product's own seeder populates it. Renderers read it as the default layer beneath a
+  // customer's own defs (which override by id).
+  | { kind: "system" };
+
+/** The single read-only system scope (shipped defaults). */
+export const SYSTEM_SCOPE: ArtifactScope = { kind: "system" };
+
+/**
+ * A STORAGE TARGET — where a user-held artifact (a whiteboard, a wiki page) is saved. The first three map to
+ * the scoped encrypted-JSON areas below; `sidecar` means the built-in system-of-record (reached through the
+ * broker seam) instead. The author chooses one; the route permission-gates it. Shared so every artifact kind
+ * uses the SAME self-describing-id + scope logic (no drift between whiteboards and wiki).
+ */
+export type StorageTarget = "user" | "project" | "org" | "sidecar";
+const STORAGE_TARGETS = new Set<string>(["user", "project", "org", "sidecar"]);
+/** Whether a string is a known storage target. */
+export function isStorageTarget(s: unknown): s is StorageTarget {
+  return typeof s === "string" && STORAGE_TARGETS.has(s);
+}
+
+/**
+ * The DEF store adds a `programme` tier on top of the shared targets (the override chain
+ * user → project → programme → org → system). The scoped-id helpers below understand `programme`, but
+ * GENERIC artifacts (whiteboard / wiki / proof / goal / invoice) never emit it — their routes gate storage to
+ * a `StorageTarget` — so teaching the id helpers about `programme` here does NOT widen those artifacts'
+ * exhaustive target switches. Only the def importer/editor writes a programme-scoped artifact.
+ */
+export type ScopedTarget = StorageTarget | "programme";
+
+/**
+ * Build a SELF-DESCRIBING artifact id that encodes WHERE it lives (`<target>~…~<localId>`), so a later
+ * read/write routes to the right store without a lookup. `~` never appears in a uuid or a target word.
+ * For the container targets the middle segment is the owner id — a projectId for `project`, a programmeId
+ * for `programme`.
+ */
+export function makeScopedId(storage: ScopedTarget, localId: string, ownerId?: string): string {
+  if (storage === "project") return `project~${ownerId}~${localId}`;
+  if (storage === "programme") return `programme~${ownerId}~${localId}`;
+  return `${storage}~${localId}`;
+}
+
+/** Parse a self-describing id back to its target + parts, or null when malformed. */
+export function parseScopedId(id: string): { storage: ScopedTarget; projectId?: string; programmeId?: string; localId: string } | null {
+  const parts = id.split("~");
+  const storage = parts[0];
+  if (storage === "user" || storage === "org" || storage === "sidecar") {
+    return parts.length >= 2 ? { storage, localId: parts.slice(1).join("~") } : null;
+  }
+  if (storage === "project") {
+    // project~<projectId>~<localId>; localId is a uuid (no ~), projectId is everything between.
+    return parts.length >= 3 ? { storage, projectId: parts.slice(1, -1).join("~"), localId: parts[parts.length - 1]! } : null;
+  }
+  if (storage === "programme") {
+    // programme~<programmeId>~<localId>; same shape as project, distinct target word.
+    return parts.length >= 3 ? { storage, programmeId: parts.slice(1, -1).join("~"), localId: parts[parts.length - 1]! } : null;
+  }
+  return null;
+}
+
+/**
+ * The encrypted-JSON scope for a parsed non-sidecar id. The caller's OWN sub is always used for a `user`
+ * artifact, so an id can never address another user's private area (cross-user access is structurally
+ * impossible). Returns null for a sidecar id (there is no JSON scope) or a container id missing its owner id.
+ */
+export function scopeFromParsed(parsed: { storage: ScopedTarget; projectId?: string; programmeId?: string }, sub: string | undefined): ArtifactScope | null {
+  if (parsed.storage === "user") return { kind: "user", sub: sub ?? "" };
+  if (parsed.storage === "org") return { kind: "org" };
+  if (parsed.storage === "project" && parsed.projectId) return { kind: "project", projectId: parsed.projectId };
+  if (parsed.storage === "programme" && parsed.programmeId) return { kind: "programme", programmeId: parsed.programmeId };
+  return null;
+}
+
+/** Max items retained per (type, scope) collection — bounds one sealed file's growth. */
+const MAX_PER_COLLECTION = 1000;
+
+/** Filename-safe token (a sub or project id becomes part of a path). */
+const UNSAFE = /[^a-zA-Z0-9_.@-]/g;
+const safeToken = (s: string): string => s.replace(UNSAFE, "_").slice(0, 200) || "_";
+
+/** The scope's collection filename. */
+function scopeFileName(scope: ArtifactScope): string {
+  if (scope.kind === "org") return "org.json";
+  if (scope.kind === "system") return "system.json";
+  if (scope.kind === "user") return `user-${safeToken(scope.sub)}.json`;
+  if (scope.kind === "programme") return `programme-${safeToken(scope.programmeId)}.json`;
+  return `project-${safeToken(scope.projectId)}.json`;
+}
+
+/** Resolve `parts` under the `<dir>/artifacts` base, or null if any component would escape it. A
+ *  path-injection barrier (defence in depth on top of `safeToken`): even if a token slipped a `..`
+ *  through, the resolved path is asserted to stay inside the artifacts tree before any fs call sees it. */
+function underArtifacts(dir: string, ...parts: string[]): string | null {
+  const base = path.resolve(dir, "artifacts");
+  const full = path.resolve(base, ...parts);
+  return full === base || full.startsWith(base + path.sep) ? full : null;
+}
+
+/** The on-disk file for a (type, scope) collection, or null when no OMNI_CONFIG_DIR (store disabled)
+ *  or the resolved path would escape the artifacts base. */
+function fileFor(type: string, scope: ArtifactScope): string | null {
+  const dir = process.env["OMNI_CONFIG_DIR"]?.trim();
+  if (!dir) return null;
+  return underArtifacts(dir, safeToken(type), scopeFileName(scope));
+}
+
+/** Whether the encrypted-JSON artifact store is available (an OMNI_CONFIG_DIR is configured). */
+export function artifactStoreEnabled(): boolean {
+  return !!process.env["OMNI_CONFIG_DIR"]?.trim();
+}
+
+/**
+ * Route guard for endpoints that need the encrypted-JSON store: when it isn't configured on this
+ * deployment, write the standard `501` and return false; otherwise return true. Collapses the
+ * `if (!artifactStoreEnabled()) { res.status(501)… ; return; }` block copy-pasted across ~24 routes into
+ * `if (!requireArtifactStore(res)) return;`. Typed structurally so this storage module stays free of an
+ * express dependency.
+ */
+export function requireArtifactStore(res: { status(code: number): { json(body: unknown): unknown } }): boolean {
+  if (artifactStoreEnabled()) return true;
+  res.status(501).json({ error: "no encrypted-JSON store is configured on this deployment" });
+  return false;
+}
+
+function readCollection<T>(type: string, scope: ArtifactScope): T[] {
+  const f = fileFor(type, scope);
+  if (!f) return [];
+  // The decrypted string is memoised per (path, mtime, size) when SEALED_READ_CACHE is on (SCALING.md §4);
+  // parse still runs per call so every caller gets a FRESH array (no shared-mutable-state — read-modify-write
+  // callers like putArtifact/deleteArtifact mutate their own copy). A write bumps mtime → the next read misses.
+  const raw = cachedDecryptedRead(f, () => new SealedFile(() => f, `artifact:${type}`).read());
+  if (raw === null) return [];
+  const parsed = safeParseJson(raw);
+  return Array.isArray(parsed) ? (parsed as T[]) : [];
+}
+
+function writeCollection<T>(type: string, scope: ArtifactScope, items: T[]): void {
+  const f = fileFor(type, scope);
+  if (!f) return;
+  fs.mkdirSync(path.dirname(f), { recursive: true }); // ensure artifacts/<type>/ exists before the sealed write
+  new SealedFile(() => f, `artifact:${type}`).write(JSON.stringify(items.slice(-MAX_PER_COLLECTION)));
+}
+
+/** Every item in a (type, scope) collection. */
+export function listArtifacts<T extends { id: string }>(type: string, scope: ArtifactScope): T[] {
+  return readCollection<T>(type, scope);
+}
+
+/** One item by id within a scope, or null. */
+export function getArtifact<T extends { id: string }>(type: string, scope: ArtifactScope, id: string): T | null {
+  return readCollection<T>(type, scope).find((x) => x.id === id) ?? null;
+}
+
+/** Upsert an item into a scope (read-modify-write of the sealed collection). */
+export function putArtifact<T extends { id: string }>(type: string, scope: ArtifactScope, item: T): void {
+  const items = readCollection<T>(type, scope);
+  const idx = items.findIndex((x) => x.id === item.id);
+  if (idx >= 0) items[idx] = item;
+  else items.push(item);
+  writeCollection(type, scope, items);
+}
+
+/** Replace an ENTIRE (type, scope) collection in a SINGLE sealed write — one decrypt-free re-encrypt, no
+ *  per-item read-modify-write. This is the one-shot update primitive the SYSTEM store uses: build the full
+ *  default set, then seal it once. */
+export function replaceArtifacts<T extends { id: string }>(type: string, scope: ArtifactScope, items: T[]): void {
+  writeCollection(type, scope, items);
+}
+
+/** Remove an item from a scope; returns whether it was present. */
+export function deleteArtifact(type: string, scope: ArtifactScope, id: string): boolean {
+  const items = readCollection<{ id: string }>(type, scope);
+  const next = items.filter((x) => x.id !== id);
+  if (next.length === items.length) return false;
+  writeCollection(type, scope, next);
+  return true;
+}
+
+/** Reconstruct a scope from a collection filename (the inverse of `scopeFileName`), or null if unrecognised.
+ *  NOTE: `user`/`project` tokens are filename-safe, so a scope with special characters in its id is
+ *  approximate — good enough to READ the collection back for a portfolio sweep, not to reconstruct the sub. */
+function scopeFromFileName(name: string): ArtifactScope | null {
+  if (name === "org.json") return { kind: "org" };
+  if (name === "system.json") return { kind: "system" };
+  const user = name.match(/^user-(.+)\.json$/);
+  if (user) return { kind: "user", sub: user[1]! };
+  const programme = name.match(/^programme-(.+)\.json$/);
+  if (programme) return { kind: "programme", programmeId: programme[1]! };
+  const project = name.match(/^project-(.+)\.json$/);
+  if (project) return { kind: "project", projectId: project[1]! };
+  return null;
+}
+
+/**
+ * Every collection of a type across ALL scopes — for portfolio-wide sweeps (e.g. the goal check-in cadence).
+ * Scans `OMNI_CONFIG_DIR/artifacts/<type>/`, reads + decrypts each sealed file, and returns each as
+ * `{ scope, items }`. Empty when the store is disabled. Items carry their own authoritative fields (owner,
+ * etc.), so a caller that needs the true owner should read it off the item, not the (approximate) scope.
+ */
+export function listAllArtifactCollections<T extends { id: string }>(type: string): { scope: ArtifactScope; items: T[] }[] {
+  const dir = process.env["OMNI_CONFIG_DIR"]?.trim();
+  if (!dir) return [];
+  const typeDir = underArtifacts(dir, safeToken(type));
+  if (!typeDir) return [];
+  let names: string[];
+  try { names = fs.readdirSync(typeDir); } catch { return []; }
+  const out: { scope: ArtifactScope; items: T[] }[] = [];
+  for (const name of names) {
+    if (!name.endsWith(".json")) continue;
+    const scope = scopeFromFileName(name);
+    if (!scope) continue;
+    const items = readCollection<T>(type, scope);
+    if (items.length) out.push({ scope, items });
+  }
+  return out;
+}

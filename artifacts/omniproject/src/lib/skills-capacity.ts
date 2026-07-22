@@ -7,6 +7,7 @@
  * the pure, stateless matching engine over whatever it's given.
  */
 
+import { round1 } from "./num";
 /** A resource's skill proficiencies (1–5) + how many hours it can supply in the period. */
 export interface ResourceSkills {
   resourceId: string;
@@ -67,7 +68,6 @@ export interface DemandCapacityResult {
   totals: { demandHours: number; matchedHours: number; unmetHours: number; coveragePct: number };
 }
 
-const round1 = (n: number): number => Math.round(n * 10) / 10;
 const prof = (r: ResourceSkills, skill: string): number => r.skills[skill] ?? 0;
 
 /**

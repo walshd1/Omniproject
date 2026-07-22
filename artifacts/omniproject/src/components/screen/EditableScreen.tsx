@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { ScreenRenderer } from "./ScreenRenderer";
 import { type ScreenDef, type ScreenLayout } from "../../lib/screen";
-import { useScreenLayouts, useSaveScreenLayouts, type ScreenLayoutMap } from "../../lib/screen-layouts";
+import { useScreenLayouts } from "../../lib/screen-layouts";
+import { useSaveScreenOverride } from "../../lib/org-screens";
 import { useAuth, isPmoOrAdmin } from "../../lib/auth";
 import { useToast } from "@/hooks/use-toast";
 
@@ -9,8 +10,9 @@ import { useToast } from "@/hooks/use-toast";
  * EditableScreen — the ONE wrapper that turns any generic ScreenRenderer screen into an admin/PMO
  * EDITABLE one. It renders the screen with its saved per-screen layout (panel order / spans / hidden)
  * applied, and — only for a PMO or admin — offers an "Edit layout" mode: drag to reorder, ±span to
- * resize, hide/show each panel, then Save (persisted to /api/screen-layouts, PMO-gated server-side) or
- * Cancel. Non-editors (and anyone in a build without the authoring authority) just see the arranged
+ * resize, hide/show each panel, then Save (FOLDED into the screen def in the encrypted def store via the
+ * importer, PMO-gated) or Cancel. Non-editors (and anyone in a build without the authoring authority) just see
+ * the arranged
  * screen. The panels' CONTENT is governed separately (each data-backed screen has its own admin panel);
  * this only owns LAYOUT, so every screen gets the same editing affordance for free.
  */
@@ -34,12 +36,13 @@ export function EditableScreen({
   // Only offer layout editing when there's actually something to arrange (2+ panels). A single-panel
   // screen (e.g. a full-page component host) gains nothing from reorder/span/hide, so it stays clean.
   const canEdit = isPmoOrAdmin(auth?.role) && screen.panels.length >= 2;
-  const { data: layouts } = useScreenLayouts();
-  const save = useSaveScreenLayouts();
+  const { data: legacyLayouts } = useScreenLayouts(); // migration bridge — a not-yet-folded settings layout
+  const { save: saveOverride, saving } = useSaveScreenOverride();
   const { toast } = useToast();
 
-  // The customer's own saved arrangement wins; beneath it, a methodology's canonical layout (fallback).
-  const saved = layouts?.[screen.id] ?? fallbackLayout ?? null;
+  // The layout is FOLDED INTO the screen def now: `screen.layout` wins. Beneath it, a not-yet-migrated legacy
+  // settings layout (bridge), then a methodology's canonical layout (fallback).
+  const saved = screen.layout ?? legacyLayouts?.[screen.id] ?? fallbackLayout ?? null;
   const [editing, setEditing] = useState(false);
   // The working copy while editing (committed to the server on Save).
   const [draft, setDraft] = useState<ScreenLayout | null>(null);
@@ -53,16 +56,17 @@ export function EditableScreen({
     setEditing(false);
     setDraft(null);
   };
-  const commit = () => {
-    const next: ScreenLayoutMap = { ...(layouts ?? {}), [screen.id]: draft ?? {} };
-    save.mutate(next, {
-      onSuccess: () => {
-        setEditing(false);
-        setDraft(null);
-        toast({ title: "Layout saved", description: `“${screen.label}” arrangement updated for everyone.` });
-      },
-      onError: (err) => toast({ title: "Couldn't save layout", description: (err as Error).message, variant: "destructive" }),
-    });
+  const commit = async () => {
+    // Fold the arrangement INTO the screen def: upsert an org `screen` override carrying this layout, through
+    // the ONE importer path. The def keeps its (custom or built-in) panels; the layout rides on it.
+    try {
+      await saveOverride({ ...screen, layout: draft ?? {} });
+      setEditing(false);
+      setDraft(null);
+      toast({ title: "Layout saved", description: `“${screen.label}” arrangement updated for everyone.` });
+    } catch (err) {
+      toast({ title: "Couldn't save layout", description: (err as Error).message, variant: "destructive" });
+    }
   };
 
   // Draft mutators — each returns a fresh ScreenLayout so React re-renders.
@@ -98,11 +102,11 @@ export function EditableScreen({
               <button
                 type="button"
                 onClick={commit}
-                disabled={save.isPending}
+                disabled={saving}
                 data-testid="save-layout"
                 className="border-2 border-foreground bg-foreground px-3 py-1 text-xs font-bold uppercase tracking-wide text-background disabled:opacity-50"
               >
-                {save.isPending ? "Saving…" : "Save layout"}
+                {saving ? "Saving…" : "Save layout"}
               </button>
               <button
                 type="button"

@@ -1,4 +1,4 @@
-import type { Project, Issue, ProjectWrite, IssueWrite, Row, Task, TaskWrite } from "../types";
+import type { Project, Issue, ProjectWrite, IssueWrite, Row, Task, TaskWrite, Whiteboard } from "../types";
 import { isDone, isTaskClosed } from "../vocabulary";
 
 /**
@@ -17,6 +17,11 @@ import { isDone, isTaskClosed } from "../vocabulary";
 export interface BuiltinStore {
   /** A short label for diagnostics (e.g. "memory", "postgres"). */
   readonly name: string;
+  /** SoR-of-last-resort marker: this store HOMES any orphaned data (persists the whole row for any vendor
+   *  shape). When set, the built-in broker offers the full capability superset — a domain whose data the
+   *  store homes is one it can honestly serve, so a sole such backend covers 100% of the data. OmniStore
+   *  sets this; the ephemeral MemoryStore and the field-mapped SQL sidecar do not. */
+  readonly homesOrphans?: boolean;
   listProjects(): Promise<Project[]>;
   getProject(id: string): Promise<Project | null>;
   createProject(input: ProjectWrite): Promise<Project>;
@@ -36,6 +41,14 @@ export interface BuiltinStore {
   getTask(taskId: string): Promise<Task | null>;
   createTask(input: TaskWrite): Promise<Task>;
   updateTask(taskId: string, input: TaskWrite): Promise<Task | null>;
+  // Whiteboards — OPTIONAL: a store that can persist scenes implements them (memory + omnistore do); one
+  // that can't (the SQL sidecar today) omits them, and the broker then leaves getWhiteboard undefined so
+  // the routes 501. Dumb persistence — ownership (org-wide vs per-user) is enforced ABOVE, in the broker.
+  listWhiteboards?(): Promise<Whiteboard[]>;
+  getWhiteboard?(id: string): Promise<Whiteboard | null>;
+  /** Upsert (create or update) a fully-formed board (id, owner, timestamps already set by the broker). */
+  saveWhiteboard?(board: Whiteboard): Promise<void>;
+  deleteWhiteboard?(id: string): Promise<boolean>;
 }
 
 /** Monotonic id helper — deterministic per store instance (no Date.now/random, which are unavailable
@@ -61,6 +74,7 @@ export class MemoryStore implements BuiltinStore {
   private issues = new Map<string, Issue[]>();
   private raid = new Map<string, Row[]>();
   private tasks: Task[] = [];
+  private whiteboards = new Map<string, Whiteboard>();
   private nextProjectId = makeIdGen("proj");
   private nextIssueId = makeIdGen("issue");
   private nextRaidId = makeIdGen("raid");
@@ -197,6 +211,21 @@ export class MemoryStore implements BuiltinStore {
       t.completedAt = isTaskClosed(input.status) ? new Date().toISOString() : null;
     }
     return { ...t };
+  }
+
+  // ── Whiteboards ───────────────────────────────────────────────────────────
+  async listWhiteboards(): Promise<Whiteboard[]> {
+    return [...this.whiteboards.values()].map((b) => ({ ...b }));
+  }
+  async getWhiteboard(id: string): Promise<Whiteboard | null> {
+    const b = this.whiteboards.get(id);
+    return b ? { ...b } : null;
+  }
+  async saveWhiteboard(board: Whiteboard): Promise<void> {
+    this.whiteboards.set(board.id, { ...board });
+  }
+  async deleteWhiteboard(id: string): Promise<boolean> {
+    return this.whiteboards.delete(id);
   }
 
   /** Keep the project's denormalised issue/complete counts in step with its issues. */

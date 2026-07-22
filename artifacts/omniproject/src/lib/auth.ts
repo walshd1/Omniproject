@@ -12,7 +12,7 @@ export interface AuthUser {
 // the gateway sends is the single representative label (highest authority, else base).
 // `guest` is the invite-only FLOOR (below viewer) — a client-facing portal principal confined to one
 // project. It never satisfies a viewer+ gate, so it can't reach the app proper; mirrors the gateway.
-export type Role = "guest" | "viewer" | "contributor" | "manager" | "pmo" | "admin";
+export type Role = "guest" | "viewer" | "contributor" | "manager" | "programmeManager" | "pmo" | "admin";
 
 export interface AuthState {
   authenticated: boolean;
@@ -27,6 +27,14 @@ export interface AuthState {
   oauth2Configured?: boolean;
   /** Whether passwordless magic-link sign-in is enabled (no IdP). */
   magicLinkEnabled?: boolean;
+  /** Whether native in-app (username + password) sign-in is available on this deployment. */
+  localSignInEnabled?: boolean;
+  /** Fresh, IdP-less deployment with no users yet → show the "claim first admin" form. */
+  needsFirstAdmin?: boolean;
+  /** Whether this session already holds strong (hardware-MFA / passkey) auth. */
+  strongAuth?: boolean;
+  /** Whether this is a native in-app (local password) session. */
+  local?: boolean;
   /** Present ONLY for a guest principal: the single project it's confined to and its access tier. The SPA
    *  uses this to route a guest to the client portal and nowhere else. */
   guest?: { projectId: string; tier: "read" | "comment" };
@@ -36,13 +44,13 @@ export interface AuthState {
   impossibleTravel?: boolean;
 }
 
-/** The linear base ladder. `guest` is the floor (below viewer). The authorities (pmo/admin) sit above it
- *  and confer manager base. */
-const BASE_RANK = { guest: 0, viewer: 1, contributor: 2, manager: 3 } as const;
+/** The linear base ladder. `guest` is the floor (below viewer). `programmeManager` is a scoped rung above
+ *  project `manager`; the authorities (pmo/admin) sit above it and confer programmeManager base. */
+const BASE_RANK = { guest: 0, viewer: 1, contributor: 2, manager: 3, programmeManager: 4 } as const;
 type BaseRole = keyof typeof BASE_RANK;
 const AUTHORITIES = new Set<Role>(["pmo", "admin"]);
-/** A role's base rung — an authority confers manager-level base. */
-const baseRank = (role: Role): number => (AUTHORITIES.has(role) ? BASE_RANK.manager : BASE_RANK[role as BaseRole]);
+/** A role's base rung — an authority confers programmeManager-level base (they sit above that rung). */
+const baseRank = (role: Role): number => (AUTHORITIES.has(role) ? BASE_RANK.programmeManager : BASE_RANK[role as BaseRole]);
 
 /** Does this role satisfy the gate `min`? Mirrors the gateway's `grantsSatisfy`:
  *  - an AUTHORITY gate (pmo/admin) needs that EXACT authority (orthogonal — admin ≠ pmo);
@@ -127,6 +135,30 @@ export async function requestMagicLink(email: string, returnTo = "/"): Promise<{
   return (await res.json().catch(() => ({ ok: false }))) as { ok: boolean; devLink?: string };
 }
 
+/** Sign in a native (in-app) user with a username + password. Returns ok + where to go next. */
+export async function localLogin(userName: string, password: string, returnTo = "/"): Promise<{ ok: boolean; error?: string; returnTo?: string }> {
+  const res = await fetch("/api/auth/local", {
+    method: "POST",
+    credentials: "same-origin",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ userName, password, returnTo }),
+  });
+  const body = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string; returnTo?: string };
+  return res.ok ? { ok: true, returnTo: body.returnTo ?? returnTo } : { ok: false, error: body.error ?? "Sign-in failed." };
+}
+
+/** Claim the FIRST admin on a fresh, IdP-less deployment (username + password). One-time; 409 once users exist. */
+export async function bootstrapFirstAdmin(userName: string, password: string): Promise<{ ok: boolean; error?: string }> {
+  const res = await fetch("/api/auth/local/bootstrap", {
+    method: "POST",
+    credentials: "same-origin",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ userName, password }),
+  });
+  const body = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string };
+  return res.ok ? { ok: true } : { ok: false, error: body.error ?? "Could not create the first admin." };
+}
+
 /**
  * localStorage keys that hold DATA derived from the signed-in session (recently-viewed project /
  * entity names, etc.) and must not linger for the next user on a shared machine. Device PREFERENCES
@@ -154,6 +186,10 @@ export function clearClientSessionData(): void {
  *  server cookie; the full-page redirect drops the in-memory React Query cache. */
 export async function logout(): Promise<void> {
   clearClientSessionData();
+  // Purge the encrypted offline cache (my-work/tasks) so nothing survives the session on a shared device.
+  await import("./offline-cache").then((m) => m.clearOfflineCache()).catch(() => {});
+  // Drop this device's push subscription so a shared device stops receiving the user's notifications.
+  await import("./web-push-client").then((m) => m.unsubscribeFromPush()).catch(() => {});
   await fetch("/api/auth/logout", { method: "POST", credentials: "same-origin" }).catch(() => {});
   window.location.href = "/login";
 }

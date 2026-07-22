@@ -100,7 +100,11 @@ export function decodeKey32(b64: string): Buffer | null {
 /** A short hex fingerprint of a value (SHA-256, truncated). For correlation/key ids and
  *  presence checks — NOT a security primitive (it's truncated and unkeyed). */
 export function fingerprint(value: crypto.BinaryLike, len = 12): string {
-  return crypto.createHash("sha256").update(value).digest("hex").slice(0, len);
+  // node26 widened `BinaryLike` to include a bare `ArrayBufferLike`, which `Hash.update`
+  // no longer accepts — normalise an ArrayBuffer/SharedArrayBuffer to a typed-array view.
+  const data: string | NodeJS.ArrayBufferView =
+    typeof value === "string" || ArrayBuffer.isView(value) ? value : new Uint8Array(value);
+  return crypto.createHash("sha256").update(data).digest("hex").slice(0, len);
 }
 
 /**

@@ -73,19 +73,11 @@ const RULES: ConstraintRule[] = [
       : {};
   },
 
-  // ── Egress log-sync: can only be turned ON with a destination + the warranty acknowledgement ──────
-  // (the server already enforces this in validateLoggingSync; surfaced here so the UI disables the
-  //  toggle until both preconditions hold, instead of letting the operator flip it and get a 400).
-  (s) =>
-    !s.loggingSync.url || !s.loggingSync.acknowledgedWarranty
-      ? { locks: [{ path: "loggingSync.enabled", state: "disabled", reason: "Set a destination URL and acknowledge the data-egress warranty first." }] }
-      : {},
+  // (Egress log-sync left SettingsState for the `logging-sync` config def — its "url + warranty ack before
+  //  enable" gate is enforced by the route validator + the panel's own local guard. Roadmap Phase C.)
 
-  // ── Self-host storage: can only be enabled with the data-responsibility acknowledgement ───────────
-  (s) =>
-    !s.selfHost.acknowledgedDataResponsibility
-      ? { locks: [{ path: "selfHost.mode", state: "disabled", reason: "Acknowledge the self-host data-responsibility notice before enabling a storage mode." }] }
-      : {},
+  // (Self-host storage left SettingsState for the `self-host` config def — Phase C; its data-responsibility ack
+  //  gate is enforced by the setup route's validator + the wizard step's own local guard.)
 ];
 
 /** Evaluate every incompatibility rule against the effective settings, aggregating the locks + any

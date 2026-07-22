@@ -27,6 +27,7 @@ import { ValueStreamFlow } from "./ValueStreamFlow";
 import { ExecBoardPack } from "./ExecBoardPack";
 import { PortfolioRoadmap } from "./PortfolioRoadmap";
 import { CriticalPath } from "./CriticalPath";
+import { AutoScheduleForecast } from "./AutoScheduleForecast";
 import { ScheduleSandbox } from "./ScheduleSandbox";
 import { ScenarioSandbox } from "./ScenarioSandbox";
 import { DependencyLinks } from "./DependencyLinks";
@@ -84,6 +85,7 @@ export const REPORT_RENDERERS: Record<string, ReportRendererComponent> = {
   ExecBoardPack,
   PortfolioRoadmap,
   CriticalPath,
+  AutoScheduleForecast,
   ScheduleSandbox,
   ScenarioSandbox,
   DependencyLinks,

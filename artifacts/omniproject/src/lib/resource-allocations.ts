@@ -1,5 +1,4 @@
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { getJson, sendJson } from "./api";
+import { configResource } from "./config-resource";
 
 /**
  * Resource-allocations client. An allocation books a named person onto a project for a number of hours
@@ -19,24 +18,14 @@ export interface ResourceAllocation {
 
 export const resourceAllocationsQueryKey = ["resource-allocations"] as const;
 
-export function useResourceAllocations() {
-  return useQuery({
-    queryKey: resourceAllocationsQueryKey,
-    queryFn: () => getJson<{ resourceAllocations: ResourceAllocation[] }>("/api/resource-allocations").then((r) => r.resourceAllocations ?? []),
-    staleTime: 30_000,
-  });
-}
-
+const resource = configResource<ResourceAllocation[]>({
+  queryKey: resourceAllocationsQueryKey,
+  path: "/api/resource-allocations",
+  envelopeKey: "resourceAllocations",
+  empty: [],
+  saveErrorMessage: "Failed to save resource allocations", // manager-gated server-side
+  alsoInvalidate: [["panel-data"]], // the resource-planning screen reads roll-ups under panel-data
+});
+export const useResourceAllocations = resource.useResource;
 /** Persist the full allocations list (CSRF attached by the global fetch patch). Manager-gated server-side. */
-export function useSaveResourceAllocations() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: async (resourceAllocations: ResourceAllocation[]) => {
-      return sendJson<unknown>("/api/resource-allocations", { resourceAllocations }, "PUT", "Failed to save resource allocations");
-    },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: resourceAllocationsQueryKey });
-      qc.invalidateQueries({ queryKey: ["panel-data"] });
-    },
-  });
-}
+export const useSaveResourceAllocations = resource.useSaveResource;

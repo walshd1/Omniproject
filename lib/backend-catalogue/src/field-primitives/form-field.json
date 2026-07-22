@@ -1,0 +1,51 @@
+{
+  "id": "form-field",
+  "extends": "field",
+  "label": "Form field",
+  "abstract": true,
+  "params": [
+    {
+      "key": "mapTo",
+      "required": true
+    },
+    {
+      "key": "validation"
+    },
+    {
+      "key": "sanitise"
+    }
+  ],
+  "constraints": [
+    {
+      "id": "form-field-target",
+      "kind": "floor",
+      "type": "enum",
+      "path": "mapTo",
+      "values": [
+        "title",
+        "description",
+        "priority",
+        "assignee",
+        "labels",
+        "dueDate",
+        "startDate",
+        "storyPoints",
+        "estimateHours",
+        "budget",
+        "impact",
+        "urgency",
+        "riskLevel",
+        "healthStatus"
+      ],
+      "message": "a field must map to a writable issue field"
+    },
+    {
+      "id": "form-field-maxlength",
+      "kind": "policy",
+      "type": "bound",
+      "path": "maxLength",
+      "min": 1,
+      "message": "maxLength must be a positive number"
+    }
+  ]
+}

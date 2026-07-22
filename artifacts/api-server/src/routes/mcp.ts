@@ -14,6 +14,7 @@ import { answerCopilot } from "../lib/copilot";
 import { aiChat } from "../lib/ai";
 import { recordAudit, actorForAudit } from "../lib/audit";
 import { enforceCapability, CapabilityBlockedError } from "../lib/capability-governance";
+import { grantedCapabilitiesForReq } from "../lib/custom-roles";
 import { resolveSupport } from "../lib/capabilities";
 import { availableReports, availableScreens } from "@workspace/backend-catalogue";
 import type { Role } from "../lib/rbac";
@@ -124,7 +125,7 @@ router.post("/mcp", async (req, res) => {
   // are logged. Returned as a JSON-RPC error so MCP clients see a clean refusal.
   try {
     const s = getSession(req);
-    enforceCapability("mcp", { actor: s ? { sub: s.sub, email: s.email } : null });
+    enforceCapability("mcp", { actor: s ? { sub: s.sub, email: s.email } : null, granted: grantedCapabilitiesForReq(req) });
   } catch (err) {
     if (err instanceof CapabilityBlockedError) {
       res.status(403).json({ jsonrpc: "2.0", id: body.id ?? null, error: { code: -32004, message: "MCP is turned off by the administrator" } });

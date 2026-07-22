@@ -1,31 +1,8 @@
 import type { ScreenDef, ScreenLayout } from "./screen";
 import { isItemVisible, type Composition, type CompositionItem } from "./methodology-composition";
-import budgetPlans from "../screens/budget-plans.json";
-import resourceAllocations from "../screens/resource-allocations.json";
-import home from "../screens/home.json";
-import myWork from "../screens/my-work.json";
-import tasks from "../screens/tasks.json";
-import reports from "../screens/reports.json";
-import programmes from "../screens/programmes.json";
-import programmeDetail from "../screens/programme-detail.json";
-import projects from "../screens/projects.json";
-import projectDetail from "../screens/project-detail.json";
-import explore from "../screens/explore.json";
-import kanban from "../screens/kanban.json";
-import scrum from "../screens/scrum.json";
-import sprints from "../screens/sprints.json";
-import userStories from "../screens/user-stories.json";
-import burndown from "../screens/burndown.json";
-import gantt from "../screens/gantt.json";
-import prince2 from "../screens/prince2.json";
-import raid from "../screens/raid.json";
-import intake from "../screens/intake.json";
-// Project-scoped sub-screens (match backend screen ids → no `route`, so they don't double-register as
-// composition items; their routes are wired explicitly in App with the :projectId param).
-import projectGantt from "../screens/project-gantt.json";
-import riskRegister from "../screens/risk-register.json";
-import raciMatrix from "../screens/raci-matrix.json";
-import stakeholders from "../screens/stakeholders.json";
+// The shipped screen defs are ARTIFACTS in the shared catalogue now (relocated so the backend can seed them
+// into the read-only `system` def store too — X.11); the ENGINE (renderer + panels) stays here in the app.
+import { screenDefCatalogue } from "@workspace/backend-catalogue";
 
 /**
  * Screen-definition catalogue — the panel-bearing ScreenDefs the generic builder renders, authored as
@@ -63,34 +40,9 @@ export interface ScreenCatalogueEntry extends ScreenDef {
   nav?: { label?: string; group?: "primary" | "admin" };
 }
 
-// Vite parses imported JSON to an object; the shape is validated by screen-catalogue.test.ts, so the cast
-// is the single trusted boundary between "untyped JSON" and the ScreenDef model the renderer relies on.
-const ENTRIES: ScreenCatalogueEntry[] = [
-  budgetPlans as ScreenCatalogueEntry,
-  resourceAllocations as ScreenCatalogueEntry,
-  home as ScreenCatalogueEntry,
-  myWork as ScreenCatalogueEntry,
-  tasks as ScreenCatalogueEntry,
-  reports as ScreenCatalogueEntry,
-  programmes as ScreenCatalogueEntry,
-  programmeDetail as ScreenCatalogueEntry,
-  projects as ScreenCatalogueEntry,
-  projectDetail as ScreenCatalogueEntry,
-  explore as ScreenCatalogueEntry,
-  kanban as ScreenCatalogueEntry,
-  scrum as ScreenCatalogueEntry,
-  sprints as ScreenCatalogueEntry,
-  userStories as ScreenCatalogueEntry,
-  burndown as ScreenCatalogueEntry,
-  gantt as ScreenCatalogueEntry,
-  prince2 as ScreenCatalogueEntry,
-  raid as ScreenCatalogueEntry,
-  intake as ScreenCatalogueEntry,
-  projectGantt as ScreenCatalogueEntry,
-  riskRegister as ScreenCatalogueEntry,
-  raciMatrix as ScreenCatalogueEntry,
-  stakeholders as ScreenCatalogueEntry,
-];
+// The shared catalogue hands back the raw JSON objects; the shape is validated by screen-catalogue.test.ts, so
+// the cast is the single trusted boundary between "untyped JSON" and the ScreenDef model the renderer relies on.
+const ENTRIES: ScreenCatalogueEntry[] = screenDefCatalogue().map((s) => s as unknown as ScreenCatalogueEntry);
 
 const byId = new Map(ENTRIES.map((s) => [s.id, s]));
 const CORE_IDS = new Set(ENTRIES.filter((s) => s.core).map((s) => s.id));

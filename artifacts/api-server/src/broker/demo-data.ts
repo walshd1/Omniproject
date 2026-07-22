@@ -2,7 +2,7 @@ import { DEV_PERSIST_FILE, saveState, loadState } from "../lib/dev-persist";
 import { INDICATIVE_FX_RATES } from "../lib/fx-fallback";
 import { configuredBrokerUrl } from "../lib/broker-url";
 import { CANONICAL_STATUS, CANONICAL_PRIORITY, isDone } from "./vocabulary";
-import type { Row, FxRates, Project, Issue, PortfolioRow } from "./types";
+import type { Row, FxRates, Project, Issue, PortfolioRow, WbsElement, WbsFinancials } from "./types";
 
 /**
  * Demo dataset — the canned data the DemoBroker serves. Lives entirely under the
@@ -26,6 +26,35 @@ export const SAMPLE_PROJECTS: Project[] = [
   { id: "proj-003", name: "Enterprise SSO", identifier: "SSO", description: "OIDC-based single sign-on across all services", source: "github", programmeId: "prog-security", programmeName: "Security & Identity", omniInstanceId: "demo-guid-proj-003", issueCount: 11, completedCount: 7, memberCount: 2, currency: "GBP", budget: 140000, actualCost: 96000, earnedValue: 88000, committed: 9000, updatedAt: new Date(Date.now() - 1000 * 60 * 60 * 4).toISOString() },
   { id: "proj-004", name: "Monitoring Stack", identifier: "MON", description: "Observability infrastructure: metrics, traces, logs", source: "azure-devops", programmeId: null, programmeName: null, omniInstanceId: "demo-guid-proj-004", issueCount: 8, completedCount: 2, memberCount: 4, currency: "GBP", budget: 90000, actualCost: 61000, earnedValue: 52000, committed: 7000, updatedAt: new Date(Date.now() - 1000 * 60 * 60 * 24).toISOString() },
 ];
+
+/**
+ * Demo SAP read models (docs/SAP-CONNECTOR.md §4.6) — the WBS cost-structure tree + per-WBS financial roll-up
+ * a "copy of a SAP screen" renders. Fixtures so the connector's read pipeline is testable with NO SAP tenant;
+ * `available` = budget − (actual + commitment). proj-002 deliberately has no WBS (exercises the empty/501 path).
+ */
+export const SAMPLE_WBS: Record<string, WbsElement[]> = {
+  "proj-001": [
+    { id: "PLT-1", projectId: "proj-001", parentId: null, name: "Platform Rewrite", level: 1, status: "Released", responsible: "A. Rivera" },
+    { id: "PLT-1.1", projectId: "proj-001", parentId: "PLT-1", name: "Core services", level: 2, status: "Released", responsible: "J. Okafor" },
+    { id: "PLT-1.2", projectId: "proj-001", parentId: "PLT-1", name: "Data migration", level: 2, status: "In process", responsible: "M. Chen" },
+  ],
+  "proj-003": [
+    { id: "SSO-1", projectId: "proj-003", parentId: null, name: "Enterprise SSO", level: 1, status: "Released", responsible: "P. Adeyemi" },
+    { id: "SSO-1.1", projectId: "proj-003", parentId: "SSO-1", name: "OIDC broker", level: 2, status: "In process", responsible: "L. Novak" },
+  ],
+  "proj-004": [
+    { id: "MON-1", projectId: "proj-004", parentId: null, name: "Monitoring Stack", level: 1, status: "In process", responsible: "R. Singh" },
+  ],
+};
+
+export const SAMPLE_WBS_FINANCIALS: Record<string, WbsFinancials> = {
+  "PLT-1": { wbsId: "PLT-1", currency: "GBP", budget: 480000, actual: 312000, commitment: 52000, wip: 18000, planned: 470000, available: 116000 },
+  "PLT-1.1": { wbsId: "PLT-1.1", currency: "GBP", budget: 300000, actual: 205000, commitment: 30000, wip: 11000, planned: 295000, available: 65000 },
+  "PLT-1.2": { wbsId: "PLT-1.2", currency: "GBP", budget: 180000, actual: 107000, commitment: 22000, wip: 7000, planned: 175000, available: 51000 },
+  "SSO-1": { wbsId: "SSO-1", currency: "GBP", budget: 140000, actual: 96000, commitment: 9000, wip: 4000, planned: 138000, available: 35000 },
+  "SSO-1.1": { wbsId: "SSO-1.1", currency: "GBP", budget: 90000, actual: 61000, commitment: 6000, wip: 3000, planned: 89000, available: 23000 },
+  "MON-1": { wbsId: "MON-1", currency: "GBP", budget: 90000, actual: 61000, commitment: 7000, wip: 2000, planned: 88000, available: 22000 },
+};
 
 /**
  * Demo programme registry — the admin-managed grouping the sample projects roll up into. Programme

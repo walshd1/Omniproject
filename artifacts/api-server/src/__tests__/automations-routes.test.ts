@@ -1,17 +1,24 @@
 import { test, before, after, afterEach } from "node:test";
 import assert from "node:assert/strict";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import { startHarness, adminCookie, memberCookie, type Harness } from "./_harness";
 
 /**
  * routes/automations.ts — the automation-recipe store + preview, over the REAL app (demo broker). The
  * authoring guard enforces the hard rule (a user may only automate what they may edit); preview dry-runs the
- * compile. Live execution + trigger binding land in a later slice.
+ * compile. Recipes are a config def now, so enable the sealed store.
  */
+process.env["SESSION_SECRET"] ??= "integration-harness-secret";
+const CONFIG_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "automations-routes-"));
+process.env["OMNI_CONFIG_DIR"] = CONFIG_DIR;
+
 let h: Harness;
 const ADMIN = adminCookie();
 before(async () => { h = await startHarness(); });
-after(() => h?.close());
-afterEach(async () => { const { updateSettings } = await import("../lib/settings"); updateSettings({ automations: [] }); });
+after(() => { h?.close(); fs.rmSync(CONFIG_DIR, { recursive: true, force: true }); });
+afterEach(async () => { const { writeOrgConfigCollection } = await import("../lib/scoped-config"); writeOrgConfigCollection("automations", "Automations", []); });
 const req = (p: string, o: Parameters<Harness["req"]>[1] = {}) => h.req(p, { cookie: ADMIN, ...o });
 
 const INFORM = {
@@ -74,8 +81,8 @@ test("automations: preview of a bad recipe → 400", async () => {
 });
 
 test("automations: run an inform recipe — conditions gate it, then it fires", async () => {
-  const { updateSettings } = await import("../lib/settings");
-  updateSettings({ automations: [INFORM] });
+  const { writeOrgConfigCollection } = await import("../lib/scoped-config");
+  writeOrgConfigCollection("automations", "Automations", [INFORM]);
   // Subject doesn't match the condition (priority eq high) → not run.
   const miss = (await (await req("/automations/r1/run", { method: "POST", body: { subject: { priority: "low" } } })).json()) as { matched: boolean; ran: boolean };
   assert.deepEqual(miss, { matched: false, ran: false });
@@ -87,8 +94,8 @@ test("automations: run an inform recipe — conditions gate it, then it fires", 
 });
 
 test("automations: running a mutating recipe is held for a grant (202)", async () => {
-  const { updateSettings } = await import("../lib/settings");
-  updateSettings({ automations: [MUTATING] });
+  const { writeOrgConfigCollection } = await import("../lib/scoped-config");
+  writeOrgConfigCollection("automations", "Automations", [MUTATING]);
   const r = await req("/automations/r2/run", { method: "POST", body: { subject: {} } });
   assert.equal(r.status, 202); // mutating ⇒ needs an autonomous grant; not silently run
 });

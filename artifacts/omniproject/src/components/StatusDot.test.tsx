@@ -24,8 +24,9 @@ describe("PriorityDot", () => {
     expect(dot?.getAttribute("title")).toBe("high");
   });
 
-  it("renders without a title when none is given", () => {
+  it("falls back to the localised priority label as its title when none is given", () => {
     const { container } = render(<PriorityDot priority="low" />);
-    expect(container.querySelector("span")).toBeTruthy();
+    // No explicit title ⇒ the resolved label is used, so colour is never the only signal.
+    expect(container.querySelector("span")?.getAttribute("title")).toBe("Low");
   });
 });

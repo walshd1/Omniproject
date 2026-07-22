@@ -161,6 +161,6 @@ test("resolveFieldManifest: reconciles the demo describe against the registry", 
   assert.ok(m.reconciliation.known.length > 0, "canonical fields are known");
   assert.equal(m.reconciliation.missing.length, 0, "demo exposes the whole registry");
   assert.ok(m.reconciliation.unknown.includes("customerTier"));
-  assert.equal(m.customFields.length, 2);
+  assert.equal(m.customFields.length, 3); // customerTier, riskScore, contactEmail
   assert.ok(m.customFields.every((f) => f.label && f.type));
 });

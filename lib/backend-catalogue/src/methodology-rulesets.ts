@@ -44,6 +44,9 @@ export interface ReferenceRulesetData {
   modes: Record<string, RuleMode>;
   /** The field rules to load. */
   fieldRules: ReferenceFieldRule[];
+  /** COMPOSITION: the id of a parent ruleset this one is built on (see def-compose). A customer fork records
+   *  its parent here so the importer traces its ancestry + guards the chain. Omitted = a root ruleset. */
+  extends?: string;
 }
 
 /** The public bundle — the data plus `methodology` (= id) for the ruleset API + engine. */

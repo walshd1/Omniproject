@@ -1,0 +1,52 @@
+{
+  "id": "line-chart",
+  "label": "Line chart",
+  "category": "chart",
+  "extends": "chart",
+  "chartType": "line",
+  "description": "Show change over an ordered axis (usually time) for one or more series.",
+  "params": [
+    {
+      "key": "data",
+      "label": "Rows",
+      "type": "rows",
+      "required": true,
+      "description": "One object per x position."
+    },
+    {
+      "key": "series",
+      "label": "Series",
+      "type": "series",
+      "required": true,
+      "description": "Which row keys to plot."
+    },
+    {
+      "key": "xKey",
+      "label": "X key",
+      "type": "string",
+      "required": false,
+      "description": "Row field for the x axis (defaults to name)."
+    },
+    {
+      "key": "legend",
+      "label": "Legend",
+      "type": "boolean",
+      "required": false,
+      "description": "Show the series legend (auto for ≥2 series)."
+    },
+    {
+      "key": "height",
+      "label": "Height",
+      "type": "number",
+      "required": false,
+      "description": "Pixel height, or a percent string for responsive containers."
+    },
+    {
+      "key": "palette",
+      "label": "Palette",
+      "type": "palette",
+      "required": false,
+      "description": "Ordered hex colours; series/slices take them in turn."
+    }
+  ]
+}

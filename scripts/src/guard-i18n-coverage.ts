@@ -21,13 +21,11 @@
  *
  * Run: pnpm --filter @workspace/scripts run guard-i18n-coverage
  */
-import ts from "typescript";
-import fs from "node:fs";
+import * as ts from "./lib/ts-ast";
+import { parseSourceFile } from "./lib/ts-ast";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { REPO_ROOT as ROOT } from "./lib/repo-root";
 
-const HERE = path.dirname(fileURLToPath(import.meta.url));
-const ROOT = path.resolve(HERE, "../..");
 const I18N_FILE = path.join(ROOT, "artifacts/omniproject/src/lib/i18n.tsx");
 
 /** The name of the base-locale const in i18n.tsx (English — the fallback for every other locale). */
@@ -41,8 +39,7 @@ interface LocaleDict {
 
 /** Extract every `const X: Dict = { ... }` from i18n.tsx as a {name, keys} dictionary, in source order. */
 function readDicts(file: string): LocaleDict[] {
-  const src = fs.readFileSync(file, "utf8");
-  const sf = ts.createSourceFile(file, src, ts.ScriptTarget.Latest, true);
+  const sf = parseSourceFile(file);
   const dicts: LocaleDict[] = [];
   for (const stmt of sf.statements) {
     if (!ts.isVariableStatement(stmt)) continue;
@@ -60,7 +57,7 @@ function readDicts(file: string): LocaleDict[] {
       const keys = new Map<string, string>();
       for (const prop of init.properties) {
         if (!ts.isPropertyAssignment(prop)) continue;
-        const key = ts.isStringLiteralLike(prop.name) ? prop.name.text : prop.name.getText(sf);
+        const key = ts.isStringLiteralLikeNode(prop.name) ? prop.name.text : prop.name.getText(sf);
         const value =
           ts.isStringLiteral(prop.initializer) || ts.isNoSubstitutionTemplateLiteral(prop.initializer)
             ? prop.initializer.text

@@ -1,4 +1,4 @@
-import type { Project, Issue, ProjectWrite, IssueWrite, Row, Task, TaskWrite } from "../types";
+import type { Project, Issue, ProjectWrite, IssueWrite, Row, Task, TaskWrite, Whiteboard } from "../types";
 import { isDone, isTaskClosed } from "../vocabulary";
 import type { BuiltinStore } from "./store";
 import { decodeKey32 } from "../../lib/crypto-keys";
@@ -26,9 +26,10 @@ interface OmniState {
   issues: Map<string, Issue[]>;
   raid: Map<string, Row[]>;
   tasks: Map<string, Task>;
+  whiteboards: Map<string, Whiteboard>;
   seq: Seq;
 }
-const emptyState = (): OmniState => ({ projects: new Map(), issues: new Map(), raid: new Map(), tasks: new Map(), seq: { project: 0, issue: 0, raid: 0, task: 0 } });
+const emptyState = (): OmniState => ({ projects: new Map(), issues: new Map(), raid: new Map(), tasks: new Map(), whiteboards: new Map(), seq: { project: 0, issue: 0, raid: 0, task: 0 } });
 
 /** Drop `undefined` fields so a patch only overwrites what it explicitly sets (mirrors MemoryStore). */
 function definedOnly<T extends object>(o: T): Partial<T> {
@@ -113,11 +114,25 @@ export function applyEvent(state: OmniState, link: OmniLink): void {
       if (task) Object.assign(task, definedOnly(p["patch"] as object));
       return;
     }
+    case "whiteboard.save": {
+      // Upsert the whole board (the broker set id/owner/timestamps before committing) — the id is stored
+      // in the event, so a replay rebuilds identical state.
+      const board = p["board"] as Whiteboard;
+      state.whiteboards.set(board.id, { ...board });
+      return;
+    }
+    case "whiteboard.delete": {
+      state.whiteboards.delete(p["id"] as string);
+      return;
+    }
   }
 }
 
 export class OmniStore implements BuiltinStore {
   readonly name = "omnistore";
+  /** OmniStore HOMES any orphaned data (it persists the whole row for any vendor shape), so the built-in
+   *  broker offers the full capability superset over it — a sole OmniStore backend covers 100% of the data. */
+  readonly homesOrphans = true;
   private readonly root: Buffer;
   private readonly log: OmniEventLog;
   private readonly state: OmniState = emptyState();
@@ -270,6 +285,23 @@ export class OmniStore implements BuiltinStore {
     this.commit("task.update", { id: taskId, patch });
     const t = this.state.tasks.get(taskId)!;
     return { ...t };
+  }
+
+  // ── Whiteboards ───────────────────────────────────────────────────────────
+  async listWhiteboards(): Promise<Whiteboard[]> {
+    return [...this.state.whiteboards.values()].map((b) => ({ ...b }));
+  }
+  async getWhiteboard(id: string): Promise<Whiteboard | null> {
+    const b = this.state.whiteboards.get(id);
+    return b ? { ...b } : null;
+  }
+  async saveWhiteboard(board: Whiteboard): Promise<void> {
+    this.commit("whiteboard.save", { board });
+  }
+  async deleteWhiteboard(id: string): Promise<boolean> {
+    if (!this.state.whiteboards.has(id)) return false;
+    this.commit("whiteboard.delete", { id });
+    return true;
   }
 
   // ── Integrity + portability (the OmniStore-specific surface) ────────────────

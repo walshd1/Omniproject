@@ -1,8 +1,8 @@
 import { describe, it, expect } from "vitest";
-import { PRIMITIVES, primitiveStore, primitivesByFamily, primitivesFor, getPrimitive, primitiveTree, categoriesFor, allTags, primitivesByTag } from "./primitive-store";
+import { PRIMITIVES, primitiveStore, primitivesByFamily, primitivesFor, getPrimitive, primitiveTree, primitiveTreeWith, primitiveFromResolved, categoriesFor, allTags, primitivesByTag } from "./primitive-store";
 import { PANEL_RENDERERS } from "../components/screen/registry";
 import { PRIMITIVE_LIBRARY } from "../definitions/primitives";
-import { FORM_FIELD_TYPES, DOC_BLOCK_TYPES, CANVAS_ELEMENT_TYPES, componentLibrary } from "@workspace/backend-catalogue";
+import { FORM_FIELD_TYPES, DOC_BLOCK_TYPES, CANVAS_ELEMENT_TYPES, ANNOTATION_TYPES, KEY_RESULT_KINDS, INVOICE_LINE_KINDS, EXTENSION_CONTRIBUTION_KINDS, REGISTRY_ITEM_KINDS, componentLibrary } from "@workspace/backend-catalogue";
 
 /**
  * Drift guard for THE single primitive store. It binds each family back to its authoritative registry, so
@@ -47,6 +47,56 @@ describe("primitive-store (single shared store)", () => {
     expect(primitivesFor("canvas").some((p) => p.family === "canvas")).toBe(true);
   });
 
+  it("the annotation family exactly matches the shared annotation types", () => {
+    const store = primitivesByFamily("annotation").map((p) => p.id).sort();
+    expect(store).toEqual([...ANNOTATION_TYPES].sort());
+  });
+
+  it("annotation primitives are placeable only on the proof surface", () => {
+    expect(primitivesByFamily("annotation").every((p) => p.placeableIn.includes("proof"))).toBe(true);
+    expect(primitivesFor("proof").some((p) => p.family === "annotation")).toBe(true);
+  });
+
+  it("the keyResult family exactly matches the shared key-result kinds", () => {
+    const store = primitivesByFamily("keyResult").map((p) => p.id).sort();
+    expect(store).toEqual([...KEY_RESULT_KINDS].sort());
+  });
+
+  it("keyResult primitives are placeable only on the goal surface", () => {
+    expect(primitivesByFamily("keyResult").every((p) => p.placeableIn.includes("goal"))).toBe(true);
+    expect(primitivesFor("goal").some((p) => p.family === "keyResult")).toBe(true);
+  });
+
+  it("the invoiceLine family exactly matches the shared invoice line kinds", () => {
+    const store = primitivesByFamily("invoiceLine").map((p) => p.id).sort();
+    expect(store).toEqual([...INVOICE_LINE_KINDS].sort());
+  });
+
+  it("invoiceLine primitives are placeable only on the invoice surface", () => {
+    expect(primitivesByFamily("invoiceLine").every((p) => p.placeableIn.includes("invoice"))).toBe(true);
+    expect(primitivesFor("invoice").some((p) => p.family === "invoiceLine")).toBe(true);
+  });
+
+  it("the extensionContribution family exactly matches the shared contribution kinds", () => {
+    const store = primitivesByFamily("extensionContribution").map((p) => p.id).sort();
+    expect(store).toEqual([...EXTENSION_CONTRIBUTION_KINDS].sort());
+  });
+
+  it("extensionContribution primitives are placeable only on the marketplace surface", () => {
+    expect(primitivesByFamily("extensionContribution").every((p) => p.placeableIn.includes("marketplace"))).toBe(true);
+    expect(primitivesFor("marketplace").some((p) => p.family === "extensionContribution")).toBe(true);
+  });
+
+  it("the registryItem family exactly matches the shared registry item kinds", () => {
+    const store = primitivesByFamily("registryItem").map((p) => p.id).sort();
+    expect(store).toEqual([...REGISTRY_ITEM_KINDS].sort());
+  });
+
+  it("registryItem primitives are placeable only on the registry surface", () => {
+    expect(primitivesByFamily("registryItem").every((p) => p.placeableIn.includes("registry"))).toBe(true);
+    expect(primitivesFor("registry").some((p) => p.family === "registryItem")).toBe(true);
+  });
+
   it("the component family exactly matches the shared component library", () => {
     const store = primitivesByFamily("component").map((p) => p.id).sort();
     const lib = componentLibrary().map((c) => c.id).sort();
@@ -54,7 +104,7 @@ describe("primitive-store (single shared store)", () => {
   });
 
   it("ids are unique within each family", () => {
-    for (const family of ["panel", "viz", "field", "block", "canvas", "component"] as const) {
+    for (const family of ["panel", "viz", "field", "block", "canvas", "annotation", "keyResult", "invoiceLine", "extensionContribution", "registryItem", "component"] as const) {
       const ids = primitivesByFamily(family).map((p) => p.id);
       expect(new Set(ids).size, `family ${family}`).toBe(ids.length);
     }
@@ -106,5 +156,40 @@ describe("primitive-store (single shared store)", () => {
     expect(editable.some((p) => p.id === "form")).toBe(true);
     expect(primitivesByTag("timeseries").some((p) => p.family === "viz")).toBe(true);
     expect(primitivesByTag("nonexistent-tag")).toEqual([]);
+  });
+
+  describe("activated (customer-authored) primitives fold into the palette", () => {
+    it("maps a resolved primitive def → a viz palette item, tagged by its origin scope", () => {
+      const org = primitiveFromResolved({ id: "org~reg-abc", payload: { id: "acme-tile", label: "Acme tile", category: "tile" } });
+      expect(org).toMatchObject({ id: "acme-tile", family: "viz", label: "Acme tile", category: "tile" });
+      expect(org.tags).toEqual(["org", "activated"]);
+      expect(org.placeableIn).toContain("report");
+      // A project-scoped activation is tagged by its project origin.
+      expect(primitiveFromResolved({ id: "project~p1~reg-x", payload: { id: "p-tile" } }).tags).toEqual(["project", "activated"]);
+      // A shipped system primitive carries no origin tag (it's already in the static store), and falls back to a
+      // title-cased label + a "custom" folder when the payload omits them.
+      const sys = primitiveFromResolved({ id: "system~bar", payload: { id: "some-thing" } });
+      expect(sys.tags).toEqual([]);
+      expect(sys.label).toBe("Some Thing");
+      expect(sys.category).toBe("custom");
+    });
+
+    it("primitiveTreeWith folds NEW activated primitives into the viz family, de-duped against the static store", () => {
+      const activated = [
+        primitiveFromResolved({ id: "org~reg-abc", payload: { id: "acme-tile", label: "Acme tile", category: "custom" } }),
+        primitiveFromResolved({ id: "system~bar", payload: { id: "bar", label: "Bar", category: "chart" } }), // already shipped → dropped
+      ];
+      const tree = primitiveTreeWith(activated, "report");
+      const viz = tree.find((t) => t.family === "viz")!;
+      const all = viz.folders.flatMap((f) => f.primitives.map((p) => p.id));
+      expect(all).toContain("acme-tile");                 // the new org primitive appears …
+      expect(all.filter((id) => id === "bar")).toHaveLength(1); // … and the shipped `bar` is NOT duplicated
+      // The activated primitive lands in its declared category subfolder.
+      expect(viz.folders.find((f) => f.category === "custom")?.primitives.some((p) => p.id === "acme-tile")).toBe(true);
+    });
+
+    it("primitiveTreeWith with no activated primitives equals the plain tree", () => {
+      expect(primitiveTreeWith([], "report")).toEqual(primitiveTree("report"));
+    });
   });
 });

@@ -10,6 +10,7 @@ import {
 } from "@workspace/api-client-react";
 import { renderWithProviders, mockFetchRouter, resetFetchMock } from "../../test/utils";
 import { Toaster } from "../ui/toaster";
+import { saveEdges, type DependencyEdge } from "../../lib/dependencies";
 import { GanttChart } from "./GanttChart";
 
 const PROJECT_ID = "proj-1";
@@ -277,6 +278,64 @@ describe("GanttChart", () => {
       pointer(bar, "pointermove", 140);
       pointer(bar, "pointerup", 140);
       expect(await screen.findByText("ERROR")).toBeInTheDocument();
+    });
+  });
+
+  describe("cascade mode (opt-in drag-a-bar-cascade)", () => {
+    afterEach(() => { resetFetchMock(); saveEdges([]); });
+
+    function edge(from: string, to: string): DependencyEdge {
+      return {
+        schema: 1, edgeKey: `${from}-blocks-${to}`,
+        from: { system: "jira", projectRef: PROJECT_ID, itemRef: from },
+        to: { system: "jira", projectRef: PROJECT_ID, itemRef: to },
+        type: "blocks", fromHash: "x", toHash: "y", assertedAt: "2026-01-01T00:00:00Z",
+      };
+    }
+
+    function cascadeClient(): QueryClient {
+      const qc = seeded([
+        issue({ id: "a", title: "Design API", startDate: isoDaysFromNow(1), dueDate: isoDaysFromNow(5), version: 3 }),
+        issue({ id: "b", title: "Build UI", startDate: isoDaysFromNow(6), dueDate: isoDaysFromNow(10), version: 2 }),
+      ]);
+      qc.setQueryData(getGetCapabilitiesQueryKey(), {
+        mode: "n8n",
+        fields: { startDate: { surface: true, store: true }, dueDate: { surface: true, store: true } },
+      } as unknown as Capabilities);
+      return qc;
+    }
+
+    it("shows the cascade toggle only when bars are reschedulable", () => {
+      renderWithProviders(<GanttChart projectId={PROJECT_ID} />, { client: cascadeClient() });
+      expect(screen.getByTestId("gantt-cascade-toggle")).toBeInTheDocument();
+    });
+
+    it("hides the toggle when the backend can't store schedule dates", () => {
+      const qc = seeded([issue({ id: "a", title: "Design API", startDate: isoDaysFromNow(1), dueDate: isoDaysFromNow(5) })]);
+      qc.setQueryData(getGetCapabilitiesQueryKey(), {
+        mode: "n8n",
+        fields: { startDate: { surface: true, store: false }, dueDate: { surface: true, store: false } },
+      } as unknown as Capabilities);
+      renderWithProviders(<GanttChart projectId={PROJECT_ID} />, { client: qc });
+      expect(screen.queryByTestId("gantt-cascade-toggle")).toBeNull();
+    });
+
+    it("cascades a dependent and writes both back when the toggle is on", async () => {
+      saveEdges([edge("a", "b")]); // A blocks B
+      const qc = cascadeClient();
+      mockFetchRouter({
+        [`/api/projects/${PROJECT_ID}/issues`]: { ok: true, body: [] },
+        [`/api/projects/${PROJECT_ID}/issues/a`]: { ok: true, body: issue({ id: "a" }) },
+        [`/api/projects/${PROJECT_ID}/issues/b`]: { ok: true, body: issue({ id: "b" }) },
+      });
+      renderWithProviders(<><GanttChart projectId={PROJECT_ID} /><Toaster /></>, { client: qc });
+      fireEvent.click(screen.getByTestId("gantt-cascade-toggle"));
+      const bar = screen.getByTestId("gantt-bar-a");
+      pointer(bar, "pointerdown", 100);
+      pointer(bar, "pointermove", 140); // +40px ≈ +40 days → pushes B (which followed A)
+      pointer(bar, "pointerup", 140);
+      // The cascade path fires and reports how many items moved.
+      expect(await screen.findByText(/cascaded/)).toBeInTheDocument();
     });
   });
 });

@@ -27,6 +27,23 @@ export interface MethodologyCapabilities {
   estimation: "story-points" | "hours" | "t-shirt" | "none";
 }
 
+/**
+ * A declarative BUSINESS-RULE INVARIANT a methodology asserts about the WHOLE portfolio — a cross-entity
+ * check the write-time ruleset (single-payload, restrict-only) can't express. GTD's "every active project
+ * must have a next action" is the exemplar: it's a compliance SIGNAL (surfaced, not a write block), evaluated
+ * by {@link evaluateMethodologyInvariants}. The `kind` selects a shipped, code-backed checker; the def carries
+ * only the declaration (id + kind + message + severity), keeping the rule in the methodology FILE (data).
+ */
+export interface MethodologyInvariant {
+  id: string;
+  /** Which shipped checker enforces this (see METHODOLOGY_INVARIANT_KINDS). */
+  kind: string;
+  /** The human message shown when the invariant is breached. */
+  message: string;
+  /** How hard the breach reads — a hard "error" or a soft "warn" (default). */
+  severity?: "error" | "warn";
+}
+
 export interface MethodologyManifest {
   id: string;
   label: string;
@@ -35,6 +52,13 @@ export interface MethodologyManifest {
   capabilities: MethodologyCapabilities;
   /** Other planes this methodology also lights up. */
   alsoProvides?: CrossPlaneRef[];
+  /** Declarative cross-entity business rules this methodology asserts (see {@link MethodologyInvariant}). */
+  invariants?: MethodologyInvariant[];
+  /** PRESET SETTINGS (first-class fields) this methodology lands on a one-click deploy — the "known-good
+   *  posture" half of the bundle. Keys must be writable settings keys (reportingCurrency, fxRatePolicy,
+   *  priorityWeights, …); they are validated against the settings field descriptors at apply time, so an
+   *  invalid block is rejected (never silently mis-applied). */
+  settings?: Record<string, unknown>;
   notes?: string;
 }
 
@@ -44,6 +68,9 @@ export interface MethodologyDefinition extends MethodologyManifest {
   tools: { states: string[]; ceremonies: string[] };
   /** Display order in the methodology picker. */
   order: number;
+  /** COMPOSITION: the id of a parent methodology this one is built on (see def-compose). A customer fork
+   *  records its parent here so the importer traces its ancestry + guards the chain. Omitted = a root. */
+  extends?: string;
 }
 
 /** Every shipped methodology, in display order. Authored as JSON under

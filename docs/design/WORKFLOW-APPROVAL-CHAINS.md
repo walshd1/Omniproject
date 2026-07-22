@@ -283,13 +283,23 @@ proposal, yet applies intact after sign-off).
   capability's exposure (up the `off < user-defined < public` ladder), pointing it at a new egress endpoint,
   or raising a per-surface exposure → held; lowering it applies immediately.
 
-**Directional classification.** `webhooks`, `federatedPeers`, `errorTelemetry`, `loggingSync`, and
-`capabilityStates` are all **directional**, not fail-closed `changed`: opening/redirecting/raising exposure =
-relax → held; **removing / deactivating / lowering** strengthens → applies immediately (a `DELETE
-/webhooks/:id`, disabling a sync, or setting a capability `off` is never over-gated). Trust roots
-(`brokerUrl`, `backendSource`) and the pure controls (`approvalChains`, `approvalBindings`, `featureGovernance`,
+**Directional classification.** `webhooks`, `federatedPeers`, and `capabilityStates` are all
+**directional**, not fail-closed `changed`: opening/redirecting/raising exposure = relax → held;
+**removing / deactivating / lowering** strengthens → applies immediately (a `DELETE /webhooks/:id`,
+disabling a sync, or setting a capability `off` is never over-gated). Trust roots (`brokerUrl`,
+`backendSource`) and the pure controls (`approvalChains`, `approvalBindings`, `featureGovernance`,
 `governanceRules`) stay `changed` — any edit is a potential reduction. The bulk `PATCH /settings` still
 hard-**refuses** the secret/capability keys (their dedicated step-up'd routes are the only sanctioned path).
+
+> **Phase C update.** `errorTelemetry` and `loggingSync` (and `historyRetention`) are **no longer
+> settings keys** — they migrated to scope-layered **config defs** in the composition model and carry
+> the *same* directional relax semantics through the config-def floor gate: their relax predicates live
+> in [`lib/security-config.ts`](../../artifacts/api-server/src/lib/security-config.ts) (`SECURITY_CONFIGS`)
+> and the guard is `applyConfigCollectionGuarded` ([`lib/config-guard.ts`](../../artifacts/api-server/src/lib/config-guard.ts)),
+> the config-def analogue of `applySettingsGuarded` — enabling telemetry, enabling/redirecting an
+> egress sink, or shortening retention → held for sign-off; the opposite direction applies immediately.
+> `selfHost` also migrated (as a CHOICE, ack-gated, not floor-gated). See
+> [FEATURE-ROADMAP.md](../FEATURE-ROADMAP.md) Phase C.
 
 **No remaining gap:** every security-reducing settings write is now either held for a signed sign-off or
 hard-refused on the bulk path; the invariant holds system-wide.

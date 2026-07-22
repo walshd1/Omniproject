@@ -34,7 +34,7 @@ export function FieldValidationAdmin() {
   const pickable = usePickableFields();
   const save = useSaveFieldValidation();
   const { toast } = useToast();
-  const { draft, setDraft, dirty, reset } = useDraftAdmin<FieldValidationRule[], FieldValidationRule[]>(server, structuredClone);
+  const { draft, setDraft, dirty, reset } = useDraftAdmin<FieldValidationRule[], FieldValidationRule[]>(server);
 
   if (!roleAtLeast(auth?.role, "admin")) return null;
 

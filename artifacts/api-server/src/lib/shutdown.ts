@@ -3,6 +3,7 @@ import { closeAllPresence } from "./presence-hub";
 import { wipeInMemoryState } from "./wipe";
 import { closeBrokerDispatcher } from "./broker-transport";
 import { flushSpanExports } from "./tracing";
+import { flushAuditLog } from "./audit-chain";
 
 /**
  * Graceful shutdown — on SIGTERM/SIGINT (e.g. `docker stop`, a rolling deploy),
@@ -76,7 +77,9 @@ export function installShutdownHandlers(server: ClosableServer, logger: Shutdown
     void closeBrokerDispatcher(); // release the broker's warm keep-alive sockets
     return streams;
   };
+  // Persist the last debounced batch of the sealed audit evidence log, then flush telemetry spans, before exit.
+  const flush = async (): Promise<void> => { flushAuditLog(); await flushSpanExports(); };
   for (const signal of ["SIGTERM", "SIGINT"] as const) {
-    process.once(signal, () => gracefulShutdown({ server, signal, logger, exit: (code) => process.exit(code), drain, flush: flushSpanExports }));
+    process.once(signal, () => gracefulShutdown({ server, signal, logger, exit: (code) => process.exit(code), drain, flush }));
   }
 }

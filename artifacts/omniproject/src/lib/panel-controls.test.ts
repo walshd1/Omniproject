@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { applyControls, bucketPeriod, groupByOptions, defaultControlsState, distinctValues, type ControlsConfig } from "./panel-controls";
+import { applyControls, bucketPeriod, groupByOptions, defaultControlsState, distinctValues, sortOptions, type ControlsConfig } from "./panel-controls";
 
 const rows = [
   { year: "2026", projectId: "p1", amount: 100, currency: "GBP", period: "2026-03" },
@@ -61,5 +61,32 @@ describe("panel-controls engine", () => {
     expect(r.groupByField).toBe("period");
     const byQ = Object.fromEntries(r.rows.map((x) => [x["period"], x["amount"]]));
     expect(byQ).toEqual({ "2026-Q1": 100, "2026-Q2": 50, "2027-Q1": 200 });
+  });
+});
+
+describe("panel-controls sort (shared column sort — dates + ordinal levels)", () => {
+  const listRows = [
+    { id: "a", priority: "low", due: "2026-03-01" },
+    { id: "b", priority: "urgent", due: "2026-01-15" },
+    { id: "c", priority: "medium", due: "2026-02-10" },
+  ];
+
+  it("sorts an ordinal column by internal level (not label) when the user picks it", () => {
+    const cfg: ControlsConfig = { sortable: [{ field: "priority", kind: "priority" }] };
+    const out = applyControls(listRows, cfg, { ...defaultControlsState(cfg), sort: { field: "priority", dir: "desc" } });
+    expect(out.rows.map((r) => r["id"])).toEqual(["b", "c", "a"]); // urgent > medium > low
+  });
+
+  it("sorts a date column chronologically", () => {
+    const cfg: ControlsConfig = { sortable: [{ field: "due", kind: "date" }] };
+    const out = applyControls(listRows, cfg, { ...defaultControlsState(cfg), sort: { field: "due", dir: "asc" } });
+    expect(out.rows.map((r) => r["id"])).toEqual(["b", "c", "a"]);
+  });
+
+  it("leaves rows in natural order when no sort is active, and lists sortable options", () => {
+    const cfg: ControlsConfig = { sortable: [{ field: "priority", label: "Priority", kind: "priority" }] };
+    expect(sortOptions(cfg)).toEqual([{ value: "priority", label: "Priority" }]);
+    const out = applyControls(listRows, cfg, defaultControlsState(cfg));
+    expect(out.rows.map((r) => r["id"])).toEqual(["a", "b", "c"]);
   });
 });

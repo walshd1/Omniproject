@@ -15,7 +15,7 @@
 
 import type { SessionBind } from "../lib/session-key";
 import type { Scope } from "../lib/scope";
-import type { DocBlock, CanvasElement } from "@workspace/backend-catalogue";
+import type { DocBlock, CanvasElement, Annotation, Deliverable, ProofDecision } from "@workspace/backend-catalogue";
 
 /** Loosely-typed record — the normalised row shape the broker exchanges. */
 export type Row = Record<string, unknown>;
@@ -285,11 +285,23 @@ export interface WhiteboardScene {
   /** A minimal, sanitised view state (e.g. background colour) — never a full editor appState. */
   appState?: Record<string, unknown>;
 }
+/** Where a board lives: `org` = shared org-wide (any viewer+); `user` = personal to its owner only. */
+export type WhiteboardVisibility = "org" | "user";
+
 export interface Whiteboard extends Row {
   id: string;
   name: string;
   /** Optional owning project (a board raised against a project); null for an org-level board. */
   projectId?: string | null;
+  /** The board's creator (a user `sub`) — the owner for a personal board. Set server-side, never trusted
+   *  from the client. */
+  ownerSub?: string | null;
+  /** Org-wide vs personal. A `user` board is visible/editable only to its `ownerSub`. Defaults to `org`.
+   *  (Used by the sidecar store; the encrypted-JSON stores encode location in `storage`/the id instead.) */
+  visibility?: WhiteboardVisibility;
+  /** Where the board lives: user / project / org (encrypted-JSON areas) or sidecar (the built-in SoR). The
+   *  id also encodes this; the field is a convenience for the client. */
+  storage?: "user" | "project" | "org" | "sidecar";
   scene: WhiteboardScene;
   updatedAt: string;
   updatedBy?: string | null;
@@ -297,6 +309,8 @@ export interface Whiteboard extends Row {
 export interface WhiteboardWrite {
   name: string;
   projectId?: string | null | undefined;
+  /** Requested visibility (org-wide vs personal). The OWNER is set server-side from the caller, never here. */
+  visibility?: WhiteboardVisibility | undefined;
   scene: WhiteboardScene;
 }
 /** A board's metadata (no scene body) — the list view. */
@@ -304,6 +318,54 @@ export interface WhiteboardMeta {
   id: string;
   name: string;
   projectId?: string | null;
+  ownerSub?: string | null;
+  visibility?: WhiteboardVisibility;
+  storage?: "user" | "project" | "org" | "sidecar";
+  updatedAt: string;
+  updatedBy?: string | null;
+}
+
+/**
+ * A PROOF — a deliverable (image/PDF, referenced not inlined) under creative review (roadmap 2.4). Carries a
+ * list of typed `annotation`-family primitives pinned onto it and a review decision bound to the current
+ * version. Held in the encrypted-JSON store (storage-target model), like a whiteboard.
+ */
+export interface Proof extends Row {
+  id: string;
+  name: string;
+  projectId?: string | null;
+  ownerSub?: string | null;
+  /** Where the proof lives: user / project / org (encrypted-JSON) — the id also encodes this. */
+  storage?: "user" | "project" | "org";
+  /** The deliverable under review — a safe-scheme reference (zero-at-rest). */
+  deliverable: Deliverable;
+  /** Bumps when the deliverable is replaced; a review decision is bound to the version it was made against. */
+  version: number;
+  annotations: Annotation[];
+  /** The current review decision, and who/when — stamped server-side, never from the client. */
+  decision: ProofDecision;
+  decisionVersion?: number;
+  decidedBy?: string | null;
+  decidedAt?: string | null;
+  updatedAt: string;
+  updatedBy?: string | null;
+}
+/** A proof write (create/update) — the sanitised, client-supplied fields (decision is set via its own route). */
+export interface ProofWrite {
+  name: string;
+  projectId?: string | null | undefined;
+  deliverable: Deliverable;
+  annotations: Annotation[];
+}
+/** A proof's metadata (no annotations/deliverable body) — the list view. */
+export interface ProofMeta {
+  id: string;
+  name: string;
+  projectId?: string | null;
+  ownerSub?: string | null;
+  storage?: "user" | "project" | "org";
+  version: number;
+  decision: ProofDecision;
   updatedAt: string;
   updatedBy?: string | null;
 }
@@ -545,6 +607,57 @@ export interface SchemaManifest {
   populated?: string[];
 }
 
+// ── Native handoff (companion-app bridge) — see docs/NATIVE-HANDOFF.md ──────────────────────────────────────
+/** An artifact kind OmniProject renders inline and a backend can front NATIVELY (Miro, Notion, …). Matches
+ *  our primitive/artifact kinds so the SPA can offer "Use native" on the right surfaces. */
+export type NativeSurfaceKind =
+  | "whiteboard" | "document" | "diagram" | "sheet" | "board"
+  | "schedule" | "dashboard" | "report" | "form" | "wiki";
+
+/** What a connected backend advertises it can do natively for a given artifact kind. Pure metadata — no
+ *  secrets, no URLs (URLs are minted per-request by `nativeHandoff`, host-allowlisted server-side). */
+export interface NativeSurface {
+  kind: NativeSurfaceKind;
+  vendor: string;                 // catalogue vendor id, e.g. "miro", "notion", "smartsheet"
+  label: string;                  // "Open in Miro"
+  actions: Array<"open" | "create" | "embed">;
+  /** How the artifact comes back: "reference" (a bare link; always available, zero-at-rest),
+   *  "content" (pull data via the vendor API), or "screenshot" (capture + AI vision). */
+  importMode: "reference" | "content" | "screenshot";
+}
+
+/** Anchor: WHAT OmniProject entity the native surface is bound to, so a reimport attaches back. */
+export interface NativeContextRef {
+  projectId?: string;
+  issueId?: string;
+  entity?: string;
+  id?: string;
+}
+
+export interface NativeHandoffRequest {
+  kind: NativeSurfaceKind;
+  vendor: string;
+  action: "open" | "create" | "embed";
+  contextRef?: NativeContextRef;
+  externalRef?: string;           // for "open": deep-link to an artifact from a prior import
+}
+
+/** The vetted, connector-minted handoff. `url` is built by the connector against the vendor's REAL domain
+ *  (host-allowlisted) — never from user input. `embedUrl` is the vendor's sandboxed Live-Embed, if any. */
+export interface NativeHandoff {
+  url: string;
+  embedUrl?: string;
+  handoffId: string;
+}
+
+export interface NativeImportRequest {
+  kind: NativeSurfaceKind;
+  vendor: string;
+  handoffId?: string;             // correlate a just-completed handoff…
+  externalRef?: string;           // …or import a known external artifact by id/url
+  target: { projectId: string; issueId?: string };
+}
+
 /**
  * The broker contract. Domain operations only — implementers translate to/from
  * their transport. `kind` and `live` are for diagnostics, not behaviour.
@@ -676,4 +789,61 @@ export interface Broker {
    * back to the env/Docker-secret scaffolding.
    */
   storeCredential?(ctx: ActorContext, input: { backend: string; name: string; value: string }): Promise<{ stored: boolean; ref?: string }>;
+
+  // ── Native handoff (companion-app bridge) — OPTIONAL. A connector implements only what it fronts; the
+  //    routes answer 501/empty when absent. See docs/NATIVE-HANDOFF.md. A NEW capability, not a new boundary:
+  //    handoff URLs are connector-minted + host-allowlisted; the reimport is a normal broker read/write.
+  /** The native surfaces this backend fronts (unioned across connected backends, capability-gating the SPA's
+   *  "Use native" affordance). */
+  nativeSurfaces?(ctx: ActorContext): Promise<NativeSurface[]>;
+  /** Mint the vetted vendor handoff URL — built against the vendor's real domain (host-allowlisted); the user
+   *  opens it in THEIR OWN browser and authenticates to the vendor directly (we never wrap its auth screen). */
+  nativeHandoff?(ctx: ActorContext, req: NativeHandoffRequest): Promise<NativeHandoff>;
+  /** Bring the native artifact back THROUGH the broker: a reference (importMode "reference") or enriched
+   *  content. Returns the attachment written to `target`; sanitised + provenance-stamped + audited. */
+  nativeImport?(ctx: ActorContext, req: NativeImportRequest): Promise<TaskAttachment>;
+
+  // ── SAP / ERP project + finance READ MODELS (docs/SAP-CONNECTOR.md §4.6) — OPTIONAL. A connector that fronts
+  //    an ERP (SAP S/4HANA) implements these; every other backend omits them and the routes answer 501/empty.
+  //    READ-ONLY references + numbers from the system of record — SAP keeps the ledger; we never post, never
+  //    settle, never store the values at rest.
+  /** The WBS elements (the project cost-structure tree; `parentId` gives the nesting). */
+  listWbsElements?(ctx: ActorContext, projectId: string): Promise<WbsElement[]>;
+  /** The financial roll-up for one WBS element (actual / commitment / budget / WIP / planned), read from the ERP. */
+  getWbsFinancials?(ctx: ActorContext, wbsId: string): Promise<WbsFinancials | null>;
+
+  // Dependency graph (roadmap §5.5): NOT a bespoke broker entity. A dependency edge is a row in the generic
+  //   `dependencies` mapping slot (`{fromId, toId, kind, note}`), read/written/deleted through the SAME generic
+  //   mapping + sidecar surface every other slot uses (`/mapping/:slot/rows`, `PUT`/`DELETE /mapping/:slot/:rowId`).
+  //   Nothing methodology- or agile-specific lives on the engine contract.
+}
+
+/**
+ * SAP read model — a WBS element in a project's cost structure (docs/SAP-CONNECTOR.md §4.6). SAP owns these;
+ * we render them by reference (the id is the cost-collecting key), never copying at rest.
+ */
+export interface WbsElement {
+  id: string;
+  projectId: string;
+  parentId: string | null;
+  name: string;
+  level: number;
+  /** SAP system/user status label (display-only). */
+  status?: string;
+  responsible?: string | null;
+}
+
+/**
+ * SAP read model — the financial roll-up for one WBS element, READ from SAP's ledger (ACDOCA). We never post
+ * or settle; all amounts are in `currency`. `available` = budget − (actual + commitment).
+ */
+export interface WbsFinancials {
+  wbsId: string;
+  currency: string;
+  budget: number;
+  actual: number;
+  commitment: number;
+  wip: number;
+  planned: number;
+  available: number;
 }

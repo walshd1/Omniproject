@@ -3,7 +3,7 @@ import { screen, fireEvent, waitFor } from "@testing-library/react";
 import { QueryClient } from "@tanstack/react-query";
 import { renderWithProviders } from "../test/utils";
 import { Login } from "./Login";
-import { login, samlLogin, oauth2Login, requestMagicLink } from "../lib/auth";
+import { login, samlLogin, oauth2Login, requestMagicLink, localLogin, bootstrapFirstAdmin } from "../lib/auth";
 
 // Login only needs to prove it wires clicks/submits to the right navigation call with the
 // right args — the navigation functions themselves (window.location.href assignment) have
@@ -16,6 +16,8 @@ vi.mock("../lib/auth", async (importOriginal) => {
     samlLogin: vi.fn(),
     oauth2Login: vi.fn(),
     requestMagicLink: vi.fn(async () => ({ ok: true })),
+    localLogin: vi.fn(async () => ({ ok: true, returnTo: "/" })),
+    bootstrapFirstAdmin: vi.fn(async () => ({ ok: true })),
   };
 });
 
@@ -129,5 +131,27 @@ describe("Login", () => {
     fireEvent.click(screen.getByRole("button", { name: /email me a sign-in link/i }));
     await waitFor(() => expect(requestMagicLink).toHaveBeenCalledWith("pm@acme.example", "/"));
     expect(await screen.findByText(/if that address can sign in, a link is on its way/i)).toBeInTheDocument();
+  });
+
+  it("signs in a native user with the in-app username + password form", async () => {
+    renderWithProviders(<Login />, {
+      client: clientWithAuth({ authenticated: false, mode: "demo", user: null, role: "viewer", localSignInEnabled: true }),
+    });
+    fireEvent.change(screen.getByTestId("local-username"), { target: { value: "alice" } });
+    fireEvent.change(screen.getByTestId("local-password"), { target: { value: "alice-password" } });
+    fireEvent.click(screen.getByRole("button", { name: /^sign in$/i }));
+    await waitFor(() => expect(localLogin).toHaveBeenCalledWith("alice", "alice-password"));
+    expect(bootstrapFirstAdmin).not.toHaveBeenCalled();
+  });
+
+  it("shows the first-admin form and calls bootstrap when needsFirstAdmin", async () => {
+    renderWithProviders(<Login />, {
+      client: clientWithAuth({ authenticated: false, mode: "demo", user: null, role: "viewer", localSignInEnabled: true, needsFirstAdmin: true }),
+    });
+    expect(screen.getByTestId("first-admin-note")).toBeInTheDocument();
+    fireEvent.change(screen.getByTestId("local-username"), { target: { value: "root" } });
+    fireEvent.change(screen.getByTestId("local-password"), { target: { value: "first-admin-pw" } });
+    fireEvent.click(screen.getByRole("button", { name: /create first admin/i }));
+    await waitFor(() => expect(bootstrapFirstAdmin).toHaveBeenCalledWith("root", "first-admin-pw"));
   });
 });

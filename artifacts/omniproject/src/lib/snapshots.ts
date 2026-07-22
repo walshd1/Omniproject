@@ -179,7 +179,7 @@ export function addSnapshots(existing: PortfolioSnapshot[], incoming: PortfolioS
   for (const s of incoming) byId.set(s.id, s);
   const merged = [...byId.values()].sort((a, b) => a.capturedAt.localeCompare(b.capturedAt));
   saveSnapshots(merged);
-  markExplorationDirty(); // new captured work — download to keep, else lost at session end
+  markExplorationDirty("snapshots"); // new captured work — download to keep, else lost at session end
   return merged;
 }
 
@@ -199,7 +199,7 @@ export function exportSnapshots(snapshots: PortfolioSnapshot[]): void {
   const bundle = buildBundle(snapshots);
   const blob = new Blob([JSON.stringify(bundle, null, 2)], { type: "application/json" });
   triggerBlobDownload(blob, `omniproject-trends-${bundle.exportedAt.slice(0, 10)}.json`);
-  markExplorationClean(); // a copy is now on the user's disk
+  markExplorationClean("snapshots"); // a copy is now on the user's disk
 }
 
 // ── Auto-capture schedule (client-side, volatile) ────────────────────────────

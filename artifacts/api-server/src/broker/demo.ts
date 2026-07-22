@@ -4,11 +4,13 @@ import { versionConflict } from "../lib/concurrency";
 import { CAPABILITY_DOMAINS, FIELD_KEYS, ENTITY_KEYS } from "../lib/capabilities";
 import { isDone, isClosed, isTaskClosed } from "./vocabulary";
 import { inScope } from "../lib/scope";
+import { whiteboardVisibleTo, newWhiteboardRow, mergeWhiteboardUpdate } from "./whiteboard-ownership";
 import { programmeIdsOf } from "../lib/programmes";
 import {
   SAMPLE_PROJECTS, SAMPLE_ISSUES, SAMPLE_RAID, SAMPLE_CAPACITY, SAMPLE_FINANCIALS,
   SAMPLE_PORTFOLIO, DEMO_FX, sampleActivity, sampleNotifications, persistDemoState,
   resetDemoDataToSeed, shouldAutoResetDemo, demoResetIntervalMinutes,
+  SAMPLE_WBS, SAMPLE_WBS_FINANCIALS,
 } from "./demo-data";
 import {
   BrokerError,
@@ -23,6 +25,8 @@ import {
   type TaskItemWrite,
   type Task,
   type TaskWrite,
+  type WbsElement,
+  type WbsFinancials,
   type TaskComment,
   type TaskCommentWrite,
   type TaskAttachment,
@@ -43,7 +47,12 @@ import {
   type CapabilityFlags,
   type VerifyReport,
   type Row,
+  type NativeSurface,
+  type NativeHandoff,
+  type NativeHandoffRequest,
+  type NativeImportRequest,
 } from "./types";
+import { buildVendorUrl, buildEmbedUrl } from "../lib/native-handoff";
 
 /**
  * Demo broker — the fake adapter. Serves canned sample data, needs no network
@@ -136,6 +145,7 @@ function seedWhiteboards(): Whiteboard[] {
   return [
     {
       id: "wb-roadmap", name: "Delivery roadmap sketch", projectId: "proj-001",
+      ownerSub: "grace@demo", visibility: "org",
       updatedAt: "2026-07-04T09:00:00.000Z", updatedBy: "grace@demo",
       scene: {
         elements: [
@@ -405,6 +415,17 @@ export class DemoBroker implements Broker {
     return item;
   }
 
+  // ── SAP / ERP read models (docs/SAP-CONNECTOR.md §4.6) — fixtures so the connector pipeline is testable
+  //    with no SAP tenant. READ-ONLY; the demo broker stands in for an ERP front. ──────────────────────
+  async listWbsElements(_ctx: ActorContext, projectId: string): Promise<WbsElement[]> {
+    return (SAMPLE_WBS[projectId] ?? []).map((w) => ({ ...w }));
+  }
+
+  async getWbsFinancials(_ctx: ActorContext, wbsId: string): Promise<WbsFinancials | null> {
+    const f = SAMPLE_WBS_FINANCIALS[wbsId];
+    return f ? { ...f } : null;
+  }
+
   // ── Tasks (GTD actionable next-actions) ──────────────────────────────────────
   async listTasks(_ctx: ActorContext, opts: { projectId?: string } = {}): Promise<Task[]> {
     const all = SAMPLE_TASKS.map((t) => ({ ...t }));
@@ -568,46 +589,39 @@ export class DemoBroker implements Broker {
     return v ? { ...v, blocks: v.blocks.map((b) => ({ ...b })) } : null;
   }
 
-  async listWhiteboards(_ctx: ActorContext, opts?: { projectId?: string }): Promise<Whiteboard[]> {
-    const boards = opts?.projectId ? SAMPLE_WHITEBOARDS.filter((b) => b.projectId === opts.projectId) : SAMPLE_WHITEBOARDS;
+  async listWhiteboards(ctx: ActorContext, opts?: { projectId?: string }): Promise<Whiteboard[]> {
+    const boards = SAMPLE_WHITEBOARDS
+      .filter((b) => (!opts?.projectId || b.projectId === opts.projectId) && whiteboardVisibleTo(b, ctx.sub));
     // List view: omit the (potentially large) scene bodies.
     return boards.map((b) => ({ ...b, scene: { elements: [] } }));
   }
 
-  async getWhiteboard(_ctx: ActorContext, id: string): Promise<Whiteboard | null> {
+  async getWhiteboard(ctx: ActorContext, id: string): Promise<Whiteboard | null> {
     const b = SAMPLE_WHITEBOARDS.find((w) => w.id === id);
-    return b ? { ...b, scene: { elements: [...b.scene.elements], ...(b.scene.appState ? { appState: { ...b.scene.appState } } : {}) } } : null;
+    if (!b || !whiteboardVisibleTo(b, ctx.sub)) return null; // a personal board is invisible to non-owners
+    return { ...b, scene: { elements: [...b.scene.elements], ...(b.scene.appState ? { appState: { ...b.scene.appState } } : {}) } };
   }
 
   async writeWhiteboard(ctx: ActorContext, op: "create" | "update" | "delete", input: WhiteboardWrite & { id?: string }): Promise<Whiteboard | null> {
-    const who = ctx.email ?? ctx.name ?? "demo@local";
     const now = new Date().toISOString();
     if (op === "delete") {
-      const before = SAMPLE_WHITEBOARDS.length;
+      const board = SAMPLE_WHITEBOARDS.find((w) => w.id === input.id);
+      // A personal board is invisible (→ not_found) to a non-owner, so a delete can't target it either.
+      if (!board || !whiteboardVisibleTo(board, ctx.sub)) throw new BrokerError("not_found", "Whiteboard not found");
       SAMPLE_WHITEBOARDS = SAMPLE_WHITEBOARDS.filter((w) => w.id !== input.id);
-      if (SAMPLE_WHITEBOARDS.length === before) throw new BrokerError("not_found", "Whiteboard not found");
       persistDemoState();
       return null;
     }
     if (op === "update") {
-      const board = SAMPLE_WHITEBOARDS.find((w) => w.id === input.id);
-      if (!board) throw new BrokerError("not_found", "Whiteboard not found");
-      board.name = input.name;
-      board.scene = input.scene;
-      board.projectId = input.projectId ?? null;
-      board.updatedAt = now;
-      board.updatedBy = who;
+      const idx = SAMPLE_WHITEBOARDS.findIndex((w) => w.id === input.id);
+      const board = idx >= 0 ? SAMPLE_WHITEBOARDS[idx]! : undefined;
+      if (!board || !whiteboardVisibleTo(board, ctx.sub)) throw new BrokerError("not_found", "Whiteboard not found");
+      const merged = mergeWhiteboardUpdate(board, ctx, input, now);
+      SAMPLE_WHITEBOARDS[idx] = merged;
       persistDemoState();
-      return { ...board };
+      return { ...merged };
     }
-    const created: Whiteboard = {
-      id: `wb-${++whiteboardCounter}`,
-      name: input.name,
-      projectId: input.projectId ?? null,
-      scene: input.scene,
-      updatedAt: now,
-      updatedBy: who,
-    };
+    const created = newWhiteboardRow(ctx, `wb-${++whiteboardCounter}`, input, now);
     SAMPLE_WHITEBOARDS.push(created);
     persistDemoState();
     return { ...created };
@@ -746,10 +760,16 @@ export class DemoBroker implements Broker {
     const canonical = FIELD_REGISTRY.map((f) => ({
       key: f.key, label: f.label, type: f.type, surface: true, store: true,
       sourceSystem: system, sourceField: SAMPLE_NATIVE_FIELDS[f.key] ?? f.key,
+      // Illustrative advertised constraints (a real broker reports its own): text fields cap length, enums
+      // carry their options, so a linked UI field inherits the backend's own validation.
+      ...(f.type === "string" ? { maxLength: 255 } : {}),
+      ...(f.type === "text" ? { maxLength: 32000 } : {}),
+      ...(f.type === "currency" || f.type === "percent" ? { precision: 2 } : {}),
     }));
     const custom = [
-      { key: "customerTier", label: "Customer tier", type: "string", surface: true, store: false, sourceSystem: system, sourceField: "customfield_10200" },
-      { key: "riskScore", label: "Risk score", type: "number", surface: true, store: false, sourceSystem: system, sourceField: "customfield_10201" },
+      { key: "customerTier", label: "Customer tier", type: "enum", surface: true, store: false, sourceSystem: system, sourceField: "customfield_10200", options: ["bronze", "silver", "gold"], nullable: true },
+      { key: "riskScore", label: "Risk score", type: "number", surface: true, store: false, sourceSystem: system, sourceField: "customfield_10201", precision: 0 },
+      { key: "contactEmail", label: "Contact email", type: "string", surface: true, store: false, sourceSystem: system, sourceField: "customfield_10202", maxLength: 254, pattern: "^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$" },
     ];
     return [...canonical, ...custom];
   }
@@ -801,6 +821,39 @@ export class DemoBroker implements Broker {
     // Demo: acknowledge WITHOUT keeping the value (no vault) — a real broker (n8n)
     // writes it to its encrypted credential store and returns the real reference.
     return { stored: true, ref: `demo:${input.backend}/${input.name}` };
+  }
+
+  // ── Native handoff (companion-app bridge). The demo fronts an illustrative "demoboard" vendor so the
+  //    reference-level flow is exercisable end to end; a real connector advertises the vendors it actually
+  //    fronts. Handoff URLs are minted against the vendor's allowlisted host — never from user input.
+  async nativeSurfaces(_ctx: ActorContext): Promise<NativeSurface[]> {
+    return [
+      { kind: "whiteboard", vendor: "demoboard", label: "Open in DemoBoard", actions: ["open", "create", "embed"], importMode: "reference" },
+      { kind: "dashboard", vendor: "demoboard", label: "Open in DemoBoard", actions: ["open", "create"], importMode: "reference" },
+    ];
+  }
+
+  async nativeHandoff(_ctx: ActorContext, req: NativeHandoffRequest): Promise<NativeHandoff> {
+    const url = buildVendorUrl(req.vendor, req.kind, req.action, req.externalRef);
+    // Tier-2 embed: also mint the vendor's sandboxed Live-Embed URL (host-allowlisted) for an inline preview.
+    const embedUrl = req.action === "embed" ? buildEmbedUrl(req.vendor, req.kind, req.externalRef) : undefined;
+    return { url, ...(embedUrl ? { embedUrl } : {}), handoffId: `ho-${++taskAttachmentCounter}` };
+  }
+
+  async nativeImport(ctx: ActorContext, req: NativeImportRequest): Promise<TaskAttachment> {
+    // Reference mode: reconstruct the canonical (host-allowlisted) URL and attach it to the target — a link,
+    // nothing copied. A real connector with importMode "content" would additionally pull data via safeFetch.
+    const url = buildVendorUrl(req.vendor, req.kind, "open", req.externalRef);
+    return {
+      id: `ta-${++taskAttachmentCounter}`,
+      taskId: req.target.issueId ?? req.target.projectId,
+      filename: `${req.vendor}:${req.kind}`,
+      url,
+      contentType: "text/uri-list",
+      size: null,
+      addedBy: ctx.email ?? ctx.name ?? "demo@local",
+      addedAt: new Date().toISOString(),
+    };
   }
 
   async verify(): Promise<VerifyReport> {

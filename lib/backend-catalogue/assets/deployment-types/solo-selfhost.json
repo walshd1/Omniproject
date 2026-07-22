@@ -1,0 +1,41 @@
+{
+  "id": "solo-selfhost",
+  "label": "Solo self-hoster",
+  "description": "One person, your own box, zero external dependencies. OmniStore holds everything; you log in with a username and password.",
+  "order": 10,
+  "questions": [
+    {
+      "id": "idp",
+      "label": "Sign in with an identity provider (Google, Okta…)?",
+      "help": "The default is a built-in username + password. You can add an IdP later.",
+      "options": [
+        { "value": "no", "label": "No — internal login" },
+        { "value": "yes", "label": "Yes — add an IdP" }
+      ],
+      "default": "no"
+    },
+    {
+      "id": "backups",
+      "label": "How should backups run?",
+      "options": [
+        { "value": "manual", "label": "Manual export when I want" },
+        { "value": "scheduled", "label": "Scheduled automatic backups" }
+      ],
+      "default": "manual"
+    }
+  ],
+  "setup": {
+    "storage": "omnistore",
+    "auth": "internal",
+    "broker": "builtin:omnistore",
+    "residency": "off",
+    "methodology": "gtd",
+    "audit": "standard",
+    "backups": "manual"
+  },
+  "refinements": [
+    { "when": { "idp": "yes" }, "set": { "auth": "both" } },
+    { "when": { "backups": "scheduled" }, "set": { "backups": "scheduled" } }
+  ],
+  "notes": "The self-hoster on-ramp: OmniStore as the sole system of record (100% of the data), internal auth by default, GTD as the personal methodology."
+}

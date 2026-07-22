@@ -2,8 +2,8 @@ import { describe, it, expect, vi, afterEach } from "vitest";
 import { QueryClient } from "@tanstack/react-query";
 import { screen, fireEvent, within } from "@testing-library/react";
 import {
-  getListProjectsQueryKey, getGetPortfolioHealthQueryKey, getGetFxRatesQueryKey, getGetProjectFinancialsQueryKey,
-  type Project, type PortfolioHealthSummary, type ProjectFinancials, type FxRates,
+  getListProjectsQueryKey, getGetPortfolioHealthQueryKey, getGetFxRatesQueryKey, getGetPortfolioFinancialsQueryKey,
+  type Project, type PortfolioHealthSummary, type FxRates, type PortfolioFinancials, type FinanceRollup,
 } from "@workspace/api-client-react";
 import { renderWithProviders } from "../../test/utils";
 import { ExecBoardPack } from "./ExecBoardPack";
@@ -16,16 +16,19 @@ function proj(over: Partial<Project>): Project {
 function health(over: Partial<PortfolioHealthSummary>): PortfolioHealthSummary {
   return { projectId: "p", projectName: "P", ragStatus: "GREEN", scheduleVarianceDays: 0, budgetVariancePercentage: 0, activeBlockersCount: 0, ...over } as PortfolioHealthSummary;
 }
-function fin(over: Partial<ProjectFinancials> = {}): ProjectFinancials {
-  return { currency: "GBP", budgetAllocated: 1000, actualBurn: 400, earnedValue: 400, cpi: 1, spi: 1, financialHealth: "GREEN", forecastCostAtCompletion: 1100, ...over } as ProjectFinancials;
+// The consolidated financials now come from GET /api/portfolio/financials (server-side); a test that
+// wants the financials overlay seeds a portfolio total here instead of per-project financials.
+function portfolioFin(portfolio: Partial<FinanceRollup>): PortfolioFinancials {
+  const total: FinanceRollup = { key: "__portfolio__", label: "Portfolio", projects: 1, budget: 1000, actual: 400, forecast: 1100, earnedValue: 400, variance: -100, cpi: 1, localCurrency: null, local: null, excludedForFx: 0, ...portfolio } as FinanceRollup;
+  return { reportingCurrency: "GBP", programmes: [], portfolio: total, currencyMix: [], fx: { base: "GBP", provenance: "sample", asOf: "2026-06-01T00:00:00Z" } } as PortfolioFinancials;
 }
 
-function seed(opts: { projects: Project[]; health: PortfolioHealthSummary[]; fin?: Record<string, ProjectFinancials> }) {
+function seed(opts: { projects: Project[]; health: PortfolioHealthSummary[]; fin?: PortfolioFinancials }) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity, staleTime: Infinity } } });
   qc.setQueryData(getListProjectsQueryKey(), opts.projects);
   qc.setQueryData(getGetPortfolioHealthQueryKey(), opts.health);
   qc.setQueryData(getGetFxRatesQueryKey(), FX);
-  for (const [id, f] of Object.entries(opts.fin ?? {})) qc.setQueryData(getGetProjectFinancialsQueryKey(id), f);
+  if (opts.fin) qc.setQueryData(getGetPortfolioFinancialsQueryKey(), opts.fin);
   return qc;
 }
 
@@ -99,7 +102,7 @@ describe("ExecBoardPack", () => {
     const client = seed({
       projects: [proj({ id: "a", name: "Alpha" })],
       health: [health({ projectId: "a", ragStatus: "GREEN" })],
-      fin: { a: fin({ budgetAllocated: 2000, forecastCostAtCompletion: 2500 }) },
+      fin: portfolioFin({ projects: 1, budget: 2000, forecast: 2500, variance: -500 }),
     });
     renderWithProviders(<ExecBoardPack />, { client });
     expect(screen.getByText("Forecast (EAC)")).toBeInTheDocument();

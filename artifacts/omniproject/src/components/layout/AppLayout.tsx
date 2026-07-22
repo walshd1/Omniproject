@@ -10,15 +10,21 @@ import { GlobalSearchTrigger } from "../search/GlobalSearchTrigger";
 import { NotificationsBell } from "../NotificationsBell";
 import { DataQualityBadge } from "../DataQualityBadge";
 import { ApiPortalLink } from "../ApiPortalLink";
+import { OrgLogo } from "../OrgLogo";
 import { useStore } from "../../store/useStore";
 import { useListProjects, useHealthCheck, getHealthCheckQueryKey } from "@workspace/api-client-react";
-import { LogOut, Menu, ChevronDown, ShieldCheck, Flag } from "lucide-react";
+import { LogOut, Menu, ChevronDown, ShieldCheck, Flag, DownloadCloud } from "lucide-react";
 import { ReportProblemDialog } from "../ReportProblemDialog";
 import { useNavShelves, type NavItem } from "../../lib/nav";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { useAuth, logout } from "../../lib/auth";
+import { shouldGateToSetup, firstRunDismissed } from "../../lib/first-run";
 import { usePublicSetupStatus } from "../../lib/setup";
 import { useT } from "../../lib/i18n";
+import { useOnline, connectivityState } from "../../lib/connectivity";
+import { useInstallPrompt } from "../../lib/use-install-prompt";
+import { TimerWidget } from "../../modules/invoicing/TimerWidget";
+import { useOfflineCacheSync } from "../../lib/use-offline-cache";
 import { useBranding } from "../../lib/branding";
 import { LanguageSwitcher } from "../LanguageSwitcher";
 import { ThemeScope } from "../../lib/theme-scope";
@@ -56,7 +62,13 @@ export function AppLayout({ children }: { children: ReactNode }) {
   const health = useHealthCheck({
     query: { queryKey: getHealthCheckQueryKey(), refetchInterval: 30_000, retry: false },
   });
-  const connected = health.data?.status === "ok";
+  // Connectivity = device network (navigator.onLine) + gateway health. Device-offline reads differently
+  // from a reachable-but-unhealthy gateway (see lib/connectivity).
+  const online = useOnline();
+  const conn = connectivityState(online, health.data?.status === "ok");
+  const connected = conn === "connected";
+  const { canInstall, promptInstall } = useInstallPrompt();
+  useOfflineCacheSync(); // hydrate + persist the my-work/tasks read models when the offline cache is opted in
 
   // Fall back to the first project when none is explicitly active, so the global
   // Cmd+K "New Issue" dialog always has a target project.
@@ -95,16 +107,40 @@ export function AppLayout({ children }: { children: ReactNode }) {
     }
   }, [auth, authLoading, setLocation]);
 
+  // First-run front door: a new, UNCONFIGURED instance sends the first qualifying admin who lands on the home
+  // page into the setup wizard (the preset-driven Configurator), so setup isn't something to go hunting for.
+  // Only from the landing route (never mid-task), only for admins, only until a backend is connected or the
+  // operator has dismissed it ("skip for now"). The predicate is pure + unit-tested; here we just fire it.
+  useEffect(() => {
+    if (authLoading || !auth?.authenticated) return;
+    const segment = location.split("/")[1] || "";
+    if (shouldGateToSetup({ role: auth.role, brokerConfigured: !!setup?.broker.configured, dismissed: firstRunDismissed(), segment, demoMode: auth.mode === "demo" })) {
+      setLocation("/configurator");
+    }
+  }, [auth, authLoading, setup, location, setLocation]);
+
   // Two-key "chord" navigation (g then d/p/r/s, like Gmail/GitHub): pressing 'g'
   // arms a one-shot listener for the destination key; it auto-disarms after the
   // chord window if no follow-up key arrives.
   useEffect(() => {
     const CHORD_WINDOW_MS = 1000;
+    // The armed destination listener + its auto-disarm timer must be tracked so BOTH are cleaned up on
+    // unmount — otherwise an in-flight chord's setTimeout fires after the component (and, in a test, the
+    // jsdom document) is gone and throws "document is not defined". clearPending() cancels both.
+    let pendingTimer: ReturnType<typeof setTimeout> | undefined;
+    let pendingNextKey: ((ev: KeyboardEvent) => void) | undefined;
+    const clearPending = () => {
+      if (pendingTimer !== undefined) clearTimeout(pendingTimer);
+      if (pendingNextKey) document.removeEventListener("keydown", pendingNextKey);
+      pendingTimer = undefined;
+      pendingNextKey = undefined;
+    };
     const handleKeyDown = (e: KeyboardEvent) => {
       // Ignore shortcuts while typing in a field.
       if (isTypingInField()) return;
 
       if (e.key === "g") {
+        clearPending(); // supersede any still-armed chord before arming a fresh one
         const nextKey = (ev: KeyboardEvent) => {
           if (ev.key === "d") setLocation("/");
           if (ev.key === "p") setLocation("/projects");
@@ -112,15 +148,19 @@ export function AppLayout({ children }: { children: ReactNode }) {
           if (ev.key === "e") setLocation("/explore");
           if (ev.key === "s") setLocation("/settings");
           if (ev.key === "c") setLocation("/configurator");
-          document.removeEventListener("keydown", nextKey);
+          clearPending();
         };
+        pendingNextKey = nextKey;
         document.addEventListener("keydown", nextKey);
-        setTimeout(() => document.removeEventListener("keydown", nextKey), CHORD_WINDOW_MS);
+        pendingTimer = setTimeout(clearPending, CHORD_WINDOW_MS);
       }
     };
 
     document.addEventListener("keydown", handleKeyDown);
-    return () => document.removeEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("keydown", handleKeyDown);
+      clearPending();
+    };
   }, [setLocation]);
 
   // "?" opens the keyboard-shortcuts help. Guarded against typing in a field
@@ -227,6 +267,11 @@ export function AppLayout({ children }: { children: ReactNode }) {
 
         {navList()}
 
+        {/* The org's OWN logo (ungated), shown here only when the org uploaded one AND opted in — renders
+            nothing otherwise. Distinct from the premium product brandMark above. */}
+        <div className="px-4 pt-3 empty:hidden">
+          <OrgLogo className="opacity-80" maxHeight={28} />
+        </div>
         <div className="p-4 border-t border-border flex items-center justify-between text-xs text-muted-foreground">
           <span>CMD+K TO SEARCH</span>
           <ApiPortalLink />
@@ -271,8 +316,18 @@ export function AppLayout({ children }: { children: ReactNode }) {
           </div>
 
           <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2 border border-border px-2 py-1 bg-card" title="Gateway health" role="status" aria-live="polite">
-              <div className={`w-2 h-2 rounded-full ${connected ? "bg-green-500" : "bg-red-500 animate-pulse"}`}></div>
+            <TimerWidget />
+            {canInstall && (
+              <button type="button" data-testid="pwa-install" onClick={() => void promptInstall()}
+                className="flex items-center gap-1.5 border border-border px-2 py-1 bg-card text-xs font-bold tracking-widest hover:bg-muted"
+                title="Install OmniProject as an app">
+                <DownloadCloud className="w-3.5 h-3.5" /> {t("header.install")}
+              </button>
+            )}
+            <div className="flex items-center gap-2 border border-border px-2 py-1 bg-card" data-testid="connectivity"
+              title={conn === "offline" ? "No network connection" : conn === "unreachable" ? "Gateway unreachable" : "Gateway health"}
+              role="status" aria-live="polite">
+              <div className={`w-2 h-2 rounded-full ${connected ? "bg-green-500" : conn === "unreachable" ? "bg-amber-500 animate-pulse" : "bg-red-500 animate-pulse"}`}></div>
               <span className="text-xs font-bold tracking-widest">{connected ? t("header.connected") : t("header.offline")}</span>
             </div>
             <DataQualityBadge />

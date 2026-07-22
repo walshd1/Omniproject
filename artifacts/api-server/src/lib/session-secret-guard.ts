@@ -41,6 +41,33 @@ export function evaluateSessionSecret(env: Env): SessionSecretResult {
   return { secret: fromEnv || DEV_SESSION_SECRET, looksProduction, signals, ok: !(looksProduction && weak) };
 }
 
+/**
+ * Post-config-load re-check for NATIVE LOCAL ACCOUNTS.
+ *
+ * `evaluateSessionSecret` runs at import time (`app.ts`), which is BEFORE the artifact store — and thus the
+ * native-local-user directory — is loaded (`index.ts` calls `loadConfigDir()` only after importing `app`). It
+ * is therefore blind to a local admin that was bootstrapped AT RUNTIME while the env still read as "demo"
+ * (`isDemoAuthFrom` only counts the *env* flag `LOCAL_USERS_ENABLED`, not the live directory). But an active
+ * local account IS a real password login, and it implies a sealed secret store — so the public default secret
+ * would let anyone who read this open-source build forge an admin session AND, because the at-rest master-key
+ * ladder falls through to `SESSION_SECRET` (`crypto-keys.masterSecret`), derive the vault/config key too. The
+ * boot path calls this once the directory is loaded, passing `localUsersActive()`; it refuses to serve under a
+ * missing/default secret. (`LOCAL_USERS_ENABLED`-declared and SSO deployments are already caught at import time
+ * by `productionSignals`; this closes only the "accounts exist without the env declaration" window.)
+ */
+export function assertSessionSecretForLocalPrincipals(hasLocalPrincipals: boolean, env: Env = process.env): void {
+  if (!hasLocalPrincipals) return;
+  const fromEnv = env["SESSION_SECRET"]?.trim();
+  const weak = !fromEnv || fromEnv === DEV_SESSION_SECRET;
+  if (!weak) return;
+  throw new Error(
+    "SESSION_SECRET must be set to a strong, non-default value: this instance has native local accounts " +
+      "(a real password login) backed by a sealed secret store, so the PUBLIC default secret would let anyone " +
+      "who read this open-source build forge an admin session and derive the at-rest master key. Generate one " +
+      "(e.g. `openssl rand -hex 32`), set SESSION_SECRET, and restart.",
+  );
+}
+
 /** Boot hook: evaluate the guard and throw (refuse to boot) when it fails. */
 export function resolveSessionSecret(env: Env = process.env): string {
   const r = evaluateSessionSecret(env);

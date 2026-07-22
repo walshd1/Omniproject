@@ -61,6 +61,60 @@ export const BROKER_CONTRACT_SCHEMA = {
       ],
       "description": "Who initiated an action. Autonomous actors (scheduled jobs, AI agents) are first-class principals — keyed, RBAC-roled and provenance-bound like a human."
     },
+    "Annotation": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Stable id within the proof (for keys + comment-thread anchoring)."
+        },
+        "type": {
+          "$ref": "#/$defs/AnnotationType"
+        },
+        "x": {
+          "type": "number",
+          "description": "Normalised top-left / point position on the deliverable (0..1)."
+        },
+        "y": {
+          "type": "number"
+        },
+        "w": {
+          "type": "number",
+          "description": "Normalised region size — box / highlight (0..1)."
+        },
+        "h": {
+          "type": "number"
+        },
+        "text": {
+          "type": "string",
+          "description": "The reviewer's note."
+        },
+        "page": {
+          "type": "number",
+          "description": "Which page of a multi-page deliverable (PDF) this pins to (1-based)."
+        },
+        "resolved": {
+          "type": "boolean",
+          "description": "Whether the raised point has been addressed."
+        }
+      },
+      "required": [
+        "id",
+        "type",
+        "x",
+        "y"
+      ],
+      "additionalProperties": false,
+      "description": "One annotation pinned onto a deliverable. Which optional fields apply depends on `type`: a `pin` uses just `x`/`y`; a `box`/`highlight` adds `w`/`h`. `text` is the reviewer's note; `resolved` marks a raised point as addressed. `page` targets a page of a multi-page PDF (1-based; defaults to 1). A generic overlay renderer switches on `type`. All coordinates are normalised (0..1)."
+    },
+    "AnnotationType": {
+      "enum": [
+        "pin",
+        "box",
+        "highlight"
+      ],
+      "description": "PROOFING / deliverable review model — the neutral, primitive-built shape for OmniProject's creative-review surface (roadmap 2.4). Same architectural principle as documents (wiki blocks) and whiteboards (canvas elements): a proof is a JSON DEFINITION that REFERENCES a deliverable (an image/PDF that lives elsewhere — attachments-as-references, zero-at-rest) and carries a list of typed ANNOTATION PRIMITIVES pinned onto it, plus a review decision. NOT an opaque third-party markup blob. The single `ANNOTATION_TYPES` list is what the authoring palette, the validator AND the unified primitive store (the `annotation` family) all draw from, so the store can never drift from what a proof can contain. The authoritative sanitiser runs server-side before anything is written."
+    },
     "BackendFieldMap": {
       "type": "object",
       "properties": {
@@ -171,9 +225,112 @@ export const BROKER_CONTRACT_SCHEMA = {
         "not_found",
         "unauthorized",
         "bad_request",
+        "rate_limited",
         "unavailable"
       ],
       "description": "Normalised error taxonomy — no broker-specific status quirks leak upward."
+    },
+    "CalloutTone": {
+      "enum": [
+        "info",
+        "warn",
+        "success",
+        "danger"
+      ],
+      "description": "The tones a `callout` block can carry."
+    },
+    "CanvasElement": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Stable id within the scene (for keys, connector binding, live-cursor anchoring)."
+        },
+        "type": {
+          "$ref": "#/$defs/CanvasElementType"
+        },
+        "x": {
+          "type": "number",
+          "description": "Top-left position on the infinite canvas."
+        },
+        "y": {
+          "type": "number"
+        },
+        "w": {
+          "type": "number",
+          "description": "Box size — sticky / shape / frame."
+        },
+        "h": {
+          "type": "number"
+        },
+        "text": {
+          "type": "string",
+          "description": "Text — a sticky's note, a shape's label, a text element's body, a frame's label."
+        },
+        "color": {
+          "$ref": "#/$defs/StickyColor",
+          "description": "Sticky colour."
+        },
+        "shape": {
+          "$ref": "#/$defs/ShapeKind",
+          "description": "Shape kind."
+        },
+        "fontSize": {
+          "type": "number",
+          "description": "Text size for a `text` element."
+        },
+        "x2": {
+          "type": "number",
+          "description": "Connector end point (its start is `x`/`y`)."
+        },
+        "y2": {
+          "type": "number"
+        },
+        "from": {
+          "type": "string",
+          "description": "Optional connector endpoints bound to element ids (so the line follows them)."
+        },
+        "to": {
+          "type": "string"
+        },
+        "points": {
+          "type": "array",
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "number"
+            }
+          },
+          "description": "Freehand path points for a `draw` element — `[x, y]` pairs relative to `x`/`y` (the stroke origin)."
+        },
+        "strokeWidth": {
+          "type": "number",
+          "description": "Stroke width (draw) / border weight."
+        },
+        "link": {
+          "type": "string",
+          "description": "Optional external reference (safe scheme only) — the content lives elsewhere (zero-at-rest)."
+        }
+      },
+      "required": [
+        "id",
+        "type",
+        "x",
+        "y"
+      ],
+      "additionalProperties": false,
+      "description": "One element on a whiteboard. Which optional fields apply depends on `type`: `sticky` uses text+color+box; `shape` uses shape+box (+optional text label); `text` uses text+fontSize; `connector` uses the end point `x2/y2` (start is `x/y`) and may bind to element ids via `from`/`to`; `frame` uses text (its label)+box. A generic renderer switches on `type`. `link` (any type) is an OPTIONAL external reference — e.g. a sticky that links to a work item — restricted to safe schemes by the sanitiser (zero-at-rest, never inlined)."
+    },
+    "CanvasElementType": {
+      "enum": [
+        "sticky",
+        "shape",
+        "text",
+        "connector",
+        "frame",
+        "draw"
+      ],
+      "description": "WHITEBOARD / canvas content model — the neutral, primitive-built shape for OmniProject's visual canvas (roadmap 2.3). Same architectural principle as documents (wiki blocks), forms, screens and reports: a whiteboard is a JSON DEFINITION built of typed CANVAS-ELEMENT PRIMITIVES, authored once and rendered by a generic renderer — NOT an opaque third-party scene blob. A whiteboard scene is an ordered list of `CanvasElement`s. Each element TYPE is a small primitive (its config are properties; it renders and validates by its type). The single `CANVAS_ELEMENT_TYPES` list is what the authoring palette, the validator AND the unified primitive store (the `canvas` family) all draw from, so the store can never drift from what a canvas can contain. Because the model is ours, a rich third-party editor (Excalidraw/Miro) is an OPTIONAL \"use native\" enhancement, not the source of truth. Scenes are stored through the broker seam (zero-at-rest); this module defines the neutral shape only — the authoritative sanitiser runs server-side before anything is written."
     },
     "CapabilityFlags": {
       "type": "object",
@@ -184,6 +341,122 @@ export const BROKER_CONTRACT_SCHEMA = {
     },
     "ContractVersion": {
       "const": "v1"
+    },
+    "Deliverable": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "$ref": "#/$defs/DeliverableKind"
+        },
+        "url": {
+          "type": "string",
+          "description": "Safe-scheme URL of the media (validated by the sanitiser)."
+        },
+        "label": {
+          "type": "string",
+          "description": "Optional human label / filename."
+        }
+      },
+      "required": [
+        "kind",
+        "url"
+      ],
+      "additionalProperties": false,
+      "description": "A deliverable under review — a REFERENCE to media that lives elsewhere (never inlined; zero-at-rest)."
+    },
+    "DeliverableKind": {
+      "enum": [
+        "image",
+        "pdf"
+      ],
+      "description": "The deliverable media kinds a proof can reference."
+    },
+    "DocBlock": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Stable id within the document (for keys, presence anchoring, comment threading)."
+        },
+        "type": {
+          "$ref": "#/$defs/DocBlockType"
+        },
+        "text": {
+          "type": "string",
+          "description": "Free text for a text block (heading/paragraph/quote/callout/code)."
+        },
+        "level": {
+          "type": "number",
+          "description": "Heading level (1–3); defaulted to 2 when omitted."
+        },
+        "tone": {
+          "$ref": "#/$defs/CalloutTone",
+          "description": "Callout tone."
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/DocListItem"
+          },
+          "description": "Items for a list block."
+        },
+        "rows": {
+          "type": "array",
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "description": "Rows of cells for a `table` block."
+        },
+        "url": {
+          "type": "string",
+          "description": "External reference for an `embed` block (the content lives elsewhere — zero-at-rest)."
+        },
+        "caption": {
+          "type": "string",
+          "description": "Optional caption for an `embed`."
+        }
+      },
+      "required": [
+        "id",
+        "type"
+      ],
+      "additionalProperties": false,
+      "description": "One block in a document. Which optional fields apply depends on `type`: text blocks use `text`; `heading` adds `level`; `callout` adds `tone`; list blocks use `items`; `table` uses `rows`; `embed` uses `url` (+ optional `caption`). A generic renderer switches on `type`."
+    },
+    "DocBlockType": {
+      "enum": [
+        "heading",
+        "paragraph",
+        "quote",
+        "callout",
+        "code",
+        "bullet-list",
+        "numbered-list",
+        "checklist",
+        "divider",
+        "table",
+        "embed"
+      ],
+      "description": "WIKI / document content model — the neutral, primitive-built shape for OmniProject's collaborative docs and knowledge base (roadmap 2.1). Same architectural principle as forms, screens and reports: a document is a JSON DEFINITION built of typed BLOCK PRIMITIVES, authored once and rendered by a generic renderer. A document is an ordered list of `DocBlock`s. Each block TYPE is a small class (its config are properties; it renders and validates by its type). The block types are the \"documents built of primitives\" allow-list: the single `DOC_BLOCK_TYPES` list is what the validator, the authoring palette AND the unified primitive store (the `block` family) all draw from, so the store can never drift from what a document can contain. Bodies are stored through the broker seam (zero-at-rest) — this module only defines the neutral shape and pure helpers (block-type registry, wiki-link parsing, slugging); the authoritative sanitiser runs server-side before anything is written."
+    },
+    "DocListItem": {
+      "type": "object",
+      "properties": {
+        "text": {
+          "type": "string"
+        },
+        "checked": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "text"
+      ],
+      "additionalProperties": false,
+      "description": "One item in a list block. `checked` only applies to a `checklist`."
     },
     "EnumeratedField": {
       "type": "object",
@@ -214,6 +487,29 @@ export const BROKER_CONTRACT_SCHEMA = {
         "sourceField": {
           "type": "string",
           "description": "The backend's NATIVE field name/id this canonical field maps from (e.g. \"duedate\", \"customfield_10016\") — supplied by the broker/workflow, so the overlay can say exactly which backend field a value came from."
+        },
+        "maxLength": {
+          "type": "number",
+          "description": "Max character length the backend accepts for this field."
+        },
+        "precision": {
+          "type": "number",
+          "description": "Decimal places for a numeric/currency/percent field."
+        },
+        "options": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Allowed values for an enum field."
+        },
+        "pattern": {
+          "type": "string",
+          "description": "A regular expression the value must match (postcode/email/date shapes). ReDoS-guarded before use."
+        },
+        "nullable": {
+          "type": "boolean",
+          "description": "Whether the backend accepts an empty value (⇒ the UI field is optional)."
         }
       },
       "required": [
@@ -682,6 +978,169 @@ export const BROKER_CONTRACT_SCHEMA = {
       "additionalProperties": false,
       "description": "A normalised issue mutation. `expectedVersion` drives optimistic concurrency."
     },
+    "NativeContextRef": {
+      "type": "object",
+      "properties": {
+        "projectId": {
+          "type": "string"
+        },
+        "issueId": {
+          "type": "string"
+        },
+        "entity": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "description": "Anchor: WHAT OmniProject entity the native surface is bound to, so a reimport attaches back."
+    },
+    "NativeHandoff": {
+      "type": "object",
+      "properties": {
+        "url": {
+          "type": "string"
+        },
+        "embedUrl": {
+          "type": "string"
+        },
+        "handoffId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "url",
+        "handoffId"
+      ],
+      "additionalProperties": false,
+      "description": "The vetted, connector-minted handoff. `url` is built by the connector against the vendor's REAL domain (host-allowlisted) — never from user input. `embedUrl` is the vendor's sandboxed Live-Embed, if any."
+    },
+    "NativeHandoffRequest": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "$ref": "#/$defs/NativeSurfaceKind"
+        },
+        "vendor": {
+          "type": "string"
+        },
+        "action": {
+          "enum": [
+            "open",
+            "create",
+            "embed"
+          ]
+        },
+        "contextRef": {
+          "$ref": "#/$defs/NativeContextRef"
+        },
+        "externalRef": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "vendor",
+        "action"
+      ],
+      "additionalProperties": false
+    },
+    "NativeImportRequest": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "$ref": "#/$defs/NativeSurfaceKind"
+        },
+        "vendor": {
+          "type": "string"
+        },
+        "handoffId": {
+          "type": "string"
+        },
+        "externalRef": {
+          "type": "string"
+        },
+        "target": {
+          "type": "object",
+          "properties": {
+            "projectId": {
+              "type": "string"
+            },
+            "issueId": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "projectId"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "kind",
+        "vendor",
+        "target"
+      ],
+      "additionalProperties": false
+    },
+    "NativeSurface": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "$ref": "#/$defs/NativeSurfaceKind"
+        },
+        "vendor": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        },
+        "actions": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "open",
+              "create",
+              "embed"
+            ]
+          }
+        },
+        "importMode": {
+          "enum": [
+            "reference",
+            "content",
+            "screenshot"
+          ],
+          "description": "How the artifact comes back: \"reference\" (a bare link; always available, zero-at-rest), \"content\" (pull data via the vendor API), or \"screenshot\" (capture + AI vision)."
+        }
+      },
+      "required": [
+        "kind",
+        "vendor",
+        "label",
+        "actions",
+        "importMode"
+      ],
+      "additionalProperties": false,
+      "description": "What a connected backend advertises it can do natively for a given artifact kind. Pure metadata — no secrets, no URLs (URLs are minted per-request by `nativeHandoff`, host-allowlisted server-side)."
+    },
+    "NativeSurfaceKind": {
+      "enum": [
+        "whiteboard",
+        "document",
+        "diagram",
+        "sheet",
+        "board",
+        "schedule",
+        "dashboard",
+        "report",
+        "form",
+        "wiki"
+      ],
+      "description": "An artifact kind OmniProject renders inline and a backend can front NATIVELY (Miro, Notion, …). Matches our primitive/artifact kinds so the SPA can offer \"Use native\" on the right surfaces."
+    },
     "NotificationIngest": {
       "type": "object",
       "properties": {
@@ -928,6 +1387,183 @@ export const BROKER_CONTRACT_SCHEMA = {
       "additionalProperties": false,
       "description": "A normalised project create/update. `name` is required on create."
     },
+    "Proof": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "projectId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "ownerSub": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "storage": {
+          "enum": [
+            "user",
+            "project",
+            "org"
+          ],
+          "description": "Where the proof lives: user / project / org (encrypted-JSON) — the id also encodes this."
+        },
+        "deliverable": {
+          "$ref": "#/$defs/Deliverable",
+          "description": "The deliverable under review — a safe-scheme reference (zero-at-rest)."
+        },
+        "version": {
+          "type": "number",
+          "description": "Bumps when the deliverable is replaced; a review decision is bound to the version it was made against."
+        },
+        "annotations": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Annotation"
+          }
+        },
+        "decision": {
+          "$ref": "#/$defs/ProofDecision",
+          "description": "The current review decision, and who/when — stamped server-side, never from the client."
+        },
+        "decisionVersion": {
+          "type": "number"
+        },
+        "decidedBy": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "decidedAt": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "updatedAt": {
+          "type": "string"
+        },
+        "updatedBy": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "deliverable",
+        "version",
+        "annotations",
+        "decision",
+        "updatedAt"
+      ],
+      "additionalProperties": true,
+      "description": "A PROOF — a deliverable (image/PDF, referenced not inlined) under creative review (roadmap 2.4). Carries a list of typed `annotation`-family primitives pinned onto it and a review decision bound to the current version. Held in the encrypted-JSON store (storage-target model), like a whiteboard."
+    },
+    "ProofDecision": {
+      "enum": [
+        "pending",
+        "approved",
+        "rejected",
+        "changes-requested"
+      ],
+      "description": "A review decision on a proof version. `pending` — awaiting review; `approved` — signed off; `rejected` — declined; `changes-requested` — needs rework before re-review. Bound to a version so a new deliverable revision re-opens the decision."
+    },
+    "ProofMeta": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "projectId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "ownerSub": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "storage": {
+          "enum": [
+            "user",
+            "project",
+            "org"
+          ]
+        },
+        "version": {
+          "type": "number"
+        },
+        "decision": {
+          "$ref": "#/$defs/ProofDecision"
+        },
+        "updatedAt": {
+          "type": "string"
+        },
+        "updatedBy": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "version",
+        "decision",
+        "updatedAt"
+      ],
+      "additionalProperties": false,
+      "description": "A proof's metadata (no annotations/deliverable body) — the list view."
+    },
+    "ProofWrite": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "projectId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "deliverable": {
+          "$ref": "#/$defs/Deliverable"
+        },
+        "annotations": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Annotation"
+          }
+        }
+      },
+      "required": [
+        "name",
+        "deliverable",
+        "annotations"
+      ],
+      "additionalProperties": false,
+      "description": "A proof write (create/update) — the sanitised, client-supplied fields (decision is set via its own route)."
+    },
     "Provenance": {
       "enum": [
         "sourced",
@@ -1071,6 +1707,10 @@ export const BROKER_CONTRACT_SCHEMA = {
             "type": "string"
           },
           "description": "The programmes this principal may act within (used for programme-level checks)."
+        },
+        "projectId": {
+          "type": "string",
+          "description": "The single project a `project`-level (guest) principal is confined to."
         }
       },
       "required": [
@@ -1082,9 +1722,10 @@ export const BROKER_CONTRACT_SCHEMA = {
       "enum": [
         "user",
         "programme",
+        "project",
         "all"
       ],
-      "description": "DATA scope — the per-principal authorization boundary the backend enforces on top of the coarse RBAC tier. The gateway resolves it from the user's grants + claim/SCIM groups and forwards it (verified, inside the PSK-signed broker envelope) as part of `userContext`, so the system of record can confirm-and-enforce it: - `all` — pmo / admin: every project and programme. - `programme` — a programme manager: only projects in their owned programmes. In a \"basic\" (no-IdP) deployment `programmes` is empty and the backend maps `sub → owned programmes` from its own records instead. - `user` — a standard user: only resources they own or are a member of. This module is PURE (no request/IO) so it is the shared contract: the gateway resolves + forwards it, an in-repo backend (or an external n8n one) enforces it with the same helpers."
+      "description": "DATA scope — the per-principal authorization boundary the backend enforces on top of the coarse RBAC tier. The gateway resolves it from the user's grants + claim/SCIM groups and forwards it (verified, inside the PSK-signed broker envelope) as part of `userContext`, so the system of record can confirm-and-enforce it: - `all` — pmo / admin: every project and programme. - `programme` — a programme manager: only projects in their owned programmes. In a \"basic\" (no-IdP) deployment `programmes` is empty and the backend maps `sub → owned programmes` from its own records instead. - `user` — a standard user: only resources they own or are a member of. - `project` — a GUEST principal (client-facing portal): exactly ONE project, nothing else. The narrowest scope; a guest can't even see the rest of its programme. This module is PURE (no request/IO) so it is the shared contract: the gateway resolves + forwards it, an in-repo backend (or an external n8n one) enforces it with the same helpers."
     },
     "SessionBind": {
       "type": "object",
@@ -1112,7 +1753,25 @@ export const BROKER_CONTRACT_SCHEMA = {
         "salt"
       ],
       "additionalProperties": false,
-      "description": "The non-secret material needed to re-derive a session's broker key."
+      "description": "Per-session broker signing key. The key used to sign a gateway→broker request is NOT the static env master — it is DERIVED, per session, as: sessionBrokerKey = HMAC( derivedKey(\"broker\", v), sub ‖ smono ‖ salt ) - `derivedKey(\"broker\", v)` = HMAC(env master, \"broker:vN\"). Only our system holds the master, so a signature that verifies under this key PROVES the request originated from our gateway — and rolls forward on key revocation. - `sub ‖ smono ‖ salt` binds the key to one USER and one SESSION: · sub — the acting username/subject. · smono — the monotonic-clock reading at session creation (a non-rewindable \"session start time\"; ordering is guaranteed within a replica). · salt — CSPRNG entropy minted once per session, so the key is regenerated from fresh entropy on every login and stays unique even across a process restart that resets the monotonic clock. The key itself NEVER leaves the gateway. We sign each request with it and transmit only the (non-secret) binding material — sub, smono, salt, broker-key version — so the broker re-derives the same key from ITS copy of the master and verifies. An observer who captures the binding material still cannot forge a signature without the master (HMAC), and a leaked session key is scoped to a single session. This is a shared-secret MAC, not a third-party signature: it authenticates to a party that holds the master (the broker), proving valid origin + that a specific user's valid session sent it. It does not provide non-repudiation against the gateway itself (the same trust boundary as the existing PSK)."
+    },
+    "ShapeKind": {
+      "enum": [
+        "rectangle",
+        "ellipse",
+        "diamond"
+      ],
+      "description": "The shapes a `shape` element can be."
+    },
+    "StickyColor": {
+      "enum": [
+        "yellow",
+        "green",
+        "blue",
+        "pink",
+        "gray"
+      ],
+      "description": "The palette of sticky-note colours (named, not raw hex — so the renderer owns the actual values)."
     },
     "Summary": {
       "type": "object",
@@ -1662,6 +2321,428 @@ export const BROKER_CONTRACT_SCHEMA = {
       ],
       "additionalProperties": false,
       "description": "Dry-run verification of the broker contract — must never mutate a backend."
+    },
+    "WbsElement": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "projectId": {
+          "type": "string"
+        },
+        "parentId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "name": {
+          "type": "string"
+        },
+        "level": {
+          "type": "number"
+        },
+        "status": {
+          "type": "string",
+          "description": "SAP system/user status label (display-only)."
+        },
+        "responsible": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "projectId",
+        "parentId",
+        "name",
+        "level"
+      ],
+      "additionalProperties": false,
+      "description": "SAP read model — a WBS element in a project's cost structure (docs/SAP-CONNECTOR.md §4.6). SAP owns these; we render them by reference (the id is the cost-collecting key), never copying at rest."
+    },
+    "WbsFinancials": {
+      "type": "object",
+      "properties": {
+        "wbsId": {
+          "type": "string"
+        },
+        "currency": {
+          "type": "string"
+        },
+        "budget": {
+          "type": "number"
+        },
+        "actual": {
+          "type": "number"
+        },
+        "commitment": {
+          "type": "number"
+        },
+        "wip": {
+          "type": "number"
+        },
+        "planned": {
+          "type": "number"
+        },
+        "available": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "wbsId",
+        "currency",
+        "budget",
+        "actual",
+        "commitment",
+        "wip",
+        "planned",
+        "available"
+      ],
+      "additionalProperties": false,
+      "description": "SAP read model — the financial roll-up for one WBS element, READ from SAP's ledger (ACDOCA). We never post or settle; all amounts are in `currency`. `available` = budget − (actual + commitment)."
+    },
+    "Whiteboard": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "projectId": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "Optional owning project (a board raised against a project); null for an org-level board."
+        },
+        "ownerSub": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "The board's creator (a user `sub`) — the owner for a personal board. Set server-side, never trusted from the client."
+        },
+        "visibility": {
+          "$ref": "#/$defs/WhiteboardVisibility",
+          "description": "Org-wide vs personal. A `user` board is visible/editable only to its `ownerSub`. Defaults to `org`. (Used by the sidecar store; the encrypted-JSON stores encode location in `storage`/the id instead.)"
+        },
+        "storage": {
+          "enum": [
+            "user",
+            "project",
+            "org",
+            "sidecar"
+          ],
+          "description": "Where the board lives: user / project / org (encrypted-JSON areas) or sidecar (the built-in SoR). The id also encodes this; the field is a convenience for the client."
+        },
+        "scene": {
+          "$ref": "#/$defs/WhiteboardScene"
+        },
+        "updatedAt": {
+          "type": "string"
+        },
+        "updatedBy": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "scene",
+        "updatedAt"
+      ],
+      "additionalProperties": true
+    },
+    "WhiteboardMeta": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "projectId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "ownerSub": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "visibility": {
+          "$ref": "#/$defs/WhiteboardVisibility"
+        },
+        "storage": {
+          "enum": [
+            "user",
+            "project",
+            "org",
+            "sidecar"
+          ]
+        },
+        "updatedAt": {
+          "type": "string"
+        },
+        "updatedBy": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "updatedAt"
+      ],
+      "additionalProperties": false,
+      "description": "A board's metadata (no scene body) — the list view."
+    },
+    "WhiteboardScene": {
+      "type": "object",
+      "properties": {
+        "elements": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/CanvasElement"
+          },
+          "description": "The canvas elements — typed `canvas`-family primitives (sticky/shape/text/connector/frame), validated per-type at the gateway. Built of shared primitives, not an opaque third-party scene blob."
+        },
+        "appState": {
+          "type": "object",
+          "additionalProperties": {},
+          "description": "A minimal, sanitised view state (e.g. background colour) — never a full editor appState."
+        }
+      },
+      "required": [
+        "elements"
+      ],
+      "additionalProperties": false,
+      "description": "A WHITEBOARD — a freeform visual canvas (roadmap 2.3). The drawing is an opaque scene of vector elements; like a wiki page it is authored in OmniProject but STORED through the broker (zero-at-rest), so it inherits the data seam's residency + audit. `scene` is a bounded, sanitised JSON payload (no embedded image data, links restricted to safe schemes) — never executed, just persisted + rendered."
+    },
+    "WhiteboardVisibility": {
+      "enum": [
+        "org",
+        "user"
+      ],
+      "description": "Where a board lives: `org` = shared org-wide (any viewer+); `user` = personal to its owner only."
+    },
+    "WhiteboardWrite": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "projectId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "visibility": {
+          "$ref": "#/$defs/WhiteboardVisibility",
+          "description": "Requested visibility (org-wide vs personal). The OWNER is set server-side from the caller, never here."
+        },
+        "scene": {
+          "$ref": "#/$defs/WhiteboardScene"
+        }
+      },
+      "required": [
+        "name",
+        "scene"
+      ],
+      "additionalProperties": false
+    },
+    "WikiDoc": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "spaceId": {
+          "type": "string"
+        },
+        "parentId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "slug": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "blocks": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/DocBlock"
+          }
+        },
+        "updatedAt": {
+          "type": "string"
+        },
+        "updatedBy": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "spaceId",
+        "slug",
+        "title",
+        "blocks",
+        "updatedAt"
+      ],
+      "additionalProperties": true,
+      "description": "A WIKI DOCUMENT — a page in a space, built of primitive `DocBlock`s (see backend-catalogue). Nesting is by `parentId` (a page tree); `slug` is the URL segment within the space. Content is authored in OmniProject but STORED through the broker, so it inherits the data seam's residency and audit controls."
+    },
+    "WikiDocVersion": {
+      "type": "object",
+      "properties": {
+        "versionId": {
+          "type": "string"
+        },
+        "docId": {
+          "type": "string"
+        },
+        "at": {
+          "type": "string"
+        },
+        "author": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "title": {
+          "type": "string"
+        },
+        "blocks": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/DocBlock"
+          }
+        }
+      },
+      "required": [
+        "versionId",
+        "docId",
+        "at",
+        "title",
+        "blocks"
+      ],
+      "additionalProperties": true,
+      "description": "A saved REVISION of a wiki document — a point-in-time snapshot captured by the system of record on each write, so a page's history is auditable and any prior state can be restored (by re-saving its content through the normal update path). `versionId` is unique within the document's history."
+    },
+    "WikiDocVersionMeta": {
+      "type": "object",
+      "properties": {
+        "versionId": {
+          "type": "string"
+        },
+        "docId": {
+          "type": "string"
+        },
+        "at": {
+          "type": "string"
+        },
+        "author": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "title": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "versionId",
+        "docId",
+        "at",
+        "title"
+      ],
+      "additionalProperties": false,
+      "description": "A revision's metadata (no block body) — the history list view."
+    },
+    "WikiDocWrite": {
+      "type": "object",
+      "properties": {
+        "spaceId": {
+          "type": "string"
+        },
+        "parentId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "slug": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "blocks": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/DocBlock"
+          }
+        }
+      },
+      "required": [
+        "spaceId",
+        "title",
+        "blocks"
+      ],
+      "additionalProperties": false
+    },
+    "WikiSpace": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "key": {
+          "type": "string",
+          "description": "Short stable key (URL segment)."
+        },
+        "name": {
+          "type": "string"
+        },
+        "description": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "key",
+        "name"
+      ],
+      "additionalProperties": true,
+      "description": "A WIKI SPACE — a named container for documents (a knowledge base / team space). Like everything else the body lives in the backend system of record; OmniProject is zero-at-rest. Only backends that model a wiki/knowledge base expose these."
     }
   }
 } as const;

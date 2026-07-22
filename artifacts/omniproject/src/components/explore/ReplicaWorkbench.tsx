@@ -57,7 +57,7 @@ export function ReplicaWorkbench() {
     overlay.current = newOverlay();
     setFetchInterceptor((req) => resolveReplica(replica, overlay.current, req));
     qc.clear(); // drop any live-cached data so the mounted views read the replica
-    markExplorationDirty();
+    markExplorationDirty("replica");
     return () => {
       setFetchInterceptor(null);
       qc.clear(); // and refetch live once we leave replica mode

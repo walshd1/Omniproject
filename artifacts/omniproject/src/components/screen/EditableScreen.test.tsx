@@ -5,13 +5,13 @@ import type { ScreenDef } from "../../lib/screen";
 
 /**
  * EditableScreen: the generic PMO/admin layout editor over ScreenRenderer. A non-editor sees only the
- * arranged screen; a PMO/admin gets Edit layout → reorder (drag), ±span, hide/show → Save, which persists
- * the merged per-screen layout map. These lock the gating and the save payload.
+ * arranged screen; a PMO/admin gets Edit layout → reorder (drag), ±span, hide/show → Save, which FOLDS the
+ * layout INTO the screen def (upserted through the importer). These lock the gating and the save payload.
  */
 
 let role = "viewer";
-let savedLayouts: Record<string, unknown> = { other: { order: ["x"] } };
-const saveMutate = vi.fn();
+let savedLayouts: Record<string, unknown> = {}; // legacy `screenLayouts` bridge (pre-fold)
+const saveOverride = vi.fn().mockResolvedValue(undefined);
 
 vi.mock("../../lib/auth", async (importActual) => {
   const actual = await importActual<typeof import("../../lib/auth")>();
@@ -20,7 +20,10 @@ vi.mock("../../lib/auth", async (importActual) => {
 
 vi.mock("../../lib/screen-layouts", () => ({
   useScreenLayouts: () => ({ data: savedLayouts }),
-  useSaveScreenLayouts: () => ({ mutate: saveMutate, isPending: false }),
+}));
+
+vi.mock("../../lib/org-screens", () => ({
+  useSaveScreenOverride: () => ({ save: saveOverride, saving: false }),
 }));
 
 const { EditableScreen } = await import("./EditableScreen");
@@ -36,8 +39,8 @@ const s: ScreenDef = {
 
 beforeEach(() => {
   role = "viewer";
-  savedLayouts = { other: { order: ["x"] } };
-  saveMutate.mockReset();
+  savedLayouts = {};
+  saveOverride.mockClear();
 });
 
 const wraps = () => screen.getAllByTestId(/^panel-wrap-/).map((el) => el.getAttribute("data-testid"));
@@ -58,7 +61,7 @@ describe("EditableScreen", () => {
     expect(screen.getByTestId("save-layout")).toBeTruthy();
   });
 
-  it("saves a merged layout map with span + hidden edits (preserving other screens)", () => {
+  it("folds the layout INTO the screen def with span + hidden edits (id pinned, panels kept)", async () => {
     role = "admin";
     renderWithProviders(<EditableScreen screen={s} />);
     fireEvent.click(screen.getByTestId("edit-layout"));
@@ -67,12 +70,13 @@ describe("EditableScreen", () => {
     expect(screen.getByTestId("span-value-a").textContent).toBe("7");
     fireEvent.click(screen.getByTestId("toggle-hidden-b"));
     fireEvent.click(screen.getByTestId("save-layout"));
-    expect(saveMutate).toHaveBeenCalledTimes(1);
-    const [payload] = saveMutate.mock.calls[0]!;
-    // the OTHER screen's layout is preserved, and ours carries the edits
-    expect(payload.other).toEqual({ order: ["x"] });
-    expect(payload.rep.spans.a).toBe(7);
-    expect(payload.rep.hidden).toContain("b");
+    await vi.waitFor(() => expect(saveOverride).toHaveBeenCalledTimes(1));
+    const [def] = saveOverride.mock.calls[0]!;
+    // the saved DEF is this screen (id pinned, panels preserved) carrying the arrangement in `layout`
+    expect(def.id).toBe("rep");
+    expect(def.panels).toHaveLength(2);
+    expect(def.layout.spans.a).toBe(7);
+    expect(def.layout.hidden).toContain("b");
   });
 
   it("applies a methodology fallback layout when the customer has none saved", () => {
@@ -94,6 +98,6 @@ describe("EditableScreen", () => {
     fireEvent.click(screen.getByTestId("span-up-a"));
     fireEvent.click(screen.getByTestId("cancel-layout"));
     expect(screen.queryByTestId("layout-editor-controls")).toBeNull();
-    expect(saveMutate).not.toHaveBeenCalled();
+    expect(saveOverride).not.toHaveBeenCalled();
   });
 });

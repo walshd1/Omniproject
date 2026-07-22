@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -9,21 +10,27 @@ import { useDraftAdmin } from "../../../hooks/use-draft-admin";
 import { sendJson } from "../../../lib/api";
 import { useToast } from "@/hooks/use-toast";
 import { EditableRowTable } from "../../settings/EditableRowTable";
+import { useStore } from "../../../store/useStore";
+import { useSlotRows, slotRowsQueryKey, type SlotRow } from "../../../lib/data-slot";
 
 /**
  * Register panel — an EDITABLE data grid on the screen itself. Unlike the read-only `table`, this lets an
- * authorised user (manager+) complete and update the underlying register right here — add / edit / delete
- * rows and Save — so RACI, stakeholders, budget lines, allocations, etc. are filled in ON their page, not
- * only in Settings. Viewers see the same data read-only. The rows come from a settings collection (read via
- * the shared /api/settings slice) and save through that collection's PUT endpoint.
+ * authorised user (contributor+) complete and update the underlying register right here — add / edit / delete
+ * rows and Save. Viewers see the same data read-only. It has TWO sources, chosen in JSON:
+ *
+ *  - SETTINGS collection (`collection` + `endpoint`): rows read from the shared /api/settings slice, saved as a
+ *    whole array to that collection's PUT endpoint (RACI, stakeholders, budget lines, …).
+ *  - GENERIC SLOT (`slot`): rows read from `/api/projects/{active}/mapping/:slot/rows`, saved by RECONCILING the
+ *    draft against the server through the generic mapping surface (per-row PUT + DELETE of removed rows). This
+ *    is the SAME editable grid, just slot-backed — so a register/board over ANY mapping slot (epics, sprints,
+ *    raid, milestones, …) is a pure JSON screen def with no new primitive or endpoint.
  *
  * config: {
- *   collection: settings field key (e.g. "raci"); rows are read from it,
- *   endpoint:   PUT target (e.g. "/api/raci"),
- *   responseKey?: body/response key (defaults to `collection`),
- *   idPrefix?:  id stem for new rows (defaults to `collection`),
- *   addLabel?:  "Add entry",
- *   columns:    [{ field, label, type?: "text"|"number"|"select", options?: string[] }]
+ *   // settings-collection source:
+ *   collection?, endpoint?, responseKey?, idPrefix?, addLabel?, defaultEditRole?,
+ *   // OR slot source:
+ *   slot?,
+ *   columns: [{ field, label, type?: "text"|"number"|"select"|"date", options?: string[] }]
  * }
  */
 type Row = Record<string, unknown> & { id: string };
@@ -36,7 +43,9 @@ export function RegisterPanel({ panel }: { panel: Panel }) {
   const collection = str(c["collection"]);
   const endpoint = str(c["endpoint"]);
   const responseKey = str(c["responseKey"]) || collection;
-  const idPrefix = str(c["idPrefix"]) || collection || "row";
+  const slot = str(c["slot"]);
+  const projectId = useStore((s) => s.activeProjectId) ?? "";
+  const idPrefix = str(c["idPrefix"]) || collection || slot || "row";
   const addLabel = str(c["addLabel"]) || "Add entry";
   const columns: Column[] = Array.isArray(c["columns"]) ? (c["columns"] as Column[]) : [];
 
@@ -49,15 +58,42 @@ export function RegisterPanel({ panel }: { panel: Panel }) {
   });
   const fallbackRole = (str(c["defaultEditRole"]) || "contributor") as Role;
   const effective = policy ?? fallbackRole;
-  const canEdit = !!endpoint && effective !== "readonly" && roleAtLeast(auth?.role, effective as Role);
-  const { data: serverRows } = useSettingsSlice((s) => (Array.isArray(s[collection]) ? (s[collection] as Row[]) : []));
-  const { draft, setDraft, dirty, reset } = useDraftAdmin<Row[], Row[]>(serverRows, structuredClone);
+  // Both sources are always subscribed (hooks are enabled-gated by their key), only the chosen one is used.
+  const { data: settingsRows } = useSettingsSlice((s) => (Array.isArray(s[collection]) ? (s[collection] as Row[]) : []));
+  const { data: slotRows } = useSlotRows(slot ? projectId : undefined, slot);
+  const serverRows = useMemo<Row[]>(() => (slot ? (slotRows as Row[] | undefined) : settingsRows) ?? [], [slot, slotRows, settingsRows]);
+  // Slot mode writes through the generic surface (contributor+, server-enforced); settings mode needs an endpoint.
+  const canEdit = (slot ? !!projectId : !!endpoint) && effective !== "readonly" && roleAtLeast(auth?.role, effective as Role);
+  const { draft, setDraft, dirty, reset } = useDraftAdmin<Row[], Row[]>(serverRows);
   const qc = useQueryClient();
   const { toast } = useToast();
 
+  // Reconcile the draft against the server through the generic slot surface: upsert every draft row (id keys it,
+  // not a written value), then delete any server row the draft dropped. The server re-validates each write.
+  const saveSlot = async (rows: Row[]) => {
+    const base = `/api/projects/${encodeURIComponent(projectId)}/mapping/${encodeURIComponent(slot)}`;
+    const draftIds = new Set(rows.map((r) => str(r.id)).filter(Boolean));
+    for (const r of rows) {
+      const rowId = str(r.id);
+      if (!rowId) continue;
+      const fields: SlotRow = {};
+      for (const [k, v] of Object.entries(r)) if (k !== "id") fields[k] = v;
+      await sendJson(`${base}/${encodeURIComponent(rowId)}`, { fields }, "PUT", "Failed to save");
+    }
+    for (const r of serverRows) {
+      const rowId = str(r.id);
+      if (rowId && !draftIds.has(rowId)) await sendJson<void>(`${base}/${encodeURIComponent(rowId)}`, undefined, "DELETE", "Failed to delete");
+    }
+  };
+
   const save = useMutation({
-    mutationFn: async (rows: Row[]) => sendJson<unknown>(endpoint, { [responseKey]: rows }, "PUT", "Failed to save"),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: settingsQueryKey }); qc.invalidateQueries({ queryKey: ["panel-data"] }); toast({ title: "SAVED", description: panel.title ?? collection }); },
+    mutationFn: async (rows: Row[]) => (slot ? saveSlot(rows) : sendJson<unknown>(endpoint, { [responseKey]: rows }, "PUT", "Failed to save")),
+    onSuccess: () => {
+      if (slot) qc.invalidateQueries({ queryKey: slotRowsQueryKey(projectId, slot) });
+      else qc.invalidateQueries({ queryKey: settingsQueryKey });
+      qc.invalidateQueries({ queryKey: ["panel-data"] });
+      toast({ title: "SAVED", description: panel.title ?? collection ?? slot });
+    },
     onError: (e) => toast({ title: "COULD NOT SAVE", description: e instanceof Error ? e.message : "Try again.", variant: "destructive" }),
   });
 

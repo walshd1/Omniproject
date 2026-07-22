@@ -7,7 +7,7 @@ import { internalKeyFingerprint } from "../lib/config-crypto";
 import { exportConfig } from "../lib/config-store";
 import { persistSecurityState } from "../lib/security-state";
 import { listKeys, revokeKey, revokeUserSessions, KEY_NAMES, type KeyName } from "../lib/key-registry";
-import { auditAnchor, verifyAuditChain, type SealedAuditEvent } from "../lib/audit-chain";
+import { auditAnchor, verifyAuditChain, auditLogStatus, disposeAuditLog, type SealedAuditEvent } from "../lib/audit-chain";
 import { signingInfo } from "../lib/signing";
 import { residencyStatus } from "../lib/data-residency";
 import { validateResidencyPolicy } from "../lib/residency-policy";
@@ -198,6 +198,20 @@ router.post("/security/audit/verify", requireRole("admin"), (req, res) => {
   if (body.events.length > 50_000) { res.status(413).json({ error: "Too many events: verify in slices of ≤ 50000." }); return; }
   const expectedFirstPrev = typeof body.expectedFirstPrev === "string" ? body.expectedFirstPrev : undefined;
   res.json(verifyAuditChain(body.events as SealedAuditEvent[], expectedFirstPrev));
+});
+
+// GET the status of the sealed local audit EVIDENCE log — retained count, the disposal window, the span, and
+// whether it's durable at rest (a config dir is set) or RAM-only. Admin; content-free (no event bodies).
+router.get("/security/audit/log", requireRole("admin"), (_req, res) => {
+  res.json(auditLogStatus());
+});
+
+// POST to enforce the retention window on the evidence log NOW — prune events older than
+// `historyRetention.retentionDays` (+ the hard cap). Admin + step-up (it deletes durable evidence), audited.
+router.post("/security/audit/log/dispose", requireRole("admin"), requireStepUp, (req, res) => {
+  const result = disposeAuditLog();
+  recordRequestAudit(req, { category: "admin", action: "audit_log.dispose", write: true, result: "success", meta: result });
+  res.json(result);
 });
 
 // ── Dual-control approval queue (maker-checker) ──────────────────────────────────

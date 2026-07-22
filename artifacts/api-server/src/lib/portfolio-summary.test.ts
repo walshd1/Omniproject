@@ -1,7 +1,12 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import type { PortfolioRow } from "../broker";
-import { summarizeHealth, foldFinance, foldCapacity } from "./portfolio-summary";
+import { summarizeHealth, foldFinance, foldCapacity, portfolioSummaryCacheKey } from "./portfolio-summary";
+
+type CacheKeyCtx = Parameters<typeof portfolioSummaryCacheKey>[0];
+type CacheKeySettings = Parameters<typeof portfolioSummaryCacheKey>[1];
+const settings = (over: Partial<CacheKeySettings> = {}): CacheKeySettings =>
+  ({ reportingCurrency: "GBP", fxRatePolicy: "spot", ...over }) as CacheKeySettings;
 
 function row(partial: Partial<PortfolioRow>): PortfolioRow {
   return {
@@ -110,4 +115,32 @@ test("foldCapacity: sums hours, counts over-allocations, and computes utilisatio
 test("foldCapacity: utilisation is null when there's no declared availability", () => {
   const totals = foldCapacity([{ allocationPercentage: 100, assignedHours: 10, availableHours: 0 }]);
   assert.equal(totals.utilisation, null);
+});
+
+// ── portfolioSummaryCacheKey (scope-safety of the read-cache bucket) ─────────────
+
+test("cache key: an all-scope admin and a programme-scoped token never share a bucket", () => {
+  const admin = { sub: "admin", scope: { level: "all" } } as unknown as CacheKeyCtx;
+  const progToken = { sub: "apitoken:alpha", scope: { level: "programme", programmes: ["alpha"] } } as unknown as CacheKeyCtx;
+  assert.notEqual(portfolioSummaryCacheKey(admin, settings()), portfolioSummaryCacheKey(progToken, settings()));
+});
+
+test("cache key: two DIFFERENT programme scopes get different keys", () => {
+  const alpha = { sub: "t", scope: { level: "programme", programmes: ["alpha"] } } as unknown as CacheKeyCtx;
+  const beta = { sub: "t", scope: { level: "programme", programmes: ["beta"] } } as unknown as CacheKeyCtx;
+  assert.notEqual(portfolioSummaryCacheKey(alpha, settings()), portfolioSummaryCacheKey(beta, settings()));
+});
+
+test("cache key: same identity + scope + currency ⇒ SAME key (so it can actually cache)", () => {
+  const a = { sub: "u1", scope: { level: "user", sub: "u1" } } as unknown as CacheKeyCtx;
+  const b = { sub: "u1", scope: { level: "user", sub: "u1" } } as unknown as CacheKeyCtx;
+  assert.equal(portfolioSummaryCacheKey(a, settings()), portfolioSummaryCacheKey(b, settings()));
+});
+
+test("cache key: switching reporting currency changes the key (no wrong-currency total served)", () => {
+  const ctx = { sub: "admin", scope: { level: "all" } } as unknown as CacheKeyCtx;
+  assert.notEqual(
+    portfolioSummaryCacheKey(ctx, settings({ reportingCurrency: "GBP" })),
+    portfolioSummaryCacheKey(ctx, settings({ reportingCurrency: "USD" })),
+  );
 });

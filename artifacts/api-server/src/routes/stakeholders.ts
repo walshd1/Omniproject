@@ -1,8 +1,9 @@
 import { Router } from "express";
-import { getSettings } from "../lib/settings";
+import { normalisedBy } from "../lib/settings";
 import { settingsCollectionRouter } from "../lib/settings-collection-router";
+import { readConfigCollection } from "../lib/scoped-config";
 import { requireCollectionEdit } from "../lib/collection-edit-policy";
-import { stakeholderRows } from "../lib/stakeholder";
+import { stakeholderRows, validateStakeholders, StakeholderError, type Stakeholder } from "../lib/stakeholder";
 import { rollup, parseRollupQuery } from "../lib/rollup";
 
 /**
@@ -13,14 +14,16 @@ import { rollup, parseRollupQuery } from "../lib/rollup";
 const router = Router();
 
 router.get("/stakeholders/rows", (req, res) => {
-  const rows = stakeholderRows(getSettings().stakeholders ?? []);
+  const rows = stakeholderRows(readConfigCollection<Stakeholder[]>("stakeholders", []));
   const spec = parseRollupQuery(req.query as Record<string, unknown>);
   res.json({ rows: spec ? rollup(rows, spec) : rows });
 });
 
 router.use(settingsCollectionRouter({
   path: "/stakeholders",
-  settingsKey: "stakeholders",
+  responseKey: "stakeholders",
+  configId: "stakeholders", // config-def-backed (CHOICE) — no longer a settings key
+  validate: normalisedBy((v) => validateStakeholders(v), StakeholderError),
   versionLabel: "stakeholders updated",
   // Default user-editable (contributor+); an admin/PMO can raise or lock it via collectionEditRoles.
   writeGuards: [requireCollectionEdit("stakeholders", "contributor")],

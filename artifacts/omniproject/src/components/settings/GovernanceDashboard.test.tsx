@@ -50,6 +50,8 @@ describe("GovernanceDashboard", () => {
     expect(screen.getByTestId("activity-log")).toBeInTheDocument();
     expect(screen.getByText("blocked")).toBeInTheDocument();
     expect(screen.getByText(/on finance/)).toBeInTheDocument();
+    // The trail is virtualized: each entry is a windowing row; all render when short/unmeasured.
+    expect(screen.getByTestId("activity-log").querySelectorAll("li[data-vrow]").length).toBe(2);
   });
 
   it("surfaces full containment by default and default-deny when there are no grants", () => {

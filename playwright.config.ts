@@ -22,12 +22,19 @@ const executablePath = [process.env["PW_CHROMIUM"], PRE_INSTALLED].find((p) => p
 
 export default defineConfig({
   testDir: "artifacts/omniproject/e2e",
-  timeout: 30_000,
-  expect: { timeout: 10_000 },
+  // Timeouts are sized for CI RESILIENCE, not app speed: the suite runs single-worker against one demo
+  // server process, so a transient runner CPU/GC stall (observed: a ~10s pause mid-run cascading into a
+  // batch of `<h1>`-not-visible timeouts) must not fail an otherwise-passing acceptance run. A slower
+  // wait tolerates the stall; a GENUINE missing element still fails (the element never appears, so a
+  // longer wait can't rescue it) — so this hardens against flakes without masking real regressions.
+  timeout: 45_000,
+  expect: { timeout: 15_000 },
   fullyParallel: false,
   workers: 1,
   forbidOnly: !!process.env["CI"],
-  retries: process.env["CI"] ? 1 : 0,
+  // Two retries on CI: a single retry got caught inside the same stall window; a second attempt clears
+  // a transient pause that outlasts one retry.
+  retries: process.env["CI"] ? 2 : 0,
   reporter: process.env["CI"] ? "line" : "list",
   use: {
     baseURL: `http://127.0.0.1:${PORT}`,

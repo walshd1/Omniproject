@@ -11,7 +11,11 @@
  */
 import type { Request } from "express";
 import { getBroker, contextFromReq } from "../broker";
-import type { Whiteboard, WhiteboardWrite, WhiteboardScene } from "../broker/types";
+import type { ActorContext, Whiteboard, WhiteboardMeta, WhiteboardWrite, WhiteboardScene } from "../broker/types";
+import type { StorageTarget } from "./artifact-store";
+import { makeScopedId, parseScopedId, scopeFromParsed, isStorageTarget } from "./artifact-store";
+import { sanitizeText as cleanText } from "./coerce";
+import { actorLabel } from "./actor";
 import {
   CANVAS_ELEMENT_TYPES, CANVAS_LIMITS, SHAPE_KINDS, STICKY_COLORS,
   type CanvasElement, type CanvasElementType, type ShapeKind, type StickyColor,
@@ -22,6 +26,83 @@ export class WhiteboardError extends Error {
   constructor(message: string) { super(message); this.name = "WhiteboardError"; }
 }
 
+/**
+ * Where a board is stored — the caller's CHOICE (permission-gated):
+ *   - `user`     the caller's PRIVATE encrypted-JSON area (only they see it).
+ *   - `project`  a project's shared encrypted-JSON area (needs project scope).
+ *   - `org`      the org-wide shared encrypted-JSON area (needs org-write permission).
+ *   - `sidecar`  the built-in system-of-record (the OmniStore), when it's loaded.
+ */
+export type WhiteboardStorage = StorageTarget;
+/** The artifact-store type key for whiteboards. */
+export const WHITEBOARD_ARTIFACT = "whiteboard";
+
+/** A sanitised whiteboard write PLUS its chosen storage target. */
+export interface SanitizedWhiteboardWrite {
+  name: string;
+  scene: WhiteboardScene;
+  storage: WhiteboardStorage;
+  projectId?: string;
+}
+
+/** Build a self-describing whiteboard id (shared scoped-id primitive). */
+export const makeWhiteboardId = makeScopedId;
+
+/** Parse a self-describing whiteboard id back to its storage + parts, or null if malformed / not a whiteboard
+ *  target (the def-only `programme` tier is rejected — a whiteboard is never programme-scoped). */
+export function parseWhiteboardId(id: string): { storage: StorageTarget; projectId?: string; localId: string } | null {
+  const p = parseScopedId(id);
+  if (!p || !isStorageTarget(p.storage)) return null;
+  return p.projectId !== undefined
+    ? { storage: p.storage, projectId: p.projectId, localId: p.localId }
+    : { storage: p.storage, localId: p.localId };
+}
+
+/** The encrypted-JSON scope for a non-sidecar id. The caller's OWN sub is always used for a user board, so
+ *  the id can never address another user's private area. */
+export const whiteboardScope = scopeFromParsed;
+
+/**
+ * Build the row for a NEW board destined for an encrypted-JSON store. The owner is stamped from `ctx.sub`
+ * (never the client), the storage target + self-describing id are recorded, and the scene is the already
+ * sanitised one. The `id` is the self-describing id, so a later read routes straight to the right store.
+ */
+export function newJsonBoardRow(id: string, input: SanitizedWhiteboardWrite, ctx: ActorContext, now: string): Whiteboard {
+  return {
+    id,
+    name: input.name,
+    projectId: input.projectId ?? null,
+    ownerSub: ctx.sub ?? null,
+    storage: input.storage,
+    scene: input.scene,
+    updatedAt: now,
+    updatedBy: actorLabel(ctx),
+  };
+}
+
+/** Apply an UPDATE to an existing JSON board, preserving its id/owner/storage (a write can't move or reown it). */
+export function mergeJsonBoardRow(existing: Whiteboard, input: SanitizedWhiteboardWrite, ctx: ActorContext, now: string): Whiteboard {
+  return {
+    ...existing,
+    name: input.name,
+    projectId: input.projectId ?? existing.projectId ?? null,
+    scene: input.scene,
+    updatedAt: now,
+    updatedBy: actorLabel(ctx),
+  };
+}
+
+/** The metadata view of a board (scene body dropped) — the list projection. */
+export function boardMeta(b: Whiteboard): WhiteboardMeta {
+  const meta: WhiteboardMeta = { id: b.id, name: b.name, updatedAt: b.updatedAt };
+  if (b.projectId !== undefined) meta.projectId = b.projectId;
+  if (b.ownerSub !== undefined) meta.ownerSub = b.ownerSub;
+  if (b.visibility !== undefined) meta.visibility = b.visibility;
+  if (b.storage !== undefined) meta.storage = b.storage;
+  if (b.updatedBy !== undefined) meta.updatedBy = b.updatedBy;
+  return meta;
+}
+
 const ELEMENT_TYPE_SET = new Set<string>(CANVAS_ELEMENT_TYPES);
 const SHAPE_SET = new Set<string>(SHAPE_KINDS);
 const COLOR_SET = new Set<string>(STICKY_COLORS);
@@ -30,19 +111,6 @@ const SAFE_LINK_SCHEMES = new Set(["http:", "https:", "mailto:"]);
 /** Coordinates are clamped to a finite range so a rogue value can't blow up a renderer. */
 const COORD_MIN = -1_000_000;
 const COORD_MAX = 1_000_000;
-
-/** Strip control characters and cap length on a free-text value (note text, board name). */
-function cleanText(value: unknown, max: number): string {
-  if (typeof value !== "string") return "";
-  let out = "";
-  for (const ch of value) {
-    const c = ch.codePointAt(0)!;
-    const printable = c === 9 || c === 10 || (c >= 32 && c !== 127 && !(c >= 128 && c <= 159));
-    if (printable) out += ch;
-    if (out.length >= max) break;
-  }
-  return out.slice(0, max);
-}
 
 /** A finite number clamped to the canvas coordinate range (defaulted when absent/NaN). */
 function coord(v: unknown, def = 0): number {
@@ -169,14 +237,17 @@ export function sanitizeWhiteboardScene(raw: unknown): WhiteboardScene {
  * Sanitise a whole whiteboard write — the single choke point for POST/PUT. Validates the name, carries a
  * trimmed projectId when present, and sanitises the scene. Throws {@link WhiteboardError} (→ 400).
  */
-export function sanitizeWhiteboardWrite(raw: unknown): WhiteboardWrite {
+export function sanitizeWhiteboardWrite(raw: unknown): SanitizedWhiteboardWrite {
   const obj = (raw ?? {}) as Record<string, unknown>;
   const name = cleanText(obj["name"], CANVAS_LIMITS.maxName).trim();
   if (!name) throw new WhiteboardError("a whiteboard needs a name");
   const scene = sanitizeWhiteboardScene(obj["scene"] ?? { elements: [] });
-  const out: WhiteboardWrite = { name, scene };
+  // Storage target — the caller's choice, permission-gated at the route. Defaults to the private user area.
+  const storage: WhiteboardStorage = isStorageTarget(obj["storage"]) ? obj["storage"] : "user";
+  const out: SanitizedWhiteboardWrite = { name, scene, storage };
   const projectId = obj["projectId"];
   if (typeof projectId === "string" && projectId.trim()) out.projectId = projectId.trim();
+  if (storage === "project" && !out.projectId) throw new WhiteboardError("a project whiteboard needs a projectId");
   return out;
 }
 

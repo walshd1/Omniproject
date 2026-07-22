@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ClipboardList } from "lucide-react";
@@ -9,7 +10,8 @@ import { canStoreField } from "../../lib/capabilities-fields";
 import { familyFolders } from "../../lib/primitive-store";
 import { useDraftAdmin } from "../../hooks/use-draft-admin";
 import { useToast } from "@/hooks/use-toast";
-import { useForms, useSaveForms, type FormDef } from "../../lib/forms";
+import { useResolvedDefs, useImportDef, useUpdateDef, useDeleteDef } from "../../lib/defs";
+import { useLegacyForms, useDrainLegacyForms, formsResolvedKey, type FormDef } from "../../lib/forms";
 import { AdminSection } from "./AdminSection";
 import { EditableRowTable } from "./EditableRowTable";
 
@@ -32,14 +34,28 @@ function uniqueId(base: string, taken: Set<string>): string {
 export function FormsAdmin() {
   const { data: auth } = useAuth();
   const { data: caps } = useGetCapabilities();
-  const { data: server } = useForms();
-  const save = useSaveForms();
+  // Forms are ARTIFACTS in the def store now. Edit the ORG-scoped form defs (the governance-owned set);
+  // shipped `system~…` templates are read-only and excluded. Each row maps back to its scoped def id so a save
+  // is a per-def upsert through the importer (create / edit-in-place / delete) — the ONE write path.
+  const { data: defs } = useResolvedDefs<FormDef>("form");
+  // Memoised so the references are STABLE across renders — `useDraftAdmin` re-syncs its draft when `server`
+  // changes identity, so a fresh array every render would loop. Recompute only when the def set changes.
+  const orgDefs = useMemo(() => (Array.isArray(defs) ? defs : []).filter((d) => d.id.startsWith("org~")), [defs]);
+  const idByFormId = useMemo(() => new Map(orgDefs.map((d) => [(d.payload as FormDef).id, d.id])), [orgDefs]);
+  const server = useMemo(() => orgDefs.map((d) => d.payload as FormDef), [orgDefs]);
+  const importDef = useImportDef();
+  const updateDef = useUpdateDef();
+  const deleteDef = useDeleteDef();
+  const qc = useQueryClient();
+  const legacy = useLegacyForms();
+  const drain = useDrainLegacyForms();
+  const saving = importDef.isPending || updateDef.isPending || deleteDef.isPending || drain.isPending;
   // Issue fields a form may map onto: the catalogue targets the connected backend advertises as storable.
   // title/description/labels are core (always offered); the rest are capability-gated.
   const CORE_TARGETS = new Set(["title", "description", "labels"]);
   const mapTargets = ISSUE_WRITE_TARGETS.filter((t) => CORE_TARGETS.has(t) || canStoreField(caps, t));
   const { toast } = useToast();
-  const { draft, setDraft, dirty, reset } = useDraftAdmin<FormDef[], FormDef[]>(server, structuredClone);
+  const { draft, setDraft, dirty, reset } = useDraftAdmin<FormDef[], FormDef[]>(server);
   const [templateId, setTemplateId] = useState("");
 
   if (!isPmoOrAdmin(auth?.role)) return null;
@@ -87,10 +103,36 @@ export function FormsAdmin() {
   };
   const anyBad = forms.some((f) => formBad(f) !== null) || new Set(forms.map((f) => f.id)).size !== forms.length;
 
-  const onSave = () => save.mutate(forms, {
-    onSuccess: () => toast({ title: "FORMS SAVED", description: "Intake forms updated." }),
-    onError: (e) => toast({ title: "COULD NOT SAVE", description: e instanceof Error ? e.message : "Try again.", variant: "destructive" }),
-  });
+  // A save is a per-def upsert against the loaded org form defs: PUT an existing form's def in place, POST a
+  // new one, DELETE a removed one — all through the importer choke point.
+  const onSave = async () => {
+    try {
+      const draftIds = new Set(forms.map((f) => f.id));
+      for (const f of forms) {
+        const scopedId = idByFormId.get(f.id);
+        if (scopedId) await updateDef.mutateAsync({ id: scopedId, name: f.label, payload: f });
+        else await importDef.mutateAsync({ kind: "form", storage: "org", name: f.label, payload: f });
+      }
+      for (const d of orgDefs) if (!draftIds.has((d.payload as FormDef).id)) await deleteDef.mutateAsync(d.id);
+      await qc.invalidateQueries({ queryKey: formsResolvedKey });
+      toast({ title: "FORMS SAVED", description: "Intake forms updated." });
+    } catch (e) {
+      toast({ title: "COULD NOT SAVE", description: e instanceof Error ? e.message : "Try again.", variant: "destructive" });
+    }
+  };
+
+  // One-shot migration of any pre-convergence `settings.forms` into the def store, then drain the legacy slice.
+  const legacyForms = legacy.data ?? [];
+  const migrateLegacy = async () => {
+    try {
+      for (const f of legacyForms) if (!idByFormId.has(f.id)) await importDef.mutateAsync({ kind: "form", storage: "org", name: f.label, payload: f });
+      await drain.mutateAsync();
+      await qc.invalidateQueries({ queryKey: formsResolvedKey });
+      toast({ title: "MIGRATED", description: "Legacy forms moved into the def store." });
+    } catch (e) {
+      toast({ title: "MIGRATION FAILED", description: e instanceof Error ? e.message : "Try again.", variant: "destructive" });
+    }
+  };
 
   return (
     <AdminSection icon={ClipboardList} title="Forms" testId="forms-admin" bodyClassName="space-y-4">
@@ -106,6 +148,11 @@ export function FormsAdmin() {
           {FORMS.map((t) => <option key={t.id} value={t.id}>{t.label}</option>)}
         </select>
         <Button type="button" variant="outline" size="sm" onClick={addFromTemplate} disabled={!templateId} data-testid="form-add-template">Add</Button>
+        {legacyForms.length > 0 && (
+          <Button type="button" variant="outline" size="sm" onClick={migrateLegacy} disabled={saving} data-testid="forms-migrate-legacy">
+            Migrate {legacyForms.length} legacy form{legacyForms.length === 1 ? "" : "s"}
+          </Button>
+        )}
       </div>
 
       {forms.length === 0 && <p className="text-xs text-muted-foreground" data-testid="forms-empty">No forms yet.</p>}
@@ -168,7 +215,7 @@ export function FormsAdmin() {
 
       <div className="flex items-center gap-2">
         {dirty && <Button type="button" variant="ghost" size="sm" onClick={reset}>Reset</Button>}
-        <Button type="button" size="sm" onClick={onSave} disabled={!dirty || anyBad || save.isPending} data-testid="forms-save">{save.isPending ? "SAVING…" : "Save forms"}</Button>
+        <Button type="button" size="sm" onClick={onSave} disabled={!dirty || anyBad || saving} data-testid="forms-save">{saving ? "SAVING…" : "Save forms"}</Button>
       </div>
     </AdminSection>
   );

@@ -1,4 +1,5 @@
 import type { Issue } from "@workspace/api-client-react";
+import { getMethodology } from "@workspace/backend-catalogue";
 
 /**
  * Methodology helpers. OmniProject's data model (status, priority, labels,
@@ -54,21 +55,31 @@ export const SPRINT_COLUMNS = ["todo", "in_progress", "in_review", "done"] as co
 export const WIP_LIMITS: Record<string, number> = { in_progress: 4, in_review: 3 };
 
 // ── PRINCE2 management stages ─────────────────────────────────────────────────
-export const PRINCE2_STAGES = ["Initiation", "Delivery", "Closure"] as const;
+// SINGLE source of truth: the methodology asset (assets/methodologies/prince2.json → tools.states),
+// consumed via the catalogue accessor — no second hardcoded list to drift from it. The status→stage
+// MAPPING below is the action (code); the stage vocabulary is the data (JSON).
+export const PRINCE2_STAGES: readonly string[] = getMethodology("prince2")?.tools.states ?? [];
 
-/** PRINCE2 management stage from an explicit `stage:` label, else from status. */
+/** PRINCE2 stage from an explicit `stage:` label, else mapped from status onto the asset's ordered
+ *  stages (starting-up → initiating → delivering → closing). Robust to a shorter/edited stage list:
+ *  early statuses take the earliest stages, terminal work the last. */
 export function prince2Stage(issue: Issue): string {
   const e = explicitStage(issue);
   if (e) return e;
+  const stages = PRINCE2_STAGES;
+  if (stages.length === 0) return "";
+  const last = stages[stages.length - 1]!;
+  const at = (i: number): string => stages[Math.min(i, stages.length - 1)]!;
   switch (issue.status) {
     case "backlog":
+      return at(0);
     case "todo":
-      return "Initiation";
+      return at(1);
     case "in_progress":
     case "in_review":
-      return "Delivery";
+      return at(2);
     default:
-      return "Closure";
+      return last;
   }
 }
 

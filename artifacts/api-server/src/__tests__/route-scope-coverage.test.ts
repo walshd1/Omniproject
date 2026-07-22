@@ -52,6 +52,15 @@ const CLASSIFICATION: Record<string, ScopeClass> = {
   "GET /projects/:projectId/capacity": "project-scope",
   "GET /projects/:projectId/type": "project-scope",
   "GET /projects/:projectId/staff-cost": "project-scope",
+  "GET /projects/:projectId/wbs": "project-scope",
+  "GET /projects/:projectId/wbs/cost-rows": "project-scope",
+  "GET /projects/:projectId/wbs/mapping": "project-scope",
+  "PUT /projects/:projectId/wbs/:wbsId": "project-scope",
+  "GET /projects/:projectId/wbs/:wbsId/financials": "project-scope",
+  "GET /projects/:projectId/mapping/:slot": "project-scope",
+  "GET /projects/:projectId/mapping/:slot/rows": "project-scope",
+  "PUT /projects/:projectId/mapping/:slot/:rowId": "project-scope",
+  "DELETE /projects/:projectId/mapping/:slot/:rowId": "project-scope",
   "GET /projects/:projectId/issues/:issueId/items": "project-scope",
   "PATCH /projects/:projectId": "project-scope",
   "PATCH /projects/:projectId/issues/:issueId": "project-scope",
@@ -69,6 +78,19 @@ const CLASSIFICATION: Record<string, ScopeClass> = {
   // a doc:<id> wiki room is org-content with no boundary). Both routes are additionally contributor+.
   "GET /collab/rooms/:roomId/stream": "project-scope",
   "POST /collab/rooms/:roomId": "project-scope",
+  // Whiteboard live-cursor relay: a `board:<id>` room. Same room-scope guard — a board id that encodes a
+  // project (`board:project~<projectId>~…`) is guardProjectScope-checked; user/org/sidecar board rooms have
+  // no project boundary. Transient cursor fan-out (nothing stored); identity is stamped server-side.
+  "GET /whiteboards/rooms/:roomId/stream": "project-scope",
+  "POST /whiteboards/rooms/:roomId": "project-scope",
+  // Proof ids are SELF-DESCRIBING (`<target>~…`) — same storage-target model as whiteboards/wiki: a `user~…`
+  // id is structurally isolated (scope uses the caller's own sub), `project~…` is guardProjectScope-checked
+  // (stricter than org-content), `org~…` is the org-content posture (read viewer+, write/delete/decision
+  // manager+). No sidecar variant. The decision route is contributor+ with the same per-target gate.
+  "GET /proofs/:id": "org-content",
+  "PUT /proofs/:id": "org-content",
+  "DELETE /proofs/:id": "org-content",
+  "POST /proofs/:id/decision": "org-content",
 
   // ── Task-scoped: assertTaskScope on the caller-supplied taskId ──
   "GET /tasks/:taskId": "task-scope",
@@ -99,6 +121,12 @@ const CLASSIFICATION: Record<string, ScopeClass> = {
   "PUT /scim/v2/Groups/:id": "admin-nontenant",
   "PATCH /scim/v2/Groups/:id": "admin-nontenant",
   "DELETE /scim/v2/Groups/:id": "admin-nontenant",
+  // Native in-app user management — admin-gated; the `:id` names a local user record (roster), not per-tenant
+  // data. Same posture as the SCIM directory above.
+  "PATCH /users/:id": "admin-nontenant",
+  "POST /users/:id/password": "admin-nontenant",
+  "DELETE /users/:id/password": "admin-nontenant",
+  "DELETE /users/:id": "admin-nontenant",
   "DELETE /webhooks/:id": "admin-nontenant",
   "POST /webhooks/:id/test": "admin-nontenant",
   "PUT /governance/:id": "admin-nontenant",
@@ -118,19 +146,46 @@ const CLASSIFICATION: Record<string, ScopeClass> = {
   // Template id names an org-global config object (the `templates` collection), NOT tenant data; instantiate
   // is manager+ gated and creates a NEW project via the scope-checked broker, so the id is not a lateral vector.
   "POST /templates/:id/instantiate": "global-config",
-  // Wiki document id names an org-wide shared content object in the knowledge base, NOT per-tenant/per-project
-  // data. Read is open to any member (viewer+); create/update is contributor+, delete manager+; bodies live in
-  // the backend through the broker seam. There is no per-user or per-project partition for the id to breach.
+  // Preset id names a fixed GLOBAL catalogue entry (a quick-load bundle), NOT tenant data. Read is viewer+;
+  // apply is pmo-gated and only applies a global reference ruleset + creates a NEW project via the scope-checked
+  // broker (same posture as template instantiate), so the id is not a cross-tenant lateral vector.
+  "GET /presets/:id": "global-config",
+  "POST /presets/:id/apply": "global-config",
+  // A deployment-type id names a fixed GLOBAL catalogue archetype (solo-selfhost, …), NOT tenant data. Read +
+  // resolve are read-only previews of a global template; there is no per-tenant deployment-type object to breach.
+  "GET /deployment-types/:id": "global-config",
+  "POST /deployment-types/:id/resolve": "global-config",
+  // A methodology id names a fixed GLOBAL catalogue entry (gtd, scrum, …). Preview is read-only; deploy is
+  // pmo/admin-gated AND delegation-policy-gated, and writes the methodology's own tagged surfaces at the chosen
+  // scope — the id is a global methodology id, not a cross-tenant lateral vector.
+  "GET /methodology-composition/deployment/:id": "global-config",
+  "POST /methodology-composition/deploy/:id": "global-config",
+  // A wiki-doc id is SELF-DESCRIBING (`<target>~…~<localId>`) — it names a store, not a bare tenant id (same
+  // storage-target model as whiteboards):
+  //  - `user~…`    the caller's PRIVATE area — the scope always uses the CALLER's own sub, so one user's id
+  //                can never address another's area (structurally isolated, no lateral vector).
+  //  - `project~…` a project's shared area — guarded by guardProjectScope on the encoded projectId (stricter
+  //                than org-content).
+  //  - `org~…`     the org-wide shared area — read viewer+, write/delete manager+ (the org-content posture).
+  //  - `sidecar~…` the built-in wiki, reached through the broker seam.
+  // Classified org-content: the open-read variant (org) has no partition to breach; the user/project variants
+  // add STRICTER guards on top. Read viewer+, author contributor+, delete contributor+ (org write manager+).
   "GET /wiki/docs/:id": "org-content",
   "PUT /wiki/docs/:id": "org-content",
   "DELETE /wiki/docs/:id": "org-content",
-  // A document's revision history — same org-wide shared content, read-only (viewer+); the versionId names a
-  // revision within the doc's own history, not per-tenant data.
+  // A document's revision history — same self-describing id; the versionId names a revision within the doc's
+  // own history (read-only, viewer+, per-target as above), not per-tenant data.
   "GET /wiki/docs/:id/versions": "org-content",
   "GET /wiki/docs/:id/versions/:versionId": "org-content",
-  // Whiteboard id names an org-wide shared canvas (same posture as a wiki doc): read viewer+, write
-  // contributor+, delete manager+; the scene lives in the backend through the broker seam. No per-tenant
-  // partition for the id to breach.
+  // A whiteboard id is SELF-DESCRIBING (`<target>~…~<localId>`): it names a store, not a bare tenant id.
+  //  - `user~…`    the caller's PRIVATE area — the scope always uses the CALLER's own sub, so one user's id
+  //                can never address another's area (structurally isolated, no lateral vector).
+  //  - `project~…` a project's shared area — guarded by guardProjectScope on the encoded projectId (so this
+  //                variant is in fact project-scoped, stricter than org-content).
+  //  - `org~…`     the org-wide shared area — read viewer+, write/delete manager+ (the org-content posture).
+  //  - `sidecar~…` the built-in SoR, reached through the broker seam.
+  // Classified org-content: the open-read variant (org) has no partition to breach, and the user/project
+  // variants add STRICTER guards on top — never weaker.
   "GET /whiteboards/:id": "org-content",
   "PUT /whiteboards/:id": "org-content",
   "DELETE /whiteboards/:id": "org-content",
@@ -183,7 +238,7 @@ function collectRoutes(router: IRouter): string[] {
  *  code isn't mounted in the test env (so a per-resource route in a disabled module can't escape the ratchet). */
 async function perResourceRoutes(): Promise<Set<string>> {
   const assembled = (await import("../routes/index")).default as IRouter;
-  const featureMods = ["presence", "comments", "collab", "whiteboard", "odata", "integrations"];
+  const featureMods = ["presence", "comments", "collab", "whiteboard", "proofs", "odata", "integrations"];
   const routes = new Set<string>(collectRoutes(assembled));
   for (const name of featureMods) {
     const mod = (await import(`../routes/${name}`)).default as IRouter;

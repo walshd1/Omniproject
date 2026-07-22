@@ -1,0 +1,45 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// REFERENCE SKELETON — an intake FORM
+//
+// A commented skeleton to copy & adapt (never loaded by the app). A form def is a
+// set of typed fields + a target; each submission becomes a work item created
+// through the broker. Mirrors artifacts/api-server/src/lib/form-def.ts.
+//
+// Hard rules the validator enforces (a bad def is rejected on submit):
+//   • Each field has key/label/type. `type` ∈ text | textarea | number | date |
+//     select | checkbox | email | url.
+//   • Every field must `mapTo` a WRITABLE issue field — nothing a user types is
+//     homeless. Allowed: title, description, priority, assignee, labels, dueDate,
+//     startDate, storyPoints, estimateHours, budget, impact, urgency, riskLevel,
+//     healthStatus.
+//   • EXACTLY ONE field maps to `title`. `description`/`labels` may be shared by
+//     several fields; every other target is scalar (one field each).
+//   • Choice types (select) need `options`. Add "required": true to force a value.
+//   • target.kind must be "issue"; target.projectId is optional on the def (an
+//     admin binds it before the form accepts submissions).
+// ─────────────────────────────────────────────────────────────────────────────
+{
+  "kind": "form",
+  "name": "<Human name>",           // e.g. "Change request form"
+  "publisher": "<Your team/org>",
+  "version": "1.0.0",
+  "description": "<One line: what this form intakes>",
+  "tags": ["form", "intake"],
+
+  "payload": {
+    "id": "<form-id>",
+    "label": "<Form title>",
+    "submitLabel": "<Button text>", // optional, e.g. "Raise change"
+
+    "fields": [
+      // Exactly one field → title:
+      { "key": "summary",  "label": "Summary",     "type": "text",     "mapTo": "title",       "required": true, "maxLength": 200 },
+      { "key": "detail",   "label": "What & why",  "type": "textarea", "mapTo": "description",  "required": true },
+      { "key": "priority", "label": "Priority",    "type": "select",   "mapTo": "priority",     "options": ["Low", "Medium", "High"], "required": true },
+      { "key": "needBy",   "label": "Needed by",   "type": "date",     "mapTo": "dueDate" }
+      // Add more fields here.
+    ],
+
+    "target": { "kind": "issue" }   // add "projectId": "<id>" to bind, or let an admin bind later
+  }
+}

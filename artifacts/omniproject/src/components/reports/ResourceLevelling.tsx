@@ -114,7 +114,9 @@ export function ResourceLevelling() {
   const rollup = useMemo(() => rollupByProgramme(projects), [projects]);
   const levelling = useMemo(() => levelPortfolio(projects), [projects]);
   const skills = useMemo(() => skillsSupplyDemand(projects), [projects]);
-  const posture: ResidencyPosture = caps?.residency ?? { enabled: false, allowedRegions: [] };
+  // Memoise: when residency is unconfigured, `?? { … }` yields a fresh literal each render, which would
+  // re-run the whole-portfolio simulateMove memo below on every render (broken-memo thrash).
+  const posture: ResidencyPosture = useMemo(() => caps?.residency ?? { enabled: false, allowedRegions: [] }, [caps?.residency]);
 
   const [resourceId, setResourceId] = useState<string>("");
   const [fromProjectId, setFromProjectId] = useState<string>("");

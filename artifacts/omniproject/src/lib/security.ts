@@ -65,3 +65,27 @@ export function useMaintenance() {
 export async function setMaintenance(engaged: boolean, reason: string): Promise<void> {
   await sendJson("/api/admin/maintenance", { engaged, reason }, "PUT");
 }
+
+/** Status of the sealed local audit EVIDENCE log (admin): retained count, retention window, span, durability. */
+export interface AuditLogStatus {
+  retained: number;
+  retentionDays: number | null;
+  oldest: string | null;
+  newest: string | null;
+  durable: boolean;
+  cap: number;
+}
+
+/** Load the audit-evidence-log status (admin). */
+export function useAuditLog() {
+  return useQuery<AuditLogStatus>({
+    queryKey: ["audit-log"],
+    queryFn: () => getJson("/api/security/audit/log"),
+    staleTime: 15_000,
+  });
+}
+
+/** Enforce the retention window on the evidence log NOW (admin; step-up gated). Returns how many were disposed. */
+export async function disposeAuditLog(): Promise<{ disposed: number; remaining: number }> {
+  return sendJson<{ disposed: number; remaining: number }>("/api/security/audit/log/dispose", undefined, "POST");
+}
