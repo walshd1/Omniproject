@@ -131,7 +131,7 @@ router.post("/approvals/:id/challenge", async (req: Request, res: Response) => {
 // POST /approvals/:id/decision — submit a passkey-signed approve/reject. LANE 2: the action base runs the
 // fixed shell (authorize → validate → run → audit → map errors); the passkey assertion + approver
 // eligibility stay INSIDE submitDecision (the service), which is the command's irreducible core.
-const decisionCommand: CommandDescriptor<{ actor: Actor; signed: SignedDecision }> = {
+export const decisionCommand: CommandDescriptor<{ actor: Actor; signed: SignedDecision }> = {
   name: "approval.decide",
   method: "post",
   path: "/approvals/:id/decision",

@@ -46,7 +46,7 @@ export interface CommandDescriptor<A> {
 }
 
 /** The "METHOD /path" this command contributes — for the write-lane ratchet. */
-export function commandRoutes(desc: CommandDescriptor<unknown>): string[] {
+export function commandRoutes<A>(desc: CommandDescriptor<A>): string[] {
   return [`${desc.method.toUpperCase()} ${desc.path}`];
 }
 

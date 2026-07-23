@@ -393,7 +393,7 @@ router.post("/projects/:projectId/issues/:issueId/items", requireRole("contribut
 // RBAC → validate → ruleset → scope → writeIssue pipeline (lib/entity-pipeline), so the three gates can
 // never drift apart. This replaces three near-identical hand-written handlers with one descriptor; a
 // null update result still surfaces as 404, delete still 204s (the op writes those itself).
-const issueEntity: EntityDescriptor = {
+export const issueEntity: EntityDescriptor = {
   entity: "issue",
   basePath: "/projects/:projectId/issues",
   idParam: "issueId",
