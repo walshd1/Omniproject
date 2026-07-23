@@ -63,6 +63,7 @@ import { requireRole, requireAnyRole, roleForReq } from "../lib/rbac";
 import { forgetProjectGuid, collectProjectReferences } from "../lib/project-forget";
 import { getFxRates } from "../lib/currency";
 import { evaluateRuleset } from "../lib/ruleset";
+import { enforceBusinessRules } from "../lib/ruleset-guard";
 import { recordAudit } from "../lib/audit";
 import { CreateRaidEntryBody } from "@workspace/api-zod";
 import { resolveSeverityVocabulary } from "../lib/severity-vocabulary-config";
@@ -202,6 +203,8 @@ router.post("/projects", requireRole("manager"), async (req, res) => {
     res.status(400).json({ error: ruleErrors[0], errors: ruleErrors });
     return;
   }
+  // A new project has no project scope yet; a programme-scope ruleset override still applies.
+  if (!enforceBusinessRules(req, res, "create_project", { programmeId: (bodyParse.data as { programmeId?: string }).programmeId ?? null, payload: bodyParse.data as Record<string, unknown> })) return;
   await withBrokerErrors(req, res, "create_project failed", async () => {
     // Mint the backend-independent correlation GUID here (once, in the gateway) and pass it to the
     // backend to store + echo. It's server-minted, never from the client body — see Project.omniInstanceId.
@@ -308,6 +311,7 @@ router.patch("/projects/:projectId", requireRole("manager"), async (req, res) =>
   }
   await withBrokerErrors(req, res, "update_project failed", async () => {
     if (!(await guardProjectScope(req, res, paramsParse.data.projectId))) return;
+    if (!passesBusinessRules(req, res, "update_project", paramsParse.data.projectId, data as Record<string, unknown>)) return;
     const updated = await getBroker().updateProject(contextFromReq(req), paramsParse.data.projectId, data);
     res.json(updated);
   });
@@ -373,6 +377,7 @@ router.post("/projects/:projectId/issues/:issueId/items", requireRole("contribut
   }
   await withBrokerErrors(req, res, "create_task_item failed", async () => {
     if (!(await guardProjectScope(req, res, paramsParse.data.projectId))) return;
+    if (!passesBusinessRules(req, res, "create_issue_item", paramsParse.data.projectId, bodyParse.data as Record<string, unknown>)) return;
     const item = await getBroker().createTaskItem(
       contextFromReq(req),
       paramsParse.data.projectId,
@@ -778,6 +783,7 @@ router.post("/projects/:projectId/raid", requireRole("manager"), async (req, res
 
   await withBrokerErrors(req, res, "create_raid_entry failed", async () => {
     if (!(await guardProjectScope(req, res, projectId))) return;
+    if (!passesBusinessRules(req, res, "create_raid", projectId, body)) return;
     const entry = await getBroker().addRaid(contextFromReq(req), projectId, body);
     res.status(201).json(entry);
   }, { projectId });

@@ -188,3 +188,15 @@ test("group PUT/PATCH/DELETE on unknown ids → 404; PATCH without Operations �
   const g = await (await scim("/Groups", { method: "POST", body: JSON.stringify({ displayName: "patch-shape" }) })).json() as any;
   assert.equal((await scim(`/Groups/${g.id}`, { method: "PATCH", body: JSON.stringify({ schemas: [] }) })).status, 400);
 });
+
+test("PUT /Users/:id validates the replace body shape (no userName → 400; bad emails → 400)", async () => {
+  // Validation runs BEFORE the existence check, so a malformed body is 400 even for an unknown id.
+  assert.equal((await scim("/Users/whatever", { method: "PUT", body: JSON.stringify({}) })).status, 400);
+  assert.equal((await scim("/Users/whatever", { method: "PUT", body: JSON.stringify({ userName: "x", emails: "not-an-array" }) })).status, 400);
+  assert.equal((await scim("/Users/whatever", { method: "PUT", body: JSON.stringify({ userName: "x", active: "yes" }) })).status, 400);
+});
+
+test("PUT /Groups/:id validates the replace body shape (no displayName → 400; bad members → 400)", async () => {
+  assert.equal((await scim("/Groups/whatever", { method: "PUT", body: JSON.stringify({}) })).status, 400);
+  assert.equal((await scim("/Groups/whatever", { method: "PUT", body: JSON.stringify({ displayName: "g", members: "nope" }) })).status, 400);
+});

@@ -6,6 +6,7 @@ import { getNotifyBus } from "../lib/notify-bus";
 import { getBroker, contextFromReq } from "../broker";
 import { guardProjectScope } from "../lib/project-scope";
 import { recordAudit, actorForAudit } from "../lib/audit";
+import { enforceBusinessRules } from "../lib/ruleset-guard";
 import { logger } from "../lib/logger";
 
 /**
@@ -66,6 +67,7 @@ router.post("/comments/:roomId", requireRole("contributor"), async (req: Request
   const body = clean((req.body as { body?: unknown } | undefined)?.body, 5000);
   if (!roomId || !body) { res.status(400).json({ error: "roomId and a non-empty body (≤ 5000 chars) are required" }); return; }
   if (!(await guardRoomScope(req, res, roomId))) return;
+  if (!enforceBusinessRules(req, res, "add_comment", { payload: { body } })) return;
 
   const session = getSession(req);
   const author = { sub: session?.sub ?? "unknown", label: session?.name || session?.email || session?.sub || "unknown" };

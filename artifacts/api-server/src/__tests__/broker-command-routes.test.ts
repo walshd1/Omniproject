@@ -87,3 +87,22 @@ test("with a broker wired: a scoped manager naming an out-of-scope projectId is 
     if (prev.m === undefined) delete process.env["OIDC_MANAGER_ROLES"]; else process.env["OIDC_MANAGER_ROLES"] = prev.m;
   }
 });
+
+test("business ruleset gates forwarded DOMAIN writes: read-only blocks create_project (422); a read is untouched", async () => {
+  const { updateSettings } = await import("../lib/settings");
+  const { setRuleModes, resetRuleModes } = await import("../lib/ruleset");
+  updateSettings({ brokerUrl: BROKER_URL });
+  setRuleModes({ "read-only": "hard" });
+  try {
+    // A forwarded domain write is blocked at the seam, BEFORE reaching the (unreachable) broker.
+    const w = await h.req("/broker/command", { method: "POST", cookie: adminCookie(), body: { action: "create_project", payload: { name: "X" } } });
+    assert.equal(w.status, 422);
+    assert.equal((await json(w)).rule, "read-only");
+    // A read isn't in the domain-write namespace, so the ruleset doesn't gate it (it forwards and fails
+    // as an unreachable broker — a non-422 error, never a rule block).
+    const r = await h.req("/broker/command", { method: "POST", cookie: adminCookie(), body: { action: "list_projects", payload: {} } });
+    assert.notEqual(r.status, 422);
+  } finally {
+    resetRuleModes();
+  }
+});

@@ -14,16 +14,24 @@ import { guardProjectScope } from "../lib/project-scope";
 import { getSession } from "./auth";
 import { enforceCapability, CapabilityBlockedError, getCapability } from "../lib/capability-governance";
 import { grantedCapabilitiesForReq } from "../lib/custom-roles";
+import { enforceBusinessRules } from "../lib/ruleset-guard";
 
 const router = Router();
 
+// Forwarded actions that are DOMAIN writes of a rule-governed entity. These use the SAME action namespace
+// as the typed routes' ruleset calls (create/update/delete_project, add_raid, …), so we can run the
+// business ruleset on them at the seam — closing the bypass the header notes. Reads and opaque vendor
+// commands aren't in this namespace, so they pass through untouched (and are governed by their own routes).
+const DOMAIN_WRITE_ACTION = /^(create|update|delete)_(project|issue|issue_item|goal|invoice|task|timesheet)$|^(create_raid|add_raid|create_raid_entry)$/;
+
 async function handle(req: Request, res: Response): Promise<void> {
   // This edge forwards an ARBITRARY action, including the most privileged writes the typed REST
-  // routes reserve for `manager` (create/update/delete_project, RAID). It has no per-action gate
-  // and skips the PMO business ruleset, so it must be gated at its most-privileged forwardable
-  // action — `manager` — not `contributor` (which would let a contributor forward manager-only
-  // actions and bypass those write walls). The admin escape hatch remains routes/raw-api (admin +
-  // step-up + RAW_API_ENABLED).
+  // routes reserve for `manager` (create/update/delete_project, RAID). It is gated at its most-
+  // privileged forwardable action — `manager` — not `contributor` (which would let a contributor
+  // forward manager-only actions and bypass those write walls). Forwarded DOMAIN writes additionally
+  // run the PMO business ruleset (below), so the ruleset is no longer bypassed for them; opaque vendor
+  // actions still pass through. The admin escape hatch remains routes/raw-api (admin + step-up +
+  // RAW_API_ENABLED).
   if (!brokerConfigured()) {
     // No backend wired (demo mode, no admin-set broker URL): there is nothing to
     // forward to. Return the normalised "demo" error instead of attempting a live
@@ -74,6 +82,10 @@ async function handle(req: Request, res: Response): Promise<void> {
   if (typeof projectId === "string" && projectId) {
     if (!(await guardProjectScope(req, res, projectId))) return;
   }
+
+  // Business ruleset on forwarded domain writes (the header's acknowledged bypass). Runs AFTER the
+  // manager gate + IDOR scope check; a hard block is 422, warnings ride the response header.
+  if (DOMAIN_WRITE_ACTION.test(action) && !enforceBusinessRules(req, res, action, { projectId: typeof projectId === "string" ? projectId : null, payload })) return;
 
   try {
     const result = await brokerCommand(contextFromReq(req), action, payload, source ?? "unknown");
