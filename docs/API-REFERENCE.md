@@ -1242,7 +1242,7 @@ Project TEMPLATES — the "spin up a project from a template" gallery.
 
 | Method | Path | Gate | Description |
 | --- | --- | --- | --- |
-| POST | `/api/templates/:id/instantiate` | requireRole(manager) | Instantiate a template: create a project + seed its work items. |
+| POST | `/api/templates/:id/instantiate` | requireRole(manager) | POST /api/templates/:id/instantiate — instantiate a template: create a project + seed its work items. |
 | GET | `/api/templates` | requireAuth | Read the collection. |
 | PUT | `/api/templates` | requireAuth + requireAnyRole(admin, pmo) | Replace the collection (write-guarded). |
 

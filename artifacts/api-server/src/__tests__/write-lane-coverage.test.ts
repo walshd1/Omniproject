@@ -45,6 +45,7 @@ import { deploymentTypeSetCommand } from "../routes/deployment-types";
 import { calendarPushSaveCommand } from "../routes/calendar";
 import { mePrefsSaveCommand } from "../routes/me";
 import { presetApplyCommand } from "../routes/presets";
+import { templateInstantiateCommand } from "../routes/templates";
 import { collectionWriteRoutes } from "../lib/settings-collection-router";
 
 /**
@@ -156,6 +157,7 @@ const LANE2 = new Set<string>([
   ...commandRoutes(calendarPushSaveCommand),
   ...commandRoutes(mePrefsSaveCommand),
   ...commandRoutes(presetApplyCommand),
+  ...commandRoutes(templateInstantiateCommand),
 ]);
 
 // Lane 3 — hand-written writes not (yet) on a spine. SEED — regenerate by running the first test with this
@@ -268,7 +270,6 @@ const BESPOKE_WRITES = new Set<string>([
   "POST /tasks/:taskId/attachments",
   "POST /tasks/:taskId/comments",
   "POST /tasks/reminders/sweep",
-  "POST /templates/:id/instantiate",
   "POST /timesheets",
   "POST /timesheets/:id/action",
   "POST /usage/notify",
