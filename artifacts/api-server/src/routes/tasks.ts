@@ -5,9 +5,10 @@
 import { Router, type Request, type Response } from "express";
 import { withBrokerErrors } from "../broker";
 import { getTasks, getTask, createTask, updateTask, brokerHasTasks, getTaskComments, addTaskComment, getTaskAttachments, addTaskAttachment, brokerHasTaskAttachments } from "../lib/data";
-import { requireRole } from "../lib/rbac";
+import { requireRole, roleForReq } from "../lib/rbac";
 import { assertTaskScope, filterTasksInScope } from "../lib/project-scope";
-import { auditScopeDenied } from "../lib/audit";
+import { auditScopeDenied, recordAudit } from "../lib/audit";
+import { evaluateRuleset } from "../lib/ruleset";
 import { getSession } from "./auth";
 import { parseOr400, v } from "../lib/validate";
 import { CANONICAL_PRIORITY, isTaskDone } from "../broker/vocabulary";
@@ -202,6 +203,25 @@ router.get("/tasks/:taskId", (req, res) =>
   }),
 );
 
+/**
+ * Enforce the business ruleset on a task write — the SAME engine that guards issue writes
+ * (routes/projects.passesBusinessRules), so a rule like "require-priority" applies consistently to the
+ * GTD task surface too. Restrict-only, and runs AFTER the RBAC/shape gates. A hard block is 422
+ * `{ error, rule }`; warnings ride back on the X-OmniProject-Rule-Warnings header. GTD tasks may have no
+ * project, so projectId is nullable (a null scope resolves to the org-level ruleset).
+ */
+function passesTaskRules(req: Request, res: Response, action: "create_task" | "update_task", body: Record<string, unknown>): boolean {
+  const projectId = typeof body["projectId"] === "string" ? body["projectId"] : null;
+  const verdict = evaluateRuleset({ action, write: true, role: roleForReq(req), projectId, payload: body });
+  if (!verdict.allow) {
+    recordAudit({ ts: new Date().toISOString(), category: "admin", action: `rule_block:${verdict.blocked!.id}`, projectId, result: "error", status: 422 });
+    res.status(422).json({ error: verdict.blocked!.message, rule: verdict.blocked!.id });
+    return false;
+  }
+  if (verdict.warnings.length) res.setHeader("X-OmniProject-Rule-Warnings", verdict.warnings.map((w) => w.id).join(","));
+  return true;
+}
+
 // POST /api/tasks — create a next-action (manager+). 501 when the backend has no task model.
 router.post("/tasks", requireRole("manager"), (req, res) => {
   if (!brokerHasTasks()) { res.status(501).json({ error: "this backend does not support tasks" }); return; }
@@ -210,6 +230,7 @@ router.post("/tasks", requireRole("manager"), (req, res) => {
   if (!body.title) { res.status(400).json({ error: "title is required" }); return; }
   if (!checkTaskStatus(req, res, body)) return;
   if (!checkTaskEnergy(req, res, body)) return;
+  if (!passesTaskRules(req, res, "create_task", body as Record<string, unknown>)) return;
   return withBrokerErrors(req, res, "create_task failed", async () => {
     res.status(201).json(await createTask(req, body));
   });
@@ -222,6 +243,7 @@ router.patch("/tasks/:taskId", requireRole("manager"), (req, res) => {
   if (!body) return;
   if (!checkTaskStatus(req, res, body)) return;
   if (!checkTaskEnergy(req, res, body)) return;
+  if (!passesTaskRules(req, res, "update_task", body as Record<string, unknown>)) return;
   return withBrokerErrors(req, res, "update_task failed", async () => {
     if (!(await guardTaskAccess(req, res, String(req.params["taskId"])))) return;
     const updated = await updateTask(req, String(req.params["taskId"]), body);

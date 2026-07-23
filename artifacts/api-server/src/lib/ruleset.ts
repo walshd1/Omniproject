@@ -47,6 +47,14 @@ export interface RuleVerdict {
 
 const has = (p: Record<string, unknown> | undefined, k: string): boolean => p != null && p[k] != null && p[k] !== "";
 
+/** A priority is "set" only when it's a REAL level — not null/empty, and not the `"none"` sentinel the
+ *  UI sends for an unset priority. So require-priority treats `priority: "none"` as absent (otherwise the
+ *  rule would be trivially satisfied by the default the create forms send). */
+const hasPriority = (p: Record<string, unknown> | undefined): boolean => {
+  const v = p?.["priority"];
+  return typeof v === "string" && v.trim() !== "" && v.trim().toLowerCase() !== "none";
+};
+
 /** Coerce a payload value to epoch-ms, or null if it isn't a usable date. Accepts
  *  Date, ISO string, or epoch number (zod `coerce.date` may hand us any of these). */
 function asTime(v: unknown): number | null {
@@ -73,6 +81,14 @@ export const BUSINESS_RULES: BusinessRule[] = [
   {
     id: "require-description", label: "Require a description", description: "New issues must have a description.", defaultMode: "off",
     applies: (c) => c.action === "create_issue" && !has(c.payload, "description"), message: () => "A description is required on new issues (business rule).",
+  },
+  {
+    // Applies to BOTH the GTD task and the issue create/update, since both carry a priority and the
+    // product's "task" surface spans both. Uses hasPriority (not `has`) so the UI's "none" default
+    // counts as unset. Off by default — an org turns it on through the business ruleset.
+    id: "require-priority", label: "Require a priority", description: "New or updated tasks and issues must carry a priority.", defaultMode: "off",
+    applies: (c) => ["create_issue", "update_issue", "create_task", "update_task"].includes(c.action) && !hasPriority(c.payload),
+    message: () => "A priority is required (business rule).",
   },
   {
     // A cross-field comparison — something the field-rule mechanism (presence only)
@@ -237,6 +253,42 @@ export function evaluateRuleset(ctx: RuleContext): RuleVerdict {
     warnings.push({ id: fr.id, message });
   }
   return { allow: true, blocked: null, warnings };
+}
+
+/** Built-in rules that are a simple "field X must be present on these actions" — the subset a CLIENT can
+ *  pre-check to nudge before submit. Cross-field / global rules (due-after-start, read-only, no-deletes)
+ *  can't be checked field-by-field, so they're enforced server-side only and omitted from this view. */
+const FIELD_REQUIREMENT_BUILTINS: readonly { id: string; field: string; actions: readonly string[] }[] = [
+  { id: "require-priority", field: "priority", actions: ["create_issue", "update_issue", "create_task", "update_task"] },
+  { id: "require-assignee", field: "assignee", actions: ["create_issue", "update_issue"] },
+  { id: "require-description", field: "description", actions: ["create_issue"] },
+];
+
+/** One field requirement the entry UI can enforce inline: field X is required (hard) or recommended
+ *  (warn) for `action`, in the caller's scope. `whenPresent` mirrors a dependency field rule. */
+export interface EntryRequirement { rule: string; action: string; field: string; mode: "hard" | "warn"; message: string; whenPresent?: string }
+
+/**
+ * The effective FIELD requirements for entry, distilled so a client can push back inline BEFORE submit
+ * (the server still enforces the full ruleset authoritatively on every write). Folds the on field-
+ * requirement built-ins together with the admin field rules, resolved for the given scope (org baseline,
+ * tightened — never loosened — by any programme/project override).
+ */
+export function entryRequirements(scope: { programmeId?: string | null; projectId?: string | null } = {}): EntryRequirement[] {
+  const eff = resolveEffectiveRuleset({ modes: getRuleModes(), fieldRules: getFieldRules() }, scope);
+  const byId = new Map(BUSINESS_RULES.map((r) => [r.id, r] as const));
+  const out: EntryRequirement[] = [];
+  for (const b of FIELD_REQUIREMENT_BUILTINS) {
+    const mode = eff.modes[b.id] ?? "off";
+    if (mode === "off") continue;
+    const message = byId.get(b.id)?.message({ action: b.actions[0]!, write: true, role: "" }) ?? `'${b.field}' is required (business rule).`;
+    for (const action of b.actions) out.push({ rule: b.id, action, field: b.field, mode, message });
+  }
+  for (const fr of eff.fieldRules) {
+    if (fr.mode === "off") continue;
+    out.push({ rule: fr.id, action: fr.action, field: fr.field, mode: fr.mode, message: fr.message ?? `'${fr.field}' is required (business rule).`, ...(fr.whenPresent ? { whenPresent: fr.whenPresent } : {}) });
+  }
+  return out;
 }
 
 /** Test-only reset to the env-seeded config. */

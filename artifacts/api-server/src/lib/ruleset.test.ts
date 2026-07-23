@@ -1,6 +1,6 @@
 import { test, afterEach } from "node:test";
 import assert from "node:assert/strict";
-import { evaluateRuleset, setRuleModes, getRuleModes, rulesetCatalogue, resetRuleModes, BUSINESS_RULES, setFieldRules, getFieldRules, applyRuleset } from "./ruleset";
+import { evaluateRuleset, setRuleModes, getRuleModes, rulesetCatalogue, resetRuleModes, BUSINESS_RULES, setFieldRules, getFieldRules, applyRuleset, entryRequirements } from "./ruleset";
 import { getReferenceRuleset, referenceRulesetCatalogue } from "@workspace/backend-catalogue";
 
 afterEach(() => resetRuleModes());
@@ -48,6 +48,34 @@ test("SAFETY: the engine is restrict-only — there is no mode that grants", () 
   const v = evaluateRuleset({ action: "create_issue", write: true, role: "viewer" });
   assert.equal(v.allow, true); // note: RBAC (the HARD gate) is what stops a viewer — not this engine
   assert.equal("blocked" in v && v.blocked, null);
+});
+
+test("require-priority: hard-blocks a create with no priority on BOTH the task and issue surface", () => {
+  setRuleModes({ "require-priority": "hard" });
+  for (const action of ["create_issue", "create_task"]) {
+    const blocked = evaluateRuleset({ action, write: true, role: "manager", payload: { title: "x" } });
+    assert.equal(blocked.allow, false, `${action} with no priority should block`);
+    assert.equal(blocked.blocked?.id, "require-priority");
+  }
+  // The UI's "none" sentinel must count as UNSET — otherwise the default the create forms send would
+  // trivially satisfy the rule.
+  assert.equal(evaluateRuleset({ action: "create_task", write: true, role: "manager", payload: { title: "x", priority: "none" } }).allow, false);
+  assert.equal(evaluateRuleset({ action: "create_task", write: true, role: "manager", payload: { title: "x", priority: "  NONE " } }).allow, false);
+  // A real priority satisfies it.
+  assert.equal(evaluateRuleset({ action: "create_task", write: true, role: "manager", payload: { title: "x", priority: "high" } }).allow, true);
+});
+
+test("entryRequirements: distils the effective field requirements a client can pre-check", () => {
+  // Off by default → nothing to enforce inline.
+  assert.deepEqual(entryRequirements(), []);
+  setRuleModes({ "require-priority": "hard" });
+  const reqs = entryRequirements();
+  const taskReq = reqs.find((r) => r.action === "create_task" && r.field === "priority");
+  assert.ok(taskReq && taskReq.mode === "hard", "priority is a hard requirement on create_task");
+  assert.ok(reqs.some((r) => r.action === "create_issue" && r.field === "priority"), "and on create_issue");
+  // Admin field rules are folded in too.
+  setFieldRules([{ id: "own", action: "create_issue", field: "owner", mode: "warn" }]);
+  assert.ok(entryRequirements().some((r) => r.rule === "own" && r.field === "owner" && r.mode === "warn"));
 });
 
 test("field rule: 'no task without an effort estimate' (the example) blocks as hard", () => {
