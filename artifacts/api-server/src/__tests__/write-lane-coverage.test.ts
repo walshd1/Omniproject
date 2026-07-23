@@ -14,6 +14,10 @@ import {
   aiProviderRollbackCommand, aiProviderUpsertCommand, aiProviderRemoveCommand,
   aiProviderKeySetCommand, aiProviderKeyClearCommand, aiCapabilityMappingCommand,
 } from "../routes/ai-providers";
+import {
+  rateCardUpdateCommand, rateCardRollbackCommand, rateCardScopeUpliftCommand,
+  rateCardCostRulesCommand, rateCardIdentitiesCommand,
+} from "../routes/rate-card";
 import { collectionWriteRoutes } from "../lib/settings-collection-router";
 
 /**
@@ -85,6 +89,11 @@ const LANE2 = new Set<string>([
   ...commandRoutes(aiProviderKeySetCommand),
   ...commandRoutes(aiProviderKeyClearCommand),
   ...commandRoutes(aiCapabilityMappingCommand),
+  ...commandRoutes(rateCardUpdateCommand),
+  ...commandRoutes(rateCardRollbackCommand),
+  ...commandRoutes(rateCardScopeUpliftCommand),
+  ...commandRoutes(rateCardCostRulesCommand),
+  ...commandRoutes(rateCardIdentitiesCommand),
 ]);
 
 // Lane 3 — hand-written writes not (yet) on a spine. SEED — regenerate by running the first test with this
@@ -175,7 +184,6 @@ const BESPOKE_WRITES = new Set<string>([
   "POST /proofs",
   "POST /proofs/:id/decision",
   "POST /provenance/call/:callId/verify",
-  "POST /rate-card/rollback",
   "POST /scim/v2/Groups",
   "POST /scim/v2/Users",
   "POST /security/audit/verify",
@@ -262,10 +270,6 @@ const BESPOKE_WRITES = new Set<string>([
   "PUT /projects/:projectId/wbs/:wbsId",
   "PUT /proofs/:id",
   "PUT /rag-vocabulary",
-  "PUT /rate-card",
-  "PUT /rate-card/cost-rules",
-  "PUT /rate-card/identities",
-  "PUT /rate-card/uplift/:level/:scopeId",
   "PUT /reports/custom",
   "PUT /scheduling",
   "PUT /scim/v2/Groups/:id",
