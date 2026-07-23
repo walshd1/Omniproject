@@ -89,12 +89,12 @@ Approval-chain endpoints — the human, passkey-signed approver surface (design 
 | --- | --- | --- | --- |
 | POST | `/api/approvals/passkey` | — | POST /approvals/passkey — register this user's passkey PUBLIC key (from the browser's create ceremony). |
 | GET | `/api/approvals/passkey` | — | GET /approvals/passkey — this user's registered passkeys (metadata only, never key material secrets). |
-| POST | `/api/approvals/passkey/revoke` | requireRole(pmo) | Revocation is fail-SAFE (removes the ability to approve), so admin/PMO gating suffices — no chain needed. |
+| POST | `/api/approvals/passkey/revoke` | requireRole(pmo) | Revocation (admin/PMO governance) POST /approvals/passkey/revoke — revoke a NAMED user's passkeys (compromise, role change, suspension). |
 | POST | `/api/approvals/passkey/revoke-all` | requireRole(pmo) | POST /approvals/passkey/revoke-all — revoke EVERYONE's passkeys (emergency reset). |
 | GET | `/api/approvals/inbox` | — | GET /approvals/inbox — proposals awaiting THIS caller's decision. |
 | POST | `/api/approvals/:id/challenge` | — | POST /approvals/:id/challenge — issue a one-time challenge to sign the current stage. |
 | POST | `/api/approvals/:id/decision` | — | POST /approvals/:id/decision — submit a passkey-signed approve/reject. |
-| POST | `/api/approvals/:id/redirect` | requireRole(pmo) | POST /approvals/:id/redirect — reassign the current stage's approvers. |
+| POST | `/api/approvals/:id/redirect` | requireRole(pmo) | PMO escape hatches (pmo+ only) POST /approvals/:id/redirect — reassign the current stage's approvers. |
 | POST | `/api/approvals/:id/bypass/challenge` | requireRole(pmo) | POST /approvals/:id/bypass/challenge — challenge for a PMO bypass signature. |
 | POST | `/api/approvals/:id/bypass` | requireRole(pmo) | POST /approvals/:id/bypass — force-approve the chain with a PMO passkey signature (never silent). |
 | GET | `/api/approvals/workflow-acceptances` | requireRole(manager) | GET /approvals/workflow-acceptances — every stored acceptance with its LIVE active/void status (pmo+). |
