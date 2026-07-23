@@ -3602,7 +3602,8 @@ Factory for the recurring "settings collection" route shape: a GET that reads on
 
 | Function | What it does |
 | --- | --- |
-| `settingsCollectionRouter` | Build a `Router` exposing the GET + write pair for one settings-collection field. |
+| `collectionWriteRoutes` | The write routes ("METHOD /path") mounted by {@link settingsCollectionRouter} — the ratchet's Lane-0. |
+| `settingsCollectionRouter` | — |
 
 ### `artifacts/api-server/src/lib/settings-constraints.ts`
 
