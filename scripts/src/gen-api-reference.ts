@@ -127,7 +127,12 @@ function commandRoutesFromLiteral(obj: ts.ObjectLiteralExpression, base: string,
   const p = stringProp(obj, "path");
   if (!method || !p) return [];
   const role = stringProp(obj, "role");
-  return [{ method: method.toUpperCase(), routePath: base + p, gate: role ? `requireRole(${role})` : "", doc }];
+  // A command may carry extra middleware gates (requireStepUp / requireEntitlement / requireAnyRole) in a
+  // `gates: [...]` array beyond the role floor — surface them exactly as a hand-written route's would read.
+  const gatesProp = obj.properties.find((pr): pr is ts.PropertyAssignment => ts.isPropertyAssignment(pr) && ts.isIdentifier(pr.name) && pr.name.text === "gates");
+  const extraGates = gatesProp && ts.isArrayLiteralExpression(gatesProp.initializer) ? gateFrom(gatesProp.initializer.elements) : "";
+  const gate = [role ? `requireRole(${role})` : "", extraGates].filter(Boolean).join(" + ");
+  return [{ method: method.toUpperCase(), routePath: base + p, gate, doc }];
 }
 
 function readFile(abs: string, rel: string): FileRoutes {
