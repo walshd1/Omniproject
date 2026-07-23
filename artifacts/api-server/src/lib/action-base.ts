@@ -49,6 +49,9 @@ export interface CommandDescriptor<A> {
   /** Audit action label, or a fn deriving it from args (e.g. `approval.${decision}`). */
   audit: string | ((args: A) => string);
   auditCategory?: AuditCategory;
+  /** Optional HTTP status to stamp on the audit record (the `status` field). Omit to leave it unset — set
+   *  it to match a route that recorded a fixed status (e.g. 200) so the migrated audit stays byte-identical. */
+  auditStatus?: number;
   /** Extra audit meta, computed after the run (e.g. the resulting status). */
   auditMeta?: (req: Request, args: A, result: unknown) => Record<string, unknown>;
   /** Map a thrown error to a response (e.g. the approval service's typed failures). Default: rethrow. */
@@ -84,6 +87,7 @@ export function mountCommand<A>(router: IRouter, desc: CommandDescriptor<A>): vo
         actor: actorForAudit(req),
         write: true,
         result: "success",
+        ...(desc.auditStatus !== undefined ? { status: desc.auditStatus } : {}),
         ...(desc.auditMeta ? { meta: desc.auditMeta(req, args, result) } : {}),
       });
       if (result !== undefined) res.status(desc.status ?? 200).json(result);
