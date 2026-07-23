@@ -44,7 +44,7 @@ catalog:
   clsx: ^2.1.1
   drizzle-orm: ^0.45.2
   framer-motion: ^12.42.2
-  lucide-react: ^1.24.0
+  lucide-react: ^1.25.0
   # react and react-dom must be kept at the exact same version (React enforces
   # an exact version match between the two packages at runtime).
   react: 19.2.7
