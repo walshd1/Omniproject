@@ -792,9 +792,9 @@ Project, programme-membership, issue + task-item endpoints — the core read/wri
 | GET | `/api/projects/:projectId/members` | — | — |
 | GET | `/api/projects/:projectId/issues/:issueId/items` | — | Task children: issues & notes raised against a task |
 | POST | `/api/projects/:projectId/issues/:issueId/items` | requireRole(contributor) | — |
-| POST | `/api/projects/:projectId/issues` | requireRole(contributor) | — |
-| PATCH | `/api/projects/:projectId/issues/:issueId` | requireRole(contributor) | — |
-| DELETE | `/api/projects/:projectId/issues/:issueId` | requireRole(contributor) | — |
+| POST | `/api/projects/:projectId/issues` | requireRole(contributor) | Issues — the canonical LANE 1 entity. |
+| PATCH | `/api/projects/:projectId/issues/:issueId` | requireRole(contributor) | Issues — the canonical LANE 1 entity. |
+| DELETE | `/api/projects/:projectId/issues/:issueId` | requireRole(contributor) | Issues — the canonical LANE 1 entity. |
 | GET | `/api/projects/:projectId/capacity` | — | Analytics: capacity + financials (strict rate limit) |
 | GET | `/api/projects/:projectId/financials` | — | — |
 | GET | `/api/projects/:projectId/wbs` | — | a backend that doesn't front an ERP omits the broker method and these answer 501. |
