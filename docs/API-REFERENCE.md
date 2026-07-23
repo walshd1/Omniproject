@@ -410,12 +410,12 @@ The OFF switch for screens.
 
 ### `artifacts/api-server/src/routes/energy-vocabulary.ts`
 
-Scope-overridable GTD energy-level vocabulary (the "how much have I got in the tank" axis, orthogonal to an hour estimate).
+Scope-overridable Energy vocabulary.
 
 | Method | Path | Gate | Description |
 | --- | --- | --- | --- |
-| GET | `/api/energy-vocabulary` | — | GET /api/energy-vocabulary — the effective GTD energy levels for this scope (any authed user). |
-| PUT | `/api/energy-vocabulary` | requireAnyRole(pmo, admin) | { levels?: [{ id, label?, order?, level?, methodologies?, color?, labels?, removed? }] }. |
+| GET | `/api/energy-vocabulary` | — | — |
+| PUT | `/api/energy-vocabulary` | requireAnyRole(pmo, admin) | PUT /api/energy-vocabulary — set the org-scope Energy vocabulary override (pmo/admin). |
 
 ### `artifacts/api-server/src/routes/error-telemetry.ts`
 
@@ -546,12 +546,12 @@ Time-travel replay — read recorded portfolio states back from the operator's l
 
 ### `artifacts/api-server/src/routes/impact-vocabulary.ts`
 
-Scope-overridable RAID/risk IMPACT vocabulary (the consequence magnitude — the I in risk-exposure P×I).
+Scope-overridable Impact vocabulary.
 
 | Method | Path | Gate | Description |
 | --- | --- | --- | --- |
-| GET | `/api/impact-vocabulary` | — | GET /api/impact-vocabulary — the effective RAID impact grades for this scope (any authed user). |
-| PUT | `/api/impact-vocabulary` | requireAnyRole(pmo, admin) | { levels?: [{ id, label?, order?, level?, methodologies?, color?, labels?, removed? }] }. |
+| GET | `/api/impact-vocabulary` | — | — |
+| PUT | `/api/impact-vocabulary` | requireAnyRole(pmo, admin) | PUT /api/impact-vocabulary — set the org-scope Impact vocabulary override (pmo/admin). |
 
 ### `artifacts/api-server/src/routes/import.ts`
 
@@ -605,12 +605,12 @@ Licence endpoint — GET /api/license reports the current licence summary + prem
 
 ### `artifacts/api-server/src/routes/likelihood-vocabulary.ts`
 
-Scope-overridable RAID/risk LIKELIHOOD vocabulary (the probability a risk occurs — the P in risk-exposure P×I).
+Scope-overridable Likelihood vocabulary.
 
 | Method | Path | Gate | Description |
 | --- | --- | --- | --- |
-| GET | `/api/likelihood-vocabulary` | — | GET /api/likelihood-vocabulary — the effective RAID likelihood grades for this scope (any authed user). |
-| PUT | `/api/likelihood-vocabulary` | requireAnyRole(pmo, admin) | { levels?: [{ id, label?, order?, level?, methodologies?, color?, labels?, removed? }] }. |
+| GET | `/api/likelihood-vocabulary` | — | — |
+| PUT | `/api/likelihood-vocabulary` | requireAnyRole(pmo, admin) | PUT /api/likelihood-vocabulary — set the org-scope Likelihood vocabulary override (pmo/admin). |
 
 ### `artifacts/api-server/src/routes/logging-sync.ts`
 
@@ -859,12 +859,12 @@ RACI register store.
 
 ### `artifacts/api-server/src/routes/rag-vocabulary.ts`
 
-Scope-overridable RAG/health BAND vocabulary (a project/programme's traffic-light status).
+Scope-overridable RAG vocabulary.
 
 | Method | Path | Gate | Description |
 | --- | --- | --- | --- |
-| GET | `/api/rag-vocabulary` | — | GET /api/rag-vocabulary — the effective RAG/health bands for this scope (any authed user). |
-| PUT | `/api/rag-vocabulary` | requireAnyRole(pmo, admin) | { bands?: [{ id, label?, order?, level?, methodologies?, color?, labels?, removed? }] }. |
+| GET | `/api/rag-vocabulary` | — | — |
+| PUT | `/api/rag-vocabulary` | requireAnyRole(pmo, admin) | PUT /api/rag-vocabulary — set the org-scope RAG vocabulary override (pmo/admin). |
 
 ### `artifacts/api-server/src/routes/rate-card.ts`
 
@@ -1152,12 +1152,12 @@ Setup environments plane — the sandbox → promote → rollback lifecycle over
 
 ### `artifacts/api-server/src/routes/severity-vocabulary.ts`
 
-Scope-overridable RAID/risk SEVERITY vocabulary ("how bad is it if this bites").
+Scope-overridable Severity vocabulary.
 
 | Method | Path | Gate | Description |
 | --- | --- | --- | --- |
-| GET | `/api/severity-vocabulary` | — | GET /api/severity-vocabulary — the effective RAID severity grades for this scope (any authed user). |
-| PUT | `/api/severity-vocabulary` | requireAnyRole(pmo, admin) | { levels?: [{ id, label?, order?, level?, methodologies?, color?, labels?, removed? }] }. |
+| GET | `/api/severity-vocabulary` | — | — |
+| PUT | `/api/severity-vocabulary` | requireAnyRole(pmo, admin) | PUT /api/severity-vocabulary — set the org-scope Severity vocabulary override (pmo/admin). |
 
 ### `artifacts/api-server/src/routes/snapshots.ts`
 
@@ -1199,12 +1199,12 @@ The SYSTEM DEFAULTS update mechanism (roadmap X.11).
 
 ### `artifacts/api-server/src/routes/task-vocabulary.ts`
 
-Scope-overridable GTD task-status vocabulary (next-actions axis, distinct from the work-item/issue status axis).
+Scope-overridable Task vocabulary.
 
 | Method | Path | Gate | Description |
 | --- | --- | --- | --- |
-| GET | `/api/task-vocabulary` | — | GET /api/task-vocabulary — the effective GTD task statuses for this scope (any authed user). |
-| PUT | `/api/task-vocabulary` | requireAnyRole(pmo, admin) | { statuses?: [{ id, label?, order?, class?, methodologies?, color?, labels?, removed? }] }. |
+| GET | `/api/task-vocabulary` | — | — |
+| PUT | `/api/task-vocabulary` | requireAnyRole(pmo, admin) | PUT /api/task-vocabulary — set the org-scope Task vocabulary override (pmo/admin). |
 
 ### `artifacts/api-server/src/routes/tasks.ts`
 
@@ -1346,12 +1346,12 @@ WIKI / collaborative docs (roadmap 2.1).
 
 ### `artifacts/api-server/src/routes/work-vocabulary.ts`
 
-Scope-overridable work-item vocabulary (statuses + priorities).
+Scope-overridable Work vocabulary.
 
 | Method | Path | Gate | Description |
 | --- | --- | --- | --- |
-| GET | `/api/work-vocabulary` | — | GET /api/work-vocabulary — the effective statuses + priorities for this scope (any authed user). |
-| PUT | `/api/work-vocabulary` | requireAnyRole(pmo, admin) | { statuses?: [{ id, label?, order? }], priorities?: [{ id, label?, order? }] }. |
+| GET | `/api/work-vocabulary` | — | — |
+| PUT | `/api/work-vocabulary` | requireAnyRole(pmo, admin) | PUT /api/work-vocabulary — set the org-scope Work vocabulary override (pmo/admin). |
 
 ### `artifacts/api-server/src/routes/workflows.ts`
 
