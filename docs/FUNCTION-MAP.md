@@ -679,6 +679,15 @@ History-retention vocabulary — the durable time-series layer that lets the sel
 
 Server entrypoint.
 
+### `artifacts/api-server/src/lib/action-base.ts`
+
+LANE 2 — the generic ACTION base.
+
+| Function | What it does |
+| --- | --- |
+| `commandRoutes` | The "METHOD /path" this command contributes — for the write-lane ratchet. |
+| `mountCommand` | Mount a command descriptor, running the fixed shell: (role) → parse → ruleset → run → audit → respond. |
+
 ### `artifacts/api-server/src/lib/actor.ts`
 
 Shared actor-identity helpers over the broker's `ActorContext`.
@@ -1860,6 +1869,15 @@ SCOPE-OVERRIDABLE GTD energy-level vocabulary — the resolver + write sanitiser
 | --- | --- |
 | `resolveEnergyVocabulary` | The effective GTD energy vocabulary at the given scopes: the shipped default with every `energy-vocabulary` config-def layer folded on top (system → org → programme → project → user), nearest scope winning within each (id-keyed arrays merge by id). |
 | `sanitizeEnergyVocabularyOverride` | Validate + normalise a PUT body into the config-def `values` to store. |
+
+### `artifacts/api-server/src/lib/entity-pipeline.ts`
+
+LANE 1 — the generic ENTITY pipeline.
+
+| Function | What it does |
+| --- | --- |
+| `entityRoutes` | The "METHOD /path" routes a descriptor contributes — for the write-lane ratchet. |
+| `mountEntity` | Mount an entity descriptor's ops, each running the fixed RBAC → validate → ruleset → scope → run pipeline. |
 
 ### `artifacts/api-server/src/lib/env-config.ts`
 
@@ -3237,6 +3255,14 @@ RISK-EXPOSURE maths, routed through the SCOPE-RESOLVED graded vocabularies.
 ### `artifacts/api-server/src/lib/rollup.ts`
 
 Re-export of the ONE shared, artifact-agnostic roll-up (`@workspace/backend-catalogue`), so the backend (rollup endpoints, exports) and the SPA (no-code report engine) run the SAME aggregation implementation — a single roll-up behind every output of the system.
+
+### `artifacts/api-server/src/lib/ruleset-guard.ts`
+
+The SINGLE business-ruleset gate every domain write should route through.
+
+| Function | What it does |
+| --- | --- |
+| `enforceBusinessRules` | The SINGLE business-ruleset gate every domain write should route through. |
 
 ### `artifacts/api-server/src/lib/ruleset-scope.ts`
 
