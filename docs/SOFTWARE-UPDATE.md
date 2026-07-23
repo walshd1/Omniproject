@@ -192,6 +192,24 @@ Details:
   audit chain at stage/promote, so "who signed the release an admin promoted, and exactly which delta" is
   provable after the fact.
 
+**Key compromise & trust recovery.** If a publisher signing key is compromised, trust is re-established **out of
+band and manually** — never through the (possibly compromised) update channel, exactly like a break-glass:
+
+1. **Roll.** Publish a fresh signing key and **drop the compromised key from the trust anchor**, so every release
+   it ever signed stops verifying. Until a trusted key covers an incoming release, updates are **refused** (fail
+   closed — no update beats a malicious one).
+2. **Re-bootstrap.** The admin **manually downloads a small trust-anchor file** — just the new public key(s) — from
+   an out-of-band, verified channel and applies it, the same admin-pinned mechanism that seeded the anchor at
+   setup. It cannot be delivered by the automated updater, because that is the surface being recovered *from*.
+   The file carries only public keys (no secret), so it is safe to distribute widely, and its own integrity is
+   confirmable by a published checksum (origin-independent, like every completeness check here).
+3. **Resume.** Once the new key is pinned, normal signed + checksummed updates flow again.
+
+This is the update-trust analogue of the existing `BREAK_GLASS_TOKEN` / recovery-mode pattern (`lib/break-glass.ts`,
+DESIGN-PRINCIPLES §8–9): the fix path is deliberately out-of-band and manual so that compromising the online
+channel cannot also compromise the recovery. A compromised *key* never means a compromised *box* — you re-pin a
+tiny public file and carry on.
+
 An **update session** tracks one in-flight update; it is itself audited on the tamper-evident chain:
 
 ```ts
