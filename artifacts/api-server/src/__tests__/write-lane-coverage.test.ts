@@ -32,6 +32,7 @@ import {
   userCreateCommand, userUpdateCommand, userPasswordSetCommand, userPasswordClearCommand, userDeleteCommand,
 } from "../routes/users";
 import { brandingSaveCommand, brandingClearCommand } from "../routes/branding";
+import { labelsSaveCommand, labelsApplyPresetCommand } from "../routes/labels";
 import { collectionWriteRoutes } from "../lib/settings-collection-router";
 
 /**
@@ -128,6 +129,8 @@ const LANE2 = new Set<string>([
   ...commandRoutes(userDeleteCommand),
   ...commandRoutes(brandingSaveCommand),
   ...commandRoutes(brandingClearCommand),
+  ...commandRoutes(labelsSaveCommand),
+  ...commandRoutes(labelsApplyPresetCommand),
 ]);
 
 // Lane 3 — hand-written writes not (yet) on a spine. SEED — regenerate by running the first test with this
@@ -198,7 +201,6 @@ const BESPOKE_WRITES = new Set<string>([
   "POST /history/erase",
   "POST /import/commit",
   "POST /import/preview",
-  "POST /labels/apply-preset",
   "POST /mcp",
   "POST /methodology-composition/deploy/:id",
   "POST /notifications/ingest",
@@ -277,7 +279,6 @@ const BESPOKE_WRITES = new Set<string>([
   "PUT /forms",
   "PUT /governance/:id",
   "PUT /history/retention",
-  "PUT /labels",
   "PUT /logging-sync",
   "PUT /me/prefs",
   "PUT /methodology-composition",

@@ -591,9 +591,9 @@ SPDX-License-Identifier: LicenseRef-OmniProject-Premium Premium feature — gove
 | Method | Path | Gate | Description |
 | --- | --- | --- | --- |
 | GET | `/api/labels` | — | — |
-| PUT | `/api/labels` | requireAnyRole(pmo, admin) | — |
 | GET | `/api/labels/presets` | — | The vendor nomenclature presets a customer can adopt (public, like GET /labels). |
-| POST | `/api/labels/apply-preset` | requireAnyRole(pmo, admin) | Adopt one vendor's nomenclature in a click — writes it through the label overrides. |
+| PUT | `/api/labels` | requireAnyRole(pmo, admin) | — |
+| POST | `/api/labels/apply-preset` | requireAnyRole(pmo, admin) | — |
 
 ### `artifacts/api-server/src/routes/license.ts`
 
