@@ -6,7 +6,9 @@ import { enforceBusinessRules } from "./ruleset-guard";
 /**
  * LANE 2 — the generic ACTION base. A VERB / command (approve a proposal, run a workflow, transition a
  * timesheet) keeps its irreducible CORE (`run`), but the SHELL around it is the same every time: authorize
- * → validate the args → (business ruleset) → run → audit → respond, with a consistent error envelope. Each
+ * → validate the args → business ruleset → run → audit → respond, with a consistent error envelope. The
+ * ruleset always runs (keyed on `ruleAction`, else the command name), so a portfolio freeze or an
+ * any-write field rule covers verb writes exactly as it covers entity writes. Each
  * cross-cutting step maps to a helper the codebase already applies by hand, per route; this base assembles
  * them from a descriptor so a command can't ship missing one. It's the action twin of the entity pipeline:
  * mountEntity is for noun writes, mountCommand for verb writes.
@@ -32,10 +34,16 @@ export interface CommandDescriptor<A> {
   gates?: RequestHandler[];
   /** Authorize + validate the request into typed args, or return null having ALREADY sent a 4xx. */
   parse: (req: Request, res: Response) => A | null;
-  /** Optional business-ruleset action, when the command mutates a rule-governed entity. */
-  ruleAction?: string;
-  /** Scope + payload for the ruleset, when `ruleAction` is set. */
+  /** Scope + payload for the ruleset (project/programme for scope-tightened overrides, payload for field
+   *  rules). Optional — a command with no rule-governed scope can omit it; the ruleset still runs (write-wide
+   *  rules like `read-only` apply) with an empty scope. */
   ruleScope?: (req: Request, args: A) => { projectId?: string | null; programmeId?: string | null; payload?: Record<string, unknown> };
+  /** Business-ruleset action for this command. Optional — when omitted the command `name` is used, so
+   *  EVERY command checks the ruleset (a portfolio `read-only` freeze and `any-write` field rules cover
+   *  every spine write by construction). Set it explicitly to align with a named domain action
+   *  ("update_task"), or to reuse an existing rule's action label. Non-applicable rules are ignored, so a
+   *  command whose name matches no rule simply passes the ruleset unless a write-wide rule is active. */
+  ruleAction?: string;
   /** The effect. Returns the response payload (sent with `status`), or `undefined` if it already responded. */
   run: (req: Request, res: Response, args: A) => Promise<unknown>;
   /** Audit action label, or a fn deriving it from args (e.g. `approval.${decision}`). */
@@ -60,10 +68,13 @@ export function mountCommand<A>(router: IRouter, desc: CommandDescriptor<A>): vo
     const args = desc.parse(req, res);
     if (args === null) return;
     const action = typeof desc.audit === "function" ? desc.audit(args) : desc.audit;
-    if (desc.ruleAction) {
-      const scope = desc.ruleScope?.(req, args) ?? {};
-      if (!enforceBusinessRules(req, res, desc.ruleAction, scope)) return;
-    }
+    // Every command checks the business ruleset by construction — `ruleAction` when given, else the command
+    // name. Non-applicable rules are ignored, so this is a no-op under default config; when a write-wide rule
+    // (a `read-only` freeze, an `any-write` field rule) is active it now covers verb writes too, not just
+    // entity writes. Runs after parse (the 4xx gate) and before run, mirroring the entity pipeline's order.
+    const ruleAction = desc.ruleAction ?? desc.name;
+    const scope = desc.ruleScope?.(req, args) ?? {};
+    if (!enforceBusinessRules(req, res, ruleAction, scope)) return;
     try {
       const result = await desc.run(req, res, args);
       recordAudit({
