@@ -72,6 +72,7 @@ import { resolveImpactVocabulary } from "../lib/impact-vocabulary-config";
 import { resolveLikelihoodVocabulary } from "../lib/likelihood-vocabulary-config";
 import type { ConfigScopes } from "../lib/scoped-config";
 import type { Request, Response } from "express";
+import { zodParseOr400, type SafeParseSchema } from "../lib/validate";
 
 const router = Router();
 
@@ -99,27 +100,14 @@ function passesBusinessRules(req: Request, res: Response, action: string, projec
   return true;
 }
 
-/** Minimal structural view of a zod schema's `safeParse` — lets the path-param
- *  helper stay generic without a direct zod dependency (api-server gets zod only
- *  transitively via @workspace/api-zod). */
-interface ParamSchema<T> {
-  safeParse(input: unknown): { success: true; data: T } | { success: false };
-}
-
 /**
- * Parse the route's path params (`:projectId`, and any sibling like `:issueId`)
- * through its zod contract. On the failure path — unreachable in practice, since
- * the params coerce to strings — it sends the same `400 { error: message }` the
- * handlers used to inline and returns null so the caller early-returns. On success
- * it returns the parsed params.
+ * Parse the route's path params (`:projectId`, and any sibling like `:issueId`) through its zod
+ * contract → `400 { error: message }` on failure (unreachable in practice, since the params coerce to
+ * strings), else the parsed params. A thin wrapper over the shared {@link zodParseOr400} so the ~20
+ * param-parsing routes here share the one parse-then-400 mechanism.
  */
-function parseRouteParams<T>(schema: ParamSchema<T>, req: Request, res: Response, message: string): T | null {
-  const parse = schema.safeParse(req.params);
-  if (!parse.success) {
-    res.status(400).json({ error: message });
-    return null;
-  }
-  return parse.data;
+function parseRouteParams<T>(schema: SafeParseSchema<T>, req: Request, res: Response, message: string): T | null {
+  return zodParseOr400(res, schema, req.params, message);
 }
 
 // ── Reads (served by the active broker — live backend or demo) ────────────────
@@ -184,32 +172,29 @@ function fieldRuleErrors(data: Record<string, unknown>): string[] {
 }
 
 router.post("/projects", requireRole("manager"), async (req, res) => {
-  const bodyParse = CreateProjectBody.safeParse(req.body);
-  if (!bodyParse.success) {
-    res.status(400).json({ error: "Invalid request" });
-    return;
-  }
+  const body = zodParseOr400(res, CreateProjectBody, req.body);
+  if (!body) return;
   const caps = await resolveCapabilities(req);
   if (!caps.entities["project"]?.store) {
     res.status(403).json({ error: "This backend can't create projects" });
     return;
   }
-  const errors = validateEntityInput(bodyParse.data as Record<string, unknown>, PROJECT_DESCRIPTORS);
+  const errors = validateEntityInput(body as Record<string, unknown>, PROJECT_DESCRIPTORS);
   if (errors.length) {
     res.status(400).json({ error: errors[0]!.message, errors }); // errors.length checked above
     return;
   }
-  const ruleErrors = fieldRuleErrors(bodyParse.data as Record<string, unknown>);
+  const ruleErrors = fieldRuleErrors(body as Record<string, unknown>);
   if (ruleErrors.length) {
     res.status(400).json({ error: ruleErrors[0], errors: ruleErrors });
     return;
   }
   // A new project has no project scope yet; a programme-scope ruleset override still applies.
-  if (!enforceBusinessRules(req, res, "create_project", { programmeId: (bodyParse.data as { programmeId?: string }).programmeId ?? null, payload: bodyParse.data as Record<string, unknown> })) return;
+  if (!enforceBusinessRules(req, res, "create_project", { programmeId: (body as { programmeId?: string }).programmeId ?? null, payload: body as Record<string, unknown> })) return;
   await withBrokerErrors(req, res, "create_project failed", async () => {
     // Mint the backend-independent correlation GUID here (once, in the gateway) and pass it to the
     // backend to store + echo. It's server-minted, never from the client body — see Project.omniInstanceId.
-    const project = await getBroker().createProject(contextFromReq(req), { ...bodyParse.data, omniInstanceId: randomUUID() });
+    const project = await getBroker().createProject(contextFromReq(req), { ...body, omniInstanceId: randomUUID() });
     res.status(201).json(project);
   });
 });
@@ -287,13 +272,10 @@ router.post("/projects/:projectGuid/close", requireAnyRole("pmo", "admin"), (req
 });
 
 router.patch("/projects/:projectId", requireRole("manager"), async (req, res) => {
-  const paramsParse = UpdateProjectParams.safeParse(req.params);
-  const bodyParse = UpdateProjectBody.safeParse(req.body);
-  if (!paramsParse.success || !bodyParse.success) {
-    res.status(400).json({ error: "Invalid request" });
-    return;
-  }
-  const data = bodyParse.data;
+  const params = zodParseOr400(res, UpdateProjectParams, req.params);
+  if (!params) return;
+  const data = zodParseOr400(res, UpdateProjectBody, req.body);
+  if (!data) return;
   const caps = await resolveCapabilities(req);
   const settingProgramme = data.programmeId !== undefined;
   // Joining/leaving a programme is gated on the programme entity; other edits on project.
@@ -311,9 +293,9 @@ router.patch("/projects/:projectId", requireRole("manager"), async (req, res) =>
     return;
   }
   await withBrokerErrors(req, res, "update_project failed", async () => {
-    if (!(await guardProjectScope(req, res, paramsParse.data.projectId))) return;
-    if (!passesBusinessRules(req, res, "update_project", paramsParse.data.projectId, data as Record<string, unknown>)) return;
-    const updated = await getBroker().updateProject(contextFromReq(req), paramsParse.data.projectId, data);
+    if (!(await guardProjectScope(req, res, params.projectId))) return;
+    if (!passesBusinessRules(req, res, "update_project", params.projectId, data as Record<string, unknown>)) return;
+    const updated = await getBroker().updateProject(contextFromReq(req), params.projectId, data);
     res.json(updated);
   });
 });
@@ -364,26 +346,24 @@ router.get("/projects/:projectId/issues/:issueId/items", async (req, res) => {
 });
 
 router.post("/projects/:projectId/issues/:issueId/items", requireRole("contributor"), async (req, res) => {
-  const paramsParse = CreateTaskItemParams.safeParse(req.params);
-  const bodyParse = CreateTaskItemBody.safeParse(req.body);
-  if (!paramsParse.success || !bodyParse.success) {
-    res.status(400).json({ error: "Invalid request" });
-    return;
-  }
-  const { kind } = bodyParse.data;
+  const params = zodParseOr400(res, CreateTaskItemParams, req.params);
+  if (!params) return;
+  const body = zodParseOr400(res, CreateTaskItemBody, req.body);
+  if (!body) return;
+  const { kind } = body;
   const caps = await resolveCapabilities(req);
   if (!caps.entities[kind]?.store) {
     res.status(403).json({ error: `This backend can't store ${kind}s against a task` });
     return;
   }
   await withBrokerErrors(req, res, "create_task_item failed", async () => {
-    if (!(await guardProjectScope(req, res, paramsParse.data.projectId))) return;
-    if (!passesBusinessRules(req, res, "create_issue_item", paramsParse.data.projectId, bodyParse.data as Record<string, unknown>)) return;
+    if (!(await guardProjectScope(req, res, params.projectId))) return;
+    if (!passesBusinessRules(req, res, "create_issue_item", params.projectId, body as Record<string, unknown>)) return;
     const item = await getBroker().createTaskItem(
       contextFromReq(req),
-      paramsParse.data.projectId,
-      paramsParse.data.issueId,
-      bodyParse.data,
+      params.projectId,
+      params.issueId,
+      body,
     );
     res.status(201).json(item);
   });
@@ -402,10 +382,8 @@ export const issueEntity: EntityDescriptor = {
     role: "contributor",
     ruleAction: "create_issue",
     validate: (req, res) => {
-      const paramsParse = CreateIssueParams.safeParse(req.params);
-      const bodyParse = CreateIssueBody.safeParse(req.body);
-      if (!paramsParse.success || !bodyParse.success) { res.status(400).json({ error: "Invalid request" }); return null; }
-      return bodyParse.data;
+      if (!zodParseOr400(res, CreateIssueParams, req.params)) return null;
+      return zodParseOr400(res, CreateIssueBody, req.body);
     },
     run: (req, _res, body) => getBroker().writeIssue(contextFromReq(req), "create", { projectId: String(req.params["projectId"]), ...(body as Record<string, unknown>) }),
   },
@@ -413,10 +391,8 @@ export const issueEntity: EntityDescriptor = {
     role: "contributor",
     ruleAction: "update_issue",
     validate: (req, res) => {
-      const paramsParse = UpdateIssueParams.safeParse(req.params);
-      const bodyParse = UpdateIssueBody.safeParse(req.body);
-      if (!paramsParse.success || !bodyParse.success) { res.status(400).json({ error: "Invalid request" }); return null; }
-      return bodyParse.data;
+      if (!zodParseOr400(res, UpdateIssueParams, req.params)) return null;
+      return zodParseOr400(res, UpdateIssueBody, req.body);
     },
     // expectedVersion drives optimistic concurrency: the broker rejects a stale edit as a `conflict` (409).
     // A null result means no such issue — surface it as 404 (200 null would violate the Issue schema).
@@ -746,13 +722,11 @@ function checkRaidGrade(res: Response, field: string, value: unknown, ids: Set<s
 // RAID is a manager capability per the RBAC model (rbac.ts: "manager — contributor + RAID,
 // baselines, portfolio actions"), and this route has no compensating ruleset gate — so gate at manager.
 router.post("/projects/:projectId/raid", requireRole("manager"), async (req, res) => {
-  const paramsParse = GetProjectSummaryParams.safeParse(req.params);
-  const bodyParse = RaidBodyStructure.safeParse(req.body);
-  if (!paramsParse.success || !bodyParse.success) {
-    res.status(400).json({ error: "Invalid request" });
-    return;
-  }
-  const { projectId } = paramsParse.data;
+  const params = zodParseOr400(res, GetProjectSummaryParams, req.params);
+  if (!params) return;
+  const raidBody = zodParseOr400(res, RaidBodyStructure, req.body);
+  if (!raidBody) return;
+  const { projectId } = params;
   const scopes = raidScopesFromReq(req, projectId);
   const raw = (req.body ?? {}) as Record<string, unknown>;
 
@@ -768,7 +742,7 @@ router.post("/projects/:projectId/raid", requireRole("manager"), async (req, res
   if (impact === undefined) return;
 
   const body: Record<string, unknown> = {
-    ...(bodyParse.data as Record<string, unknown>),
+    ...(raidBody as Record<string, unknown>),
     severity,
     ...(likelihood !== null ? { likelihood } : {}),
     ...(impact !== null ? { impact } : {}),

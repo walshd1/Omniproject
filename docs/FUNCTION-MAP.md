@@ -3928,6 +3928,7 @@ Zero-trust request validation — a tiny, dependency-free schema validator for t
 | Function | What it does |
 | --- | --- |
 | `parseOr400` | Parse an untrusted request part against a schema. |
+| `zodParseOr400` | The zod-schema sibling of {@link parseOr400}: parse `input` through a zod contract; on failure send `400 { error: message }` and return null (so the caller early-returns), else return the typed data. |
 
 ### `artifacts/api-server/src/lib/vault-aws.ts`
 

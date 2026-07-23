@@ -15,6 +15,7 @@ import { getSession } from "./auth";
 import { enforceCapability, CapabilityBlockedError, getCapability } from "../lib/capability-governance";
 import { grantedCapabilitiesForReq } from "../lib/custom-roles";
 import { enforceBusinessRules } from "../lib/ruleset-guard";
+import { zodParseOr400 } from "../lib/validate";
 
 const router = Router();
 
@@ -43,13 +44,10 @@ async function handle(req: Request, res: Response): Promise<void> {
     return;
   }
 
-  const parse = BrokerCommandBody.safeParse(req.body);
-  if (!parse.success) {
-    res.status(400).json({ error: "Invalid request body" });
-    return;
-  }
+  const cmd = zodParseOr400(res, BrokerCommandBody, req.body, "Invalid request body");
+  if (!cmd) return;
 
-  const { action, source } = parse.data;
+  const { action, source } = cmd;
 
   // Vendor governance: when the active backend names a specific vendor, that vendor's
   // capability must be turned on (off by default). Denials are logged. When the source
@@ -70,7 +68,7 @@ async function handle(req: Request, res: Response): Promise<void> {
 
   // Never trust client-supplied identity. Strip any userContext/origin from the
   // raw body; the server injects identity from the validated OIDC session.
-  const rawPayload = (parse.data.payload ?? {}) as Record<string, unknown>;
+  const rawPayload = (cmd.payload ?? {}) as Record<string, unknown>;
   const { userContext: _ignoredUserContext, origin: _ignoredOrigin, ...payload } = rawPayload;
 
   // IDOR guard: this edge forwards a caller-supplied `projectId` straight to the scope-blind broker

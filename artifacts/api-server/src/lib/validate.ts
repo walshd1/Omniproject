@@ -138,3 +138,21 @@ export function parseOr400<T>(req: Request, res: Response, schema: Validator<T>,
     throw e;
   }
 }
+
+/** Structural view of a zod schema's `safeParse` — lets route helpers parse a zod contract without a
+ *  direct zod dependency (api-server gets zod only transitively via @workspace/api-zod). */
+export interface SafeParseSchema<T> {
+  safeParse(input: unknown): { success: true; data: T } | { success: false };
+}
+
+/** The zod-schema sibling of {@link parseOr400}: parse `input` through a zod contract; on failure send
+ *  `400 { error: message }` and return null (so the caller early-returns), else return the typed data.
+ *  The one home for the hand-rolled `Schema.safeParse(x); if (!p.success) res.status(400)…` pattern. */
+export function zodParseOr400<T>(res: Response, schema: SafeParseSchema<T>, input: unknown, message = "Invalid request"): T | null {
+  const parse = schema.safeParse(input);
+  if (!parse.success) {
+    res.status(400).json({ error: message });
+    return null;
+  }
+  return parse.data;
+}
