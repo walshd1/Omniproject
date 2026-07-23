@@ -20,15 +20,19 @@ test("production without OIDC is a CRITICAL finding (demo auth = everyone admin)
   assert.ok(crit && crit.severity === "critical");
 });
 
-test("also runs when NODE_ENV isn't literally 'production' but a real production signal is present", () => {
-  // A public hostname with no OIDC and NODE_ENV unset — the same demo-auth-in-prod gap, just not
-  // spelled the literal way. Must not be silently skipped (closes the class of gap
-  // session-secret-guard.ts / requireTls() also close).
-  const f = securityFindings({ PUBLIC_URL: "https://omni.example.com" });
-  const crit = f.find((x) => x.id === "demo-auth-in-prod");
-  assert.ok(crit && crit.severity === "critical");
-  // No production signal at all (plain dev) is still fully relaxed.
-  assert.deepEqual(securityFindings({ NODE_ENV: "staging" }), []);
+test("also runs when NODE_ENV isn't literally 'production' — by a real production signal OR any non-production label", () => {
+  // The demo-auth-in-prod gap must not be silently skipped just because NODE_ENV isn't the literal
+  // string "production". Two independent ways it still fires:
+  //   1. a real production SIGNAL (public hostname, SSO, licence) regardless of the NODE_ENV string, and
+  //   2. any non-production NODE_ENV label — "staging", a typo, a mis-cased "Production" — because the
+  //      single production predicate (lib/node-env.isProductionEnv, via dev-mode-guard.isProductionLike)
+  //      fails closed: ONLY an explicit development/test (or unset) reads as non-production.
+  const bySignal = securityFindings({ PUBLIC_URL: "https://omni.example.com" });
+  assert.ok(bySignal.find((x) => x.id === "demo-auth-in-prod")?.severity === "critical");
+  const byLabel = securityFindings({ NODE_ENV: "staging" });
+  assert.ok(byLabel.find((x) => x.id === "demo-auth-in-prod")?.severity === "critical");
+  // Only an explicit development/test (or unset) stays fully relaxed.
+  assert.deepEqual(securityFindings({ NODE_ENV: "development" }), []);
 });
 
 test("a self-hosted/charity profile makes no-IdP an accepted choice (warn, not critical)", () => {

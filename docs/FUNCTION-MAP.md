@@ -1743,8 +1743,8 @@ Dev-mode production guard — the hard safety interlock that stops a developer/ 
 
 | Function | What it does |
 | --- | --- |
-| `devModeActive` | Dev mode computed purely from an env map (mirrors lib/dev-mode.isDevMode). |
-| `isProductionLike` | Does this environment look like production — literally, or via `productionSignals`? |
+| `devModeActive` | Dev mode computed purely from an env map — the SINGLE source of truth for "is a dev/debug surface allowed to be active?". |
+| `isProductionLike` | Does this environment look like production — by NODE_ENV, or via `productionSignals`? |
 | `productionSignals` | Production signals that must not coexist with dev mode (or a default SESSION_SECRET). |
 | `evaluateDevModeGuard` | Evaluate the guard (pure). |
 | `runDevModeGuard` | Boot hook: evaluate the guard, log loudly, and THROW (refuse to boot) when dev mode collides with production signals. |
@@ -2527,6 +2527,14 @@ Natural-language → canonical action planner.
 | `extractJson` | Pull the first JSON object out of a model reply (tolerant of code fences / prose). |
 | `toPlan` | Validate a parsed model reply against the tool catalogue into a typed plan. |
 | `planAction` | Plan an action from natural language. |
+
+### `artifacts/api-server/src/lib/node-env.ts`
+
+The SINGLE source of truth for "is this a production environment?".
+
+| Function | What it does |
+| --- | --- |
+| `isProductionEnv` | True when this looks like a production environment. |
 
 ### `artifacts/api-server/src/lib/nomenclature.ts`
 
