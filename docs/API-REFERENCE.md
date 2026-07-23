@@ -822,7 +822,7 @@ Project, programme-membership, issue + task-item endpoints — the core read/wri
 | GET | `/api/projects/:projectId/history` | — | History + baseline (sourced from the system of record via the broker) |
 | GET | `/api/projects/:projectId/baseline` | — | — |
 | GET | `/api/projects/:projectId/raid` | — | RAID log |
-| POST | `/api/projects/:projectId/raid` | requireRole(manager) | baselines, portfolio actions"), and this route has no compensating ruleset gate — so gate at manager. |
+| POST | `/api/projects/:projectId/raid` | requireRole(manager) | RAID entries — create a Risk/Assumption/Issue/Dependency entry against a project (manager+). |
 | GET | `/api/fx-rates` | — | Multi-currency FX rates (read-through; demo fallback) |
 | GET | `/api/notifications` | — | Notifications |
 

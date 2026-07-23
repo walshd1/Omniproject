@@ -740,42 +740,57 @@ function checkRaidGrade(res: Response, field: string, value: unknown, ids: Set<s
   return undefined;
 }
 
-// RAID is a manager capability per the RBAC model (rbac.ts: "manager — contributor + RAID,
-// baselines, portfolio actions"), and this route has no compensating ruleset gate — so gate at manager.
-router.post("/projects/:projectId/raid", requireRole("manager"), async (req, res) => {
-  const params = zodParseOr400(res, GetProjectSummaryParams, req.params);
-  if (!params) return;
-  const raidBody = zodParseOr400(res, RaidBodyStructure, req.body);
-  if (!raidBody) return;
-  const { projectId } = params;
-  const scopes = raidScopesFromReq(req, projectId);
-  const raw = (req.body ?? {}) as Record<string, unknown>;
-
-  // Relaxed, scope-resolved gate for the three graded fields (severity required; likelihood/impact optional).
-  const severityIds = new Set(resolveSeverityVocabulary(scopes).levels.map((l) => l.id));
-  const impactIds = new Set(resolveImpactVocabulary(scopes).levels.map((l) => l.id));
-  const likelihoodIds = new Set(resolveLikelihoodVocabulary(scopes).levels.map((l) => l.id));
-  const severity = checkRaidGrade(res, "severity", raw["severity"], severityIds, true);
-  if (severity === undefined) return;
-  const likelihood = checkRaidGrade(res, "likelihood", raw["likelihood"], likelihoodIds, false);
-  if (likelihood === undefined) return;
-  const impact = checkRaidGrade(res, "impact", raw["impact"], impactIds, false);
-  if (impact === undefined) return;
-
-  const body: Record<string, unknown> = {
-    ...(raidBody as Record<string, unknown>),
-    severity,
-    ...(likelihood !== null ? { likelihood } : {}),
-    ...(impact !== null ? { impact } : {}),
-  };
-
-  await withBrokerErrors(req, res, "create_raid_entry failed", async () => {
-    if (!(await guardProjectScope(req, res, projectId))) return;
-    if (!passesBusinessRules(req, res, "create_raid", projectId, body)) return;
-    const entry = await getBroker().addRaid(contextFromReq(req), projectId, body);
-    res.status(201).json(entry);
-  }, { projectId });
-});
+/**
+ * RAID entries — create a Risk/Assumption/Issue/Dependency entry against a project (manager+). RAID is a
+ * manager capability per the RBAC model (rbac.ts: "manager — contributor + RAID, baselines, portfolio
+ * actions"), so the create op gates at manager.
+ *
+ * LANE 1: a create-only, project-scoped entity — RBAC → validate → ruleset → scope → broker write by
+ * construction (the same guarantee as issueEntity). The graded fields (severity required; likelihood/impact
+ * optional) are checked in `validate` against the scope-resolved vocabularies; `broker.addRaid` is the effect,
+ * wrapped by the pipeline's withBrokerErrors. Vs the hand-written route this adopts the pipeline convention of
+ * running the ruleset before the scope guard (both were present; the ruleset does no data access, and the
+ * write still fail-closes on scope) — observable only under an active rule AND a cross-scope attempt.
+ */
+export const raidEntity: EntityDescriptor = {
+  entity: "raid_entry",
+  basePath: "/projects/:projectId/raid",
+  scope: { kind: "project", param: "projectId" },
+  create: {
+    role: "manager",
+    ruleAction: "create_raid",
+    validate: (req, res) => {
+      const params = zodParseOr400(res, GetProjectSummaryParams, req.params);
+      if (!params) return null;
+      const raidBody = zodParseOr400(res, RaidBodyStructure, req.body);
+      if (!raidBody) return null;
+      const scopes = raidScopesFromReq(req, params.projectId);
+      const raw = (req.body ?? {}) as Record<string, unknown>;
+      // Relaxed, scope-resolved gate for the three graded fields (severity required; likelihood/impact optional).
+      const severityIds = new Set(resolveSeverityVocabulary(scopes).levels.map((l) => l.id));
+      const impactIds = new Set(resolveImpactVocabulary(scopes).levels.map((l) => l.id));
+      const likelihoodIds = new Set(resolveLikelihoodVocabulary(scopes).levels.map((l) => l.id));
+      const severity = checkRaidGrade(res, "severity", raw["severity"], severityIds, true);
+      if (severity === undefined) return null;
+      const likelihood = checkRaidGrade(res, "likelihood", raw["likelihood"], likelihoodIds, false);
+      if (likelihood === undefined) return null;
+      const impact = checkRaidGrade(res, "impact", raw["impact"], impactIds, false);
+      if (impact === undefined) return null;
+      return {
+        ...(raidBody as Record<string, unknown>),
+        severity,
+        ...(likelihood !== null ? { likelihood } : {}),
+        ...(impact !== null ? { impact } : {}),
+      } as Record<string, unknown>;
+    },
+    run: async (req, res, body) => {
+      const entry = await getBroker().addRaid(contextFromReq(req), String(req.params["projectId"]), body as Record<string, unknown>);
+      res.status(201).json(entry);
+      return undefined;
+    },
+  },
+};
+mountEntity(router, raidEntity);
 
 // ── Multi-currency FX rates (read-through; demo fallback) ─────────────────────
 

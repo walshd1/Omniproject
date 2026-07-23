@@ -4,7 +4,7 @@ import type { IRouter } from "express";
 import { startHarness, type Harness } from "./_harness";
 import { entityRoutes } from "../lib/entity-pipeline";
 import { commandRoutes } from "../lib/action-base";
-import { issueEntity } from "../routes/projects";
+import { issueEntity, raidEntity } from "../routes/projects";
 import { taskEntity } from "../routes/tasks";
 import { proofEntity } from "../routes/proofs";
 import { wikiEntity } from "../routes/wiki";
@@ -103,7 +103,7 @@ async function writeRoutes(): Promise<Set<string>> {
 }
 
 // Lane 1 + Lane 2 — derived from the registered descriptors (the routes the spines own).
-const LANE1 = new Set<string>([...entityRoutes(issueEntity), ...entityRoutes(taskEntity), ...entityRoutes(proofEntity), ...entityRoutes(wikiEntity)]);
+const LANE1 = new Set<string>([...entityRoutes(issueEntity), ...entityRoutes(taskEntity), ...entityRoutes(proofEntity), ...entityRoutes(wikiEntity), ...entityRoutes(raidEntity)]);
 const LANE2 = new Set<string>([
   ...commandRoutes(decisionCommand),
   ...commandRoutes(redirectCommand),
@@ -234,7 +234,6 @@ const BESPOKE_WRITES = new Set<string>([
   "POST /presence/rooms/:roomId",
   "POST /projects",
   "POST /projects/:projectId/issues/:issueId/items",
-  "POST /projects/:projectId/raid",
   "POST /proofs/:id/decision",
   "POST /provenance/call/:callId/verify",
   "POST /scim/v2/Groups",
