@@ -1,5 +1,6 @@
 import crypto from "node:crypto";
 import { Router, type Request, type Response } from "express";
+import { sendError } from "../lib/http-error";
 import { contextFromReq, withBrokerErrors } from "../broker";
 import { requireRole, scopeForReq } from "../lib/rbac";
 import { inScope } from "../lib/scope";
@@ -34,7 +35,7 @@ const router = Router();
  *  shared gate handles user/project/org. */
 const authorizeTarget = (req: Request, res: Response, storage: ScopedTarget, ids: { projectId?: string | undefined; programmeId?: string | undefined }, op: "read" | "write"): Promise<boolean> => {
   if (storage === "programme") {
-    if (!ids.programmeId) { res.status(400).json({ error: "a programme definition needs a programmeId" }); return Promise.resolve(false); }
+    if (!ids.programmeId) { sendError(res, 400, "a programme definition needs a programmeId"); return Promise.resolve(false); }
     return Promise.resolve(guardProgrammeScope(req, res, ids.programmeId));
   }
   return authorizeStorageTarget(req, res, storage, ids.projectId, op, { capability: false, capabilityError: "the definition importer does not support the sidecar target" });
@@ -44,7 +45,7 @@ const authorizeTarget = (req: Request, res: Response, storage: ScopedTarget, ids
 router.post("/defs/validate", requireRole("contributor"), (req, res) => {
   const body = (req.body ?? {}) as { kind?: unknown; payload?: unknown };
   if (typeof body.kind !== "string" || !(DEF_KINDS as readonly string[]).includes(body.kind)) {
-    res.status(400).json({ error: `kind must be one of ${DEF_KINDS.join(", ")}` });
+    sendError(res, 400, `kind must be one of ${DEF_KINDS.join(", ")}`);
     return;
   }
   const result = validateDef(body.kind as DefKind, body.payload);
@@ -62,7 +63,7 @@ router.put("/defs/policy", requireRole("admin"), (req, res) => {
   const body = (req.body ?? {}) as Record<string, unknown>;
   for (const scope of ["user", "project", "programme", "org"] as const) {
     if (body[scope] !== undefined && !(DEF_GATES as readonly string[]).includes(String(body[scope]))) {
-      res.status(400).json({ error: `${scope} gate must be one of ${DEF_GATES.join(", ")}` });
+      sendError(res, 400, `${scope} gate must be one of ${DEF_GATES.join(", ")}`);
       return;
     }
   }
@@ -99,7 +100,7 @@ router.get("/defs", requireRole("viewer"), (req, res) =>
 router.get("/defs/resolved/:kind", requireRole("viewer"), (req, res) =>
   withBrokerErrors(req, res, "resolve_defs failed", async () => {
     const kind = String(req.params["kind"]);
-    if (!(DEF_KINDS as readonly string[]).includes(kind)) { res.status(400).json({ error: `kind must be one of ${DEF_KINDS.join(", ")}` }); return; }
+    if (!(DEF_KINDS as readonly string[]).includes(kind)) { sendError(res, 400, `kind must be one of ${DEF_KINDS.join(", ")}`); return; }
     if (!artifactStoreEnabled()) { res.json([]); return; }
     const projectId = typeof req.query["projectId"] === "string" ? req.query["projectId"] : undefined;
     const programmeId = typeof req.query["programmeId"] === "string" ? req.query["programmeId"] : undefined;
@@ -126,15 +127,15 @@ router.use(defBindingsRouter);
 // GET /api/defs/:id — one stored def with its payload (viewer+, subject to the target gate).
 router.get("/defs/:id", requireRole("viewer"), (req, res) =>
   withBrokerErrors(req, res, "get_def failed", async () => {
-    if (!artifactStoreEnabled()) { res.status(404).json({ error: "Not found" }); return; }
+    if (!artifactStoreEnabled()) { sendError(res, 404, "Not found"); return; }
     const id = String(req.params["id"]);
     const parsed = parseScopedId(id);
-    if (!parsed) { res.status(404).json({ error: "Not found" }); return; }
+    if (!parsed) { sendError(res, 404, "Not found"); return; }
     if (!(await authorizeTarget(req, res, parsed.storage, { projectId: parsed.projectId, programmeId: parsed.programmeId }, "read"))) return;
     const ctx = contextFromReq(req);
     const scope = scopeFromParsed(parsed, ctx.sub);
     const item = scope ? getDef(scope, id) : null;
-    if (!item) { res.status(404).json({ error: "Not found" }); return; }
+    if (!item) { sendError(res, 404, "Not found"); return; }
     res.json(item);
   }),
 );
@@ -146,17 +147,17 @@ router.post("/defs", requireRole("contributor"), (req, res) => {
   const storage: ScopedTarget | undefined =
     isStorageTarget(body.storage) && body.storage !== "sidecar" ? body.storage
     : body.storage === "programme" ? "programme" : undefined;
-  if (!storage) { res.status(400).json({ error: "storage must be user, project, programme or org" }); return; }
+  if (!storage) { sendError(res, 400, "storage must be user, project, programme or org"); return; }
   const projectId = typeof body.projectId === "string" ? body.projectId : undefined;
   const programmeId = typeof body.programmeId === "string" ? body.programmeId : undefined;
 
   let input;
   try { input = sanitizeDef(req.body); }
-  catch (e) { if (e instanceof DefError) { res.status(400).json({ error: e.message }); return; } throw e; }
+  catch (e) { if (e instanceof DefError) { sendError(res, 400, e.message); return; } throw e; }
 
   // Primitives (and any vendor-controlled kind) are OURS — an org composes recipes FROM them but cannot author
   // or fork one. There is no customer scope at which a primitive may be written.
-  if (isVendorControlledKind(input.kind)) { res.status(403).json({ error: `${input.kind} definitions are vendor-controlled and cannot be authored` }); return; }
+  if (isVendorControlledKind(input.kind)) { sendError(res, 403, `${input.kind} definitions are vendor-controlled and cannot be authored`); return; }
 
   return withBrokerErrors(req, res, "def import failed", async () => {
     if (!(await authorizeDefWrite(req, res, storage, { projectId, programmeId }))) return;
@@ -168,13 +169,13 @@ router.post("/defs", requireRole("contributor"), (req, res) => {
     // must compose + validate as a whole against its ancestors, and must not break any def built downstream.
     const ancestryScopes = { ...(projectId ? { projectId } : {}), ...(programmeId ? { programmeId } : {}), ...(ctx.sub ? { sub: ctx.sub } : {}) };
     const ancestryErr = checkImportAncestry(input.kind, input.payload, ancestryScopes);
-    if (ancestryErr) { res.status(400).json({ error: ancestryErr }); return; }
+    if (ancestryErr) { sendError(res, 400, ancestryErr); return; }
     const integrityErr = checkImportIntegrity(input.kind, input.payload);
-    if (integrityErr) { res.status(400).json({ error: integrityErr }); return; }
+    if (integrityErr) { sendError(res, 400, integrityErr); return; }
     const ownerId = storage === "programme" ? programmeId : projectId;
     const id = makeScopedId(storage, crypto.randomUUID(), ownerId);
     const scope = scopeFromParsed({ storage, ...(projectId ? { projectId } : {}), ...(programmeId ? { programmeId } : {}) }, ctx.sub);
-    if (!scope) { res.status(400).json({ error: "could not resolve a storage scope" }); return; }
+    if (!scope) { sendError(res, 400, "could not resolve a storage scope"); return; }
     const row: StoredDef = newStoredDef(id, input, ctx, new Date().toISOString());
     putDef(scope, row);
     res.status(201).json(row);
@@ -187,27 +188,27 @@ router.put("/defs/:id", requireRole("contributor"), (req, res) =>
   withBrokerErrors(req, res, "update_def failed", async () => {
     const id = String(req.params["id"]);
     const parsed = parseScopedId(id);
-    if (!parsed) { res.status(404).json({ error: "Not found" }); return; }
+    if (!parsed) { sendError(res, 404, "Not found"); return; }
     if (!(await authorizeDefWrite(req, res, parsed.storage, { projectId: parsed.projectId, programmeId: parsed.programmeId }))) return;
-    if (!artifactStoreEnabled()) { res.status(404).json({ error: "Not found" }); return; }
+    if (!artifactStoreEnabled()) { sendError(res, 404, "Not found"); return; }
     const ctx = contextFromReq(req);
     const scope = scopeFromParsed(parsed, ctx.sub);
     const existing = scope ? getDef(scope, id) : null;
-    if (!existing || !scope) { res.status(404).json({ error: "Not found" }); return; }
+    if (!existing || !scope) { sendError(res, 404, "Not found"); return; }
     // A vendor-controlled kind (primitive) can never be edited at a customer scope — it can't exist there.
-    if (isVendorControlledKind(existing.kind)) { res.status(403).json({ error: `${existing.kind} definitions are vendor-controlled and cannot be edited` }); return; }
+    if (isVendorControlledKind(existing.kind)) { sendError(res, 403, `${existing.kind} definitions are vendor-controlled and cannot be edited`); return; }
     let upd;
     try { upd = sanitizeDefUpdate(existing.kind, req.body); }
-    catch (e) { if (e instanceof DefError) { res.status(400).json({ error: e.message }); return; } throw e; }
+    catch (e) { if (e instanceof DefError) { sendError(res, 400, e.message); return; } throw e; }
     // COMPOSITION: re-check the extends ancestry on edit (an edit can introduce a broken/cyclic parent), then
     // the BIDIRECTIONAL integrity check — an edit to an ANCESTOR that would cascade failure into a def built
     // downstream (or an edit that no longer holds against its own ancestors) is rejected before it is stored.
     const editScopes = { ...(parsed.projectId ? { projectId: parsed.projectId } : {}), ...(parsed.programmeId ? { programmeId: parsed.programmeId } : {}), ...(ctx.sub ? { sub: ctx.sub } : {}) };
     const ancestryErr = checkImportAncestry(existing.kind, upd.payload, editScopes);
-    if (ancestryErr) { res.status(400).json({ error: ancestryErr }); return; }
+    if (ancestryErr) { sendError(res, 400, ancestryErr); return; }
     const priorId = typeof (existing.payload as { id?: unknown } | null)?.id === "string" ? String((existing.payload as { id: string }).id) : "";
     const integrityErr = checkImportIntegrity(existing.kind, upd.payload, { storageId: id, priorId });
-    if (integrityErr) { res.status(400).json({ error: integrityErr }); return; }
+    if (integrityErr) { sendError(res, 400, integrityErr); return; }
     if (!(await runDefWriteHook(req, res, existing.kind, upd.payload))) return;
     const row = updateStoredDef(existing, upd, new Date().toISOString());
     putDef(scope, row);
@@ -231,7 +232,7 @@ router.delete("/defs/:id", requireRole("contributor"), (req, res) =>
       // (and that no longer resolves from a lower scope) cascades failure into every dependant.
       const logicalId = typeof (existing.payload as { id?: unknown } | null)?.id === "string" ? String((existing.payload as { id: string }).id) : "";
       const err = checkDeleteIntegrity(existing.kind, id, logicalId);
-      if (err) { res.status(409).json({ error: err }); return; }
+      if (err) { sendError(res, 409, err); return; }
       deleteDef(scope, id);
     }
     res.status(204).end();
