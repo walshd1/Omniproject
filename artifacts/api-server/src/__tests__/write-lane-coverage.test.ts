@@ -5,7 +5,9 @@ import { startHarness, type Harness } from "./_harness";
 import { entityRoutes } from "../lib/entity-pipeline";
 import { commandRoutes } from "../lib/action-base";
 import { issueEntity } from "../routes/projects";
-import { decisionCommand } from "../routes/approvals";
+import {
+  decisionCommand, redirectCommand, bypassCommand, passkeyRevokeCommand, passkeyRevokeAllCommand,
+} from "../routes/approvals";
 
 /**
  * WRITE-LANE COVERAGE RATCHET — the mechanical proof that every user-facing WRITE endpoint is guarded.
@@ -62,7 +64,13 @@ async function writeRoutes(): Promise<Set<string>> {
 
 // Lane 1 + Lane 2 — derived from the registered descriptors (the routes the spines own).
 const LANE1 = new Set<string>(entityRoutes(issueEntity));
-const LANE2 = new Set<string>(commandRoutes(decisionCommand));
+const LANE2 = new Set<string>([
+  ...commandRoutes(decisionCommand),
+  ...commandRoutes(redirectCommand),
+  ...commandRoutes(bypassCommand),
+  ...commandRoutes(passkeyRevokeCommand),
+  ...commandRoutes(passkeyRevokeAllCommand),
+]);
 
 // Lane 3 — hand-written writes not (yet) on a spine. SEED — regenerate by running the first test with this
 // empty and pasting its "uncovered" list. New writes must join a lane; this list may only SHRINK.
@@ -111,13 +119,9 @@ const BESPOKE_WRITES = new Set<string>([
   "POST /ai/rebalance",
   "POST /ai/suggest-backend",
   "POST /ai/transcribe",
-  "POST /approvals/:id/bypass",
   "POST /approvals/:id/bypass/challenge",
   "POST /approvals/:id/challenge",
-  "POST /approvals/:id/redirect",
   "POST /approvals/passkey",
-  "POST /approvals/passkey/revoke",
-  "POST /approvals/passkey/revoke-all",
   "POST /approvals/workflow-acceptances/:workflowId",
   "POST /approvals/workflow-acceptances/:workflowId/challenge",
   "POST /auth/local",
