@@ -1353,9 +1353,9 @@ WIKI / collaborative docs (roadmap 2.1).
 | GET | `/api/wiki/docs/:id` | requireRole(viewer) | GET /api/wiki/docs/:id — one document with its blocks + resolved backlinks (viewer+). |
 | GET | `/api/wiki/docs/:id/versions` | requireRole(viewer) | GET /api/wiki/docs/:id/versions — the document's saved revisions, newest first (viewer+). |
 | GET | `/api/wiki/docs/:id/versions/:versionId` | requireRole(viewer) | GET /api/wiki/docs/:id/versions/:versionId — one revision with its blocks, for preview / diff / restore (viewer+). |
-| POST | `/api/wiki/docs` | requireRole(contributor) | POST /api/wiki/docs — create a document in the chosen storage target (contributor+). |
-| PUT | `/api/wiki/docs/:id` | requireRole(contributor) | PUT /api/wiki/docs/:id — update a document in place (contributor+); the id governs which store is written. |
-| DELETE | `/api/wiki/docs/:id` | requireRole(contributor) | DELETE /api/wiki/docs/:id — remove a document (contributor+; the org target additionally needs manager+). |
+| POST | `/api/wiki/docs` | requireRole(contributor) | Wiki docs — collaborative-document CRUD on the LANE 1 entity pipeline (contributor+). |
+| PUT | `/api/wiki/docs/:id` | requireRole(contributor) | Wiki docs — collaborative-document CRUD on the LANE 1 entity pipeline (contributor+). |
+| DELETE | `/api/wiki/docs/:id` | requireRole(contributor) | Wiki docs — collaborative-document CRUD on the LANE 1 entity pipeline (contributor+). |
 
 ### `artifacts/api-server/src/routes/work-vocabulary.ts`
 

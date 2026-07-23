@@ -7,6 +7,7 @@ import { commandRoutes } from "../lib/action-base";
 import { issueEntity } from "../routes/projects";
 import { taskEntity } from "../routes/tasks";
 import { proofEntity } from "../routes/proofs";
+import { wikiEntity } from "../routes/wiki";
 import {
   decisionCommand, redirectCommand, bypassCommand, passkeyRevokeCommand, passkeyRevokeAllCommand,
 } from "../routes/approvals";
@@ -98,7 +99,7 @@ async function writeRoutes(): Promise<Set<string>> {
 }
 
 // Lane 1 + Lane 2 — derived from the registered descriptors (the routes the spines own).
-const LANE1 = new Set<string>([...entityRoutes(issueEntity), ...entityRoutes(taskEntity), ...entityRoutes(proofEntity)]);
+const LANE1 = new Set<string>([...entityRoutes(issueEntity), ...entityRoutes(taskEntity), ...entityRoutes(proofEntity), ...entityRoutes(wikiEntity)]);
 const LANE2 = new Set<string>([
   ...commandRoutes(decisionCommand),
   ...commandRoutes(redirectCommand),
@@ -165,7 +166,6 @@ const BESPOKE_WRITES = new Set<string>([
   "DELETE /scim/v2/Groups/:id",
   "DELETE /scim/v2/Users/:id",
   "DELETE /whiteboards/:id",
-  "DELETE /wiki/docs/:id",
   "PATCH /projects/:projectId",
   "PATCH /scim/v2/Groups/:id",
   "PATCH /scim/v2/Users/:id",
@@ -272,7 +272,6 @@ const BESPOKE_WRITES = new Set<string>([
   "POST /webhooks",
   "POST /whiteboards",
   "POST /whiteboards/rooms/:roomId",
-  "POST /wiki/docs",
   "POST /workflows/:id/run",
   "PUT /admin/custom-roles",
   "PUT /admin/delegation-policy",
@@ -303,7 +302,6 @@ const BESPOKE_WRITES = new Set<string>([
   "PUT /settings/scope",
   "PUT /setup/screens/:id/layout",
   "PUT /whiteboards/:id",
-  "PUT /wiki/docs/:id",
 ]);
 
 let h: Harness;
