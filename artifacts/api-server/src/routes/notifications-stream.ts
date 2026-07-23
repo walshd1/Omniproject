@@ -3,6 +3,7 @@ import crypto from "node:crypto";
 import { getSession } from "./auth";
 import { roleForReq, isDeprovisioned, ROLES } from "../lib/rbac";
 import { addClient, clientCount, canAddClient } from "../lib/notify-hub";
+import { constantTimeEqual } from "../lib/crypto-keys";
 import { openSse, keepAlive, type SseStream } from "../lib/sse";
 import { getNotifyBus, busMode } from "../lib/notify-bus";
 import { emitWebhookEvent } from "../lib/webhooks";
@@ -87,9 +88,8 @@ function ingestAuth(req: Request, res: Response, next: NextFunction): void {
   const token = Array.isArray(header) ? header[0] : header;
   const bearer = token?.startsWith("Bearer ") ? token.slice(7) : token;
   const provided = bearer ?? (req.headers["x-notify-secret"] as string | undefined);
-  // Constant-time comparison to avoid leaking the secret via timing.
-  const ok = !!provided && provided.length === INGEST_SECRET.length &&
-    crypto.timingSafeEqual(Buffer.from(provided), Buffer.from(INGEST_SECRET));
+  // Constant-time comparison (shared helper) to avoid leaking the secret via timing.
+  const ok = !!provided && constantTimeEqual(provided, INGEST_SECRET);
   if (!ok) {
     res.status(401).json({ error: "Invalid ingest secret" });
     return;

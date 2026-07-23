@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
 import { canonicalJson } from "../../lib/canonical-json";
 import { deriveKey, deriveKeyFromBytes, masterSecret, decodeKey32 } from "../../lib/crypto-keys";
+import { chainLinkHash, verifyChainLink } from "../../lib/hmac-chain";
 import { safeParseJson } from "../../lib/safe-json";
 
 /**
@@ -59,10 +60,15 @@ export function deriveKeys(root: Buffer = resolveStoreKey()): OmniKeys {
   return { chain: deriveKeyFromBytes(root, "omnistore:chain"), seal: deriveKeyFromBytes(root, "omnistore:seal") };
 }
 
-/** Keyed hash of a link — HMAC over the canonical event bound to its seq + predecessor's hash. */
+/** The canonical, seal-free bytes of an event — the stable body the link hash is computed over. */
+function canonicalEvent(ev: OmniEvent): string {
+  return canonicalJson({ seq: ev.seq, ts: ev.ts, action: ev.action, actor: ev.actor, payload: ev.payload });
+}
+
+/** Keyed hash of a link — HMAC over the canonical event bound to its seq + predecessor's hash. Shares the
+ *  chain-link formula with the audit chain (lib/hmac-chain) so the two on-disk wire formats can't drift. */
 export function linkHash(ev: OmniEvent, prevHash: string, chainKey: Buffer): string {
-  const bare = canonicalJson({ seq: ev.seq, ts: ev.ts, action: ev.action, actor: ev.actor, payload: ev.payload });
-  return crypto.createHmac("sha256", chainKey).update(`${ev.seq}|${prevHash}|${bare}`).digest("hex");
+  return chainLinkHash(chainKey, ev.seq, prevHash, canonicalEvent(ev));
 }
 
 /** AES-256-GCM authenticated encryption — opaque + tamper-evident bytes at rest / in transit. */
@@ -124,7 +130,10 @@ export class OmniEventLog {
       const l = this.links[i]!;
       if (l.seq !== i + 1) return { ok: false, brokenAt: i, reason: "non-contiguous seq" };
       if (l.prevHash !== prevHash) return { ok: false, brokenAt: i, reason: "prevHash mismatch (reorder/insert)" };
-      if (l.hash !== linkHash(l, prevHash, this.keys.chain)) return { ok: false, brokenAt: i, reason: "hash mismatch (tampered)" };
+      // Constant-time MAC compare (shared with the audit chain): `l.hash` is attacker-controllable in a
+      // tampered at-rest log, so a short-circuiting `!==` would be a byte-by-byte timing oracle for forging
+      // a valid link without the chain key. Matches audit-chain.verifyAuditChain's rationale.
+      if (!verifyChainLink(this.keys.chain, l.seq, prevHash, canonicalEvent(l), l.hash)) return { ok: false, brokenAt: i, reason: "hash mismatch (tampered)" };
       prevHash = l.hash;
     }
     return { ok: true };
