@@ -13,35 +13,46 @@
 // 7.0"), and the documented workaround — a side-by-side TS 6 install — would give the SPA a second,
 // older compiler that its own `tsc` typecheck would then pick up, defeating the whole point. The
 // Babel parser has NO dependency on the `typescript` package: it strips TS/TSX syntax with
-// @babel/preset-typescript and emits an ESTree the hooks rules consume directly. Type correctness is
-// owned by `tsc` (the typecheck job); ESLint here only reasons about hook syntax + dependency arrays,
-// for which a type-free syntactic AST is exactly enough.
+// the @babel/parser `typescript` + `jsx` syntax plugins and emits an ESTree the hooks rules consume
+// directly. Type correctness is owned by `tsc` (the typecheck job); ESLint here only reasons about hook
+// syntax + dependency arrays, for which a type-free syntactic AST is exactly enough.
 import reactHooks from "eslint-plugin-react-hooks";
 import babelParser from "@babel/eslint-parser";
+
+// languageOptions for the babel parse-only setup. ESLint only PARSES here (it never transforms), so we
+// name the @babel/parser syntax plugins the AST needs directly. `typescript` strips TS from every file;
+// `jsx` is added ONLY for .tsx, because in a .ts file `<T>() => …` is a generic arrow and enabling JSX
+// there would misread the `<T>` as a JSX tag. This replaces the old @babel/preset-typescript
+// `{ isTSX, allExtensions }` setup: those options were removed in preset-typescript 8, and
+// @babel/eslint-parser 8 (which is what supports ESLint 10) no longer surfaces a preset's parser plugins
+// in its parse-only path — so naming the plugins per extension is the babel-8 way, and it drops the
+// @babel/preset-typescript dependency entirely.
+const babelLanguageOptions = (jsx) => ({
+  parser: babelParser,
+  ecmaVersion: "latest",
+  sourceType: "module",
+  parserOptions: {
+    // No .babelrc in this project (Vite owns the real build transform) — parse standalone.
+    requireConfigFile: false,
+    babelOptions: {
+      babelrc: false,
+      configFile: false,
+      parserOpts: { plugins: jsx ? ["typescript", "jsx"] : ["typescript"] },
+    },
+  },
+});
 
 export default [
   // Never lint build output, coverage, generated reports, or vendored deps.
   {
     ignores: ["dist/**", "coverage/**", "node_modules/**", "**/*.generated.ts", "public/**"],
   },
+  // Parser: .tsx parses with JSX enabled; .ts as plain TS (so generic arrows `<T>() =>` aren't misread
+  // as JSX). Rules are attached in the block below, which matches both extensions.
+  { files: ["src/**/*.tsx"], languageOptions: babelLanguageOptions(true) },
+  { files: ["src/**/*.ts"], languageOptions: babelLanguageOptions(false) },
   {
     files: ["src/**/*.{ts,tsx}"],
-    languageOptions: {
-      parser: babelParser,
-      ecmaVersion: "latest",
-      sourceType: "module",
-      parserOptions: {
-        // No .babelrc in this project (Vite owns the real build transform) — parse standalone.
-        requireConfigFile: false,
-        ecmaFeatures: { jsx: true },
-        babelOptions: {
-          babelrc: false,
-          configFile: false,
-          // isTSX + allExtensions lets one preset parse both .ts and .tsx (JSX enabled) for lint only.
-          presets: [["@babel/preset-typescript", { isTSX: true, allExtensions: true }]],
-        },
-      },
-    },
     plugins: { "react-hooks": reactHooks },
     rules: {
       "react-hooks/rules-of-hooks": "error",
