@@ -834,10 +834,10 @@ PROOFING / deliverable review (roadmap 2.4).
 | --- | --- | --- | --- |
 | GET | `/api/proofs` | requireRole(viewer) | GET /api/proofs?projectId= — the proofs (deliverable + annotations omitted) across every accessible store (viewer+). |
 | GET | `/api/proofs/:id` | requireRole(viewer) | GET /api/proofs/:id — one proof with its deliverable + annotations (viewer+). |
-| POST | `/api/proofs` | requireRole(contributor) | POST /api/proofs — create a proof in the chosen storage target (contributor+). |
-| PUT | `/api/proofs/:id` | requireRole(contributor) | PUT /api/proofs/:id — update a proof in place (contributor+); a changed deliverable re-opens the decision. |
+| POST | `/api/proofs` | requireRole(contributor) | Proofs — deliverable-review CRUD on the LANE 1 entity pipeline (contributor+). |
+| PUT | `/api/proofs/:id` | requireRole(contributor) | Proofs — deliverable-review CRUD on the LANE 1 entity pipeline (contributor+). |
+| DELETE | `/api/proofs/:id` | requireRole(contributor) | Proofs — deliverable-review CRUD on the LANE 1 entity pipeline (contributor+). |
 | POST | `/api/proofs/:id/decision` | requireRole(contributor) | auditable + non-repudiable. |
-| DELETE | `/api/proofs/:id` | requireRole(contributor) | DELETE /api/proofs/:id — remove a proof (contributor+; an org proof additionally needs manager+). |
 
 ### `artifacts/api-server/src/routes/provenance.ts`
 

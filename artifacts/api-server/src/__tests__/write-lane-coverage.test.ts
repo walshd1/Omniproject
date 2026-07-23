@@ -6,6 +6,7 @@ import { entityRoutes } from "../lib/entity-pipeline";
 import { commandRoutes } from "../lib/action-base";
 import { issueEntity } from "../routes/projects";
 import { taskEntity } from "../routes/tasks";
+import { proofEntity } from "../routes/proofs";
 import {
   decisionCommand, redirectCommand, bypassCommand, passkeyRevokeCommand, passkeyRevokeAllCommand,
 } from "../routes/approvals";
@@ -97,7 +98,7 @@ async function writeRoutes(): Promise<Set<string>> {
 }
 
 // Lane 1 + Lane 2 — derived from the registered descriptors (the routes the spines own).
-const LANE1 = new Set<string>([...entityRoutes(issueEntity), ...entityRoutes(taskEntity)]);
+const LANE1 = new Set<string>([...entityRoutes(issueEntity), ...entityRoutes(taskEntity), ...entityRoutes(proofEntity)]);
 const LANE2 = new Set<string>([
   ...commandRoutes(decisionCommand),
   ...commandRoutes(redirectCommand),
@@ -161,7 +162,6 @@ const BESPOKE_WRITES = new Set<string>([
   "DELETE /dev-mode/impersonate",
   "DELETE /projects/:projectGuid/links",
   "DELETE /projects/:projectId/mapping/:slot/:rowId",
-  "DELETE /proofs/:id",
   "DELETE /scim/v2/Groups/:id",
   "DELETE /scim/v2/Users/:id",
   "DELETE /whiteboards/:id",
@@ -229,7 +229,6 @@ const BESPOKE_WRITES = new Set<string>([
   "POST /projects/:projectGuid/close",
   "POST /projects/:projectId/issues/:issueId/items",
   "POST /projects/:projectId/raid",
-  "POST /proofs",
   "POST /proofs/:id/decision",
   "POST /provenance/call/:callId/verify",
   "POST /scim/v2/Groups",
@@ -296,7 +295,6 @@ const BESPOKE_WRITES = new Set<string>([
   "PUT /projects/:projectId/mapping/:slot/:rowId",
   "PUT /projects/:projectId/type",
   "PUT /projects/:projectId/wbs/:wbsId",
-  "PUT /proofs/:id",
   "PUT /reports/custom",
   "PUT /scim/v2/Groups/:id",
   "PUT /scim/v2/Users/:id",
