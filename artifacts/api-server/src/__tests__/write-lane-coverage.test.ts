@@ -31,6 +31,7 @@ import { ragVocabularyCommand } from "../routes/rag-vocabulary";
 import {
   userCreateCommand, userUpdateCommand, userPasswordSetCommand, userPasswordClearCommand, userDeleteCommand,
 } from "../routes/users";
+import { brandingSaveCommand, brandingClearCommand } from "../routes/branding";
 import { collectionWriteRoutes } from "../lib/settings-collection-router";
 
 /**
@@ -125,13 +126,14 @@ const LANE2 = new Set<string>([
   ...commandRoutes(userPasswordSetCommand),
   ...commandRoutes(userPasswordClearCommand),
   ...commandRoutes(userDeleteCommand),
+  ...commandRoutes(brandingSaveCommand),
+  ...commandRoutes(brandingClearCommand),
 ]);
 
 // Lane 3 — hand-written writes not (yet) on a spine. SEED — regenerate by running the first test with this
 // empty and pasting its "uncovered" list. New writes must join a lane; this list may only SHRINK.
 const BESPOKE_WRITES = new Set<string>([
   "DELETE /approvals/workflow-acceptances/:workflowId",
-  "DELETE /branding",
   "DELETE /comments/:roomId/:commentId",
   "DELETE /dev-mode/entitlements",
   "DELETE /dev-mode/impersonate",
@@ -264,7 +266,6 @@ const BESPOKE_WRITES = new Set<string>([
   "PUT /ai/model-allowlist",
   "PUT /ai/provider-allowlist",
   "PUT /ai/stt-provider-allowlist",
-  "PUT /branding",
   "PUT /calendar/push",
   "PUT /dashboards",
   "PUT /deployment-type",
