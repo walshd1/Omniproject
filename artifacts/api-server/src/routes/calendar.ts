@@ -8,6 +8,7 @@ import { withBrokerErrors } from "../broker";
 import { tasksToIcsEvents, issuesToIcsEvents } from "../lib/calendar-feed";
 import { buildIcs } from "../lib/ical";
 import { getCalendarPush, setCalendarPush } from "../lib/calendar-push";
+import { mountCommand, type CommandDescriptor } from "../lib/action-base";
 
 /**
  * Personal calendar feed — GET /api/calendar.ics renders the signed-in user's OPEN, due-dated work as
@@ -78,12 +79,27 @@ router.get("/calendar/push", (req, res) => {
   res.json(getCalendarPush(sub));
 });
 
-/** PUT /api/calendar/push — grant or revoke consent (and pick target/scope). Body: {granted,target,scope}. */
-router.put("/calendar/push", (req, res) => {
-  const sub = requireSub(req);
-  if (!sub) { res.status(401).json({ error: "not authenticated" }); return; }
-  res.json(setCalendarPush(sub, req.body, new Date().toISOString()));
-});
+/**
+ * PUT /api/calendar/push — grant or revoke consent (and pick target/scope). Body: {granted,target,scope}.
+ *
+ * LANE 2: a per-user consent write (no role floor — the caller's own grant). The session check is the parse
+ * gate (401 when unauthenticated); run persists via setCalendarPush and returns the resulting grant. The
+ * action base records a success audit (calendar-push.save) the hand-written route lacked — additive, no-op
+ * under default config.
+ */
+export const calendarPushSaveCommand: CommandDescriptor<{ sub: string; body: unknown }> = {
+  name: "calendar-push.save",
+  method: "put",
+  path: "/calendar/push",
+  parse: (req, res) => {
+    const sub = requireSub(req);
+    if (!sub) { res.status(401).json({ error: "not authenticated" }); return null; }
+    return { sub, body: req.body };
+  },
+  run: async (_req, _res, { sub, body }) => setCalendarPush(sub, body, new Date().toISOString()),
+  audit: "calendar-push.save",
+};
+mountCommand(router, calendarPushSaveCommand);
 
 /**
  * GET /api/calendar/push.json — the caller's dated work as structured events for the authorised

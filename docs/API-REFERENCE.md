@@ -27,6 +27,19 @@ The ORG-wide accessibility DEFAULTS — a partial UserPrefs the org sets as ever
 | GET | `/api/accessibility-defaults` | requireAnyRole(pmo, admin) | — |
 | PUT | `/api/accessibility-defaults` | requireAnyRole(pmo, admin) | — |
 
+### `artifacts/api-server/src/routes/ai-allowlist.ts`
+
+AI SELECTION ALLOWLISTS — the org's governance FLOORS over which AI providers / models / STT engines may be selected (roadmap Phase C).
+
+| Method | Path | Gate | Description |
+| --- | --- | --- | --- |
+| GET | `/api/ai/provider-allowlist` | — | — |
+| PUT | `/api/ai/provider-allowlist` | requireRole(admin) | — |
+| GET | `/api/ai/model-allowlist` | — | — |
+| PUT | `/api/ai/model-allowlist` | requireRole(admin) | — |
+| GET | `/api/ai/stt-provider-allowlist` | — | — |
+| PUT | `/api/ai/stt-provider-allowlist` | requireRole(admin) | — |
+
 ### `artifacts/api-server/src/routes/ai-providers.ts`
 
 Typed + bounded schemas for the admin write bodies (untrusted boundary input).
@@ -379,7 +392,7 @@ DEPLOYMENT TYPES — the on-ramp archetypes (solo self-hoster, small team, manag
 | GET | `/api/deployment-types/:id` | — | — |
 | POST | `/api/deployment-types/:id/resolve` | — | — |
 | GET | `/api/deployment-type` | — | The org's ONE active deployment type (admin-gated) + the change function |
-| PUT | `/api/deployment-type` | requireAnyRole(admin) | — |
+| PUT | `/api/deployment-type` | requireAnyRole(admin) | PUT /api/deployment-type — the org's single active deployment type; admin sets/changes it. |
 
 ### `artifacts/api-server/src/routes/dev-mode.ts`
 
@@ -591,9 +604,9 @@ SPDX-License-Identifier: LicenseRef-OmniProject-Premium Premium feature — gove
 | Method | Path | Gate | Description |
 | --- | --- | --- | --- |
 | GET | `/api/labels` | — | — |
-| PUT | `/api/labels` | requireAnyRole(pmo, admin) | — |
 | GET | `/api/labels/presets` | — | The vendor nomenclature presets a customer can adopt (public, like GET /labels). |
-| POST | `/api/labels/apply-preset` | requireAnyRole(pmo, admin) | Adopt one vendor's nomenclature in a click — writes it through the label overrides. |
+| PUT | `/api/labels` | requireAnyRole(pmo, admin) | — |
+| POST | `/api/labels/apply-preset` | requireAnyRole(pmo, admin) | — |
 
 ### `artifacts/api-server/src/routes/license.ts`
 
@@ -648,7 +661,7 @@ The signed-in user's own preferences.
 | Method | Path | Gate | Description |
 | --- | --- | --- | --- |
 | GET | `/api/me/prefs` | — | — |
-| PUT | `/api/me/prefs` | — | — |
+| PUT | `/api/me/prefs` | — | PUT /api/me/prefs — save this user's own prefs (so their setup follows them across sessions/devices). |
 
 ### `artifacts/api-server/src/routes/methodology-composition.ts`
 
@@ -657,9 +670,9 @@ The methodology COMPOSITION — the PMO/admin's curated set of visible artifact/
 | Method | Path | Gate | Description |
 | --- | --- | --- | --- |
 | GET | `/api/methodology-composition` | — | — |
-| PUT | `/api/methodology-composition` | requireAnyRole(pmo, admin) | — |
+| PUT | `/api/methodology-composition` | requireAnyRole(pmo, admin) | PUT /api/methodology-composition — set the curated composition (admin/PMO). |
 | GET | `/api/methodology-composition/deployment/:id` | — | PREVIEW: what deploying this methodology would turn on (read-only, any authed user). |
-| POST | `/api/methodology-composition/deploy/:id` | requireAnyRole(pmo, admin) | org by default, or a programme/project named in the body (a nearer scope overrides the org in the read fold). |
+| POST | `/api/methodology-composition/deploy/:id` | requireAnyRole(pmo, admin) | POST /api/methodology-composition/deploy/:id — deploy a methodology in one click (admin/PMO). |
 
 ### `artifacts/api-server/src/routes/native.ts`
 
@@ -688,7 +701,7 @@ ORG IDENTITY — the org's canonical id + name (see lib/org-identity).
 | Method | Path | Gate | Description |
 | --- | --- | --- | --- |
 | GET | `/api/org-identity` | — | — |
-| PUT | `/api/org-identity` | requireAnyRole(pmo, admin) | — |
+| PUT | `/api/org-identity` | requireAnyRole(pmo, admin) | PUT /api/org-identity — mint the id if needed + set the name/logo (admin/PMO); the id is immutable. |
 
 ### `artifacts/api-server/src/routes/panel-views.ts`
 
@@ -786,7 +799,7 @@ Project, programme-membership, issue + task-item endpoints — the core read/wri
 | POST | `/api/projects` | requireRole(manager) | — |
 | GET | `/api/projects/:projectGuid/references` | requireAnyRole(pmo, admin) | deleting. |
 | DELETE | `/api/projects/:projectGuid/links` | requireAnyRole(pmo, admin) | so nothing there is touched; only the references are unlinked. |
-| POST | `/api/projects/:projectGuid/close` | requireAnyRole(pmo, admin) | be silently reactivated. |
+| POST | `/api/projects/:projectGuid/close` | requireAnyRole(pmo, admin) | POST /api/projects/:projectGuid/close — record a project closure (pmo/admin). |
 | PATCH | `/api/projects/:projectId` | requireRole(manager) | — |
 | GET | `/api/resources` | — | — |
 | GET | `/api/projects/:projectId/members` | — | — |
@@ -809,7 +822,7 @@ Project, programme-membership, issue + task-item endpoints — the core read/wri
 | GET | `/api/projects/:projectId/history` | — | History + baseline (sourced from the system of record via the broker) |
 | GET | `/api/projects/:projectId/baseline` | — | — |
 | GET | `/api/projects/:projectId/raid` | — | RAID log |
-| POST | `/api/projects/:projectId/raid` | requireRole(manager) | baselines, portfolio actions"), and this route has no compensating ruleset gate — so gate at manager. |
+| POST | `/api/projects/:projectId/raid` | requireRole(manager) | RAID entries — create a Risk/Assumption/Issue/Dependency entry against a project (manager+). |
 | GET | `/api/fx-rates` | — | Multi-currency FX rates (read-through; demo fallback) |
 | GET | `/api/notifications` | — | Notifications |
 
@@ -821,10 +834,10 @@ PROOFING / deliverable review (roadmap 2.4).
 | --- | --- | --- | --- |
 | GET | `/api/proofs` | requireRole(viewer) | GET /api/proofs?projectId= — the proofs (deliverable + annotations omitted) across every accessible store (viewer+). |
 | GET | `/api/proofs/:id` | requireRole(viewer) | GET /api/proofs/:id — one proof with its deliverable + annotations (viewer+). |
-| POST | `/api/proofs` | requireRole(contributor) | POST /api/proofs — create a proof in the chosen storage target (contributor+). |
-| PUT | `/api/proofs/:id` | requireRole(contributor) | PUT /api/proofs/:id — update a proof in place (contributor+); a changed deliverable re-opens the decision. |
+| POST | `/api/proofs` | requireRole(contributor) | Proofs — deliverable-review CRUD on the LANE 1 entity pipeline (contributor+). |
+| PUT | `/api/proofs/:id` | requireRole(contributor) | Proofs — deliverable-review CRUD on the LANE 1 entity pipeline (contributor+). |
+| DELETE | `/api/proofs/:id` | requireRole(contributor) | Proofs — deliverable-review CRUD on the LANE 1 entity pipeline (contributor+). |
 | POST | `/api/proofs/:id/decision` | requireRole(contributor) | auditable + non-repudiable. |
-| DELETE | `/api/proofs/:id` | requireRole(contributor) | DELETE /api/proofs/:id — remove a proof (contributor+; an org proof additionally needs manager+). |
 
 ### `artifacts/api-server/src/routes/provenance.ts`
 
@@ -979,7 +992,7 @@ The working-time policy for the (client-side, projected) scheduling engine, held
 | --- | --- | --- | --- |
 | GET | `/api/scheduling/resolved` | — | — |
 | GET | `/api/scheduling` | requireAnyRole(pmo, admin) | — |
-| PUT | `/api/scheduling` | requireAnyRole(pmo, admin) | — |
+| PUT | `/api/scheduling` | requireAnyRole(pmo, admin) | PUT /api/scheduling — write the org-scope working-time config def (admin/PMO), validated. |
 
 ### `artifacts/api-server/src/routes/scim.ts`
 
@@ -1229,7 +1242,7 @@ Project TEMPLATES — the "spin up a project from a template" gallery.
 
 | Method | Path | Gate | Description |
 | --- | --- | --- | --- |
-| POST | `/api/templates/:id/instantiate` | requireRole(manager) | Instantiate a template: create a project + seed its work items. |
+| POST | `/api/templates/:id/instantiate` | requireRole(manager) | POST /api/templates/:id/instantiate — instantiate a template: create a project + seed its work items. |
 | GET | `/api/templates` | requireAuth | Read the collection. |
 | PUT | `/api/templates` | requireAuth + requireAnyRole(admin, pmo) | Replace the collection (write-guarded). |
 
@@ -1340,9 +1353,9 @@ WIKI / collaborative docs (roadmap 2.1).
 | GET | `/api/wiki/docs/:id` | requireRole(viewer) | GET /api/wiki/docs/:id — one document with its blocks + resolved backlinks (viewer+). |
 | GET | `/api/wiki/docs/:id/versions` | requireRole(viewer) | GET /api/wiki/docs/:id/versions — the document's saved revisions, newest first (viewer+). |
 | GET | `/api/wiki/docs/:id/versions/:versionId` | requireRole(viewer) | GET /api/wiki/docs/:id/versions/:versionId — one revision with its blocks, for preview / diff / restore (viewer+). |
-| POST | `/api/wiki/docs` | requireRole(contributor) | POST /api/wiki/docs — create a document in the chosen storage target (contributor+). |
-| PUT | `/api/wiki/docs/:id` | requireRole(contributor) | PUT /api/wiki/docs/:id — update a document in place (contributor+); the id governs which store is written. |
-| DELETE | `/api/wiki/docs/:id` | requireRole(contributor) | DELETE /api/wiki/docs/:id — remove a document (contributor+; the org target additionally needs manager+). |
+| POST | `/api/wiki/docs` | requireRole(contributor) | Wiki docs — collaborative-document CRUD on the LANE 1 entity pipeline (contributor+). |
+| PUT | `/api/wiki/docs/:id` | requireRole(contributor) | Wiki docs — collaborative-document CRUD on the LANE 1 entity pipeline (contributor+). |
+| DELETE | `/api/wiki/docs/:id` | requireRole(contributor) | Wiki docs — collaborative-document CRUD on the LANE 1 entity pipeline (contributor+). |
 
 ### `artifacts/api-server/src/routes/work-vocabulary.ts`
 

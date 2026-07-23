@@ -5,6 +5,7 @@ import { makeScopedId, requireArtifactStore } from "../lib/artifact-store";
 import { getDef, putDef, type StoredDef } from "../lib/def-import";
 import { configDefLayers, resolveScopedConfig } from "../lib/scoped-config";
 import { contextFromReq } from "../broker";
+import { mountCommand, type CommandDescriptor } from "../lib/action-base";
 
 /**
  * Custom display names for the canonical priority levels. Admin/PMO can relabel them (e.g. urgent →
@@ -50,22 +51,42 @@ router.get("/priority-labels", (req, res) => {
   res.json({ canonical: CANONICAL_PRIORITY, labels: resolveLabels(scopes) });
 });
 
-// PUT /api/priority-labels — set the org-scope custom labels (admin or PMO). Body: { labels: { high: "Critical", … } }.
-router.put("/priority-labels", requireAnyRole("pmo", "admin"), (req, res) => {
-  if (!requireArtifactStore(res)) return;
-  let labels: Record<string, string>;
-  try { labels = sanitizePriorityLabels((req.body as { labels?: unknown })?.labels ?? {}); }
-  catch (e) { res.status(400).json({ error: e instanceof Error ? e.message : "invalid priority labels" }); return; }
-
-  const payload = { id: PRIORITY_LABELS_CONFIG_ID, values: labels };
-  const existing = getDef({ kind: "org" }, ORG_PRIORITY_LABELS_ID);
-  const ctx = contextFromReq(req);
-  const now = new Date().toISOString();
-  const row: StoredDef = existing
-    ? { ...existing, payload, updatedAt: now, rowVersion: (existing.rowVersion ?? 1) + 1 }
-    : { id: ORG_PRIORITY_LABELS_ID, kind: "config", name: "Priority labels", payload, createdBy: ctx.email ?? ctx.name ?? ctx.sub ?? null, createdAt: now, updatedAt: now, rowVersion: 1 };
-  putDef({ kind: "org" }, row);
-  res.json({ canonical: CANONICAL_PRIORITY, labels });
-});
+/**
+ * PUT /api/priority-labels — set the org-scope custom labels (admin or PMO). Body: { labels: { high: "Critical", … } }.
+ *
+ * LANE 2: an org-config governance verb — the PMO-or-admin union rides in `gates`; the sealed-store
+ * precondition and the sanitise-or-400 validation are the parse gate (each returns null having already sent
+ * its own 4xx). The action base now records a success audit (priority-labels.save) the hand-written route
+ * lacked — additive, no-op under default config.
+ */
+export const priorityLabelsSaveCommand: CommandDescriptor<{ labels: Record<string, string> }> = {
+  name: "priority-labels.save",
+  method: "put",
+  path: "/priority-labels",
+  gates: [requireAnyRole("pmo", "admin")],
+  parse: (req, res) => {
+    if (!requireArtifactStore(res)) return null;
+    try {
+      return { labels: sanitizePriorityLabels((req.body as { labels?: unknown })?.labels ?? {}) };
+    } catch (e) {
+      res.status(400).json({ error: e instanceof Error ? e.message : "invalid priority labels" });
+      return null;
+    }
+  },
+  run: async (req, _res, { labels }) => {
+    const payload = { id: PRIORITY_LABELS_CONFIG_ID, values: labels };
+    const existing = getDef({ kind: "org" }, ORG_PRIORITY_LABELS_ID);
+    const ctx = contextFromReq(req);
+    const now = new Date().toISOString();
+    const row: StoredDef = existing
+      ? { ...existing, payload, updatedAt: now, rowVersion: (existing.rowVersion ?? 1) + 1 }
+      : { id: ORG_PRIORITY_LABELS_ID, kind: "config", name: "Priority labels", payload, createdBy: ctx.email ?? ctx.name ?? ctx.sub ?? null, createdAt: now, updatedAt: now, rowVersion: 1 };
+    putDef({ kind: "org" }, row);
+    return { canonical: CANONICAL_PRIORITY, labels };
+  },
+  audit: "priority-labels.save",
+  auditCategory: "admin",
+};
+mountCommand(router, priorityLabelsSaveCommand);
 
 export default router;

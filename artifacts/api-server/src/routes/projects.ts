@@ -65,6 +65,7 @@ import { getFxRates } from "../lib/currency";
 import { evaluateRuleset } from "../lib/ruleset";
 import { enforceBusinessRules } from "../lib/ruleset-guard";
 import { mountEntity, type EntityDescriptor } from "../lib/entity-pipeline";
+import { mountCommand, type CommandDescriptor } from "../lib/action-base";
 import { recordAudit } from "../lib/audit";
 import { CreateRaidEntryBody } from "@workspace/api-zod";
 import { resolveSeverityVocabulary } from "../lib/severity-vocabulary-config";
@@ -221,55 +222,75 @@ router.delete("/projects/:projectGuid/links", requireAnyRole("pmo", "admin"), (r
 // the current SOR, or migrate to the self-managed archive). Writes the closed-project index entry;
 // closing STICKILY retires the GUID (the settings cross-rule) so it drops out of live reads and can't
 // be silently reactivated. Admin/PMO only — the governance decision the summary calls for.
-router.post("/projects/:projectGuid/close", requireAnyRole("pmo", "admin"), (req, res) => {
-  const guid = String(req.params["projectGuid"]).trim();
-  if (!guid) { res.status(400).json({ error: "project GUID required" }); return; }
-  const body = (req.body ?? {}) as { disposition?: unknown; source?: unknown; note?: unknown };
-  const disposition = String(body.disposition ?? "") as ProjectDisposition;
-  if (!(PROJECT_DISPOSITIONS as readonly string[]).includes(disposition)) {
-    res.status(400).json({ error: `disposition must be one of: ${PROJECT_DISPOSITIONS.join(", ")}` });
-    return;
-  }
-  const note = typeof body.note === "string" && body.note.trim() ? body.note.trim() : undefined;
-  const record = {
-    disposition,
-    ...(typeof body.source === "string" && body.source.trim() ? { source: body.source.trim() } : {}),
-    closedAt: new Date().toISOString(),
-    ...(note ? { note } : {}),
-  };
-  void withBrokerErrors(req, res, "project_close failed", async () => {
+type CloseRecord = { disposition: ProjectDisposition; source?: string; closedAt: string; note?: string };
+
+/**
+ * POST /api/projects/:projectGuid/close — record a project closure (pmo/admin). Body: { disposition, source?, note? }.
+ *
+ * LANE 2 (broker-aware): parse validates the GUID (400) and the disposition against PROJECT_DISPOSITIONS (400)
+ * and stamps the closure record (closedAt). The effect is `run`, marked broker:true — for the `archive`
+ * disposition it MIGRATES the data first (snapshot the still-live project + its issues/tasks + settings into
+ * the self-managed archive); a broker read failure there propagates to withBrokerErrors, so the closure is
+ * NEITHER recorded NOR audited (never claim a project is archived when its data wasn't captured). On success
+ * it merges the record into the registry (retiring the GUID) and returns it. Audit action is dynamic
+ * (project_close:<disposition>). The action base stamps write:true, as the migrated command should.
+ */
+export const projectCloseCommand: CommandDescriptor<{ guid: string; disposition: ProjectDisposition; record: CloseRecord; note: string | undefined }> = {
+  name: "project_close",
+  method: "post",
+  path: "/projects/:projectGuid/close",
+  gates: [requireAnyRole("pmo", "admin")],
+  parse: (req, res) => {
+    const guid = String(req.params["projectGuid"]).trim();
+    if (!guid) { res.status(400).json({ error: "project GUID required" }); return null; }
+    const body = (req.body ?? {}) as { disposition?: unknown; source?: unknown; note?: unknown };
+    const disposition = String(body.disposition ?? "") as ProjectDisposition;
+    if (!(PROJECT_DISPOSITIONS as readonly string[]).includes(disposition)) {
+      res.status(400).json({ error: `disposition must be one of: ${PROJECT_DISPOSITIONS.join(", ")}` });
+      return null;
+    }
+    const note = typeof body.note === "string" && body.note.trim() ? body.note.trim() : undefined;
+    const record: CloseRecord = {
+      disposition,
+      ...(typeof body.source === "string" && body.source.trim() ? { source: body.source.trim() } : {}),
+      closedAt: new Date().toISOString(),
+      ...(note ? { note } : {}),
+    };
+    return { guid, disposition, record, note };
+  },
+  broker: { message: "project_close failed" },
+  run: async (req, _res, { guid, disposition, record, note }) => {
     // For the `archive` disposition, MIGRATE the data first — capture a snapshot (the project row +
     // its issues, while still live) into the self-managed archive. If that fails, DON'T record the
     // closure: never claim a project is archived when its data wasn't actually captured.
     if (disposition === "archive") {
       const project = (await getProjects(req)).find((p) => String((p as Row)["omniInstanceId"] ?? "") === guid);
-      // A project still present in the backend is snapshotted before the closure is recorded. If it's
-      // no longer in the backend there is nothing to capture, so the closure is recorded as a
-      // bookkeeping entry with no snapshot (unchanged behaviour) — that's distinct from a capture that
-      // FAILED, which must not be silently treated as "no data".
+      // A project still present in the backend is snapshotted before the closure is recorded. If it's no
+      // longer in the backend there is nothing to capture, so the closure is recorded as a bookkeeping entry
+      // with no snapshot — distinct from a capture that FAILED, which must not be treated as "no data".
       if (project) {
         const projectId = String((project as Row)["id"]);
-        // NO `.catch(() => [])` here: a transient broker read error must ABORT the archive — the error
-        // propagates to withBrokerErrors → failure response, and the recordAudit/res.json below never
-        // run — instead of being swallowed into an EMPTY snapshot that we persist and then report as a
-        // success (the contract above: never claim a project is archived when its data wasn't actually
-        // captured). A genuinely empty project still archives fine: the reads succeed and return [].
+        // NO `.catch(() => [])`: a transient broker read error must ABORT the archive — it propagates to the
+        // broker-aware wrapper → failure response, and the registry write + audit below never run — instead
+        // of being swallowed into an EMPTY snapshot we persist and then report as a success.
         const [issues, tasks] = await Promise.all([
           getIssues(req, projectId),
           getTasks(req, { projectId }).then((t) => t as unknown as Row[]),
         ]);
-        // Also archive OmniProject's own settings for the project (programme memberships, relinks, …),
-        // so its configuration is preserved alongside its data.
+        // Also archive OmniProject's own settings for the project (programme memberships, relinks, …).
         const settings = collectProjectReferences(guid);
         await getArchiveStore().save({ guid, archivedAt: record.closedAt, project: project as Row, issues, tasks, settings, note });
       }
     }
     // Merge into the registry; validatePatch's cross-rule retires the GUID on write.
     updateSettings({ closedProjects: { ...getSettings().closedProjects, [guid]: record } });
-    recordAudit({ ts: new Date().toISOString(), category: "admin", action: `project_close:${disposition}`, result: "success", status: 200 });
-    res.json({ guid, ...record });
-  });
-});
+    return { guid, ...record };
+  },
+  audit: (args) => `project_close:${args.disposition}`,
+  auditCategory: "admin",
+  auditStatus: 200,
+};
+mountCommand(router, projectCloseCommand);
 
 router.patch("/projects/:projectId", requireRole("manager"), async (req, res) => {
   const params = zodParseOr400(res, UpdateProjectParams, req.params);
@@ -719,42 +740,57 @@ function checkRaidGrade(res: Response, field: string, value: unknown, ids: Set<s
   return undefined;
 }
 
-// RAID is a manager capability per the RBAC model (rbac.ts: "manager — contributor + RAID,
-// baselines, portfolio actions"), and this route has no compensating ruleset gate — so gate at manager.
-router.post("/projects/:projectId/raid", requireRole("manager"), async (req, res) => {
-  const params = zodParseOr400(res, GetProjectSummaryParams, req.params);
-  if (!params) return;
-  const raidBody = zodParseOr400(res, RaidBodyStructure, req.body);
-  if (!raidBody) return;
-  const { projectId } = params;
-  const scopes = raidScopesFromReq(req, projectId);
-  const raw = (req.body ?? {}) as Record<string, unknown>;
-
-  // Relaxed, scope-resolved gate for the three graded fields (severity required; likelihood/impact optional).
-  const severityIds = new Set(resolveSeverityVocabulary(scopes).levels.map((l) => l.id));
-  const impactIds = new Set(resolveImpactVocabulary(scopes).levels.map((l) => l.id));
-  const likelihoodIds = new Set(resolveLikelihoodVocabulary(scopes).levels.map((l) => l.id));
-  const severity = checkRaidGrade(res, "severity", raw["severity"], severityIds, true);
-  if (severity === undefined) return;
-  const likelihood = checkRaidGrade(res, "likelihood", raw["likelihood"], likelihoodIds, false);
-  if (likelihood === undefined) return;
-  const impact = checkRaidGrade(res, "impact", raw["impact"], impactIds, false);
-  if (impact === undefined) return;
-
-  const body: Record<string, unknown> = {
-    ...(raidBody as Record<string, unknown>),
-    severity,
-    ...(likelihood !== null ? { likelihood } : {}),
-    ...(impact !== null ? { impact } : {}),
-  };
-
-  await withBrokerErrors(req, res, "create_raid_entry failed", async () => {
-    if (!(await guardProjectScope(req, res, projectId))) return;
-    if (!passesBusinessRules(req, res, "create_raid", projectId, body)) return;
-    const entry = await getBroker().addRaid(contextFromReq(req), projectId, body);
-    res.status(201).json(entry);
-  }, { projectId });
-});
+/**
+ * RAID entries — create a Risk/Assumption/Issue/Dependency entry against a project (manager+). RAID is a
+ * manager capability per the RBAC model (rbac.ts: "manager — contributor + RAID, baselines, portfolio
+ * actions"), so the create op gates at manager.
+ *
+ * LANE 1: a create-only, project-scoped entity — RBAC → validate → ruleset → scope → broker write by
+ * construction (the same guarantee as issueEntity). The graded fields (severity required; likelihood/impact
+ * optional) are checked in `validate` against the scope-resolved vocabularies; `broker.addRaid` is the effect,
+ * wrapped by the pipeline's withBrokerErrors. Vs the hand-written route this adopts the pipeline convention of
+ * running the ruleset before the scope guard (both were present; the ruleset does no data access, and the
+ * write still fail-closes on scope) — observable only under an active rule AND a cross-scope attempt.
+ */
+export const raidEntity: EntityDescriptor = {
+  entity: "raid_entry",
+  basePath: "/projects/:projectId/raid",
+  scope: { kind: "project", param: "projectId" },
+  create: {
+    role: "manager",
+    ruleAction: "create_raid",
+    validate: (req, res) => {
+      const params = zodParseOr400(res, GetProjectSummaryParams, req.params);
+      if (!params) return null;
+      const raidBody = zodParseOr400(res, RaidBodyStructure, req.body);
+      if (!raidBody) return null;
+      const scopes = raidScopesFromReq(req, params.projectId);
+      const raw = (req.body ?? {}) as Record<string, unknown>;
+      // Relaxed, scope-resolved gate for the three graded fields (severity required; likelihood/impact optional).
+      const severityIds = new Set(resolveSeverityVocabulary(scopes).levels.map((l) => l.id));
+      const impactIds = new Set(resolveImpactVocabulary(scopes).levels.map((l) => l.id));
+      const likelihoodIds = new Set(resolveLikelihoodVocabulary(scopes).levels.map((l) => l.id));
+      const severity = checkRaidGrade(res, "severity", raw["severity"], severityIds, true);
+      if (severity === undefined) return null;
+      const likelihood = checkRaidGrade(res, "likelihood", raw["likelihood"], likelihoodIds, false);
+      if (likelihood === undefined) return null;
+      const impact = checkRaidGrade(res, "impact", raw["impact"], impactIds, false);
+      if (impact === undefined) return null;
+      return {
+        ...(raidBody as Record<string, unknown>),
+        severity,
+        ...(likelihood !== null ? { likelihood } : {}),
+        ...(impact !== null ? { impact } : {}),
+      } as Record<string, unknown>;
+    },
+    run: async (req, res, body) => {
+      const entry = await getBroker().addRaid(contextFromReq(req), String(req.params["projectId"]), body as Record<string, unknown>);
+      res.status(201).json(entry);
+      return undefined;
+    },
+  },
+};
+mountEntity(router, raidEntity);
 
 // ── Multi-currency FX rates (read-through; demo fallback) ─────────────────────
 

@@ -15,6 +15,7 @@ import {
   newJsonDocRow, mergeJsonDocRow, docSummary,
   captureJsonDocVersion, listJsonDocVersions, getJsonDocVersion,
 } from "../lib/wiki-doc";
+import { mountEntity, type EntityDescriptor } from "../lib/entity-pipeline";
 
 /**
  * WIKI / collaborative docs (roadmap 2.1). A knowledge base of documents built of primitive blocks. A page
@@ -184,76 +185,109 @@ router.get("/wiki/docs/:id/versions/:versionId", requireRole("viewer"), (req, re
   }),
 );
 
-// POST /api/wiki/docs — create a document in the chosen storage target (contributor+).
-router.post("/wiki/docs", requireRole("contributor"), (req, res) => {
-  if (!requireWiki(res)) return;
-  let input;
-  try { input = sanitizeWikiDocWrite(req.body); }
-  catch (e) { if (e instanceof WikiError) { res.status(400).json({ error: e.message }); return; } throw e; }
-  return withBrokerErrors(req, res, "create_wiki_doc failed", async () => {
-    if (!(await authorizeTarget(req, res, input.storage, input.projectId, "write"))) return;
-    if (input.storage === "sidecar") {
-      res.status(201).json(await writeWikiDoc(req, "create", input).then((d) => (d ? { ...d, id: makeWikiDocId("sidecar", d.id) } : d)));
-      return;
-    }
-    if (!requireArtifactStore(res)) return;
-    const ctx = contextFromReq(req);
-    const scope = wikiDocScope(input, ctx.sub);
-    if (!scope) { res.status(400).json({ error: "invalid storage target" }); return; }
-    const id = makeWikiDocId(input.storage, crypto.randomUUID(), input.projectId);
-    const row = newJsonDocRow(id, input, ctx, new Date().toISOString());
-    putArtifact(WIKI_DOC_ARTIFACT, scope, row);
-    captureJsonDocVersion(scope, row, `wv-${crypto.randomUUID()}`);
-    res.status(201).json(row);
-  });
-});
+type WikiWrite = ReturnType<typeof sanitizeWikiDocWrite>;
 
-// PUT /api/wiki/docs/:id — update a document in place (contributor+); the id governs which store is written.
-router.put("/wiki/docs/:id", requireRole("contributor"), (req, res) => {
-  if (!requireWiki(res)) return;
-  let input;
-  try { input = sanitizeWikiDocWrite(req.body); }
-  catch (e) { if (e instanceof WikiError) { res.status(400).json({ error: e.message }); return; } throw e; }
-  const id = String(req.params["id"]);
-  const parsed = parseWikiDocId(id);
-  if (!parsed) { res.status(404).json({ error: "Document not found" }); return; }
-  return withBrokerErrors(req, res, "update_wiki_doc failed", async () => {
-    if (!(await authorizeTarget(req, res, parsed.storage, parsed.projectId, "write"))) return;
-    if (parsed.storage === "sidecar") {
-      const updated = await writeWikiDoc(req, "update", { ...input, id: parsed.localId });
-      res.json(updated ? { ...updated, id } : updated);
-      return;
-    }
-    if (!artifactStoreEnabled()) { res.status(404).json({ error: "Document not found" }); return; }
-    const ctx = contextFromReq(req);
-    const scope = wikiDocScope(parsed, ctx.sub);
-    if (!scope) { res.status(404).json({ error: "Document not found" }); return; }
-    const existing = getArtifact<WikiDoc>(WIKI_DOC_ARTIFACT, scope, id);
-    if (!existing) { res.status(404).json({ error: "Document not found" }); return; }
-    const row = mergeJsonDocRow(existing, input, ctx, new Date().toISOString());
-    putArtifact(WIKI_DOC_ARTIFACT, scope, row);
-    captureJsonDocVersion(scope, row, `wv-${crypto.randomUUID()}`);
-    res.json(row);
-  });
-});
+/** Validate a wiki-doc write: feature-gate (501) then sanitise (400). Shared by create + update. */
+const validateWikiWrite = (req: Request, res: import("express").Response): WikiWrite | null => {
+  if (!requireWiki(res)) return null;
+  try { return sanitizeWikiDocWrite(req.body); }
+  catch (e) { if (e instanceof WikiError) { res.status(400).json({ error: e.message }); return null; } throw e; }
+};
 
-// DELETE /api/wiki/docs/:id — remove a document (contributor+; the org target additionally needs manager+).
-router.delete("/wiki/docs/:id", requireRole("contributor"), (req, res) =>
-  withBrokerErrors(req, res, "delete_wiki_doc failed", async () => {
-    const id = String(req.params["id"]);
-    const parsed = parseWikiDocId(id);
-    if (!parsed) { res.status(204).end(); return; } // malformed id → nothing to delete (idempotent)
-    if (!(await authorizeTarget(req, res, parsed.storage, parsed.projectId, "write"))) return;
-    if (parsed.storage === "sidecar") {
-      await writeWikiDoc(req, "delete", { id: parsed.localId } as never);
+/**
+ * Wiki docs — collaborative-document CRUD on the LANE 1 entity pipeline (contributor+).
+ *
+ * Each op runs RBAC → validate → ruleset → scope → write by construction. Update is a whole-document PUT
+ * (`updateMethod`); the self-describing id governs which store (user / project / org JSON, or the sidecar
+ * broker) each op writes. Scope is PER-OP storage-target authorization (no project IDOR): create authorizes
+ * the target the BODY names; update/delete the target the ID parses to — so each op carries its own `scope`
+ * guard, and create/update additionally feature-gate (501) + sanitise (400) in `validate`. The pipeline now
+ * enforces the business ruleset (create/update/delete_wiki_doc) these hand-written routes lacked — additive,
+ * no-op under default config. Response bodies + status (201/200/204/400/404/501) are unchanged.
+ */
+export const wikiEntity: EntityDescriptor = {
+  entity: "wiki_doc",
+  basePath: "/wiki/docs",
+  idParam: "id",
+  updateMethod: "put",
+  create: {
+    role: "contributor",
+    ruleAction: "create_wiki_doc",
+    validate: validateWikiWrite,
+    scope: { kind: "custom", guard: (req, res, body) => authorizeTarget(req, res, (body as WikiWrite).storage, (body as WikiWrite).projectId, "write") },
+    run: async (req, res, body) => {
+      const input = body as WikiWrite;
+      if (input.storage === "sidecar") {
+        res.status(201).json(await writeWikiDoc(req, "create", input).then((d) => (d ? { ...d, id: makeWikiDocId("sidecar", d.id) } : d)));
+        return undefined;
+      }
+      if (!requireArtifactStore(res)) return undefined;
+      const ctx = contextFromReq(req);
+      const scope = wikiDocScope(input, ctx.sub);
+      if (!scope) { res.status(400).json({ error: "invalid storage target" }); return undefined; }
+      const id = makeWikiDocId(input.storage, crypto.randomUUID(), input.projectId);
+      const row = newJsonDocRow(id, input, ctx, new Date().toISOString());
+      putArtifact(WIKI_DOC_ARTIFACT, scope, row);
+      captureJsonDocVersion(scope, row, `wv-${crypto.randomUUID()}`);
+      return row; // 201 (pipeline default create status)
+    },
+  },
+  update: {
+    role: "contributor",
+    ruleAction: "update_wiki_doc",
+    validate: validateWikiWrite,
+    scope: { kind: "custom", guard: async (req, res) => {
+      const parsed = parseWikiDocId(String(req.params["id"]));
+      if (!parsed) { res.status(404).json({ error: "Document not found" }); return false; }
+      return authorizeTarget(req, res, parsed.storage, parsed.projectId, "write");
+    } },
+    run: async (req, res, body) => {
+      const input = body as WikiWrite;
+      const id = String(req.params["id"]);
+      const parsed = parseWikiDocId(id);
+      if (parsed && parsed.storage === "sidecar") {
+        const updated = await writeWikiDoc(req, "update", { ...input, id: parsed.localId });
+        res.json(updated ? { ...updated, id } : updated);
+        return undefined;
+      }
+      if (!artifactStoreEnabled()) { res.status(404).json({ error: "Document not found" }); return undefined; }
+      const ctx = contextFromReq(req);
+      const scope = parsed ? wikiDocScope(parsed, ctx.sub) : null;
+      if (!scope) { res.status(404).json({ error: "Document not found" }); return undefined; }
+      const existing = getArtifact<WikiDoc>(WIKI_DOC_ARTIFACT, scope, id);
+      if (!existing) { res.status(404).json({ error: "Document not found" }); return undefined; }
+      const row = mergeJsonDocRow(existing, input, ctx, new Date().toISOString());
+      putArtifact(WIKI_DOC_ARTIFACT, scope, row);
+      captureJsonDocVersion(scope, row, `wv-${crypto.randomUUID()}`);
+      return row; // 200
+    },
+  },
+  remove: {
+    role: "contributor",
+    ruleAction: "delete_wiki_doc",
+    validate: () => ({}),
+    scope: { kind: "custom", guard: async (req, res) => {
+      const parsed = parseWikiDocId(String(req.params["id"]));
+      if (!parsed) return true; // malformed id → nothing to delete; run 204s (idempotent), no target to authorize
+      return authorizeTarget(req, res, parsed.storage, parsed.projectId, "write");
+    } },
+    run: async (req, res) => {
+      const id = String(req.params["id"]);
+      const parsed = parseWikiDocId(id);
+      if (!parsed) { res.status(204).end(); return undefined; } // malformed id → nothing to delete (idempotent)
+      if (parsed.storage === "sidecar") {
+        await writeWikiDoc(req, "delete", { id: parsed.localId } as never);
+        res.status(204).end();
+        return undefined;
+      }
+      if (!artifactStoreEnabled()) { res.status(204).end(); return undefined; }
+      const scope = wikiDocScope(parsed, contextFromReq(req).sub);
+      if (scope) deleteArtifact(WIKI_DOC_ARTIFACT, scope, id);
       res.status(204).end();
-      return;
-    }
-    if (!artifactStoreEnabled()) { res.status(204).end(); return; }
-    const scope = wikiDocScope(parsed, contextFromReq(req).sub);
-    if (scope) deleteArtifact(WIKI_DOC_ARTIFACT, scope, id);
-    res.status(204).end();
-  }),
-);
+      return undefined;
+    },
+  },
+};
+mountEntity(router, wikiEntity);
 
 export default router;

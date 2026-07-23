@@ -13,6 +13,7 @@ import {
   type ProofStorage,
 } from "../lib/proof";
 import { PROOF_DECISION_ACTION, type ProofDecisionParams } from "../lib/proof-approval";
+import { mountEntity, type EntityDescriptor } from "../lib/entity-pipeline";
 
 /**
  * PROOFING / deliverable review (roadmap 2.4). A proof references a deliverable (image/PDF, never inlined —
@@ -63,44 +64,90 @@ router.get("/proofs/:id", requireRole("viewer"), (req, res) =>
   }),
 );
 
-// POST /api/proofs — create a proof in the chosen storage target (contributor+).
-router.post("/proofs", requireRole("contributor"), (req, res) => {
-  let input;
-  try { input = sanitizeProofWrite(req.body); }
-  catch (e) { if (e instanceof ProofError) { res.status(400).json({ error: e.message }); return; } throw e; }
-  return withBrokerErrors(req, res, "create_proof failed", async () => {
-    if (!(await authorizeTarget(req, res, input.storage, input.projectId, "write"))) return;
-    if (!requireArtifactStore(res)) return;
-    const ctx = contextFromReq(req);
-    const scope = proofScope(input, ctx.sub);
-    if (!scope) { res.status(400).json({ error: "invalid storage target" }); return; }
-    const id = makeProofId(input.storage, crypto.randomUUID(), input.projectId);
-    const row = newJsonProofRow(id, input, ctx, new Date().toISOString());
-    putArtifact(PROOF_ARTIFACT, scope, row);
-    res.status(201).json(row);
-  });
-});
+type ProofWrite = ReturnType<typeof sanitizeProofWrite>;
 
-// PUT /api/proofs/:id — update a proof in place (contributor+); a changed deliverable re-opens the decision.
-router.put("/proofs/:id", requireRole("contributor"), (req, res) => {
-  let input;
-  try { input = sanitizeProofWrite(req.body); }
-  catch (e) { if (e instanceof ProofError) { res.status(400).json({ error: e.message }); return; } throw e; }
-  const id = String(req.params["id"]);
-  const parsed = parseProofId(id);
-  if (!parsed) { res.status(404).json({ error: "Proof not found" }); return; }
-  return withBrokerErrors(req, res, "update_proof failed", async () => {
-    if (!(await authorizeTarget(req, res, parsed.storage, parsed.projectId, "write"))) return;
-    if (!artifactStoreEnabled()) { res.status(404).json({ error: "Proof not found" }); return; }
-    const ctx = contextFromReq(req);
-    const scope = proofScope(parsed, ctx.sub);
-    const existing = scope ? getArtifact<Proof>(PROOF_ARTIFACT, scope, id) : null;
-    if (!scope || !existing) { res.status(404).json({ error: "Proof not found" }); return; }
-    const row = mergeJsonProofRow(existing, input, ctx, new Date().toISOString());
-    putArtifact(PROOF_ARTIFACT, scope, row);
-    res.json(row);
-  });
-});
+/**
+ * Proofs — deliverable-review CRUD on the LANE 1 entity pipeline (contributor+).
+ *
+ * Each op runs RBAC → validate → ruleset → scope → write by construction. Update is a whole-document PUT
+ * (`updateMethod`). Scope is PER-OP storage-target authorization (proofs have no project IDOR): create
+ * authorizes the target the BODY names; update/delete the target the ID parses to — so each op carries its own
+ * `scope` guard. The pipeline now enforces the business ruleset (create_proof / update_proof / delete_proof)
+ * these hand-written routes lacked — additive, no-op under default config. POST /proofs/:id/decision stays
+ * bespoke below (it holds for a signed sign-off, a 202 dual-control shape the entity pipeline doesn't model).
+ */
+export const proofEntity: EntityDescriptor = {
+  entity: "proof",
+  basePath: "/proofs",
+  idParam: "id",
+  updateMethod: "put",
+  create: {
+    role: "contributor",
+    ruleAction: "create_proof",
+    validate: (req, res) => {
+      try { return sanitizeProofWrite(req.body); }
+      catch (e) { if (e instanceof ProofError) { res.status(400).json({ error: e.message }); return null; } throw e; }
+    },
+    scope: { kind: "custom", guard: (req, res, body) => authorizeTarget(req, res, (body as ProofWrite).storage, (body as ProofWrite).projectId, "write") },
+    run: async (req, res, body) => {
+      const input = body as ProofWrite;
+      if (!requireArtifactStore(res)) return undefined;
+      const ctx = contextFromReq(req);
+      const scope = proofScope(input, ctx.sub);
+      if (!scope) { res.status(400).json({ error: "invalid storage target" }); return undefined; }
+      const id = makeProofId(input.storage, crypto.randomUUID(), input.projectId);
+      const row = newJsonProofRow(id, input, ctx, new Date().toISOString());
+      putArtifact(PROOF_ARTIFACT, scope, row);
+      return row; // 201 (pipeline default create status)
+    },
+  },
+  update: {
+    role: "contributor",
+    ruleAction: "update_proof",
+    validate: (req, res) => {
+      try { return sanitizeProofWrite(req.body); }
+      catch (e) { if (e instanceof ProofError) { res.status(400).json({ error: e.message }); return null; } throw e; }
+    },
+    scope: { kind: "custom", guard: async (req, res) => {
+      const parsed = parseProofId(String(req.params["id"]));
+      if (!parsed) { res.status(404).json({ error: "Proof not found" }); return false; }
+      return authorizeTarget(req, res, parsed.storage, parsed.projectId, "write");
+    } },
+    run: async (req, res, body) => {
+      if (!artifactStoreEnabled()) { res.status(404).json({ error: "Proof not found" }); return undefined; }
+      const id = String(req.params["id"]);
+      const parsed = parseProofId(id);
+      const ctx = contextFromReq(req);
+      const scope = parsed ? proofScope(parsed, ctx.sub) : null;
+      const existing = scope ? getArtifact<Proof>(PROOF_ARTIFACT, scope, id) : null;
+      if (!scope || !existing) { res.status(404).json({ error: "Proof not found" }); return undefined; }
+      const row = mergeJsonProofRow(existing, body as ProofWrite, ctx, new Date().toISOString());
+      putArtifact(PROOF_ARTIFACT, scope, row);
+      return row; // 200
+    },
+  },
+  remove: {
+    role: "contributor",
+    ruleAction: "delete_proof",
+    validate: () => ({}),
+    scope: { kind: "custom", guard: async (req, res) => {
+      const parsed = parseProofId(String(req.params["id"]));
+      if (!parsed) return true; // malformed id → nothing to delete; run 204s (idempotent), no target to authorize
+      return authorizeTarget(req, res, parsed.storage, parsed.projectId, "write");
+    } },
+    run: async (req, res) => {
+      const id = String(req.params["id"]);
+      const parsed = parseProofId(id);
+      if (!parsed) { res.status(204).end(); return undefined; }
+      if (!artifactStoreEnabled()) { res.status(204).end(); return undefined; }
+      const scope = proofScope(parsed, contextFromReq(req).sub);
+      if (scope) deleteArtifact(PROOF_ARTIFACT, scope, id);
+      res.status(204).end();
+      return undefined;
+    },
+  },
+};
+mountEntity(router, proofEntity);
 
 // POST /api/proofs/:id/decision — record an approve/reject/changes-requested decision, bound to the version.
 // contributor+ floor; an org proof additionally needs manager+ (the storage-target gate). Identity + version
@@ -135,19 +182,5 @@ router.post("/proofs/:id/decision", requireRole("contributor"), (req, res) => {
     res.json(row);
   });
 });
-
-// DELETE /api/proofs/:id — remove a proof (contributor+; an org proof additionally needs manager+).
-router.delete("/proofs/:id", requireRole("contributor"), (req, res) =>
-  withBrokerErrors(req, res, "delete_proof failed", async () => {
-    const id = String(req.params["id"]);
-    const parsed = parseProofId(id);
-    if (!parsed) { res.status(204).end(); return; }
-    if (!(await authorizeTarget(req, res, parsed.storage, parsed.projectId, "write"))) return;
-    if (!artifactStoreEnabled()) { res.status(204).end(); return; }
-    const scope = proofScope(parsed, contextFromReq(req).sub);
-    if (scope) deleteArtifact(PROOF_ARTIFACT, scope, id);
-    res.status(204).end();
-  }),
-);
 
 export default router;

@@ -3,6 +3,7 @@ import { requireAnyRole } from "../lib/rbac";
 import { requireArtifactStore } from "../lib/artifact-store";
 import { contextFromReq } from "../broker";
 import { ensureOrgIdentity, updateOrgIdentity, type OrgIdentityPatch } from "../lib/org-identity";
+import { mountCommand, type CommandDescriptor } from "../lib/action-base";
 
 /**
  * ORG IDENTITY — the org's canonical id + name (see lib/org-identity). This is the FIRST thing the first-run
@@ -26,23 +27,40 @@ router.get("/org-identity", (req, res) => {
   res.json({ identity });
 });
 
-router.put("/org-identity", requireAnyRole("pmo", "admin"), (req, res) => {
-  if (!requireArtifactStore(res)) return;
-  const body = (req.body ?? {}) as { name?: unknown; logo?: unknown; showLogo?: unknown };
-  const ctx = contextFromReq(req);
-  const now = new Date().toISOString();
-  // Build a patch from ONLY the keys the caller supplied (name / logo / showLogo — all ungated); an empty PUT
-  // just ensures the id exists (mints it on first touch). The id is never patchable (immutable).
-  const patch: OrgIdentityPatch = {};
-  if (body.name !== undefined) patch.name = body.name;
-  if (body.logo !== undefined) patch.logo = body.logo;
-  if (body.showLogo !== undefined) patch.showLogo = body.showLogo;
-  try {
+/**
+ * PUT /api/org-identity — mint the id if needed + set the name/logo (admin/PMO); the id is immutable.
+ *
+ * LANE 2: an org-config governance verb — the PMO-or-admin union rides in `gates`; the sealed-store
+ * precondition is the parse gate. Parse builds the patch from ONLY the keys the caller supplied (name / logo /
+ * showLogo — all ungated); an empty PUT just ensures the id exists (mints it on first touch). The id is never
+ * patchable (immutable). updateOrgIdentity's validation throw maps to 400 via onError. The action base now
+ * records a success audit (org-identity.save) the hand-written route lacked — additive, no-op under default
+ * config.
+ */
+export const orgIdentitySaveCommand: CommandDescriptor<{ patch: OrgIdentityPatch }> = {
+  name: "org-identity.save",
+  method: "put",
+  path: "/org-identity",
+  gates: [requireAnyRole("pmo", "admin")],
+  parse: (req, res) => {
+    if (!requireArtifactStore(res)) return null;
+    const body = (req.body ?? {}) as { name?: unknown; logo?: unknown; showLogo?: unknown };
+    const patch: OrgIdentityPatch = {};
+    if (body.name !== undefined) patch.name = body.name;
+    if (body.logo !== undefined) patch.logo = body.logo;
+    if (body.showLogo !== undefined) patch.showLogo = body.showLogo;
+    return { patch };
+  },
+  run: async (req, _res, { patch }) => {
+    const ctx = contextFromReq(req);
+    const now = new Date().toISOString();
     const identity = Object.keys(patch).length ? updateOrgIdentity(patch, ctx, now) : ensureOrgIdentity(ctx, now);
-    res.json({ identity });
-  } catch (err) {
-    res.status(400).json({ error: err instanceof Error ? err.message : "invalid org identity" });
-  }
-});
+    return { identity };
+  },
+  audit: "org-identity.save",
+  auditCategory: "admin",
+  onError: (res, err) => { res.status(400).json({ error: err instanceof Error ? err.message : "invalid org identity" }); },
+};
+mountCommand(router, orgIdentitySaveCommand);
 
 export default router;

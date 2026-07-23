@@ -7,6 +7,7 @@ import { contextFromReq } from "../broker";
 import {
   resolveScheduling, sanitizeSchedulingValues, SCHEDULING_CONFIG_ID, DEFAULT_SCHEDULING, type ConfigScopes,
 } from "../lib/scoped-config";
+import { mountCommand, type CommandDescriptor } from "../lib/action-base";
 
 /**
  * The working-time policy for the (client-side, projected) scheduling engine, held in the composition model
@@ -49,29 +50,54 @@ router.get("/scheduling", requireAnyRole("pmo", "admin"), (_req, res) => {
   res.json({ scheduling: { ...DEFAULT_SCHEDULING, ...orgSchedulingValues() } });
 });
 
-router.put("/scheduling", requireAnyRole("pmo", "admin"), (req, res) => {
-  if (!requireArtifactStore(res)) return;
-  const body = (req.body ?? {}) as { scheduling?: unknown };
-  const raw = body.scheduling ?? req.body;
-  let values: Record<string, unknown>;
-  try { values = sanitizeSchedulingValues(raw) as Record<string, unknown>; }
-  catch (e) { res.status(400).json({ error: e instanceof Error ? e.message : "invalid scheduling values" }); return; }
+/**
+ * PUT /api/scheduling — write the org-scope working-time config def (admin/PMO), validated.
+ *
+ * LANE 2: writing the org working-time policy is a config governance verb — the PMO-or-admin union rides in
+ * `gates`; the sealed-store precondition and the full validation chain (sanitise → kind validator →
+ * bidirectional integrity) are the parse gate, each returning null having already sent its 4xx (503 store-off,
+ * 400 invalid). Parse hands `run` the validated payload + the resolved `existing` row, so the write stays a
+ * pure effect. The action base now records a success audit (scheduling.save) the hand-written route lacked —
+ * additive, no-op under default config.
+ */
+export const schedulingSaveCommand: CommandDescriptor<{
+  values: Record<string, unknown>;
+  payload: { id: string; values: Record<string, unknown> };
+  existing: StoredDef | null;
+}> = {
+  name: "scheduling.save",
+  method: "put",
+  path: "/scheduling",
+  gates: [requireAnyRole("pmo", "admin")],
+  parse: (req, res) => {
+    if (!requireArtifactStore(res)) return null;
+    const body = (req.body ?? {}) as { scheduling?: unknown };
+    const raw = body.scheduling ?? req.body;
+    let values: Record<string, unknown>;
+    try { values = sanitizeSchedulingValues(raw) as Record<string, unknown>; }
+    catch (e) { res.status(400).json({ error: e instanceof Error ? e.message : "invalid scheduling values" }); return null; }
 
-  const payload = { id: SCHEDULING_CONFIG_ID, values };
-  // Pass through the SAME validated write path the importer uses: kind validator + bidirectional integrity.
-  const check = validateDef("config", payload);
-  if (!check.ok) { res.status(400).json({ error: check.errors.join("; ") }); return; }
-  const existing = getDef({ kind: "org" }, ORG_SCHEDULING_ID);
-  const integrityErr = checkImportIntegrity("config", payload, existing ? { storageId: ORG_SCHEDULING_ID, priorId: SCHEDULING_CONFIG_ID } : undefined);
-  if (integrityErr) { res.status(400).json({ error: integrityErr }); return; }
-
-  const ctx = contextFromReq(req);
-  const now = new Date().toISOString();
-  const row: StoredDef = existing
-    ? { ...existing, payload, updatedAt: now, rowVersion: (existing.rowVersion ?? 1) + 1 }
-    : newStoredDef(ORG_SCHEDULING_ID, { kind: "config", name: "Working time", payload, value: payload }, ctx, now);
-  putDef({ kind: "org" }, row);
-  res.json({ scheduling: { ...DEFAULT_SCHEDULING, ...values } });
-});
+    const payload = { id: SCHEDULING_CONFIG_ID, values };
+    // Pass through the SAME validated write path the importer uses: kind validator + bidirectional integrity.
+    const check = validateDef("config", payload);
+    if (!check.ok) { res.status(400).json({ error: check.errors.join("; ") }); return null; }
+    const existing = getDef({ kind: "org" }, ORG_SCHEDULING_ID);
+    const integrityErr = checkImportIntegrity("config", payload, existing ? { storageId: ORG_SCHEDULING_ID, priorId: SCHEDULING_CONFIG_ID } : undefined);
+    if (integrityErr) { res.status(400).json({ error: integrityErr }); return null; }
+    return { values, payload, existing };
+  },
+  run: async (req, _res, { values, payload, existing }) => {
+    const ctx = contextFromReq(req);
+    const now = new Date().toISOString();
+    const row: StoredDef = existing
+      ? { ...existing, payload, updatedAt: now, rowVersion: (existing.rowVersion ?? 1) + 1 }
+      : newStoredDef(ORG_SCHEDULING_ID, { kind: "config", name: "Working time", payload, value: payload }, ctx, now);
+    putDef({ kind: "org" }, row);
+    return { scheduling: { ...DEFAULT_SCHEDULING, ...values } };
+  },
+  audit: "scheduling.save",
+  auditCategory: "admin",
+};
+mountCommand(router, schedulingSaveCommand);
 
 export default router;

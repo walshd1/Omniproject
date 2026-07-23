@@ -4,8 +4,10 @@ import type { IRouter } from "express";
 import { startHarness, type Harness } from "./_harness";
 import { entityRoutes } from "../lib/entity-pipeline";
 import { commandRoutes } from "../lib/action-base";
-import { issueEntity } from "../routes/projects";
+import { issueEntity, raidEntity } from "../routes/projects";
 import { taskEntity } from "../routes/tasks";
+import { proofEntity } from "../routes/proofs";
+import { wikiEntity } from "../routes/wiki";
 import {
   decisionCommand, redirectCommand, bypassCommand, passkeyRevokeCommand, passkeyRevokeAllCommand,
 } from "../routes/approvals";
@@ -32,6 +34,19 @@ import {
   userCreateCommand, userUpdateCommand, userPasswordSetCommand, userPasswordClearCommand, userDeleteCommand,
 } from "../routes/users";
 import { brandingSaveCommand, brandingClearCommand } from "../routes/branding";
+import { labelsSaveCommand, labelsApplyPresetCommand } from "../routes/labels";
+import { accessibilityDefaultsSaveCommand } from "../routes/accessibility";
+import { priorityLabelsSaveCommand } from "../routes/priority-labels";
+import { orgIdentitySaveCommand } from "../routes/org-identity";
+import { schedulingSaveCommand } from "../routes/scheduling";
+import { methodologyCompositionSaveCommand, methodologyDeployCommand } from "../routes/methodology-composition";
+import { aiProviderAllowlistCommand, aiModelAllowlistCommand, sttProviderAllowlistCommand } from "../routes/ai-allowlist";
+import { deploymentTypeSetCommand } from "../routes/deployment-types";
+import { calendarPushSaveCommand } from "../routes/calendar";
+import { mePrefsSaveCommand } from "../routes/me";
+import { presetApplyCommand } from "../routes/presets";
+import { templateInstantiateCommand } from "../routes/templates";
+import { projectCloseCommand } from "../routes/projects";
 import { collectionWriteRoutes } from "../lib/settings-collection-router";
 
 /**
@@ -88,7 +103,7 @@ async function writeRoutes(): Promise<Set<string>> {
 }
 
 // Lane 1 + Lane 2 — derived from the registered descriptors (the routes the spines own).
-const LANE1 = new Set<string>([...entityRoutes(issueEntity), ...entityRoutes(taskEntity)]);
+const LANE1 = new Set<string>([...entityRoutes(issueEntity), ...entityRoutes(taskEntity), ...entityRoutes(proofEntity), ...entityRoutes(wikiEntity), ...entityRoutes(raidEntity)]);
 const LANE2 = new Set<string>([
   ...commandRoutes(decisionCommand),
   ...commandRoutes(redirectCommand),
@@ -128,6 +143,23 @@ const LANE2 = new Set<string>([
   ...commandRoutes(userDeleteCommand),
   ...commandRoutes(brandingSaveCommand),
   ...commandRoutes(brandingClearCommand),
+  ...commandRoutes(labelsSaveCommand),
+  ...commandRoutes(labelsApplyPresetCommand),
+  ...commandRoutes(accessibilityDefaultsSaveCommand),
+  ...commandRoutes(priorityLabelsSaveCommand),
+  ...commandRoutes(orgIdentitySaveCommand),
+  ...commandRoutes(schedulingSaveCommand),
+  ...commandRoutes(methodologyCompositionSaveCommand),
+  ...commandRoutes(methodologyDeployCommand),
+  ...commandRoutes(aiProviderAllowlistCommand),
+  ...commandRoutes(aiModelAllowlistCommand),
+  ...commandRoutes(sttProviderAllowlistCommand),
+  ...commandRoutes(deploymentTypeSetCommand),
+  ...commandRoutes(calendarPushSaveCommand),
+  ...commandRoutes(mePrefsSaveCommand),
+  ...commandRoutes(presetApplyCommand),
+  ...commandRoutes(templateInstantiateCommand),
+  ...commandRoutes(projectCloseCommand),
 ]);
 
 // Lane 3 — hand-written writes not (yet) on a spine. SEED — regenerate by running the first test with this
@@ -139,11 +171,9 @@ const BESPOKE_WRITES = new Set<string>([
   "DELETE /dev-mode/impersonate",
   "DELETE /projects/:projectGuid/links",
   "DELETE /projects/:projectId/mapping/:slot/:rowId",
-  "DELETE /proofs/:id",
   "DELETE /scim/v2/Groups/:id",
   "DELETE /scim/v2/Users/:id",
   "DELETE /whiteboards/:id",
-  "DELETE /wiki/docs/:id",
   "PATCH /projects/:projectId",
   "PATCH /scim/v2/Groups/:id",
   "PATCH /scim/v2/Users/:id",
@@ -198,18 +228,12 @@ const BESPOKE_WRITES = new Set<string>([
   "POST /history/erase",
   "POST /import/commit",
   "POST /import/preview",
-  "POST /labels/apply-preset",
   "POST /mcp",
-  "POST /methodology-composition/deploy/:id",
   "POST /notifications/ingest",
   "POST /portal/invites",
   "POST /presence/rooms/:roomId",
-  "POST /presets/:id/apply",
   "POST /projects",
-  "POST /projects/:projectGuid/close",
   "POST /projects/:projectId/issues/:issueId/items",
-  "POST /projects/:projectId/raid",
-  "POST /proofs",
   "POST /proofs/:id/decision",
   "POST /provenance/call/:callId/verify",
   "POST /scim/v2/Groups",
@@ -246,16 +270,13 @@ const BESPOKE_WRITES = new Set<string>([
   "POST /tasks/:taskId/attachments",
   "POST /tasks/:taskId/comments",
   "POST /tasks/reminders/sweep",
-  "POST /templates/:id/instantiate",
   "POST /timesheets",
   "POST /timesheets/:id/action",
   "POST /usage/notify",
   "POST /webhooks",
   "POST /whiteboards",
   "POST /whiteboards/rooms/:roomId",
-  "POST /wiki/docs",
   "POST /workflows/:id/run",
-  "PUT /accessibility-defaults",
   "PUT /admin/custom-roles",
   "PUT /admin/delegation-policy",
   "PUT /admin/maintenance",
@@ -263,12 +284,7 @@ const BESPOKE_WRITES = new Set<string>([
   "PUT /admin/ruleset",
   "PUT /admin/ruleset/fields",
   "PUT /admin/ruleset/scope",
-  "PUT /ai/model-allowlist",
-  "PUT /ai/provider-allowlist",
-  "PUT /ai/stt-provider-allowlist",
-  "PUT /calendar/push",
   "PUT /dashboards",
-  "PUT /deployment-type",
   "PUT /error-telemetry",
   "PUT /features/governance-rules",
   "PUT /features/programme/:programmeId",
@@ -277,18 +293,11 @@ const BESPOKE_WRITES = new Set<string>([
   "PUT /forms",
   "PUT /governance/:id",
   "PUT /history/retention",
-  "PUT /labels",
   "PUT /logging-sync",
-  "PUT /me/prefs",
-  "PUT /methodology-composition",
-  "PUT /org-identity",
-  "PUT /priority-labels",
   "PUT /projects/:projectId/mapping/:slot/:rowId",
   "PUT /projects/:projectId/type",
   "PUT /projects/:projectId/wbs/:wbsId",
-  "PUT /proofs/:id",
   "PUT /reports/custom",
-  "PUT /scheduling",
   "PUT /scim/v2/Groups/:id",
   "PUT /scim/v2/Users/:id",
   "PUT /screen-defs",
@@ -296,7 +305,6 @@ const BESPOKE_WRITES = new Set<string>([
   "PUT /settings/scope",
   "PUT /setup/screens/:id/layout",
   "PUT /whiteboards/:id",
-  "PUT /wiki/docs/:id",
 ]);
 
 let h: Harness;

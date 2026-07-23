@@ -21,9 +21,12 @@ import { enforceBusinessRules } from "./ruleset-guard";
 export type EntityScope =
   | { kind: "project"; param: string }   // req.params[param] is the projectId; guardProjectScope enforces it
   | { kind: "none" }                      // org-global entity — no per-project scope
-  | { kind: "custom"; guard: (req: Request, res: Response) => Promise<boolean> };
+  | { kind: "custom"; guard: (req: Request, res: Response, body: unknown) => Promise<boolean> };
                                           // the op's own scope guard (e.g. a task-access check that isn't a
-                                          // project IDOR); returns false having ALREADY sent a 4xx, like guardProjectScope
+                                          // project IDOR, or a storage-target authz that depends on the
+                                          // validated body); returns false having ALREADY sent a 4xx, like
+                                          // guardProjectScope. Receives the validated body so a create can
+                                          // authorize the target the body names, an update/delete the id's.
 
 export interface EntityOp<B> {
   /** RBAC floor for this op. */
@@ -38,6 +41,10 @@ export interface EntityOp<B> {
   run: (req: Request, res: Response, body: B) => Promise<unknown>;
   /** Success status when `run` returns a payload (default: 201 create / 200 update). */
   status?: number;
+  /** Per-op scope override. Defaults to the descriptor's `scope`. Set it when an entity's ops authorize
+   *  DIFFERENTLY — e.g. a create authorizes the storage target the body names, while update/delete authorize
+   *  the id's target — so each op stays on the spine with its own guard instead of falling back to a route. */
+  scope?: EntityScope;
 }
 
 export interface EntityDescriptor {
@@ -47,11 +54,19 @@ export interface EntityDescriptor {
   basePath: string;
   /** The id path-param for item ops (update/delete); appended to basePath as `/:idParam`. */
   idParam?: string;
-  scope: EntityScope;
+  /** Default scope for every op; an op may override it with its own `scope`. Optional — omit when every op
+   *  carries its own (or is org-global). */
+  scope?: EntityScope;
+  /** HTTP method for the update op (default "patch"). Some entities update via whole-document PUT. */
+  updateMethod?: "put" | "patch";
   create?: EntityOp<unknown>;
   update?: EntityOp<unknown>;
   remove?: EntityOp<unknown>;
 }
+
+/** The scope an op runs under: its own override, else the descriptor default, else org-global. */
+const scopeFor = (op: EntityOp<unknown>, descScope: EntityScope | undefined): EntityScope =>
+  op.scope ?? descScope ?? { kind: "none" };
 
 const projectIdOf = (req: Request, scope: EntityScope): string | null =>
   scope.kind === "project" ? String(req.params[scope.param] ?? "") : null;
@@ -64,7 +79,7 @@ function runOp(entity: string, verb: string, op: EntityOp<unknown>, scope: Entit
       if (body === null) return;
       if (!enforceBusinessRules(req, res, op.ruleAction, { projectId, payload: (body ?? {}) as Record<string, unknown> })) return;
       if (scope.kind === "project" && !(await guardProjectScope(req, res, projectId!))) return;
-      if (scope.kind === "custom" && !(await scope.guard(req, res))) return;
+      if (scope.kind === "custom" && !(await scope.guard(req, res, body))) return;
       const result = await op.run(req, res, body);
       if (result === undefined) return; // the op already responded (404 / 204 / etc.)
       res.status(op.status ?? defaultStatus).json(result);
@@ -77,7 +92,7 @@ export function entityRoutes(desc: EntityDescriptor): string[] {
   const out: string[] = [];
   const itemPath = desc.idParam ? `${desc.basePath}/:${desc.idParam}` : desc.basePath;
   if (desc.create) out.push(`POST ${desc.basePath}`);
-  if (desc.update) out.push(`PATCH ${itemPath}`);
+  if (desc.update) out.push(`${(desc.updateMethod ?? "patch").toUpperCase()} ${itemPath}`);
   if (desc.remove) out.push(`DELETE ${itemPath}`);
   return out;
 }
@@ -85,7 +100,7 @@ export function entityRoutes(desc: EntityDescriptor): string[] {
 /** Mount an entity descriptor's ops, each running the fixed RBAC → validate → ruleset → scope → run pipeline. */
 export function mountEntity(router: IRouter, desc: EntityDescriptor): void {
   const itemPath = desc.idParam ? `${desc.basePath}/:${desc.idParam}` : desc.basePath;
-  if (desc.create) router.post(desc.basePath, requireRole(desc.create.role), runOp(desc.entity, "create", desc.create, desc.scope, 201));
-  if (desc.update) router.patch(itemPath, requireRole(desc.update.role), runOp(desc.entity, "update", desc.update, desc.scope, 200));
-  if (desc.remove) router.delete(itemPath, requireRole(desc.remove.role), runOp(desc.entity, "delete", desc.remove, desc.scope, 200));
+  if (desc.create) router.post(desc.basePath, requireRole(desc.create.role), runOp(desc.entity, "create", desc.create, scopeFor(desc.create, desc.scope), 201));
+  if (desc.update) router[desc.updateMethod ?? "patch"](itemPath, requireRole(desc.update.role), runOp(desc.entity, "update", desc.update, scopeFor(desc.update, desc.scope), 200));
+  if (desc.remove) router.delete(itemPath, requireRole(desc.remove.role), runOp(desc.entity, "delete", desc.remove, scopeFor(desc.remove, desc.scope), 200));
 }
