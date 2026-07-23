@@ -21,6 +21,13 @@ import {
 import { approvedUpdateCommand, aiKillCommand, containmentCommand } from "../routes/tools";
 import { roleMapRollbackCommand } from "../routes/role-map";
 import { webhookDeleteCommand, webhookTestCommand } from "../routes/webhooks";
+import { energyVocabularyCommand } from "../routes/energy-vocabulary";
+import { impactVocabularyCommand } from "../routes/impact-vocabulary";
+import { likelihoodVocabularyCommand } from "../routes/likelihood-vocabulary";
+import { severityVocabularyCommand } from "../routes/severity-vocabulary";
+import { workVocabularyCommand } from "../routes/work-vocabulary";
+import { taskVocabularyCommand } from "../routes/task-vocabulary";
+import { ragVocabularyCommand } from "../routes/rag-vocabulary";
 import { collectionWriteRoutes } from "../lib/settings-collection-router";
 
 /**
@@ -103,6 +110,13 @@ const LANE2 = new Set<string>([
   ...commandRoutes(roleMapRollbackCommand),
   ...commandRoutes(webhookDeleteCommand),
   ...commandRoutes(webhookTestCommand),
+  ...commandRoutes(energyVocabularyCommand),
+  ...commandRoutes(impactVocabularyCommand),
+  ...commandRoutes(likelihoodVocabularyCommand),
+  ...commandRoutes(severityVocabularyCommand),
+  ...commandRoutes(workVocabularyCommand),
+  ...commandRoutes(taskVocabularyCommand),
+  ...commandRoutes(ragVocabularyCommand),
 ]);
 
 // Lane 3 — hand-written writes not (yet) on a spine. SEED — regenerate by running the first test with this
@@ -251,7 +265,6 @@ const BESPOKE_WRITES = new Set<string>([
   "PUT /calendar/push",
   "PUT /dashboards",
   "PUT /deployment-type",
-  "PUT /energy-vocabulary",
   "PUT /error-telemetry",
   "PUT /features/governance-rules",
   "PUT /features/programme/:programmeId",
@@ -260,9 +273,7 @@ const BESPOKE_WRITES = new Set<string>([
   "PUT /forms",
   "PUT /governance/:id",
   "PUT /history/retention",
-  "PUT /impact-vocabulary",
   "PUT /labels",
-  "PUT /likelihood-vocabulary",
   "PUT /logging-sync",
   "PUT /me/prefs",
   "PUT /methodology-composition",
@@ -272,7 +283,6 @@ const BESPOKE_WRITES = new Set<string>([
   "PUT /projects/:projectId/type",
   "PUT /projects/:projectId/wbs/:wbsId",
   "PUT /proofs/:id",
-  "PUT /rag-vocabulary",
   "PUT /reports/custom",
   "PUT /scheduling",
   "PUT /scim/v2/Groups/:id",
@@ -281,11 +291,8 @@ const BESPOKE_WRITES = new Set<string>([
   "PUT /screen-layouts",
   "PUT /settings/scope",
   "PUT /setup/screens/:id/layout",
-  "PUT /severity-vocabulary",
-  "PUT /task-vocabulary",
   "PUT /whiteboards/:id",
   "PUT /wiki/docs/:id",
-  "PUT /work-vocabulary",
 ]);
 
 let h: Harness;

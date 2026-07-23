@@ -3981,6 +3981,16 @@ AI secret vault — where provider API keys live now that they are OUT of docker
 | `listSecretRefs` | The refs that currently have a secret (no values). |
 | `__resetVault` | Test-only: wipe the in-memory cache and force a reload on next access. |
 
+### `artifacts/api-server/src/lib/vocabulary-command.ts`
+
+The scope-overridable VOCABULARY plane (energy / impact / likelihood / severity / work / task / RAG) is seven byte-for-byte identical routers: `GET /api/<x>-vocabulary` resolves the effective levels for the caller's scope, `PUT` sets the org-scope override (pmo/admin).
+
+| Function | What it does |
+| --- | --- |
+| `vocabularyScopes` | Read the request's resolution scopes: programme/project from the query, user from the auth context. |
+| `vocabularyParse` | Build the `parse` for a vocabulary PUT: the artifact-store guard, then sanitise (→ 400 on throw). |
+| `vocabularyRun` | Build the `run` for a vocabulary PUT: upsert the org-scope def, then resolve the effective vocab. |
+
 ### `artifacts/api-server/src/lib/wbs-mapping-resolve.ts`
 
 WBS mapping resolution (roadmap §4.6) — the WBS cost screen's view over the first-class {@link Mapping} object.
@@ -4326,7 +4336,7 @@ The OFF switch for screens.
 
 ### `artifacts/api-server/src/routes/energy-vocabulary.ts`
 
-Scope-overridable GTD energy-level vocabulary (the "how much have I got in the tank" axis, orthogonal to an hour estimate).
+Scope-overridable Energy vocabulary.
 
 ### `artifacts/api-server/src/routes/error-telemetry.ts`
 
@@ -4378,7 +4388,7 @@ Time-travel replay — read recorded portfolio states back from the operator's l
 
 ### `artifacts/api-server/src/routes/impact-vocabulary.ts`
 
-Scope-overridable RAID/risk IMPACT vocabulary (the consequence magnitude — the I in risk-exposure P×I).
+Scope-overridable Impact vocabulary.
 
 ### `artifacts/api-server/src/routes/import.ts`
 
@@ -4406,7 +4416,7 @@ Licence endpoint — GET /api/license reports the current licence summary + prem
 
 ### `artifacts/api-server/src/routes/likelihood-vocabulary.ts`
 
-Scope-overridable RAID/risk LIKELIHOOD vocabulary (the probability a risk occurs — the P in risk-exposure P×I).
+Scope-overridable Likelihood vocabulary.
 
 ### `artifacts/api-server/src/routes/logging-sync.ts`
 
@@ -4510,7 +4520,7 @@ RACI register store.
 
 ### `artifacts/api-server/src/routes/rag-vocabulary.ts`
 
-Scope-overridable RAG/health BAND vocabulary (a project/programme's traffic-light status).
+Scope-overridable RAG vocabulary.
 
 ### `artifacts/api-server/src/routes/rate-card.ts`
 
@@ -4598,7 +4608,7 @@ Setup environments plane — the sandbox → promote → rollback lifecycle over
 
 ### `artifacts/api-server/src/routes/severity-vocabulary.ts`
 
-Scope-overridable RAID/risk SEVERITY vocabulary ("how bad is it if this bites").
+Scope-overridable Severity vocabulary.
 
 ### `artifacts/api-server/src/routes/snapshots.ts`
 
@@ -4618,7 +4628,7 @@ The SYSTEM DEFAULTS update mechanism (roadmap X.11).
 
 ### `artifacts/api-server/src/routes/task-vocabulary.ts`
 
-Scope-overridable GTD task-status vocabulary (next-actions axis, distinct from the work-item/issue status axis).
+Scope-overridable Task vocabulary.
 
 ### `artifacts/api-server/src/routes/tasks.ts`
 
@@ -4674,7 +4684,7 @@ WIKI / collaborative docs (roadmap 2.1).
 
 ### `artifacts/api-server/src/routes/work-vocabulary.ts`
 
-Scope-overridable work-item vocabulary (statuses + priorities).
+Scope-overridable Work vocabulary.
 
 ### `artifacts/api-server/src/routes/workflows.ts`
 
