@@ -11,6 +11,7 @@ import { requireEntitlement, isEntitled } from "../lib/license";
 import { applySettingsGuarded } from "../lib/settings-guard";
 import { captureVersion } from "../lib/config-store";
 import { actorForAudit } from "../lib/audit";
+import { mountCommand, type CommandDescriptor } from "../lib/action-base";
 
 /**
  * Outbound webhook management (premium: `webhooks`). Admin only.
@@ -46,24 +47,38 @@ router.post("/webhooks", requireRole("admin"), requireStepUp, requireEntitlement
   }
 });
 
-router.delete("/webhooks/:id", requireRole("admin"), requireStepUp, (req, res) => {
-  try {
-    deleteWebhook(String(req.params["id"]));
-    res.json({ deleted: true });
-  } catch (err) {
-    if (err instanceof WebhookNotFoundError) { res.status(404).json({ error: err.message }); return; }
-    throw err;
-  }
-});
+// LANE 2: webhook lifecycle verbs on the action base. The typed WebhookNotFoundError → 404 maps via
+// onError (else rethrow, unchanged). These were hand-written and UNAUDITED; the action base now records a
+// success audit for each — an additive gap-closure (a webhook delete/test is a governance event worth an
+// audit trail), the same spirit as the ruleset gap-closure every migrated command carries.
+export const webhookDeleteCommand: CommandDescriptor<{ id: string }> = {
+  name: "webhook.delete",
+  method: "delete",
+  path: "/webhooks/:id",
+  role: "admin",
+  gates: [requireStepUp],
+  parse: (req) => ({ id: String(req.params["id"]) }),
+  run: async (_req, _res, { id }) => { deleteWebhook(id); return { deleted: true }; },
+  audit: "webhook.delete",
+  auditCategory: "admin",
+  auditMeta: (_req, { id }) => ({ id }),
+  onError: (res, err) => { if (err instanceof WebhookNotFoundError) { res.status(404).json({ error: err.message }); return; } throw err; },
+};
+mountCommand(router, webhookDeleteCommand);
 
-router.post("/webhooks/:id/test", requireRole("admin"), requireEntitlement("webhooks"), async (req, res) => {
-  try {
-    const result = await testWebhook(String(req.params["id"]));
-    res.json({ tested: true, result });
-  } catch (err) {
-    if (err instanceof WebhookNotFoundError) { res.status(404).json({ error: err.message }); return; }
-    throw err;
-  }
-});
+export const webhookTestCommand: CommandDescriptor<{ id: string }> = {
+  name: "webhook.test",
+  method: "post",
+  path: "/webhooks/:id/test",
+  role: "admin",
+  gates: [requireEntitlement("webhooks")],
+  parse: (req) => ({ id: String(req.params["id"]) }),
+  run: async (_req, _res, { id }) => { const result = await testWebhook(id); return { tested: true, result }; },
+  audit: "webhook.test",
+  auditCategory: "admin",
+  auditMeta: (_req, { id }) => ({ id }),
+  onError: (res, err) => { if (err instanceof WebhookNotFoundError) { res.status(404).json({ error: err.message }); return; } throw err; },
+};
+mountCommand(router, webhookTestCommand);
 
 export default router;

@@ -19,6 +19,8 @@ import {
   rateCardCostRulesCommand, rateCardIdentitiesCommand,
 } from "../routes/rate-card";
 import { approvedUpdateCommand, aiKillCommand, containmentCommand } from "../routes/tools";
+import { roleMapRollbackCommand } from "../routes/role-map";
+import { webhookDeleteCommand, webhookTestCommand } from "../routes/webhooks";
 import { collectionWriteRoutes } from "../lib/settings-collection-router";
 
 /**
@@ -98,6 +100,9 @@ const LANE2 = new Set<string>([
   ...commandRoutes(approvedUpdateCommand),
   ...commandRoutes(aiKillCommand),
   ...commandRoutes(containmentCommand),
+  ...commandRoutes(roleMapRollbackCommand),
+  ...commandRoutes(webhookDeleteCommand),
+  ...commandRoutes(webhookTestCommand),
 ]);
 
 // Lane 3 — hand-written writes not (yet) on a spine. SEED — regenerate by running the first test with this
@@ -115,7 +120,6 @@ const BESPOKE_WRITES = new Set<string>([
   "DELETE /scim/v2/Users/:id",
   "DELETE /users/:id",
   "DELETE /users/:id/password",
-  "DELETE /webhooks/:id",
   "DELETE /whiteboards/:id",
   "DELETE /wiki/docs/:id",
   "PATCH /projects/:projectId",
@@ -129,7 +133,6 @@ const BESPOKE_WRITES = new Set<string>([
   "POST /admin/drift-canary/run",
   "POST /admin/proactive-digest/run",
   "POST /admin/raw",
-  "POST /admin/role-map/rollback",
   "POST /admin/ruleset/apply-reference",
   "POST /admin/scheduled-export/run",
   "POST /admin/system-defs/apply",
@@ -229,7 +232,6 @@ const BESPOKE_WRITES = new Set<string>([
   "POST /users",
   "POST /users/:id/password",
   "POST /webhooks",
-  "POST /webhooks/:id/test",
   "POST /whiteboards",
   "POST /whiteboards/rooms/:roomId",
   "POST /wiki/docs",
