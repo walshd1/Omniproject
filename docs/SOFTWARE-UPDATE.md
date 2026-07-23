@@ -136,13 +136,20 @@ interface ReleaseDescriptor {
   changelog: string;             // markdown
   notes?: string;
 
-  /** Trust — the signed diff. Ed25519 over canonical(descriptor without `signature`), so the payload the
-   *  signature covers INCLUDES image.digest, delta.layers, config.schemaDelta and config.migrations — the
-   *  update's actual effect, not just its metadata. `publicKeyId` selects which trusted public key verifies
-   *  it (see "Signing & key trust"). Per-delta, not per-image. */
+  /** COMPLETENESS — a published SHA-256 over the assembled release artifact, verifiable INDEPENDENTLY of the
+   *  signature (before it, or by a party that doesn't hold the key). Origin says *who*; completeness says
+   *  *you have all of it, uncorrupted*. Per-layer digests already content-address the code; this seals the
+   *  whole artifact as one unit. It is inside the signed payload, so it can't be swapped either. */
+  checksum: { algorithm: "SHA-256"; value: string };
+
+  /** ORIGIN — the signed diff, asserting *who published it*. Ed25519 over canonical(descriptor without
+   *  `signature`), so the payload the signature covers INCLUDES image.digest, delta.layers, config.schemaDelta,
+   *  config.migrations AND checksum — the update's actual effect + its completeness seal, not just metadata.
+   *  `publicKeyId` selects which trusted (org-provided) public key verifies it (see "Signing & key trust").
+   *  Per-delta, not per-image. */
   signature: {
     algorithm: "Ed25519";
-    publicKeyId: string;         // which published public key verifies this diff
+    publicKeyId: string;         // which trusted public key (org-provided) verifies this diff
     value: string;               // base64
   };
 }
@@ -150,18 +157,29 @@ interface ReleaseDescriptor {
 
 ### Signing & key trust
 
-The diff file is signed with the publisher's **private** key and verified on every instance with the matching
-**public** key before *anything* is staged (§10 fail closed). This reuses the gateway's existing Ed25519
-primitive (`lib/signing.ts` — PEM public-key `verifySignature`), the same asymmetric mechanism that attests
-the audit/provenance anchors, so no new crypto is introduced.
+Two **independent** assertions guard a release, and it's worth keeping them distinct:
 
-- **What is signed:** `canonical(ReleaseDescriptor without .signature)` — i.e. the whole diff, delta content
-  included. Any edit to the layer delta, target digest, schema delta or migrations invalidates the signature.
-- **Verification is against a *trusted* public key, never a key carried by the release.** A release names its
-  `publicKeyId`; the instance resolves that id in its **update trust anchor** — a small set of pinned publisher
-  public keys held in the sealed config (admin-managed, like `API_TOKENS`/role-map: fixed in code shape,
-  data-configured). A `publicKeyId` the instance doesn't trust ⇒ **reject** (an update signed by an unknown key
-  is never merely "unsigned" — it is refused).
+- **Origin (who) — the signature.** The diff is signed with the publisher's **private** key and verified on the
+  instance with the matching **public** key (Ed25519, reusing `lib/signing.ts` — the same asymmetric mechanism
+  that attests the audit/provenance anchors; no new crypto). It answers *"did a source this deployment trusts
+  publish this?"* — and nothing more. All the signature asserts is **origin**.
+- **Completeness (all of it, uncorrupted) — the checksum.** A published **SHA-256** over the assembled artifact,
+  verifiable *independently* — before the signature check, or by a party that doesn't hold the key. It answers
+  *"did I receive the whole thing, undamaged?"* Origin without completeness lets a truncated/corrupt-but-
+  correctly-originated artifact through; completeness without origin lets an intact artifact from anyone
+  through. You want both. (Signing covers the checksum too, so neither can be swapped for the other.)
+
+Details:
+
+- **What is signed:** `canonical(ReleaseDescriptor without .signature)` — the whole diff *including* `checksum`
+  and the delta content. Any edit to the layer delta, target digest, schema delta, migrations, or the checksum
+  invalidates the signature.
+- **The verifying key is *org-provided*.** Because the signature asserts only origin, the trusted public key is
+  **the organisation's own**, pinned in the instance's **update trust anchor** — a small set of publisher public
+  keys held in the sealed config (admin-managed, like `API_TOKENS`/role-map: fixed in code shape,
+  data-configured). An org supplies (or vets and re-signs under) the key it trusts; the release never carries
+  its own trust root. A `publicKeyId` the instance doesn't trust ⇒ **reject** (an update signed by an unknown
+  key is never merely "unsigned" — it is refused).
 - **Key rotation & revocation:** the trust anchor is a *set*, so a publisher can rotate signing keys by
   publishing the new public key into the anchor ahead of the release that uses it; a compromised key is dropped
   from the anchor and every release it signed stops verifying. This mirrors the key-registry's
@@ -264,8 +282,9 @@ Replacing code is the **highest-risk action in the system**, so it takes the str
   *without* step-up — a gap this feature closes for the code path).
 - **four-eyes** on promote: register a `software.promote` executor in `lib/dual-control.ts` (the pattern already
   gates `maintenance.engage`, `role_map.update`, `key.revoke`).
-- **signed release**: the descriptor's Ed25519 signature is verified before anything is staged; an unverified or
-  untrusted `publicKeyId` fails closed.
+- **signed release, two assertions**: **origin** via the Ed25519 signature against the *org-provided* trusted key
+  (unverified / untrusted `publicKeyId` ⇒ fail closed), and **completeness** via the published SHA-256 checksum,
+  verifiable independently — both checked before anything is staged.
 - **maintenance lockdown** during the swap window, so no write lands on a half-swapped instance.
 - **immutable audit**: every stage/eval/promote/rollback is recorded on the tamper-evident audit chain — "who
   promoted which digest-delta, when, having reviewed diff X."
@@ -297,11 +316,11 @@ per target.
    Docker socket* (more self-contained, more blast radius)?
 3. **Is eval-before-prod mandatory or optional** per paranoia tier? (Most complex phase; optional lets 0–1 ship
    first.)
-4. **Release trust model + anchor bootstrap** — the diff is verified against a pinned publisher public key in the
-   instance's update trust anchor. The open question is *how the first key gets there*: shipped as a bundled
-   trust root in the image (convenient, but couples key rotation to releases), admin-pinned on setup (stronger,
-   more operator burden), or verified against an external attestation (e.g. sigstore/registry). And: one
-   publisher key, or an org-supplied key so a customer can re-sign/vet releases themselves?
+4. **Release trust model — RESOLVED.** The signature asserts **origin** only, so the verifying key is
+   **org-provided**: the customer pins the public key they trust in the update trust anchor (admin-pinned at
+   setup — no bundled trust root that couples key rotation to releases), and **completeness** is asserted
+   separately by the published **SHA-256 checksum**. Remaining sub-question: is the anchor a single org key, or
+   a small set (to allow rotation without a flag day)? — a set is the natural fit (mirrors the key registry).
 5. **Downgrade policy** — support rolling *code* back onto a newer config (the unguarded direction, gated by
    `minConfigSchema` + `migrations.backward`), or always "restore the paired backup + old digest" (simpler,
    safer)?
