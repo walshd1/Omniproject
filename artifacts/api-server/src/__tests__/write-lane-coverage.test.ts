@@ -5,6 +5,7 @@ import { startHarness, type Harness } from "./_harness";
 import { entityRoutes } from "../lib/entity-pipeline";
 import { commandRoutes } from "../lib/action-base";
 import { issueEntity } from "../routes/projects";
+import { taskEntity } from "../routes/tasks";
 import {
   decisionCommand, redirectCommand, bypassCommand, passkeyRevokeCommand, passkeyRevokeAllCommand,
 } from "../routes/approvals";
@@ -65,7 +66,7 @@ async function writeRoutes(): Promise<Set<string>> {
 }
 
 // Lane 1 + Lane 2 — derived from the registered descriptors (the routes the spines own).
-const LANE1 = new Set<string>(entityRoutes(issueEntity));
+const LANE1 = new Set<string>([...entityRoutes(issueEntity), ...entityRoutes(taskEntity)]);
 const LANE2 = new Set<string>([
   ...commandRoutes(decisionCommand),
   ...commandRoutes(redirectCommand),
@@ -100,7 +101,6 @@ const BESPOKE_WRITES = new Set<string>([
   "PATCH /scim/v2/Groups/:id",
   "PATCH /scim/v2/Users/:id",
   "PATCH /settings",
-  "PATCH /tasks/:taskId",
   "PATCH /users/:id",
   "POST /admin/approvals/:id/approve",
   "POST /admin/approvals/:id/reject",

@@ -20,7 +20,10 @@ import { enforceBusinessRules } from "./ruleset-guard";
 /** How an op derives its project scope for the IDOR guard + the ruleset's scope-tightened overrides. */
 export type EntityScope =
   | { kind: "project"; param: string }   // req.params[param] is the projectId; guardProjectScope enforces it
-  | { kind: "none" };                     // org-global entity — no per-project scope
+  | { kind: "none" }                      // org-global entity — no per-project scope
+  | { kind: "custom"; guard: (req: Request, res: Response) => Promise<boolean> };
+                                          // the op's own scope guard (e.g. a task-access check that isn't a
+                                          // project IDOR); returns false having ALREADY sent a 4xx, like guardProjectScope
 
 export interface EntityOp<B> {
   /** RBAC floor for this op. */
@@ -61,6 +64,7 @@ function runOp(entity: string, verb: string, op: EntityOp<unknown>, scope: Entit
       if (body === null) return;
       if (!enforceBusinessRules(req, res, op.ruleAction, { projectId, payload: (body ?? {}) as Record<string, unknown> })) return;
       if (scope.kind === "project" && !(await guardProjectScope(req, res, projectId!))) return;
+      if (scope.kind === "custom" && !(await scope.guard(req, res))) return;
       const result = await op.run(req, res, body);
       if (result === undefined) return; // the op already responded (404 / 204 / etc.)
       res.status(op.status ?? defaultStatus).json(result);
