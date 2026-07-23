@@ -37,6 +37,7 @@ import { accessibilityDefaultsSaveCommand } from "../routes/accessibility";
 import { priorityLabelsSaveCommand } from "../routes/priority-labels";
 import { orgIdentitySaveCommand } from "../routes/org-identity";
 import { schedulingSaveCommand } from "../routes/scheduling";
+import { methodologyCompositionSaveCommand, methodologyDeployCommand } from "../routes/methodology-composition";
 import { collectionWriteRoutes } from "../lib/settings-collection-router";
 
 /**
@@ -139,6 +140,8 @@ const LANE2 = new Set<string>([
   ...commandRoutes(priorityLabelsSaveCommand),
   ...commandRoutes(orgIdentitySaveCommand),
   ...commandRoutes(schedulingSaveCommand),
+  ...commandRoutes(methodologyCompositionSaveCommand),
+  ...commandRoutes(methodologyDeployCommand),
 ]);
 
 // Lane 3 — hand-written writes not (yet) on a spine. SEED — regenerate by running the first test with this
@@ -210,7 +213,6 @@ const BESPOKE_WRITES = new Set<string>([
   "POST /import/commit",
   "POST /import/preview",
   "POST /mcp",
-  "POST /methodology-composition/deploy/:id",
   "POST /notifications/ingest",
   "POST /portal/invites",
   "POST /presence/rooms/:roomId",
@@ -288,7 +290,6 @@ const BESPOKE_WRITES = new Set<string>([
   "PUT /history/retention",
   "PUT /logging-sync",
   "PUT /me/prefs",
-  "PUT /methodology-composition",
   "PUT /projects/:projectId/mapping/:slot/:rowId",
   "PUT /projects/:projectId/type",
   "PUT /projects/:projectId/wbs/:wbsId",
