@@ -106,7 +106,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: n8n
-          image: n8nio/n8n:2.30.5   # pinned to the blueprint-verified version, matching base + compose
+          image: n8nio/n8n:2.31.5   # pinned to the blueprint-verified version, matching base + compose
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:
@@ -192,7 +192,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: n8n-worker
-          image: n8nio/n8n:2.30.5
+          image: n8nio/n8n:2.31.5
           # The worker entrypoint — pulls from the Bull/Redis queue and runs executions.
           args: ["worker"]
           securityContext:
