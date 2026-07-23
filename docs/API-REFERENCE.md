@@ -1289,11 +1289,11 @@ NATIVE USER MANAGEMENT (admin) — create/manage in-app users + assign their gro
 | Method | Path | Gate | Description |
 | --- | --- | --- | --- |
 | GET | `/api/users` | requireRole(admin) | — |
-| POST | `/api/users` | requireRole(admin) | — |
-| PATCH | `/api/users/:id` | requireRole(admin) | — |
-| POST | `/api/users/:id/password` | requireRole(admin) | — |
-| DELETE | `/api/users/:id/password` | requireRole(admin) | — |
-| DELETE | `/api/users/:id` | requireRole(admin) | — |
+| POST | `/api/users` | requireRole(admin) | POST /api/users — create a user (+ optional initial password). |
+| PATCH | `/api/users/:id` | requireRole(admin) | PATCH /api/users/:id — update profile / groups / active. |
+| POST | `/api/users/:id/password` | requireRole(admin) | POST /api/users/:id/password — set or replace a user's password. |
+| DELETE | `/api/users/:id/password` | requireRole(admin) | DELETE /api/users/:id/password — clear a user's password. |
+| DELETE | `/api/users/:id` | requireRole(admin) | DELETE /api/users/:id — delete a user (+ their credential). |
 
 ### `artifacts/api-server/src/routes/views.ts`
 

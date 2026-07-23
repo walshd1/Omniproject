@@ -1,9 +1,10 @@
 import { Router, type Response, type Request } from "express";
 import { requireRole } from "../lib/rbac";
+import { mountCommand, type CommandDescriptor } from "../lib/action-base";
 import { getSession } from "./auth";
-import { recordRequestAudit } from "../lib/audit";
 import {
   listUsers, getUserView, createUser, updateUser, deleteUser, userDirectoryEnabled, UserDirectoryError,
+  type CreateUserInput,
 } from "../lib/user-directory";
 import { setPassword, removePassword, credentialsEnabled, assertPasswordPolicy } from "../lib/user-credentials";
 import { localPasswordsAllowed } from "../lib/auth-config";
@@ -19,6 +20,13 @@ import { localPasswordsAllowed } from "../lib/auth-config";
  *  - POST   /api/users/:id/password        set or replace a user's password
  *  - DELETE /api/users/:id/password        clear a user's password (they can't sign in until a new one is set)
  *  - DELETE /api/users/:id                 delete a user (+ their credential)
+ *
+ * LANE 2 — every write is admin + audit-on-success, the action-base shell. Each is a mountCommand descriptor:
+ * requireRole(admin) → parse (the availability guard + validation/404) → ruleset → run → audit → respond.
+ * The availability 404 + password-policy 400 + "no such user" 404 all live in `parse`; the two writes whose
+ * "not found" is only known AFTER the mutation attempt (update / delete) throw UserNotFoundError from `run`
+ * and map to 404 via `onError` — so a not-found records NO success audit, exactly as the hand-written 404
+ * returns did. `category:"request"` (the action-base default) + `auditMeta{sub}` keep the audit byte-identical.
  */
 const router = Router();
 
@@ -33,80 +41,139 @@ function ensureAvailable(res: Response): boolean {
 /** The `:id` path param as a plain string. */
 const pid = (req: Request): string => String(req.params["id"] ?? "");
 
-/** Record a successful admin user-management action. */
-function audit(req: Request, action: string, meta?: Record<string, unknown>): void {
-  recordRequestAudit(req, { category: "request", action, write: true, result: "success", ...(meta ? { meta } : {}) });
-}
+/** Raised inside a command's `run` when the target user doesn't exist — mapped to 404 by `onError`, so no
+ *  success audit fires (unlike a `run` that returns normally). Mirrors the old `if (!updated) 404` returns. */
+class UserNotFoundError extends Error {}
 
 router.get("/users", requireRole("admin"), (_req, res) => {
   if (!ensureAvailable(res)) return;
   res.json({ users: listUsers() });
 });
 
-router.post("/users", requireRole("admin"), (req, res) => {
-  if (!ensureAvailable(res)) return;
-  const body = (req.body ?? {}) as { userName?: unknown; displayName?: unknown; email?: unknown; groups?: unknown; active?: unknown; password?: unknown };
-  const now = new Date().toISOString();
-  const actor = getSession(req)?.sub ?? null;
-  try {
-    // A password, when supplied, must clear the policy BEFORE the user is created — so a rejected password never
-    // leaves a half-created passwordless user behind.
-    if (body.password !== undefined && body.password !== null && body.password !== "") assertPasswordPolicy(body.password);
-    const user = createUser({ userName: body.userName, displayName: body.displayName, email: body.email, groups: body.groups, active: body.active }, actor, now);
-    if (body.password !== undefined && body.password !== null && body.password !== "") setPassword(user.id, body.password as string);
-    audit(req, "users.create", { sub: user.id });
-    res.status(201).json({ user: getUserView(user.id) });
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : "could not create the user";
-    res.status(e instanceof UserDirectoryError || msg.includes("password") ? 400 : 500).json({ error: msg });
-  }
-});
+// POST /api/users — create a user (+ optional initial password).
+export const userCreateCommand: CommandDescriptor<{ body: CreateUserInput; password: string | null }> = {
+  name: "users.create",
+  method: "post",
+  path: "/users",
+  role: "admin",
+  parse: (req, res) => {
+    if (!ensureAvailable(res)) return null;
+    const b = (req.body ?? {}) as CreateUserInput & { password?: unknown };
+    // A password, when supplied, must clear the policy BEFORE the user is created — so a rejected password
+    // never leaves a half-created passwordless user behind. (parse runs before run, so this fails first.)
+    const password = b.password !== undefined && b.password !== null && b.password !== "" ? b.password : null;
+    if (password !== null) {
+      try {
+        assertPasswordPolicy(password);
+      } catch (e) {
+        res.status(400).json({ error: e instanceof Error ? e.message : "invalid password" });
+        return null;
+      }
+    }
+    return { body: { userName: b.userName, displayName: b.displayName, email: b.email, groups: b.groups, active: b.active }, password };
+  },
+  run: async (req, _res, { body, password }) => {
+    const now = new Date().toISOString();
+    const actor = getSession(req)?.sub ?? null;
+    const user = createUser(body, actor, now);
+    if (password !== null) setPassword(user.id, password);
+    return { user: getUserView(user.id) };
+  },
+  status: 201,
+  audit: "users.create",
+  auditMeta: (_req, _args, result) => ({ sub: (result as { user?: { id?: string } }).user?.id }),
+  onError: (res, err) => {
+    const msg = err instanceof Error ? err.message : "could not create the user";
+    res.status(err instanceof UserDirectoryError || msg.includes("password") ? 400 : 500).json({ error: msg });
+  },
+};
+mountCommand(router, userCreateCommand);
 
-router.patch("/users/:id", requireRole("admin"), (req, res) => {
-  if (!ensureAvailable(res)) return;
-  const id = pid(req);
-  const body = (req.body ?? {}) as { displayName?: unknown; email?: unknown; groups?: unknown; active?: unknown };
-  try {
+// PATCH /api/users/:id — update profile / groups / active.
+export const userUpdateCommand: CommandDescriptor<{ id: string; body: Record<string, unknown> }> = {
+  name: "users.update",
+  method: "patch",
+  path: "/users/:id",
+  role: "admin",
+  parse: (req, res) => {
+    if (!ensureAvailable(res)) return null;
+    return { id: pid(req), body: (req.body ?? {}) as Record<string, unknown> };
+  },
+  run: async (_req, _res, { id, body }) => {
     const updated = updateUser(id, body, new Date().toISOString());
-    if (!updated) { res.status(404).json({ error: "No such user." }); return; }
-    audit(req, "users.update", { sub: id });
-    res.json({ user: updated });
-  } catch (e) {
-    res.status(e instanceof UserDirectoryError ? 400 : 500).json({ error: e instanceof Error ? e.message : "could not update the user" });
-  }
-});
+    if (!updated) throw new UserNotFoundError();
+    return { user: updated };
+  },
+  audit: "users.update",
+  auditMeta: (_req, { id }) => ({ sub: id }),
+  onError: (res, err) => {
+    if (err instanceof UserNotFoundError) { res.status(404).json({ error: "No such user." }); return; }
+    res.status(err instanceof UserDirectoryError ? 400 : 500).json({ error: err instanceof Error ? err.message : "could not update the user" });
+  },
+};
+mountCommand(router, userUpdateCommand);
 
-router.post("/users/:id/password", requireRole("admin"), (req, res) => {
-  if (!ensureAvailable(res)) return;
-  const id = pid(req);
-  if (!getUserView(id)) { res.status(404).json({ error: "No such user." }); return; }
-  const password = (req.body as { password?: unknown } | undefined)?.password;
-  try {
-    assertPasswordPolicy(password);
-    setPassword(id, password);
-    audit(req, "users.password.set", { sub: id });
-    res.json({ ok: true });
-  } catch (e) {
-    res.status(400).json({ error: e instanceof Error ? e.message : "invalid password" });
-  }
-});
+// POST /api/users/:id/password — set or replace a user's password.
+export const userPasswordSetCommand: CommandDescriptor<{ id: string; password: string }> = {
+  name: "users.password.set",
+  method: "post",
+  path: "/users/:id/password",
+  role: "admin",
+  parse: (req, res) => {
+    if (!ensureAvailable(res)) return null;
+    const id = pid(req);
+    if (!getUserView(id)) { res.status(404).json({ error: "No such user." }); return null; }
+    const password = (req.body as { password?: unknown } | undefined)?.password;
+    try {
+      assertPasswordPolicy(password);
+    } catch (e) {
+      res.status(400).json({ error: e instanceof Error ? e.message : "invalid password" });
+      return null;
+    }
+    return { id, password };
+  },
+  run: async (_req, _res, { id, password }) => { setPassword(id, password); return { ok: true }; },
+  audit: "users.password.set",
+  auditMeta: (_req, { id }) => ({ sub: id }),
+};
+mountCommand(router, userPasswordSetCommand);
 
-router.delete("/users/:id/password", requireRole("admin"), (req, res) => {
-  if (!ensureAvailable(res)) return;
-  const id = pid(req);
-  if (!getUserView(id)) { res.status(404).json({ error: "No such user." }); return; }
-  removePassword(id);
-  audit(req, "users.password.clear", { sub: id });
-  res.json({ ok: true });
-});
+// DELETE /api/users/:id/password — clear a user's password.
+export const userPasswordClearCommand: CommandDescriptor<{ id: string }> = {
+  name: "users.password.clear",
+  method: "delete",
+  path: "/users/:id/password",
+  role: "admin",
+  parse: (req, res) => {
+    if (!ensureAvailable(res)) return null;
+    const id = pid(req);
+    if (!getUserView(id)) { res.status(404).json({ error: "No such user." }); return null; }
+    return { id };
+  },
+  run: async (_req, _res, { id }) => { removePassword(id); return { ok: true }; },
+  audit: "users.password.clear",
+  auditMeta: (_req, { id }) => ({ sub: id }),
+};
+mountCommand(router, userPasswordClearCommand);
 
-router.delete("/users/:id", requireRole("admin"), (req, res) => {
-  if (!ensureAvailable(res)) return;
-  const id = pid(req);
-  const removed = deleteUser(id);
-  if (!removed) { res.status(404).json({ error: "No such user." }); return; }
-  audit(req, "users.delete", { sub: id });
-  res.json({ ok: true });
-});
+// DELETE /api/users/:id — delete a user (+ their credential).
+export const userDeleteCommand: CommandDescriptor<{ id: string }> = {
+  name: "users.delete",
+  method: "delete",
+  path: "/users/:id",
+  role: "admin",
+  parse: (req, res) => {
+    if (!ensureAvailable(res)) return null;
+    return { id: pid(req) };
+  },
+  run: async (_req, _res, { id }) => {
+    if (!deleteUser(id)) throw new UserNotFoundError();
+    return { ok: true };
+  },
+  audit: "users.delete",
+  auditMeta: (_req, { id }) => ({ sub: id }),
+  onError: (res, err) => { if (err instanceof UserNotFoundError) { res.status(404).json({ error: "No such user." }); return; } throw err; },
+};
+mountCommand(router, userDeleteCommand);
 
 export default router;
