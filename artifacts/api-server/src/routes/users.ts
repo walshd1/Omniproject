@@ -1,7 +1,7 @@
 import { Router, type Response, type Request } from "express";
 import { requireRole } from "../lib/rbac";
 import { getSession } from "./auth";
-import { recordAudit, actorForAudit } from "../lib/audit";
+import { recordRequestAudit } from "../lib/audit";
 import {
   listUsers, getUserView, createUser, updateUser, deleteUser, userDirectoryEnabled, UserDirectoryError,
 } from "../lib/user-directory";
@@ -35,7 +35,7 @@ const pid = (req: Request): string => String(req.params["id"] ?? "");
 
 /** Record a successful admin user-management action. */
 function audit(req: Request, action: string, meta?: Record<string, unknown>): void {
-  recordAudit({ ts: new Date().toISOString(), category: "request", action, actor: actorForAudit(req), write: true, result: "success", ...(meta ? { meta } : {}) });
+  recordRequestAudit(req, { category: "request", action, write: true, result: "success", ...(meta ? { meta } : {}) });
 }
 
 router.get("/users", requireRole("admin"), (_req, res) => {
