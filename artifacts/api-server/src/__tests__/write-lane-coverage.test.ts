@@ -28,6 +28,9 @@ import { severityVocabularyCommand } from "../routes/severity-vocabulary";
 import { workVocabularyCommand } from "../routes/work-vocabulary";
 import { taskVocabularyCommand } from "../routes/task-vocabulary";
 import { ragVocabularyCommand } from "../routes/rag-vocabulary";
+import {
+  userCreateCommand, userUpdateCommand, userPasswordSetCommand, userPasswordClearCommand, userDeleteCommand,
+} from "../routes/users";
 import { collectionWriteRoutes } from "../lib/settings-collection-router";
 
 /**
@@ -117,6 +120,11 @@ const LANE2 = new Set<string>([
   ...commandRoutes(workVocabularyCommand),
   ...commandRoutes(taskVocabularyCommand),
   ...commandRoutes(ragVocabularyCommand),
+  ...commandRoutes(userCreateCommand),
+  ...commandRoutes(userUpdateCommand),
+  ...commandRoutes(userPasswordSetCommand),
+  ...commandRoutes(userPasswordClearCommand),
+  ...commandRoutes(userDeleteCommand),
 ]);
 
 // Lane 3 — hand-written writes not (yet) on a spine. SEED — regenerate by running the first test with this
@@ -132,15 +140,12 @@ const BESPOKE_WRITES = new Set<string>([
   "DELETE /proofs/:id",
   "DELETE /scim/v2/Groups/:id",
   "DELETE /scim/v2/Users/:id",
-  "DELETE /users/:id",
-  "DELETE /users/:id/password",
   "DELETE /whiteboards/:id",
   "DELETE /wiki/docs/:id",
   "PATCH /projects/:projectId",
   "PATCH /scim/v2/Groups/:id",
   "PATCH /scim/v2/Users/:id",
   "PATCH /settings",
-  "PATCH /users/:id",
   "POST /admin/approvals/:id/approve",
   "POST /admin/approvals/:id/reject",
   "POST /admin/digest/run",
@@ -243,8 +248,6 @@ const BESPOKE_WRITES = new Set<string>([
   "POST /timesheets",
   "POST /timesheets/:id/action",
   "POST /usage/notify",
-  "POST /users",
-  "POST /users/:id/password",
   "POST /webhooks",
   "POST /whiteboards",
   "POST /whiteboards/rooms/:roomId",
