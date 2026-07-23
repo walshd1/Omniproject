@@ -2154,6 +2154,17 @@ HISTORY RETENTION — the durable-snapshot cadence (org default + PMO programme/
 | `retentionDaysNow` | The org disposal window in days, or `null` for infinite retention. |
 | `legalHoldsNow` | The org legal-hold key set (`"entity#id"`). |
 
+### `artifacts/api-server/src/lib/hmac-chain.ts`
+
+Shared primitives for the deployment's keyed, hash-chained tamper-evidence logs — the audit chain (lib/audit-chain), the provenance ring (lib/provenance) and OmniStore's event log (broker/builtin/omnistore-log).
+
+| Function | What it does |
+| --- | --- |
+| `chainLinkHash` | The keyed link hash binding an event to its sequence position and its predecessor: the exact, reproducible `HMAC(chainKey, "seq\|prevHash\|canonicalBody")` the chained logs commit each link with. |
+| `verifyChainLink` | Recompute a link's hash and compare it CONSTANT-TIME to the claimed value — the tamper check every chain `verify()` runs. |
+| `attachAnchorSignature` | Attach an Ed25519 signature over `message` to a chain-tip anchor `base`, when signing is configured (else return `base` unsigned). |
+| `verifyAnchorSignature` | Verify an anchor's Ed25519 signature over the caller's rebuilt tip `message`. |
+
 ### `artifacts/api-server/src/lib/ical.ts`
 
 Minimal RFC 5545 (iCalendar) serialiser — pure + deterministic, so any dated OmniProject data can be rendered as a `.ics` a user imports into Google/Outlook/Apple Calendar.
