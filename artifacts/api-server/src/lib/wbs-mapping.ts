@@ -125,10 +125,12 @@ export function applyWbsMapping(sources: WbsSources, m: WbsFieldMapping, project
   }
 
   const wbs: WbsElement[] = [];
-  const financials: Record<string, WbsFinancials> = {};
+  const financials: Record<string, WbsFinancials> = Object.create(null); // prototype-free: id keys are backend data
   for (const r of homeRows) {
     const id = str(r[m.id]);
-    if (!id) continue;
+    // `id` (a backend row value) keys the `financials` map (which is null-prototype); skip empty ids. The
+    // reserved-name skip is retained as belt-and-suspenders on top of the prototype-free map.
+    if (!id || isForbiddenKey(id)) continue;
     const parentId = m.parentId ? (str(r[m.parentId]) || null) : null;
     const el: WbsElement = { id, projectId, parentId, name: str(r[m.name]) || id, level: levelOf(id, parentOf) };
     if (m.status) el.status = str(r[m.status]);

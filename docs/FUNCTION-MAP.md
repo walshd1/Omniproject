@@ -1826,6 +1826,14 @@ Egress / SSRF guard for the gateway's outbound HTTP.
 | `__setEgressLookupForTest` | Install (or clear, with null) the TEST-ONLY resolver seam used by safeFetch/assertEgressAllowed. |
 | `safeFetch` | fetch() with the egress guard applied first — throws EgressError before any network call when the target is disallowed. |
 
+### `artifacts/api-server/src/lib/email-shape.ts`
+
+Linear (ReDoS-free) email-shape validation.
+
+| Function | What it does |
+| --- | --- |
+| `isEmailShape` | Linear (ReDoS-free) email-shape validation. |
+
 ### `artifacts/api-server/src/lib/email.ts`
 
 Real SMTP email sending — off unless `SMTP_URL` is set (e.g. `smtps://user:pass@smtp.example.com`), so passwordless sign-in (magic-link) can actually deliver mail for a small org with real SMTP (Google Workspace / Microsoft 365 / any relay) instead of only logging the link.
@@ -4145,6 +4153,8 @@ Authentication routes + the session helpers the rest of the gateway reads from.
 
 | Function | What it does |
 | --- | --- |
+| `sealFlowCookie` | Flow cookies (OIDC / OAuth2 / SAML step-up) carry short-lived SECRETS — the PKCE code_verifier, the OIDC nonce, the CSRF `state`, and the bound `sub`. |
+| `openFlowCookie` | Open a sealed flow cookie back to its payload (null if absent/tampered/garbage), tolerating a legacy plaintext cookie during rollout. |
 | `resolveBaseUrl` | Pure decision for the gateway's own public base URL, used to construct every security- sensitive link (magic-link verification, OAuth2/OIDC redirect URIs). |
 | `baseUrl` | The gateway's own public base URL for THIS request — see `resolveBaseUrl` for the hardening. |
 | `slideSession` | Slide the idle timeout forward on activity: re-stamp `seen` (throttled) so an active user stays signed in, and tidy up an expired/garbage session cookie. |

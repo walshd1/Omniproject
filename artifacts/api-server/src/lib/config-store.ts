@@ -4,7 +4,7 @@ import { buildSnapshot, applySnapshot, type ConfigSnapshot } from "./config-snap
 import { logger } from "./logger";
 import { SealedFile, resolveConfigFile } from "./sealed-file";
 import { sharedStateMode, sharedRingPush, sharedRingRead } from "./shared-state";
-import { safeParseJson } from "./safe-json";
+import { safeParseJson, isForbiddenKey } from "./safe-json";
 import { envInt } from "./env-config";
 
 /**
@@ -209,10 +209,17 @@ export function captureVersion(label?: string): ConfigVersion {
   return v;
 }
 
+/** A caller-supplied environment name must be a plain identifier — the createEnvironment charset PLUS a
+ *  reserved-key reject. `constructor`/`prototype` pass the charset but must never key `s.environments` (a plain
+ *  object), or the `if (!s.environments[name])` existence checks below read an inherited member as "exists". */
+function assertEnvName(name: string): void {
+  if (!name || !/^[a-z0-9][a-z0-9_-]*$/i.test(name) || isForbiddenKey(name)) throw new Error("Invalid environment name");
+}
+
 /** Create a named environment, seeded by cloning the active env's current config. */
 export function createEnvironment(name: string): StoreView {
   const s = ensure();
-  if (!name || !/^[a-z0-9][a-z0-9_-]*$/i.test(name)) throw new Error("Invalid environment name");
+  assertEnvName(name);
   if (s.environments[name]) throw new Error(`Environment "${name}" already exists`);
   // Clone the active env's current config as the new environment's starting point.
   // activeEnv always names an existing environment (invariant maintained by the store API).
@@ -225,6 +232,7 @@ export function createEnvironment(name: string): StoreView {
 /** Switch the active environment and apply its config to the live settings. */
 export function activateEnvironment(name: string): StoreView {
   const s = ensure();
+  assertEnvName(name); // reject a reserved/invalid name before the plain-object lookup below
   if (!s.environments[name]) throw new Error(`Unknown environment "${name}"`);
   s.activeEnv = name;
   // Apply the target environment's config to the live settings.
@@ -279,6 +287,7 @@ export function rollbackToLastKnownGood(): { applied: ConfigVersion; warnings: s
 /** Copy one environment's config onto another (e.g. promote sandbox → production). */
 export function promote(from: string, to: string): StoreView {
   const s = ensure();
+  assertEnvName(from); assertEnvName(to); // reject reserved/invalid names before the plain-object lookups below
   if (!s.environments[from]) throw new Error(`Unknown environment "${from}"`);
   if (!s.environments[to]) throw new Error(`Unknown environment "${to}"`);
   s.environments[to] = structuredClone(s.environments[from]);

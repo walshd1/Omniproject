@@ -40,7 +40,7 @@ const ALLOWLIST: Record<string, { count: number; reason: string }> = {
   "lib/saml.ts": { count: 1, reason: "own stored SAML config value" },
   // Signature / integrity-verified blobs.
   "lib/license.ts": { count: 1, reason: "license payload AFTER Ed25519 signature verification" },
-  "routes/auth.ts": { count: 4, reason: "session + OAuth/OIDC flow cookies — cookie-parser HMAC-verifies (signedCookies) / open()-decrypts before parse" },
+  "routes/auth.ts": { count: 2, reason: "session + flow-cookie helper (openFlowCookie) — cookie-parser HMAC-verifies (signedCookies) / open()-decrypts before parse" },
   // Secret-manager responses (trusted infra behind authenticated clients).
   "lib/vault-aws.ts": { count: 1, reason: "AWS Secrets Manager response (authenticated infra)" },
   "lib/vault-azure.ts": { count: 1, reason: "Azure Key Vault response (authenticated infra)" },
