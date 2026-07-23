@@ -35,6 +35,8 @@ import { brandingSaveCommand, brandingClearCommand } from "../routes/branding";
 import { labelsSaveCommand, labelsApplyPresetCommand } from "../routes/labels";
 import { accessibilityDefaultsSaveCommand } from "../routes/accessibility";
 import { priorityLabelsSaveCommand } from "../routes/priority-labels";
+import { orgIdentitySaveCommand } from "../routes/org-identity";
+import { schedulingSaveCommand } from "../routes/scheduling";
 import { collectionWriteRoutes } from "../lib/settings-collection-router";
 
 /**
@@ -135,6 +137,8 @@ const LANE2 = new Set<string>([
   ...commandRoutes(labelsApplyPresetCommand),
   ...commandRoutes(accessibilityDefaultsSaveCommand),
   ...commandRoutes(priorityLabelsSaveCommand),
+  ...commandRoutes(orgIdentitySaveCommand),
+  ...commandRoutes(schedulingSaveCommand),
 ]);
 
 // Lane 3 — hand-written writes not (yet) on a spine. SEED — regenerate by running the first test with this
@@ -285,13 +289,11 @@ const BESPOKE_WRITES = new Set<string>([
   "PUT /logging-sync",
   "PUT /me/prefs",
   "PUT /methodology-composition",
-  "PUT /org-identity",
   "PUT /projects/:projectId/mapping/:slot/:rowId",
   "PUT /projects/:projectId/type",
   "PUT /projects/:projectId/wbs/:wbsId",
   "PUT /proofs/:id",
   "PUT /reports/custom",
-  "PUT /scheduling",
   "PUT /scim/v2/Groups/:id",
   "PUT /scim/v2/Users/:id",
   "PUT /screen-defs",

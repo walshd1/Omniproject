@@ -688,7 +688,7 @@ ORG IDENTITY — the org's canonical id + name (see lib/org-identity).
 | Method | Path | Gate | Description |
 | --- | --- | --- | --- |
 | GET | `/api/org-identity` | — | — |
-| PUT | `/api/org-identity` | requireAnyRole(pmo, admin) | — |
+| PUT | `/api/org-identity` | requireAnyRole(pmo, admin) | PUT /api/org-identity — mint the id if needed + set the name/logo (admin/PMO); the id is immutable. |
 
 ### `artifacts/api-server/src/routes/panel-views.ts`
 
@@ -979,7 +979,7 @@ The working-time policy for the (client-side, projected) scheduling engine, held
 | --- | --- | --- | --- |
 | GET | `/api/scheduling/resolved` | — | — |
 | GET | `/api/scheduling` | requireAnyRole(pmo, admin) | — |
-| PUT | `/api/scheduling` | requireAnyRole(pmo, admin) | — |
+| PUT | `/api/scheduling` | requireAnyRole(pmo, admin) | PUT /api/scheduling — write the org-scope working-time config def (admin/PMO), validated. |
 
 ### `artifacts/api-server/src/routes/scim.ts`
 
