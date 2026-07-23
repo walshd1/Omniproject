@@ -43,6 +43,13 @@ test("POST /tasks creates an actionable next-action; PATCH updates its GTD statu
   assert.equal((await json(patched)).status, "waiting");
 });
 
+test("PATCH /tasks/:taskId on an unknown id is 404 (Lane 1 custom-scope guard blocks the write)", async () => {
+  // The task entity mounts on the pipeline with a custom scope (guardTaskAccess); an unknown id fails the
+  // guard, which sends 404 and blocks the write — the update op never runs.
+  const r = await req("/tasks/task-does-not-exist", { method: "PATCH", body: { status: "done" } });
+  assert.equal(r.status, 404);
+});
+
 test("POST /tasks carries assignee, tags and priority; completing stamps completedAt", async () => {
   const created = await req("/tasks", { method: "POST", body: { title: "Prep board pack", assignee: "chris@demo", priority: "high", tags: ["board", "q3"], estimateHours: 2 } });
   assert.equal(created.status, 201);

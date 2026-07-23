@@ -7,6 +7,7 @@ import { withBrokerErrors } from "../broker";
 import { getTasks, getTask, createTask, updateTask, brokerHasTasks, getTaskComments, addTaskComment, getTaskAttachments, addTaskAttachment, brokerHasTaskAttachments } from "../lib/data";
 import { requireRole } from "../lib/rbac";
 import { enforceBusinessRules } from "../lib/ruleset-guard";
+import { mountEntity, type EntityDescriptor } from "../lib/entity-pipeline";
 import { assertTaskScope, filterTasksInScope } from "../lib/project-scope";
 import { auditScopeDenied } from "../lib/audit";
 import { getSession } from "./auth";
@@ -216,21 +217,36 @@ router.post("/tasks", requireRole("manager"), (req, res) => {
   });
 });
 
-// PATCH /api/tasks/:taskId — update a task (manager+).
-router.patch("/tasks/:taskId", requireRole("manager"), (req, res) => {
-  if (!brokerHasTasks()) { res.status(501).json({ error: "this backend does not support tasks" }); return; }
-  const body = parseOr400(req, res, TaskBody);
-  if (!body) return;
-  if (!checkTaskStatus(req, res, body)) return;
-  if (!checkTaskEnergy(req, res, body)) return;
-  return withBrokerErrors(req, res, "update_task failed", async () => {
-    if (!(await guardTaskAccess(req, res, String(req.params["taskId"])))) return;
-    const updated = await updateTask(req, String(req.params["taskId"]), body);
-    // Completing a recurring task spawns its next occurrence (Todoist-style), surfaced on the response.
-    const next = await maybeSpawnRecurrence(req, updated, body as Record<string, unknown>);
-    res.json(next ? { ...updated, nextOccurrence: { id: next.id, dueDate: next.dueDate } } : updated);
-  });
-});
+// PATCH /api/tasks/:taskId — update a task (manager+). LANE 1 (entity pipeline): the update runs the fixed
+// RBAC → validate → ruleset → scope → write sequence via mountEntity. Its SCOPE is the task-access guard (not a
+// project IDOR), through the pipeline's custom-scope variant. Migrating onto the spine also brings the business
+// ruleset to task writes for the first time — a deliberate GAP-CLOSURE so a portfolio read-only freeze / an
+// any-write field rule now covers tasks like every other governed write (previously they bypassed the ruleset).
+export const taskEntity: EntityDescriptor = {
+  entity: "task",
+  basePath: "/tasks",
+  idParam: "taskId",
+  scope: { kind: "custom", guard: async (req, res) => !!(await guardTaskAccess(req, res, String(req.params["taskId"]))) },
+  update: {
+    role: "manager",
+    ruleAction: "update_task",
+    validate: (req, res) => {
+      if (!brokerHasTasks()) { res.status(501).json({ error: "this backend does not support tasks" }); return null; }
+      const body = parseOr400(req, res, TaskBody);
+      if (!body) return null;
+      if (!checkTaskStatus(req, res, body)) return null;
+      if (!checkTaskEnergy(req, res, body)) return null;
+      return body;
+    },
+    run: async (req, _res, body) => {
+      const updated = await updateTask(req, String(req.params["taskId"]), body as Parameters<typeof updateTask>[2]);
+      // Completing a recurring task spawns its next occurrence (Todoist-style), surfaced on the response.
+      const next = await maybeSpawnRecurrence(req, updated, body as Record<string, unknown>);
+      return next ? { ...updated, nextOccurrence: { id: next.id, dueDate: next.dueDate } } : updated;
+    },
+  },
+};
+mountEntity(router, taskEntity);
 
 // POST /api/tasks/reminders/sweep — deliver any DUE task reminders in-app (pmo+, cron/routine-driven). Fires
 // each task whose `reminderAt` has passed once (deduped via shared-state), notifying the assignee. Runs in
