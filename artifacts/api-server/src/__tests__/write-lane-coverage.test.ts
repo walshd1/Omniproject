@@ -33,6 +33,8 @@ import {
 } from "../routes/users";
 import { brandingSaveCommand, brandingClearCommand } from "../routes/branding";
 import { labelsSaveCommand, labelsApplyPresetCommand } from "../routes/labels";
+import { accessibilityDefaultsSaveCommand } from "../routes/accessibility";
+import { priorityLabelsSaveCommand } from "../routes/priority-labels";
 import { collectionWriteRoutes } from "../lib/settings-collection-router";
 
 /**
@@ -131,6 +133,8 @@ const LANE2 = new Set<string>([
   ...commandRoutes(brandingClearCommand),
   ...commandRoutes(labelsSaveCommand),
   ...commandRoutes(labelsApplyPresetCommand),
+  ...commandRoutes(accessibilityDefaultsSaveCommand),
+  ...commandRoutes(priorityLabelsSaveCommand),
 ]);
 
 // Lane 3 — hand-written writes not (yet) on a spine. SEED — regenerate by running the first test with this
@@ -257,7 +261,6 @@ const BESPOKE_WRITES = new Set<string>([
   "POST /whiteboards/rooms/:roomId",
   "POST /wiki/docs",
   "POST /workflows/:id/run",
-  "PUT /accessibility-defaults",
   "PUT /admin/custom-roles",
   "PUT /admin/delegation-policy",
   "PUT /admin/maintenance",
@@ -283,7 +286,6 @@ const BESPOKE_WRITES = new Set<string>([
   "PUT /me/prefs",
   "PUT /methodology-composition",
   "PUT /org-identity",
-  "PUT /priority-labels",
   "PUT /projects/:projectId/mapping/:slot/:rowId",
   "PUT /projects/:projectId/type",
   "PUT /projects/:projectId/wbs/:wbsId",
