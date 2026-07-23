@@ -8,6 +8,7 @@ import { issueEntity } from "../routes/projects";
 import {
   decisionCommand, redirectCommand, bypassCommand, passkeyRevokeCommand, passkeyRevokeAllCommand,
 } from "../routes/approvals";
+import { collectionWriteRoutes } from "../lib/settings-collection-router";
 
 /**
  * WRITE-LANE COVERAGE RATCHET — the mechanical proof that every user-facing WRITE endpoint is guarded.
@@ -92,7 +93,6 @@ const BESPOKE_WRITES = new Set<string>([
   "DELETE /webhooks/:id",
   "DELETE /whiteboards/:id",
   "DELETE /wiki/docs/:id",
-  "PATCH /availability/curation",
   "PATCH /projects/:projectId",
   "PATCH /scim/v2/Groups/:id",
   "PATCH /scim/v2/Users/:id",
@@ -228,32 +228,21 @@ const BESPOKE_WRITES = new Set<string>([
   "PUT /ai/provider-allowlist",
   "PUT /ai/providers/:id/key",
   "PUT /ai/stt-provider-allowlist",
-  "PUT /approval-chains",
-  "PUT /automations",
   "PUT /branding",
-  "PUT /broker-kinds",
-  "PUT /budget-plans",
   "PUT /calendar/push",
-  "PUT /closed-projects",
-  "PUT /collection-edit-roles",
-  "PUT /content-pages",
-  "PUT /custom-fields",
   "PUT /dashboards",
   "PUT /deployment-type",
-  "PUT /disabled-screens",
   "PUT /energy-vocabulary",
   "PUT /error-telemetry",
   "PUT /features/governance-rules",
   "PUT /features/programme/:programmeId",
   "PUT /features/project/:projectId",
   "PUT /federated-peers",
-  "PUT /field-validation",
   "PUT /forms",
   "PUT /governance/:id",
   "PUT /governance/ai-kill",
   "PUT /governance/approved",
   "PUT /governance/containment",
-  "PUT /guid-aliases",
   "PUT /history/retention",
   "PUT /impact-vocabulary",
   "PUT /labels",
@@ -262,25 +251,17 @@ const BESPOKE_WRITES = new Set<string>([
   "PUT /me/prefs",
   "PUT /methodology-composition",
   "PUT /org-identity",
-  "PUT /panel-views",
-  "PUT /portfolio/priority-weights",
   "PUT /priority-labels",
-  "PUT /programme-registry",
   "PUT /projects/:projectId/mapping/:slot/:rowId",
   "PUT /projects/:projectId/type",
   "PUT /projects/:projectId/wbs/:wbsId",
   "PUT /proofs/:id",
-  "PUT /raci",
   "PUT /rag-vocabulary",
   "PUT /rate-card",
   "PUT /rate-card/cost-rules",
   "PUT /rate-card/identities",
   "PUT /rate-card/uplift/:level/:scopeId",
-  "PUT /reports",
   "PUT /reports/custom",
-  "PUT /reports/overrides",
-  "PUT /resource-allocations",
-  "PUT /routing",
   "PUT /scheduling",
   "PUT /scim/v2/Groups/:id",
   "PUT /scim/v2/Users/:id",
@@ -289,38 +270,42 @@ const BESPOKE_WRITES = new Set<string>([
   "PUT /settings/scope",
   "PUT /setup/screens/:id/layout",
   "PUT /severity-vocabulary",
-  "PUT /stakeholders",
   "PUT /task-vocabulary",
-  "PUT /templates",
-  "PUT /usage/policies",
-  "PUT /views",
   "PUT /whiteboards/:id",
   "PUT /wiki/docs/:id",
   "PUT /work-vocabulary",
-  "PUT /workflows",
 ]);
 
 let h: Harness;
 before(async () => { h = await startHarness(); });
 after(() => h?.close());
 
+// Lane 0 — the settings-collection factory (settingsCollectionRouter), a THIRD generic write spine whose
+// writes are guarded by construction. Populated as route modules load, so it's read INSIDE the tests, after
+// writeRoutes() has imported the assembled router + the feature-gated mods.
+const lane0 = (): Set<string> => new Set(collectionWriteRoutes());
+
 test("every live write route is in exactly one lane (a new unguarded write can't ship unnoticed)", async () => {
   const live = await writeRoutes();
-  const covered = new Set<string>([...LANE1, ...LANE2, ...BESPOKE_WRITES]);
+  const covered = new Set<string>([...lane0(), ...LANE1, ...LANE2, ...BESPOKE_WRITES]);
   const uncovered = [...live].filter((r) => !covered.has(r)).sort();
   assert.deepEqual(uncovered, [],
     `New write route(s) in no lane. Put each in the entity pipeline (Lane 1: mountEntity), the action base ` +
-    `(Lane 2: mountCommand), or — only for a genuinely irreducible one — BESPOKE_WRITES (Lane 3):\n${uncovered.join("\n")}`);
+    `(Lane 2: mountCommand), the settings-collection factory (Lane 0: settingsCollectionRouter), or — only for ` +
+    `a genuinely irreducible one — BESPOKE_WRITES (Lane 3):\n${uncovered.join("\n")}`);
 });
 
 test("no stale lane entries (converting a route to a spine forces it out of Lane 3)", async () => {
   const live = await writeRoutes();
-  const stale = [...LANE1, ...LANE2, ...BESPOKE_WRITES].filter((r) => !live.has(r)).sort();
+  const stale = [...lane0(), ...LANE1, ...LANE2, ...BESPOKE_WRITES].filter((r) => !live.has(r)).sort();
   assert.deepEqual(stale, [], `Lane entry with no live write route — remove or fix:\n${stale.join("\n")}`);
 });
 
-test("the lanes are disjoint — each write is in exactly one", () => {
+test("the lanes are disjoint — each write is in exactly one", async () => {
+  await writeRoutes(); // ensure the collection registry is fully populated (incl. feature-gated mods)
+  const LANE0 = lane0();
   const overlap = [
+    ...[...LANE0].filter((r) => LANE1.has(r) || LANE2.has(r) || BESPOKE_WRITES.has(r)),
     ...[...LANE1].filter((r) => LANE2.has(r) || BESPOKE_WRITES.has(r)),
     ...[...LANE2].filter((r) => BESPOKE_WRITES.has(r)),
   ].sort();
