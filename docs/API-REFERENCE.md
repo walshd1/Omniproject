@@ -1265,8 +1265,8 @@ Capability governance plane — the admin-set deployment state (off / user-defin
 | GET | `/api/governance/autonomous` | requireRole(admin) | derived (the AI source floor and the admin relax setting) + the active write grants. |
 | GET | `/api/governance/approved` | requireRole(admin) | The customer-wide APPROVED vocabulary + actions allowlist (read: any admin). |
 | GET | `/api/governance/actions` | requireRole(admin) | a blind allowlist. |
-| PUT | `/api/governance/approved` | requireRole(admin) + requireStepUp | a sensitive change). |
-| PUT | `/api/governance/ai-kill` | requireRole(admin) + requireStepUp | suspends every autonomous write. |
+| PUT | `/api/governance/approved` | requireRole(admin) + requireStepUp | PUT /api/governance/approved — set the approved actions/vocab + scoped approval rules (admin + step-up). |
+| PUT | `/api/governance/ai-kill` | requireRole(admin) + requireStepUp | Break-glass AI kill switch (admin + step-up): one toggle stops all AI calls and suspends every autonomous write. |
 | PUT | `/api/governance/containment` | requireRole(admin) + requireStepUp | — |
 | POST | `/api/governance/:id/test` | requireRole(admin) | request body, or the one already stored for the capability. |
 | PUT | `/api/governance/:id` | requireRole(admin) + requireStepUp | it can be rolled back like any other config change. |

@@ -18,6 +18,7 @@ import {
   rateCardUpdateCommand, rateCardRollbackCommand, rateCardScopeUpliftCommand,
   rateCardCostRulesCommand, rateCardIdentitiesCommand,
 } from "../routes/rate-card";
+import { approvedUpdateCommand, aiKillCommand, containmentCommand } from "../routes/tools";
 import { collectionWriteRoutes } from "../lib/settings-collection-router";
 
 /**
@@ -94,6 +95,9 @@ const LANE2 = new Set<string>([
   ...commandRoutes(rateCardScopeUpliftCommand),
   ...commandRoutes(rateCardCostRulesCommand),
   ...commandRoutes(rateCardIdentitiesCommand),
+  ...commandRoutes(approvedUpdateCommand),
+  ...commandRoutes(aiKillCommand),
+  ...commandRoutes(containmentCommand),
 ]);
 
 // Lane 3 — hand-written writes not (yet) on a spine. SEED — regenerate by running the first test with this
@@ -253,9 +257,6 @@ const BESPOKE_WRITES = new Set<string>([
   "PUT /federated-peers",
   "PUT /forms",
   "PUT /governance/:id",
-  "PUT /governance/ai-kill",
-  "PUT /governance/approved",
-  "PUT /governance/containment",
   "PUT /history/retention",
   "PUT /impact-vocabulary",
   "PUT /labels",
