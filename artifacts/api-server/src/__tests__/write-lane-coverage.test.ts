@@ -46,6 +46,7 @@ import { calendarPushSaveCommand } from "../routes/calendar";
 import { mePrefsSaveCommand } from "../routes/me";
 import { presetApplyCommand } from "../routes/presets";
 import { templateInstantiateCommand } from "../routes/templates";
+import { projectCloseCommand } from "../routes/projects";
 import { collectionWriteRoutes } from "../lib/settings-collection-router";
 
 /**
@@ -158,6 +159,7 @@ const LANE2 = new Set<string>([
   ...commandRoutes(mePrefsSaveCommand),
   ...commandRoutes(presetApplyCommand),
   ...commandRoutes(templateInstantiateCommand),
+  ...commandRoutes(projectCloseCommand),
 ]);
 
 // Lane 3 — hand-written writes not (yet) on a spine. SEED — regenerate by running the first test with this
@@ -231,7 +233,6 @@ const BESPOKE_WRITES = new Set<string>([
   "POST /portal/invites",
   "POST /presence/rooms/:roomId",
   "POST /projects",
-  "POST /projects/:projectGuid/close",
   "POST /projects/:projectId/issues/:issueId/items",
   "POST /projects/:projectId/raid",
   "POST /proofs/:id/decision",

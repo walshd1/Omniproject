@@ -799,7 +799,7 @@ Project, programme-membership, issue + task-item endpoints — the core read/wri
 | POST | `/api/projects` | requireRole(manager) | — |
 | GET | `/api/projects/:projectGuid/references` | requireAnyRole(pmo, admin) | deleting. |
 | DELETE | `/api/projects/:projectGuid/links` | requireAnyRole(pmo, admin) | so nothing there is touched; only the references are unlinked. |
-| POST | `/api/projects/:projectGuid/close` | requireAnyRole(pmo, admin) | be silently reactivated. |
+| POST | `/api/projects/:projectGuid/close` | requireAnyRole(pmo, admin) | POST /api/projects/:projectGuid/close — record a project closure (pmo/admin). |
 | PATCH | `/api/projects/:projectId` | requireRole(manager) | — |
 | GET | `/api/resources` | — | — |
 | GET | `/api/projects/:projectId/members` | — | — |
