@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { requireRole, getRoleMap, setRoleMap, rollbackRoleMap, canRollbackRoleMap, ROLES } from "../lib/rbac";
 import { requireStepUp } from "../lib/step-up";
+import { mountCommand, type CommandDescriptor } from "../lib/action-base";
 import { recordRequestAudit } from "../lib/audit";
 import { persistSecurityState } from "../lib/security-state";
 import { heldForDualControl } from "./security";
@@ -21,19 +22,26 @@ router.get("/admin/role-map", requireRole("admin"), (_req, res) => {
 
 // One-generation undo for the last role-map change — same step-up gate as the edit it
 // reverses, since restoring an old mapping is exactly as consequential as setting a new one.
-router.post("/admin/role-map/rollback", requireRole("admin"), requireStepUp, (req, res) => {
-  const rolledBack = rollbackRoleMap();
-  const mapping = getRoleMap();
-  persistSecurityState(); // durable + fleet-published: the reverted mapping propagates like the edit did
-  recordRequestAudit(req, {
-    category: "admin",
-    action: "role_map_rollback",
-    result: "success",
-    status: 200,
-    meta: { rolledBack },
-  });
-  res.json({ roles: ROLES, mapping, rolledBack });
-});
+// LANE 2: the action base runs the shell (admin + step-up → ruleset → run → audit).
+export const roleMapRollbackCommand: CommandDescriptor<Record<string, never>> = {
+  name: "role_map_rollback",
+  method: "post",
+  path: "/admin/role-map/rollback",
+  role: "admin",
+  gates: [requireStepUp],
+  parse: () => ({}),
+  run: async () => {
+    const rolledBack = rollbackRoleMap();
+    const mapping = getRoleMap();
+    persistSecurityState(); // durable + fleet-published: the reverted mapping propagates like the edit did
+    return { roles: ROLES, mapping, rolledBack };
+  },
+  audit: "role_map_rollback",
+  auditCategory: "admin",
+  auditStatus: 200,
+  auditMeta: (_req, _args, result) => ({ rolledBack: (result as { rolledBack: boolean }).rolledBack }),
+};
+mountCommand(router, roleMapRollbackCommand);
 
 router.put("/admin/role-map", requireRole("admin"), requireStepUp, async (req, res) => {
   // Four-eyes: mapping an IdP group to admin/pmo authority is an elevation, so when configured it

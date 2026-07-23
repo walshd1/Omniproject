@@ -944,7 +944,7 @@ Role-mapping editor — ADMIN-only, audited.
 | Method | Path | Gate | Description |
 | --- | --- | --- | --- |
 | GET | `/api/admin/role-map` | requireRole(admin) | — |
-| POST | `/api/admin/role-map/rollback` | requireRole(admin) + requireStepUp | reverses, since restoring an old mapping is exactly as consequential as setting a new one. |
+| POST | `/api/admin/role-map/rollback` | requireRole(admin) + requireStepUp | One-generation undo for the last role-map change — same step-up gate as the edit it reverses, since restoring an old mapping is exactly as consequential as setting a new one. |
 | PUT | `/api/admin/role-map` | requireRole(admin) + requireStepUp | — |
 
 ### `artifacts/api-server/src/routes/routing.ts`
@@ -1312,7 +1312,7 @@ SPDX-License-Identifier: LicenseRef-OmniProject-Premium Premium feature — gove
 | --- | --- | --- | --- |
 | GET | `/api/webhooks` | requireRole(admin) | — |
 | POST | `/api/webhooks` | requireRole(admin) + requireStepUp + requireEntitlement(webhooks) | — |
-| DELETE | `/api/webhooks/:id` | requireRole(admin) + requireStepUp | — |
+| DELETE | `/api/webhooks/:id` | requireRole(admin) + requireStepUp | LANE 2: webhook lifecycle verbs on the action base. |
 | POST | `/api/webhooks/:id/test` | requireRole(admin) + requireEntitlement(webhooks) | — |
 
 ### `artifacts/api-server/src/routes/whiteboard.ts`
