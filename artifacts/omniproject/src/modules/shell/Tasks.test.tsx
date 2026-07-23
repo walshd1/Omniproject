@@ -7,6 +7,9 @@ import type { Task } from "../../lib/tasks";
 const SUMMARY = { total: 3, byClass: { actionable: 1, waiting: 1, deferred: 0, done: 1, dropped: 0 }, open: 2, actionable: 1, overdue: 1, dueSoon: 0, unassigned: 1, byAssignee: {}, byTag: {}, byContext: {} };
 let tasks: Task[] = [];
 let created = 0;
+// Active entry business rules served at /api/rules/active — empty unless a test opts a rule in.
+let requirements: Array<{ rule: string; action: string; field: string; mode: string; message: string }> = [];
+const REQUIRE_PRIORITY = { rule: "require-priority", action: "create_task", field: "priority", mode: "hard", message: "A priority is required (business rule)." };
 
 function json(body: unknown, ok = true): Response {
   return { ok, status: ok ? 200 : 400, json: () => Promise.resolve(body) } as Response;
@@ -19,7 +22,9 @@ beforeEach(() => {
     { id: "task-2", title: "Chase the DPA", status: "waiting", waitingOn: "Legal" },
   ];
   created = 0;
+  requirements = [];
   fetchMock = vi.fn((url: string, init?: RequestInit) => {
+    if (url.startsWith("/api/rules/active")) return Promise.resolve(json({ requirements }));
     if (url === "/api/tasks" && init?.method === "POST") { tasks = [...tasks, { id: `task-new-${++created}`, title: JSON.parse(String(init.body)).title, status: "next" }]; return Promise.resolve(json(tasks[tasks.length - 1])); }
     if (url.startsWith("/api/tasks/summary")) return Promise.resolve(json(SUMMARY));
     if (url.startsWith("/api/tasks")) return Promise.resolve(json(tasks));
@@ -158,6 +163,49 @@ describe("Tasks", () => {
     const input = screen.getByPlaceholderText(/Add a next action/);
     fireEvent.paste(input, { clipboardData: { getData: () => "just one line" } });
     expect(screen.queryByText(/tasks detected/)).toBeNull();
+  });
+
+  it("a required-priority rule gently blocks the single add until a priority is set", async () => {
+    requirements = [REQUIRE_PRIORITY];
+    renderWithProviders(<Tasks />);
+    await screen.findByText("Call the auditor");
+    fireEvent.change(screen.getByPlaceholderText(/Add a next action/), { target: { value: "Book the room" } });
+    // Once the rule loads, Add is blocked with a gentle inline nudge (no post-submit error).
+    await waitFor(() => expect(screen.getByRole("button", { name: "Add" })).toBeDisabled());
+    expect(screen.getByRole("alert")).toHaveTextContent(/priority is required/i);
+    // Picking a priority clears the block and the add carries it.
+    fireEvent.change(screen.getByLabelText("Priority"), { target: { value: "high" } });
+    await waitFor(() => expect(screen.getByRole("button", { name: "Add" })).toBeEnabled());
+    fireEvent.click(screen.getByRole("button", { name: "Add" }));
+    await waitFor(() => {
+      const post = fetchMock.mock.calls.find((c) => c[0] === "/api/tasks" && c[1]?.method === "POST");
+      expect(JSON.parse(String(post![1].body)).priority).toBe("high");
+    });
+  });
+
+  it("flags multi-paste lines missing a required priority and fixes them inline", async () => {
+    requirements = [REQUIRE_PRIORITY];
+    renderWithProviders(<Tasks />);
+    await screen.findByText("Call the auditor");
+    fireEvent.paste(screen.getByPlaceholderText(/Add a next action/), { clipboardData: { getData: () => "urgent thing !p1\nplain thing" } });
+    expect(await screen.findByText("2 tasks detected")).toBeInTheDocument();
+    // The !p1 line is fine; the plain one is flagged, so the bulk Add is blocked.
+    await waitFor(() => expect(screen.getByRole("button", { name: "Add 2 tasks" })).toBeDisabled());
+    expect(screen.getByText(/1 of 2 need a fix/i)).toBeInTheDocument();
+    // Fix the flagged line inline via its own priority picker → the block clears.
+    fireEvent.change(screen.getByLabelText("Priority for line 2"), { target: { value: "medium" } });
+    await waitFor(() => expect(screen.getByRole("button", { name: "Add 2 tasks" })).toBeEnabled());
+    fireEvent.click(screen.getByRole("button", { name: "Add 2 tasks" }));
+    await waitFor(() => {
+      const posts = fetchMock.mock.calls.filter((c) => c[0] === "/api/tasks" && c[1]?.method === "POST");
+      expect(posts).toHaveLength(2);
+    });
+    const bodies = fetchMock.mock.calls
+      .filter((c) => c[0] === "/api/tasks" && c[1]?.method === "POST")
+      .map((c) => JSON.parse(String(c[1]!.body)));
+    const byTitle = Object.fromEntries(bodies.map((b) => [b.title, b]));
+    expect(byTitle["urgent thing"].priority).toBe("urgent"); // parsed from !p1
+    expect(byTitle["plain thing"].priority).toBe("medium");   // supplied by the inline fix
   });
 
   it("opens the task detail dialog from a row and closes it again", async () => {

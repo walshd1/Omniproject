@@ -6,6 +6,7 @@ import { useMemo, useState } from "react";
 import { usePriorityLabels } from "../../lib/priority-labels";
 import { parseQuickAdd } from "../../lib/quick-add";
 import { splitEntryLines, isMultiLine, MAX_MULTI_ENTRY } from "../../lib/multi-entry";
+import { useActiveEntryRules, evaluateEntry, hardViolations } from "../../lib/entry-rules";
 import { useToast } from "@/hooks/use-toast";
 import { parseTaskSearch } from "../../lib/task-search";
 import { useTagPrefs } from "../../lib/use-tag-prefs";
@@ -45,6 +46,12 @@ export function Tasks() {
   // pending split. `pendingCut` is how many lines the MAX_MULTI_ENTRY cap dropped, if any.
   const [pending, setPending] = useState<string[] | null>(null);
   const [pendingCut, setPendingCut] = useState(0);
+  // Per-line priority chosen inline to satisfy a business rule on a flagged paste line (index → priority).
+  const [lineFix, setLineFix] = useState<Record<number, Priority>>({});
+  // Effective entry business rules (e.g. "priority is required") — drives gentle inline pushback so a
+  // rule is satisfied BEFORE submit, not discovered as a 422 after. The server still enforces them.
+  const { data: rulesData } = useActiveEntryRules();
+  const requirements = rulesData?.requirements;
   const tagPrefs = useTagPrefs((s) => s.prefs);
 
   // Compile the search box into a predicate: parse the syntax, then for each record enrich its raw task
@@ -81,20 +88,34 @@ export function Tasks() {
     };
   };
 
-  const resetEntry = () => { setTitle(""); setContext(""); setPriority("none"); setPending(null); setPendingCut(0); };
+  const resetEntry = () => { setTitle(""); setContext(""); setPriority("none"); setPending(null); setPendingCut(0); setLineFix({}); };
+
+  // One create body for a pending (pasted) line, with any inline priority fix applied on top of the parse.
+  const bodyForPendingLine = (line: string, i: number, today: Date): Partial<Task> => {
+    const body = bodyFromLine(line, today);
+    return lineFix[i] ? { ...body, priority: lineFix[i] } : body;
+  };
+  const violationsFor = (body: Partial<Task>) => hardViolations(evaluateEntry(body as Record<string, unknown>, requirements, "create_task"));
+
+  // Hard rule violations for the CURRENT single-line entry (e.g. no priority when one is required). Drives
+  // the gentle inline message + the disabled Add button, so the rule is satisfied before any round-trip.
+  const singleViolations = title.trim() ? violationsFor(bodyFromLine(title.trim(), new Date())) : [];
 
   const add = () => {
     const raw = title.trim();
-    if (!raw) return;
+    if (!raw || singleViolations.length) return; // gently blocked — inline guidance shows what's missing
     create.mutate(bodyFromLine(raw, new Date()), { onSuccess: resetEntry });
   };
 
   // A multi-line paste is intercepted (below) and parked in `pending`; here we fan out one create per
-  // line, reusing the SAME per-line builder so inline sigils are honoured on every line.
+  // line, reusing the SAME per-line builder so inline sigils are honoured on every line. A business rule
+  // must be satisfied on EVERY line first (the preview flags offenders + lets the user fix them inline).
   const addMany = () => {
     if (!pending || pending.length === 0) return;
     const today = new Date();
-    bulk.mutate(pending.map((line) => bodyFromLine(line, today)), {
+    const bodies = pending.map((line, i) => bodyForPendingLine(line, i, today));
+    if (bodies.some((b) => violationsFor(b).length > 0)) return;
+    bulk.mutate(bodies, {
       onSuccess: (r) => {
         toast({
           title: `Added ${r.created.length} task${r.created.length === 1 ? "" : "s"}`,
@@ -123,6 +144,18 @@ export function Tasks() {
     setPending(lines);
     setPendingCut(truncated);
   };
+
+  // Per-line status for the multi-paste preview: parsed fields + the (fix-applied) body + any hard rule
+  // violations, so the preview can flag offenders, offer an inline priority fix, and gate the Add button.
+  const previewToday = new Date();
+  const pendingRows = pending
+    ? pending.map((line, i) => {
+        const body = bodyForPendingLine(line, i, previewToday);
+        return { line, i, parsed: parseQuickAdd(line, previewToday), body, violations: violationsFor(body) };
+      })
+    : [];
+  const pendingBlocked = pendingRows.filter((r) => r.violations.length > 0).length;
+  const priorityRequiredNow = singleViolations.some((v) => v.field === "priority");
 
   return (
     <div className="h-full flex flex-col">
@@ -163,14 +196,19 @@ export function Tasks() {
           />
           <select
             aria-label="Priority"
-            className="w-32 rounded-none border border-border bg-card px-2 py-2 text-sm"
+            className={`w-32 rounded-none border bg-card px-2 py-2 text-sm ${priorityRequiredNow ? "border-amber-500 ring-1 ring-amber-500" : "border-border"}`}
             value={priority}
             onChange={(e) => setPriority(e.target.value as Priority)}
           >
             {PRIORITIES.map((p) => <option key={p} value={p}>{p === "none" ? "priority…" : labelFor(p)}</option>)}
           </select>
-          <Button className="rounded-none" onClick={add} disabled={!title.trim() || create.isPending}>Add</Button>
+          <Button className="rounded-none" onClick={add} disabled={!title.trim() || create.isPending || singleViolations.length > 0}>Add</Button>
         </div>
+        {/* Gentle, consistent pushback: a required field that's missing blocks the add with a clear inline
+            nudge (never a post-submit error). The relevant control above is highlighted to guide the fix. */}
+        {singleViolations.length > 0 && (
+          <p role="alert" className="text-xs text-amber-600 -mt-2">{singleViolations.map((v) => v.message).join(" ")}</p>
+        )}
 
         {/* Multi-entry / auto-split preview — appears after a multi-line paste; confirm to create one task per line. */}
         {pending && (
@@ -179,27 +217,42 @@ export function Tasks() {
               <span className="text-sm font-bold">{pending.length} task{pending.length === 1 ? "" : "s"} detected</span>
               <span className="text-xs text-muted-foreground">— one per line from your paste</span>
               <div className="ml-auto flex gap-2">
-                <Button className="rounded-none" onClick={addMany} disabled={bulk.isPending}>
+                <Button className="rounded-none" onClick={addMany} disabled={bulk.isPending || pendingBlocked > 0}>
                   {bulk.isPending ? "Adding…" : `Add ${pending.length} task${pending.length === 1 ? "" : "s"}`}
                 </Button>
                 <Button variant="outline" className="rounded-none" onClick={addAsOne} disabled={bulk.isPending}>Add as one</Button>
-                <Button variant="ghost" className="rounded-none" onClick={() => { setPending(null); setPendingCut(0); }} disabled={bulk.isPending}>Cancel</Button>
+                <Button variant="ghost" className="rounded-none" onClick={() => { setPending(null); setPendingCut(0); setLineFix({}); }} disabled={bulk.isPending}>Cancel</Button>
               </div>
             </div>
             {pendingCut > 0 && (
               <p className="text-xs font-bold text-amber-600">Only the first {MAX_MULTI_ENTRY} lines will be added — {pendingCut} more were left out.</p>
             )}
+            {pendingBlocked > 0 && (
+              <p role="alert" className="text-xs text-amber-600">{pendingBlocked} of {pending.length} need a fix before adding — set the missing value inline, or set the priority control above to apply it to all.</p>
+            )}
             <ul className="max-h-48 overflow-auto divide-y divide-border border border-border text-sm">
-              {pending.map((line, i) => {
-                const p = parseQuickAdd(line, new Date());
+              {pendingRows.map(({ line, i, parsed: p, violations }) => {
+                const needsPriority = violations.some((v) => v.field === "priority");
+                const otherMissing = violations.filter((v) => v.field !== "priority");
                 return (
-                  <li key={i} className="flex flex-wrap items-center gap-2 px-2 py-1">
+                  <li key={i} className={`flex flex-wrap items-center gap-2 px-2 py-1 ${violations.length ? "bg-amber-500/10" : ""}`}>
                     <span className="tabular-nums text-xs text-muted-foreground w-6">{i + 1}.</span>
                     <span className="flex-1">{p.title || line}</span>
                     {p.priority && p.priority !== "none" && <span className="text-[10px] uppercase tracking-wide border border-border px-1">{labelFor(p.priority as Priority)}</span>}
                     {p.context && <span className="text-[10px] font-mono text-muted-foreground">@{p.context}</span>}
                     {p.tags.map((t) => <span key={t} className="text-[10px] font-mono text-muted-foreground">#{t}</span>)}
                     {p.dueDate && <span className="text-[10px] font-mono text-muted-foreground">due {p.dueDate}</span>}
+                    {needsPriority && (
+                      <select
+                        aria-label={`Priority for line ${i + 1}`}
+                        className="text-[11px] rounded-none border border-amber-500 bg-card px-1 py-0.5"
+                        value={lineFix[i] ?? "none"}
+                        onChange={(e) => setLineFix((m) => ({ ...m, [i]: e.target.value as Priority }))}
+                      >
+                        {PRIORITIES.map((pp) => <option key={pp} value={pp}>{pp === "none" ? "set priority…" : labelFor(pp)}</option>)}
+                      </select>
+                    )}
+                    {otherMissing.map((v) => <span key={v.rule} className="text-[10px] text-amber-600">{v.message}</span>)}
                   </li>
                 );
               })}

@@ -8,6 +8,7 @@ import {
 } from "@workspace/api-client-react";
 import { parseQuickAdd } from "../lib/quick-add";
 import { splitEntryLines, isMultiLine, MAX_MULTI_ENTRY } from "../lib/multi-entry";
+import { useActiveEntryRules, evaluateEntry, hardViolations } from "../lib/entry-rules";
 import { useInvalidateIssueQueries } from "../hooks/use-invalidate-issue-queries";
 import {
   Dialog,
@@ -42,6 +43,11 @@ export function NewTaskDialog({ open, onOpenChange }: { open: boolean; onOpenCha
   const [pending, setPending] = useState<string[] | null>(null);
   const [pendingCut, setPendingCut] = useState(0);
   const [bulkBusy, setBulkBusy] = useState(false);
+  // Per-line priority chosen inline to satisfy a business rule on a flagged paste line (index → priority).
+  const [lineFix, setLineFix] = useState<Record<number, string>>({});
+  // Effective entry business rules for the selected project — the gentle inline pushback before submit.
+  const { data: rulesData } = useActiveEntryRules(form.projectId || undefined);
+  const requirements = rulesData?.requirements;
 
   // Default the project to the active one (or the first) whenever the dialog opens.
   useEffect(() => {
@@ -62,25 +68,33 @@ export function NewTaskDialog({ open, onOpenChange }: { open: boolean; onOpenCha
   const projectError = form.projectId ? "" : "A task must belong to a project";
   const close = (o: boolean) => {
     resetOnClose(o);
-    if (!o) { setPending(null); setPendingCut(0); }
+    if (!o) { setPending(null); setPendingCut(0); setLineFix({}); }
     onOpenChange(o);
   };
 
+  // Hard rule violations for an issue create body (e.g. no priority when one is required).
+  const issueViolations = (data: IssueInput) => hardViolations(evaluateEntry(data as unknown as Record<string, unknown>, requirements, "create_issue"));
+
+  // The body the single-item form would submit, and its violations — drives the gentle inline nudge and
+  // the disabled Create button so the rule is satisfied before any round-trip.
+  const singleData: IssueInput = {
+    title: form.title.trim(),
+    status: form.status as NonNullable<IssueInput["status"]>,
+    priority: form.priority as NonNullable<IssueInput["priority"]>,
+    assignee: form.assignee || null,
+  };
+  const singleViolations = form.title.trim() ? issueViolations(singleData) : [];
+  const priorityRequiredNow = singleViolations.some((v) => v.field === "priority");
+
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (titleError || projectError) return;
-    const data: IssueInput = {
-      title: form.title.trim(),
-      status: form.status as NonNullable<IssueInput["status"]>,
-      priority: form.priority as NonNullable<IssueInput["priority"]>,
-      assignee: form.assignee || null,
-    };
+    if (titleError || projectError || singleViolations.length) return;
     create.mutate(
-      { projectId: form.projectId, data },
+      { projectId: form.projectId, data: singleData },
       {
         onSuccess: () => {
           invalidateIssueQueries(form.projectId);
-          toast({ title: "TASK CREATED", description: data.title });
+          toast({ title: "TASK CREATED", description: singleData.title });
           reset();
           onOpenChange(false);
         },
@@ -106,6 +120,12 @@ export function NewTaskDialog({ open, onOpenChange }: { open: boolean; onOpenCha
     };
   };
 
+  // One issue body for a pending (pasted) line, with any inline priority fix applied on top of the parse.
+  const issueForPendingLine = (line: string, i: number, today: Date): IssueInput => {
+    const data = issueFromLine(line, today);
+    return lineFix[i] ? { ...data, priority: lineFix[i] as NonNullable<IssueInput["priority"]> } : data;
+  };
+
   // Intercept a MULTI-LINE paste into the title box and offer the split; a single-line paste is untouched.
   const onTitlePaste = (e: React.ClipboardEvent<HTMLInputElement>) => {
     const text = e.clipboardData?.getData("text") ?? "";
@@ -120,10 +140,12 @@ export function NewTaskDialog({ open, onOpenChange }: { open: boolean; onOpenCha
   // aborts the rest), invalidating once, then reporting partial success.
   const createMany = async () => {
     if (!pending || pending.length === 0 || projectError) return;
-    setBulkBusy(true);
     const today = new Date();
+    const datas = pending.map((line, i) => issueForPendingLine(line, i, today));
+    if (datas.some((d) => issueViolations(d).length > 0)) return; // a rule is unmet on some line — the preview guides the fix
+    setBulkBusy(true);
     const results = await Promise.allSettled(
-      pending.map((line) => create.mutateAsync({ projectId: form.projectId, data: issueFromLine(line, today) })),
+      datas.map((data) => create.mutateAsync({ projectId: form.projectId, data })),
     );
     setBulkBusy(false);
     const ok = results.filter((r) => r.status === "fulfilled").length;
@@ -134,6 +156,7 @@ export function NewTaskDialog({ open, onOpenChange }: { open: boolean; onOpenCha
       reset();
       setPending(null);
       setPendingCut(0);
+      setLineFix({});
       onOpenChange(false);
     } else {
       toast({ title: "ERROR", description: "Could not create the tasks.", variant: "destructive" });
@@ -148,6 +171,17 @@ export function NewTaskDialog({ open, onOpenChange }: { open: boolean; onOpenCha
   };
 
   const noProjects = !projects || projects.length === 0;
+
+  // Per-line status for the multi-paste preview: the (fix-applied) issue body + any hard rule violations,
+  // so the preview can flag offenders, offer an inline priority fix, and gate the Create button.
+  const previewToday = new Date();
+  const pendingRows = pending
+    ? pending.map((line, i) => {
+        const data = issueForPendingLine(line, i, previewToday);
+        return { line, i, parsed: parseQuickAdd(line, previewToday), data, violations: issueViolations(data) };
+      })
+    : [];
+  const pendingBlocked = pendingRows.filter((r) => r.violations.length > 0).length;
 
   return (
     <Dialog open={open} onOpenChange={close}>
@@ -195,26 +229,37 @@ export function NewTaskDialog({ open, onOpenChange }: { open: boolean; onOpenCha
                 {pendingCut > 0 && (
                   <p className="text-xs font-bold text-amber-600">Only the first {MAX_MULTI_ENTRY} lines will be added — {pendingCut} more were left out.</p>
                 )}
+                {pendingBlocked > 0 && (
+                  <p role="alert" className="text-xs text-amber-600">{pendingBlocked} of {pending.length} need a fix before adding — set the missing value inline, or set the Priority below to apply it to all.</p>
+                )}
                 <ul className="max-h-40 overflow-auto divide-y divide-border border border-border text-sm bg-card">
-                  {pending.map((line, i) => {
-                    const p = parseQuickAdd(line, new Date());
+                  {pendingRows.map(({ line, i, parsed: p, violations }) => {
+                    const needsPriority = violations.some((v) => v.field === "priority");
+                    const otherMissing = violations.filter((v) => v.field !== "priority");
                     return (
-                      <li key={i} className="flex flex-wrap items-center gap-2 px-2 py-1">
+                      <li key={i} className={`flex flex-wrap items-center gap-2 px-2 py-1 ${violations.length ? "bg-amber-500/10" : ""}`}>
                         <span className="tabular-nums text-xs text-muted-foreground w-6">{i + 1}.</span>
                         <span className="flex-1">{p.title || line}</span>
                         {p.priority && p.priority !== "none" && <span className="text-[10px] uppercase tracking-wide border border-border px-1">{p.priority}</span>}
                         {p.tags.map((t) => <span key={t} className="text-[10px] font-mono text-muted-foreground">#{t}</span>)}
                         {p.dueDate && <span className="text-[10px] font-mono text-muted-foreground">due {p.dueDate}</span>}
+                        {needsPriority && (
+                          <select aria-label={`Priority for line ${i + 1}`} className="text-[11px] rounded-none border border-amber-500 bg-background px-1 py-0.5"
+                            value={lineFix[i] ?? "none"} onChange={(e) => setLineFix((m) => ({ ...m, [i]: e.target.value }))}>
+                            {PRIORITY_ORDER.map((s) => <option key={s} value={s}>{s === "none" ? "set priority…" : (PRIORITY_LABELS[s] ?? s)}</option>)}
+                          </select>
+                        )}
+                        {otherMissing.map((v) => <span key={v.rule} className="text-[10px] text-amber-600">{v.message}</span>)}
                       </li>
                     );
                   })}
                 </ul>
                 <div className="flex flex-wrap gap-2">
-                  <Button type="button" className="rounded-none uppercase font-bold tracking-wider text-xs" onClick={createMany} disabled={bulkBusy || !!projectError}>
+                  <Button type="button" className="rounded-none uppercase font-bold tracking-wider text-xs" onClick={createMany} disabled={bulkBusy || !!projectError || pendingBlocked > 0}>
                     {bulkBusy ? "Creating…" : `Create ${pending.length} task${pending.length === 1 ? "" : "s"}`}
                   </Button>
                   <Button type="button" variant="outline" className="rounded-none uppercase font-bold tracking-wider text-xs" onClick={addAsOne} disabled={bulkBusy}>Add as one</Button>
-                  <Button type="button" variant="ghost" className="rounded-none uppercase font-bold tracking-wider text-xs" onClick={() => { setPending(null); setPendingCut(0); }} disabled={bulkBusy}>Cancel</Button>
+                  <Button type="button" variant="ghost" className="rounded-none uppercase font-bold tracking-wider text-xs" onClick={() => { setPending(null); setPendingCut(0); setLineFix({}); }} disabled={bulkBusy}>Cancel</Button>
                 </div>
               </div>
             )}
@@ -249,7 +294,7 @@ export function NewTaskDialog({ open, onOpenChange }: { open: boolean; onOpenCha
               <div className="space-y-1.5">
                 <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Priority</label>
                 <Select value={form.priority} onValueChange={(v) => setForm((p) => ({ ...p, priority: v }))}>
-                  <SelectTrigger aria-label="Priority" className="rounded-none border-border h-11 font-mono"><SelectValue /></SelectTrigger>
+                  <SelectTrigger aria-label="Priority" className={`rounded-none h-11 font-mono ${priorityRequiredNow ? "border-amber-500 ring-1 ring-amber-500" : "border-border"}`}><SelectValue /></SelectTrigger>
                   <SelectContent className="rounded-none border-border font-mono">
                     {PRIORITY_ORDER.map((s) => <SelectItem key={s} value={s}>{PRIORITY_LABELS[s] ?? s}</SelectItem>)}
                   </SelectContent>
@@ -257,9 +302,15 @@ export function NewTaskDialog({ open, onOpenChange }: { open: boolean; onOpenCha
               </div>
             </div>
 
+            {/* Gentle, consistent pushback: a required field that's missing blocks Create with a clear
+                inline nudge (never a post-submit error), and the relevant control is highlighted. */}
+            {singleViolations.length > 0 && !pending && (
+              <p role="alert" className="text-xs text-amber-600">{singleViolations.map((v) => v.message).join(" ")}</p>
+            )}
+
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => close(false)} className="rounded-none border-border uppercase font-bold tracking-wider text-xs">Cancel</Button>
-              <Button type="submit" disabled={!!titleError || !!projectError || create.isPending}
+              <Button type="submit" disabled={!!titleError || !!projectError || create.isPending || singleViolations.length > 0}
                 className="rounded-none uppercase font-bold tracking-wider text-xs">
                 {create.isPending ? "Creating…" : "Create task"}
               </Button>

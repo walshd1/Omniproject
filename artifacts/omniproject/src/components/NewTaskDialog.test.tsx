@@ -254,6 +254,44 @@ describe("NewTaskDialog", () => {
     expect(onOpenChange).toHaveBeenCalledWith(false);
   });
 
+  const REQUIRE_PRIORITY_ISSUE = { rule: "require-priority", action: "create_issue", field: "priority", mode: "hard", message: "A priority is required (business rule)." };
+
+  it("a required-priority rule blocks the single issue create with a gentle inline nudge", async () => {
+    mockFetchRouter({
+      "GET /api/rules/active": { ok: true, body: { requirements: [REQUIRE_PRIORITY_ISSUE] } },
+      "POST /api/projects/p1/issues": { ok: true, body: { id: "i1", title: "x" } },
+      "/api/projects": { ok: true, body: [{ id: "p1", name: "Alpha" }] },
+    });
+    renderWithProviders(<><NewTaskDialog open onOpenChange={() => {}} /><Toaster /></>, { client: seeded() });
+    await userEvent.type(screen.getByLabelText("Title"), "Wire the callback");
+    // Once the rule loads, Create is blocked (priority defaults to "none" = unset) with an inline nudge.
+    await waitFor(() => expect(screen.getByRole("button", { name: /Create task/i })).toBeDisabled());
+    expect(screen.getByRole("alert")).toHaveTextContent(/priority is required/i);
+  });
+
+  it("flags multi-paste issue lines missing a required priority and fixes them inline", async () => {
+    const calls = mockFetchRouter({
+      "GET /api/rules/active": { ok: true, body: { requirements: [REQUIRE_PRIORITY_ISSUE] } },
+      "POST /api/projects/p1/issues": { ok: true, body: { id: "i1", title: "x" } },
+      "/api/projects": { ok: true, body: [{ id: "p1", name: "Alpha" }] },
+    });
+    renderWithProviders(<><NewTaskDialog open onOpenChange={() => {}} /><Toaster /></>, { client: seeded() });
+    fireEvent.paste(screen.getByLabelText("Title"), { clipboardData: { getData: () => "urgent one !p1\nplain one" } });
+    expect(await screen.findByText("2 tasks detected")).toBeInTheDocument();
+    // The !p1 line is fine; the plain one is flagged → the bulk Create is blocked.
+    await waitFor(() => expect(screen.getByRole("button", { name: "Create 2 tasks" })).toBeDisabled());
+    expect(screen.getByText(/1 of 2 need a fix/i)).toBeInTheDocument();
+    // Fix the flagged line inline → the block clears.
+    fireEvent.change(screen.getByLabelText("Priority for line 2"), { target: { value: "medium" } });
+    await waitFor(() => expect(screen.getByRole("button", { name: "Create 2 tasks" })).toBeEnabled());
+    await userEvent.click(screen.getByRole("button", { name: "Create 2 tasks" }));
+    await waitFor(() => expect(calls.filter((c) => c.init?.method === "POST")).toHaveLength(2));
+    const bodies = calls.filter((c) => c.init?.method === "POST").map((c) => JSON.parse(String(c.init!.body)));
+    const byTitle = Object.fromEntries(bodies.map((b) => [b.title, b]));
+    expect(byTitle["urgent one"].priority).toBe("urgent"); // parsed !p1
+    expect(byTitle["plain one"].priority).toBe("medium");   // inline fix
+  });
+
   it("'Add as one' collapses the paste into the title instead of splitting the issue", async () => {
     const calls = mockFetchRouter({ "/api/projects": { ok: true, body: [{ id: "p1", name: "Alpha" }] } });
     renderWithProviders(<><NewTaskDialog open onOpenChange={() => {}} /><Toaster /></>, { client: seeded() });
