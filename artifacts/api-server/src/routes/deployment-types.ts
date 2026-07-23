@@ -21,7 +21,7 @@ import {
 import { requireAnyRole } from "../lib/rbac";
 import { requireArtifactStore } from "../lib/artifact-store";
 import { readConfigCollection, writeOrgConfigCollection } from "../lib/scoped-config";
-import { recordRequestAudit } from "../lib/audit";
+import { mountCommand, type CommandDescriptor } from "../lib/action-base";
 
 const DEPLOYMENT_TYPE_CONFIG = "deployment-type";
 interface ActiveDeployment { deploymentType?: string; answers?: Record<string, string>; overrides?: Record<string, string> }
@@ -76,20 +76,43 @@ router.get("/deployment-type", (_req, res) => {
   res.json({ deploymentType: active.deploymentType, answers: resolved.answers, overrides: active.overrides ?? {}, setup, settings: describeDeploymentSetup(setup) });
 });
 
-router.put("/deployment-type", requireAnyRole("admin"), (req, res) => {
-  if (!requireArtifactStore(res)) return;
-  const body = (req.body ?? {}) as { deploymentType?: unknown; answers?: unknown; overrides?: unknown };
-  const id = typeof body.deploymentType === "string" ? body.deploymentType : "";
-  if (!getDeploymentType(id)) { res.status(400).json({ error: "unknown deployment type" }); return; }
-  const resolved = resolveDeploymentSetup(id, strMap(body.answers))!;
-  const { setup, rejected } = applyDeploymentOverrides(resolved.setup, strMap(body.overrides));
-  // Store the CHOICE (type + answers + accepted overrides) as the single org config — replacing any prior
-  // active type, so an org only ever runs one. This same PUT is the change function.
-  const accepted = strMap(body.overrides);
-  for (const k of rejected) delete accepted[k];
-  writeOrgConfigCollection(DEPLOYMENT_TYPE_CONFIG, "Deployment type", { deploymentType: id, answers: resolved.answers, overrides: accepted });
-  recordRequestAudit(req, { category: "admin", action: "deployment_type_set", result: "success", status: 200, meta: { deploymentType: id, rejected: rejected.length } });
-  res.json({ deploymentType: id, answers: resolved.answers, overrides: accepted, setup, settings: describeDeploymentSetup(setup), rejectedOverrides: rejected });
-});
+/**
+ * PUT /api/deployment-type — the org's single active deployment type; admin sets/changes it.
+ *
+ * LANE 2: an org-config governance verb — the admin gate rides in `gates`; the sealed-store precondition and
+ * the unknown-type check are the parse gate (503 / 400). run resolves the setup, applies the pickable
+ * overrides (rejecting invalid ones), writes the single org config (replacing any prior active type), and
+ * returns the resolved setup + rejectedOverrides. The existing `deployment_type_set` audit moves verbatim to
+ * auditMeta/auditStatus; the action base additionally stamps `write: true`, consistent with every migrated
+ * command.
+ */
+export const deploymentTypeSetCommand: CommandDescriptor<{ id: string; answers: unknown; overrides: unknown }> = {
+  name: "deployment_type_set",
+  method: "put",
+  path: "/deployment-type",
+  gates: [requireAnyRole("admin")],
+  parse: (req, res) => {
+    if (!requireArtifactStore(res)) return null;
+    const body = (req.body ?? {}) as { deploymentType?: unknown; answers?: unknown; overrides?: unknown };
+    const id = typeof body.deploymentType === "string" ? body.deploymentType : "";
+    if (!getDeploymentType(id)) { res.status(400).json({ error: "unknown deployment type" }); return null; }
+    return { id, answers: body.answers, overrides: body.overrides };
+  },
+  run: async (_req, _res, { id, answers, overrides }) => {
+    const resolved = resolveDeploymentSetup(id, strMap(answers))!;
+    const { setup, rejected } = applyDeploymentOverrides(resolved.setup, strMap(overrides));
+    // Store the CHOICE (type + answers + accepted overrides) as the single org config — replacing any prior
+    // active type, so an org only ever runs one. This same PUT is the change function.
+    const accepted = strMap(overrides);
+    for (const k of rejected) delete accepted[k];
+    writeOrgConfigCollection(DEPLOYMENT_TYPE_CONFIG, "Deployment type", { deploymentType: id, answers: resolved.answers, overrides: accepted });
+    return { deploymentType: id, answers: resolved.answers, overrides: accepted, setup, settings: describeDeploymentSetup(setup), rejectedOverrides: rejected };
+  },
+  audit: "deployment_type_set",
+  auditCategory: "admin",
+  auditStatus: 200,
+  auditMeta: (_req, { id }, result) => ({ deploymentType: id, rejected: (result as { rejectedOverrides: string[] }).rejectedOverrides.length }),
+};
+mountCommand(router, deploymentTypeSetCommand);
 
 export default router;

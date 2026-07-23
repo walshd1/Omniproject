@@ -392,7 +392,7 @@ DEPLOYMENT TYPES — the on-ramp archetypes (solo self-hoster, small team, manag
 | GET | `/api/deployment-types/:id` | — | — |
 | POST | `/api/deployment-types/:id/resolve` | — | — |
 | GET | `/api/deployment-type` | — | The org's ONE active deployment type (admin-gated) + the change function |
-| PUT | `/api/deployment-type` | requireAnyRole(admin) | — |
+| PUT | `/api/deployment-type` | requireAnyRole(admin) | PUT /api/deployment-type — the org's single active deployment type; admin sets/changes it. |
 
 ### `artifacts/api-server/src/routes/dev-mode.ts`
 
