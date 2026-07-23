@@ -5,6 +5,7 @@ import { hasRole, isDeprovisioned, roleForReq } from "../lib/rbac";
 import { envFlag } from "../lib/env";
 import { getBroker, contextFromReq, type Broker, type ActorContext } from "../broker";
 import { assertProjectScope } from "../lib/project-scope";
+import { evaluateRuleset } from "../lib/ruleset";
 import { handleMcp, type McpExecutor, type McpPolicy } from "../lib/mcp";
 import { isActionApproved, listApprovedVocab, approvalContextFromReq } from "../lib/approved-actions";
 import { isFeatureEnabled } from "../lib/feature-modules";
@@ -158,6 +159,12 @@ router.post("/mcp", async (req, res) => {
       if (pid) {
         const authz = await assertProjectScope(req, pid);
         if (!authz.ok) throw new Error(`project "${pid}" is not in your scope`);
+      }
+      // Business ruleset on MCP writes — the same governance the HTTP issue routes run, surfaced as a
+      // JSON-RPC error (MCP has no HTTP 422 channel). A hard block refuses the tool call; reads never gate.
+      if (tool.write) {
+        const verdict = evaluateRuleset({ action: tool.action, write: true, role: roleForReq(req), projectId: pid || null, payload: args });
+        if (!verdict.allow) throw new Error(verdict.blocked!.message);
       }
       const result = await handler({ broker, ctx, req, pid, args });
       // Audit the REAL outcome: record success only after the handler resolves (was logged as

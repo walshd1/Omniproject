@@ -7,6 +7,7 @@
 import { Router, type Request, type Response } from "express";
 import { getSession } from "./auth";
 import { hasRole, requireRole } from "../lib/rbac";
+import { enforceBusinessRules } from "../lib/ruleset-guard";
 import { timesheetStoreFor, describeTimesheetSources, type TimesheetStore } from "../timesheets/store";
 import { applyTimesheetAction, TimesheetError, type Timesheet, type TimeEntry, type TimesheetAction, type TimesheetStatus } from "../timesheets/state-machine";
 
@@ -97,6 +98,7 @@ router.post("/timesheets", requireRole("contributor"), async (req, res) => {
     res.status(409).json({ error: `cannot edit a ${existing.status} timesheet` });
     return;
   }
+  if (!enforceBusinessRules(req, res, "create_timesheet", { payload: body as unknown as Record<string, unknown> })) return;
   const sheet: Timesheet = {
     id: body.id,
     resourceId: session?.sub ?? "__none__",

@@ -98,6 +98,25 @@ router.get("/scim/v2/Schemas", (_req, res) => {
 // ── Users ──────────────────────────────────────────────────────────────────────
 const asString = (v: unknown): string | undefined => (typeof v === "string" ? v : undefined);
 
+/** Validate a SCIM User full-replace body: a PUT replaces the whole resource, so `userName` is required,
+ *  and every provided field must be the right SHAPE (the store trusts what it's handed). Returns an error
+ *  message, or null when valid. */
+function validateScimUserBody(b: Partial<ScimUser>): string | null {
+  if (typeof b.userName !== "string" || !b.userName.trim()) return "userName is required.";
+  if (b.externalId !== undefined && typeof b.externalId !== "string") return "externalId must be a string.";
+  if (b.displayName !== undefined && typeof b.displayName !== "string") return "displayName must be a string.";
+  if (b.active !== undefined && typeof b.active !== "boolean") return "active must be a boolean.";
+  if (b.emails !== undefined && (!Array.isArray(b.emails) || !b.emails.every((e) => !!e && typeof e === "object" && typeof (e as { value?: unknown }).value === "string"))) return "emails must be an array of {value} objects.";
+  return null;
+}
+/** Validate a SCIM Group full-replace body: `displayName` required; `members`, when present, must be {value}[]. */
+function validateScimGroupBody(b: Partial<ScimGroup>): string | null {
+  if (typeof b.displayName !== "string" || !b.displayName.trim()) return "displayName is required.";
+  if (b.externalId !== undefined && typeof b.externalId !== "string") return "externalId must be a string.";
+  if (b.members !== undefined && (!Array.isArray(b.members) || !b.members.every((m) => !!m && typeof m === "object" && typeof (m as { value?: unknown }).value === "string"))) return "members must be an array of {value} objects.";
+  return null;
+}
+
 router.get("/scim/v2/Users", (req, res) => {
   listResponse(res, listUsers(asString(req.query["filter"])).map(userResource));
 });
@@ -120,7 +139,10 @@ router.get("/scim/v2/Users/:id", (req, res) => {
   res.type("application/scim+json").json(userResource(u));
 });
 router.put("/scim/v2/Users/:id", (req, res) => {
-  const u = replaceUser(String(req.params["id"]), (req.body ?? {}) as Partial<ScimUser>);
+  const b = (req.body ?? {}) as Partial<ScimUser>;
+  const err = validateScimUserBody(b);
+  if (err) { scimError(res, 400, err); return; }
+  const u = replaceUser(String(req.params["id"]), b);
   if (!u) { scimError(res, 404, "User not found."); return; }
   audit("scim.user.replace", { id: u.id, active: u.active });
   res.type("application/scim+json").json(userResource(u));
@@ -161,7 +183,10 @@ router.get("/scim/v2/Groups/:id", (req, res) => {
   res.type("application/scim+json").json(groupResource(g));
 });
 router.put("/scim/v2/Groups/:id", (req, res) => {
-  const g = replaceGroup(String(req.params["id"]), (req.body ?? {}) as Partial<ScimGroup>);
+  const b = (req.body ?? {}) as Partial<ScimGroup>;
+  const err = validateScimGroupBody(b);
+  if (err) { scimError(res, 400, err); return; }
+  const g = replaceGroup(String(req.params["id"]), b);
   if (!g) { scimError(res, 404, "Group not found."); return; }
   audit("scim.group.replace", { id: g.id });
   res.type("application/scim+json").json(groupResource(g));

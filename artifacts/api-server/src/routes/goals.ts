@@ -4,6 +4,7 @@ import { contextFromReq, withBrokerErrors } from "../broker";
 import { requireRole } from "../lib/rbac";
 import { assertProjectScope } from "../lib/project-scope";
 import { authorizeStorageTarget } from "../lib/storage-target-authz";
+import { enforceBusinessRules } from "../lib/ruleset-guard";
 import crypto2 from "node:crypto";
 import { artifactStoreEnabled, listArtifacts, getArtifact, putArtifact, deleteArtifact, listAllArtifactCollections, requireArtifactStore } from "../lib/artifact-store";
 import { getNotifyBus } from "../lib/notify-bus";
@@ -73,6 +74,7 @@ router.post("/goals", requireRole("contributor"), (req, res) => {
   catch (e) { if (e instanceof GoalError) { res.status(400).json({ error: e.message }); return; } throw e; }
   return withBrokerErrors(req, res, "create_goal failed", async () => {
     if (!(await authorizeTarget(req, res, input.storage, input.projectId, "write"))) return;
+    if (!enforceBusinessRules(req, res, "create_goal", { projectId: input.projectId ?? null, payload: input as unknown as Record<string, unknown> })) return;
     if (!requireArtifactStore(res)) return;
     const ctx = contextFromReq(req);
     const scope = goalScope(input, ctx.sub);
@@ -94,6 +96,7 @@ router.put("/goals/:id", requireRole("contributor"), (req, res) => {
   if (!parsed) { res.status(404).json({ error: "Goal not found" }); return; }
   return withBrokerErrors(req, res, "update_goal failed", async () => {
     if (!(await authorizeTarget(req, res, parsed.storage, parsed.projectId, "write"))) return;
+    if (!enforceBusinessRules(req, res, "update_goal", { projectId: parsed.projectId ?? null, payload: input as unknown as Record<string, unknown> })) return;
     if (!artifactStoreEnabled()) { res.status(404).json({ error: "Goal not found" }); return; }
     const ctx = contextFromReq(req);
     const scope = goalScope(parsed, ctx.sub);
@@ -116,6 +119,7 @@ router.post("/goals/:id/checkin", requireRole("contributor"), (req, res) => {
   if (!parsed) { res.status(404).json({ error: "Goal not found" }); return; }
   return withBrokerErrors(req, res, "checkin_goal failed", async () => {
     if (!(await authorizeTarget(req, res, parsed.storage, parsed.projectId, "write"))) return;
+    if (!enforceBusinessRules(req, res, "update_goal", { projectId: parsed.projectId ?? null, payload: input as unknown as Record<string, unknown> })) return;
     if (!artifactStoreEnabled()) { res.status(404).json({ error: "Goal not found" }); return; }
     const ctx = contextFromReq(req);
     const scope = goalScope(parsed, ctx.sub);
@@ -204,6 +208,7 @@ router.delete("/goals/:id", requireRole("contributor"), (req, res) =>
     const parsed = parseGoalId(id);
     if (!parsed) { res.status(204).end(); return; }
     if (!(await authorizeTarget(req, res, parsed.storage, parsed.projectId, "write"))) return;
+    if (!enforceBusinessRules(req, res, "delete_goal", { projectId: parsed.projectId ?? null })) return;
     if (!artifactStoreEnabled()) { res.status(204).end(); return; }
     const scope = goalScope(parsed, contextFromReq(req).sub);
     if (scope) deleteArtifact(GOAL_ARTIFACT, scope, id);

@@ -63,6 +63,8 @@ import { requireRole, requireAnyRole, roleForReq } from "../lib/rbac";
 import { forgetProjectGuid, collectProjectReferences } from "../lib/project-forget";
 import { getFxRates } from "../lib/currency";
 import { evaluateRuleset } from "../lib/ruleset";
+import { enforceBusinessRules } from "../lib/ruleset-guard";
+import { mountEntity, type EntityDescriptor } from "../lib/entity-pipeline";
 import { recordAudit } from "../lib/audit";
 import { CreateRaidEntryBody } from "@workspace/api-zod";
 import { resolveSeverityVocabulary } from "../lib/severity-vocabulary-config";
@@ -202,6 +204,8 @@ router.post("/projects", requireRole("manager"), async (req, res) => {
     res.status(400).json({ error: ruleErrors[0], errors: ruleErrors });
     return;
   }
+  // A new project has no project scope yet; a programme-scope ruleset override still applies.
+  if (!enforceBusinessRules(req, res, "create_project", { programmeId: (bodyParse.data as { programmeId?: string }).programmeId ?? null, payload: bodyParse.data as Record<string, unknown> })) return;
   await withBrokerErrors(req, res, "create_project failed", async () => {
     // Mint the backend-independent correlation GUID here (once, in the gateway) and pass it to the
     // backend to store + echo. It's server-minted, never from the client body — see Project.omniInstanceId.
@@ -308,6 +312,7 @@ router.patch("/projects/:projectId", requireRole("manager"), async (req, res) =>
   }
   await withBrokerErrors(req, res, "update_project failed", async () => {
     if (!(await guardProjectScope(req, res, paramsParse.data.projectId))) return;
+    if (!passesBusinessRules(req, res, "update_project", paramsParse.data.projectId, data as Record<string, unknown>)) return;
     const updated = await getBroker().updateProject(contextFromReq(req), paramsParse.data.projectId, data);
     res.json(updated);
   });
@@ -373,6 +378,7 @@ router.post("/projects/:projectId/issues/:issueId/items", requireRole("contribut
   }
   await withBrokerErrors(req, res, "create_task_item failed", async () => {
     if (!(await guardProjectScope(req, res, paramsParse.data.projectId))) return;
+    if (!passesBusinessRules(req, res, "create_issue_item", paramsParse.data.projectId, bodyParse.data as Record<string, unknown>)) return;
     const item = await getBroker().createTaskItem(
       contextFromReq(req),
       paramsParse.data.projectId,
@@ -383,63 +389,55 @@ router.post("/projects/:projectId/issues/:issueId/items", requireRole("contribut
   });
 });
 
-router.post("/projects/:projectId/issues", requireRole("contributor"), async (req, res) => {
-  const paramsParse = CreateIssueParams.safeParse(req.params);
-  const bodyParse = CreateIssueBody.safeParse(req.body);
-  if (!paramsParse.success || !bodyParse.success) {
-    res.status(400).json({ error: "Invalid request" });
-    return;
-  }
-  const { projectId } = paramsParse.data;
-  const body = bodyParse.data;
-  if (!passesBusinessRules(req, res, "create_issue", projectId, body)) return;
-
-  await withBrokerErrors(req, res, "create_issue failed", async () => {
-    if (!(await guardProjectScope(req, res, projectId))) return;
-    const issue = await getBroker().writeIssue(contextFromReq(req), "create", { projectId, ...body });
-    res.status(201).json(issue);
-  }, { projectId });
-});
-
-router.patch("/projects/:projectId/issues/:issueId", requireRole("contributor"), async (req, res) => {
-  const paramsParse = UpdateIssueParams.safeParse(req.params);
-  const bodyParse = UpdateIssueBody.safeParse(req.body);
-  if (!paramsParse.success || !bodyParse.success) {
-    res.status(400).json({ error: "Invalid request" });
-    return;
-  }
-  const { projectId, issueId } = paramsParse.data;
-  if (!passesBusinessRules(req, res, "update_issue", projectId, bodyParse.data)) return;
-
-  // expectedVersion drives optimistic concurrency: the broker rejects a stale
-  // edit as a `conflict` (409) — the demo adapter checks locally, a live
-  // adapter forwards it so the backend (e.g. OpenProject lockVersion) enforces it.
-  await withBrokerErrors(req, res, "update_issue failed", async () => {
-    if (!(await guardProjectScope(req, res, projectId))) return;
-    const updated = await getBroker().writeIssue(contextFromReq(req), "update", { projectId, issueId, ...bodyParse.data });
-    // A null result means the backend had no such issue to update. Emitting
-    // `200 null` would violate the Issue response schema the client expects, so
-    // surface it as a 404 instead.
-    if (updated == null) {
-      res.status(404).json({ error: "Issue not found" });
-      return;
-    }
-    res.json(updated);
-  }, { projectId, issueId });
-});
-
-router.delete("/projects/:projectId/issues/:issueId", requireRole("contributor"), async (req, res) => {
-  const params = parseRouteParams(DeleteIssueParams, req, res, "Invalid params");
-  if (!params) return;
-  const { projectId, issueId } = params;
-  if (!passesBusinessRules(req, res, "delete_issue", projectId)) return;
-
-  await withBrokerErrors(req, res, "delete_issue failed", async () => {
-    if (!(await guardProjectScope(req, res, projectId))) return;
-    await getBroker().writeIssue(contextFromReq(req), "delete", { projectId, issueId });
-    res.status(204).send();
-  }, { projectId, issueId });
-});
+// Issues — the canonical LANE 1 entity. Create/update/delete run the fixed
+// RBAC → validate → ruleset → scope → writeIssue pipeline (lib/entity-pipeline), so the three gates can
+// never drift apart. This replaces three near-identical hand-written handlers with one descriptor; a
+// null update result still surfaces as 404, delete still 204s (the op writes those itself).
+export const issueEntity: EntityDescriptor = {
+  entity: "issue",
+  basePath: "/projects/:projectId/issues",
+  idParam: "issueId",
+  scope: { kind: "project", param: "projectId" },
+  create: {
+    role: "contributor",
+    ruleAction: "create_issue",
+    validate: (req, res) => {
+      const paramsParse = CreateIssueParams.safeParse(req.params);
+      const bodyParse = CreateIssueBody.safeParse(req.body);
+      if (!paramsParse.success || !bodyParse.success) { res.status(400).json({ error: "Invalid request" }); return null; }
+      return bodyParse.data;
+    },
+    run: (req, _res, body) => getBroker().writeIssue(contextFromReq(req), "create", { projectId: String(req.params["projectId"]), ...(body as Record<string, unknown>) }),
+  },
+  update: {
+    role: "contributor",
+    ruleAction: "update_issue",
+    validate: (req, res) => {
+      const paramsParse = UpdateIssueParams.safeParse(req.params);
+      const bodyParse = UpdateIssueBody.safeParse(req.body);
+      if (!paramsParse.success || !bodyParse.success) { res.status(400).json({ error: "Invalid request" }); return null; }
+      return bodyParse.data;
+    },
+    // expectedVersion drives optimistic concurrency: the broker rejects a stale edit as a `conflict` (409).
+    // A null result means no such issue — surface it as 404 (200 null would violate the Issue schema).
+    run: async (req, res, body) => {
+      const updated = await getBroker().writeIssue(contextFromReq(req), "update", { projectId: String(req.params["projectId"]), issueId: String(req.params["issueId"]), ...(body as Record<string, unknown>) });
+      if (updated == null) { res.status(404).json({ error: "Issue not found" }); return undefined; }
+      return updated;
+    },
+  },
+  remove: {
+    role: "contributor",
+    ruleAction: "delete_issue",
+    validate: (req, res) => (parseRouteParams(DeleteIssueParams, req, res, "Invalid params") ? {} : null),
+    run: async (req, res) => {
+      await getBroker().writeIssue(contextFromReq(req), "delete", { projectId: String(req.params["projectId"]), issueId: String(req.params["issueId"]) });
+      res.status(204).send();
+      return undefined;
+    },
+  },
+};
+mountEntity(router, issueEntity);
 
 // ── Analytics: capacity + financials (strict rate limit) ──────────────────────
 
@@ -778,6 +776,7 @@ router.post("/projects/:projectId/raid", requireRole("manager"), async (req, res
 
   await withBrokerErrors(req, res, "create_raid_entry failed", async () => {
     if (!(await guardProjectScope(req, res, projectId))) return;
+    if (!passesBusinessRules(req, res, "create_raid", projectId, body)) return;
     const entry = await getBroker().addRaid(contextFromReq(req), projectId, body);
     res.status(201).json(entry);
   }, { projectId });

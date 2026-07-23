@@ -14,6 +14,7 @@ import { ResponsibilityAcceptanceError } from "../lib/responsibility-acceptance"
 import { getSettings } from "../lib/settings";
 import { type Role } from "../lib/rbac";
 import { recordAudit, actorForAudit } from "../lib/audit";
+import { mountCommand, type CommandDescriptor } from "../lib/action-base";
 import { logger } from "../lib/logger";
 
 /**
@@ -127,18 +128,26 @@ router.post("/approvals/:id/challenge", async (req: Request, res: Response) => {
   res.json(c);
 });
 
-// POST /approvals/:id/decision — submit a passkey-signed approve/reject.
-router.post("/approvals/:id/decision", async (req: Request, res: Response) => {
-  const actor = actorFor(req);
-  if (!actor) { res.status(401).json({ error: "authentication required" }); return; }
-  const signed = parseSigned(req.body, true);
-  if (!signed) { res.status(400).json({ error: "a signed decision (decision, credentialId, clientDataJSON, authenticatorData, signature) is required" }); return; }
-  try {
-    const r = await submitDecision(String(req.params["id"]), actor, signed);
-    recordAudit({ ts: new Date().toISOString(), category: "request", action: `approval.${signed.decision}`, actor: actorForAudit(req), write: true, result: "success", meta: { proposalId: req.params["id"], status: r.status } });
-    res.json(r);
-  } catch (err) { fail(res, err, req, `approval.${signed.decision}`); }
-});
+// POST /approvals/:id/decision — submit a passkey-signed approve/reject. LANE 2: the action base runs the
+// fixed shell (authorize → validate → run → audit → map errors); the passkey assertion + approver
+// eligibility stay INSIDE submitDecision (the service), which is the command's irreducible core.
+export const decisionCommand: CommandDescriptor<{ actor: Actor; signed: SignedDecision }> = {
+  name: "approval.decide",
+  method: "post",
+  path: "/approvals/:id/decision",
+  parse: (req, res) => {
+    const actor = actorFor(req);
+    if (!actor) { res.status(401).json({ error: "authentication required" }); return null; }
+    const signed = parseSigned(req.body, true);
+    if (!signed) { res.status(400).json({ error: "a signed decision (decision, credentialId, clientDataJSON, authenticatorData, signature) is required" }); return null; }
+    return { actor, signed };
+  },
+  run: (req, _res, { actor, signed }) => submitDecision(String(req.params["id"]), actor, signed),
+  audit: ({ signed }) => `approval.${signed.decision}`,
+  auditMeta: (req, _args, result) => ({ proposalId: req.params["id"], status: (result as { status?: unknown }).status }),
+  onError: (res, err, req, action) => fail(res, err, req, action),
+};
+mountCommand(router, decisionCommand);
 
 // ── PMO escape hatches (pmo+ only) ───────────────────────────────────────────
 // POST /approvals/:id/redirect — reassign the current stage's approvers.

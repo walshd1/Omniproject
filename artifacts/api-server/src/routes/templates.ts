@@ -3,6 +3,7 @@ import { normalisedBy } from "../lib/settings";
 import { settingsCollectionRouter } from "../lib/settings-collection-router";
 import { readConfigCollection } from "../lib/scoped-config";
 import { requireAnyRole, requireRole } from "../lib/rbac";
+import { enforceBusinessRules } from "../lib/ruleset-guard";
 import { getBroker, contextFromReq, withBrokerErrors } from "../broker";
 import type { IssueWrite } from "../broker/types";
 import { planInstantiation, validateTemplates, TemplateError } from "../lib/project-template";
@@ -34,6 +35,7 @@ router.post("/templates/:id/instantiate", requireRole("manager"), async (req, re
   await withBrokerErrors(req, res, "instantiate template failed", async () => {
     const broker = getBroker();
     const ctx = contextFromReq(req);
+    if (!enforceBusinessRules(req, res, "create_project", { programmeId: typeof body.programmeId === "string" ? body.programmeId : null, payload: plan.project as unknown as Record<string, unknown> })) return;
     const project = await broker.createProject(ctx, { ...plan.project, omniInstanceId: randomUUID() });
     const seeded: string[] = [];
     for (const issue of plan.seedIssues) {

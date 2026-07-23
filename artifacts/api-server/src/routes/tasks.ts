@@ -6,6 +6,7 @@ import { Router, type Request, type Response } from "express";
 import { withBrokerErrors } from "../broker";
 import { getTasks, getTask, createTask, updateTask, brokerHasTasks, getTaskComments, addTaskComment, getTaskAttachments, addTaskAttachment, brokerHasTaskAttachments } from "../lib/data";
 import { requireRole } from "../lib/rbac";
+import { enforceBusinessRules } from "../lib/ruleset-guard";
 import { assertTaskScope, filterTasksInScope } from "../lib/project-scope";
 import { auditScopeDenied } from "../lib/audit";
 import { getSession } from "./auth";
@@ -269,7 +270,9 @@ router.post("/tasks/:taskId/comments", requireRole("contributor"), (req, res) =>
   const body = parseOr400(req, res, CommentBody);
   if (!body) return;
   return withBrokerErrors(req, res, "add_task_comment failed", async () => {
-    if (!(await guardTaskAccess(req, res, String(req.params["taskId"])))) return;
+    const task = await guardTaskAccess(req, res, String(req.params["taskId"]));
+    if (!task) return;
+    if (!enforceBusinessRules(req, res, "add_task_comment", { projectId: task.projectId ?? null, payload: body as unknown as Record<string, unknown> })) return;
     res.status(201).json(await addTaskComment(req, String(req.params["taskId"]), body));
   });
 });
@@ -295,7 +298,9 @@ router.post("/tasks/:taskId/attachments", requireRole("contributor"), (req, res)
   const body = parseOr400(req, res, AttachmentBody);
   if (!body) return;
   return withBrokerErrors(req, res, "add_task_attachment failed", async () => {
-    if (!(await guardTaskAccess(req, res, String(req.params["taskId"])))) return;
+    const task = await guardTaskAccess(req, res, String(req.params["taskId"]));
+    if (!task) return;
+    if (!enforceBusinessRules(req, res, "add_task_attachment", { projectId: task.projectId ?? null, payload: body as unknown as Record<string, unknown> })) return;
     res.status(201).json(await addTaskAttachment(req, String(req.params["taskId"]), body));
   });
 });
