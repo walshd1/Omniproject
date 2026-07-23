@@ -10,6 +10,10 @@ import {
   decisionCommand, redirectCommand, bypassCommand, passkeyRevokeCommand, passkeyRevokeAllCommand,
 } from "../routes/approvals";
 import { revokeUserSessionsCommand, auditLogDisposeCommand } from "../routes/security";
+import {
+  aiProviderRollbackCommand, aiProviderUpsertCommand, aiProviderRemoveCommand,
+  aiProviderKeySetCommand, aiProviderKeyClearCommand, aiCapabilityMappingCommand,
+} from "../routes/ai-providers";
 import { collectionWriteRoutes } from "../lib/settings-collection-router";
 
 /**
@@ -75,13 +79,17 @@ const LANE2 = new Set<string>([
   ...commandRoutes(passkeyRevokeAllCommand),
   ...commandRoutes(revokeUserSessionsCommand),
   ...commandRoutes(auditLogDisposeCommand),
+  ...commandRoutes(aiProviderRollbackCommand),
+  ...commandRoutes(aiProviderUpsertCommand),
+  ...commandRoutes(aiProviderRemoveCommand),
+  ...commandRoutes(aiProviderKeySetCommand),
+  ...commandRoutes(aiProviderKeyClearCommand),
+  ...commandRoutes(aiCapabilityMappingCommand),
 ]);
 
 // Lane 3 — hand-written writes not (yet) on a spine. SEED — regenerate by running the first test with this
 // empty and pasting its "uncovered" list. New writes must join a lane; this list may only SHRINK.
 const BESPOKE_WRITES = new Set<string>([
-  "DELETE /ai/providers/:id",
-  "DELETE /ai/providers/:id/key",
   "DELETE /approvals/workflow-acceptances/:workflowId",
   "DELETE /branding",
   "DELETE /comments/:roomId/:commentId",
@@ -117,8 +125,6 @@ const BESPOKE_WRITES = new Set<string>([
   "POST /ai/estimate",
   "POST /ai/insights",
   "POST /ai/nl-action",
-  "POST /ai/providers",
-  "POST /ai/providers/rollback",
   "POST /ai/rebalance",
   "POST /ai/suggest-backend",
   "POST /ai/transcribe",
@@ -224,10 +230,8 @@ const BESPOKE_WRITES = new Set<string>([
   "PUT /admin/ruleset",
   "PUT /admin/ruleset/fields",
   "PUT /admin/ruleset/scope",
-  "PUT /ai/capabilities/:cap",
   "PUT /ai/model-allowlist",
   "PUT /ai/provider-allowlist",
-  "PUT /ai/providers/:id/key",
   "PUT /ai/stt-provider-allowlist",
   "PUT /branding",
   "PUT /calendar/push",

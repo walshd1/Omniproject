@@ -34,13 +34,13 @@ Typed + bounded schemas for the admin write bodies (untrusted boundary input).
 | Method | Path | Gate | Description |
 | --- | --- | --- | --- |
 | GET | `/api/ai/providers` | requireRole(admin) | GET /api/ai/providers — the registry + capability map (no secrets) |
-| GET | `/api/ai/providers/rollback` | requireRole(admin) | scope for this undo — see lib/ai-providers.ts). |
-| POST | `/api/ai/providers/rollback` | requireRole(admin) + requireStepUp | — |
-| POST | `/api/ai/providers` | requireRole(admin) + requireStepUp | POST /api/ai/providers — add / update a provider entity (admin + step-up) |
-| DELETE | `/api/ai/providers/:id` | requireRole(admin) + requireStepUp | DELETE /api/ai/providers/:id — remove an entity + its key (admin + step-up) |
-| PUT | `/api/ai/providers/:id/key` | requireRole(admin) + requireStepUp | resulting presence + fingerprint so the admin can confirm the paste landed. |
-| DELETE | `/api/ai/providers/:id/key` | requireRole(admin) + requireStepUp | DELETE /api/ai/providers/:id/key — remove a stored key (admin + step-up) |
-| PUT | `/api/ai/capabilities/:cap` | requireRole(admin) + requireStepUp | PUT /api/ai/capabilities/:cap — set the ordered provider list (admin + step-up) |
+| GET | `/api/ai/providers/rollback` | requireRole(admin) | One-generation undo availability for the last provider/mapping change (read). |
+| POST | `/api/ai/providers/rollback` | requireRole(admin) + requireStepUp | POST /api/ai/providers/rollback — one-generation undo for the last provider/mapping change; same admin + step-up gate as the writes it reverses. |
+| POST | `/api/ai/providers` | requireRole(admin) + requireStepUp | POST /api/ai/providers — add / update a provider entity (admin + step-up). |
+| DELETE | `/api/ai/providers/:id` | requireRole(admin) + requireStepUp | DELETE /api/ai/providers/:id — remove an entity + its key (admin + step-up). |
+| PUT | `/api/ai/providers/:id/key` | requireRole(admin) + requireStepUp | PUT /api/ai/providers/:id/key — store an API key in the vault (write-only). |
+| DELETE | `/api/ai/providers/:id/key` | requireRole(admin) + requireStepUp | DELETE /api/ai/providers/:id/key — remove a stored key (admin + step-up). |
+| PUT | `/api/ai/capabilities/:cap` | requireRole(admin) + requireStepUp | PUT /api/ai/capabilities/:cap — set the ordered provider list for a capability (admin + step-up). |
 
 ### `artifacts/api-server/src/routes/ai.ts`
 
