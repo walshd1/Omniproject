@@ -1030,7 +1030,7 @@ Typed + bounded bodies for the admin write endpoints (untrusted input).
 | --- | --- | --- | --- |
 | GET | `/api/security/keys` | requireRole(admin) | — |
 | POST | `/api/security/keys/:name/revoke` | requireRole(admin) + requireStepUp | — |
-| POST | `/api/security/sessions/revoke-user` | requireRole(admin) + requireStepUp | — |
+| POST | `/api/security/sessions/revoke-user` | requireRole(admin) + requireStepUp | POST /security/sessions/revoke-user — revoke a user's sessions (admin + step-up). |
 | GET | `/api/security/config-key` | requireRole(admin) | The current internal-key FINGERPRINT (non-secret) — confirm a match without revealing. |
 | POST | `/api/security/config/export` | requireRole(admin) + requireStepUp | + the ephemeral key (the only secret that leaves, decrypting just this bundle). |
 | GET | `/api/admin/maintenance` | requireRole(admin) | Read the current lockdown state (any admin). |
@@ -1042,7 +1042,7 @@ Typed + bounded bodies for the admin write endpoints (untrusted input).
 | GET | `/api/security/audit/anchor` | requireRole(admin) | the gateway says it does — and that the gateway attests to it. |
 | POST | `/api/security/audit/verify` | requireRole(admin) | recomputes the keyed hash chain and reports the first broken link, if any. |
 | GET | `/api/security/audit/log` | requireRole(admin) | whether it's durable at rest (a config dir is set) or RAM-only. |
-| POST | `/api/security/audit/log/dispose` | requireRole(admin) + requireStepUp | `historyRetention.retentionDays` (+ the hard cap). |
+| POST | `/api/security/audit/log/dispose` | requireRole(admin) + requireStepUp | POST to enforce the retention window on the evidence log NOW — prune events older than `historyRetention.retentionDays` (+ the hard cap). |
 | GET | `/api/admin/approvals` | requireRole(admin) | The pending proposals awaiting a second approver (any admin can view the queue). |
 | POST | `/api/admin/approvals/:id/approve` | requireRole(admin) + requireStepUp | from the proposer. |
 | POST | `/api/admin/approvals/:id/reject` | requireRole(admin) + requireStepUp | Reject a proposal (admin + step-up; any admin, incl. |

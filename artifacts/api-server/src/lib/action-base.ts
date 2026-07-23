@@ -1,4 +1,4 @@
-import type { IRouter, Request, Response } from "express";
+import type { IRouter, Request, Response, RequestHandler } from "express";
 import { requireRole, type Role } from "./rbac";
 import { recordAudit, actorForAudit, type AuditCategory } from "./audit";
 import { enforceBusinessRules } from "./ruleset-guard";
@@ -26,6 +26,10 @@ export interface CommandDescriptor<A> {
   path: string;
   /** Optional RBAC floor (requireRole). Omit for "any authenticated session" (finer eligibility lives in `parse`). */
   role?: Role;
+  /** Extra middleware gates applied AFTER the role floor, before the handler — e.g. `requireStepUp`,
+   *  `requireEntitlement("x")`, `requireAnyRole(...)`. The action base runs them in order, so a command
+   *  with a multi-gate stack stays on the spine instead of falling back to a hand-written route. */
+  gates?: RequestHandler[];
   /** Authorize + validate the request into typed args, or return null having ALREADY sent a 4xx. */
   parse: (req: Request, res: Response) => A | null;
   /** Optional business-ruleset action, when the command mutates a rule-governed entity. */
@@ -77,6 +81,10 @@ export function mountCommand<A>(router: IRouter, desc: CommandDescriptor<A>): vo
       else throw err;
     }
   };
-  const mw = desc.role ? [requireRole(desc.role), handler] : [handler];
+  const mw = [
+    ...(desc.role ? [requireRole(desc.role)] : []),
+    ...(desc.gates ?? []),
+    handler,
+  ];
   router[desc.method](desc.path, ...mw);
 }

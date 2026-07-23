@@ -17,6 +17,7 @@ import { maintenanceEngaged, maintenanceReason, engageMaintenance, releaseMainte
 import { requiresDualControl, propose, approve, reject, listProposals, registerExecutor, type Actor } from "../lib/dual-control";
 import type { Request, Response } from "express";
 import { v, parseOr400 } from "../lib/validate";
+import { mountCommand, type CommandDescriptor } from "../lib/action-base";
 
 // Typed + bounded bodies for the admin write endpoints (untrusted input).
 const REVOKE_KEY_BODY = v.object({ reason: v.optional(v.string({ trim: true, max: 500 })) });
@@ -85,15 +86,21 @@ router.post("/security/keys/:name/revoke", requireRole("admin"), requireStepUp, 
   res.json({ status });
 });
 
-router.post("/security/sessions/revoke-user", requireRole("admin"), requireStepUp, (req, res) => {
-  const parsed = parseOr400(req, res, REVOKE_USER_BODY);
-  if (!parsed) return;
-  const sub = parsed.sub;
-  revokeUserSessions(sub);
-  persistSecurityState();
-  recordRequestAudit(req, { category: "admin", action: "sessions.revoke-user", write: true, meta: { sub } });
-  res.json({ ok: true });
-});
+// POST /security/sessions/revoke-user — revoke a user's sessions (admin + step-up). LANE 2 (action base):
+// the step-up gate rides the descriptor's `gates`, and the shell standardises the success audit.
+export const revokeUserSessionsCommand: CommandDescriptor<{ sub: string }> = {
+  name: "sessions.revoke-user",
+  method: "post",
+  path: "/security/sessions/revoke-user",
+  role: "admin",
+  gates: [requireStepUp],
+  parse: (req, res) => { const p = parseOr400(req, res, REVOKE_USER_BODY); return p ? { sub: p.sub } : null; },
+  run: async (_req, _res, { sub }) => { revokeUserSessions(sub); persistSecurityState(); return { ok: true }; },
+  audit: "sessions.revoke-user",
+  auditCategory: "admin",
+  auditMeta: (_req, { sub }) => ({ sub }),
+};
+mountCommand(router, revokeUserSessionsCommand);
 
 // The current internal-key FINGERPRINT (non-secret) — confirm a match without revealing.
 router.get("/security/config-key", requireRole("admin"), (_req, res) => {
@@ -208,11 +215,20 @@ router.get("/security/audit/log", requireRole("admin"), (_req, res) => {
 
 // POST to enforce the retention window on the evidence log NOW — prune events older than
 // `historyRetention.retentionDays` (+ the hard cap). Admin + step-up (it deletes durable evidence), audited.
-router.post("/security/audit/log/dispose", requireRole("admin"), requireStepUp, (req, res) => {
-  const result = disposeAuditLog();
-  recordRequestAudit(req, { category: "admin", action: "audit_log.dispose", write: true, result: "success", meta: result });
-  res.json(result);
-});
+// POST /security/audit/log/dispose — enforce retention now, disposing aged evidence (admin + step-up). LANE 2.
+export const auditLogDisposeCommand: CommandDescriptor<Record<string, never>> = {
+  name: "audit_log.dispose",
+  method: "post",
+  path: "/security/audit/log/dispose",
+  role: "admin",
+  gates: [requireStepUp],
+  parse: () => ({}),
+  run: async () => disposeAuditLog(),
+  audit: "audit_log.dispose",
+  auditCategory: "admin",
+  auditMeta: (_req, _args, result) => result as Record<string, unknown>,
+};
+mountCommand(router, auditLogDisposeCommand);
 
 // ── Dual-control approval queue (maker-checker) ──────────────────────────────────
 // The pending proposals awaiting a second approver (any admin can view the queue).

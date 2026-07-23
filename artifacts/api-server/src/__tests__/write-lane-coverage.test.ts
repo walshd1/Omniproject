@@ -8,6 +8,7 @@ import { issueEntity } from "../routes/projects";
 import {
   decisionCommand, redirectCommand, bypassCommand, passkeyRevokeCommand, passkeyRevokeAllCommand,
 } from "../routes/approvals";
+import { revokeUserSessionsCommand, auditLogDisposeCommand } from "../routes/security";
 import { collectionWriteRoutes } from "../lib/settings-collection-router";
 
 /**
@@ -71,6 +72,8 @@ const LANE2 = new Set<string>([
   ...commandRoutes(bypassCommand),
   ...commandRoutes(passkeyRevokeCommand),
   ...commandRoutes(passkeyRevokeAllCommand),
+  ...commandRoutes(revokeUserSessionsCommand),
+  ...commandRoutes(auditLogDisposeCommand),
 ]);
 
 // Lane 3 — hand-written writes not (yet) on a spine. SEED — regenerate by running the first test with this
@@ -169,12 +172,10 @@ const BESPOKE_WRITES = new Set<string>([
   "POST /rate-card/rollback",
   "POST /scim/v2/Groups",
   "POST /scim/v2/Users",
-  "POST /security/audit/log/dispose",
   "POST /security/audit/verify",
   "POST /security/config/export",
   "POST /security/data-residency/validate",
   "POST /security/keys/:name/revoke",
-  "POST /security/sessions/revoke-user",
   "POST /setup/charity-onboarding",
   "POST /setup/config-diff",
   "POST /setup/config-dir/clear-backup",
