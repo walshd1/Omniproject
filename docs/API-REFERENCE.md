@@ -661,7 +661,7 @@ The signed-in user's own preferences.
 | Method | Path | Gate | Description |
 | --- | --- | --- | --- |
 | GET | `/api/me/prefs` | — | — |
-| PUT | `/api/me/prefs` | — | — |
+| PUT | `/api/me/prefs` | — | PUT /api/me/prefs — save this user's own prefs (so their setup follows them across sessions/devices). |
 
 ### `artifacts/api-server/src/routes/methodology-composition.ts`
 

@@ -43,6 +43,7 @@ import { methodologyCompositionSaveCommand, methodologyDeployCommand } from "../
 import { aiProviderAllowlistCommand, aiModelAllowlistCommand, sttProviderAllowlistCommand } from "../routes/ai-allowlist";
 import { deploymentTypeSetCommand } from "../routes/deployment-types";
 import { calendarPushSaveCommand } from "../routes/calendar";
+import { mePrefsSaveCommand } from "../routes/me";
 import { collectionWriteRoutes } from "../lib/settings-collection-router";
 
 /**
@@ -152,6 +153,7 @@ const LANE2 = new Set<string>([
   ...commandRoutes(sttProviderAllowlistCommand),
   ...commandRoutes(deploymentTypeSetCommand),
   ...commandRoutes(calendarPushSaveCommand),
+  ...commandRoutes(mePrefsSaveCommand),
 ]);
 
 // Lane 3 — hand-written writes not (yet) on a spine. SEED — regenerate by running the first test with this
@@ -290,7 +292,6 @@ const BESPOKE_WRITES = new Set<string>([
   "PUT /governance/:id",
   "PUT /history/retention",
   "PUT /logging-sync",
-  "PUT /me/prefs",
   "PUT /projects/:projectId/mapping/:slot/:rowId",
   "PUT /projects/:projectId/type",
   "PUT /projects/:projectId/wbs/:wbsId",
