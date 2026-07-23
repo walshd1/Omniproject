@@ -13,7 +13,7 @@ import {
 import { ResponsibilityAcceptanceError } from "../lib/responsibility-acceptance";
 import { getSettings } from "../lib/settings";
 import { type Role } from "../lib/rbac";
-import { recordAudit, actorForAudit } from "../lib/audit";
+import { recordAudit, recordRequestAudit, actorForAudit } from "../lib/audit";
 import { mountCommand, type CommandDescriptor } from "../lib/action-base";
 import { logger } from "../lib/logger";
 
@@ -62,7 +62,7 @@ function parseSigned(body: unknown, withDecision: boolean): SignedDecision | nul
 /** Map a thrown error to a client status: auth/verify failures are 4xx, everything else 500. */
 function fail(res: Response, err: unknown, req: Request, action: string): void {
   if (err instanceof AssertionError || err instanceof ApprovalServiceError || err instanceof ApprovalChainError || err instanceof ResponsibilityAcceptanceError) {
-    recordAudit({ ts: new Date().toISOString(), category: "request", action, actor: actorForAudit(req), write: true, result: "error", status: 403 });
+    recordRequestAudit(req, { category: "request", action, write: true, result: "error", status: 403 });
     res.status(403).json({ error: err.message });
     return;
   }
@@ -100,14 +100,14 @@ router.post("/approvals/passkey/revoke", requireRole("pmo"), async (req: Request
   const sub = str((req.body as Record<string, unknown>)?.["sub"], 256);
   if (!sub) { res.status(400).json({ error: "sub is required" }); return; }
   await revokeCredentials(sub);
-  recordAudit({ ts: new Date().toISOString(), category: "request", action: "approval.passkey.revoke", actor: actorForAudit(req), write: true, result: "success", meta: { target: sub } });
+  recordRequestAudit(req, { category: "request", action: "approval.passkey.revoke", write: true, result: "success", meta: { target: sub } });
   res.json({ ok: true, sub });
 });
 
 // POST /approvals/passkey/revoke-all — revoke EVERYONE's passkeys (emergency reset). Heavily audited.
 router.post("/approvals/passkey/revoke-all", requireRole("pmo"), async (req: Request, res: Response) => {
   const revoked = await revokeAllCredentials();
-  recordAudit({ ts: new Date().toISOString(), category: "request", action: "approval.passkey.revoke_all", actor: actorForAudit(req), write: true, result: "success", meta: { revoked } });
+  recordRequestAudit(req, { category: "request", action: "approval.passkey.revoke_all", write: true, result: "success", meta: { revoked } });
   res.json({ ok: true, revoked });
 });
 
@@ -163,7 +163,7 @@ router.post("/approvals/:id/redirect", requireRole("pmo"), async (req: Request, 
   }
   try {
     await redirectProposal(String(req.params["id"]), parsed);
-    recordAudit({ ts: new Date().toISOString(), category: "request", action: "approval.redirect", actor: actorForAudit(req), write: true, result: "success", meta: { proposalId: req.params["id"] } });
+    recordRequestAudit(req, { category: "request", action: "approval.redirect", write: true, result: "success", meta: { proposalId: req.params["id"] } });
     res.json({ ok: true });
   } catch (err) { fail(res, err, req, "approval.redirect"); }
 });
@@ -185,7 +185,7 @@ router.post("/approvals/:id/bypass", requireRole("pmo"), async (req: Request, re
   if (!signed) { res.status(400).json({ error: "a signed bypass (credentialId, clientDataJSON, authenticatorData, signature) is required" }); return; }
   try {
     const r = await bypassProposal(String(req.params["id"]), actor, signed);
-    recordAudit({ ts: new Date().toISOString(), category: "request", action: "approval.bypass", actor: actorForAudit(req), write: true, result: "success", meta: { proposalId: req.params["id"] } });
+    recordRequestAudit(req, { category: "request", action: "approval.bypass", write: true, result: "success", meta: { proposalId: req.params["id"] } });
     res.json({ status: "approved", ...r });
   } catch (err) { fail(res, err, req, "approval.bypass"); }
 });
@@ -245,7 +245,7 @@ router.delete("/approvals/workflow-acceptances/:workflowId", async (req: Request
   const workflowId = String(req.params["workflowId"]);
   if (!workflowScopeGate(req, res, workflowId)) return;
   revokeAcceptance(workflowId);
-  recordAudit({ ts: new Date().toISOString(), category: "request", action: "approval.acceptance.revoke", actor: actorForAudit(req), write: true, result: "success", meta: { workflowId } });
+  recordRequestAudit(req, { category: "request", action: "approval.acceptance.revoke", write: true, result: "success", meta: { workflowId } });
   res.json({ ok: true, workflowId });
 });
 
