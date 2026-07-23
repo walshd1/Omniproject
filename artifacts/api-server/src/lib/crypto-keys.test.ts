@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import crypto from "node:crypto";
-import { deriveKey, deriveKeyCached, decodeKey32, fingerprint, constantTimeEqual } from "./crypto-keys";
+import { deriveKey, deriveKeyCached, decodeKey32, fingerprint, constantTimeEqual, constantTimeEqualBuf } from "./crypto-keys";
 
 test("deriveKey is HKDF-SHA256, 32 bytes, stable per (secret, info), domain-separated", () => {
   const k = deriveKey("a-secret", "domain-a");
@@ -46,4 +46,11 @@ test("constantTimeEqual matches equal strings, rejects mismatches and length dif
   assert.equal(constantTimeEqual("same-value", "different"), false);
   assert.equal(constantTimeEqual("short", "much-longer-value"), false);
   assert.equal(constantTimeEqual("abc", "abd"), false);
+});
+
+test("constantTimeEqualBuf matches equal buffers, rejects mismatches and length differences", () => {
+  assert.equal(constantTimeEqualBuf(Buffer.from("deadbeef", "hex"), Buffer.from("deadbeef", "hex")), true);
+  assert.equal(constantTimeEqualBuf(Buffer.alloc(0), Buffer.alloc(0)), true);
+  assert.equal(constantTimeEqualBuf(Buffer.from("deadbeef", "hex"), Buffer.from("deadbee0", "hex")), false); // same length, differs
+  assert.equal(constantTimeEqualBuf(Buffer.from("aabb", "hex"), Buffer.from("aabbcc", "hex")), false); // length differs
 });

@@ -1509,6 +1509,7 @@ Small shared key/hash primitives, so the same derivations aren't hand-rolled in 
 | `decodeKey32` | Parse a base64 key that must be exactly 32 bytes (an AES-256 key), or null if it isn't. |
 | `fingerprint` | A short hex fingerprint of a value (SHA-256, truncated). |
 | `constantTimeEqual` | Constant-time string equality: length-checked first (a length mismatch is not secret-dependent, so short-circuiting on it leaks nothing), then `crypto.timingSafeEqual` over equal-length buffers so a MATCHING prefix can't be timed out of a comparison against a secret (tokens, HMACs, CSRF doubles-submit values, SCIM bearer). |
+| `constantTimeEqualBuf` | Buffer variant of {@link constantTimeEqual} — the SAME length-check-then-`timingSafeEqual` mechanism for raw bytes (e.g. hex-decoded password hashes / MACs), so byte-comparing callers don't re-hand-roll it. |
 
 ### `artifacts/api-server/src/lib/csp.ts`
 
