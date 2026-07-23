@@ -67,12 +67,21 @@ Two diffs compose:
 
 - **Config/settings diff** — already exists (`config-diff`); extended to show the config-*schema* delta a
   release introduces (keys/validators added/removed/changed).
-- **Release/code diff** — net-new: a signed manifest of the **OCI layer delta** between the current and target
-  image digests, plus the changelog and the migrations bundled. Container images are already
-  content-addressable and layered, so a registry pull fetches *only changed layers* — the "copy container,
-  digest-delta update" is realised by pinning to **digests** and letting the layer store dedup. The net-new
-  value is making that delta **explicit, signed, visible, and coupled to the config migration** — not a new
-  delta algorithm (OCI layer granularity is the practical delta unit; sub-layer bsdiff is out of scope).
+- **Release/code diff** — net-new: a **signed diff file** (the release-diff manifest) describing the **OCI layer
+  delta** between the current and target image digests, plus the config-schema delta, the migrations, and the
+  changelog. It is signed with the publisher's **private** key and verified on the instance with the matching
+  **public** key (Ed25519, reusing `lib/signing.ts`), so a holder of the public key can prove the diff is
+  authentic and unaltered *without* the publisher's secret. Container images are already content-addressable
+  and layered, so a registry pull fetches *only changed layers* — the "copy container, digest-delta update" is
+  realised by pinning to **digests** and letting the layer store dedup. The net-new value is making that delta
+  **explicit, signed, visible, and coupled to the config migration** — not a new delta algorithm (OCI layer
+  granularity is the practical delta unit; sub-layer bsdiff is out of scope).
+
+The signature covers the **delta content itself** — the layer digests, the target image digest, the
+config-schema delta and the migrations are all inside the signed payload — so tampering with *what the update
+changes* (not just its metadata) breaks verification. The diff file is the signed unit; the image digests it
+names are in turn content-addressed by the registry, so trust chains from *one published public key* down to
+the exact bytes that will run.
 
 Why this composes well here: the runtime image ships only the esbuild bundle + static SPA (no `node_modules`),
 so the **app bundle is normally the one layer that changes** — deltas are naturally small *provided the build
@@ -127,14 +136,43 @@ interface ReleaseDescriptor {
   changelog: string;             // markdown
   notes?: string;
 
-  /** Trust — Ed25519 over canonical(descriptor without `signature`). Per-delta, not per-image. */
+  /** Trust — the signed diff. Ed25519 over canonical(descriptor without `signature`), so the payload the
+   *  signature covers INCLUDES image.digest, delta.layers, config.schemaDelta and config.migrations — the
+   *  update's actual effect, not just its metadata. `publicKeyId` selects which trusted public key verifies
+   *  it (see "Signing & key trust"). Per-delta, not per-image. */
   signature: {
     algorithm: "Ed25519";
-    publicKeyId: string;
+    publicKeyId: string;         // which published public key verifies this diff
     value: string;               // base64
   };
 }
 ```
+
+### Signing & key trust
+
+The diff file is signed with the publisher's **private** key and verified on every instance with the matching
+**public** key before *anything* is staged (§10 fail closed). This reuses the gateway's existing Ed25519
+primitive (`lib/signing.ts` — PEM public-key `verifySignature`), the same asymmetric mechanism that attests
+the audit/provenance anchors, so no new crypto is introduced.
+
+- **What is signed:** `canonical(ReleaseDescriptor without .signature)` — i.e. the whole diff, delta content
+  included. Any edit to the layer delta, target digest, schema delta or migrations invalidates the signature.
+- **Verification is against a *trusted* public key, never a key carried by the release.** A release names its
+  `publicKeyId`; the instance resolves that id in its **update trust anchor** — a small set of pinned publisher
+  public keys held in the sealed config (admin-managed, like `API_TOKENS`/role-map: fixed in code shape,
+  data-configured). A `publicKeyId` the instance doesn't trust ⇒ **reject** (an update signed by an unknown key
+  is never merely "unsigned" — it is refused).
+- **Key rotation & revocation:** the trust anchor is a *set*, so a publisher can rotate signing keys by
+  publishing the new public key into the anchor ahead of the release that uses it; a compromised key is dropped
+  from the anchor and every release it signed stops verifying. This mirrors the key-registry's
+  versioned/revocable model (`lib/key-registry.ts`).
+- **Chain of trust to the running bytes:** the signature vouches for the diff → the diff pins `image.digest` and
+  `delta.layers[].digest` → the registry is content-addressed, so those digests *are* the bytes. One trusted
+  public key therefore anchors trust all the way down to what actually runs; there is no mutable tag anywhere in
+  the path.
+- **Non-repudiation + audit:** the verified `publicKeyId` + the diff's own hash are recorded on the tamper-evident
+  audit chain at stage/promote, so "who signed the release an admin promoted, and exactly which delta" is
+  provable after the fact.
 
 An **update session** tracks one in-flight update; it is itself audited on the tamper-evident chain:
 
@@ -259,8 +297,11 @@ per target.
    Docker socket* (more self-contained, more blast radius)?
 3. **Is eval-before-prod mandatory or optional** per paranoia tier? (Most complex phase; optional lets 0–1 ship
    first.)
-4. **Release trust model** — self-signed releases you publish, or verify against an external registry /
-   attestation? (The signature is over the *diff manifest*, so trust is per-delta.)
+4. **Release trust model + anchor bootstrap** — the diff is verified against a pinned publisher public key in the
+   instance's update trust anchor. The open question is *how the first key gets there*: shipped as a bundled
+   trust root in the image (convenient, but couples key rotation to releases), admin-pinned on setup (stronger,
+   more operator burden), or verified against an external attestation (e.g. sigstore/registry). And: one
+   publisher key, or an org-supplied key so a customer can re-sign/vet releases themselves?
 5. **Downgrade policy** — support rolling *code* back onto a newer config (the unguarded direction, gated by
    `minConfigSchema` + `migrations.backward`), or always "restore the paired backup + old digest" (simpler,
    safer)?
