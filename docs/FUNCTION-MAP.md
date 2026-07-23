@@ -2183,6 +2183,14 @@ Shared primitives for the deployment's keyed, hash-chained tamper-evidence logs 
 | `attachAnchorSignature` | Attach an Ed25519 signature over `message` to a chain-tip anchor `base`, when signing is configured (else return `base` unsigned). |
 | `verifyAnchorSignature` | Verify an anchor's Ed25519 signature over the caller's rebuilt tip `message`. |
 
+### `artifacts/api-server/src/lib/http-error.ts`
+
+The one home for the northbound JSON error envelope.
+
+| Function | What it does |
+| --- | --- |
+| `sendError` | The one home for the northbound JSON error envelope. |
+
 ### `artifacts/api-server/src/lib/ical.ts`
 
 Minimal RFC 5545 (iCalendar) serialiser — pure + deterministic, so any dated OmniProject data can be rendered as a `.ics` a user imports into Google/Outlook/Apple Calendar.
