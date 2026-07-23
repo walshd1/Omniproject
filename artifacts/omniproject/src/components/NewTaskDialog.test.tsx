@@ -228,4 +228,40 @@ describe("NewTaskDialog", () => {
     resolveFetch({ ok: true, json: () => Promise.resolve({ id: "i1", title: "Wire the callback" }) } as Response);
     await waitFor(() => expect(screen.getByRole("button", { name: /Create task/i })).toBeInTheDocument());
   });
+
+  it("auto-splits a multi-line paste and creates one issue per line, parsing inline sigils", async () => {
+    const calls = mockFetchRouter({
+      "POST /api/projects/p1/issues": { ok: true, body: { id: "i1", title: "x" } },
+      "/api/projects": { ok: true, body: [{ id: "p1", name: "Alpha" }] },
+    });
+    const onOpenChange = vi.fn();
+    renderWithProviders(<><NewTaskDialog open onOpenChange={onOpenChange} /><Toaster /></>, { client: seeded() });
+
+    const title = screen.getByLabelText("Title");
+    fireEvent.paste(title, { clipboardData: { getData: () => "wire the callback #api !p1\nwrite the migration\nreview the PR ^tomorrow" } });
+    expect(await screen.findByText("3 tasks detected")).toBeInTheDocument();
+    // Nothing is created until the split is confirmed.
+    expect(calls.filter((c) => c.init?.method === "POST")).toHaveLength(0);
+
+    await userEvent.click(screen.getByRole("button", { name: "Create 3 tasks" }));
+    await waitFor(() => expect(calls.filter((c) => c.init?.method === "POST")).toHaveLength(3));
+    const bodies = calls.filter((c) => c.init?.method === "POST").map((c) => JSON.parse(String(c.init!.body)));
+    const byTitle = Object.fromEntries(bodies.map((b) => [b.title, b]));
+    expect(byTitle["wire the callback"].priority).toBe("urgent");   // !p1
+    expect(byTitle["wire the callback"].labels).toEqual(["api"]);    // #api → labels
+    expect(byTitle["write the migration"].status).toBe("todo");      // dialog status shared
+    expect(byTitle["review the PR"].dueDate).toBeTruthy();           // ^tomorrow → dueDate
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+
+  it("'Add as one' collapses the paste into the title instead of splitting the issue", async () => {
+    const calls = mockFetchRouter({ "/api/projects": { ok: true, body: [{ id: "p1", name: "Alpha" }] } });
+    renderWithProviders(<><NewTaskDialog open onOpenChange={() => {}} /><Toaster /></>, { client: seeded() });
+    const title = screen.getByLabelText("Title") as HTMLInputElement;
+    fireEvent.paste(title, { clipboardData: { getData: () => "first\nsecond" } });
+    await userEvent.click(await screen.findByRole("button", { name: "Add as one" }));
+    expect(screen.queryByText("2 tasks detected")).toBeNull();
+    expect(title.value).toBe("first second");
+    expect(calls.filter((c) => c.init?.method === "POST")).toHaveLength(0);
+  });
 });
