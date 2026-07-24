@@ -1083,10 +1083,10 @@ Setup-wizard + operations plane.
 | GET | `/api/setup/status/public` | — | Non-PMO/admin callers reach only this passed-through subset, never the internal route above. |
 | GET | `/api/setup/profile` | requireRole(admin) | vs "recommended for your profile". |
 | GET | `/api/setup/idp` | requireRole(admin) | the admin exactly how to give staff real accounts + roles. |
-| POST | `/api/setup/profile` | requireRole(admin) | Infra-level env (DEPLOYMENT_PROFILE) remains the source of truth across a fresh boot. |
+| POST | `/api/setup/profile` | requireRole(admin) | POST /api/setup/profile — pick the deployment profile from the wizard (admin). |
 | GET | `/api/setup/self-host` | requireAnyRole(admin, pmo) | screen sees the same resolution the composition tier runs. |
-| POST | `/api/setup/self-host` | requireRole(admin) | def (`self-host`) — the ack is the gate, so this applies immediately (never a sign-off), unchanged from before. |
-| POST | `/api/setup/charity-onboarding` | requireRole(admin) | one exists and the deployment is entitled to it. |
+| POST | `/api/setup/self-host` | requireRole(admin) | POST /api/setup/self-host — adopt (or turn off) the self-host DB from the wizard/admin (admin). |
+| POST | `/api/setup/charity-onboarding` | requireRole(admin) | POST /api/setup/charity-onboarding — the "We're a charity" one-click preset (admin). |
 
 ### `artifacts/api-server/src/routes/setup/catalogues.ts`
 
