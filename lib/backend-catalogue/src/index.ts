@@ -27,6 +27,7 @@ export * from "./methodology-invariants";
 export * from "./methodology-deploy";
 export * from "./delegation-policy";
 export * from "./deployment-type-catalogue";
+export * from "./deployment-profile-catalogue";
 export * from "./deployment-resolve";
 export * from "./deployment-settings";
 export * from "./persona-catalogue";

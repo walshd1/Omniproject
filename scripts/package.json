@@ -35,6 +35,7 @@
     "gen-screens": "tsx ./src/gen-screens.ts",
     "gen-methodologies": "tsx ./src/gen-methodologies.ts",
     "gen-deployment-types": "tsx ./src/gen-deployment-types.ts",
+    "gen-deployment-profiles": "tsx ./src/gen-deployment-profiles.ts",
     "gen-personas": "tsx ./src/gen-personas.ts",
     "gen-methodology-rulesets": "tsx ./src/gen-methodology-rulesets.ts",
     "gen-presets": "tsx ./src/gen-presets.ts",
