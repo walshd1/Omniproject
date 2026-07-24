@@ -69,10 +69,25 @@ export function ruleRunAction(recipeId: string): string { return `rule.run:${rec
  */
 async function runRecipeAutonomously(recipe: AutomationRecipe, subject: Record<string, unknown>, parent?: DomainEvent): Promise<void> {
   registerAutonomousActor(ruleActorId(recipe.id), RULE_ACTOR_ROLE); // known mint source; the GRANT still gates writes
-  const ctx = mintAutonomousContext({ id: ruleActorId(recipe.id), role: RULE_ACTOR_ROLE, reason: `rule ${recipe.id}` }, Date.now());
+  // When the TRIGGERING actor is an AI/agent, the rule acts on that agent's behalf — mint an `agent:` principal
+  // (attributable to the AI + the human it delegates for). Enforcement is identical (both are autonomous, so
+  // the kill switch + AI containment + grant gate all apply); the difference is provenance. Otherwise it's a
+  // plain `automation:` principal (a human- or schedule-triggered rule).
+  const onBehalfOf = parent?.actor.actorKind === "agent" ? agentDelegator(parent.actor.sub) : undefined;
+  const ctx = mintAutonomousContext(
+    { id: ruleActorId(recipe.id), role: RULE_ACTOR_ROLE, reason: `rule ${recipe.id}`, ...(onBehalfOf ? { onBehalfOf } : {}) },
+    Date.now(),
+  );
   const def = compileRecipe(recipe, subject);
   const run = await runWorkflow(def, effectsForAutonomousContext(ctx, ctx.sub ?? "automation"));
   if (parent) emitFollowOnEvents(def, run.results, recipe, ctx.sub, parent);
+}
+
+/** The human an agent principal delegates for, parsed from its sub (`agent:<id>:<onBehalfOf>`). */
+function agentDelegator(sub?: string): string | undefined {
+  if (!sub) return undefined;
+  const parts = sub.split(":");
+  return parts[0] === "agent" && parts.length >= 3 ? parts.slice(2).join(":") : undefined;
 }
 
 /** Emit an emergent domain event for each issue a rule's run wrote, carrying causation one generation deeper

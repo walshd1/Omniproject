@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import type { AutomationRecipe } from "@workspace/backend-catalogue";
 import { dispatchDomainEvent, ruleActorId, ruleRunAction } from "./rules-dispatcher";
 import { registerAutonomousGrant, __resetAutonomousGrants } from "./autonomous-grant";
+import { engageAiKill, __resetAiKill } from "./ai-kill";
 import { updateSettings } from "./settings";
 import { onDomainEvent, type DomainEvent } from "./domain-event";
 
@@ -152,6 +153,46 @@ test("emergent chaining: a mutating rule's write emits a follow-on event one gen
   assert.equal(followOn!.causation.depth, 1);            // one generation deeper
   assert.ok(followOn!.causation.rulePath.includes(id));  // the firing rule is on the path (cycle-detectable)
   assert.equal(followOn!.actor.actorKind, "automation"); // written by the rule's autonomous principal
+  off();
+  __resetAutonomousGrants();
+});
+
+const grantFor = (id: string, actions: string[]) => registerAutonomousGrant({
+  actorId: ruleActorId(id), actions, projects: ["p1"], surfaces: ["issue"], fields: ["title", "status", "assignee"],
+  notAfter: 9_999_999_999_999, maxWrites: 10,
+});
+
+test("AI restriction: the kill switch denies a GRANTED mutating rule (AI restrictions gate rule writes)", async () => {
+  __resetAutonomousGrants();
+  const id = "killed";
+  grantFor(id, ["create_issue"]);
+  engageAiKill(); // hard-stops every autonomous write, engine included
+  try {
+    const recipe = notifyRecipe({ id, scope: { kind: "project", projectId: "p1" }, actions: [{ kind: "create-issue", params: { projectId: "p1", title: "X" } }] });
+    const r = await dispatchDomainEvent(event(), [recipe]);
+    assert.deepEqual(r.ran, []);
+    assert.deepEqual(r.deniedNoGrant, [id]); // denied despite the grant — the kill switch wins
+  } finally {
+    __resetAiKill();
+    __resetAutonomousGrants();
+  }
+});
+
+test("AI-initiated: an agent-triggered rule runs as an `agent:` principal (attributable to the AI + its human)", async () => {
+  __resetAutonomousGrants();
+  const id = "ai-create";
+  grantFor(id, ["create_issue"]);
+  const captured: DomainEvent[] = [];
+  const off = onDomainEvent((e) => { captured.push(e); });
+  // The triggering event was caused by an AI agent acting for "human1".
+  const aiEvent = event({ actor: { sub: "agent:copilot:human1", role: "contributor", actorKind: "agent" } });
+  const recipe = notifyRecipe({ id, scope: { kind: "project", projectId: "p1" }, actions: [{ kind: "create-issue", params: { projectId: "p1", title: "X", status: "triage" } }] });
+  const r = await dispatchDomainEvent(aiEvent, [recipe]);
+  assert.deepEqual(r.ran, [id]);
+  await tick();
+  const followOn = captured.find((e) => e.triggerKind === "issue.created");
+  assert.ok(followOn, "the AI-triggered create should still emit a follow-on");
+  assert.equal(followOn!.actor.sub, `agent:${ruleActorId(id)}:human1`); // agent principal, delegating for human1
   off();
   __resetAutonomousGrants();
 });
