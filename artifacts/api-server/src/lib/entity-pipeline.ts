@@ -3,6 +3,7 @@ import { withBrokerErrors } from "../broker";
 import { requireRole, type Role } from "./rbac";
 import { guardProjectScope } from "./project-scope";
 import { enforceBusinessRules } from "./ruleset-guard";
+import { domainEventsEnabled, emitEntityWrite } from "./domain-event";
 
 /**
  * LANE 1 — the generic ENTITY pipeline. A domain entity (issue, task, goal, …) is created/updated/deleted
@@ -81,8 +82,16 @@ function runOp(entity: string, verb: string, op: EntityOp<unknown>, scope: Entit
       if (scope.kind === "project" && !(await guardProjectScope(req, res, projectId!))) return;
       if (scope.kind === "custom" && !(await scope.guard(req, res, body))) return;
       const result = await op.run(req, res, body);
-      if (result === undefined) return; // the op already responded (404 / 204 / etc.)
+      if (result === undefined) {
+        // The op already responded (404 / 204 / etc.). Emit only on a SUCCESS status — never for a 404
+        // "unknown id" — so a `deleted`/`updated` event that self-responds 2xx still fires the rules engine.
+        if (domainEventsEnabled() && res.statusCode < 400) emitEntityWrite(req, entity, verb, projectId, { body });
+        return;
+      }
       res.status(op.status ?? defaultStatus).json(result);
+      // Post-commit, best-effort, out-of-band: fire the domain event so matching rules can run. Never
+      // throws into the write path (see domain-event.ts). Off unless RULES_ENGINE_EVENTS is set.
+      if (domainEventsEnabled()) emitEntityWrite(req, entity, verb, projectId, { body, result });
     }, projectId ? { projectId } : {});
   };
 }
