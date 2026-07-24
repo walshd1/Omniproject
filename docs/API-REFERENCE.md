@@ -1161,7 +1161,7 @@ Setup environments plane — the sandbox → promote → rollback lifecycle over
 | POST | `/api/setup/environments/activate` | requireRole(admin) | POST /api/setup/environments/activate { name } — switch the active environment. |
 | POST | `/api/setup/promote` | requireRole(admin) | POST /api/setup/promote { from, to } — copy one env's config onto another. |
 | POST | `/api/setup/versions/:id/known-good` | requireRole(admin) | POST /api/setup/versions/:id/known-good — pin a version as known-good. |
-| POST | `/api/setup/rollback` | requireRole(admin) | POST /api/setup/rollback { versionId? , toKnownGood? } — fast rollback. |
+| POST | `/api/setup/rollback` | requireRole(admin) | POST /api/setup/rollback { versionId? , toKnownGood? } — fast rollback (custom result shape + error body). |
 
 ### `artifacts/api-server/src/routes/severity-vocabulary.ts`
 

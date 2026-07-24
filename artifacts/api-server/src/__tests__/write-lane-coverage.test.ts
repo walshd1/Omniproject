@@ -48,6 +48,10 @@ import { presetApplyCommand } from "../routes/presets";
 import { templateInstantiateCommand } from "../routes/templates";
 import { projectCloseCommand } from "../routes/projects";
 import { setupProfileCommand, setupSelfHostCommand, setupCharityOnboardingCommand } from "../routes/setup";
+import {
+  setupEnvironmentCreateCommand, setupEnvironmentActivateCommand, setupPromoteCommand,
+  setupVersionKnownGoodCommand, setupRollbackCommand,
+} from "../routes/setup/environments";
 import { collectionWriteRoutes } from "../lib/settings-collection-router";
 
 /**
@@ -164,6 +168,11 @@ const LANE2 = new Set<string>([
   ...commandRoutes(setupProfileCommand),
   ...commandRoutes(setupSelfHostCommand),
   ...commandRoutes(setupCharityOnboardingCommand),
+  ...commandRoutes(setupEnvironmentCreateCommand),
+  ...commandRoutes(setupEnvironmentActivateCommand),
+  ...commandRoutes(setupPromoteCommand),
+  ...commandRoutes(setupVersionKnownGoodCommand),
+  ...commandRoutes(setupRollbackCommand),
 ]);
 
 // Lane 3 — hand-written writes not (yet) on a spine. SEED — regenerate by running the first test with this
@@ -252,19 +261,14 @@ const BESPOKE_WRITES = new Set<string>([
   "POST /setup/connections/test",
   "POST /setup/connections/vault",
   "POST /setup/defs-import",
-  "POST /setup/environments",
-  "POST /setup/environments/activate",
   "POST /setup/full-restore",
   "POST /setup/generate-workflow",
   "POST /setup/instance-key/reveal",
   "POST /setup/instance-key/rotate",
   "POST /setup/portable-restore",
-  "POST /setup/promote",
   "POST /setup/restore",
-  "POST /setup/rollback",
   "POST /setup/test-broker",
   "POST /setup/verify-workflow",
-  "POST /setup/versions/:id/known-good",
   "POST /snapshots/capture",
   "POST /snapshots/verify",
   "POST /tasks/:taskId/attachments",
