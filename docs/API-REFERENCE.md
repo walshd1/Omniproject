@@ -1228,8 +1228,8 @@ Task routes — GTD actionable next-actions (distinct from issues): list/create/
 | GET | `/api/tasks` | — | GET /api/tasks?projectId= — actionable tasks, optionally scoped to a project. |
 | GET | `/api/tasks/summary` | — | assignee/tag/context). |
 | GET | `/api/tasks/:taskId` | — | GET /api/tasks/:taskId — one task, 404 if unknown, 403 if out of the caller's scope. |
-| POST | `/api/tasks` | requireRole(manager) | POST /api/tasks — create a next-action (manager+). |
-| PATCH | `/api/tasks/:taskId` | requireRole(manager) | PATCH /api/tasks/:taskId — update a task (manager+). |
+| POST | `/api/tasks` | requireRole(manager) | Tasks (manager+). |
+| PATCH | `/api/tasks/:taskId` | requireRole(manager) | Tasks (manager+). |
 | POST | `/api/tasks/reminders/sweep` | requireRole(pmo) | the caller's scope, so a portfolio-wide sweep needs a portfolio (pmo/admin) caller. |
 | GET | `/api/tasks/:taskId/comments` | — | — |
 | POST | `/api/tasks/:taskId/comments` | requireRole(contributor) | — |

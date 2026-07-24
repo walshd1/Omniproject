@@ -266,7 +266,6 @@ const BESPOKE_WRITES = new Set<string>([
   "POST /setup/versions/:id/known-good",
   "POST /snapshots/capture",
   "POST /snapshots/verify",
-  "POST /tasks",
   "POST /tasks/:taskId/attachments",
   "POST /tasks/:taskId/comments",
   "POST /tasks/reminders/sweep",
