@@ -24,7 +24,7 @@ const req = (p: string, o: Parameters<Harness["req"]>[1] = {}) => h.req(p, { coo
 const INFORM = {
   id: "r1", label: "Notify PM", scope: { kind: "org" },
   trigger: { kind: "issue.created" },
-  conditions: [{ field: "priority", op: "eq", value: "high" }],
+  when: { all: [{ field: "priority", op: "eq", value: "high" }] },
   actions: [{ kind: "notify", params: { to: "pm@x.io", message: "hi" } }],
 };
 const MUTATING = {
@@ -80,10 +80,10 @@ test("automations: preview of a bad recipe → 400", async () => {
   assert.equal(r.status, 400);
 });
 
-test("automations: run an inform recipe — conditions gate it, then it fires", async () => {
+test("automations: run an inform recipe — the `when` gates it, then it fires", async () => {
   const { writeOrgConfigCollection } = await import("../lib/scoped-config");
   writeOrgConfigCollection("automations", "Automations", [INFORM]);
-  // Subject doesn't match the condition (priority eq high) → not run.
+  // Subject doesn't match the when (priority eq high) → not run.
   const miss = (await (await req("/automations/r1/run", { method: "POST", body: { subject: { priority: "low" } } })).json()) as { matched: boolean; ran: boolean };
   assert.deepEqual(miss, { matched: false, ran: false });
   // Matching subject → the notify action runs.

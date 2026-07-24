@@ -3,6 +3,8 @@ import { requireRole, type Role } from "./rbac";
 import { recordAudit, actorForAudit, type AuditCategory } from "./audit";
 import { enforceBusinessRules } from "./ruleset-guard";
 import { withBrokerErrors } from "../broker";
+import { domainEventsEnabled, emitDomainEvent, buildDomainEvent } from "./domain-event";
+import type { RuleVerb } from "@workspace/backend-catalogue";
 
 /**
  * LANE 2 — the generic ACTION base. A VERB / command (approve a proposal, run a workflow, transition a
@@ -79,6 +81,11 @@ export interface CommandDescriptor<A, P = A> {
   broker?: boolean | { message?: string; ctx?: (req: Request, prelim: P) => Record<string, unknown> };
   /** Success status when `run` returns a payload (default 200). */
   status?: number;
+  /** Optional domain-event emission for the rules engine. A VERB command is a surface TRANSITION more often
+   *  than a noun CRUD (a timesheet `submitted`, a project `closed`), so — unlike the entity pipeline — it
+   *  emits only when it OPTS IN here, naming the surface + verb + subject. Fired post-commit, best-effort and
+   *  out-of-band (never into the write path); off unless RULES_ENGINE_EVENTS is set. Return null to skip. */
+  emits?: (req: Request, args: A, result: unknown) => { surface: string; verb: RuleVerb; subject: Record<string, unknown>; scope?: { projectId?: string; programmeId?: string } } | null;
 }
 
 /** The "METHOD /path" this command contributes — for the write-lane ratchet. */
@@ -130,6 +137,12 @@ export function mountCommand<A, P = A>(router: IRouter, desc: CommandDescriptor<
         ...(desc.auditMeta ? { meta: desc.auditMeta(req, args, result) } : {}),
       });
       if (result !== undefined) res.status(desc.status ?? 200).json(result);
+      // Post-commit domain event (opt-in): a verb that represents a surface transition fires the rules
+      // engine. Best-effort + out-of-band (domain-event.ts); off unless RULES_ENGINE_EVENTS is set.
+      if (desc.emits && domainEventsEnabled()) {
+        const e = desc.emits(req, args, result);
+        if (e) emitDomainEvent(buildDomainEvent(req, e.surface, e.verb, e.subject, e.scope ?? {}));
+      }
     };
     if (desc.broker) {
       // Broker-aware: run the core inside withBrokerErrors, so a thrown broker-taxonomy error maps to its

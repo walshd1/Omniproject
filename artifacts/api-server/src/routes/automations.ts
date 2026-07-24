@@ -3,7 +3,7 @@ import { getActionDef, recipeMutates, type AutomationRecipe } from "@workspace/b
 import { normalisedBy } from "../lib/settings";
 import { settingsCollectionRouter } from "../lib/settings-collection-router";
 import { readConfigCollection } from "../lib/scoped-config";
-import { validateAutomations, compileRecipe, matchesConditions, recipeRequirements, actionProjectId, AutomationError } from "../lib/automation";
+import { validateAutomations, compileRecipe, ruleMatches, recipeRequirements, actionProjectId, AutomationError } from "../lib/automation";
 import { grantsForReq, grantsSatisfy } from "../lib/rbac";
 import { assertProjectScope } from "../lib/project-scope";
 import { editPolicyFor } from "../lib/collection-edit-policy";
@@ -100,7 +100,7 @@ router.post("/automations/:id/run", async (req, res) => {
   if (denial) { res.status(403).json({ error: denial }); return; }
 
   const subject = ((req.body as { subject?: unknown } | undefined)?.subject ?? {}) as Record<string, unknown>;
-  if (!matchesConditions(recipe, subject)) { res.json({ matched: false, ran: false }); return; }
+  if (!ruleMatches(recipe, subject)) { res.json({ matched: false, ran: false }); return; }
 
   if (recipeMutates(recipe)) {
     // The runner never silently mutates; a mutating recipe must run under an autonomous grant (next slice).
