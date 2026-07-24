@@ -971,7 +971,7 @@ Automation recipes — validation, compile-to-workflow, and the RBAC requirement
 | `recipeRequirements` | The set of PERMISSION requirements a recipe imposes — what the author (and the runner) must be allowed to do. |
 | `actionProjectId` | Which project a mutating action touches (explicit param, or the recipe's project scope). |
 | `compileRecipe` | Compile a recipe's ACTIONS to the existing workflow-engine JSON (one `action` step each). |
-| `matchesConditions` | Evaluate a recipe's conditions against the triggering entity (`subject`) — ALL must pass. |
+| `ruleMatches` | Does a recipe's `when` match the triggering entity (`subject`)? Straight through the shared predicate engine ({@link matches}) — one condition language across the product. |
 
 ### `artifacts/api-server/src/lib/autonomous-grant.ts`
 
@@ -1785,6 +1785,21 @@ Optional ABOVE-THE-SEAM email delivery of the scheduled digests (proactive + exe
 | --- | --- |
 | `deliverDigestEmail` | Email a built digest to the configured recipients, in addition to the notify-bus dispatch. |
 | `deliverExportEmail` | Email a rendered export as an attachment to the configured recipients — same recipient list + SMTP-gating (a no-op unless configured) + best-effort posture as `deliverDigestEmail`. |
+
+### `artifacts/api-server/src/lib/domain-event.ts`
+
+Domain events — the "ON" of the rules engine.
+
+| Function | What it does |
+| --- | --- |
+| `domainEventsEnabled` | Is the rules-engine event subsystem enabled? Off by default — a single flag gates emit + dispatch. |
+| `onDomainEvent` | Register a domain-event handler (the dispatcher). |
+| `domainEventHandlerCount` | Test seam: current subscriber count. |
+| `emitDomainEvent` | Emit a domain event out-of-band: schedule delivery on the next tick and swallow every error, so neither a slow nor a throwing handler can affect the request that produced the event. |
+| `makeDomainEvent` | Assemble a {@link DomainEvent} from explicit parts (id + triggerKind + timestamp stamped here). |
+| `childCausation` | The causation a rule's emergent write carries: one generation deeper, same cascade root, `ruleId` appended to the path (so a repeat is a detectable cycle). |
+| `buildDomainEvent` | Build a {@link DomainEvent} from a request + the change. |
+| `emitEntityWrite` | Emit for a Lane-1 entity write (`mountEntity`). |
 
 ### `artifacts/api-server/src/lib/drift-canary.ts`
 
@@ -2782,14 +2797,7 @@ Portfolio-wide AGGREGATE summary — the one shape allowed to cross an instance 
 
 ### `artifacts/api-server/src/lib/predicate.ts`
 
-Conditional predicate engine — the pure "when" of the PMO rule plane.
-
-| Function | What it does |
-| --- | --- |
-| `evaluatePredicate` | Evaluate one predicate against the context. |
-| `matches` | Does this condition set match the context? (all-of `all` AND any-of `any`; empty ⇒ matches all.) |
-| `selectMatching` | From a list of conditioned items, the ones whose condition matches the context, **in declared order**. |
-| `validatePredicate` | Validate a predicate's shape (used at the rule-authoring boundary). |
+Predicate engine — re-exported from the shared catalogue.
 
 ### `artifacts/api-server/src/lib/presence-bus.ts`
 
@@ -3275,6 +3283,17 @@ RISK-EXPOSURE maths, routed through the SCOPE-RESOLVED graded vocabularies.
 ### `artifacts/api-server/src/lib/rollup.ts`
 
 Re-export of the ONE shared, artifact-agnostic roll-up (`@workspace/backend-catalogue`), so the backend (rollup endpoints, exports) and the SPA (no-code report engine) run the SAME aggregation implementation — a single roll-up behind every output of the system.
+
+### `artifacts/api-server/src/lib/rules-dispatcher.ts`
+
+Cascade bounds — a rule's write emits a follow-on event that can trigger more rules; these stop a runaway.
+
+| Function | What it does |
+| --- | --- |
+| `ruleActorId` | The autonomous actor id a rule's writes run under (`automation:rule_<id>`); the grant is keyed on the bare id (`rule_<id>`). |
+| `ruleRunAction` | The approval action a rule's RUN binds to — an admin can gate ONE sensitive rule via an approval chain. |
+| `dispatchDomainEvent` | Handle one domain event: run every matching, enabled, INFORM-ONLY recipe. |
+| `startRulesDispatcher` | Register the dispatcher as a domain-event handler (idempotent). |
 
 ### `artifacts/api-server/src/lib/ruleset-guard.ts`
 
@@ -4133,6 +4152,7 @@ Runtime side of workflows — binds the pure engine's injected effect to the REA
 | `makeEffects` | Build the effect surface from injected deps. |
 | `scopedEffects` | The RBAC-scoped effect surface for a real request (the caller's broker context). |
 | `effectsForActor` | The effect surface for a recorded actor (the approval-gated executor path). |
+| `effectsForAutonomousContext` | The effect surface for an AUTONOMOUS principal (the rules-engine dispatch path) — reads + notify AND the mutating effects, run under the given minted autonomous context through the autonomous-guarded broker. |
 | `runStoredWorkflow` | Run a stored workflow by id with the caller's live request scope. |
 | `runStoredWorkflowForActor` | Run a stored workflow under a recorded actor (used by the approval executor). |
 | `workflowRunAction` | The approval action a specific workflow's RUN binds to — per-id, so an admin can gate ONE sensitive workflow while leaving benign ones on the direct path. |
@@ -4773,6 +4793,7 @@ AUTOMATION catalogue — the primitives of the user-facing "when X, do Y" recipe
 
 | Function | What it does |
 | --- | --- |
+| `getRuleSurface` | The surface definition for a key (e.g. "task"), or undefined. |
 | `getActionDef` | The catalogue definition for an action kind (its permission requirement + compiled effect), or undefined. |
 | `getTriggerDef` | The catalogue definition for a trigger kind (event vs schedule), or undefined. |
 | `recipeMutates` | Does a recipe mutate state (⇒ needs an autonomous grant to execute)? |
@@ -5302,6 +5323,18 @@ The PLANES meta-registry — the seven integration planes OmniProject models, al
 | --- | --- |
 | `getPlane` | Look up a single plane descriptor by its id. |
 | `planeCatalogue` | All plane descriptors (a defensive copy). |
+
+### `lib/backend-catalogue/src/predicate.ts`
+
+Conditional predicate engine — the shared "when" language of every OmniProject rule plane.
+
+| Function | What it does |
+| --- | --- |
+| `evaluatePredicate` | Evaluate one predicate against the context. |
+| `matches` | Does this condition set match the context? (all-of `all` AND any-of `any`; empty ⇒ matches all.) |
+| `selectMatching` | From a list of conditioned items, the ones whose condition matches the context, **in declared order**. |
+| `validatePredicate` | Validate a predicate's shape (used at the rule-authoring boundary). |
+| `cleanConditionSet` | Normalise a validated condition set (drops malformed predicates rather than throwing) — the shape the dispatcher/evaluator can trust. |
 
 ### `lib/backend-catalogue/src/preset-catalogue.ts`
 
