@@ -1,7 +1,7 @@
 # Semantic rules engine — a globally-applicable, chainable trigger→action engine
 
-**Status:** phases 1–5 implemented (feature-flagged off by default); phases 6–7 (chaining
-with the cross-run cascade guard, AI-initiated rules) designed, not yet built. Records the
+**Status:** phases 1–6 implemented (feature-flagged off by default); phase 7 (AI-initiated
+rules) designed, not yet built. Records the
 target for generalising the existing automation/workflow machinery into one **surface-agnostic**,
 **chainable** rules engine of the shape *"ON a trigger, DO an action TO a target, IF a
 condition holds, gated by the initiator's permission — and safe under approvals + AI
@@ -25,6 +25,11 @@ restrictions."*
   reaches the autonomous-guarded broker, which re-checks the grant (scope/fields/time/cap + AI
   containment). The target is bound from the triggering subject. Only the `issue` surface has a wired
   write effect today (matching phase 2); other surfaces remain observe/notify-only.
+- **Phase 6** — chaining + the cross-run cascade guard. A rule's autonomous write emits a
+  follow-on `DomainEvent` carrying causation **one generation deeper** (`childCausation`), so a
+  downstream rule can react. The dispatcher bounds this: an event past `RULES_CASCADE_MAX_DEPTH`
+  is dropped wholesale, a rule already on the cascade's `rulePath` is skipped (cycle break), and a
+  per-root `RULES_CASCADE_MAX_FANOUT` budget caps breadth — every drop is logged, never silent.
 
 Companion to, and a strict **reuse** of:
 - the pure workflow interpreter (`artifacts/api-server/src/lib/workflow.ts`),

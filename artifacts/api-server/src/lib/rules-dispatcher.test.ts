@@ -4,7 +4,7 @@ import type { AutomationRecipe } from "@workspace/backend-catalogue";
 import { dispatchDomainEvent, ruleActorId, ruleRunAction } from "./rules-dispatcher";
 import { registerAutonomousGrant, __resetAutonomousGrants } from "./autonomous-grant";
 import { updateSettings } from "./settings";
-import type { DomainEvent } from "./domain-event";
+import { onDomainEvent, type DomainEvent } from "./domain-event";
 
 /**
  * Rules dispatcher — selects the enabled recipes whose trigger + scope + `when` match a domain event and runs
@@ -112,4 +112,46 @@ test("a mix: the inform recipe runs, the ungranted mutating one is denied, in on
   ]);
   assert.deepEqual(r.ran, ["inform"]);
   assert.deepEqual(r.deniedNoGrant, ["mutate"]);
+});
+
+const tick = () => new Promise((r) => setImmediate(r));
+
+test("cascade guard: an event past the depth cap is dropped wholesale", async () => {
+  const deep = event({ causation: { depth: 999, rootEventId: "evt-1", rulePath: [] } });
+  const r = await dispatchDomainEvent(deep, [notifyRecipe()]);
+  assert.equal(r.droppedDepth, true);
+  assert.deepEqual(r.ran, []);
+});
+
+test("cascade guard: a rule already in the cascade path is skipped (cycle break)", async () => {
+  const looped = event({ causation: { depth: 2, rootEventId: "evt-1", rulePath: ["notify-blocked"] } });
+  const r = await dispatchDomainEvent(looped, [notifyRecipe({ id: "notify-blocked" })]);
+  assert.deepEqual(r.ran, []);
+  assert.deepEqual(r.skippedCascade, ["notify-blocked"]);
+});
+
+test("emergent chaining: a mutating rule's write emits a follow-on event one generation deeper", async () => {
+  __resetAutonomousGrants();
+  const id = "auto-create-chain";
+  registerAutonomousGrant({
+    actorId: ruleActorId(id), actions: ["create_issue"],
+    projects: ["p1"], surfaces: ["issue"], fields: ["title", "status"],
+    notAfter: 9_999_999_999_999, maxWrites: 10,
+  });
+  const captured: DomainEvent[] = [];
+  const off = onDomainEvent((e) => { captured.push(e); });
+  const recipe = notifyRecipe({
+    id, scope: { kind: "project", projectId: "p1" },
+    actions: [{ kind: "create-issue", params: { projectId: "p1", title: "Auto", status: "triage" } }],
+  });
+  const r = await dispatchDomainEvent(event(), [recipe]); // parent causation depth 0
+  assert.deepEqual(r.ran, [id]);
+  await tick(); // the follow-on emit is out-of-band
+  const followOn = captured.find((e) => e.triggerKind === "issue.created");
+  assert.ok(followOn, "the create should emit an issue.created follow-on event");
+  assert.equal(followOn!.causation.depth, 1);            // one generation deeper
+  assert.ok(followOn!.causation.rulePath.includes(id));  // the firing rule is on the path (cycle-detectable)
+  assert.equal(followOn!.actor.actorKind, "automation"); // written by the rule's autonomous principal
+  off();
+  __resetAutonomousGrants();
 });

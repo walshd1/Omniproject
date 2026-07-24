@@ -23,6 +23,21 @@ import type { RuleVerb } from "@workspace/backend-catalogue";
 /** The verb a Lane-1 entity op maps to (present tense in the pipeline → past-tense event verb). */
 const VERB_OF: Record<string, RuleVerb> = { create: "created", update: "updated", delete: "deleted" };
 
+/** Cascade lineage — bounds emergent chaining (a rule's write emits a follow-on event that can trigger more
+ *  rules). `depth` is the cascade generation (0 for a direct write); `rootEventId` ties a whole cascade to
+ *  its originating event; `rulePath` is the rules that fired to get here (a cycle repeats an id). */
+export interface Causation {
+  depth: number;
+  rootEventId: string;
+  rulePath: string[];
+}
+
+export interface DomainEventActor {
+  sub?: string;
+  role?: string;
+  actorKind: "human" | "automation" | "agent";
+}
+
 export interface DomainEvent {
   id: string;
   /** The noun that changed — matches a {@link RuleSurface} key and the `<surface>.<verb>` trigger prefix. */
@@ -33,9 +48,9 @@ export interface DomainEvent {
   /** The written entity (best-effort — the run's result, else the validated body + route params). */
   subject: Record<string, unknown>;
   scope: { projectId?: string; programmeId?: string };
-  actor: { sub?: string; role?: string; actorKind: "human" | "automation" | "agent" };
-  /** Cascade guard (populated for rule-driven writes in the chaining phase; depth 0 for a direct write). */
-  causation: { depth: number; rootEventId: string; rulePath: string[] };
+  actor: DomainEventActor;
+  /** Cascade guard: depth 0 for a direct write; incremented for a rule-driven (emergent) write. */
+  causation: Causation;
   at: number;
 }
 
@@ -84,6 +99,33 @@ export function emitDomainEvent(event: DomainEvent): void {
 
 const isObj = (v: unknown): v is Record<string, unknown> => !!v && typeof v === "object" && !Array.isArray(v);
 
+/** Assemble a {@link DomainEvent} from explicit parts (id + triggerKind + timestamp stamped here). Used by
+ *  both the request-derived path and the emergent (rule-driven) path, which supplies its own actor + causation. */
+export function makeDomainEvent(parts: {
+  surface: string; verb: RuleVerb; subject: Record<string, unknown>;
+  scope: { projectId?: string; programmeId?: string }; actor: DomainEventActor; causation?: Causation;
+}): DomainEvent {
+  const now = Date.now();
+  const id = nextEventId(now);
+  return {
+    id,
+    surface: parts.surface,
+    verb: parts.verb,
+    triggerKind: `${parts.surface}.${parts.verb}`,
+    subject: parts.subject,
+    scope: parts.scope,
+    actor: parts.actor,
+    causation: parts.causation ?? { depth: 0, rootEventId: id, rulePath: [] },
+    at: now,
+  };
+}
+
+/** The causation a rule's emergent write carries: one generation deeper, same cascade root, `ruleId` appended
+ *  to the path (so a repeat is a detectable cycle). */
+export function childCausation(parent: Causation, ruleId: string): Causation {
+  return { depth: parent.depth + 1, rootEventId: parent.rootEventId, rulePath: [...parent.rulePath, ruleId] };
+}
+
 /**
  * Build a {@link DomainEvent} from a request + the change. The actor is derived from the request (so an
  * autonomous/agent-driven write is stamped as such), causation starts at depth 0 (a direct write is its own
@@ -91,22 +133,10 @@ const isObj = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 
  */
 export function buildDomainEvent(req: Request, surface: string, verb: RuleVerb, subject: Record<string, unknown>, scope: { projectId?: string; programmeId?: string }): DomainEvent {
   const ctx = contextFromReq(req);
-  const now = Date.now();
-  const id = nextEventId(now);
-  const actor: DomainEvent["actor"] = { actorKind: ctx.actorKind ?? "human" };
+  const actor: DomainEventActor = { actorKind: ctx.actorKind ?? "human" };
   if (ctx.sub) actor.sub = ctx.sub;
   if (ctx.role) actor.role = ctx.role;
-  return {
-    id,
-    surface,
-    verb,
-    triggerKind: `${surface}.${verb}`,
-    subject,
-    scope,
-    actor,
-    causation: { depth: 0, rootEventId: id, rulePath: [] },
-    at: now,
-  };
+  return makeDomainEvent({ surface, verb, subject, scope, actor });
 }
 
 /**
