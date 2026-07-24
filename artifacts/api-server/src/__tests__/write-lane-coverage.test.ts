@@ -48,7 +48,7 @@ import { addTaskCommentCommand, addTaskAttachmentCommand } from "../routes/tasks
 import { timesheetSaveCommand, timesheetActionCommand } from "../routes/timesheets";
 import { presetApplyCommand } from "../routes/presets";
 import { templateInstantiateCommand } from "../routes/templates";
-import { projectCloseCommand } from "../routes/projects";
+import { projectCloseCommand, createProjectCommand, createTaskItemCommand } from "../routes/projects";
 import { setupProfileCommand, setupSelfHostCommand, setupCharityOnboardingCommand } from "../routes/setup";
 import {
   setupEnvironmentCreateCommand, setupEnvironmentActivateCommand, setupPromoteCommand,
@@ -179,6 +179,8 @@ const LANE2 = new Set<string>([
   ...commandRoutes(addTaskAttachmentCommand),
   ...commandRoutes(timesheetSaveCommand),
   ...commandRoutes(timesheetActionCommand),
+  ...commandRoutes(createProjectCommand),
+  ...commandRoutes(createTaskItemCommand),
 ]);
 
 // Lane 3 — hand-written writes not (yet) on a spine. SEED — regenerate by running the first test with this
@@ -251,8 +253,6 @@ const BESPOKE_WRITES = new Set<string>([
   "POST /notifications/ingest",
   "POST /portal/invites",
   "POST /presence/rooms/:roomId",
-  "POST /projects",
-  "POST /projects/:projectId/issues/:issueId/items",
   "POST /proofs/:id/decision",
   "POST /provenance/call/:callId/verify",
   "POST /scim/v2/Groups",

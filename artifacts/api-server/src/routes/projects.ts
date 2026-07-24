@@ -63,7 +63,6 @@ import { requireRole, requireAnyRole, roleForReq } from "../lib/rbac";
 import { forgetProjectGuid, collectProjectReferences } from "../lib/project-forget";
 import { getFxRates } from "../lib/currency";
 import { evaluateRuleset } from "../lib/ruleset";
-import { enforceBusinessRules } from "../lib/ruleset-guard";
 import { mountEntity, type EntityDescriptor } from "../lib/entity-pipeline";
 import { mountCommand, type CommandDescriptor } from "../lib/action-base";
 import { recordAudit } from "../lib/audit";
@@ -172,33 +171,49 @@ function fieldRuleErrors(data: Record<string, unknown>): string[] {
   return checkFieldValues(rules, data, (f) => resolveFieldType(f, settings.customFields));
 }
 
-router.post("/projects", requireRole("manager"), async (req, res) => {
-  const body = zodParseOr400(res, CreateProjectBody, req.body);
-  if (!body) return;
-  const caps = await resolveCapabilities(req);
-  if (!caps.entities["project"]?.store) {
-    res.status(403).json({ error: "This backend can't create projects" });
-    return;
-  }
-  const errors = validateEntityInput(body as Record<string, unknown>, PROJECT_DESCRIPTORS);
-  if (errors.length) {
-    res.status(400).json({ error: errors[0]!.message, errors }); // errors.length checked above
-    return;
-  }
-  const ruleErrors = fieldRuleErrors(body as Record<string, unknown>);
-  if (ruleErrors.length) {
-    res.status(400).json({ error: ruleErrors[0], errors: ruleErrors });
-    return;
-  }
-  // A new project has no project scope yet; a programme-scope ruleset override still applies.
-  if (!enforceBusinessRules(req, res, "create_project", { programmeId: (body as { programmeId?: string }).programmeId ?? null, payload: body as Record<string, unknown> })) return;
-  await withBrokerErrors(req, res, "create_project failed", async () => {
-    // Mint the backend-independent correlation GUID here (once, in the gateway) and pass it to the
-    // backend to store + echo. It's server-minted, never from the client body — see Project.omniInstanceId.
-    const project = await getBroker().createProject(contextFromReq(req), { ...body, omniInstanceId: randomUUID() });
-    res.status(201).json(project);
-  });
-});
+/** The validated payload T behind a SafeParseSchema — lets a command's args reuse the zod-inferred shape. */
+type Parsed<S> = S extends SafeParseSchema<infer T> ? T : never;
+
+// POST /projects — mint a project (manager+). On the Lane 2 spine: parse validates the body shape; the async
+// `prepare` resolves the backend capabilities to enforce "this backend can create projects" (403) — a check
+// that needs the resolved backend, so it can't live in the sync parse — then runs the field-descriptor and
+// field-rule validations (400) in the same order as before. A new project has no project scope yet, but a
+// programme-scope ruleset override still applies (ruleScope). Broker-aware; audits on success (the
+// hand-written route recorded none). The correlation GUID is server-minted in `run`, never from the client.
+export const createProjectCommand: CommandDescriptor<{ body: Parsed<typeof CreateProjectBody> }> = {
+  name: "create_project",
+  method: "post",
+  path: "/projects",
+  role: "manager",
+  parse: (req, res) => {
+    const body = zodParseOr400(res, CreateProjectBody, req.body);
+    return body ? { body } : null;
+  },
+  prepare: async (req, res, { body }) => {
+    const caps = await resolveCapabilities(req);
+    if (!caps.entities["project"]?.store) {
+      res.status(403).json({ error: "This backend can't create projects" });
+      return null;
+    }
+    const errors = validateEntityInput(body as Record<string, unknown>, PROJECT_DESCRIPTORS);
+    if (errors.length) {
+      res.status(400).json({ error: errors[0]!.message, errors }); // errors.length checked above
+      return null;
+    }
+    const ruleErrors = fieldRuleErrors(body as Record<string, unknown>);
+    if (ruleErrors.length) {
+      res.status(400).json({ error: ruleErrors[0], errors: ruleErrors });
+      return null;
+    }
+    return { body };
+  },
+  ruleScope: (_req, { body }) => ({ programmeId: (body as { programmeId?: string }).programmeId ?? null, payload: body as Record<string, unknown> }),
+  broker: { message: "create_project failed" },
+  run: (req, _res, { body }) => getBroker().createProject(contextFromReq(req), { ...body, omniInstanceId: randomUUID() }),
+  audit: "create_project",
+  status: 201,
+};
+mountCommand(router, createProjectCommand);
 
 // GET /projects/:projectGuid/references — export everything OmniProject holds about a project GUID
 // (closed record, programme memberships, relinks, retired status) so an admin can save it BEFORE
@@ -366,29 +381,39 @@ router.get("/projects/:projectId/issues/:issueId/items", async (req, res) => {
   });
 });
 
-router.post("/projects/:projectId/issues/:issueId/items", requireRole("contributor"), async (req, res) => {
-  const params = zodParseOr400(res, CreateTaskItemParams, req.params);
-  if (!params) return;
-  const body = zodParseOr400(res, CreateTaskItemBody, req.body);
-  if (!body) return;
-  const { kind } = body;
-  const caps = await resolveCapabilities(req);
-  if (!caps.entities[kind]?.store) {
-    res.status(403).json({ error: `This backend can't store ${kind}s against a task` });
-    return;
-  }
-  await withBrokerErrors(req, res, "create_task_item failed", async () => {
-    if (!(await guardProjectScope(req, res, params.projectId))) return;
-    if (!passesBusinessRules(req, res, "create_issue_item", params.projectId, body as Record<string, unknown>)) return;
-    const item = await getBroker().createTaskItem(
-      contextFromReq(req),
-      params.projectId,
-      params.issueId,
-      body,
-    );
-    res.status(201).json(item);
-  });
-});
+// POST /projects/:projectId/issues/:issueId/items — attach a sub-item (a nested entity) to an issue
+// (contributor+). On the Lane 2 spine: parse validates the params + body; the async `prepare` resolves the
+// backend capabilities (403 when it can't store this item kind) and scope-guards the project (403) — both
+// need I/O, so they can't live in the sync parse — then RBAC → ruleset (project-scoped) → run. Broker-aware;
+// audits on success (the hand-written route recorded none).
+export const createTaskItemCommand: CommandDescriptor<{ params: Parsed<typeof CreateTaskItemParams>; body: Parsed<typeof CreateTaskItemBody> }> = {
+  name: "create_issue_item",
+  method: "post",
+  path: "/projects/:projectId/issues/:issueId/items",
+  role: "contributor",
+  parse: (req, res) => {
+    const params = zodParseOr400(res, CreateTaskItemParams, req.params);
+    if (!params) return null;
+    const body = zodParseOr400(res, CreateTaskItemBody, req.body);
+    if (!body) return null;
+    return { params, body };
+  },
+  prepare: async (req, res, { params, body }) => {
+    const caps = await resolveCapabilities(req);
+    if (!caps.entities[body.kind]?.store) {
+      res.status(403).json({ error: `This backend can't store ${body.kind}s against a task` });
+      return null;
+    }
+    if (!(await guardProjectScope(req, res, params.projectId))) return null;
+    return { params, body };
+  },
+  ruleScope: (_req, { params, body }) => ({ projectId: params.projectId, payload: body as Record<string, unknown> }),
+  broker: { message: "create_task_item failed" },
+  run: (req, _res, { params, body }) => getBroker().createTaskItem(contextFromReq(req), params.projectId, params.issueId, body),
+  audit: "create_issue_item",
+  status: 201,
+};
+mountCommand(router, createTaskItemCommand);
 
 // Issues — the canonical LANE 1 entity. Create/update/delete run the fixed
 // RBAC → validate → ruleset → scope → writeIssue pipeline (lib/entity-pipeline), so the three gates can

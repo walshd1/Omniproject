@@ -796,7 +796,7 @@ Project, programme-membership, issue + task-item endpoints — the core read/wri
 | GET | `/api/projects/:projectId/issues` | — | — |
 | GET | `/api/projects/:projectId/summary` | — | — |
 | GET | `/api/activity` | — | — |
-| POST | `/api/projects` | requireRole(manager) | — |
+| POST | `/api/projects` | requireRole(manager) | POST /projects — mint a project (manager+). |
 | GET | `/api/projects/:projectGuid/references` | requireAnyRole(pmo, admin) | deleting. |
 | DELETE | `/api/projects/:projectGuid/links` | requireAnyRole(pmo, admin) | so nothing there is touched; only the references are unlinked. |
 | POST | `/api/projects/:projectGuid/close` | requireAnyRole(pmo, admin) | POST /api/projects/:projectGuid/close — record a project closure (pmo/admin). |
@@ -804,7 +804,7 @@ Project, programme-membership, issue + task-item endpoints — the core read/wri
 | GET | `/api/resources` | — | — |
 | GET | `/api/projects/:projectId/members` | — | — |
 | GET | `/api/projects/:projectId/issues/:issueId/items` | — | Task children: issues & notes raised against a task |
-| POST | `/api/projects/:projectId/issues/:issueId/items` | requireRole(contributor) | — |
+| POST | `/api/projects/:projectId/issues/:issueId/items` | requireRole(contributor) | POST /projects/:projectId/issues/:issueId/items — attach a sub-item (a nested entity) to an issue (contributor+). |
 | POST | `/api/projects/:projectId/issues` | requireRole(contributor) | Issues — the canonical LANE 1 entity. |
 | PATCH | `/api/projects/:projectId/issues/:issueId` | requireRole(contributor) | Issues — the canonical LANE 1 entity. |
 | DELETE | `/api/projects/:projectId/issues/:issueId` | requireRole(contributor) | Issues — the canonical LANE 1 entity. |
