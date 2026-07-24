@@ -131,24 +131,33 @@ export function actionProjectId(recipe: AutomationRecipe, action: AutomationActi
   return recipe.scope.kind === "project" ? recipe.scope.projectId : undefined;
 }
 
+/** The broker write op a mutating action compiles to. Only `create-issue` creates; every other mutating
+ *  action edits the existing target. */
+const opForAction = (kind: string): "create" | "update" => (kind === "create-issue" ? "create" : "update");
+
 /**
  * Compile a recipe's ACTIONS to the existing workflow-engine JSON (one `action` step each). Conditions are
  * NOT compiled into the workflow — a recipe condition is a predicate on the TRIGGERING ENTITY (external to
  * the workflow), so the runner evaluates it up front via {@link matchesConditions} and only runs the
  * compiled workflow when it matches. Returns a validated {@link WorkflowDef} (bounds-checked by the ONE
  * engine validator).
+ *
+ * When a `subject` is supplied (the event-driven path), a mutating action's TARGET is bound from it: an
+ * `update` defaults `issueId`/`projectId` to the triggering entity (so "when this issue changes, set its
+ * status" targets THAT issue), unless the action names its own target explicitly.
  */
-export function compileRecipe(recipe: AutomationRecipe): WorkflowDef {
+export function compileRecipe(recipe: AutomationRecipe, subject?: Record<string, unknown>): WorkflowDef {
   const steps: WorkflowStep[] = recipe.actions.map((a, i) => {
     const def = getActionDef(a.kind)!;
-    return { id: `action-${i}`, kind: "action", action: def.effect, params: compileParams(recipe, a) };
+    return { id: `action-${i}`, kind: "action", action: def.effect, params: compileParams(recipe, a, subject) };
   });
   const def = { id: `recipe:${recipe.id}`, scope: recipe.scope, steps };
   return validateWorkflow(def);
 }
 
-/** Map a recipe action's authoring params to the effect surface's expected shape (e.g. notify's title/body). */
-function compileParams(recipe: AutomationRecipe, a: AutomationAction): Record<string, unknown> {
+/** Map a recipe action's authoring params to the effect surface's expected shape (e.g. notify's title/body,
+ *  or a mutating action's op + subject-bound target). */
+function compileParams(recipe: AutomationRecipe, a: AutomationAction, subject?: Record<string, unknown>): Record<string, unknown> {
   const p = a.params ?? {};
   if (a.kind === "notify") {
     return {
@@ -156,6 +165,21 @@ function compileParams(recipe: AutomationRecipe, a: AutomationAction): Record<st
       body: str2(p["body"]) || str2(p["message"]),
       ...(str2(p["email"]) ? { email: str2(p["email"]) } : str2(p["to"]).includes("@") ? { email: str2(p["to"]) } : {}),
       ...(str2(p["sub"]) ? { sub: str2(p["sub"]) } : {}),
+      __recipeAction: a.kind,
+    };
+  }
+  const def = getActionDef(a.kind);
+  if (def?.mutating) {
+    const op = opForAction(a.kind);
+    // Bind the target from the triggering subject when the action didn't name one. An update needs the
+    // subject's id; a create inherits the subject's project. Explicit action params always win.
+    const boundProjectId = str(p["projectId"]) || (subject ? str(subject["projectId"]) : "") || (recipe.scope.kind === "project" ? recipe.scope.projectId : "");
+    const boundIssueId = str(p["issueId"]) || (op === "update" && subject ? (str(subject["id"]) || str(subject["issueId"])) : "");
+    return {
+      ...p,
+      ...(boundProjectId ? { projectId: boundProjectId } : {}),
+      ...(boundIssueId ? { issueId: boundIssueId } : {}),
+      __op: op,
       __recipeAction: a.kind,
     };
   }

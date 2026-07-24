@@ -1,7 +1,7 @@
 # Semantic rules engine — a globally-applicable, chainable trigger→action engine
 
-**Status:** phases 1–4 implemented (the read/notify half, feature-flagged off by default);
-phases 5–7 (gated mutation, chaining, AI-initiated) designed, not yet built. Records the
+**Status:** phases 1–5 implemented (feature-flagged off by default); phases 6–7 (chaining
+with the cross-run cascade guard, AI-initiated rules) designed, not yet built. Records the
 target for generalising the existing automation/workflow machinery into one **surface-agnostic**,
 **chainable** rules engine of the shape *"ON a trigger, DO an action TO a target, IF a
 condition holds, gated by the initiator's permission — and safe under approvals + AI
@@ -16,7 +16,15 @@ restrictions."*
 - **Phase 3** — post-commit `DomainEvent` emit at `mountEntity` (auto) + `mountCommand` (`emits`
   opt-in), in-process + out-of-band (`lib/domain-event.ts`).
 - **Phase 4** — the dispatcher (`lib/rules-dispatcher.ts`): matches trigger+scope+`when`, runs
-  **inform-only** recipes; mutating recipes are DEFERRED (never silently run) pending phase 5.
+  **inform-only** recipes under the initiating principal.
+- **Phase 5** — gated mutating effects. A dispatched write has no live request, so it runs as an
+  AUTONOMOUS principal (`automation:rule_<id>`) and is **default-deny** under the autonomous-grant
+  gate — no admin grant ⇒ no write. An approval binding (`rule.run:<id>`) takes precedence: the run
+  is HELD as a proposal, nothing writes. Mutation is confined to a new `allowWrites` effect surface
+  (`effectsForAutonomousContext`) so human-run *workflows* stay read+notify (unchanged). The write
+  reaches the autonomous-guarded broker, which re-checks the grant (scope/fields/time/cap + AI
+  containment). The target is bound from the triggering subject. Only the `issue` surface has a wired
+  write effect today (matching phase 2); other surfaces remain observe/notify-only.
 
 Companion to, and a strict **reuse** of:
 - the pure workflow interpreter (`artifacts/api-server/src/lib/workflow.ts`),

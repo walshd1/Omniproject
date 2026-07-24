@@ -61,6 +61,31 @@ test("compileRecipe compiles ACTIONS only (conditions are evaluated by the runne
   assert.equal(wf.steps[0]!.action, "notify");
 });
 
+test("compileRecipe binds a mutating action's target from the triggering subject (+ stamps the write op)", () => {
+  // set-status on the triggering issue: the target issueId/projectId come from the subject.
+  const recipe = validateAutomations([{
+    id: "auto", label: "Auto", scope: { kind: "project", projectId: "p1" },
+    trigger: { kind: "issue.updated" },
+    actions: [{ kind: "set-status", params: { status: "triage" } }],
+  }])[0]!;
+  const wf = compileRecipe(recipe, { id: "iss-9", projectId: "p1", status: "blocked" });
+  const params = wf.steps[0]!.params as Record<string, unknown>;
+  assert.equal(wf.steps[0]!.action, "broker.writeIssue");
+  assert.equal(params["__op"], "update");
+  assert.equal(params["issueId"], "iss-9");   // bound from subject.id
+  assert.equal(params["projectId"], "p1");
+  assert.equal(params["status"], "triage");   // author param preserved
+  // create-issue compiles to a create op and does NOT bind an issueId (it makes a new one).
+  const createRecipe = validateAutomations([{
+    id: "mk", label: "Make", scope: { kind: "project", projectId: "p1" },
+    trigger: { kind: "issue.created" },
+    actions: [{ kind: "create-issue", params: { projectId: "p1", title: "X" } }],
+  }])[0]!;
+  const createParams = compileRecipe(createRecipe, { id: "iss-1", projectId: "p1" }).steps[0]!.params as Record<string, unknown>;
+  assert.equal(createParams["__op"], "create");
+  assert.equal(createParams["issueId"], undefined);
+});
+
 test("matchesConditions evaluates the trigger-subject predicate (ALL must pass)", () => {
   const [inform] = validateAutomations([INFORM]); // condition: priority eq high
   assert.equal(matchesConditions(inform!, { priority: "high" }), true);

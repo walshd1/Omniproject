@@ -1,7 +1,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import type { AutomationRecipe } from "@workspace/backend-catalogue";
-import { dispatchDomainEvent } from "./rules-dispatcher";
+import { dispatchDomainEvent, ruleActorId, ruleRunAction } from "./rules-dispatcher";
+import { registerAutonomousGrant, __resetAutonomousGrants } from "./autonomous-grant";
+import { updateSettings } from "./settings";
 import type { DomainEvent } from "./domain-event";
 
 /**
@@ -30,7 +32,7 @@ test("runs an enabled inform recipe whose trigger + scope + when all match", asy
     notifyRecipe({ when: { all: [{ field: "status", op: "eq", value: "blocked" }] } }),
   ]);
   assert.deepEqual(r.ran, ["notify-blocked"]);
-  assert.deepEqual(r.skippedMutating, []);
+  assert.deepEqual(r.deniedNoGrant, []);
   assert.deepEqual(r.failed, []);
 });
 
@@ -52,21 +54,62 @@ test("a project-scoped recipe matches only its own project's events", async () =
   assert.deepEqual((await dispatchDomainEvent(event({ scope: { projectId: "p2" } }), [recipe])).ran, []);
 });
 
-test("a mutating recipe is DEFERRED, never run (inform-only phase)", async () => {
+test("a mutating recipe is DENIED by default (no autonomous grant) — nothing writes", async () => {
+  __resetAutonomousGrants();
   const mutating = notifyRecipe({
     id: "auto-assign", scope: { kind: "project", projectId: "p1" },
     actions: [{ kind: "assign", params: { assignee: "u9" } }],
   });
   const r = await dispatchDomainEvent(event(), [mutating]);
   assert.deepEqual(r.ran, []);
-  assert.deepEqual(r.skippedMutating, ["auto-assign"]);
+  assert.deepEqual(r.deniedNoGrant, ["auto-assign"]); // default-deny: no grant ⇒ no write
 });
 
-test("a mix: the inform recipe runs, the mutating one defers, in one dispatch", async () => {
+test("a mutating recipe RUNS when an admin grant authorises it (create-issue lands the write)", async () => {
+  __resetAutonomousGrants();
+  const id = "auto-create";
+  // Default AI containment is the strictest ("public"), so the grant must enumerate scope + carry a time
+  // bound and write cap — the same discipline every autonomous write is held to.
+  registerAutonomousGrant({
+    actorId: ruleActorId(id),
+    actions: ["create_issue"],
+    projects: ["p1"], surfaces: ["issue"], fields: ["title", "status"],
+    notAfter: 9_999_999_999_999, maxWrites: 10,
+  });
+  const recipe = notifyRecipe({
+    id, scope: { kind: "project", projectId: "p1" },
+    actions: [{ kind: "create-issue", params: { projectId: "p1", title: "Auto", status: "triage" } }],
+  });
+  const r = await dispatchDomainEvent(event(), [recipe]);
+  assert.deepEqual(r.deniedNoGrant, []); // the gate opened
+  assert.deepEqual(r.ran, [id]);          // the write landed
+  __resetAutonomousGrants();
+});
+
+test("a mutating recipe bound to an approval chain is HELD (proposal raised) — nothing writes", async () => {
+  __resetAutonomousGrants();
+  const id = "gated-assign";
+  // Even WITH a grant, an approval binding takes precedence: the run is held for sign-off, not executed.
+  registerAutonomousGrant({ actorId: ruleActorId(id), actions: ["update_issue"], projects: ["p1"], surfaces: ["issue"], fields: ["assignee"], notAfter: 9_999_999_999_999, maxWrites: 10 });
+  updateSettings({
+    approvalChains: [{ id: "rule-chain", scope: { kind: "org" }, rejectionPolicy: "abort", stages: [{ id: "s1", approvers: [{ kind: "role", role: "admin" }] }] }],
+    approvalBindings: [{ action: ruleRunAction(id), chainId: "rule-chain" }],
+  });
+  const recipe = notifyRecipe({ id, scope: { kind: "project", projectId: "p1" }, actions: [{ kind: "assign", params: { assignee: "u9" } }] });
+  const r = await dispatchDomainEvent(event(), [recipe]);
+  assert.deepEqual(r.deferredApproval, [id]); // held for approval
+  assert.deepEqual(r.ran, []);                 // nothing ran
+  assert.deepEqual(r.deniedNoGrant, []);
+  updateSettings({ approvalChains: [], approvalBindings: [] });
+  __resetAutonomousGrants();
+});
+
+test("a mix: the inform recipe runs, the ungranted mutating one is denied, in one dispatch", async () => {
+  __resetAutonomousGrants();
   const r = await dispatchDomainEvent(event(), [
     notifyRecipe({ id: "inform" }),
     notifyRecipe({ id: "mutate", scope: { kind: "project", projectId: "p1" }, actions: [{ kind: "set-status", params: { status: "triage" } }] }),
   ]);
   assert.deepEqual(r.ran, ["inform"]);
-  assert.deepEqual(r.skippedMutating, ["mutate"]);
+  assert.deepEqual(r.deniedNoGrant, ["mutate"]);
 });
