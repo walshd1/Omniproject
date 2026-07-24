@@ -1,4 +1,5 @@
 import { DEPLOYMENT_PROFILES_DATA } from "./deployment-profiles.generated";
+import { defineCatalogue } from "./catalogue-base";
 
 /**
  * DEPLOYMENT-PROFILE catalogue — a deployment's CONTEXT posture. It lets a deployment declare who it is so the
@@ -36,31 +37,31 @@ export interface ProfilePosture {
   recommend: string[];
 }
 
+// The generic core (sort → byId → get/list/has); the profile-specific accessors below layer over it.
+const catalogue = defineCatalogue<ProfilePosture>(DEPLOYMENT_PROFILES_DATA, { sortByOrder: true });
+
 /** Every shipped profile posture, in display order (strict → relaxed). */
-export const DEPLOYMENT_PROFILE_POSTURES: ProfilePosture[] =
-  [...(DEPLOYMENT_PROFILES_DATA as ProfilePosture[])].sort((a, b) => a.order - b.order);
+export const DEPLOYMENT_PROFILE_POSTURES: ProfilePosture[] = catalogue.all;
 
 /** The profile ids, in display order — the authoritative "which profiles exist" list (was a code constant). */
-export const DEPLOYMENT_PROFILE_IDS: string[] = DEPLOYMENT_PROFILE_POSTURES.map((p) => p.id);
-
-const byId = new Map(DEPLOYMENT_PROFILE_POSTURES.map((p) => [p.id, p]));
+export const DEPLOYMENT_PROFILE_IDS: string[] = catalogue.ids;
 
 /** True when `id` is a shipped deployment profile. */
 export function isDeploymentProfile(id: string | null | undefined): boolean {
-  return id != null && byId.has(id);
+  return catalogue.has(id);
 }
 
 /** One profile's posture by id, or undefined. */
 export function getProfilePosture(id: string): ProfilePosture | undefined {
-  return byId.get(id);
+  return catalogue.get(id);
 }
 
 /** The default profile id (the JSON asset flagged `default`, else the first in order). */
 export function defaultDeploymentProfile(): string {
-  return (DEPLOYMENT_PROFILE_POSTURES.find((p) => p.default) ?? DEPLOYMENT_PROFILE_POSTURES[0])?.id ?? "business";
+  return (catalogue.all.find((p) => p.default) ?? catalogue.all[0])?.id ?? "business";
 }
 
 /** The picker catalogue keyed by id (a defensive copy) — every profile's posture + per-customer-type preset. */
 export function profilePostureCatalogue(): Record<string, ProfilePosture> {
-  return Object.fromEntries(DEPLOYMENT_PROFILE_POSTURES.map((p) => [p.id, { ...p }]));
+  return Object.fromEntries(catalogue.list().map((p) => [p.id, p]));
 }

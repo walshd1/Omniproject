@@ -1,5 +1,6 @@
 import type { CrossPlaneRef } from "./planes";
 import { METHODOLOGIES_DATA } from "./methodologies.generated";
+import { defineCatalogue } from "./catalogue-base";
 
 /**
  * METHODOLOGY registry — the PM methodologies OmniProject can shape itself to
@@ -76,16 +77,17 @@ export interface MethodologyDefinition extends MethodologyManifest {
 /** Every shipped methodology, in display order. Authored as JSON under
  *  assets/methodologies/<id>.json and embedded by gen-methodologies (drift-guarded
  *  in CI). Being data is what lets a methodology PACK ship as an importable bundle. */
-export const METHODOLOGIES: MethodologyDefinition[] = [...METHODOLOGIES_DATA].sort((a, b) => a.order - b.order);
+const catalogue = defineCatalogue(METHODOLOGIES_DATA, { sortByOrder: true });
 
-const byId = new Map(METHODOLOGIES.map((m) => [m.id, m]));
+/** Every shipped methodology, in display order. */
+export const METHODOLOGIES: MethodologyDefinition[] = catalogue.all;
 
 /** One methodology definition by id, or undefined. */
 export function getMethodology(id: string): MethodologyDefinition | undefined {
-  return byId.get(id);
+  return catalogue.get(id);
 }
 
 /** All methodology definitions (a defensive copy). */
 export function methodologyCatalogue(): MethodologyDefinition[] {
-  return METHODOLOGIES.map((m) => ({ ...m }));
+  return catalogue.list();
 }

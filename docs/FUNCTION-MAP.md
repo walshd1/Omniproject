@@ -4817,6 +4817,14 @@ BROKER registry — the automation/translation layer that sits between the gatew
 
 WHITEBOARD / canvas content model — the neutral, primitive-built shape for OmniProject's visual canvas (roadmap 2.3).
 
+### `lib/backend-catalogue/src/catalogue-base.ts`
+
+defineCatalogue — the read-side twin of the write-lane spines.
+
+| Function | What it does |
+| --- | --- |
+| `defineCatalogue` | Build a catalogue over a generated `_DATA` array. |
+
 ### `lib/backend-catalogue/src/compatibility.ts`
 
 Compatibility predicate — the single rule deciding whether a surfaceable asset (report, screen, view, panel, …) should appear, given the resolved SUPPORT set.
