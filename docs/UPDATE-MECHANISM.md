@@ -172,7 +172,13 @@ Data outlives code, so **new code must read old data**:
 ## 11. Build phases
 
 1. **Sign + verify at boot.** Sign the release image by digest; verify signature + digest at the
-   entrypoint (fail-closed). *No workflow change yet — just provenance.*
+   entrypoint (fail-closed). *No workflow change yet — just provenance.* **— BUILT.**
+   `lib/release-provenance.ts` verifies a signed `ReleaseManifest` (version / gitSha / digest) against
+   a trusted release public key (`RELEASE_PUBLIC_KEY`) at boot; `RELEASE_VERIFY` gates enforcement
+   (`off` default / `warn` / `strict` = refuse to boot an unattested or tampered build). The release side
+   signs via `src/tools/sign-release.ts` with the release private key (never shipped). Reuses the existing
+   Ed25519 `lib/signing` verify path. CI wiring (produce + bake the signed manifest) is intentionally
+   deferred to a workflow change.
 2. **Promote-by-digest record + admission check.** Promotion sets prod to a digest; admission verifies
    it. Mutable tags become human-facing aliases only.
 3. **Approval-gated promotion.** Wire promotion through the approval-chain (passkey sign-off), audited.

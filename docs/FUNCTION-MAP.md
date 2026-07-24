@@ -3183,6 +3183,22 @@ ORG REGISTRY server logic (org-wide store of APPROVED bespoke items) — the aut
 | `approvedRegistryItems` | Every APPROVED item (optionally of a kind) — the reuse hook the app draws curated building blocks from. |
 | `communityRegistryItems` | Every item RELEASED to the community — what a connected online marketplace would publish. |
 
+### `artifacts/api-server/src/lib/release-provenance.ts`
+
+Release provenance — the "sign + verify at boot" foundation of the update mechanism (docs/UPDATE-MECHANISM.md §4, phase 1).
+
+| Function | What it does |
+| --- | --- |
+| `releaseVerifyMode` | How strictly to enforce provenance at boot. |
+| `releasePublicKeyPem` | The trusted release verification key (SPKI PEM), from `RELEASE_PUBLIC_KEY` (PEM, or base64-DER SPKI). |
+| `canonicalManifest` | The canonical message a signature covers: the manifest as compact JSON with SORTED keys, so signing and verification agree byte-for-byte regardless of property order. |
+| `signReleaseManifest` | Sign a manifest with a release PRIVATE key — the release/CI side (used by scripts/sign-release). |
+| `buildSignedRelease` | Build a {@link SignedRelease} from a manifest + a private key PEM/seed (release-side convenience). |
+| `parseSignedRelease` | Parse + shape-check an untrusted signed-release object (dropping anything malformed). |
+| `loadSignedRelease` | Load the baked signed release: inline JSON in `RELEASE_MANIFEST`, else the file at `RELEASE_MANIFEST_FILE` (default `./release.json`). |
+| `verifyReleaseProvenance` | Verify this build's provenance. |
+| `enforceReleaseProvenanceAtBoot` | Boot gate: verify provenance and enforce the mode. |
+
 ### `artifacts/api-server/src/lib/reminder-sweep.ts`
 
 Active reminder delivery.
@@ -4782,6 +4798,10 @@ Timesheet STORE seam — where timesheets live is BELOW the seam (the operator's
 | `resetTimesheetStore` | Reset to no store — used by tests to isolate. |
 | `timesheetStoreFor` | The store for a scope, or null. |
 | `describeTimesheetSources` | Report which timesheet sources a deployment COULD use, for the UI to explain availability: - self-host: adoption is on (settings.selfHost.mode !== "off"); - backend: a backend-source provider is registered. |
+
+### `artifacts/api-server/src/tools/sign-release.ts`
+
+Release-signing CLI (docs/UPDATE-MECHANISM.md §4, phase 1) — the release/CI side of provenance.
 
 ## Backend catalogue (`lib/backend-catalogue`)
 
