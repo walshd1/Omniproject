@@ -1,4 +1,5 @@
 import type { CrossPlaneRef } from "./planes";
+import type { TaskVocabEntry } from "./task-vocabulary";
 import { METHODOLOGIES_DATA } from "./methodologies.generated";
 import { defineCatalogue } from "./catalogue-base";
 
@@ -65,8 +66,12 @@ export interface MethodologyManifest {
 
 /** A catalogue entry: the manifest + its tools (the workflow states + ceremonies). */
 export interface MethodologyDefinition extends MethodologyManifest {
-  /** Default workflow states + ceremonies/artefacts it introduces. */
-  tools: { states: string[]; ceremonies: string[] };
+  /** Default workflow states + ceremonies/artefacts it introduces, plus the optional task-status axis.
+   *  `taskStatuses` is the methodology's OWN next-action nomenclature (id + label + workflow class); ANY
+   *  methodology may declare one (methodology-agnostic) — the canonical task vocabulary is derived from these
+   *  across the catalogue (see task-vocabulary.ts), and a deploy lands them via {@link MethodologyNomenclature}.
+   *  GTD ships a task axis today; omitted ⇒ no task axis. */
+  tools: { states: string[]; ceremonies: string[]; taskStatuses?: TaskVocabEntry[] };
   /** Display order in the methodology picker. */
   order: number;
   /** COMPOSITION: the id of a parent methodology this one is built on (see def-compose). A customer fork
