@@ -325,9 +325,7 @@ Bespoke REPORT DEFINITIONS (roadmap X.10 — reports convergence).
 
 | Method | Path | Gate | Description |
 | --- | --- | --- | --- |
-| GET | `/api/reports/custom` | — | — |
-| GET | `/api/reports/custom/resolved` | — | reports, def store winning). |
-| PUT | `/api/reports/custom` | requireRole(pmo) | — |
+| GET | `/api/reports/custom/resolved` | — | scope winning by id). |
 
 ### `artifacts/api-server/src/routes/custom-roles.ts`
 
@@ -337,15 +335,6 @@ ADMIN custom-roles + permission-sets editor.
 | --- | --- | --- | --- |
 | GET | `/api/admin/custom-roles` | requireRole(admin) | GET /api/admin/custom-roles — the current config + the pickers the editor needs (base roles + capabilities). |
 | PUT | `/api/admin/custom-roles` | requireRole(admin) + requireStepUp | gated: custom roles now resolve into real grants, so changing them is as consequential as a role-map edit. |
-
-### `artifacts/api-server/src/routes/dashboards.ts`
-
-Custom dashboards — the LEGACY settings-bundle path (roadmap X.10).
-
-| Method | Path | Gate | Description |
-| --- | --- | --- | --- |
-| GET | `/api/dashboards` | — | — |
-| PUT | `/api/dashboards` | requireRole(pmo) | — |
 
 ### `artifacts/api-server/src/routes/def-bindings.ts`
 
@@ -492,9 +481,7 @@ The set of issue fields the connected backend ADVERTISES as storable (`FieldSupp
 | Method | Path | Gate | Description |
 | --- | --- | --- | --- |
 | POST | `/api/forms/:formId/submit` | requireRole(contributor) | Submit a filled-in form → create an issue in the form's target project. |
-| GET | `/api/forms` | — | the old list; a non-empty write is a retired bypass → 410 Gone, pointing at the importer. |
-| GET | `/api/forms/resolved` | — | an un-migrated one still does until the drain. |
-| PUT | `/api/forms` | requireRole(pmo) | — |
+| GET | `/api/forms/resolved` | — | the renderer reads THIS. |
 
 ### `artifacts/api-server/src/routes/goals.ts`
 
@@ -1022,18 +1009,7 @@ Org-authored SCREEN DEFINITIONS (roadmap X.10 — screens convergence).
 
 | Method | Path | Gate | Description |
 | --- | --- | --- | --- |
-| GET | `/api/screen-defs` | — | — |
-| GET | `/api/screen-defs/resolved` | — | def-store screens, def store winning). |
-| PUT | `/api/screen-defs` | requireRole(pmo) | — |
-
-### `artifacts/api-server/src/routes/screen-layouts.ts`
-
-Per-screen saved LAYOUTS — the drag-customised arrangement (panel order / spans / hidden).
-
-| Method | Path | Gate | Description |
-| --- | --- | --- | --- |
-| GET | `/api/screen-layouts` | — | — |
-| PUT | `/api/screen-layouts` | requireRole(pmo) | — |
+| GET | `/api/screen-defs/resolved` | — | scope winning by id). |
 
 ### `artifacts/api-server/src/routes/security.ts`
 
@@ -1107,8 +1083,6 @@ Setup catalogue plane — the read-only "what CAN be wired" surface for the Conf
 | GET | `/api/setup/methodology-preset/:id` | — | planes (views, reports, screens), so a "click kanban" preset surfaces them all. |
 | GET | `/api/setup/reports` | requireAnyRole(pmo, admin) | is restricted to PMO/admin like the other wiring-catalogue reads above. |
 | GET | `/api/setup/screens` | — | — |
-| GET | `/api/setup/screens/:id/layout` | — | GET is open (the SPA needs it to render); PUT is manager+ (a shared customer view). |
-| PUT | `/api/setup/screens/:id/layout` | requireRole(manager) | — |
 | GET | `/api/setup/planes` | — | The plane meta-registry — all seven planes + their dev docs. |
 | GET | `/api/setup/entity-resolution/preview` | — | the truth stays in the backends, never at rest here. |
 

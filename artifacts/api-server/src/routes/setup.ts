@@ -24,6 +24,7 @@ import { selfHostGatingForScope } from "../selfhost";
 import { deploymentProfile, profilePosture, requireTls, acceptDemoAuth, demoAuthSeverity, profileCatalogue, DEPLOYMENT_PROFILES } from "../lib/deployment-profile";
 import { bootRefusalActive } from "../lib/security-check";
 import { brokerMtlsConfigured } from "../lib/broker-transport";
+import { contextFromReq } from "../broker";
 import { applyCharityOnboarding } from "../lib/charity-onboarding";
 import { sharedStateMode } from "../lib/shared-state";
 import { IDP_PRESETS } from "../lib/idp-presets";
@@ -216,7 +217,7 @@ export const setupCharityOnboardingCommand: CommandDescriptor<Record<string, nev
   path: "/setup/charity-onboarding",
   role: "admin",
   parse: () => ({}),
-  run: async () => applyCharityOnboarding(),
+  run: async (req) => applyCharityOnboarding(contextFromReq(req), new Date().toISOString()),
   audit: "setup.charity-onboarding",
   auditCategory: "admin",
 };

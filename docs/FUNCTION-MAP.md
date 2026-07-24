@@ -1226,7 +1226,7 @@ Capability governance's activity/audit LOG — the in-RAM decision ring, its opt
 
 ### `artifacts/api-server/src/lib/charity-onboarding.ts`
 
-"We're a charity" one-click onboarding preset — the small-org counterpart to picking a deployment profile by hand.
+A dashboard is a def now (kind `dashboard`, payload = this shape); charity onboarding MINTS them into the org def store.
 
 | Function | What it does |
 | --- | --- |
@@ -4306,10 +4306,6 @@ Bespoke REPORT DEFINITIONS (roadmap X.10 — reports convergence).
 
 ADMIN custom-roles + permission-sets editor.
 
-### `artifacts/api-server/src/routes/dashboards.ts`
-
-Custom dashboards — the LEGACY settings-bundle path (roadmap X.10).
-
 ### `artifacts/api-server/src/routes/def-bindings.ts`
 
 DEF SELECTION BINDINGS routes (roadmap X.12).
@@ -4569,10 +4565,6 @@ SCIM 2.0 provisioning endpoints (RFC 7644).
 ### `artifacts/api-server/src/routes/screen-defs.ts`
 
 Org-authored SCREEN DEFINITIONS (roadmap X.10 — screens convergence).
-
-### `artifacts/api-server/src/routes/screen-layouts.ts`
-
-Per-screen saved LAYOUTS — the drag-customised arrangement (panel order / spans / hidden).
 
 ### `artifacts/api-server/src/routes/security.ts`
 

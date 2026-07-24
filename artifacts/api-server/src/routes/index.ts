@@ -44,10 +44,8 @@ import aiAllowlistRouter from "./ai-allowlist";
 import featuresRouter from "./features";
 import rateCardRouter from "./rate-card";
 import viewsRouter from "./views";
-import dashboardsRouter from "./dashboards";
 import customReportsRouter from "./custom-reports";
 import contentPagesRouter from "./content-pages";
-import screenLayoutsRouter from "./screen-layouts";
 import screenDefsRouter from "./screen-defs";
 import disabledScreensRouter from "./disabled-screens";
 import raciRouter from "./raci";
@@ -243,10 +241,8 @@ router.use(requireAuth, rateCardRouter);
 // and /api/content-pages keep accepting reads/writes). requireFeature 404s them once disabled,
 // exactly like the lazily-mounted modules (odata / presence / comments).
 router.use(requireAuth, requireFeature("savedViews"), viewsRouter);
-router.use(requireAuth, requireFeature("dashboards"), dashboardsRouter);
 router.use(requireAuth, customReportsRouter);
 router.use(requireAuth, requireFeature("contentPages"), contentPagesRouter);
-router.use(requireAuth, screenLayoutsRouter);
 router.use(requireAuth, screenDefsRouter);
 router.use(requireAuth, disabledScreensRouter);
 router.use(requireAuth, raciRouter);

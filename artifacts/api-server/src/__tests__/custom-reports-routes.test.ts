@@ -10,17 +10,15 @@ import { startHarness, adminCookie, memberCookie, type Harness } from "./_harnes
 
 /**
  * routes/custom-reports.ts after the def-store convergence (roadmap X.10 reports). Bespoke report DEFINITIONS
- * are now artifacts authored through the importer (`POST /api/defs`, kind `report`); the CustomReport renderer
- * reads them from `GET /reports/custom/resolved`, and the legacy `PUT /reports/custom` survives only to DRAIN
- * to `[]`. (Overrides of the built-in reports stay in the separate `reportOverrides` settings overlay.)
+ * are artifacts authored through the importer (`POST /api/defs`, kind `report`); the CustomReport renderer
+ * reads them from `GET /reports/custom/resolved`. (Overrides of the built-in reports stay in the separate
+ * `reportOverrides` settings overlay.)
  */
 let h: Harness;
 const ADMIN = adminCookie();
 before(async () => { h = await startHarness(); });
 after(() => { h?.close(); fs.rmSync(process.env["OMNI_CONFIG_DIR"]!, { recursive: true, force: true }); });
 afterEach(async () => {
-  const { updateSettings } = await import("../lib/settings");
-  updateSettings({ customReports: [] });
   const { replaceArtifacts } = await import("../lib/artifact-store");
   const { DEF_ARTIFACT } = await import("../lib/def-import");
   replaceArtifacts(DEF_ARTIFACT, { kind: "org" }, []);
@@ -39,23 +37,9 @@ test("a report authored via the importer resolves via GET /reports/custom/resolv
   assert.equal(spend!.label, "Spend by status");
 });
 
-test("a legacy settings.customReports entry still resolves (migration bridge)", async () => {
-  const { updateSettings } = await import("../lib/settings");
-  updateSettings({ customReports: [REPORT] });
-  const resolved = (await req("/reports/custom/resolved").then((x) => x.json())) as { customReports: { id: string }[] };
-  assert.ok(resolved.customReports.some((r) => r.id === "spend"));
-});
-
-test("the legacy PUT /reports/custom is retired — a non-empty write is 410, draining to [] is allowed", async () => {
-  assert.equal((await req("/reports/custom", { method: "PUT", body: { customReports: [REPORT] } })).status, 410);
-  assert.equal((await req("/reports/custom", { method: "PUT", body: { customReports: [] } })).status, 200);
-});
-
-test("draining custom reports is gated to pmo (reads stay open) under real RBAC", async () => {
+test("GET /reports/custom/resolved reads are open (viewer+) under real RBAC", async () => {
   const prev = process.env["OIDC_ISSUER_URL"]; process.env["OIDC_ISSUER_URL"] = "https://idp.example";
   try {
-    assert.equal((await h.req("/reports/custom", { cookie: memberCookie(), method: "PUT", body: { customReports: [] } })).status, 403);
-    assert.equal((await h.req("/reports/custom", { cookie: memberCookie() })).status, 200);
     assert.equal((await h.req("/reports/custom/resolved", { cookie: memberCookie() })).status, 200);
   } finally { if (prev === undefined) delete process.env["OIDC_ISSUER_URL"]; else process.env["OIDC_ISSUER_URL"] = prev; }
 });
