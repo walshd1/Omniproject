@@ -65,6 +65,9 @@ onlyBuiltDependencies:
   - unrs-resolver
 
 overrides:
+  # postcss <8.5.18 carries a HIGH path-traversal advisory (GHSA-r28c-9q8g-f849) in
+  # source-map auto-loading. Force the patched line; it's transitive via vite (build-time).
+  postcss: ">=8.5.18"
   # Target linux-x64 only; exclude all other platform binaries.
   "esbuild>@esbuild/darwin-arm64": "-"
   "esbuild>@esbuild/darwin-x64": "-"
