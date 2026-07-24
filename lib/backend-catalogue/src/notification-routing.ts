@@ -12,6 +12,7 @@
  * the same compatibility idea: a channel is only a target if it's available.
  */
 import { ROUTES_DATA } from "./notification-routes.generated";
+import { defineCatalogue } from "./catalogue-base";
 import { matchesMethodology } from "./methodology-match";
 
 export interface NotificationRouteMatch {
@@ -49,17 +50,19 @@ export interface DeliveryIntent {
   audience: NotificationAudience | null;
 }
 
+const catalogue = defineCatalogue(ROUTES_DATA, { sortByOrder: true });
+
 /** Every shipped routing rule, in evaluation order. */
-export const NOTIFICATION_ROUTES: NotificationRoute[] = [...ROUTES_DATA].sort((a, b) => a.order - b.order);
+export const NOTIFICATION_ROUTES: NotificationRoute[] = catalogue.all;
 
 /** One route by id, or undefined. */
 export function getNotificationRoute(id: string): NotificationRoute | undefined {
-  return NOTIFICATION_ROUTES.find((r) => r.id === id);
+  return catalogue.get(id);
 }
 
 /** All routing rules (a defensive copy). */
 export function notificationRouteCatalogue(): NotificationRoute[] {
-  return NOTIFICATION_ROUTES.map((r) => ({ ...r }));
+  return catalogue.list();
 }
 
 /** Notification routes canonical to a methodology — those carrying its tag, plus the neutral (`"*"`) ones.

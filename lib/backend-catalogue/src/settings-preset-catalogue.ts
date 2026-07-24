@@ -1,4 +1,5 @@
 import { SETTINGS_PRESETS_DATA } from "./settings-presets.generated";
+import { defineCatalogue } from "./catalogue-base";
 
 /**
  * SETTINGS-PRESET archetypes — known-good posture blueprints an operator loads in setup and then tweaks
@@ -22,15 +23,17 @@ export interface SettingsPreset {
   settings: Record<string, unknown>;
 }
 
+const catalogue = defineCatalogue(SETTINGS_PRESETS_DATA, { sortByOrder: true });
+
 /** The shipped archetypes, ascending by `order` (stable). */
-export const SETTINGS_PRESETS: SettingsPreset[] = [...SETTINGS_PRESETS_DATA].sort((a, b) => a.order - b.order);
+export const SETTINGS_PRESETS: SettingsPreset[] = catalogue.all;
 
 /** The known-good settings blueprints, in display order. */
 export function settingsPresetCatalogue(): SettingsPreset[] {
-  return SETTINGS_PRESETS.map((p) => ({ ...p }));
+  return catalogue.list();
 }
 
 /** One blueprint by id, or undefined. */
 export function getSettingsPreset(id: string): SettingsPreset | undefined {
-  return SETTINGS_PRESETS.find((p) => p.id === id);
+  return catalogue.get(id);
 }
