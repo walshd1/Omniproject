@@ -11,14 +11,13 @@ import type { FormDef } from "../../lib/forms";
  * the admin reads the org-scoped `form` defs and a save is a per-def upsert through the importer
  * (`POST`/`PUT /api/defs`). Covers RBAC gating, adding from a shipped template, and saving via the importer.
  */
-function seed(role: string | undefined, orgForms: FormDef[] = [], legacyForms: FormDef[] = [], caps?: unknown): QueryClient {
+function seed(role: string | undefined, orgForms: FormDef[] = [], caps?: unknown): QueryClient {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity }, mutations: { retry: false } } });
   if (role) qc.setQueryData(["auth", "me"], { authenticated: true, role, user: { sub: "u1" } });
   // The org form defs the admin edits (resolved-defs key; storage inferred from the `org~` id prefix).
   qc.setQueryData(["defs", "resolved", "form", null, null], orgForms.map((f, i) => ({
     id: `org~f${i}`, kind: "form", name: f.label, storage: "org", payload: f, createdBy: null, createdAt: "", updatedAt: "", rowVersion: 1,
   })));
-  qc.setQueryData(["forms", "legacy"], legacyForms);
   if (caps !== undefined) qc.setQueryData(["/api/capabilities"], caps);
   return qc;
 }
@@ -75,12 +74,6 @@ describe("FormsAdmin", () => {
     expect(body.storage).toBe("org");
     expect(body.payload.target.projectId).toBe("proj-001");
     expect(body.payload.fields.length).toBeGreaterThan(0);
-  });
-
-  it("offers a migration when legacy settings.forms are present", () => {
-    const legacy: FormDef = { id: "old", label: "Old form", fields: [{ key: "s", label: "S", type: "text", mapTo: "title", required: true }], target: { kind: "issue", projectId: "p1" } };
-    renderWithProviders(<FormsAdmin />, { client: seed("admin", [], [legacy]) });
-    expect(screen.getByTestId("forms-migrate-legacy")).toBeInTheDocument();
   });
 });
 
@@ -150,7 +143,7 @@ describe("FormsAdmin — build + edit", () => {
 describe("FormsAdmin — validation branches", () => {
   const badText = () => screen.getByTestId("form-bad-formA").textContent;
   function render(payload: FormDef, caps?: unknown) {
-    renderWithProviders(<FormsAdmin />, { client: seed("admin", [payload], [], caps) });
+    renderWithProviders(<FormsAdmin />, { client: seed("admin", [payload], caps) });
   }
 
   it("flags a blank id/label", () => {
@@ -238,42 +231,5 @@ describe("FormsAdmin — save round-trip", () => {
     fireEvent.click(screen.getByTestId("forms-save"));
     expect(await screen.findByText("COULD NOT SAVE")).toBeInTheDocument();
     expect(screen.getByText("scope denied")).toBeInTheDocument();
-  });
-});
-
-describe("FormsAdmin — legacy migration", () => {
-  it("shows no migrate button when there is no legacy slice", () => {
-    renderWithProviders(<FormsAdmin />, { client: seed("admin") });
-    expect(screen.queryByTestId("forms-migrate-legacy")).toBeNull();
-  });
-
-  it("pluralises the migrate label for several legacy forms", () => {
-    renderWithProviders(<FormsAdmin />, { client: seed("admin", [], [form({ id: "l1" }), form({ id: "l2" })]) });
-    expect(screen.getByTestId("forms-migrate-legacy")).toHaveTextContent(/Migrate 2 legacy forms/);
-  });
-
-  it("imports each legacy form then drains, and toasts", async () => {
-    const calls = mockFetchRouter({ "GET /api/defs/resolved/form": { ok: true, body: [] } });
-    renderWithProviders(<><FormsAdmin /><Toaster /></>, { client: seed("admin", [], [form({ id: "legacy1", label: "Legacy 1" })]) });
-    fireEvent.click(screen.getByTestId("forms-migrate-legacy"));
-    await waitFor(() => expect(screen.getByText("MIGRATED")).toBeInTheDocument());
-    expect(calls.some((c) => c.init?.method === "POST" && c.url.endsWith("/api/defs"))).toBe(true);
-    expect(calls.some((c) => c.init?.method === "PUT" && c.url.endsWith("/api/forms"))).toBe(true);
-  });
-
-  it("skips a legacy form already present in the def store (drain only)", async () => {
-    const calls = mockFetchRouter({ "GET /api/defs/resolved/form": { ok: true, body: [] } });
-    renderWithProviders(<><FormsAdmin /><Toaster /></>, { client: seed("admin", [form({ id: "dupe", label: "Dupe" })], [form({ id: "dupe", label: "Dupe" })]) });
-    fireEvent.click(screen.getByTestId("forms-migrate-legacy"));
-    await waitFor(() => expect(screen.getByText("MIGRATED")).toBeInTheDocument());
-    expect(calls.some((c) => c.init?.method === "PUT" && c.url.endsWith("/api/forms"))).toBe(true);
-    expect(calls.some((c) => c.init?.method === "POST" && c.url.endsWith("/api/defs"))).toBe(false);
-  });
-
-  it("toasts a failure when the drain step fails", async () => {
-    mockFetchRouter({ "PUT /api/forms": { ok: false, status: 500, body: { error: "drain down" } }, "GET /api/defs/resolved/form": { ok: true, body: [] } });
-    renderWithProviders(<><FormsAdmin /><Toaster /></>, { client: seed("admin", [], [form({ id: "l1", label: "L1" })]) });
-    fireEvent.click(screen.getByTestId("forms-migrate-legacy"));
-    expect(await screen.findByText("MIGRATION FAILED")).toBeInTheDocument();
   });
 });

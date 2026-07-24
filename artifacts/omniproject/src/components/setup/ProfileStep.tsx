@@ -8,7 +8,7 @@ import {
   type ProfilePosture,
   type CharityOnboardingResult,
 } from "../../lib/deployment-profile";
-import { dashboardsQueryKey } from "../../lib/dashboards";
+import { defsKey } from "../../lib/defs";
 
 /**
  * Setup-wizard step 0: pick your deployment type up front. Each card is a PRESET for a
@@ -41,7 +41,8 @@ export function ProfileStep({ isAdmin }: { isAdmin: boolean }) {
       const result = await applyCharityOnboarding();
       await Promise.all([
         qc.invalidateQueries({ queryKey: ["deployment-profile"] }),
-        qc.invalidateQueries({ queryKey: dashboardsQueryKey }),
+        qc.invalidateQueries({ queryKey: defsKey }), // charity onboarding mints dashboard DEFS now
+
       ]);
       setCharityState({ status: "done", result });
     } catch (err) {
