@@ -1,9 +1,22 @@
 # Semantic rules engine — a globally-applicable, chainable trigger→action engine
 
-**Status:** design note (not yet implemented). Records the target for generalising the
-existing automation/workflow machinery into one **surface-agnostic**, **chainable** rules
-engine of the shape *"ON a trigger, DO an action TO a target, IF a condition holds, gated by
-the initiator's permission — and safe under approvals + AI restrictions."*
+**Status:** phases 1–4 implemented (the read/notify half, feature-flagged off by default);
+phases 5–7 (gated mutation, chaining, AI-initiated) designed, not yet built. Records the
+target for generalising the existing automation/workflow machinery into one **surface-agnostic**,
+**chainable** rules engine of the shape *"ON a trigger, DO an action TO a target, IF a
+condition holds, gated by the initiator's permission — and safe under approvals + AI
+restrictions."*
+
+**Built so far (behind `RULES_ENGINE_EVENTS`, off by default):**
+- **Phase 1** — one shared condition language: the pure predicate engine moved to
+  `@workspace/backend-catalogue` (`predicate.ts`); recipes gained `when` (a full `ConditionSet`);
+  `matchesConditions` now delegates to it (legacy flat `conditions` convert via `conditionSetOf`).
+- **Phase 2** — surface-agnostic taxonomy: `RULE_SURFACES` (data) with event triggers **generated**
+  from `surfaces × verbs`; `TriggerKind`/`ActionKind` widened to strings; `set-status`/`assign` added.
+- **Phase 3** — post-commit `DomainEvent` emit at `mountEntity` (auto) + `mountCommand` (`emits`
+  opt-in), in-process + out-of-band (`lib/domain-event.ts`).
+- **Phase 4** — the dispatcher (`lib/rules-dispatcher.ts`): matches trigger+scope+`when`, runs
+  **inform-only** recipes; mutating recipes are DEFERRED (never silently run) pending phase 5.
 
 Companion to, and a strict **reuse** of:
 - the pure workflow interpreter (`artifacts/api-server/src/lib/workflow.ts`),

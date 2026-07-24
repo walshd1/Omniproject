@@ -20,6 +20,7 @@ import { startExecDigestScheduler, runExecDigest } from "./lib/exec-digest";
 import { startProactiveDigestScheduler, runProactiveDigest } from "./lib/proactive-digest";
 import { startScheduledExportScheduler, runScheduledExport } from "./lib/scheduled-export";
 import { startDriftCanaryScheduler, runDriftCanary } from "./lib/drift-canary";
+import { startRulesDispatcher } from "./lib/rules-dispatcher";
 import { loadConfigDir } from "./lib/config-dir";
 import { assertSessionSecretForLocalPrincipals } from "./lib/session-secret-guard";
 import { localUsersActive } from "./lib/user-directory";
@@ -130,6 +131,10 @@ async function start(): Promise<void> {
   // Single-instance timer; for a fleet, set it to 0 and drive POST /api/admin/drift-canary/run
   // from external cron so it fires once. A quiet run dispatches nothing.
   startDriftCanaryScheduler(() => runDriftCanary({ now: Date.now(), broker: getBroker() }));
+
+  // Rules engine — subscribe the dispatcher to domain events so enabled recipes fire on real changes.
+  // No-op unless RULES_ENGINE_EVENTS is set; inform-only (mutating recipes need the autonomous-grant path).
+  startRulesDispatcher();
 
   const server = app.listen(port, (err) => {
     if (err) {
