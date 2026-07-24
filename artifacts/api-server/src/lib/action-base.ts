@@ -2,6 +2,7 @@ import type { IRouter, Request, Response, RequestHandler } from "express";
 import { requireRole, type Role } from "./rbac";
 import { recordAudit, actorForAudit, type AuditCategory } from "./audit";
 import { enforceBusinessRules } from "./ruleset-guard";
+import { withBrokerErrors } from "../broker";
 
 /**
  * LANE 2 — the generic ACTION base. A VERB / command (approve a proposal, run a workflow, transition a
@@ -56,6 +57,14 @@ export interface CommandDescriptor<A> {
   auditMeta?: (req: Request, args: A, result: unknown) => Record<string, unknown>;
   /** Map a thrown error to a response (e.g. the approval service's typed failures). Default: rethrow. */
   onError?: (res: Response, err: unknown, req: Request, action: string) => void;
+  /** Declares this command performs broker (southbound) work in `run`. When set, `run` executes inside
+   *  `withBrokerErrors`: a thrown broker-taxonomy error is mapped to its HTTP status (409 conflict / 451
+   *  residency / 502 unreachable-or-timeout / …) and — crucially — NO success audit is recorded, because the
+   *  response is an error, not a success. Pre-broker validation still belongs in `parse` (its 4xx fires before
+   *  `run` ever executes). `true` uses a default "<name> failed" log message; the object form customises the
+   *  log message and the structured log `ctx`. Mutually exclusive with `onError` (broker errors own the run
+   *  phase). Set `status`/`auditStatus` for the success code as usual. */
+  broker?: boolean | { message?: string; ctx?: (req: Request, args: A) => Record<string, unknown> };
   /** Success status when `run` returns a payload (default 200). */
   status?: number;
 }
@@ -78,8 +87,9 @@ export function mountCommand<A>(router: IRouter, desc: CommandDescriptor<A>): vo
     const ruleAction = desc.ruleAction ?? desc.name;
     const scope = desc.ruleScope?.(req, args) ?? {};
     if (!enforceBusinessRules(req, res, ruleAction, scope)) return;
-    try {
-      const result = await desc.run(req, res, args);
+    // On SUCCESS only: record the audit then send the payload. Not reached when `run` throws — so a broker
+    // error (below) or a mapped `onError` never leaves a spurious success audit behind.
+    const respondSuccess = (result: unknown): void => {
       recordAudit({
         ts: new Date().toISOString(),
         category: desc.auditCategory ?? "request",
@@ -91,9 +101,21 @@ export function mountCommand<A>(router: IRouter, desc: CommandDescriptor<A>): vo
         ...(desc.auditMeta ? { meta: desc.auditMeta(req, args, result) } : {}),
       });
       if (result !== undefined) res.status(desc.status ?? 200).json(result);
-    } catch (err) {
-      if (desc.onError) desc.onError(res, err, req, action);
-      else throw err;
+    };
+    if (desc.broker) {
+      // Broker-aware: run inside withBrokerErrors, so a thrown broker-taxonomy error maps to its HTTP status
+      // and respondSuccess never runs (no audit for a failed write). Mirrors the entity pipeline's wrapper.
+      const b = desc.broker === true ? {} : desc.broker;
+      await withBrokerErrors(req, res, b.message ?? `${desc.name} failed`, async () => {
+        respondSuccess(await desc.run(req, res, args));
+      }, b.ctx?.(req, args) ?? {});
+    } else {
+      try {
+        respondSuccess(await desc.run(req, res, args));
+      } catch (err) {
+        if (desc.onError) desc.onError(res, err, req, action);
+        else throw err;
+      }
     }
   };
   const mw = [

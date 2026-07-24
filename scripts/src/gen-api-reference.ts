@@ -116,7 +116,7 @@ function entityRoutesFromLiteral(obj: ts.ObjectLiteralExpression, base: string, 
     out.push({ method, routePath: base + p, gate: role ? `requireRole(${role})` : "", doc });
   };
   emit("create", "POST", basePath);
-  emit("update", "PATCH", itemPath);
+  emit("update", (stringProp(obj, "updateMethod") ?? "patch").toUpperCase(), itemPath);
   emit("remove", "DELETE", itemPath);
   return out;
 }

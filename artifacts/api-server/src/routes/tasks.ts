@@ -204,29 +204,33 @@ router.get("/tasks/:taskId", (req, res) =>
   }),
 );
 
-// POST /api/tasks — create a next-action (manager+). 501 when the backend has no task model.
-router.post("/tasks", requireRole("manager"), (req, res) => {
-  if (!brokerHasTasks()) { res.status(501).json({ error: "this backend does not support tasks" }); return; }
-  const body = parseOr400(req, res, TaskBody);
-  if (!body) return;
-  if (!body.title) { res.status(400).json({ error: "title is required" }); return; }
-  if (!checkTaskStatus(req, res, body)) return;
-  if (!checkTaskEnergy(req, res, body)) return;
-  return withBrokerErrors(req, res, "create_task failed", async () => {
-    res.status(201).json(await createTask(req, body));
-  });
-});
-
-// PATCH /api/tasks/:taskId — update a task (manager+). LANE 1 (entity pipeline): the update runs the fixed
-// RBAC → validate → ruleset → scope → write sequence via mountEntity. Its SCOPE is the task-access guard (not a
-// project IDOR), through the pipeline's custom-scope variant. Migrating onto the spine also brings the business
-// ruleset to task writes for the first time — a deliberate GAP-CLOSURE so a portfolio read-only freeze / an
-// any-write field rule now covers tasks like every other governed write (previously they bypassed the ruleset).
+// Tasks (manager+). LANE 1 (entity pipeline): create + update run the fixed RBAC → validate → ruleset → scope →
+// write sequence via mountEntity. The descriptor SCOPE is the task-access guard (not a project IDOR), through
+// the pipeline's custom-scope variant — but CREATE overrides it to `none` (a new task has no task to guard
+// yet, exactly as the hand-written POST did). Migrating onto the spine also brings the business ruleset to task
+// writes (create_task / update_task) for the first time — a deliberate GAP-CLOSURE so a portfolio read-only
+// freeze / an any-write field rule now covers tasks like every other governed write (previously they bypassed
+// the ruleset). 501 when the backend has no task model.
 export const taskEntity: EntityDescriptor = {
   entity: "task",
   basePath: "/tasks",
   idParam: "taskId",
   scope: { kind: "custom", guard: async (req, res) => !!(await guardTaskAccess(req, res, String(req.params["taskId"]))) },
+  create: {
+    role: "manager",
+    ruleAction: "create_task",
+    scope: { kind: "none" }, // a new task has no task-access scope yet (the create had no guard)
+    validate: (req, res) => {
+      if (!brokerHasTasks()) { res.status(501).json({ error: "this backend does not support tasks" }); return null; }
+      const body = parseOr400(req, res, TaskBody);
+      if (!body) return null;
+      if (!body.title) { res.status(400).json({ error: "title is required" }); return null; }
+      if (!checkTaskStatus(req, res, body)) return null;
+      if (!checkTaskEnergy(req, res, body)) return null;
+      return body;
+    },
+    run: async (req, _res, body) => createTask(req, body as Parameters<typeof createTask>[1]),
+  },
   update: {
     role: "manager",
     ruleAction: "update_task",
