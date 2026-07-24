@@ -11,7 +11,7 @@
  * never drift on WHICH grades exist. The internal ordinal LEVEL is the anchor the risk-exposure maths (P×I)
  * key off (see the api-server resolver's nearest-band fallback, so a scope-added grade still yields a number).
  */
-import { vocabMethodologies, tokensForMethodology } from "./work-vocabulary";
+import { defineGradedVocabulary } from "./vocabulary-base";
 import { IMPACT_VOCABULARY_DATA } from "./impact-vocabulary.generated";
 
 /** One canonical RAID/risk impact grade (with its internal ordinal level + display order). */
@@ -36,25 +36,21 @@ export interface ImpactVocabEntry {
  *  drift test asserts the two agree. */
 export type CanonicalImpact = "low" | "medium" | "high";
 
-const entries: ImpactVocabEntry[] = [...IMPACT_VOCABULARY_DATA].sort((a, b) => a.order - b.order);
+const vocab = defineGradedVocabulary<ImpactVocabEntry>(IMPACT_VOCABULARY_DATA);
 
 /** Canonical (internal) impact grades in ascending order (low → high). Derived from the shipped
  *  entries, so a drift test can assert the set never silently changes. */
-export const CANONICAL_IMPACT: readonly CanonicalImpact[] = entries.map((e) => e.id as CanonicalImpact);
+export const CANONICAL_IMPACT: readonly CanonicalImpact[] = vocab.ids as readonly CanonicalImpact[];
 
 /** Canonical impact grade → its internal ordinal level (the invariant the exposure/ordering key off). */
-export const IMPACT_LEVEL: Record<CanonicalImpact, number> = Object.fromEntries(
-  entries.map((e) => [e.id, e.level]),
-) as Record<CanonicalImpact, number>;
+export const IMPACT_LEVEL: Record<CanonicalImpact, number> = vocab.levelById as Record<CanonicalImpact, number>;
 
 /** Canonical impact grade → its display label. */
-export const IMPACT_LABEL: Record<CanonicalImpact, string> = Object.fromEntries(
-  entries.map((e) => [e.id, e.label]),
-) as Record<CanonicalImpact, string>;
+export const IMPACT_LABEL: Record<CanonicalImpact, string> = vocab.labelById as Record<CanonicalImpact, string>;
 
 /** The full impact vocabulary (a defensive copy) — for a consumer that needs the raw entries. */
 export function impactVocabulary(): ImpactVocabEntry[] {
-  return entries.map((e) => ({ ...e }));
+  return vocab.vocabulary();
 }
 
 /** The scope-layerable shape of the impact vocabulary: the grades. This is BOTH the `values` seeded into
@@ -67,13 +63,11 @@ export interface ImpactVocabularyValues {
 
 /** Build the shipped-default {@link ImpactVocabularyValues} from the canonical entries. */
 export function impactVocabularyValues(): ImpactVocabularyValues {
-  return {
-    levels: entries.map((e) => ({ id: e.id, label: e.label, order: e.order, level: e.level, methodologies: vocabMethodologies(e), ...(e.labels ? { labels: e.labels } : {}), ...(e.color ? { color: e.color } : {}) })),
-  };
+  return { levels: vocab.resolved() };
 }
 
 /** The impact grades that apply to `methodologyId` — its tagged ones plus the neutral ("*") ones. Pass the
  *  shipped default or a resolved set. */
 export function impactLevelsForMethodology(methodologyId: string, levels: readonly ResolvedImpact[] = impactVocabularyValues().levels): ResolvedImpact[] {
-  return tokensForMethodology(methodologyId, levels);
+  return vocab.forMethodology(methodologyId, levels);
 }

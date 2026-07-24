@@ -11,7 +11,7 @@
  * internal ordinal LEVEL is the anchor the risk-exposure maths (P×I) key off (see the api-server resolver's
  * nearest-band fallback, so a scope-added grade still yields a bounded number).
  */
-import { vocabMethodologies, tokensForMethodology } from "./work-vocabulary";
+import { defineGradedVocabulary } from "./vocabulary-base";
 import { SEVERITY_VOCABULARY_DATA } from "./severity-vocabulary.generated";
 
 /** One canonical RAID/risk severity grade (with its internal ordinal level + display order). */
@@ -36,25 +36,21 @@ export interface SeverityVocabEntry {
  *  drift test asserts the two agree. KEEPS `critical` — the extra grade the RAID register already ships. */
 export type CanonicalSeverity = "low" | "medium" | "high" | "critical";
 
-const entries: SeverityVocabEntry[] = [...SEVERITY_VOCABULARY_DATA].sort((a, b) => a.order - b.order);
+const vocab = defineGradedVocabulary<SeverityVocabEntry>(SEVERITY_VOCABULARY_DATA);
 
 /** Canonical (internal) severity grades in ascending order (low → critical). Derived from the shipped
  *  entries, so a drift test can assert the set never silently changes. */
-export const CANONICAL_SEVERITY: readonly CanonicalSeverity[] = entries.map((e) => e.id as CanonicalSeverity);
+export const CANONICAL_SEVERITY: readonly CanonicalSeverity[] = vocab.ids as readonly CanonicalSeverity[];
 
 /** Canonical severity grade → its internal ordinal level (the invariant the exposure/ordering key off). */
-export const SEVERITY_LEVEL: Record<CanonicalSeverity, number> = Object.fromEntries(
-  entries.map((e) => [e.id, e.level]),
-) as Record<CanonicalSeverity, number>;
+export const SEVERITY_LEVEL: Record<CanonicalSeverity, number> = vocab.levelById as Record<CanonicalSeverity, number>;
 
 /** Canonical severity grade → its display label. */
-export const SEVERITY_LABEL: Record<CanonicalSeverity, string> = Object.fromEntries(
-  entries.map((e) => [e.id, e.label]),
-) as Record<CanonicalSeverity, string>;
+export const SEVERITY_LABEL: Record<CanonicalSeverity, string> = vocab.labelById as Record<CanonicalSeverity, string>;
 
 /** The full severity vocabulary (a defensive copy) — for a consumer that needs the raw entries. */
 export function severityVocabulary(): SeverityVocabEntry[] {
-  return entries.map((e) => ({ ...e }));
+  return vocab.vocabulary();
 }
 
 /** The scope-layerable shape of the severity vocabulary: the grades. This is BOTH the `values` seeded into
@@ -67,13 +63,11 @@ export interface SeverityVocabularyValues {
 
 /** Build the shipped-default {@link SeverityVocabularyValues} from the canonical entries. */
 export function severityVocabularyValues(): SeverityVocabularyValues {
-  return {
-    levels: entries.map((e) => ({ id: e.id, label: e.label, order: e.order, level: e.level, methodologies: vocabMethodologies(e), ...(e.labels ? { labels: e.labels } : {}), ...(e.color ? { color: e.color } : {}) })),
-  };
+  return { levels: vocab.resolved() };
 }
 
 /** The severity grades that apply to `methodologyId` — its tagged ones plus the neutral ("*") ones. Pass the
  *  shipped default or a resolved set. */
 export function severityLevelsForMethodology(methodologyId: string, levels: readonly ResolvedSeverity[] = severityVocabularyValues().levels): ResolvedSeverity[] {
-  return tokensForMethodology(methodologyId, levels);
+  return vocab.forMethodology(methodologyId, levels);
 }
