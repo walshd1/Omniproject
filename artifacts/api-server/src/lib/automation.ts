@@ -1,6 +1,8 @@
 import {
   AUTOMATION_ACTIONS, getActionDef, getTriggerDef, recipeMutates,
+  matches, validatePredicate, cleanConditionSet,
   type AutomationRecipe, type AutomationAction, type AutomationCondition, type ActionRequirement,
+  type ConditionSet, type Predicate, type Op,
 } from "@workspace/backend-catalogue";
 import { validateWorkflow, type WorkflowDef, type WorkflowStep } from "./workflow";
 
@@ -49,7 +51,24 @@ export function validateAutomations(value: unknown): AutomationRecipe[] {
       trigger.cron = cron;
     }
 
-    // Conditions (optional).
+    // The IF — new `when` (a full ConditionSet) takes precedence over the legacy flat `conditions`.
+    let when: ConditionSet | undefined;
+    if (o["when"] != null) {
+      if (typeof o["when"] !== "object" || Array.isArray(o["when"])) throw new AutomationError(`recipe "${id}" when must be an object`);
+      const w = o["when"] as Record<string, unknown>;
+      for (const key of ["all", "any"] as const) {
+        if (w[key] == null) continue;
+        if (!Array.isArray(w[key])) throw new AutomationError(`recipe "${id}" when.${key} must be an array`);
+        for (const p of w[key] as unknown[]) {
+          const err = validatePredicate(p);
+          if (err) throw new AutomationError(`recipe "${id}" when.${key}: ${err}`);
+          if (isForbiddenKey((p as Predicate).field)) throw new AutomationError(`recipe "${id}" when predicate needs a valid field`);
+        }
+      }
+      when = cleanConditionSet(o["when"]);
+    }
+
+    // Conditions (optional, legacy flat shape).
     const conditions: AutomationCondition[] = [];
     if (o["conditions"] != null) {
       if (!Array.isArray(o["conditions"])) throw new AutomationError(`recipe "${id}" conditions must be an array`);
@@ -82,6 +101,7 @@ export function validateAutomations(value: unknown): AutomationRecipe[] {
     });
 
     const recipe: AutomationRecipe = { id, label, scope, trigger, actions };
+    if (when) recipe.when = when;
     if (conditions.length > 0) recipe.conditions = conditions;
     if (o["enabled"] === false) recipe.enabled = false;
     return recipe;
@@ -145,28 +165,28 @@ function compileParams(recipe: AutomationRecipe, a: AutomationAction): Record<st
 const str2 = (v: unknown): string => (v == null ? "" : String(v));
 
 /**
- * Evaluate a recipe's conditions against the triggering entity (`subject`) — ALL must pass. The same small
- * operator set the report predicate engine uses (eq/ne/in/gt/lt/truthy). No conditions ⇒ always matches.
- * Pure, so the runner can gate execution on it without touching the engine.
+ * The recipe's IF as a single {@link ConditionSet} — `when` if present, else the legacy flat `conditions`
+ * converted (each becomes an `all` predicate; `in`'s comma-separated string becomes an array, matching the
+ * legacy split-and-trim). This is the shim that lets ONE engine ({@link matches}) evaluate both authoring
+ * shapes. No `when` and no `conditions` ⇒ an empty set ⇒ matches everything.
+ */
+export function conditionSetOf(recipe: AutomationRecipe): ConditionSet {
+  if (recipe.when) return recipe.when;
+  const all: Predicate[] = (recipe.conditions ?? []).map((c) => {
+    if (c.op === "in") return { field: c.field, op: "in", value: (c.value ?? "").split(",").map((s) => s.trim()) };
+    if (c.op === "truthy") return { field: c.field, op: "truthy" };
+    return { field: c.field, op: c.op as Op, value: c.value ?? "" };
+  });
+  return all.length ? { all } : {};
+}
+
+/**
+ * Evaluate a recipe's conditions against the triggering entity (`subject`). Delegates to the shared
+ * predicate engine ({@link matches}) via {@link conditionSetOf} — one condition language across the product.
+ * No conditions ⇒ always matches. Pure, so the runner can gate execution on it without touching the engine.
  */
 export function matchesConditions(recipe: AutomationRecipe, subject: Record<string, unknown>): boolean {
-  for (const c of recipe.conditions ?? []) {
-    const actual = subject[c.field];
-    const a = str2(actual);
-    const want = c.value ?? "";
-    let pass: boolean;
-    switch (c.op) {
-      case "eq": pass = a === want; break;
-      case "ne": pass = a !== want; break;
-      case "in": pass = want.split(",").map((s) => s.trim()).includes(a); break;
-      case "gt": pass = Number(actual) > Number(want); break;
-      case "lt": pass = Number(actual) < Number(want); break;
-      case "truthy": pass = actual != null && a !== "" && actual !== false; break;
-      default: pass = false;
-    }
-    if (!pass) return false;
-  }
-  return true;
+  return matches(conditionSetOf(recipe), subject);
 }
 
 export { recipeMutates, AUTOMATION_ACTIONS };

@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { validateAutomations, compileRecipe, matchesConditions, recipeRequirements, actionProjectId, AutomationError } from "./automation";
+import { validateAutomations, compileRecipe, matchesConditions, conditionSetOf, recipeRequirements, actionProjectId, AutomationError } from "./automation";
 import { recipeMutates } from "@workspace/backend-catalogue";
 
 /**
@@ -76,4 +76,33 @@ test("matchesConditions evaluates the trigger-subject predicate (ALL must pass)"
   assert.equal(matchesConditions(r, { status: "doing", points: 5, blocked: true }), true);
   assert.equal(matchesConditions(r, { status: "done", points: 5, blocked: true }), false); // status not in set
   assert.equal(matchesConditions(r, { status: "todo", points: 2, blocked: true }), false); // points not > 3
+});
+
+test("legacy flat conditions convert to a ConditionSet (in → array) for the ONE shared engine", () => {
+  const [inform] = validateAutomations([INFORM]); // condition: priority eq high
+  assert.deepEqual(conditionSetOf(inform!), { all: [{ field: "priority", op: "eq", value: "high" }] });
+  const r = validateAutomations([{ ...INFORM, conditions: [{ field: "status", op: "in", value: "todo, doing" }] }])[0]!;
+  assert.deepEqual(conditionSetOf(r), { all: [{ field: "status", op: "in", value: ["todo", "doing"] }] });
+});
+
+test("new `when` ConditionSet: all/any nesting is validated + evaluated, and wins over legacy conditions", () => {
+  // all-of AND any-of, with the richer operator set (gte/nin) the legacy flat shape lacks.
+  const rich = validateAutomations([{ ...INFORM, conditions: undefined, when: {
+    all: [{ field: "points", op: "gte", value: 3 }],
+    any: [{ field: "status", op: "eq", value: "doing" }, { field: "status", op: "eq", value: "review" }],
+  } }])[0]!;
+  assert.equal(matchesConditions(rich, { points: 3, status: "review" }), true);
+  assert.equal(matchesConditions(rich, { points: 5, status: "done" }), false);  // any-of fails
+  assert.equal(matchesConditions(rich, { points: 2, status: "doing" }), false); // all-of fails
+  // `when` takes precedence over a legacy `conditions` on the same recipe.
+  const both = validateAutomations([{ ...INFORM, when: { all: [{ field: "priority", op: "eq", value: "low" }] } }])[0]!;
+  assert.equal(matchesConditions(both, { priority: "low" }), true);   // when matched
+  assert.equal(matchesConditions(both, { priority: "high" }), false); // legacy would have matched; when wins
+});
+
+test("validateAutomations rejects a malformed `when`", () => {
+  assert.throws(() => validateAutomations([{ ...INFORM, when: "nope" }]), AutomationError);           // not an object
+  assert.throws(() => validateAutomations([{ ...INFORM, when: { all: "nope" } }]), AutomationError);  // all not an array
+  assert.throws(() => validateAutomations([{ ...INFORM, when: { all: [{ op: "eq", value: 1 }] } }]), AutomationError); // predicate missing field
+  assert.throws(() => validateAutomations([{ ...INFORM, when: { any: [{ field: "s", op: "bogus" }] } }]), AutomationError); // bad op
 });
