@@ -6,8 +6,8 @@
  */
 import { Router, type Request, type Response } from "express";
 import { getSession } from "./auth";
-import { hasRole, requireRole } from "../lib/rbac";
-import { enforceBusinessRules } from "../lib/ruleset-guard";
+import { hasRole } from "../lib/rbac";
+import { mountCommand, type CommandDescriptor } from "../lib/action-base";
 import { timesheetStoreFor, describeTimesheetSources, type TimesheetStore } from "../timesheets/store";
 import { applyTimesheetAction, TimesheetError, type Timesheet, type TimeEntry, type TimesheetAction, type TimesheetStatus } from "../timesheets/state-machine";
 
@@ -70,87 +70,117 @@ router.get("/timesheets", async (req, res) => {
   res.json(await s.list(filter));
 });
 
+/** The validated draft-upsert body: the required fields, entries already shape-checked. */
+interface TimesheetSaveInput { id: string; weekStart: string; entries: TimeEntry[] }
+
 // POST /api/timesheets — upsert a DRAFT sheet for the caller (entry). The owner is always the caller.
-// Gate at contributor: writing a timesheet is a write, so a read-only API token (viewer) must not.
-router.post("/timesheets", requireRole("contributor"), async (req, res) => {
-  const s = store(req, res);
-  if (!s) return;
-  const session = getSession(req);
-  const body = (req.body ?? {}) as Partial<Timesheet>;
-  if (!body.id || !body.weekStart || !Array.isArray(body.entries)) {
-    res.status(400).json({ error: "id, weekStart and entries are required" });
-    return;
-  }
-  if (body.entries.length > MAX_TIMESHEET_ENTRIES) {
-    res.status(413).json({ error: `Too many entries: ${body.entries.length} exceeds the ${MAX_TIMESHEET_ENTRIES}-entry cap per sheet.` });
-    return;
-  }
-  if (!body.entries.every(isValidEntry)) {
-    res.status(400).json({ error: "each entry needs a string id, projectId and date, and finite non-negative hours" });
-    return;
-  }
-  const existing = await s.get(body.id);
-  if (existing && existing.resourceId !== session?.sub) {
-    res.status(403).json({ error: "cannot edit another resource's timesheet" });
-    return;
-  }
-  if (existing && existing.status !== "draft") {
-    res.status(409).json({ error: `cannot edit a ${existing.status} timesheet` });
-    return;
-  }
-  if (!enforceBusinessRules(req, res, "create_timesheet", { payload: body as unknown as Record<string, unknown> })) return;
-  const sheet: Timesheet = {
-    id: body.id,
-    resourceId: session?.sub ?? "__none__",
-    weekStart: body.weekStart,
-    entries: body.entries,
-    status: "draft",
-  };
-  await s.save(sheet);
-  res.json(sheet);
-});
-
-// POST /api/timesheets/:id/action — apply a workflow action, enforcing the state machine + RBAC.
-router.post("/timesheets/:id/action", async (req, res) => {
-  const s = store(req, res);
-  if (!s) return;
-  const session = getSession(req);
-  const sub = session?.sub ?? "__none__";
-  const sheet = await s.get(String(req.params["id"]));
-  if (!sheet) {
-    res.status(404).json({ error: "timesheet not found" });
-    return;
-  }
-  const type = (req.body?.type ?? "") as TimesheetAction["type"];
-  // Submit/reopen are the owner's; approve/reject need a manager+ AND aren't self-serve.
-  if (type === "submit" || type === "reopen") {
-    if (sheet.resourceId !== sub) {
-      res.status(403).json({ error: "only the owner can submit or reopen their timesheet" });
-      return;
+// On the Lane 2 spine: parse resolves the store (409) and shape-checks the body (400/413); the async
+// `prepare` loads any existing sheet to enforce ownership (403) and the draft-only status guard (409) — a
+// check that needs the stored row, so it can't live in the sync parse. Then RBAC (contributor: a write, so a
+// read-only viewer token must not) → ruleset → save → audit by construction (the route recorded no audit).
+export const timesheetSaveCommand: CommandDescriptor<{ s: TimesheetStore; input: TimesheetSaveInput; sub: string }> = {
+  name: "create_timesheet",
+  method: "post",
+  path: "/timesheets",
+  role: "contributor",
+  parse: (req, res) => {
+    const s = store(req, res);
+    if (!s) return null;
+    const body = (req.body ?? {}) as Partial<Timesheet>;
+    if (!body.id || !body.weekStart || !Array.isArray(body.entries)) {
+      res.status(400).json({ error: "id, weekStart and entries are required" });
+      return null;
     }
-  } else if (type === "approve" || type === "reject") {
-    if (!hasRole(req, "manager")) {
+    if (body.entries.length > MAX_TIMESHEET_ENTRIES) {
+      res.status(413).json({ error: `Too many entries: ${body.entries.length} exceeds the ${MAX_TIMESHEET_ENTRIES}-entry cap per sheet.` });
+      return null;
+    }
+    if (!body.entries.every(isValidEntry)) {
+      res.status(400).json({ error: "each entry needs a string id, projectId and date, and finite non-negative hours" });
+      return null;
+    }
+    return { s, input: { id: body.id, weekStart: body.weekStart, entries: body.entries }, sub: getSession(req)?.sub ?? "__none__" };
+  },
+  prepare: async (_req, res, args) => {
+    const existing = await args.s.get(args.input.id);
+    if (existing && existing.resourceId !== args.sub) {
+      res.status(403).json({ error: "cannot edit another resource's timesheet" });
+      return null;
+    }
+    if (existing && existing.status !== "draft") {
+      res.status(409).json({ error: `cannot edit a ${existing.status} timesheet` });
+      return null;
+    }
+    return args;
+  },
+  ruleScope: (_req, args) => ({ payload: args.input as unknown as Record<string, unknown> }),
+  run: async (_req, _res, args) => {
+    const sheet: Timesheet = {
+      id: args.input.id,
+      resourceId: args.sub,
+      weekStart: args.input.weekStart,
+      entries: args.input.entries,
+      status: "draft",
+    };
+    await args.s.save(sheet);
+    return sheet;
+  },
+  audit: "create_timesheet",
+};
+mountCommand(router, timesheetSaveCommand);
+
+type TimesheetActionType = "submit" | "reopen" | "approve" | "reject";
+const TIMESHEET_ACTIONS = new Set<TimesheetActionType>(["submit", "reopen", "approve", "reject"]);
+
+// POST /api/timesheets/:id/action — apply a workflow action, enforcing the state machine + RBAC. The
+// eligibility depends on the LOADED sheet (the owner may submit/reopen; a manager+ may approve/reject), so
+// the load + per-type authorization is the async `prepare`. No blanket role floor — eligibility is per type.
+// parse validates the action type (400); run applies the state machine (a TimesheetError → 422 via onError).
+// The ruleset runs by construction (a write), and success audits `timesheet.<type>` (the route recorded none).
+export const timesheetActionCommand: CommandDescriptor<
+  { s: TimesheetStore; sheet: Timesheet; type: TimesheetActionType; sub: string; note?: string },
+  { s: TimesheetStore; type: TimesheetActionType; sub: string; note?: string }
+> = {
+  name: "timesheet_action",
+  method: "post",
+  path: "/timesheets/:id/action",
+  parse: (req, res) => {
+    const s = store(req, res);
+    if (!s) return null;
+    const type = (req.body?.type ?? "") as TimesheetActionType;
+    if (!TIMESHEET_ACTIONS.has(type)) {
+      res.status(400).json({ error: "type must be one of: submit, approve, reject, reopen" });
+      return null;
+    }
+    return { s, type, sub: getSession(req)?.sub ?? "__none__", ...(typeof req.body?.note === "string" ? { note: req.body.note as string } : {}) };
+  },
+  prepare: async (req, res, prelim) => {
+    const sheet = await prelim.s.get(String(req.params["id"]));
+    if (!sheet) { res.status(404).json({ error: "timesheet not found" }); return null; }
+    // Submit/reopen are the owner's; approve/reject need a manager+ AND aren't self-serve.
+    if (prelim.type === "submit" || prelim.type === "reopen") {
+      if (sheet.resourceId !== prelim.sub) { res.status(403).json({ error: "only the owner can submit or reopen their timesheet" }); return null; }
+    } else if (!hasRole(req, "manager")) {
       res.status(403).json({ error: "approving a timesheet requires at least the manager role" });
-      return;
+      return null;
     }
-  } else {
-    res.status(400).json({ error: "type must be one of: submit, approve, reject, reopen" });
-    return;
-  }
-
-  const action: TimesheetAction =
-    type === "submit" ? { type: "submit", at: nowIso() }
-    : type === "reopen" ? { type: "reopen" }
-    : type === "approve" ? { type: "approve", by: sub, at: nowIso() }
-    : { type: "reject", by: sub, at: nowIso(), ...(typeof req.body?.note === "string" ? { note: req.body.note } : {}) };
-
-  try {
-    const next = applyTimesheetAction(sheet, action);
-    await s.save(next);
-    res.json(next);
-  } catch (err) {
+    return { ...prelim, sheet };
+  },
+  run: async (_req, _res, args) => {
+    const action: TimesheetAction =
+      args.type === "submit" ? { type: "submit", at: nowIso() }
+      : args.type === "reopen" ? { type: "reopen" }
+      : args.type === "approve" ? { type: "approve", by: args.sub, at: nowIso() }
+      : { type: "reject", by: args.sub, at: nowIso(), ...(args.note !== undefined ? { note: args.note } : {}) };
+    const next = applyTimesheetAction(args.sheet, action);
+    await args.s.save(next);
+    return next;
+  },
+  onError: (res, err) => {
     res.status(err instanceof TimesheetError ? 422 : 500).json({ error: err instanceof Error ? err.message : "action failed" });
-  }
-});
+  },
+  audit: (args) => `timesheet.${args.type}`,
+};
+mountCommand(router, timesheetActionCommand);
 
 export default router;

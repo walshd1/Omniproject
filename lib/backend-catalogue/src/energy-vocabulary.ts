@@ -9,7 +9,7 @@
  * broker/vocabulary re-exports the level list (single import surface preserved), and the SPA derives its
  * energy order + labels from it — so the two can never drift on WHICH energy levels exist.
  */
-import { vocabMethodologies, tokensForMethodology } from "./work-vocabulary";
+import { defineGradedVocabulary } from "./vocabulary-base";
 import { ENERGY_VOCABULARY_DATA } from "./energy-vocabulary.generated";
 
 /** One canonical GTD energy-level token (with its internal ordinal level + display order). */
@@ -34,25 +34,21 @@ export interface EnergyVocabEntry {
  *  drift test asserts the two agree. */
 export type CanonicalEnergy = "low" | "medium" | "high";
 
-const entries: EnergyVocabEntry[] = [...ENERGY_VOCABULARY_DATA].sort((a, b) => a.order - b.order);
+const vocab = defineGradedVocabulary<EnergyVocabEntry>(ENERGY_VOCABULARY_DATA);
 
 /** Canonical (internal) GTD energy levels in ascending order (low → high). Derived from the shipped
  *  entries, so a drift test can assert the set never silently changes. */
-export const CANONICAL_ENERGY: readonly CanonicalEnergy[] = entries.map((e) => e.id as CanonicalEnergy);
+export const CANONICAL_ENERGY: readonly CanonicalEnergy[] = vocab.ids as readonly CanonicalEnergy[];
 
 /** Canonical energy level → its internal ordinal level (the invariant the ordering/filtering key off). */
-export const ENERGY_LEVEL: Record<CanonicalEnergy, number> = Object.fromEntries(
-  entries.map((e) => [e.id, e.level]),
-) as Record<CanonicalEnergy, number>;
+export const ENERGY_LEVEL: Record<CanonicalEnergy, number> = vocab.levelById as Record<CanonicalEnergy, number>;
 
 /** Canonical energy level → its display label. */
-export const ENERGY_LABEL: Record<CanonicalEnergy, string> = Object.fromEntries(
-  entries.map((e) => [e.id, e.label]),
-) as Record<CanonicalEnergy, string>;
+export const ENERGY_LABEL: Record<CanonicalEnergy, string> = vocab.labelById as Record<CanonicalEnergy, string>;
 
 /** The full energy vocabulary (a defensive copy) — for a consumer that needs the raw entries. */
 export function energyVocabulary(): EnergyVocabEntry[] {
-  return entries.map((e) => ({ ...e }));
+  return vocab.vocabulary();
 }
 
 /** The scope-layerable shape of the energy vocabulary: the levels. This is BOTH the `values` seeded into
@@ -65,13 +61,11 @@ export interface EnergyVocabularyValues {
 
 /** Build the shipped-default {@link EnergyVocabularyValues} from the canonical entries. */
 export function energyVocabularyValues(): EnergyVocabularyValues {
-  return {
-    levels: entries.map((e) => ({ id: e.id, label: e.label, order: e.order, level: e.level, methodologies: vocabMethodologies(e), ...(e.labels ? { labels: e.labels } : {}), ...(e.color ? { color: e.color } : {}) })),
-  };
+  return { levels: vocab.resolved() };
 }
 
 /** The energy levels that apply to `methodologyId` — its tagged ones plus the neutral ("*") ones. Pass the
  *  shipped default or a resolved set. */
 export function energyLevelsForMethodology(methodologyId: string, levels: readonly ResolvedEnergy[] = energyVocabularyValues().levels): ResolvedEnergy[] {
-  return tokensForMethodology(methodologyId, levels);
+  return vocab.forMethodology(methodologyId, levels);
 }

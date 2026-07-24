@@ -3,10 +3,10 @@ import { screen, fireEvent, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient } from "@tanstack/react-query";
 import { getGetCapabilitiesQueryKey, getListProjectsQueryKey, type Capabilities, type Project } from "@workspace/api-client-react";
-import { renderWithProviders, mockBlobDownload, mockFetchRouter, resetFetchMock } from "../../test/utils";
+import { renderWithProviders, mockBlobDownload, mockFetchRouter } from "../../test/utils";
 import { Dashboards } from "./Dashboards";
 import { featuresQueryKey, type FeatureStatus } from "../../lib/features";
-import { dashboardsQueryKey, type Dashboard } from "../../lib/dashboards";
+import { type Dashboard } from "../../lib/dashboards";
 
 function project(over: Partial<Project> = {}): Project {
   return {
@@ -26,10 +26,10 @@ function seed(opts: { enabled?: boolean; dashboards?: Dashboard[]; imported?: Da
     mode: "n8n",
     entities: { programme: { surface: opts.surfaceProgramme ?? true, store: opts.surfaceProgramme ?? true } },
   } as unknown as Capabilities);
-  qc.setQueryData(dashboardsQueryKey, opts.dashboards ?? []);
-  // The importer-authored (X.10) dashboards the resolve-by-kind seam returns.
-  qc.setQueryData(["defs", "resolved", "dashboard", null, null], (opts.imported ?? []).map((d, i) => ({
-    id: `user~imp-${i}`, kind: "dashboard", name: d.name, payload: d,
+  // All dashboards are DEFS now — seed both `dashboards` and `imported` into the resolve-by-kind seam. The def
+  // store id is the dashboard's own id (so the picker option values match the test's expectations).
+  qc.setQueryData(["defs", "resolved", "dashboard", null, null], [...(opts.dashboards ?? []), ...(opts.imported ?? [])].map((d) => ({
+    id: d.id, kind: "dashboard", name: d.name, payload: d,
     createdBy: null, createdAt: "", updatedAt: "", rowVersion: 1,
   })));
   qc.setQueryData(getListProjectsQueryKey(), opts.projects ?? []);
@@ -67,11 +67,10 @@ describe("Dashboards", () => {
   it("renders an importer-authored (definition) dashboard, editable via the importer (X.10)", () => {
     const imported: Dashboard = { id: "exec", name: "Imported Exec", widgets: [{ id: "w1", type: "projectCount", span: 1 }] };
     renderWithProviders(<Dashboards />, { client: seed({ dashboards: [], imported: [imported], projects: [project()] }) });
-    // It's selectable (under the Definitions group) and renders its widgets…
+    // It's selectable and renders its widgets…
     expect(screen.getByRole("option", { name: "Imported Exec" })).toBeInTheDocument();
     expect(screen.getByTestId("dashboard-grid")).toBeInTheDocument();
-    // …and it's a def, so it's NOT a legacy-settings dashboard and Edit is available (writes go via the importer).
-    expect(screen.queryByTestId("dashboard-legacy-badge")).toBeNull();
+    // …and Edit is available (writes go via the importer).
     expect(screen.getByRole("button", { name: /^edit$/i })).toBeInTheDocument();
   });
 
@@ -85,10 +84,9 @@ describe("Dashboards", () => {
     expect(screen.getByTestId("dashboard-storage")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: /^save$/i }));
     await waitFor(() => expect(calls.some((c) => c.url.includes("/api/defs") && (c.init?.method ?? "GET") === "POST")).toBe(true));
-    // The def write carries the dashboard kind + chosen storage — and nothing was PUT to /api/dashboards.
+    // The def write carries the dashboard kind + chosen storage.
     const post = calls.find((c) => c.url.includes("/api/defs") && c.init?.method === "POST")!;
     expect(JSON.parse(String(post.init!.body))).toMatchObject({ kind: "dashboard", storage: "user" });
-    expect(calls.some((c) => c.url.includes("/api/dashboards") && c.init?.method === "PUT")).toBe(false);
   });
 
   it("renders a placeholder for an unknown widget type", () => {
@@ -120,29 +118,6 @@ describe("Dashboards", () => {
     await waitFor(() =>
       expect(fetch).toHaveBeenCalledWith("/api/defs", expect.objectContaining({ method: "POST" })),
     );
-  });
-
-  it("lets an admin migrate legacy settings dashboards into the def store, then clears the slice (X.10 3b)", async () => {
-    const calls = mockFetchRouter({
-      "POST /api/defs": { ok: true, status: 201, body: { id: "org~m-1", kind: "dashboard", name: "Ops", payload: {}, rowVersion: 1 } },
-      "PUT /api/dashboards": { ok: true, body: {} },
-    });
-    renderWithProviders(<Dashboards />, { client: seed({ dashboards: [{ id: "d1", name: "Ops", widgets: [] }], role: "admin" }) });
-    fireEvent.click(screen.getByTestId("dashboard-migrate"));
-    // Each legacy dashboard is re-authored as an ORG def through the importer…
-    await waitFor(() => expect(calls.some((c) => c.url.includes("/api/defs") && c.init?.method === "POST")).toBe(true));
-    const post = calls.find((c) => c.url.includes("/api/defs") && c.init?.method === "POST")!;
-    expect(JSON.parse(String(post.init!.body))).toMatchObject({ kind: "dashboard", storage: "org", name: "Ops" });
-    // …then the settings slice is cleared to empty (the parallel store is drained).
-    await waitFor(() => {
-      const put = calls.find((c) => c.url.includes("/api/dashboards") && c.init?.method === "PUT");
-      expect(put && JSON.parse(String(put.init!.body))).toEqual({ dashboards: [] });
-    });
-  });
-
-  it("does not offer the legacy migration to a non-admin", () => {
-    renderWithProviders(<Dashboards />, { client: seed({ dashboards: [{ id: "d1", name: "Ops", widgets: [] }], role: "manager" }) });
-    expect(screen.queryByTestId("dashboard-migrate")).toBeNull();
   });
 
   it("omits entity-gated widgets the backend can't surface", () => {
@@ -212,18 +187,16 @@ describe("Dashboards", () => {
     expect(screen.getByRole("option", { name: "Exec" })).toBeInTheDocument();
   });
 
-  it("deletes the active dashboard", async () => {
+  it("deletes the active dashboard via the def store (DELETE /api/defs/:id)", async () => {
     const dash: Dashboard = { id: "d1", name: "Exec", widgets: [] };
     renderWithProviders(<Dashboards />, { client: seed({ dashboards: [dash] }) });
     fireEvent.click(screen.getByRole("button", { name: /^edit$/i }));
     fireEvent.click(screen.getByRole("button", { name: /^delete$/i }));
     await waitFor(() =>
-      expect(fetch).toHaveBeenCalledWith("/api/dashboards", expect.objectContaining({ method: "PUT" })),
+      expect((fetch as unknown as ReturnType<typeof vi.fn>).mock.calls.some(
+        (c) => String(c[0]).includes("/api/defs/") && (c[1] as RequestInit | undefined)?.method === "DELETE",
+      )).toBe(true),
     );
-    const call = (fetch as unknown as ReturnType<typeof vi.fn>).mock.calls.find(
-      (c) => c[0] === "/api/dashboards" && (c[1] as RequestInit).method === "PUT",
-    );
-    expect(JSON.parse(String((call![1] as RequestInit).body))).toEqual({ dashboards: [] });
   });
 
   it("removes a widget from the draft", () => {
@@ -287,19 +260,6 @@ describe("Dashboards", () => {
       expect(invalidateSpy).toHaveBeenCalledWith({ refetchType: "active" });
     } finally {
       vi.useRealTimers();
-    }
-  });
-
-  it("shows an alert when saving a LEGACY dashboard fails (settings path retained pre-migration)", async () => {
-    mockFetchRouter({ "PUT /api/dashboards": { ok: false, status: 500, body: { message: "boom" } } });
-    try {
-      // A pre-existing settings-bundle dashboard still saves via the legacy path until migrated.
-      renderWithProviders(<Dashboards />, { client: seed({ dashboards: [{ id: "d1", name: "Legacy", widgets: [] }] }) });
-      fireEvent.click(screen.getByRole("button", { name: /^edit$/i }));
-      fireEvent.click(screen.getByRole("button", { name: /^save$/i }));
-      await waitFor(() => expect(screen.getByRole("alert")).toBeInTheDocument());
-    } finally {
-      resetFetchMock();
     }
   });
 

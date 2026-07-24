@@ -6,8 +6,8 @@ import { Router, type Request, type Response } from "express";
 import { withBrokerErrors } from "../broker";
 import { getTasks, getTask, createTask, updateTask, brokerHasTasks, getTaskComments, addTaskComment, getTaskAttachments, addTaskAttachment, brokerHasTaskAttachments } from "../lib/data";
 import { requireRole } from "../lib/rbac";
-import { enforceBusinessRules } from "../lib/ruleset-guard";
 import { mountEntity, type EntityDescriptor } from "../lib/entity-pipeline";
+import { mountCommand, type CommandDescriptor } from "../lib/action-base";
 import { assertTaskScope, filterTasksInScope } from "../lib/project-scope";
 import { auditScopeDenied } from "../lib/audit";
 import { getSession } from "./auth";
@@ -278,6 +278,10 @@ router.post("/tasks/reminders/sweep", requireRole("pmo"), (req, res) =>
 
 // ── Comments ─────────────────────────────────────────────────────────────────
 const CommentBody = v.object({ body: v.string({ min: 1, max: 10_000, trim: true }) });
+/** The validated bodies the sub-resource writers accept — taken from the writers themselves so the command
+ *  args can't drift from what `addTaskComment` / `addTaskAttachment` expect. */
+type TaskCommentInput = Parameters<typeof addTaskComment>[2];
+type TaskAttachmentInput = Parameters<typeof addTaskAttachment>[2];
 
 router.get("/tasks/:taskId/comments", (req, res) =>
   withBrokerErrors(req, res, "list_task_comments failed", async () => {
@@ -286,16 +290,30 @@ router.get("/tasks/:taskId/comments", (req, res) =>
   }),
 );
 
-router.post("/tasks/:taskId/comments", requireRole("contributor"), (req, res) => {
-  const body = parseOr400(req, res, CommentBody);
-  if (!body) return;
-  return withBrokerErrors(req, res, "add_task_comment failed", async () => {
+// Add a comment to a task (contributor+). On the Lane 2 spine: the task load + scope guard is the async
+// `prepare` (a task's projectId — needed for the ruleset scope — isn't known until the task is fetched), so
+// the write runs RBAC → parse → guard/scope → ruleset → run → audit by construction (it recorded no audit
+// as a hand-written route). Broker-aware: a broker error loading or writing maps to its status, no audit.
+export const addTaskCommentCommand: CommandDescriptor<{ body: TaskCommentInput; task: Task }, { body: TaskCommentInput }> = {
+  name: "add_task_comment",
+  method: "post",
+  path: "/tasks/:taskId/comments",
+  role: "contributor",
+  parse: (req, res) => {
+    const body = parseOr400(req, res, CommentBody);
+    return body ? { body } : null;
+  },
+  prepare: async (req, res, { body }) => {
     const task = await guardTaskAccess(req, res, String(req.params["taskId"]));
-    if (!task) return;
-    if (!enforceBusinessRules(req, res, "add_task_comment", { projectId: task.projectId ?? null, payload: body as unknown as Record<string, unknown> })) return;
-    res.status(201).json(await addTaskComment(req, String(req.params["taskId"]), body));
-  });
-});
+    return task ? { body, task } : null;
+  },
+  ruleScope: (_req, { body, task }) => ({ projectId: task.projectId ?? null, payload: body as unknown as Record<string, unknown> }),
+  broker: { message: "add_task_comment failed" },
+  run: (req, _res, { body }) => addTaskComment(req, String(req.params["taskId"]), body),
+  audit: "add_task_comment",
+  status: 201,
+};
+mountCommand(router, addTaskCommentCommand);
 
 // ── Attachments (file REFERENCES; only when the backend supports them) ────────
 const AttachmentBody = v.object({
@@ -312,17 +330,30 @@ router.get("/tasks/:taskId/attachments", (req, res) =>
   }),
 );
 
-router.post("/tasks/:taskId/attachments", requireRole("contributor"), (req, res) => {
+// Add a file-reference attachment to a task (contributor+), when the backend supports them. Same Lane 2
+// shape as comments: a capability gate (501) precedes parse, then the async `prepare` loads + scope-guards
+// the task for the ruleset. Broker-aware; audits on success (the hand-written route recorded none).
+export const addTaskAttachmentCommand: CommandDescriptor<{ body: TaskAttachmentInput; task: Task }, { body: TaskAttachmentInput }> = {
+  name: "add_task_attachment",
+  method: "post",
+  path: "/tasks/:taskId/attachments",
+  role: "contributor",
   // "If supported by the backend" — 501 when the active broker can't store attachments.
-  if (!brokerHasTaskAttachments()) { res.status(501).json({ error: "this backend does not support task attachments" }); return; }
-  const body = parseOr400(req, res, AttachmentBody);
-  if (!body) return;
-  return withBrokerErrors(req, res, "add_task_attachment failed", async () => {
+  gates: [(_req, res, next) => { if (!brokerHasTaskAttachments()) { res.status(501).json({ error: "this backend does not support task attachments" }); return; } next(); }],
+  parse: (req, res) => {
+    const body = parseOr400(req, res, AttachmentBody);
+    return body ? { body } : null;
+  },
+  prepare: async (req, res, { body }) => {
     const task = await guardTaskAccess(req, res, String(req.params["taskId"]));
-    if (!task) return;
-    if (!enforceBusinessRules(req, res, "add_task_attachment", { projectId: task.projectId ?? null, payload: body as unknown as Record<string, unknown> })) return;
-    res.status(201).json(await addTaskAttachment(req, String(req.params["taskId"]), body));
-  });
-});
+    return task ? { body, task } : null;
+  },
+  ruleScope: (_req, { body, task }) => ({ projectId: task.projectId ?? null, payload: body as unknown as Record<string, unknown> }),
+  broker: { message: "add_task_attachment failed" },
+  run: (req, _res, { body }) => addTaskAttachment(req, String(req.params["taskId"]), body),
+  audit: "add_task_attachment",
+  status: 201,
+};
+mountCommand(router, addTaskAttachmentCommand);
 
 export default router;

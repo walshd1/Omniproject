@@ -44,9 +44,16 @@ import { aiProviderAllowlistCommand, aiModelAllowlistCommand, sttProviderAllowli
 import { deploymentTypeSetCommand } from "../routes/deployment-types";
 import { calendarPushSaveCommand } from "../routes/calendar";
 import { mePrefsSaveCommand } from "../routes/me";
+import { addTaskCommentCommand, addTaskAttachmentCommand } from "../routes/tasks";
+import { timesheetSaveCommand, timesheetActionCommand } from "../routes/timesheets";
 import { presetApplyCommand } from "../routes/presets";
 import { templateInstantiateCommand } from "../routes/templates";
-import { projectCloseCommand } from "../routes/projects";
+import { projectCloseCommand, createProjectCommand, createTaskItemCommand } from "../routes/projects";
+import { setupProfileCommand, setupSelfHostCommand, setupCharityOnboardingCommand } from "../routes/setup";
+import {
+  setupEnvironmentCreateCommand, setupEnvironmentActivateCommand, setupPromoteCommand,
+  setupVersionKnownGoodCommand, setupRollbackCommand,
+} from "../routes/setup/environments";
 import { collectionWriteRoutes } from "../lib/settings-collection-router";
 
 /**
@@ -160,6 +167,20 @@ const LANE2 = new Set<string>([
   ...commandRoutes(presetApplyCommand),
   ...commandRoutes(templateInstantiateCommand),
   ...commandRoutes(projectCloseCommand),
+  ...commandRoutes(setupProfileCommand),
+  ...commandRoutes(setupSelfHostCommand),
+  ...commandRoutes(setupCharityOnboardingCommand),
+  ...commandRoutes(setupEnvironmentCreateCommand),
+  ...commandRoutes(setupEnvironmentActivateCommand),
+  ...commandRoutes(setupPromoteCommand),
+  ...commandRoutes(setupVersionKnownGoodCommand),
+  ...commandRoutes(setupRollbackCommand),
+  ...commandRoutes(addTaskCommentCommand),
+  ...commandRoutes(addTaskAttachmentCommand),
+  ...commandRoutes(timesheetSaveCommand),
+  ...commandRoutes(timesheetActionCommand),
+  ...commandRoutes(createProjectCommand),
+  ...commandRoutes(createTaskItemCommand),
 ]);
 
 // Lane 3 — hand-written writes not (yet) on a spine. SEED — regenerate by running the first test with this
@@ -232,8 +253,6 @@ const BESPOKE_WRITES = new Set<string>([
   "POST /notifications/ingest",
   "POST /portal/invites",
   "POST /presence/rooms/:roomId",
-  "POST /projects",
-  "POST /projects/:projectId/issues/:issueId/items",
   "POST /proofs/:id/decision",
   "POST /provenance/call/:callId/verify",
   "POST /scim/v2/Groups",
@@ -242,35 +261,23 @@ const BESPOKE_WRITES = new Set<string>([
   "POST /security/config/export",
   "POST /security/data-residency/validate",
   "POST /security/keys/:name/revoke",
-  "POST /setup/charity-onboarding",
   "POST /setup/config-diff",
   "POST /setup/config-dir/clear-backup",
   "POST /setup/config-dir/refresh",
   "POST /setup/connections/test",
   "POST /setup/connections/vault",
   "POST /setup/defs-import",
-  "POST /setup/environments",
-  "POST /setup/environments/activate",
   "POST /setup/full-restore",
   "POST /setup/generate-workflow",
   "POST /setup/instance-key/reveal",
   "POST /setup/instance-key/rotate",
   "POST /setup/portable-restore",
-  "POST /setup/profile",
-  "POST /setup/promote",
   "POST /setup/restore",
-  "POST /setup/rollback",
-  "POST /setup/self-host",
   "POST /setup/test-broker",
   "POST /setup/verify-workflow",
-  "POST /setup/versions/:id/known-good",
   "POST /snapshots/capture",
   "POST /snapshots/verify",
-  "POST /tasks/:taskId/attachments",
-  "POST /tasks/:taskId/comments",
   "POST /tasks/reminders/sweep",
-  "POST /timesheets",
-  "POST /timesheets/:id/action",
   "POST /usage/notify",
   "POST /webhooks",
   "POST /whiteboards",
@@ -283,26 +290,20 @@ const BESPOKE_WRITES = new Set<string>([
   "PUT /admin/ruleset",
   "PUT /admin/ruleset/fields",
   "PUT /admin/ruleset/scope",
-  "PUT /dashboards",
   "PUT /error-telemetry",
   "PUT /features/governance-rules",
   "PUT /features/programme/:programmeId",
   "PUT /features/project/:projectId",
   "PUT /federated-peers",
-  "PUT /forms",
   "PUT /governance/:id",
   "PUT /history/retention",
   "PUT /logging-sync",
   "PUT /projects/:projectId/mapping/:slot/:rowId",
   "PUT /projects/:projectId/type",
   "PUT /projects/:projectId/wbs/:wbsId",
-  "PUT /reports/custom",
   "PUT /scim/v2/Groups/:id",
   "PUT /scim/v2/Users/:id",
-  "PUT /screen-defs",
-  "PUT /screen-layouts",
   "PUT /settings/scope",
-  "PUT /setup/screens/:id/layout",
   "PUT /whiteboards/:id",
 ]);
 

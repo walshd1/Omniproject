@@ -208,12 +208,10 @@ test("disabling a UI feature also 404s its persistence endpoint (the gate is not
 
   // Enabled by default (no defaultOff): the endpoints answer.
   assert.notEqual(await hit("/views"), 404, "views reachable when savedViews on");
-  assert.notEqual(await hit("/dashboards"), 404, "dashboards reachable when on");
   assert.notEqual(await hit("/content-pages"), 404, "content-pages reachable when on");
 
   // Disable the features org-wide — the persistence endpoints must 404, not just the SPA UI.
-  updateSettings({ disabledFeatures: ["savedViews", "dashboards", "contentPages"] });
+  updateSettings({ disabledFeatures: ["savedViews", "contentPages"] });
   assert.equal(await hit("/views"), 404, "views 404s once savedViews disabled");
-  assert.equal(await hit("/dashboards"), 404, "dashboards 404s once disabled");
   assert.equal(await hit("/content-pages"), 404, "content-pages 404s once disabled");
 });

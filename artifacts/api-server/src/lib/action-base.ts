@@ -21,7 +21,7 @@ import { withBrokerErrors } from "../broker";
 
 export type CommandMethod = "post" | "put" | "patch" | "delete";
 
-export interface CommandDescriptor<A> {
+export interface CommandDescriptor<A, P = A> {
   /** Stable command name — audit fallback + the ratchet label. */
   name: string;
   method: CommandMethod;
@@ -33,8 +33,20 @@ export interface CommandDescriptor<A> {
    *  `requireEntitlement("x")`, `requireAnyRole(...)`. The action base runs them in order, so a command
    *  with a multi-gate stack stays on the spine instead of falling back to a hand-written route. */
   gates?: RequestHandler[];
-  /** Authorize + validate the request into typed args, or return null having ALREADY sent a 4xx. */
-  parse: (req: Request, res: Response) => A | null;
+  /** Authorize + validate the request into typed (preliminary) args, or return null having ALREADY sent a
+   *  4xx. This step is SYNCHRONOUS — the body/params shape checks that need no I/O. When a command needs to
+   *  LOAD something (an entity, a store row) before it can validate scope or ownership, `parse` returns the
+   *  preliminary args `P` and {@link CommandDescriptor.prepare} completes them asynchronously. With no
+   *  `prepare`, `P` defaults to `A` and `parse` returns the full args directly. */
+  parse: (req: Request, res: Response) => P | null;
+  /** Optional ASYNC completion after `parse`, before the ruleset. This is where a write whose rule-scope or
+   *  precondition depends on a LOOKED-UP value belongs — a task's `projectId` (load the task), a timesheet's
+   *  owner/status (read the store) — the sync `parse` can't await, and enforcing such a precondition inside
+   *  `run` would wrongly leave a success audit behind (the audit fires only after `run` returns). `prepare`
+   *  loads what it needs and returns the completed args `A`, or `null` having ALREADY sent a 4xx/403/409/501.
+   *  For a `broker` command it runs INSIDE `withBrokerErrors`, so a broker error thrown while loading maps to
+   *  its HTTP status with no audit. Runs after gates + parse, before enforceBusinessRules. */
+  prepare?: (req: Request, res: Response, prelim: P) => Promise<A | null>;
   /** Scope + payload for the ruleset (project/programme for scope-tightened overrides, payload for field
    *  rules). Optional — a command with no rule-governed scope can omit it; the ruleset still runs (write-wide
    *  rules like `read-only` apply) with an empty scope. */
@@ -64,32 +76,49 @@ export interface CommandDescriptor<A> {
    *  `run` ever executes). `true` uses a default "<name> failed" log message; the object form customises the
    *  log message and the structured log `ctx`. Mutually exclusive with `onError` (broker errors own the run
    *  phase). Set `status`/`auditStatus` for the success code as usual. */
-  broker?: boolean | { message?: string; ctx?: (req: Request, args: A) => Record<string, unknown> };
+  broker?: boolean | { message?: string; ctx?: (req: Request, prelim: P) => Record<string, unknown> };
   /** Success status when `run` returns a payload (default 200). */
   status?: number;
 }
 
 /** The "METHOD /path" this command contributes — for the write-lane ratchet. */
-export function commandRoutes<A>(desc: CommandDescriptor<A>): string[] {
+export function commandRoutes<A, P = A>(desc: CommandDescriptor<A, P>): string[] {
   return [`${desc.method.toUpperCase()} ${desc.path}`];
 }
 
-/** Mount a command descriptor, running the fixed shell: (role) → parse → ruleset → run → audit → respond. */
-export function mountCommand<A>(router: IRouter, desc: CommandDescriptor<A>): void {
+/** Mount a command descriptor, running the fixed shell: (role) → parse → [prepare] → ruleset → run → audit
+ *  → respond. `parse` is the sync 4xx gate; the optional async `prepare` loads what the ruleset/run need
+ *  (an entity, a store row) and can itself send a 4xx — both fire before any success audit. */
+export function mountCommand<A, P = A>(router: IRouter, desc: CommandDescriptor<A, P>): void {
   const handler = async (req: Request, res: Response): Promise<void> => {
-    const args = desc.parse(req, res);
-    if (args === null) return;
-    const action = typeof desc.audit === "function" ? desc.audit(args) : desc.audit;
-    // Every command checks the business ruleset by construction — `ruleAction` when given, else the command
-    // name. Non-applicable rules are ignored, so this is a no-op under default config; when a write-wide rule
-    // (a `read-only` freeze, an `any-write` field rule) is active it now covers verb writes too, not just
-    // entity writes. Runs after parse (the 4xx gate) and before run, mirroring the entity pipeline's order.
-    const ruleAction = desc.ruleAction ?? desc.name;
-    const scope = desc.ruleScope?.(req, args) ?? {};
-    if (!enforceBusinessRules(req, res, ruleAction, scope)) return;
-    // On SUCCESS only: record the audit then send the payload. Not reached when `run` throws — so a broker
-    // error (below) or a mapped `onError` never leaves a spurious success audit behind.
-    const respondSuccess = (result: unknown): void => {
+    const prelim = desc.parse(req, res);
+    if (prelim === null) return;
+    // Best-available action label for the onError path, refined once args are finalised (post-prepare).
+    let action = desc.name;
+    // The guarded core: finalise args (async prepare) → ruleset → run → success-audit + respond. For a
+    // broker command this whole core runs inside withBrokerErrors, so a broker error thrown while LOADING
+    // (in prepare) or WRITING (in run) maps to its HTTP status and the success audit never fires.
+    const core = async (): Promise<void> => {
+      let args: A;
+      if (desc.prepare) {
+        const prepared = await desc.prepare(req, res, prelim);
+        if (prepared === null) return; // prepare already sent a 4xx/403/409/501
+        args = prepared;
+      } else {
+        // No prepare ⇒ P === A, and `parse` already returned the full args.
+        args = prelim as unknown as A;
+      }
+      action = typeof desc.audit === "function" ? desc.audit(args) : desc.audit;
+      // Every command checks the business ruleset by construction — `ruleAction` when given, else the command
+      // name. Non-applicable rules are ignored, so this is a no-op under default config; when a write-wide
+      // rule (a `read-only` freeze, an `any-write` field rule) is active it now covers verb writes too, not
+      // just entity writes. Runs after parse/prepare and before run, mirroring the entity pipeline's order.
+      const ruleAction = desc.ruleAction ?? desc.name;
+      const scope = desc.ruleScope?.(req, args) ?? {};
+      if (!enforceBusinessRules(req, res, ruleAction, scope)) return;
+      // On SUCCESS only: record the audit then send the payload. Not reached when `run`/`prepare` throws — so
+      // a broker error (below) or a mapped `onError` never leaves a spurious success audit behind.
+      const result = await desc.run(req, res, args);
       recordAudit({
         ts: new Date().toISOString(),
         category: desc.auditCategory ?? "request",
@@ -103,15 +132,13 @@ export function mountCommand<A>(router: IRouter, desc: CommandDescriptor<A>): vo
       if (result !== undefined) res.status(desc.status ?? 200).json(result);
     };
     if (desc.broker) {
-      // Broker-aware: run inside withBrokerErrors, so a thrown broker-taxonomy error maps to its HTTP status
-      // and respondSuccess never runs (no audit for a failed write). Mirrors the entity pipeline's wrapper.
+      // Broker-aware: run the core inside withBrokerErrors, so a thrown broker-taxonomy error maps to its
+      // HTTP status and the success audit never runs. Mirrors the entity pipeline's wrapper.
       const b = desc.broker === true ? {} : desc.broker;
-      await withBrokerErrors(req, res, b.message ?? `${desc.name} failed`, async () => {
-        respondSuccess(await desc.run(req, res, args));
-      }, b.ctx?.(req, args) ?? {});
+      await withBrokerErrors(req, res, b.message ?? `${desc.name} failed`, core, b.ctx?.(req, prelim) ?? {});
     } else {
       try {
-        respondSuccess(await desc.run(req, res, args));
+        await core();
       } catch (err) {
         if (desc.onError) desc.onError(res, err, req, action);
         else throw err;

@@ -1,7 +1,8 @@
 /**
  * SCOPE-OVERRIDABLE GTD task-status vocabulary — the resolver + write sanitiser behind
- * `GET`/`PUT /api/task-vocabulary`. The shipped default (assets/task-vocabulary.json, seeded as the
- * system-scope `task-vocabulary` config def) is the base; org/programme/project/user layers fold on top
+ * `GET`/`PUT /api/task-vocabulary`. The shipped default (DERIVED from the methodology definitions'
+ * `tools.taskStatuses` — GTD owns the task axis — and seeded as the system-scope `task-vocabulary` config
+ * def) is the base; org/programme/project/user layers fold on top
  * via the shared `resolveConfig` (nearest scope wins, id-keyed arrays merge by id), exactly like the
  * work-item vocabulary next door — and like `scheduling`.
  *

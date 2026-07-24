@@ -66,10 +66,12 @@ test("the runtime override (wizard choice) drives the no-arg accessors", () => {
 after(() => setRuntimeProfile(null));
 
 test("the catalogue carries a preset (audience + suggested env) for every customer type", () => {
-  const cat = profileCatalogue();
-  for (const p of ["enterprise", "business", "nonprofit", "self-hosted", "demo"] as const) {
-    assert.ok(cat[p].audience.length > 0, p);
-    assert.ok(Array.isArray(cat[p].presetEnv), p);
+  const cat = profileCatalogue(); // keyed by profile id — a runtime-open record now (the set is JSON-driven)
+  for (const p of ["enterprise", "business", "nonprofit", "self-hosted", "demo"]) {
+    const posture = cat[p];
+    assert.ok(posture, `missing profile ${p}`);
+    assert.ok(posture.audience.length > 0, p);
+    assert.ok(Array.isArray(posture.presetEnv), p);
   }
-  assert.ok(cat.enterprise.presetEnv.some((e) => e.key === "SCIM_TOKEN"));
+  assert.ok(cat["enterprise"]?.presetEnv.some((e) => e.key === "SCIM_TOKEN"));
 });

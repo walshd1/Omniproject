@@ -8,12 +8,9 @@
  * Mounted by ./setup.ts under the same base, so every path stays `/setup/...` exactly as before.
  */
 import { Router } from "express";
-import { getSettings, updateSettings } from "../../lib/settings";
-import { isForbiddenKey } from "../../lib/safe-json";
 import { resolveSupport } from "../../lib/capabilities";
 import { connectedBrokerKinds } from "../../broker/registry";
 import { requireRole, requireAnyRole, hasRole } from "../../lib/rbac";
-import { captureVersion } from "../../lib/config-store";
 import { isFeatureEnabled } from "../../lib/feature-modules";
 import {
   backendCatalogue,
@@ -139,34 +136,9 @@ router.get("/setup/screens", async (req, res) => {
   res.json(support ? availableScreens(support) : screenCatalogue());
 });
 
-// Per-screen layout overrides (drag-arranged panel order / spans / hidden). Stored
-// in the settings store, so they ride the snapshot/export into the customer's JSON.
-// GET is open (the SPA needs it to render); PUT is manager+ (a shared customer view).
-router.get("/setup/screens/:id/layout", (req, res) => {
-  const layout = getSettings().screenLayouts[String(req.params["id"])] ?? null;
-  res.json({ id: req.params["id"], layout });
-});
-
-router.put("/setup/screens/:id/layout", requireRole("manager"), (req, res) => {
-  const id = String(req.params["id"]);
-  // `id` is a route param that keys the shared screenLayouts map — reject a reserved prototype name.
-  if (isForbiddenKey(id)) { res.status(400).json({ error: "invalid screen id" }); return; }
-  const body = (req.body ?? {}) as { order?: unknown; spans?: unknown; hidden?: unknown };
-  const layout: { order?: string[]; spans?: Record<string, number>; hidden?: string[] } = {};
-  if (Array.isArray(body.order)) layout.order = body.order.filter((x): x is string => typeof x === "string");
-  if (body.spans && typeof body.spans === "object") {
-    layout.spans = Object.fromEntries(
-      Object.entries(body.spans as Record<string, unknown>)
-        .filter(([, v]) => typeof v === "number" && (v as number) >= 1 && (v as number) <= 12) as [string, number][],
-    );
-  }
-  if (Array.isArray(body.hidden)) layout.hidden = body.hidden.filter((x): x is string => typeof x === "string");
-
-  const next = { ...getSettings().screenLayouts, [id]: layout };
-  updateSettings({ screenLayouts: next });
-  captureVersion(`screen layout: ${id}`);
-  res.json({ id, layout });
-});
+// Per-screen layout overrides (drag-arranged panel order / spans / hidden) are now FOLDED INTO the screen
+// definition — a saved layout rides on the org `screen` def in the encrypted def store (authored through the
+// importer via the SPA's Edit-layout mode), so there is no separate settings-backed layout endpoint here.
 
 // The plane meta-registry — all seven planes + their dev docs.
 router.get("/setup/planes", (_req, res) => {

@@ -1,4 +1,5 @@
 import { DEPLOYMENT_TYPES_DATA } from "./deployment-types.generated";
+import { defineCatalogue } from "./catalogue-base";
 
 /**
  * DEPLOYMENT-TYPE catalogue — the archetypes a user picks on the way in (solo self-hoster, small team,
@@ -37,17 +38,17 @@ export interface DeploymentType {
   notes?: string;
 }
 
-/** Every shipped deployment type, in display order. */
-export const DEPLOYMENT_TYPES: DeploymentType[] = [...DEPLOYMENT_TYPES_DATA].sort((a, b) => a.order - b.order);
+const catalogue = defineCatalogue(DEPLOYMENT_TYPES_DATA, { sortByOrder: true });
 
-const byId = new Map(DEPLOYMENT_TYPES.map((d) => [d.id, d]));
+/** Every shipped deployment type, in display order. */
+export const DEPLOYMENT_TYPES: DeploymentType[] = catalogue.all;
 
 /** One deployment type by id, or undefined. */
 export function getDeploymentType(id: string): DeploymentType | undefined {
-  return byId.get(id);
+  return catalogue.get(id);
 }
 
 /** All deployment types (a defensive copy). */
 export function deploymentTypeCatalogue(): DeploymentType[] {
-  return DEPLOYMENT_TYPES.map((d) => ({ ...d }));
+  return catalogue.list();
 }

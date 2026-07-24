@@ -325,9 +325,7 @@ Bespoke REPORT DEFINITIONS (roadmap X.10 — reports convergence).
 
 | Method | Path | Gate | Description |
 | --- | --- | --- | --- |
-| GET | `/api/reports/custom` | — | — |
-| GET | `/api/reports/custom/resolved` | — | reports, def store winning). |
-| PUT | `/api/reports/custom` | requireRole(pmo) | — |
+| GET | `/api/reports/custom/resolved` | — | scope winning by id). |
 
 ### `artifacts/api-server/src/routes/custom-roles.ts`
 
@@ -337,15 +335,6 @@ ADMIN custom-roles + permission-sets editor.
 | --- | --- | --- | --- |
 | GET | `/api/admin/custom-roles` | requireRole(admin) | GET /api/admin/custom-roles — the current config + the pickers the editor needs (base roles + capabilities). |
 | PUT | `/api/admin/custom-roles` | requireRole(admin) + requireStepUp | gated: custom roles now resolve into real grants, so changing them is as consequential as a role-map edit. |
-
-### `artifacts/api-server/src/routes/dashboards.ts`
-
-Custom dashboards — the LEGACY settings-bundle path (roadmap X.10).
-
-| Method | Path | Gate | Description |
-| --- | --- | --- | --- |
-| GET | `/api/dashboards` | — | — |
-| PUT | `/api/dashboards` | requireRole(pmo) | — |
 
 ### `artifacts/api-server/src/routes/def-bindings.ts`
 
@@ -492,9 +481,7 @@ The set of issue fields the connected backend ADVERTISES as storable (`FieldSupp
 | Method | Path | Gate | Description |
 | --- | --- | --- | --- |
 | POST | `/api/forms/:formId/submit` | requireRole(contributor) | Submit a filled-in form → create an issue in the form's target project. |
-| GET | `/api/forms` | — | the old list; a non-empty write is a retired bypass → 410 Gone, pointing at the importer. |
-| GET | `/api/forms/resolved` | — | an un-migrated one still does until the drain. |
-| PUT | `/api/forms` | requireRole(pmo) | — |
+| GET | `/api/forms/resolved` | — | the renderer reads THIS. |
 
 ### `artifacts/api-server/src/routes/goals.ts`
 
@@ -796,7 +783,7 @@ Project, programme-membership, issue + task-item endpoints — the core read/wri
 | GET | `/api/projects/:projectId/issues` | — | — |
 | GET | `/api/projects/:projectId/summary` | — | — |
 | GET | `/api/activity` | — | — |
-| POST | `/api/projects` | requireRole(manager) | — |
+| POST | `/api/projects` | requireRole(manager) | POST /projects — mint a project (manager+). |
 | GET | `/api/projects/:projectGuid/references` | requireAnyRole(pmo, admin) | deleting. |
 | DELETE | `/api/projects/:projectGuid/links` | requireAnyRole(pmo, admin) | so nothing there is touched; only the references are unlinked. |
 | POST | `/api/projects/:projectGuid/close` | requireAnyRole(pmo, admin) | POST /api/projects/:projectGuid/close — record a project closure (pmo/admin). |
@@ -804,7 +791,7 @@ Project, programme-membership, issue + task-item endpoints — the core read/wri
 | GET | `/api/resources` | — | — |
 | GET | `/api/projects/:projectId/members` | — | — |
 | GET | `/api/projects/:projectId/issues/:issueId/items` | — | Task children: issues & notes raised against a task |
-| POST | `/api/projects/:projectId/issues/:issueId/items` | requireRole(contributor) | — |
+| POST | `/api/projects/:projectId/issues/:issueId/items` | requireRole(contributor) | POST /projects/:projectId/issues/:issueId/items — attach a sub-item (a nested entity) to an issue (contributor+). |
 | POST | `/api/projects/:projectId/issues` | requireRole(contributor) | Issues — the canonical LANE 1 entity. |
 | PATCH | `/api/projects/:projectId/issues/:issueId` | requireRole(contributor) | Issues — the canonical LANE 1 entity. |
 | DELETE | `/api/projects/:projectId/issues/:issueId` | requireRole(contributor) | Issues — the canonical LANE 1 entity. |
@@ -1022,18 +1009,7 @@ Org-authored SCREEN DEFINITIONS (roadmap X.10 — screens convergence).
 
 | Method | Path | Gate | Description |
 | --- | --- | --- | --- |
-| GET | `/api/screen-defs` | — | — |
-| GET | `/api/screen-defs/resolved` | — | def-store screens, def store winning). |
-| PUT | `/api/screen-defs` | requireRole(pmo) | — |
-
-### `artifacts/api-server/src/routes/screen-layouts.ts`
-
-Per-screen saved LAYOUTS — the drag-customised arrangement (panel order / spans / hidden).
-
-| Method | Path | Gate | Description |
-| --- | --- | --- | --- |
-| GET | `/api/screen-layouts` | — | — |
-| PUT | `/api/screen-layouts` | requireRole(pmo) | — |
+| GET | `/api/screen-defs/resolved` | — | scope winning by id). |
 
 ### `artifacts/api-server/src/routes/security.ts`
 
@@ -1083,10 +1059,10 @@ Setup-wizard + operations plane.
 | GET | `/api/setup/status/public` | — | Non-PMO/admin callers reach only this passed-through subset, never the internal route above. |
 | GET | `/api/setup/profile` | requireRole(admin) | vs "recommended for your profile". |
 | GET | `/api/setup/idp` | requireRole(admin) | the admin exactly how to give staff real accounts + roles. |
-| POST | `/api/setup/profile` | requireRole(admin) | Infra-level env (DEPLOYMENT_PROFILE) remains the source of truth across a fresh boot. |
+| POST | `/api/setup/profile` | requireRole(admin) | POST /api/setup/profile — pick the deployment profile from the wizard (admin). |
 | GET | `/api/setup/self-host` | requireAnyRole(admin, pmo) | screen sees the same resolution the composition tier runs. |
-| POST | `/api/setup/self-host` | requireRole(admin) | def (`self-host`) — the ack is the gate, so this applies immediately (never a sign-off), unchanged from before. |
-| POST | `/api/setup/charity-onboarding` | requireRole(admin) | one exists and the deployment is entitled to it. |
+| POST | `/api/setup/self-host` | requireRole(admin) | POST /api/setup/self-host — adopt (or turn off) the self-host DB from the wizard/admin (admin). |
+| POST | `/api/setup/charity-onboarding` | requireRole(admin) | POST /api/setup/charity-onboarding — the "We're a charity" one-click preset (admin). |
 
 ### `artifacts/api-server/src/routes/setup/catalogues.ts`
 
@@ -1107,8 +1083,6 @@ Setup catalogue plane — the read-only "what CAN be wired" surface for the Conf
 | GET | `/api/setup/methodology-preset/:id` | — | planes (views, reports, screens), so a "click kanban" preset surfaces them all. |
 | GET | `/api/setup/reports` | requireAnyRole(pmo, admin) | is restricted to PMO/admin like the other wiring-catalogue reads above. |
 | GET | `/api/setup/screens` | — | — |
-| GET | `/api/setup/screens/:id/layout` | — | GET is open (the SPA needs it to render); PUT is manager+ (a shared customer view). |
-| PUT | `/api/setup/screens/:id/layout` | requireRole(manager) | — |
 | GET | `/api/setup/planes` | — | The plane meta-registry — all seven planes + their dev docs. |
 | GET | `/api/setup/entity-resolution/preview` | — | the truth stays in the backends, never at rest here. |
 
@@ -1161,7 +1135,7 @@ Setup environments plane — the sandbox → promote → rollback lifecycle over
 | POST | `/api/setup/environments/activate` | requireRole(admin) | POST /api/setup/environments/activate { name } — switch the active environment. |
 | POST | `/api/setup/promote` | requireRole(admin) | POST /api/setup/promote { from, to } — copy one env's config onto another. |
 | POST | `/api/setup/versions/:id/known-good` | requireRole(admin) | POST /api/setup/versions/:id/known-good — pin a version as known-good. |
-| POST | `/api/setup/rollback` | requireRole(admin) | POST /api/setup/rollback { versionId? , toKnownGood? } — fast rollback. |
+| POST | `/api/setup/rollback` | requireRole(admin) | POST /api/setup/rollback { versionId? , toKnownGood? } — fast rollback (custom result shape + error body). |
 
 ### `artifacts/api-server/src/routes/severity-vocabulary.ts`
 
@@ -1232,9 +1206,9 @@ Task routes — GTD actionable next-actions (distinct from issues): list/create/
 | PATCH | `/api/tasks/:taskId` | requireRole(manager) | Tasks (manager+). |
 | POST | `/api/tasks/reminders/sweep` | requireRole(pmo) | the caller's scope, so a portfolio-wide sweep needs a portfolio (pmo/admin) caller. |
 | GET | `/api/tasks/:taskId/comments` | — | — |
-| POST | `/api/tasks/:taskId/comments` | requireRole(contributor) | — |
+| POST | `/api/tasks/:taskId/comments` | requireRole(contributor) | Add a comment to a task (contributor+). |
 | GET | `/api/tasks/:taskId/attachments` | — | — |
-| POST | `/api/tasks/:taskId/attachments` | requireRole(contributor) | — |
+| POST | `/api/tasks/:taskId/attachments` | requireRole(contributor) | Add a file-reference attachment to a task (contributor+), when the backend supports them. |
 
 ### `artifacts/api-server/src/routes/templates.ts`
 
@@ -1264,7 +1238,7 @@ Timesheets API — entry + the submit/approve workflow, persisted BELOW the seam
 | --- | --- | --- | --- |
 | GET | `/api/timesheets/sources` | — | GET /api/timesheets/sources — which below-seam source(s) timesheets route to (for the UI). |
 | GET | `/api/timesheets` | — | GET /api/timesheets — the caller's own sheets, or (for an approver) a status-filtered queue. |
-| POST | `/api/timesheets` | requireRole(contributor) | Gate at contributor: writing a timesheet is a write, so a read-only API token (viewer) must not. |
+| POST | `/api/timesheets` | requireRole(contributor) | POST /api/timesheets — upsert a DRAFT sheet for the caller (entry). |
 | POST | `/api/timesheets/:id/action` | — | POST /api/timesheets/:id/action — apply a workflow action, enforcing the state machine + RBAC. |
 
 ### `artifacts/api-server/src/routes/tools.ts`
