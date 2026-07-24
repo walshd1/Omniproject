@@ -150,17 +150,6 @@ export function getTriggerDef(kind: string): TriggerDef | undefined {
   return triggerById.get(kind as TriggerKind);
 }
 
-/**
- * A condition test on the triggering entity (the LEGACY flat shape — a subset of the shared predicate
- * operator set). Retained for back-compat authoring + stored recipes; new rules author `when` (a full
- * {@link ConditionSet}, with `all`/`any` nesting). Both evaluate through the ONE shared predicate engine.
- */
-export interface AutomationCondition {
-  field: string;
-  op: "eq" | "ne" | "in" | "gt" | "lt" | "truthy";
-  value?: string;
-}
-
 /** One action instance in a recipe. */
 export interface AutomationAction {
   kind: ActionKind;
@@ -175,13 +164,9 @@ export interface AutomationRecipe {
   /** Org- or project-scoped, like a workflow — a project-scoped recipe can only touch that project. */
   scope: { kind: "org" } | { kind: "project"; projectId: string };
   trigger: { kind: TriggerKind; cron?: string };
-  /**
-   * The IF. Either the new {@link ConditionSet} (`when` — `all`/`any` nesting, full operator set) or the
-   * legacy flat {@link AutomationCondition}[] (`conditions`). Both compile to a `ConditionSet` and run
-   * through the shared predicate engine; `when` wins when both are present.
-   */
+  /** The IF — a {@link ConditionSet} (`all`/`any` nesting over the full predicate operator set) evaluated
+   *  against the triggering entity by the shared predicate engine. Absent ⇒ the rule fires unconditionally. */
   when?: ConditionSet;
-  conditions?: AutomationCondition[];
   actions: AutomationAction[];
 }
 

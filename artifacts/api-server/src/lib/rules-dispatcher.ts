@@ -1,6 +1,6 @@
 import { recipeMutates, type AutomationRecipe, type RuleVerb } from "@workspace/backend-catalogue";
 import { readConfigCollection } from "./scoped-config";
-import { compileRecipe, matchesConditions } from "./automation";
+import { compileRecipe, ruleMatches } from "./automation";
 import { runWorkflow, type WorkflowDef } from "./workflow";
 import { effectsForActor, effectsForAutonomousContext, type RunActor } from "./workflow-run";
 import { onDomainEvent, domainEventsEnabled, emitDomainEvent, makeDomainEvent, childCausation, type DomainEvent } from "./domain-event";
@@ -30,10 +30,14 @@ function bumpFanout(rootEventId: string): number {
  * fires the enabled recipes whose trigger + scope + `when` all match, through the SAME compile→workflow→
  * effect path the manual `POST /automations/:id/run` uses. No new engine.
  *
- * Phase 4 is INFORM-ONLY by construction: a recipe that mutates is SKIPPED here (logged), because an
- * autonomous write must pass the approval + autonomous-grant + containment pipeline — that is the gated-
- * mutation phase, not this one. So the worst a dispatched rule can do today is read + notify. The whole
- * subsystem is off unless RULES_ENGINE_EVENTS is set ({@link domainEventsEnabled}).
+ * Two run modes, by whether the recipe mutates:
+ *   - INFORM (read + notify) → runs under the initiating principal, never widened.
+ *   - MUTATING → runs as an AUTONOMOUS principal (`automation:rule_<id>`), DEFAULT-DENY under the
+ *     autonomous-write grant gate; an approval binding (`rule.run:<id>`) takes precedence and HOLDS the run
+ *     as a proposal. A mutating write emits a follow-on event (emergent chaining), bounded by the cascade
+ *     guard below (depth cap + cycle break + per-root fan-out budget).
+ *
+ * The whole subsystem is off unless RULES_ENGINE_EVENTS is set ({@link domainEventsEnabled}).
  */
 
 /** Does a project/org-scoped recipe apply to this event's scope? Org recipes match everything; a project
@@ -156,7 +160,7 @@ export async function dispatchDomainEvent(
     if (recipe.enabled === false) continue;
     if (recipe.trigger.kind !== event.triggerKind) continue;
     if (!scopeMatches(recipe, event)) continue;
-    if (!matchesConditions(recipe, event.subject)) continue;
+    if (!ruleMatches(recipe, event.subject)) continue;
 
     // Cascade CYCLE + FAN-OUT guard: never re-run a rule already in this cascade's path, and stop once the
     // per-root fan-out budget is spent. Both drop-log (no silent truncation).

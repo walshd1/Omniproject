@@ -1,8 +1,8 @@
 import {
   AUTOMATION_ACTIONS, getActionDef, getTriggerDef, recipeMutates,
   matches, validatePredicate, cleanConditionSet,
-  type AutomationRecipe, type AutomationAction, type AutomationCondition, type ActionRequirement,
-  type ConditionSet, type Predicate, type Op,
+  type AutomationRecipe, type AutomationAction, type ActionRequirement,
+  type ConditionSet, type Predicate,
 } from "@workspace/backend-catalogue";
 import { validateWorkflow, type WorkflowDef, type WorkflowStep } from "./workflow";
 
@@ -19,7 +19,6 @@ export class AutomationError extends Error {
 
 const str = (v: unknown): string => (typeof v === "string" ? v.trim() : "");
 const isForbiddenKey = (k: string): boolean => k === "__proto__" || k === "constructor" || k === "prototype";
-const OPS = new Set(["eq", "ne", "in", "gt", "lt", "truthy"]);
 
 /** Validate + normalise the stored recipe list. Pure — throws {@link AutomationError}. */
 export function validateAutomations(value: unknown): AutomationRecipe[] {
@@ -51,7 +50,8 @@ export function validateAutomations(value: unknown): AutomationRecipe[] {
       trigger.cron = cron;
     }
 
-    // The IF — new `when` (a full ConditionSet) takes precedence over the legacy flat `conditions`.
+    // The IF — an optional ConditionSet (`all`/`any` over the full predicate operator set). Absent ⇒ the
+    // rule fires unconditionally.
     let when: ConditionSet | undefined;
     if (o["when"] != null) {
       if (typeof o["when"] !== "object" || Array.isArray(o["when"])) throw new AutomationError(`recipe "${id}" when must be an object`);
@@ -66,25 +66,6 @@ export function validateAutomations(value: unknown): AutomationRecipe[] {
         }
       }
       when = cleanConditionSet(o["when"]);
-    }
-
-    // Conditions (optional, legacy flat shape).
-    const conditions: AutomationCondition[] = [];
-    if (o["conditions"] != null) {
-      if (!Array.isArray(o["conditions"])) throw new AutomationError(`recipe "${id}" conditions must be an array`);
-      for (const rawC of o["conditions"] as unknown[]) {
-        const c = (rawC ?? {}) as Record<string, unknown>;
-        const field = str(c["field"]);
-        const op = str(c["op"]);
-        if (!field || isForbiddenKey(field)) throw new AutomationError(`recipe "${id}" condition needs a field`);
-        if (!OPS.has(op)) throw new AutomationError(`recipe "${id}" condition op must be one of ${[...OPS].join(", ")}`);
-        const cond: AutomationCondition = { field, op: op as AutomationCondition["op"] };
-        if (op !== "truthy") {
-          if (str(c["value"]) === "" && c["value"] == null) throw new AutomationError(`recipe "${id}" condition "${field}" needs a value`);
-          cond.value = str(c["value"]);
-        }
-        conditions.push(cond);
-      }
     }
 
     // Actions — at least one, each a catalogued kind.
@@ -102,7 +83,6 @@ export function validateAutomations(value: unknown): AutomationRecipe[] {
 
     const recipe: AutomationRecipe = { id, label, scope, trigger, actions };
     if (when) recipe.when = when;
-    if (conditions.length > 0) recipe.conditions = conditions;
     if (o["enabled"] === false) recipe.enabled = false;
     return recipe;
   });
@@ -138,7 +118,7 @@ const opForAction = (kind: string): "create" | "update" => (kind === "create-iss
 /**
  * Compile a recipe's ACTIONS to the existing workflow-engine JSON (one `action` step each). Conditions are
  * NOT compiled into the workflow — a recipe condition is a predicate on the TRIGGERING ENTITY (external to
- * the workflow), so the runner evaluates it up front via {@link matchesConditions} and only runs the
+ * the workflow), so the runner evaluates it up front via {@link ruleMatches} and only runs the
  * compiled workflow when it matches. Returns a validated {@link WorkflowDef} (bounds-checked by the ONE
  * engine validator).
  *
@@ -189,28 +169,12 @@ function compileParams(recipe: AutomationRecipe, a: AutomationAction, subject?: 
 const str2 = (v: unknown): string => (v == null ? "" : String(v));
 
 /**
- * The recipe's IF as a single {@link ConditionSet} — `when` if present, else the legacy flat `conditions`
- * converted (each becomes an `all` predicate; `in`'s comma-separated string becomes an array, matching the
- * legacy split-and-trim). This is the shim that lets ONE engine ({@link matches}) evaluate both authoring
- * shapes. No `when` and no `conditions` ⇒ an empty set ⇒ matches everything.
+ * Does a recipe's `when` match the triggering entity (`subject`)? Straight through the shared predicate
+ * engine ({@link matches}) — one condition language across the product. No `when` ⇒ always matches. Pure, so
+ * the runner can gate execution on it without touching the engine.
  */
-export function conditionSetOf(recipe: AutomationRecipe): ConditionSet {
-  if (recipe.when) return recipe.when;
-  const all: Predicate[] = (recipe.conditions ?? []).map((c) => {
-    if (c.op === "in") return { field: c.field, op: "in", value: (c.value ?? "").split(",").map((s) => s.trim()) };
-    if (c.op === "truthy") return { field: c.field, op: "truthy" };
-    return { field: c.field, op: c.op as Op, value: c.value ?? "" };
-  });
-  return all.length ? { all } : {};
-}
-
-/**
- * Evaluate a recipe's conditions against the triggering entity (`subject`). Delegates to the shared
- * predicate engine ({@link matches}) via {@link conditionSetOf} — one condition language across the product.
- * No conditions ⇒ always matches. Pure, so the runner can gate execution on it without touching the engine.
- */
-export function matchesConditions(recipe: AutomationRecipe, subject: Record<string, unknown>): boolean {
-  return matches(conditionSetOf(recipe), subject);
+export function ruleMatches(recipe: AutomationRecipe, subject: Record<string, unknown>): boolean {
+  return matches(recipe.when, subject);
 }
 
 export { recipeMutates, AUTOMATION_ACTIONS };

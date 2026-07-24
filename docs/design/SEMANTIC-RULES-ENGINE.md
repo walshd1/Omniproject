@@ -8,8 +8,9 @@ restrictions."*
 
 **Built so far (behind `RULES_ENGINE_EVENTS`, off by default):**
 - **Phase 1** — one shared condition language: the pure predicate engine moved to
-  `@workspace/backend-catalogue` (`predicate.ts`); recipes gained `when` (a full `ConditionSet`);
-  `matchesConditions` now delegates to it (legacy flat `conditions` convert via `conditionSetOf`).
+  `@workspace/backend-catalogue` (`predicate.ts`). A rule's IF is a single `when` `ConditionSet`
+  (`all`/`any` over the full operator set); `ruleMatches` runs it through the shared `matches`. There
+  is exactly one condition representation — no separate flat shape.
 - **Phase 2** — surface-agnostic taxonomy: `RULE_SURFACES` (data) with event triggers **generated**
   from `surfaces × verbs`; `TriggerKind`/`ActionKind` widened to strings; `set-status`/`assign` added.
 - **Phase 3** — post-commit `DomainEvent` emit at `mountEntity` (auto) + `mountCommand` (`emits`
@@ -122,11 +123,10 @@ interface RuleAction {
 
 Two deliberate changes from `AutomationRecipe`:
 
-- **`when` uses `ConditionSet` (predicate.ts), not the bespoke `matchesConditions`.** One
-  condition language across governance, cost, rulesets, and now rules — with `all`/`any`
-  nesting and the richer operator set. `matchesConditions` is retired (§6.4); a back-compat
-  shim maps the old flat `conditions: [{field,op,value}]` onto `{ all: [...] }` at read time so
-  stored recipes keep working.
+- **`when` uses `ConditionSet` (predicate.ts).** One condition language across governance, cost,
+  rulesets, and now rules — with `all`/`any` nesting and the full operator set. There is a single
+  condition representation (`ruleMatches` runs it through the shared `matches`); the bespoke
+  `matchesConditions` and the old flat `conditions` shape are gone.
 - **`trigger.kind` and `action.kind` are surface-agnostic catalogue ids** (§4), not the fixed
   `issue.*` / four-action set.
 
@@ -360,7 +360,7 @@ effects would be a category error.
 ## 10. Phasing (each step self-contained + testable, feature-flagged off by default)
 
 1. **Condition unification.** Point `Rule.when` at `predicate.ts` `ConditionSet`; add the
-   back-compat shim from flat `conditions[]`; delete `matchesConditions`. *Pure; no dispatch.*
+   single `when` representation (`ruleMatches`); no separate flat `conditions` shape. *Pure; no dispatch.*
 2. **Surface-agnostic catalogue.** Derive `TriggerDef`/`ActionDef` from the entity/command
    registries; generalise `create-issue` → `create:<surface>` and add field-write actions
    (`set-status`, `assign`). *Data + validation; still no auto-fire.*
