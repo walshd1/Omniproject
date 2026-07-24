@@ -44,6 +44,7 @@ import { aiProviderAllowlistCommand, aiModelAllowlistCommand, sttProviderAllowli
 import { deploymentTypeSetCommand } from "../routes/deployment-types";
 import { calendarPushSaveCommand } from "../routes/calendar";
 import { mePrefsSaveCommand } from "../routes/me";
+import { addTaskCommentCommand, addTaskAttachmentCommand } from "../routes/tasks";
 import { presetApplyCommand } from "../routes/presets";
 import { templateInstantiateCommand } from "../routes/templates";
 import { projectCloseCommand } from "../routes/projects";
@@ -173,6 +174,8 @@ const LANE2 = new Set<string>([
   ...commandRoutes(setupPromoteCommand),
   ...commandRoutes(setupVersionKnownGoodCommand),
   ...commandRoutes(setupRollbackCommand),
+  ...commandRoutes(addTaskCommentCommand),
+  ...commandRoutes(addTaskAttachmentCommand),
 ]);
 
 // Lane 3 — hand-written writes not (yet) on a spine. SEED — regenerate by running the first test with this
@@ -271,8 +274,6 @@ const BESPOKE_WRITES = new Set<string>([
   "POST /setup/verify-workflow",
   "POST /snapshots/capture",
   "POST /snapshots/verify",
-  "POST /tasks/:taskId/attachments",
-  "POST /tasks/:taskId/comments",
   "POST /tasks/reminders/sweep",
   "POST /timesheets",
   "POST /timesheets/:id/action",

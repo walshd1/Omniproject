@@ -686,7 +686,7 @@ LANE 2 — the generic ACTION base.
 | Function | What it does |
 | --- | --- |
 | `commandRoutes` | The "METHOD /path" this command contributes — for the write-lane ratchet. |
-| `mountCommand` | Mount a command descriptor, running the fixed shell: (role) → parse → ruleset → run → audit → respond. |
+| `mountCommand` | Mount a command descriptor, running the fixed shell: (role) → parse → [prepare] → ruleset → run → audit → respond. |
 
 ### `artifacts/api-server/src/lib/actor.ts`
 

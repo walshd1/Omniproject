@@ -1232,9 +1232,9 @@ Task routes — GTD actionable next-actions (distinct from issues): list/create/
 | PATCH | `/api/tasks/:taskId` | requireRole(manager) | Tasks (manager+). |
 | POST | `/api/tasks/reminders/sweep` | requireRole(pmo) | the caller's scope, so a portfolio-wide sweep needs a portfolio (pmo/admin) caller. |
 | GET | `/api/tasks/:taskId/comments` | — | — |
-| POST | `/api/tasks/:taskId/comments` | requireRole(contributor) | — |
+| POST | `/api/tasks/:taskId/comments` | requireRole(contributor) | Add a comment to a task (contributor+). |
 | GET | `/api/tasks/:taskId/attachments` | — | — |
-| POST | `/api/tasks/:taskId/attachments` | requireRole(contributor) | — |
+| POST | `/api/tasks/:taskId/attachments` | requireRole(contributor) | Add a file-reference attachment to a task (contributor+), when the backend supports them. |
 
 ### `artifacts/api-server/src/routes/templates.ts`
 
