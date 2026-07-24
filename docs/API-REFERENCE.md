@@ -1264,7 +1264,7 @@ Timesheets API — entry + the submit/approve workflow, persisted BELOW the seam
 | --- | --- | --- | --- |
 | GET | `/api/timesheets/sources` | — | GET /api/timesheets/sources — which below-seam source(s) timesheets route to (for the UI). |
 | GET | `/api/timesheets` | — | GET /api/timesheets — the caller's own sheets, or (for an approver) a status-filtered queue. |
-| POST | `/api/timesheets` | requireRole(contributor) | Gate at contributor: writing a timesheet is a write, so a read-only API token (viewer) must not. |
+| POST | `/api/timesheets` | requireRole(contributor) | POST /api/timesheets — upsert a DRAFT sheet for the caller (entry). |
 | POST | `/api/timesheets/:id/action` | — | POST /api/timesheets/:id/action — apply a workflow action, enforcing the state machine + RBAC. |
 
 ### `artifacts/api-server/src/routes/tools.ts`

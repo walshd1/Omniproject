@@ -45,6 +45,7 @@ import { deploymentTypeSetCommand } from "../routes/deployment-types";
 import { calendarPushSaveCommand } from "../routes/calendar";
 import { mePrefsSaveCommand } from "../routes/me";
 import { addTaskCommentCommand, addTaskAttachmentCommand } from "../routes/tasks";
+import { timesheetSaveCommand, timesheetActionCommand } from "../routes/timesheets";
 import { presetApplyCommand } from "../routes/presets";
 import { templateInstantiateCommand } from "../routes/templates";
 import { projectCloseCommand } from "../routes/projects";
@@ -176,6 +177,8 @@ const LANE2 = new Set<string>([
   ...commandRoutes(setupRollbackCommand),
   ...commandRoutes(addTaskCommentCommand),
   ...commandRoutes(addTaskAttachmentCommand),
+  ...commandRoutes(timesheetSaveCommand),
+  ...commandRoutes(timesheetActionCommand),
 ]);
 
 // Lane 3 — hand-written writes not (yet) on a spine. SEED — regenerate by running the first test with this
@@ -275,8 +278,6 @@ const BESPOKE_WRITES = new Set<string>([
   "POST /snapshots/capture",
   "POST /snapshots/verify",
   "POST /tasks/reminders/sweep",
-  "POST /timesheets",
-  "POST /timesheets/:id/action",
   "POST /usage/notify",
   "POST /webhooks",
   "POST /whiteboards",
