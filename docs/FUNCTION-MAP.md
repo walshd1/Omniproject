@@ -91,7 +91,7 @@ Generic invoice-sync PROJECTOR — the backend-vendor-NEUTRAL engine that maps O
 | --- | --- |
 | `correlationValue` | ── Correlation (OmniProject's namespace) ──────────────────────────────────────────────────────────────── |
 | `parseCorrelation` | — |
-| `projectOutbound` | Project the agnostic invoice to the vendor payload the broker will send. |
+| `projectOutbound` | Project the agnostic invoice to the vendor payload the broker will send, applying the advertised field map + transforms via the shared projection engine. |
 | `parseExternalRef` | Normalise a create/update response into the external ref, or null when no usable id is present. |
 | `parsePaid` | Read the settlement signal ("paid" \| null) from a vendor invoice record via the advertised predicate. |
 | `parseWebhook` | Resolve the local invoice id + optional settlement amount from an inbound webhook, or null when not ours. |
@@ -313,6 +313,19 @@ OmniStore HTTP server — the deployable BACKEND container.
 | Function | What it does |
 | --- | --- |
 | `createOmniStoreServer` | Build (but don't start) the OmniStore backend server. |
+
+### `artifacts/api-server/src/broker/projection.ts`
+
+The PROJECTION ENGINE — the one vendor-neutral substrate for applying an advertised mapping to hard data.
+
+| Function | What it does |
+| --- | --- |
+| `asRecord` | A record that is definitely a plain object, or null. |
+| `applyValueMap` | Apply an advertised value-map: look `rawKey` up in `map` (optionally lower-cased first) and return the hit, else `fallback`. |
+| `getPath` | Read a dotted path with numeric index support (`a.b.0.c`). |
+| `unwrap` | Descend into the first present wrapper object (like `{data:{…}}`), else return the record as-is. |
+| `applyTransform` | Apply one advertised outbound field transform against its source record. |
+| `evalPredicate` | Evaluate an advertised settlement predicate over a normalised record — a leaf (strict-equality set and/or numeric comparisons) or a boolean combinator. |
 
 ### `artifacts/api-server/src/broker/provenance.ts`
 
