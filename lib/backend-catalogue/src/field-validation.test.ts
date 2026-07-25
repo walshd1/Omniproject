@@ -66,6 +66,16 @@ test("email lowercases + trims and validates the address shape", () => {
   assert.deepEqual(applyFieldPolicy("not-an-email", policy, "Email").errors, ["Email must be a valid email address"]);
 });
 
+test("a reference is validated as an id-safe, bounded token (security floor for every reference field)", () => {
+  const policy = resolveFieldPolicy("reference");
+  assert.deepEqual(applyFieldPolicy("ENG-PLAT", policy, "Cost centre").errors, []); // a real dimension id passes
+  assert.deepEqual(applyFieldPolicy("proj~p1~inv9", policy, "Ref").errors, []); // id separators allowed
+  assert.deepEqual(applyFieldPolicy("", policy, "Ref").errors, []); // optional / empty is fine
+  assert.ok(applyFieldPolicy("has space", policy, "Ref").errors.length > 0); // whitespace rejected
+  assert.ok(applyFieldPolicy("<script>", policy, "Ref").errors.length > 0); // markup rejected (escaped + pattern)
+  assert.ok(applyFieldPolicy("x".repeat(200), policy, "Ref").errors.length > 0); // bounded at 128
+});
+
 test("number keeps only numeric characters", () => {
   assert.equal(sanitiseValue("abc-12.5xyz", resolveFieldPolicy("number").sanitise), "-12.5");
 });
