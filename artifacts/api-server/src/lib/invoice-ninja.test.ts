@@ -89,7 +89,7 @@ test("parseNinjaResult returns null when there is no usable id", () => {
 
 test("a new invoice row starts unsynced; applyInvoiceExternalRef records the ref and surfaces in meta", () => {
   const ctx = { sub: "u1" } as Parameters<typeof newInvoiceRow>[2];
-  const row = newInvoiceRow("inv_abc", { number: "INV-1", clientName: "Acme", currency: "USD", taxRatePct: 0, note: null, dueAt: null, lines: [], storage: {} as never, projectId: null } as Parameters<typeof newInvoiceRow>[1], ctx, NOW);
+  const row = newInvoiceRow("inv_abc", { number: "INV-1", clientName: "Acme", currency: "USD", taxRatePct: 0, note: null, dueAt: null, lines: [], storage: {} as never, projectId: null } as unknown as Parameters<typeof newInvoiceRow>[1], ctx, NOW);
   assert.equal(row.externalRef, null);
   assert.equal(invoiceMeta(row).externalRef, undefined); // no ref → omitted from the list projection
 
