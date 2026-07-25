@@ -140,14 +140,41 @@ for (const dir of NAMING_DIRS) {
   }
 }
 
+// 3. Vendor branching: no code in the broker integration layer (above the seam) may compare or `case` on a
+// backend-id literal — special-casing a vendor is a leak even when the id string is otherwise benign; behaviour
+// must be resolved from the manifest, not branched in code. Scanned for all DISTINCTIVE backend ids (common-word
+// ids like plane/sql/excel are excluded to avoid false hits) across broker/ only: OAuth/IdP provider code lives
+// elsewhere and legitimately compares against provider ids that happen to coincide with a backend id.
+const GENERIC_BRANCH_IDS = new Set(["plane", "linear", "sql", "excel", "enterprise", "sap", "monday"]);
+function distinctiveBackendIds(): string[] {
+  const dir = path.join(ROOT, BACKENDS_DIR);
+  if (!fs.existsSync(dir)) return [];
+  return fs.readdirSync(dir).filter((x) => x.endsWith(".json"))
+    .map((f) => (JSON.parse(fs.readFileSync(path.join(dir, f), "utf8")) as { id: string }).id)
+    .filter((id) => !GENERIC_BRANCH_IDS.has(id));
+}
+const BRANCH_IDS = distinctiveBackendIds();
+const idAlt = BRANCH_IDS.map((s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|");
+const BRANCH_RE = BRANCH_IDS.length
+  ? new RegExp(`(?:[=!]==?\\s*|\\bcase\\s+)["'](?:${idAlt})["']|["'](?:${idAlt})["']\\s*[=!]==?`)
+  : null;
+if (BRANCH_RE) {
+  for (const rel of listTsFiles(`${GATEWAY_SRC}/broker`)) {
+    if (rel.endsWith(".generated.ts")) continue;
+    for (const { line, text } of codeLines(fs.readFileSync(path.join(ROOT, rel), "utf8"))) {
+      if (BRANCH_RE.test(text)) violations.push(`${rel}:${line}  [branch] special-cases a backend id — resolve behaviour from the manifest, don't branch: ${text.trim().slice(0, 80)}`);
+    }
+  }
+}
+
 reportGuard("backend-isolation", {
   violations,
   failHeadline: "Backend-isolation guard failed — a concrete backend leaks outside its home:",
   help:
-    "A backend vendor may be named only in the backend-adapter home (broker/backends/, code) and " +
-    "vendors/backends/<vendor>.json (data). Everywhere else use the generic BillingAdapter interface / " +
-    "resolveBillingAdapter() and backend-neutral wording. Comments are exempt.",
+    "A backend vendor may be named only in vendors/backends/<vendor>.json (data); above the seam use the " +
+    "generic BillingAdapter / resolveBillingAdapter() and never branch on a backend id — resolve behaviour " +
+    "from the manifest. Advertised mappings (invoiceSync/statusVocabulary/…) are data, not code. Comments are exempt.",
   okSummary:
-    `no concrete-adapter import or backend naming outside the sanctioned homes ` +
-    `(scanned ${VENDOR_FRAGMENTS.length} derived backend tokens).`,
+    `no concrete-adapter import, backend naming, or backend-id branching above the seam ` +
+    `(scanned ${VENDOR_FRAGMENTS.length} name token(s) + ${BRANCH_IDS.length} branch ids).`,
 });

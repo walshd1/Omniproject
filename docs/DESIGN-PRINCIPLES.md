@@ -156,6 +156,21 @@ Two disciplines keep it honest:
   contract. A field name hard-coded in a route, or a backend quirk leaking upward, is the same class of error
   as leaking a secret across the crypto boundary.
 
+**Vendor mapping is advertised data, applied by generic projectors — this is the standard, not an option.**
+Every backend-specific mapping is declared on the backend's manifest and applied by a vendor-neutral engine
+above the seam; no surface owns bespoke per-vendor code. The advertised mechanisms:
+`actions` (verb → API call), `statusVocabulary` / `nomenclature` (native dialect → canonical), `fieldKeys` /
+`fields` (which canonical fields a backend populates), and `invoiceSync` (a full bidirectional field
+projection with a closed set of transform primitives — the general shape the narrower value-maps are special
+cases of). A new integration that needs a mapping **advertises it** the way `invoiceSync` does; it never adds
+a vendor branch or a vendor-shaped transform in gateway code. Enforcement is two symmetric architecture
+guards — **`guard-broker-isolation`** (the automation-runtime axis: n8n/Make/…) and
+**`guard-backend-isolation`** (the system-of-record axis: Jira/SAP/Invoice Ninja/…) — which fail the build if
+a concrete broker/backend is imported outside its seam, if an advertised billing backend's name appears in
+gateway code, or if any code above the seam **branches on a backend id**. Legitimately vendor-named surfaces
+that are *not* integration code — OAuth IdP presets ("Sign in with GitHub"), the product's own repo/support
+URLs, demo fixtures, onboarding copy — are out of scope: naming a vendor there is a feature, not a leak.
+
 Why this is a *security* principle and not merely an architectural one: a clean hard-data seam is what makes
 **zero-at-rest** mean something. If project data never lands in the gateway, losing or compromising the box
 exposes *config* — not the organisation's book of record. The seam is the reason "keep your encrypted JSON
