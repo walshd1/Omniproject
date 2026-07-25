@@ -1,5 +1,6 @@
 import type { RuleMode, FieldRule } from "./ruleset";
 import { readScopedConfigValue, writeScopedConfigCollection, type ConfigWriteScope } from "./scoped-config";
+import { foldAccounting, sanitizeAccountingValues, type AccountingConfig, type AccountingOverride } from "./accounting-policy";
 
 /**
  * SCOPED RULESET OVERLAY — lets a programme or project TIGHTEN the org's business ruleset for its own work,
@@ -20,10 +21,19 @@ export function stricterMode(a: RuleMode, b: RuleMode): RuleMode {
   return MODE_RANK[b] > MODE_RANK[a] ? b : a;
 }
 
-/** One scope's stored ruleset override — partial modes and/or extra field rules it wants to enforce. */
+/** One scope's stored ruleset override — partial modes and/or extra field rules it wants to enforce, plus any
+ *  accounting-policy overrides. Modes/fields TIGHTEN-only; accounting values plain-OVERRIDE (nearest wins). */
 export interface RulesetOverride {
   modes?: Record<string, RuleMode>;
   fieldRules?: FieldRule[];
+  accounting?: AccountingOverride;
+}
+
+/** The effective finance governance at a scope — the block/warn gates AND the accounting policy, resolved as one. */
+export interface EffectiveRuleset {
+  modes: Record<string, RuleMode>;
+  fieldRules: FieldRule[];
+  accounting: AccountingConfig;
 }
 
 /** Fold an override's MODES onto a base, keeping only the stricter mode per rule (tighten-only). */
@@ -51,23 +61,28 @@ export function tightenFieldRules(base: FieldRule[], override: FieldRule[] | und
   return [...byId.values()];
 }
 
-/** Fold one override onto an effective ruleset (tighten-only, both facets). */
-function tighten(base: { modes: Record<string, RuleMode>; fieldRules: FieldRule[] }, override: RulesetOverride | undefined): { modes: Record<string, RuleMode>; fieldRules: FieldRule[] } {
+/** Fold one override onto an effective ruleset: modes/fields TIGHTEN-only; accounting values plain-OVERRIDE
+ *  (nearest wins — an account code / factor has no "stricter"). */
+function tighten(base: EffectiveRuleset, override: RulesetOverride | undefined): EffectiveRuleset {
   if (!override) return base;
-  return { modes: tightenModes(base.modes, override.modes), fieldRules: tightenFieldRules(base.fieldRules, override.fieldRules) };
+  return {
+    modes: tightenModes(base.modes, override.modes),
+    fieldRules: tightenFieldRules(base.fieldRules, override.fieldRules),
+    accounting: foldAccounting(base.accounting, override.accounting),
+  };
 }
 
 /**
- * Resolve the EFFECTIVE ruleset for a request scope: the org baseline, tightened by the programme override (if
- * any), then the project override (if any) — system < org < programme < project, each only able to make things
- * stricter. With no stored overrides this returns the baseline unchanged, so behaviour is identical to org-only
- * until a scope opts to harden.
+ * Resolve the EFFECTIVE finance governance for a request scope: the org baseline, folded by the programme override
+ * (if any), then the project override (if any) — system < org < programme < project. Rule modes and field rules
+ * can only be made STRICTER; accounting-policy values are OVERRIDDEN by a nearer scope (nearest wins). With no
+ * stored overrides this returns the baseline unchanged.
  */
 export function resolveEffectiveRuleset(
-  base: { modes: Record<string, RuleMode>; fieldRules: FieldRule[] },
+  base: EffectiveRuleset,
   scopes: { programmeId?: string | null | undefined; projectId?: string | null | undefined },
-): { modes: Record<string, RuleMode>; fieldRules: FieldRule[] } {
-  let eff = { modes: { ...base.modes }, fieldRules: base.fieldRules.map((r) => ({ ...r })) };
+): EffectiveRuleset {
+  let eff: EffectiveRuleset = { modes: { ...base.modes }, fieldRules: base.fieldRules.map((r) => ({ ...r })), accounting: { ...base.accounting, accounts: { ...base.accounting.accounts } } };
   if (scopes.programmeId) eff = tighten(eff, readScopedConfigValue<RulesetOverride>(RULESET_OVERRIDE_ID, { kind: "programme", programmeId: scopes.programmeId }));
   if (scopes.projectId) eff = tighten(eff, readScopedConfigValue<RulesetOverride>(RULESET_OVERRIDE_ID, { kind: "project", projectId: scopes.projectId }));
   return eff;
@@ -88,6 +103,9 @@ export function setRulesetOverride(scope: ConfigWriteScope, override: RulesetOve
   }
   const fieldRules = (Array.isArray(override.fieldRules) ? override.fieldRules : []).filter(isFieldRule);
   const clean: RulesetOverride = { modes, fieldRules };
+  // Accounting overrides are validated to the same partial shape as the org baseline (id-safe codes, bounded
+  // factor, valid method); an invalid override is rejected rather than silently dropped.
+  if (override.accounting !== undefined) clean.accounting = sanitizeAccountingValues(override.accounting);
   writeScopedConfigCollection(RULESET_OVERRIDE_ID, "Ruleset override", clean, scope);
   return clean;
 }

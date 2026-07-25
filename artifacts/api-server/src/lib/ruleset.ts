@@ -15,6 +15,7 @@
  */
 import { logger } from "./logger";
 import { resolveEffectiveRuleset } from "./ruleset-scope";
+import { DEFAULT_ACCOUNTING, foldAccounting, sanitizeAccountingValues, missingAccountingAccounts, type AccountingConfig } from "./accounting-policy";
 
 export type RuleMode = "hard" | "warn" | "off";
 
@@ -234,6 +235,45 @@ function seedFieldRules(): FieldRule[] {
 }
 let fieldRules: FieldRule[] = seedFieldRules();
 
+// ── Accounting policy — a facet of the finance governance baseline (org GL codes + depreciation policy) ────────
+// Unlike a rule MODE, this carries VALUES (not off/warn/hard). It lives on the SAME governance surface as the
+// rules: the org baseline here, scope-overridden through resolveEffectiveRuleset, administered under /admin/ruleset.
+function seedAccounting(): AccountingConfig {
+  const raw = process.env["BUSINESS_ACCOUNTING"]?.trim();
+  if (!raw) return foldAccounting(DEFAULT_ACCOUNTING, undefined);
+  try {
+    return foldAccounting(DEFAULT_ACCOUNTING, sanitizeAccountingValues(JSON.parse(raw)));
+  } catch (e) {
+    logger.warn(`BUSINESS_ACCOUNTING ignored: ${e instanceof Error ? e.message : "invalid JSON"}`);
+    return foldAccounting(DEFAULT_ACCOUNTING, undefined);
+  }
+}
+let accounting: AccountingConfig = seedAccounting();
+
+/** The org baseline accounting policy (a defensive copy). */
+export function getAccounting(): AccountingConfig {
+  return foldAccounting(accounting, undefined);
+}
+
+/** Admin sets the org baseline accounting policy — a validated PARTIAL folded onto the current baseline (an
+ *  account code / factor / method is replaced; absent keys are untouched). Throws on an invalid value. */
+export function setAccounting(next: unknown): AccountingConfig {
+  accounting = foldAccounting(accounting, sanitizeAccountingValues(next));
+  return getAccounting();
+}
+
+/** The EFFECTIVE accounting policy for a scope — the org baseline folded with any programme/project override
+ *  (nearest wins), resolved through the same governance path as the rule modes. */
+export function resolveScopedAccounting(scopes: { programmeId?: string | null; projectId?: string | null } = {}): AccountingConfig {
+  return resolveEffectiveRuleset({ modes: getRuleModes(), fieldRules: getFieldRules(), accounting: getAccounting() }, scopes).accounting;
+}
+
+/** The org baseline accounting policy + which GL codes are still unset — for the ruleset admin surface. */
+export function accountingCatalogue(): { accounting: AccountingConfig; missingAccounts: string[] } {
+  const cfg = getAccounting();
+  return { accounting: cfg, missingAccounts: missingAccountingAccounts(cfg) };
+}
+
 /** The current admin-authored field rules (a defensive copy). */
 export function getFieldRules(): FieldRule[] {
   return fieldRules.map((r) => ({ ...r }));
@@ -301,7 +341,7 @@ export function evaluateRuleset(ctx: RuleContext): RuleVerdict {
   // Resolve the EFFECTIVE ruleset for this scope: the org baseline, tightened (never loosened) by any
   // programme/project override. With no overrides this is identical to the org ruleset.
   const eff = resolveEffectiveRuleset(
-    { modes: getRuleModes(), fieldRules: getFieldRules() },
+    { modes: getRuleModes(), fieldRules: getFieldRules(), accounting: getAccounting() },
     { programmeId: ctx.programmeId, projectId: ctx.projectId },
   );
   const m = eff.modes;
@@ -332,4 +372,5 @@ export function evaluateRuleset(ctx: RuleContext): RuleVerdict {
 export function resetRuleModes(): void {
   modes = seedModes();
   fieldRules = seedFieldRules();
+  accounting = seedAccounting();
 }

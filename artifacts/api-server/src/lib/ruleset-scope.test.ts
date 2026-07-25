@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { stricterMode, tightenModes, tightenFieldRules, resolveEffectiveRuleset } from "./ruleset-scope";
 import type { FieldRule, RuleMode } from "./ruleset";
+import { DEFAULT_ACCOUNTING } from "./accounting-policy";
 
 test("stricterMode never loosens (off < warn < hard)", () => {
   assert.equal(stricterMode("off", "hard"), "hard");
@@ -39,9 +40,10 @@ test("a raise of a shared field rule wins", () => {
   assert.equal(out[0]!.mode, "hard");
 });
 
-test("resolveEffectiveRuleset with no scopes returns the baseline unchanged", () => {
-  const base = { modes: { a: "warn" as RuleMode }, fieldRules: [{ id: "r1", action: "any-write", field: "owner", mode: "warn" as RuleMode }] };
+test("resolveEffectiveRuleset with no scopes returns the baseline unchanged (modes, fields, accounting)", () => {
+  const base = { modes: { a: "warn" as RuleMode }, fieldRules: [{ id: "r1", action: "any-write", field: "owner", mode: "warn" as RuleMode }], accounting: DEFAULT_ACCOUNTING };
   const eff = resolveEffectiveRuleset(base, {});
   assert.deepEqual(eff.modes, base.modes);
   assert.deepEqual(eff.fieldRules, base.fieldRules);
+  assert.deepEqual(eff.accounting, DEFAULT_ACCOUNTING);
 });

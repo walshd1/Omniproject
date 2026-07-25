@@ -6,6 +6,7 @@ import { applyPreset, toggleItem, isEnabled, derivePresets, type Composition, ty
 import { MethodologyDeploy } from "./MethodologyDeploy";
 import { DelegationPolicyAdmin } from "./DelegationPolicyAdmin";
 import { ScopeOverrideAdmin } from "./ScopeOverrideAdmin";
+import { RulesetAccountingAdmin } from "./RulesetAccountingAdmin";
 
 /**
  * Methodology composer (PMO/admin) — pick which artifacts, outputs and rulesets are visible. A preset is
@@ -96,6 +97,9 @@ export function MethodologyComposer() {
 
       {/* Author a specific programme's/project's own tightened ruleset + allow-listed settings (within those limits). */}
       <ScopeOverrideAdmin />
+
+      {/* The accounting-policy facet of the ruleset governance — GL account map + depreciation policy (org baseline). */}
+      <RulesetAccountingAdmin />
 
       {/* One-click deploy — the inverse of hand-ticking items: turn a whole methodology (its screens,
           ruleset, business rules, settings + nomenclature) on in a single action. */}

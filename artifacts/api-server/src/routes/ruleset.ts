@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { requireRole } from "../lib/rbac";
-import { rulesetCatalogue, setRuleModes, getFieldRules, setFieldRules, applyRuleset } from "../lib/ruleset";
+import { rulesetCatalogue, setRuleModes, getFieldRules, setFieldRules, applyRuleset, setAccounting, accountingCatalogue } from "../lib/ruleset";
+import { sanitizeAccountingValues, type AccountingConfig } from "../lib/accounting-policy";
 import { referenceRulesetCatalogue, getReferenceRuleset } from "@workspace/backend-catalogue";
 import { recordRequestAudit } from "../lib/audit";
 import { resolveMethodologyComposition, assertDelegationAllowed, DelegationDeniedError, type ConfigWriteScope } from "../lib/scoped-config";
@@ -61,6 +62,23 @@ router.put("/admin/ruleset/fields", requireRole("pmo"), (req, res) => {
     meta: { count: rules.length },
   });
   res.json(rules);
+});
+
+// ── Accounting policy — the finance CONFIG facet of the ruleset governance (GL codes + depreciation policy) ──
+// Not a block/warn rule (it carries values), but the same governance surface: PMO authority, org baseline here,
+// scope-overridden through the /admin/ruleset/scope override below.
+router.get("/admin/ruleset/accounting", requireRole("pmo"), (_req, res) => {
+  res.json(accountingCatalogue());
+});
+router.put("/admin/ruleset/accounting", requireRole("pmo"), (req, res) => {
+  let accounting: AccountingConfig;
+  try { accounting = setAccounting(req.body ?? {}); }
+  catch (e) { res.status(400).json({ error: e instanceof Error ? e.message : "invalid accounting policy" }); return; }
+  recordRequestAudit(req, {
+    category: "admin", action: "ruleset_accounting_update", result: "success", status: 200,
+    meta: { factor: accounting.decliningBalanceFactor, method: accounting.defaultDepreciationMethod },
+  });
+  res.json(accountingCatalogue());
 });
 
 // ── Reference rulesets — curated, named bundles per methodology ───────────────
@@ -132,14 +150,19 @@ router.put("/admin/ruleset/scope", requireRole("pmo"), (req, res) => {
     if (e instanceof DelegationDeniedError) { res.status(403).json({ error: e.message, code: "delegation_denied", area: e.area, allowed: e.allowed, attempted: e.attempted }); return; }
     throw e;
   }
-  const o = (body.override ?? {}) as { modes?: Record<string, unknown>; fieldRules?: unknown };
-  const saved = setRulesetOverride(scope, {
-    modes: (o.modes ?? {}) as Record<string, import("../lib/ruleset").RuleMode>,
-    fieldRules: Array.isArray(o.fieldRules) ? (o.fieldRules as import("../lib/ruleset").FieldRule[]) : [],
-  });
+  const o = (body.override ?? {}) as { modes?: Record<string, unknown>; fieldRules?: unknown; accounting?: unknown };
+  let saved;
+  try {
+    saved = setRulesetOverride(scope, {
+      modes: (o.modes ?? {}) as Record<string, import("../lib/ruleset").RuleMode>,
+      fieldRules: Array.isArray(o.fieldRules) ? (o.fieldRules as import("../lib/ruleset").FieldRule[]) : [],
+      // Accounting override is optional; validated (id-safe codes, bounded factor) before it is stored.
+      ...(o.accounting !== undefined ? { accounting: sanitizeAccountingValues(o.accounting) } : {}),
+    });
+  } catch (e) { res.status(400).json({ error: e instanceof Error ? e.message : "invalid override" }); return; }
   recordRequestAudit(req, {
     category: "admin", action: "ruleset_scope_override", result: "success", status: 200,
-    meta: { scope: scope.kind, modes: Object.keys(saved.modes ?? {}).length, fieldRules: saved.fieldRules?.length ?? 0 },
+    meta: { scope: scope.kind, modes: Object.keys(saved.modes ?? {}).length, fieldRules: saved.fieldRules?.length ?? 0, accounting: saved.accounting ? Object.keys(saved.accounting).length : 0 },
   });
   res.json({ scope: scope.kind, override: saved });
 });
