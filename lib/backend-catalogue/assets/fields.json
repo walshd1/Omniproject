@@ -1817,5 +1817,147 @@
     "label": "Statement date",
     "type": "date",
     "group": "financial"
+  },
+  {
+    "key": "bankAccountIban",
+    "label": "Bank account IBAN",
+    "type": "string",
+    "group": "financial",
+    "entity": "bank_account"
+  },
+  {
+    "key": "bankAccountSwift",
+    "label": "Bank account SWIFT/BIC",
+    "type": "string",
+    "group": "financial",
+    "entity": "bank_account"
+  },
+  {
+    "key": "bankAccountCurrency",
+    "label": "Account currency",
+    "type": "string",
+    "group": "financial",
+    "entity": "bank_account"
+  },
+  {
+    "key": "bankAccountKind",
+    "label": "Account kind",
+    "type": "enum",
+    "options": ["checking", "savings", "money_market", "credit_line", "petty_cash"],
+    "group": "financial",
+    "entity": "bank_account"
+  },
+  {
+    "key": "availableBalance",
+    "label": "Available balance",
+    "type": "currency",
+    "group": "financial",
+    "entity": "bank_account"
+  },
+  {
+    "key": "clearedBalance",
+    "label": "Cleared balance",
+    "type": "currency",
+    "group": "financial",
+    "entity": "bank_account"
+  },
+  {
+    "key": "bankTxnType",
+    "label": "Transaction type",
+    "type": "enum",
+    "options": ["deposit", "withdrawal", "transfer", "fee", "interest", "adjustment"],
+    "group": "financial",
+    "entity": "bank_transaction"
+  },
+  {
+    "key": "bankTxnClearedStatus",
+    "label": "Cleared status",
+    "type": "enum",
+    "options": ["unreconciled", "cleared", "reconciled"],
+    "group": "financial",
+    "entity": "bank_transaction"
+  },
+  {
+    "key": "bankTxnClearedDate",
+    "label": "Cleared date",
+    "type": "date",
+    "group": "financial",
+    "entity": "bank_transaction"
+  },
+  {
+    "key": "bankTxnStatementRef",
+    "label": "Statement reference",
+    "type": "string",
+    "group": "financial",
+    "entity": "bank_transaction"
+  },
+  {
+    "key": "bankTxnMatchedEntry",
+    "label": "Matched journal entry",
+    "type": "reference",
+    "references": "journal_entry",
+    "group": "financial",
+    "entity": "bank_transaction"
+  },
+  {
+    "key": "bankTxnRunningBalance",
+    "label": "Running balance",
+    "type": "currency",
+    "group": "financial",
+    "entity": "bank_transaction"
+  },
+  {
+    "key": "statementOpeningBalance",
+    "label": "Statement opening balance",
+    "type": "currency",
+    "group": "financial"
+  },
+  {
+    "key": "statementClosingBalance",
+    "label": "Statement closing balance",
+    "type": "currency",
+    "group": "financial"
+  },
+  {
+    "key": "reconciledBalance",
+    "label": "Reconciled balance",
+    "type": "currency",
+    "group": "financial"
+  },
+  {
+    "key": "unreconciledAmount",
+    "label": "Unreconciled amount",
+    "type": "currency",
+    "group": "financial"
+  },
+  {
+    "key": "reconciliationDate",
+    "label": "Reconciliation date",
+    "type": "date",
+    "group": "financial"
+  },
+  {
+    "key": "cashPosition",
+    "label": "Cash position",
+    "type": "currency",
+    "group": "financial"
+  },
+  {
+    "key": "projectedCashFlow",
+    "label": "Projected cash flow",
+    "type": "currency",
+    "group": "financial"
+  },
+  {
+    "key": "liquidityBuffer",
+    "label": "Liquidity buffer",
+    "type": "currency",
+    "group": "financial"
+  },
+  {
+    "key": "interestEarned",
+    "label": "Interest earned",
+    "type": "currency",
+    "group": "financial"
   }
 ]
