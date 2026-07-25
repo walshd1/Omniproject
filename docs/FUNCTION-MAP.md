@@ -3183,6 +3183,23 @@ ORG REGISTRY server logic (org-wide store of APPROVED bespoke items) — the aut
 | `approvedRegistryItems` | Every APPROVED item (optionally of a kind) — the reuse hook the app draws curated building blocks from. |
 | `communityRegistryItems` | Every item RELEASED to the community — what a connected online marketplace would publish. |
 
+### `artifacts/api-server/src/lib/release-backup.ts`
+
+Auto-backup + digest-bound restore (docs/UPDATE-MECHANISM.md §6, phase 4).
+
+| Function | What it does |
+| --- | --- |
+| `runningDigest` | The content digest of the build the runtime is currently running (from the signed manifest), or null. |
+| `captureReleaseBackup` | Capture the complete current state, tag it with the running code digest, and persist it sealed. |
+| `latestReleaseBackup` | The stored pre-adopt backup, or null when none / persistence off / undecryptable. |
+| `latestReleaseBackupMeta` | Non-secret metadata of the stored backup (for the admin API). |
+| `__resetReleaseBackupStore` | Test seam: drop the loaded-once guard so the next read re-reads the file. |
+| `restoreReleaseBackup` | Restore the stored pre-adopt backup — BOUND TO A DIGEST. |
+| `runRestoreExecutor` | The "apply once approved" body for a restore proposal — restores the pre-adopt backup for the digest named in the proposal params (params only ever travel the approval queue, never code). |
+| `ensureRestoreExecutor` | Register the restore approval executor so a bound, passkey-approved rollback actually restores on sign-off. |
+| `ensurePreAdoptBackupHook` | Wire the pre-adopt auto-backup: a recorded promotion captures the outgoing state before adoption (§6). |
+| `proposeRestore` | Propose a digest-bound restore. |
+
 ### `artifacts/api-server/src/lib/release-promotion.ts`
 
 Approval-gated promotion (docs/UPDATE-MECHANISM.md §7, phase 3).
@@ -3192,6 +3209,7 @@ Approval-gated promotion (docs/UPDATE-MECHANISM.md §7, phase 3).
 | `isDigest` | — |
 | `approvedPromotion` | The digest currently approved for production (or null). |
 | `__resetPromotion` | Test seam: clear the recorded promotion. |
+| `setPromotionRecordedHook` | — |
 | `recordApprovedPromotion` | Record that a digest is APPROVED for production — the actual promotion decision, audited. |
 | `runPromotionExecutor` | The "apply once approved" body for a promotion proposal — records the approved digest from the proposal's params (params only ever travel the approval queue, never code). |
 | `ensurePromotionExecutor` | Register the approval executor so a bound, passkey-approved promotion actually records on sign-off. |

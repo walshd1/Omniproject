@@ -47,6 +47,17 @@ export function __resetPromotion(): void {
 }
 
 /**
+ * Fired the moment a promotion is RECORDED (a new digest approved for prod) — the seam the auto-backup
+ * (phase 4, §6) hangs off. Kept as a settable hook rather than a direct import so this module never depends
+ * on the backup module (which imports `isDigest` from here) — a one-way edge, no cycle. Best-effort by
+ * contract: the hook must never break the promotion decision, so `recordApprovedPromotion` guards the call.
+ */
+let onPromotionRecorded: ((digest: string, now: string) => void) | null = null;
+export function setPromotionRecordedHook(fn: ((digest: string, now: string) => void) | null): void {
+  onPromotionRecorded = fn;
+}
+
+/**
  * Record that a digest is APPROVED for production — the actual promotion decision, audited. Called directly
  * on the unbound path, and by the approval executor when a bound chain reaches sign-off.
  */
@@ -54,6 +65,10 @@ export function recordApprovedPromotion(digest: string, note: string | undefined
   current = { digest, approvedBy: actorSub, approvedAt: now, ...(note ? { note } : {}) };
   recordAudit({ ts: now, category: "admin", action: "release.promoted", actor: { sub: actorSub }, write: true, result: "success", meta: { digest, ...(note ? { note } : {}) } });
   logger.info({ digest, approvedBy: actorSub }, "release promoted — approved production digest recorded");
+  // Auto-backup the OUTGOING state (still under the current running digest) before the new digest is adopted.
+  // Best-effort: a backup failure must never void an approved promotion.
+  try { onPromotionRecorded?.(digest, now); }
+  catch (err) { logger.warn({ err }, "post-promotion hook (pre-adopt backup) failed — promotion still recorded"); }
   return current;
 }
 
