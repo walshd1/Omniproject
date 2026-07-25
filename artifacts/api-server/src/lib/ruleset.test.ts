@@ -178,3 +178,10 @@ test("finance: tax is required where a jurisdiction applies (unless reverse-char
   assert.equal(evaluateRuleset({ action: "create_invoice", write: true, role: "manager", payload: { taxRateJurisdiction: "GB-VAT", reverseCharge: true } }).allow, true); // reverse-charge
   assert.equal(evaluateRuleset({ action: "create_invoice", write: true, role: "manager", payload: {} }).allow, true); // no jurisdiction → n/a
 });
+
+test("finance: a bill can't be approved without a 3-way match", () => {
+  setRuleModes({ "finance-3way-match": "hard" });
+  assert.equal(evaluateRuleset({ action: "update_bill", write: true, role: "manager", payload: { approvalState: "approved", matchStatus: "unmatched" } }).allow, false);
+  assert.equal(evaluateRuleset({ action: "update_bill", write: true, role: "manager", payload: { approvalState: "approved", matchStatus: "matched" } }).allow, true);
+  assert.equal(evaluateRuleset({ action: "update_bill", write: true, role: "manager", payload: { approvalState: "draft" } }).allow, true); // not an approval → n/a
+});
