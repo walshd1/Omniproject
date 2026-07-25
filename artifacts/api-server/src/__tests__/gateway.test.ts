@@ -945,7 +945,6 @@ const SAMPLE_SETTINGS = {
   reportingCurrency: null,
   fxRatePolicy: "spot" as const,
   fxRateAsOfDate: null,
-  customReports: [],
   reportOverrides: [],
   oidcIssuerUrl: "https://idp",
   fieldRouting: [],
@@ -961,7 +960,6 @@ const SAMPLE_SETTINGS = {
   digestDelivery: { emailRecipients: [] },
   skillsPlanning: { matrix: [], demand: [] },
   fieldOverrides: { fields: {}, entities: {} },
-  screenLayouts: {},
   userPrefs: {},
   calendarPush: {},
   capabilityStates: {},
@@ -971,7 +969,6 @@ const SAMPLE_SETTINGS = {
   programmeFeatures: {},
   projectFeatures: {},
   governanceRules: [],
-  dashboards: [],
   contentPages: [],
   priorityWeights: { rice: 25, wsjf: 25, moscow: 15, strategic: 15, benefit: 20 },
   approvalChains: [],
@@ -981,8 +978,6 @@ const SAMPLE_SETTINGS = {
   reports: [],
   resourceAllocations: [],
   budgetPlans: [],
-  screenDefs: [],
-  forms: [],
 };
 
 test("redactSettingsForRead: masks webhook signing secrets (never leaked over GET)", async () => {
@@ -1011,17 +1006,17 @@ test("applySnapshot: round-trips a built snapshot into a settings patch", () => 
   assert.equal(warnings.length, 0);
 });
 
-test("buildSnapshot: carries the portable presentation config (curation, views, dashboards, opt-out)", () => {
+test("buildSnapshot: carries the portable presentation config (curation, views, overrides, opt-out)", () => {
   const snap = buildSnapshot({
     ...SAMPLE_SETTINGS,
     disabledFeatures: ["odata"],
-    dashboards: [{ id: "d1", name: "Exec", widgets: [{ id: "w1", type: "portfolioHealth" }] }],
+    reportOverrides: [{ id: "evm", label: "Earned Value", hidden: false }],
   });
   assert.deepEqual(snap.settings.disabledFeatures, ["odata"]);
-  assert.equal(snap.settings.dashboards![0]!.widgets[0]!.type, "portfolioHealth");
+  assert.equal(snap.settings.reportOverrides![0]!.id, "evm");
   // …and they round-trip back into a settings patch with no warnings.
   const { patch, warnings } = applySnapshot(snap);
-  assert.deepEqual(patch["dashboards"], snap.settings.dashboards);
+  assert.deepEqual(patch["reportOverrides"], snap.settings.reportOverrides);
   assert.equal(warnings.length, 0);
 });
 

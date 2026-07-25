@@ -58,6 +58,19 @@ catalog:
 
 autoInstallPeers: false
 
+# Advisories the audit scanner should not FAIL on, with the justification for each. This is not a blanket
+# mute — every entry is a false positive or a dev-only-tooling path whose real fix is blocked by a
+# compatibility constraint, and each is genuinely patched in the versions we actually resolve.
+auditConfig:
+  ignoreGhsas:
+    # brace-expansion DoS (GHSA-mh99-v99m-4gvg). Both paths we resolve are already on their line's PATCHED
+    # version: c8>…>minimatch@10 → 5.0.8 (via the override above), and eslint>…>minimatch@3 → 1.1.16, which
+    # is above the 1.x patch line (1.1.12). minimatch@3 requires brace-expansion's legacy 1.x default-
+    # function export and breaks on 5.x, so it cannot be moved to the 5.x line. The scanner still flags the
+    # 1.1.16 path only because its advisory data collapses the multi-major affected set into a naive
+    # `<=5.0.7` range — a false positive. Both consumers are dev/test tooling, never the production runtime.
+    - GHSA-mh99-v99m-4gvg
+
 onlyBuiltDependencies:
   - '@swc/core'
   - esbuild
@@ -65,6 +78,9 @@ onlyBuiltDependencies:
   - unrs-resolver
 
 overrides:
+  # postcss <8.5.18 carries a HIGH path-traversal advisory (GHSA-r28c-9q8g-f849) in
+  # source-map auto-loading. Force the patched line; it's transitive via vite (build-time).
+  postcss: ">=8.5.18"
   # Target linux-x64 only; exclude all other platform binaries.
   "esbuild>@esbuild/darwin-arm64": "-"
   "esbuild>@esbuild/darwin-x64": "-"
@@ -157,6 +173,14 @@ overrides:
   # All install paths are dev/build tooling — never the production runtime — and 3.1.4 is a patch, so
   # forcing the vulnerable range up to the patched line is low-risk.
   "fast-uri@>=3.0.0 <3.1.4": ">=3.1.4 <4.0.0"
+  # brace-expansion carries a HIGH advisory (GHSA-mh99-v99m-4gvg: DoS via unbounded expansion → OOM). The
+  # 5.x line reaches us via c8>test-exclude>minimatch@10; force it up to the patched 5.0.8 (in-major patch).
+  # The other consumer — eslint's config-array via minimatch@3 — needs brace-expansion's LEGACY 1.x default-
+  # function export, which 5.x no longer provides (5.x breaks minimatch@3 with "expand is not a function"),
+  # so it must stay on the 1.x line. It already resolves to 1.1.16, which is ABOVE the advisory's 1.x patch
+  # line (1.1.12) — i.e. genuinely fixed. See auditConfig.ignoreGhsas in package.json for why the scanner
+  # still needs a targeted ignore for that path.
+  "brace-expansion@>=5.0.0 <5.0.8": ">=5.0.8 <6.0.0"
 
 allowBuilds:
   esbuild: true

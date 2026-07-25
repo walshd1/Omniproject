@@ -1,8 +1,15 @@
-import { getSettings, updateSettings, type Dashboard } from "./settings";
+import { getSettings, updateSettings } from "./settings";
 import { deploymentProfile, profilePosture, type ProfilePosture } from "./deployment-profile";
 import { dashboardPresetCatalogue, widgetDef, type DashboardPreset } from "@workspace/backend-catalogue";
 import { nomenclaturePresets, applyNomenclaturePreset } from "./nomenclature";
 import { isEntitled } from "./license";
+import { newStoredDef, putDef, listDefs } from "./def-import";
+import { makeScopedId } from "./artifact-store";
+import type { ActorContext } from "../broker/types";
+
+/** A dashboard is a def now (kind `dashboard`, payload = this shape); charity onboarding MINTS them into the
+ *  org def store. The shape mirrors what the SPA renders + what `validateDashboardDef` accepts. */
+interface Dashboard { id: string; name: string; widgets: { id: string; type: string; span: number; title?: string }[] }
 
 /**
  * "We're a charity" one-click onboarding preset — the small-org counterpart to picking a
@@ -50,16 +57,24 @@ export interface CharityOnboardingResult {
 }
 
 /** Apply the full "We're a charity" preset in one step. Idempotent and additive — never removes
- *  an existing dashboard or setting, only sets the profile and adds what's missing. */
-export function applyCharityOnboarding(): CharityOnboardingResult {
+ *  an existing dashboard or setting, only sets the profile and adds what's missing. Dashboards are minted as
+ *  org `dashboard` DEFS in the encrypted def store (the same store the SPA reads), matched by name so a
+ *  re-run never duplicates. */
+export function applyCharityOnboarding(ctx: ActorContext, now: string): CharityOnboardingResult {
   updateSettings({ deploymentProfile: "nonprofit" });
 
   const settings = getSettings();
-  const existingNames = new Set((settings.dashboards ?? []).map((d) => d.name));
+  const existingNames = new Set(
+    listDefs({ kind: "org" })
+      .filter((r) => r.kind === "dashboard")
+      .map((r) => (r.payload as { name?: unknown }).name)
+      .filter((n): n is string => typeof n === "string"),
+  );
   const presets = dashboardPresetCatalogue().filter((p) => (CHARITY_DASHBOARD_PRESET_IDS as readonly string[]).includes(p.id));
   const minted = presets.filter((p) => !existingNames.has(p.name)).map(mintDashboard);
-  if (minted.length > 0) {
-    updateSettings({ dashboards: [...(settings.dashboards ?? []), ...minted] });
+  for (const dashboard of minted) {
+    const row = newStoredDef(makeScopedId("org", crypto.randomUUID()), { kind: "dashboard", name: dashboard.name, payload: dashboard, value: dashboard }, ctx, now);
+    putDef({ kind: "org" }, row);
   }
 
   const backendId = settings.backendSource?.trim() || null;

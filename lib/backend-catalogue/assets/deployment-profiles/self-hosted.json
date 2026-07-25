@@ -1,0 +1,14 @@
+{
+  "id": "self-hosted",
+  "label": "Self-hosted / homelab",
+  "order": 40,
+  "audience": "Individual or small self-hoster on a private network.",
+  "tls": "lan-ok",
+  "demoAuthSeverity": "warn",
+  "summary": "Minimal setup; HTTP-on-LAN and single-admin demo auth are accepted choices.",
+  "relaxes": ["Plain HTTP on a LAN", "Single-admin demo auth (no SSO needed)"],
+  "presetEnv": [
+    { "key": "SESSION_SECRET", "why": "signs cookies" }
+  ],
+  "recommend": ["Set a strong SESSION_SECRET", "Use the bundled IdP if more than one person needs access", "Put a TLS reverse proxy in front for remote access"]
+}

@@ -1,9 +1,7 @@
 import { Router } from "express";
 import { requireAnyRole } from "../lib/rbac";
-import { requireArtifactStore } from "../lib/artifact-store";
-import { getDef, putDef, type StoredDef } from "../lib/def-import";
-import { contextFromReq } from "../broker";
-import type { ConfigScopes } from "../lib/scoped-config";
+import { mountCommand, type CommandDescriptor } from "../lib/action-base";
+import { vocabularyScopes, vocabularyParse, vocabularyRun } from "../lib/vocabulary-command";
 import {
   SEVERITY_VOCABULARY_CONFIG_ID,
   ORG_SEVERITY_VOCABULARY_ID,
@@ -12,51 +10,29 @@ import {
 } from "../lib/severity-vocabulary-config";
 
 /**
- * Scope-overridable RAID/risk SEVERITY vocabulary ("how bad is it if this bites"). The canonical set is the
- * shipped default seeded at system scope; org/programme/project/user layers relabel, reorder, ADD, REMOVE and
- * methodology-tag it (each grade bound to an internal ordinal level — see severity-vocabulary-config).
- * Contract: `GET /api/severity-vocabulary` → the resolved `{ levels }` for the caller's scope (any authed
- * user, for display + the RAID write-path membership check); `PUT` sets the org-scope override (admin/PMO).
+ * Scope-overridable Severity vocabulary. `GET /api/severity-vocabulary` resolves the effective levels for the
+ * caller's scope (any authed user, for display + the write-path membership check); `PUT` sets the org-scope
+ * override (pmo/admin). The read resolver + the Lane-2 write's parse/run come from lib/vocabulary-command —
+ * centralize by mechanism, not by noun (DESIGN-PRINCIPLES §17).
  */
 const router = Router();
 
-/** Read the request's resolution scopes: programme/project from the query, user from the auth context. */
-function scopesFromReq(req: Parameters<typeof contextFromReq>[0]): ConfigScopes {
-  const q = (req as { query?: Record<string, unknown> }).query ?? {};
-  const scopes: ConfigScopes = {};
-  if (typeof q["programmeId"] === "string" && q["programmeId"]) scopes.programmeId = q["programmeId"];
-  if (typeof q["projectId"] === "string" && q["projectId"]) scopes.projectId = q["projectId"];
-  const sub = contextFromReq(req).sub;
-  if (sub) scopes.sub = sub;
-  return scopes;
-}
-
-// GET /api/severity-vocabulary — the effective RAID severity grades for this scope (any authed user).
 router.get("/severity-vocabulary", (req, res) => {
-  res.json(resolveSeverityVocabulary(scopesFromReq(req)));
+  res.json(resolveSeverityVocabulary(vocabularyScopes(req)));
 });
 
-// PUT /api/severity-vocabulary — set the ORG-scope relabel/reorder/add/remove override (admin or PMO). Body:
-// { levels?: [{ id, label?, order?, level?, methodologies?, color?, labels?, removed? }] }.
-router.put("/severity-vocabulary", requireAnyRole("pmo", "admin"), (req, res) => {
-  if (!requireArtifactStore(res)) return;
-  let values: { levels: unknown[] };
-  try {
-    values = sanitizeSeverityVocabularyOverride(req.body ?? {});
-  } catch (e) {
-    res.status(400).json({ error: e instanceof Error ? e.message : "invalid severity vocabulary override" });
-    return;
-  }
-  const payload = { id: SEVERITY_VOCABULARY_CONFIG_ID, values };
-  const existing = getDef({ kind: "org" }, ORG_SEVERITY_VOCABULARY_ID);
-  const ctx = contextFromReq(req);
-  const now = new Date().toISOString();
-  const row: StoredDef = existing
-    ? { ...existing, payload, updatedAt: now, rowVersion: (existing.rowVersion ?? 1) + 1 }
-    : { id: ORG_SEVERITY_VOCABULARY_ID, kind: "config", name: "Severity vocabulary", payload, createdBy: ctx.email ?? ctx.name ?? ctx.sub ?? null, createdAt: now, updatedAt: now, rowVersion: 1 };
-  putDef({ kind: "org" }, row);
-  // Return the newly-resolved vocabulary for this caller's scope so the client can update in place.
-  res.json(resolveSeverityVocabulary(scopesFromReq(req)));
-});
+// PUT /api/severity-vocabulary — set the org-scope Severity vocabulary override (pmo/admin). LANE 2.
+export const severityVocabularyCommand: CommandDescriptor<{ values: ReturnType<typeof sanitizeSeverityVocabularyOverride> }> = {
+  name: "severity-vocabulary.update",
+  method: "put",
+  path: "/severity-vocabulary",
+  gates: [requireAnyRole("pmo", "admin")],
+  parse: vocabularyParse(sanitizeSeverityVocabularyOverride, "invalid severity vocabulary override"),
+  run: vocabularyRun({ configId: SEVERITY_VOCABULARY_CONFIG_ID, orgId: ORG_SEVERITY_VOCABULARY_ID, defName: "Severity vocabulary", resolve: resolveSeverityVocabulary }),
+  audit: "severity-vocabulary.update",
+  auditCategory: "admin",
+  auditMeta: () => ({ configId: SEVERITY_VOCABULARY_CONFIG_ID }),
+};
+mountCommand(router, severityVocabularyCommand);
 
 export default router;

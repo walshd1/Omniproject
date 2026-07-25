@@ -175,3 +175,15 @@ test("delete removes the goal", async () => {
   assert.equal((await req(`/goals/${encodeURIComponent(created.id)}`, { method: "DELETE" })).status, 204);
   assert.equal((await req(`/goals/${encodeURIComponent(created.id)}`)).status, 404);
 });
+
+test("business ruleset now gates goal writes: read-only hard blocks POST /goals (422)", async () => {
+  const { setRuleModes, resetRuleModes } = await import("../lib/ruleset");
+  setRuleModes({ "read-only": "hard" });
+  try {
+    const r = await req("/goals", { method: "POST", body: { title: "Frozen", keyResults: [] } });
+    assert.equal(r.status, 422);
+    assert.equal((await r.json() as { rule?: string }).rule, "read-only");
+  } finally {
+    resetRuleModes();
+  }
+});

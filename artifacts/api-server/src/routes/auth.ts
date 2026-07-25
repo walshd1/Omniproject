@@ -45,7 +45,7 @@ import { requireTls } from "../lib/deployment-profile";
 import { productionSignals } from "../lib/dev-mode-guard";
 import { ensureCsrfCookie, setCsrfCookie, newCsrfToken } from "../lib/csrf";
 import { checkLogin } from "../lib/impossible-travel";
-import { recordAudit, actorForAudit } from "../lib/audit";
+import { recordAudit, recordRequestAudit } from "../lib/audit";
 import { stepUpFresh, stepUpWindowMs } from "../lib/step-up";
 
 const router = Router();
@@ -678,7 +678,7 @@ router.post("/auth/local", async (req, res) => {
   const ok = !!user && verifyPassword(user.id, password);
   const travel = user ? await travelCheck(user.id, user.email || user.id, req.ip) : {};
   if (!ok || !user) {
-    recordAudit({ ts: new Date().toISOString(), category: "request", action: "auth.local.login", actor: actorForAudit(req), write: true, result: "error", status: 401, meta: { userName } });
+    recordRequestAudit(req, { category: "request", action: "auth.local.login", write: true, result: "error", status: 401, meta: { userName } });
     res.status(401).json({ error: "That username or password is incorrect." });
     return;
   }
@@ -761,13 +761,13 @@ router.post("/auth/passkey/step-up", async (req, res) => {
       signature: str(body.signature), expectedChallenge: challenge, rpId: webauthnRpId(), origin: webauthnOrigin(),
     });
   } catch (err) {
-    recordAudit({ ts: new Date().toISOString(), category: "request", action: "auth.passkey.stepup", actor: actorForAudit(req), write: true, result: "error", status: 401 });
+    recordRequestAudit(req, { category: "request", action: "auth.passkey.stepup", write: true, result: "error", status: 401 });
     res.status(401).json({ error: err instanceof AssertionError ? err.message : "Passkey verification failed." }); return;
   }
   // Strengthen the session: add the hardware-key AMR (default member of STRONG_AMR) + stamp step-up freshness.
   const amr = Array.from(new Set([...(s.amr ?? []), "hwk"]));
   setSession(res, { ...s, amr, stepUpAt: Date.now() });
-  recordAudit({ ts: new Date().toISOString(), category: "request", action: "auth.passkey.stepup", actor: actorForAudit(req), write: true, result: "success" });
+  recordRequestAudit(req, { category: "request", action: "auth.passkey.stepup", write: true, result: "success" });
   res.json({ ok: true, strongAuth: true });
 });
 

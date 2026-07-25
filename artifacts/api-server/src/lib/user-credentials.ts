@@ -1,7 +1,7 @@
-import { scryptSync, randomBytes, timingSafeEqual } from "node:crypto";
+import { scryptSync, randomBytes } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
-import { deriveKey, masterSecret } from "./crypto-keys";
+import { deriveKey, masterSecret, constantTimeEqualBuf } from "./crypto-keys";
 import { aesGcmSeal, aesGcmOpen } from "./crypto-aes-gcm";
 import { resolveConfigFile } from "./sealed-file";
 import { isTruthy } from "./env-config";
@@ -175,7 +175,7 @@ export function verifyPassword(userId: string, password: string): boolean {
   }
   const expected = Buffer.from(rec.hash, "hex");
   const actual = scrypt(password, Buffer.from(rec.salt, "hex"), { N: rec.N, r: rec.r, p: rec.p, keylen: rec.keylen });
-  return expected.length === actual.length && timingSafeEqual(expected, actual);
+  return constantTimeEqualBuf(expected, actual);
 }
 
 const DUMMY_SALT = Buffer.alloc(16, 7);

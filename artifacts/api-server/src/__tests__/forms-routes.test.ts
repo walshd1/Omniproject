@@ -10,18 +10,14 @@ import { startHarness, adminCookie, memberCookie, type Harness } from "./_harnes
 
 /**
  * routes/forms.ts over the REAL app after the def-store convergence (roadmap X.10 forms). Form DEFINITIONS are
- * now artifacts authored through the importer (`POST /api/defs`, kind `form`); the submission route reads them
- * from the def store (`findFormDef`), the capability gate rides the importer write path, and the legacy
- * `PUT /forms` survives only to DRAIN to `[]`. A legacy `settings.forms` entry still submits (the migration
- * bridge) until it's drained.
+ * artifacts authored through the importer (`POST /api/defs`, kind `form`); the submission route reads them from
+ * the def store (`findFormDef`) and the capability gate rides the importer write path.
  */
 let h: Harness;
 const ADMIN = adminCookie();
 before(async () => { h = await startHarness(); });
 after(() => { h?.close(); fs.rmSync(process.env["OMNI_CONFIG_DIR"]!, { recursive: true, force: true }); });
 afterEach(async () => {
-  const { updateSettings } = await import("../lib/settings");
-  updateSettings({ forms: [] });
   const { replaceArtifacts } = await import("../lib/artifact-store");
   const { DEF_ARTIFACT } = await import("../lib/def-import");
   replaceArtifacts(DEF_ARTIFACT, { kind: "org" }, []); // clear org-authored form defs between tests
@@ -50,18 +46,6 @@ test("forms: authored via the importer, then submittable + resolvable", async ()
   const r = await req("/forms/intake/submit", { method: "POST", body: { values: { summary: "Fix login", priority: "High" } } });
   assert.equal(r.status, 201);
   assert.equal(((await r.json()) as { issue: { title: string } }).issue.title, "Fix login");
-});
-
-test("forms: the legacy PUT /forms is retired — a non-empty write is 410, draining to [] is allowed", async () => {
-  assert.equal((await req("/forms", { method: "PUT", body: { forms: [FORM] } })).status, 410);
-  assert.equal((await req("/forms", { method: "PUT", body: { forms: [] } })).status, 200);
-});
-
-test("forms: a legacy settings.forms entry still submits (migration bridge)", async () => {
-  const { updateSettings } = await import("../lib/settings");
-  updateSettings({ forms: [FORM] }); // pre-convergence data, not yet migrated
-  const r = await req("/forms/intake/submit", { method: "POST", body: { values: { summary: "x", priority: "Low" } } });
-  assert.equal(r.status, 201);
 });
 
 test("forms: an invalid submission is a typed 400 (missing required)", async () => {
@@ -95,9 +79,8 @@ test("forms: the importer gate rejects a form mapping onto a non-storable field"
 });
 
 test("forms: submit defensively drops a field the backend no longer advertises", async () => {
-  const { updateSettings } = await import("../lib/settings");
-  // Seed (bridge) with a budget mapping authored under full caps, then submit under a restricted backend.
-  updateSettings({ forms: [{ ...FORM, fields: [...FORM.fields, { key: "cost", label: "Cost", type: "number", mapTo: "budget" }] }] });
+  // Author (under full caps) a form with a budget mapping, then submit under a restricted backend.
+  await authorForm({ ...FORM, fields: [...FORM.fields, { key: "cost", label: "Cost", type: "number", mapTo: "budget" }] });
   const prev = process.env["CAPABILITIES"];
   process.env["CAPABILITIES"] = "issues"; // financials now OFF
   try {

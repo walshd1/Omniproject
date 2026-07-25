@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { requireRole } from "../lib/rbac";
-import { recordRequestAudit, actorForAudit } from "../lib/audit";
+import { mountCommand, type CommandDescriptor } from "../lib/action-base";
 import { getIssues, getProjects } from "../lib/data";
 import { programmeIdOf } from "../lib/programmes";
 import { staffCost, valueColumns, hashIdentity, type RateCard, type Facing, type TimedItem, type Uplift, type ValueColumn } from "../lib/rate-card";
@@ -40,15 +40,14 @@ import {
 const router = Router();
 const FACINGS: Facing[] = ["client", "internal"];
 
-function audit(req: Parameters<typeof actorForAudit>[0], action: string, meta: Record<string, unknown>): void {
-  recordRequestAudit(req, {
-    category: "admin",
-    action,
-    result: "success",
-    status: 200,
-    meta,
-  });
-}
+/**
+ * LANE 2 — the rate-card write surface is uniformly PMO-gated + admin-audited (fixed status 200, category
+ * "admin"), the exact action-base shell, so each write is a `mountCommand` descriptor: requireRole(pmo) →
+ * parse (validation/413/400) → ruleset → run (one store write) → audit → respond. `auditCategory:"admin"` +
+ * `auditStatus:200` + `auditMeta` keep the audit records byte-identical to the old recordRequestAudit calls.
+ * The GET reads, the staff-cost roll-up, and PUT /projects/:projectId/type (manager + project scope) stay
+ * hand-written.
+ */
 
 /** Parse one role's `{ [projectType]: { client?, internal? } }` rate map, dropping empty/negative cells. */
 function readRoleRates(roleRates: unknown): RateCard["rates"][string] {
@@ -127,25 +126,38 @@ router.get("/rate-card", requireRole("pmo"), (_req, res) => {
   res.json({ ...getRateCard(), projectTypes: getProjectTypes(), uplift: getUpliftConfig() });
 });
 
-router.put("/rate-card", requireRole("pmo"), (req, res) => {
-  // readRateCard hashes (keyed HMAC) per role/type/assignment — cap the arrays so a huge body can't
-  // burn CPU (matches the explicit-floor pattern used by import/trends).
-  const rc = (req.body ?? {}) as Record<string, unknown>;
-  for (const k of ["roles", "projectTypes", "assignments", "costRules"] as const) {
-    if (Array.isArray(rc[k]) && (rc[k] as unknown[]).length > 5_000) {
-      res.status(413).json({ error: `Too many ${k}: exceeds the 5000 cap. Split the update.` });
-      return;
+export const rateCardUpdateCommand: CommandDescriptor<{ card: RateCard; projectTypes: ProjectType[]; central: Partial<Uplift> }> = {
+  name: "rate_card.update",
+  method: "put",
+  path: "/rate-card",
+  role: "pmo",
+  parse: (req, res) => {
+    // readRateCard hashes (keyed HMAC) per role/type/assignment — cap the arrays so a huge body can't
+    // burn CPU (matches the explicit-floor pattern used by import/trends).
+    const rc = (req.body ?? {}) as Record<string, unknown>;
+    for (const k of ["roles", "projectTypes", "assignments", "costRules"] as const) {
+      if (Array.isArray(rc[k]) && (rc[k] as unknown[]).length > 5_000) {
+        res.status(413).json({ error: `Too many ${k}: exceeds the 5000 cap. Split the update.` });
+        return null;
+      }
     }
-  }
-  const { card, projectTypes } = readRateCard(req.body);
-  setRateCard(card);
-  setProjectTypes(projectTypes);
-  // Central margin/overhead may ride along on the same PUT.
-  const u = readUplift((req.body as Record<string, unknown>)?.["uplift"] as Record<string, unknown> | undefined);
-  if (u.margin !== undefined || u.overhead !== undefined) setCentralUplift({ margin: u.margin ?? 0, overhead: u.overhead ?? 0 });
-  audit(req, "rate_card.update", { titles: Object.keys(card.titles).length, projectTypes: projectTypes.length });
-  res.json({ ...getRateCard(), projectTypes: getProjectTypes(), uplift: getUpliftConfig() });
-});
+    const { card, projectTypes } = readRateCard(req.body);
+    // Central margin/overhead may ride along on the same PUT.
+    const central = readUplift(rc["uplift"] as Record<string, unknown> | undefined);
+    return { card, projectTypes, central };
+  },
+  run: async (_req, _res, { card, projectTypes, central }) => {
+    setRateCard(card);
+    setProjectTypes(projectTypes);
+    if (central.margin !== undefined || central.overhead !== undefined) setCentralUplift({ margin: central.margin ?? 0, overhead: central.overhead ?? 0 });
+    return { ...getRateCard(), projectTypes: getProjectTypes(), uplift: getUpliftConfig() };
+  },
+  audit: "rate_card.update",
+  auditCategory: "admin",
+  auditStatus: 200,
+  auditMeta: (_req, { card, projectTypes }) => ({ titles: Object.keys(card.titles).length, projectTypes: projectTypes.length }),
+};
+mountCommand(router, rateCardUpdateCommand);
 
 // One-generation undo across EVERY rate-card mutator (the card itself, uplift, identities,
 // project types, cost rules — they all funnel through the same store, so one undo buffer
@@ -155,22 +167,40 @@ router.get("/rate-card/rollback", requireRole("pmo"), (_req, res) => {
   res.json({ available: canRollbackRateCard() });
 });
 
-router.post("/rate-card/rollback", requireRole("pmo"), (req, res) => {
-  const rolledBack = rollbackRateCard();
-  audit(req, "rate_card.rollback", { rolledBack });
-  res.json({ rolledBack, ...getRateCard(), projectTypes: getProjectTypes(), uplift: getUpliftConfig() });
-});
+export const rateCardRollbackCommand: CommandDescriptor<Record<string, never>> = {
+  name: "rate_card.rollback",
+  method: "post",
+  path: "/rate-card/rollback",
+  role: "pmo",
+  parse: () => ({}),
+  run: async () => ({ rolledBack: rollbackRateCard(), ...getRateCard(), projectTypes: getProjectTypes(), uplift: getUpliftConfig() }),
+  audit: "rate_card.rollback",
+  auditCategory: "admin",
+  auditStatus: 200,
+  auditMeta: (_req, _args, result) => ({ rolledBack: (result as { rolledBack: boolean }).rolledBack }),
+};
+mountCommand(router, rateCardRollbackCommand);
 
 /** Override the margin/overhead for one programme/project scope (an empty body clears the override). */
-router.put("/rate-card/uplift/:level/:scopeId", requireRole("pmo"), (req, res) => {
-  const level = req.params["level"];
-  if (level !== "programme" && level !== "project") { res.status(400).json({ error: "level must be programme | project" }); return; }
-  const scopeId = String(req.params["scopeId"] ?? "");
-  if (!scopeId) { res.status(400).json({ error: "scopeId is required" }); return; }
-  setScopeUplift(level, scopeId, readUplift(req.body as Record<string, unknown>));
-  audit(req, "rate_card.uplift.update", { level, scopeId });
-  res.json({ ok: true, level, scopeId, uplift: getUpliftConfig() });
-});
+export const rateCardScopeUpliftCommand: CommandDescriptor<{ level: "programme" | "project"; scopeId: string; uplift: Partial<Uplift> }> = {
+  name: "rate_card.uplift.update",
+  method: "put",
+  path: "/rate-card/uplift/:level/:scopeId",
+  role: "pmo",
+  parse: (req, res) => {
+    const level = req.params["level"];
+    if (level !== "programme" && level !== "project") { res.status(400).json({ error: "level must be programme | project" }); return null; }
+    const scopeId = String(req.params["scopeId"] ?? "");
+    if (!scopeId) { res.status(400).json({ error: "scopeId is required" }); return null; }
+    return { level, scopeId, uplift: readUplift(req.body as Record<string, unknown>) };
+  },
+  run: async (_req, _res, { level, scopeId, uplift }) => { setScopeUplift(level, scopeId, uplift); return { ok: true, level, scopeId, uplift: getUpliftConfig() }; },
+  audit: "rate_card.uplift.update",
+  auditCategory: "admin",
+  auditStatus: 200,
+  auditMeta: (_req, { level, scopeId }) => ({ level, scopeId }),
+};
+mountCommand(router, rateCardScopeUpliftCommand);
 
 /** The PMO's general cost rules (predicate → uplift override). */
 router.get("/rate-card/cost-rules", requireRole("pmo"), (_req, res) => {
@@ -202,40 +232,60 @@ function readCostRules(raw: unknown): CostRule[] {
   return out;
 }
 
-router.put("/rate-card/cost-rules", requireRole("pmo"), (req, res) => {
-  try {
-    const rules = readCostRules((req.body as Record<string, unknown>)?.["costRules"]);
-    setCostRules(rules);
-    audit(req, "rate_card.cost_rules.update", { count: rules.length });
-    res.json({ costRules: getCostRules() });
-  } catch (err) {
-    res.status(400).json({ error: err instanceof Error ? err.message : "invalid cost rules" });
-  }
-});
+export const rateCardCostRulesCommand: CommandDescriptor<{ rules: CostRule[] }> = {
+  name: "rate_card.cost_rules.update",
+  method: "put",
+  path: "/rate-card/cost-rules",
+  role: "pmo",
+  parse: (req, res) => {
+    try {
+      return { rules: readCostRules((req.body as Record<string, unknown>)?.["costRules"]) };
+    } catch (err) {
+      res.status(400).json({ error: err instanceof Error ? err.message : "invalid cost rules" });
+      return null;
+    }
+  },
+  run: async (_req, _res, { rules }) => { setCostRules(rules); return { costRules: getCostRules() }; },
+  audit: "rate_card.cost_rules.update",
+  auditCategory: "admin",
+  auditStatus: 200,
+  auditMeta: (_req, { rules }) => ({ count: rules.length }),
+};
+mountCommand(router, rateCardCostRulesCommand);
 
 /** The hashed identity→role map (hashes only — no plaintext identities ever leave the store). */
 router.get("/rate-card/identities", requireRole("pmo"), (_req, res) => {
   res.json(getIdentityMap());
 });
 
-router.put("/rate-card/identities", requireRole("pmo"), (req, res) => {
-  const b = (req.body ?? {}) as Record<string, unknown>;
-  const level = b["level"];
-  if (level !== "central" && level !== "programme" && level !== "project") {
-    res.status(400).json({ error: "level must be central | programme | project" });
-    return;
-  }
-  const scopeId = isStr(b["scopeId"]) ? (b["scopeId"] as string) : null;
-  if (level !== "central" && !scopeId) { res.status(400).json({ error: "scopeId is required for programme/project" }); return; }
-  const pairs: { assignee: string; titleHash: string }[] = [];
-  for (const p of (b["assignments"] ?? []) as unknown[]) {
-    const o = p as Record<string, unknown>;
-    if (isStr(o?.["assignee"]) && isStr(o?.["titleHash"])) pairs.push({ assignee: o["assignee"] as string, titleHash: o["titleHash"] as string });
-  }
-  setIdentityAssignments(level, scopeId, pairs);
-  audit(req, "rate_card.identities.update", { level, scopeId, count: pairs.length });
-  res.json({ ok: true, level, scopeId, count: pairs.length });
-});
+export const rateCardIdentitiesCommand: CommandDescriptor<{ level: "central" | "programme" | "project"; scopeId: string | null; pairs: { assignee: string; titleHash: string }[] }> = {
+  name: "rate_card.identities.update",
+  method: "put",
+  path: "/rate-card/identities",
+  role: "pmo",
+  parse: (req, res) => {
+    const b = (req.body ?? {}) as Record<string, unknown>;
+    const level = b["level"];
+    if (level !== "central" && level !== "programme" && level !== "project") {
+      res.status(400).json({ error: "level must be central | programme | project" });
+      return null;
+    }
+    const scopeId = isStr(b["scopeId"]) ? (b["scopeId"] as string) : null;
+    if (level !== "central" && !scopeId) { res.status(400).json({ error: "scopeId is required for programme/project" }); return null; }
+    const pairs: { assignee: string; titleHash: string }[] = [];
+    for (const p of (b["assignments"] ?? []) as unknown[]) {
+      const o = p as Record<string, unknown>;
+      if (isStr(o?.["assignee"]) && isStr(o?.["titleHash"])) pairs.push({ assignee: o["assignee"] as string, titleHash: o["titleHash"] as string });
+    }
+    return { level, scopeId, pairs };
+  },
+  run: async (_req, _res, { level, scopeId, pairs }) => { setIdentityAssignments(level, scopeId, pairs); return { ok: true, level, scopeId, count: pairs.length }; },
+  audit: "rate_card.identities.update",
+  auditCategory: "admin",
+  auditStatus: 200,
+  auditMeta: (_req, { level, scopeId, pairs }) => ({ level, scopeId, count: pairs.length }),
+};
+mountCommand(router, rateCardIdentitiesCommand);
 
 /** A project's chosen type (any authed session can read; a manager sets it at setup). */
 router.get("/projects/:projectId/type", async (req, res) => {
