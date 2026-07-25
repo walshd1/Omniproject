@@ -170,3 +170,11 @@ test("finance: a new journal entry requires a fiscal period and a posting date",
   assert.equal(evaluateRuleset({ action: "create_journal_entry", write: true, role: "manager", payload: { journalFiscalPeriod: "fp1" } }).allow, false); // missing posting date
   assert.equal(evaluateRuleset({ action: "create_journal_entry", write: true, role: "manager", payload: { journalFiscalPeriod: "fp1", journalPostingDate: "2026-07-25" } }).allow, true);
 });
+
+test("finance: tax is required where a jurisdiction applies (unless reverse-charge)", () => {
+  setRuleModes({ "finance-tax-required": "hard" });
+  assert.equal(evaluateRuleset({ action: "create_invoice", write: true, role: "manager", payload: { taxRateJurisdiction: "GB-VAT" } }).allow, false); // jurisdiction, no tax
+  assert.equal(evaluateRuleset({ action: "create_invoice", write: true, role: "manager", payload: { taxRateJurisdiction: "GB-VAT", taxAmount: 200 } }).allow, true); // tax present
+  assert.equal(evaluateRuleset({ action: "create_invoice", write: true, role: "manager", payload: { taxRateJurisdiction: "GB-VAT", reverseCharge: true } }).allow, true); // reverse-charge
+  assert.equal(evaluateRuleset({ action: "create_invoice", write: true, role: "manager", payload: {} }).allow, true); // no jurisdiction → n/a
+});
