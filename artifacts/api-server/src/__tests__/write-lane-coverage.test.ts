@@ -39,6 +39,7 @@ import { accessibilityDefaultsSaveCommand } from "../routes/accessibility";
 import { priorityLabelsSaveCommand } from "../routes/priority-labels";
 import { orgIdentitySaveCommand } from "../routes/org-identity";
 import { schedulingSaveCommand } from "../routes/scheduling";
+import { accountingSaveCommand } from "../routes/accounting";
 import { methodologyCompositionSaveCommand, methodologyDeployCommand } from "../routes/methodology-composition";
 import { aiProviderAllowlistCommand, aiModelAllowlistCommand, sttProviderAllowlistCommand } from "../routes/ai-allowlist";
 import { deploymentTypeSetCommand } from "../routes/deployment-types";
@@ -160,6 +161,7 @@ const LANE2 = new Set<string>([
   ...commandRoutes(priorityLabelsSaveCommand),
   ...commandRoutes(orgIdentitySaveCommand),
   ...commandRoutes(schedulingSaveCommand),
+  ...commandRoutes(accountingSaveCommand),
   ...commandRoutes(methodologyCompositionSaveCommand),
   ...commandRoutes(methodologyDeployCommand),
   ...commandRoutes(aiProviderAllowlistCommand),

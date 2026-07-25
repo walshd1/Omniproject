@@ -27,6 +27,16 @@ The ORG-wide accessibility DEFAULTS — a partial UserPrefs the org sets as ever
 | GET | `/api/accessibility-defaults` | requireAnyRole(pmo, admin) | — |
 | PUT | `/api/accessibility-defaults` | requireAnyRole(pmo, admin) | — |
 
+### `artifacts/api-server/src/routes/accounting.ts`
+
+The ORG ACCOUNTING POLICY — chart-of-accounts codes + depreciation policy — held in the composition model as a scope-layered `accounting` config def (NOT a settings key — see lib/scoped-config), exactly like `scheduling`.
+
+| Method | Path | Gate | Description |
+| --- | --- | --- | --- |
+| GET | `/api/accounting/resolved` | — | — |
+| GET | `/api/accounting` | requireAnyRole(pmo, admin) | — |
+| PUT | `/api/accounting` | requireAnyRole(pmo, admin) | PUT /api/accounting — write the org-scope accounting config def (admin/PMO), validated. |
+
 ### `artifacts/api-server/src/routes/ai-allowlist.ts`
 
 AI SELECTION ALLOWLISTS — the org's governance FLOORS over which AI providers / models / STT engines may be selected (roadmap Phase C).

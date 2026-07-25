@@ -70,6 +70,17 @@ test("declining_balance is accelerated, switches to straight-line, and converges
   assert.equal(sched.at(-1)!.netBookValue, 0);
 });
 
+test("declining_balance factor is org policy — 150% DB is less front-loaded than default 200%", () => {
+  const asset: DepreciableAsset = { acquisitionCost: 10000, salvageValue: 0, usefulLifeMonths: 5, depreciationMethod: "declining_balance", inServiceDate: "2024-01-01" };
+  const db150 = depreciationSchedule(asset, { factor: 1.5 });
+  const db200 = depreciationSchedule(asset); // default factor 2 (double-declining)
+  assert.equal(db150[0]!.depreciation, 3000); // 10000 × (1.5/5)
+  assert.equal(db200[0]!.depreciation, 4000); // 10000 × (2/5)
+  assert.ok(db150[0]!.depreciation < db200[0]!.depreciation, "150% DB writes off slower in period 1");
+  assert.equal(sum(db150.map((p) => p.depreciation)), 10000); // still converges to the full base
+  assert.equal(db150.at(-1)!.netBookValue, 0);
+});
+
 test("declining_balance never depreciates below salvage", () => {
   const sched = depreciationSchedule({ acquisitionCost: 10000, salvageValue: 3000, usefulLifeMonths: 5, depreciationMethod: "declining_balance", inServiceDate: "2024-01-01" });
   assert.equal(sum(sched.map((p) => p.depreciation)), 7000); // base = cost − salvage

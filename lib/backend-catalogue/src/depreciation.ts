@@ -69,7 +69,13 @@ export interface DepreciationOptions {
   units?: readonly number[];
   /** Total lifetime units the asset is expected to produce — REQUIRED for units_of_production. */
   totalUnits?: number;
+  /** Declining-balance multiplier — 2 = double-declining (200%), 1.5 = 150% DB. Org accounting POLICY, so it is
+   *  supplied by the caller (resolved from the org config), not baked in. Defaults to 2. Ignored by other methods. */
+  factor?: number;
 }
+
+/** The default declining-balance multiplier (double-declining / 200%) when the caller supplies no org policy. */
+export const DEFAULT_DECLINING_BALANCE_FACTOR = 2;
 
 /** Thrown when an asset cannot be depreciated as asked (bad life, unknown method, missing usage data). */
 export class DepreciationError extends Error {
@@ -136,10 +142,10 @@ function sumOfYearsDigits(base: number, n: number): number[] {
   return trueUp(amounts, base);
 }
 
-function decliningBalance(asset: DepreciableAsset, n: number): number[] {
+function decliningBalance(asset: DepreciableAsset, n: number, factor: number): number[] {
   const cost = numLoose(asset.acquisitionCost);
   const salvage = numLoose(asset.salvageValue);
-  const rate = 2 / n; // double-declining, per period (life is in periods)
+  const rate = factor / n; // declining-balance rate per period (life is in periods); factor 2 = double-declining
   const amounts: number[] = [];
   let book = cost - numLoose(asset.accumulatedDepreciation);
   for (let k = 0; k < n; k++) {
@@ -191,10 +197,11 @@ export function depreciationSchedule(asset: DepreciableAsset, opts: Depreciation
   if (n <= 0) throw new DepreciationError(`usefulLifeMonths must be a positive integer (got ${asset.usefulLifeMonths})`);
   if (base <= 0) return toSchedule(asset, Array.from({ length: n }, () => 0)); // nothing to depreciate
 
+  const factor = numLoose(opts.factor) > 0 ? numLoose(opts.factor) : DEFAULT_DECLINING_BALANCE_FACTOR;
   const amounts =
     method === "straight_line" ? straightLine(base, n)
     : method === "sum_of_years_digits" ? sumOfYearsDigits(base, n)
-    : decliningBalance(asset, n);
+    : decliningBalance(asset, n, factor);
   return toSchedule(asset, amounts);
 }
 
