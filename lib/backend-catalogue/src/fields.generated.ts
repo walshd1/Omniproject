@@ -2255,6 +2255,13 @@ export const FIELDS_DATA: FieldDescriptor[] = [
     "entity": "fixed_asset"
   },
   {
+    "key": "depreciationThroughDate",
+    "label": "Depreciated through",
+    "type": "date",
+    "group": "financial",
+    "entity": "fixed_asset"
+  },
+  {
     "key": "invoiceNumber",
     "label": "Invoice Number",
     "type": "string",

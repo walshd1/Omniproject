@@ -1536,6 +1536,18 @@ General, PMO-authored cost rules.
 | `applyCostRules` | The effective uplift for a context: the scope-resolved base, then every matching rule applied in declared order (last write wins per field), so a later, more specific rule overrides an earlier general one. |
 | `firedCostRuleIds` | The ids of the rules that fired for a context — for explainability ("why is this charge this?"). |
 
+### `artifacts/api-server/src/lib/cron-match.ts`
+
+A compact, pure STANDARD 5-field cron matcher — "does this UTC minute match this cron expression?".
+
+| Function | What it does |
+| --- | --- |
+| `parseCron` | Parse a 5-field cron expression. |
+| `cronSpecMatches` | Does `date` (its UTC minute) match the parsed cron? |
+| `cronMatches` | Does the given UTC minute match the cron expression? Convenience over {@link parseCron} + {@link cronSpecMatches}. |
+| `isValidCron` | Is the cron expression well-formed? (For validation without throwing.) |
+| `cronMinutesInWindow` | The distinct UTC minutes in `(afterMs, throughMs]` at which `expr` fires — the "due since last tick" set the dispatcher iterates. |
+
 ### `artifacts/api-server/src/lib/crypto-aes-gcm.ts`
 
 The one AES-256-GCM seal/open primitive.
@@ -1785,6 +1797,22 @@ Deployment profile — lets a deployment declare its CONTEXT so the gateway's de
 | `acceptDemoAuth` | Has the operator explicitly accepted no-IdP demo auth (everyone admin)? |
 | `requireTls` | Should the gateway treat itself as served over TLS (secure cookies + HSTS)? An explicit PUBLIC_TLS wins; otherwise "lan-ok" profiles default to HTTP (a deliberate, accepted posture — a self-hoster/charity can run production-stable on plain HTTP without breaking sessions), and "required" profiles (business/enterprise) default to true whenever this looks like a real deployment. |
 | `demoAuthSeverity` | The severity of the no-IdP finding for this deployment: the profile's default, or "info" once the operator explicitly accepts it (so SECURITY_STRICT won't block a deliberate choice). |
+
+### `artifacts/api-server/src/lib/depreciation-effect.ts`
+
+The DEPRECIATION POSTING effect — the I/O side the automation engine's `finance.runDepreciation` action runs.
+
+| Function | What it does |
+| --- | --- |
+| `runDepreciationPosting` | Run the depreciation posting for `asOf` (default today, UTC). |
+
+### `artifacts/api-server/src/lib/depreciation-run.ts`
+
+DEPRECIATION PERIOD-RUN PLANNER — pure.
+
+| Function | What it does |
+| --- | --- |
+| `planDepreciationRun` | Plan the depreciation run: which journals are due as of `asOf`, and each asset's resulting write-back. |
 
 ### `artifacts/api-server/src/lib/dev-entitlements.ts`
 
@@ -3452,6 +3480,7 @@ Cascade bounds — a rule's write emits a follow-on event that can trigger more 
 | `ruleActorId` | The autonomous actor id a rule's writes run under (`automation:rule_<id>`); the grant is keyed on the bare id (`rule_<id>`). |
 | `ruleRunAction` | The approval action a rule's RUN binds to — an admin can gate ONE sensitive rule via an approval chain. |
 | `dispatchDomainEvent` | Handle one domain event: run every matching, enabled, INFORM-ONLY recipe. |
+| `runScheduledRecipe` | Run ONE schedule-triggered recipe now (the schedule dispatcher's per-recipe step) through the SAME grant-gated path the event dispatch uses. |
 | `startRulesDispatcher` | Register the dispatcher as a domain-event handler (idempotent). |
 
 ### `artifacts/api-server/src/lib/ruleset-guard.ts`
@@ -3544,6 +3573,16 @@ How long a pending SP-initiated AuthnRequest id stays valid for InResponseTo mat
 | `samlLoginUrl` | The IdP redirect URL to begin SP-initiated login; `relayState` round-trips the returnTo. |
 | `validateSamlResponse` | Validate a base64 SAMLResponse from the ACS POST and return canonical claims, or null (unconfigured / library absent). |
 | `samlMetadata` | The SP metadata XML (so an IdP admin can configure the integration), or null. |
+
+### `artifacts/api-server/src/lib/schedule-dispatcher.ts`
+
+SCHEDULE DISPATCHER — the time-driven half of the rules engine, the counterpart to the event-driven rules-dispatcher.
+
+| Function | What it does |
+| --- | --- |
+| `dispatchScheduledRecipes` | Fire every enabled schedule-triggered recipe whose cron matched a minute in `(sinceMs, nowMs]`. |
+| `startScheduleDispatcher` | Start the schedule dispatcher's opt-in in-process timer. |
+| `stopScheduleDispatcher` | Stop the dispatcher's timer (tests / shutdown). |
 
 ### `artifacts/api-server/src/lib/scheduled-export.ts`
 

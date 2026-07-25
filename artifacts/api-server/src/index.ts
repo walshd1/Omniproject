@@ -21,6 +21,7 @@ import { startProactiveDigestScheduler, runProactiveDigest } from "./lib/proacti
 import { startScheduledExportScheduler, runScheduledExport } from "./lib/scheduled-export";
 import { startDriftCanaryScheduler, runDriftCanary } from "./lib/drift-canary";
 import { startRulesDispatcher } from "./lib/rules-dispatcher";
+import { startScheduleDispatcher } from "./lib/schedule-dispatcher";
 import { enforceReleaseProvenanceAtBoot } from "./lib/release-provenance";
 import { runSignedMigrations } from "./lib/release-migration";
 import { loadConfigDir } from "./lib/config-dir";
@@ -148,6 +149,10 @@ async function start(): Promise<void> {
   // Rules engine — subscribe the dispatcher to domain events so enabled recipes fire on real changes.
   // No-op unless RULES_ENGINE_EVENTS is set; inform-only (mutating recipes need the autonomous-grant path).
   startRulesDispatcher();
+  // Schedule dispatcher — the time-driven half: fires enabled `schedule` recipes (e.g. the fixed-asset
+  // depreciation period-run) via the same grant-gated path. Opt-in in-process timer (SCHEDULE_DISPATCH_INTERVAL_HOURS
+  // > 0), gated by the same rules-engine flag; a fleet drives it from an external cron instead.
+  startScheduleDispatcher();
 
   const server = app.listen(port, (err) => {
     if (err) {
