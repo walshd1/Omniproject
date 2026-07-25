@@ -2299,6 +2299,16 @@ INSTANCE RECOVERY KEY (IRK) — the portable secret an operator SAVES on first s
 | `markInstanceKeyRevealed` | Mark the current IRK revealed (called after a successful one-time reveal). |
 | `instanceKeyFingerprint` | A non-secret fingerprint of the current IRK — confirm which key a backup needs without revealing it. |
 
+### `artifacts/api-server/src/lib/invoice-autobuild.ts`
+
+Invoice auto-build (Invoice Ninja phase 3) — seed a DRAFT invoice's LABOUR lines from a project's APPROVED timesheets × the PMO rate card, reusing the exact staff-cost roll-up the `/projects/:id/staff-cost` route computes (same uplift assembly: central → programme → project, then the PMO cost rules).
+
+| Function | What it does |
+| --- | --- |
+| `billableItemsFrom` | Approved hours per resource as CLIENT-FACING timed items (billable), so `staffCost` resolves the client charge-out rate — the amount to invoice. |
+| `billableStaffCostForProject` | Client-facing staff-cost roll-up for a project from its APPROVED timesheets, or null when no timesheet store is configured for the scope. |
+| `labourLinesFromStaffCost` | One DRAFT labour line per costed role: `quantity` = hours, `unitPrice` = charge / hours (2dp); the invoice sanitiser re-derives the line amount. |
+
 ### `artifacts/api-server/src/lib/invoice-ninja.ts`
 
 Invoice Ninja bridge — phase 1 (docs/design/INVOICE-NINJA.md).
