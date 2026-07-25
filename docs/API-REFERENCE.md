@@ -580,6 +580,7 @@ INVOICES (roadmap 3.3).
 | GET | `/api/invoices` | requireRole(manager) | GET /api/invoices?projectId= — invoices (lines omitted) across the org + a project store (manager+). |
 | GET | `/api/invoices/:id` | requireRole(manager) | GET /api/invoices/:id — one invoice with its lines (manager+). |
 | POST | `/api/invoices` | requireRole(manager) | POST /api/invoices — create an invoice in the chosen storage target (manager+). |
+| POST | `/api/invoices/from-project/:projectId` | requireRole(manager) | supplies the header (number, clientName, currency, …) and edits the draft before pushing it. |
 | PUT | `/api/invoices/:id` | requireRole(manager) | PUT /api/invoices/:id — update an invoice in place; only a DRAFT may be edited (manager+). |
 | POST | `/api/invoices/:id/status` | requireRole(manager) | POST /api/invoices/:id/status — transition an invoice (draft→issued→paid; live→void) (manager+). |
 | POST | `/api/invoices/:id/push` | requireRole(manager) | back on the sealed artifact (manager+; gated by INVOICE_NINJA_SYNC). |

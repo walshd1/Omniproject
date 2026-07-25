@@ -2,7 +2,7 @@ import crypto from "node:crypto";
 import { Router } from "express";
 import { contextFromReq, withBrokerErrors } from "../broker";
 import { requireRole } from "../lib/rbac";
-import { assertProjectScope } from "../lib/project-scope";
+import { assertProjectScope, guardProjectScope } from "../lib/project-scope";
 import { authorizeStorageTarget } from "../lib/storage-target-authz";
 import { enforceBusinessRules } from "../lib/ruleset-guard";
 import { artifactStoreEnabled, listArtifacts, getArtifact, putArtifact, deleteArtifact, requireArtifactStore } from "../lib/artifact-store";
@@ -13,6 +13,7 @@ import {
   type Invoice, type InvoiceMeta, type InvoiceStorage,
 } from "../lib/invoice";
 import { invoiceNinjaSyncEnabled, pushInvoice } from "../lib/invoice-ninja";
+import { billableStaffCostForProject, labourLinesFromStaffCost } from "../lib/invoice-autobuild";
 
 /**
  * INVOICES (roadmap 3.3). A generated, client-facing invoice — a number + currency + typed line primitives,
@@ -76,6 +77,39 @@ router.post("/invoices", requireRole("manager"), (req, res) => {
     res.status(201).json(row);
   });
 });
+
+// POST /api/invoices/from-project/:projectId — seed a DRAFT invoice from approved timesheets × the rate
+// card (manager+). Labour lines are built server-side (time × charge-out rate per role); the caller
+// supplies the header (number, clientName, currency, …) and edits the draft before pushing it.
+router.post("/invoices/from-project/:projectId", requireRole("manager"), (req, res) =>
+  withBrokerErrors(req, res, "invoice auto-build failed", async () => {
+    if (!requireArtifactStore(res)) return;
+    const projectId = String(req.params["projectId"]);
+    // Authorise the project READ before we compute (and thus read) its timesheet/cost data.
+    if (!(await guardProjectScope(req, res, projectId))) return;
+
+    const cost = await billableStaffCostForProject(req, projectId);
+    if (!cost) { res.status(409).json({ error: "no timesheet store is configured for this project" }); return; }
+    const lines = labourLinesFromStaffCost(cost);
+    if (lines.length === 0) { res.status(422).json({ error: "no billable approved time to invoice for this project" }); return; }
+
+    // Header from the body; lines are server-built; project store by default. One choke point: sanitize.
+    const body = (req.body ?? {}) as Record<string, unknown>;
+    let input;
+    try { input = sanitizeInvoiceWrite({ ...body, projectId, storage: body["storage"] ?? "project", lines }); }
+    catch (e) { if (e instanceof InvoiceError) { res.status(400).json({ error: e.message }); return; } throw e; }
+
+    if (!(await authorizeTarget(req, res, input.storage, input.projectId, "write"))) return;
+    if (!enforceBusinessRules(req, res, "create_invoice", { projectId: input.projectId ?? null, payload: input as unknown as Record<string, unknown> })) return;
+    const ctx = contextFromReq(req);
+    const scope = invoiceScope(input, ctx.sub);
+    if (!scope) { res.status(400).json({ error: "invalid storage target" }); return; }
+    const id = makeInvoiceId(input.storage, crypto.randomUUID(), input.projectId);
+    const row = newInvoiceRow(id, input, ctx, new Date().toISOString());
+    putArtifact(INVOICE_ARTIFACT, scope, row);
+    res.status(201).json(row);
+  }),
+);
 
 // PUT /api/invoices/:id — update an invoice in place; only a DRAFT may be edited (manager+).
 router.put("/invoices/:id", requireRole("manager"), (req, res) => {
