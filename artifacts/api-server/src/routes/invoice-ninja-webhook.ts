@@ -3,8 +3,8 @@ import { withBrokerErrors } from "../broker";
 import { constantTimeEqual } from "../lib/crypto-keys";
 import { artifactStoreEnabled, getArtifact, putArtifact } from "../lib/artifact-store";
 import {
-  INVOICE_ARTIFACT, parseInvoiceId, invoiceScope, applyInvoiceStatus, invoiceMeta, paidTransitionChain,
-  type Invoice,
+  INVOICE_ARTIFACT, parseInvoiceId, invoiceScope, applyInvoiceStatus, applyInvoicePayment, invoiceMeta,
+  paidTransitionChain, type Invoice,
 } from "../lib/invoice";
 import { invoiceNinjaSyncEnabled, invoiceNinjaWebhookSecret, ninjaSystemContext, parseNinjaWebhook } from "../lib/invoice-ninja";
 
@@ -54,13 +54,21 @@ router.post("/invoices/ninja-webhook", (req, res) =>
     const scope = invoiceScope(parsed, ctx.sub);
     const existing = scope ? getArtifact<Invoice>(INVOICE_ARTIFACT, scope, match.invoiceId) : null;
     if (!scope || !existing) { res.status(404).json({ error: "Invoice not found" }); return; }
-
-    const chain = paidTransitionChain(existing.status);
-    if (chain === null) { res.status(409).json({ error: "cannot settle a void invoice" }); return; }
-    if (chain.length === 0) { res.json(invoiceMeta(existing)); return; } // already paid — idempotent
+    if (existing.status === "void") { res.status(409).json({ error: "cannot settle a void invoice" }); return; }
     const now = new Date().toISOString();
-    let row: Invoice = existing;
-    for (const step of chain) row = applyInvoiceStatus(row, step, ctx, now);
+
+    // With a settlement amount (finance superset F3) → apply a payment (partial payments accumulate; the
+    // invoice flips to paid only once the balance reaches zero). Without one → settle in full (phase-4).
+    let row: Invoice;
+    if (match.amount != null) {
+      row = applyInvoicePayment(existing, match.amount, ctx, now);
+    } else {
+      const chain = paidTransitionChain(existing.status);
+      if (chain === null) { res.status(409).json({ error: "cannot settle a void invoice" }); return; }
+      if (chain.length === 0) { res.json(invoiceMeta(existing)); return; } // already paid — idempotent
+      row = existing;
+      for (const step of chain) row = applyInvoiceStatus(row, step, ctx, now);
+    }
     putArtifact(INVOICE_ARTIFACT, scope, row);
     res.json(invoiceMeta(row));
   }),

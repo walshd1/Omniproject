@@ -122,6 +122,13 @@ test("backends: an ISSUE backend must expose projects + issues; an INVOICE backe
   assert.ok(!productMissing.errors.some((e) => e.includes("list_clients")), "a product backend is NOT forced to expose clients");
   const productOk = verifyPlaneEntry("backends", { id: "cat", label: "Catalogue", primaryRecord: "product", kind: "live", verification: "catalogued", via: "http", requiredEnv: [], capabilities: {}, authHeader: "x", actions: { list_products: { method: "GET", url: "x" } } });
   assert.equal(productOk.ok, true);
+
+  // payment (AR-receipt) backend → list_payments required.
+  const payMissing = verifyPlaneEntry("backends", { id: "pay", label: "Pay", primaryRecord: "payment", kind: "live", verification: "catalogued", via: "http", requiredEnv: [], capabilities: {}, authHeader: "x", actions: { create_payment: { method: "POST", url: "x" } } });
+  assert.equal(payMissing.ok, false);
+  assert.ok(payMissing.errors.some((e) => e.includes("list_payments")), "payment read required");
+  const payOk = verifyPlaneEntry("backends", { id: "pay", label: "Pay", primaryRecord: "payment", kind: "live", verification: "catalogued", via: "http", requiredEnv: [], capabilities: {}, authHeader: "x", actions: { list_payments: { method: "GET", url: "x" } } });
+  assert.equal(payOk.ok, true);
 });
 
 test("brokers: every field-level guard fires for a fully-empty entry", () => {

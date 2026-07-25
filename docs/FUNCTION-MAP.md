@@ -2348,6 +2348,7 @@ INVOICE server logic (roadmap 3.3) — the authoritative sanitiser + storage acc
 | `applyInvoiceExternalRef` | Record the external billing-system pointer after a successful push (phase 2). |
 | `mergeInvoiceRow` | Apply an UPDATE, preserving id/owner/storage/status/timestamps; totals recomputed. |
 | `applyInvoiceStatus` | Move an invoice to `next` status (assumes the transition was validated by {@link canTransitionInvoice}). |
+| `applyInvoicePayment` | Apply a PAYMENT of `amount` against an invoice (finance superset F3). |
 | `paidTransitionChain` | The status steps to drive an invoice to `paid` from its current status, or `null` when it can't be paid (a void invoice). |
 | `invoiceMeta` | The metadata view of an invoice (lines dropped) — the list projection. |
 

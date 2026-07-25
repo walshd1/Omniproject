@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import {
   sanitizeInvoiceWrite, computeTotals, makeInvoiceId, parseInvoiceId,
   newInvoiceRow, mergeInvoiceRow, invoiceMeta, canTransitionInvoice, applyInvoiceStatus,
-  paidTransitionChain, InvoiceError, type InvoiceLine,
+  paidTransitionChain, applyInvoicePayment, InvoiceError, type InvoiceLine,
 } from "./invoice";
 import type { ActorContext } from "../broker/types";
 
@@ -85,4 +85,43 @@ test("paidTransitionChain steps applied in order reach paid and stamp issuedAt +
   assert.equal(row.status, "paid");
   assert.equal(row.issuedAt, "2026-02-01T00:00:00Z");
   assert.equal(row.paidAt, "2026-02-01T00:00:00Z");
+});
+
+test("newInvoiceRow seeds amountPaid 0 + balance = total (finance F3)", () => {
+  const w = sanitizeInvoiceWrite({ number: "INV-1", clientName: "Acme", currency: "USD", storage: "org", taxRatePct: 10, lines: [{ kind: "fixed", description: "Setup", quantity: 1, unitPrice: 1000 }] });
+  const row = newInvoiceRow(makeInvoiceId("org", "i1"), w, ctx, "2026-01-01T00:00:00Z");
+  assert.equal(row.total, 1100); // 1000 + 10% tax
+  assert.equal(row.amountPaid, 0);
+  assert.equal(row.balance, 1100);
+  assert.equal(invoiceMeta(row).balance, 1100);
+});
+
+test("applyInvoicePayment accumulates partial payments, flips to paid only when balance hits 0", () => {
+  const w = sanitizeInvoiceWrite({ number: "INV-1", clientName: "Acme", currency: "USD", storage: "org", lines: [{ kind: "fixed", description: "Work", quantity: 1, unitPrice: 1000 }] });
+  const draft = newInvoiceRow(makeInvoiceId("org", "i1"), w, ctx, "2026-01-01T00:00:00Z");
+
+  const part = applyInvoicePayment(draft, 400, ctx, "2026-02-01T00:00:00Z");
+  assert.equal(part.amountPaid, 400);
+  assert.equal(part.balance, 600);
+  assert.equal(part.status, "issued"); // partially paid → issued (a payment implies issuance)
+  assert.equal(part.issuedAt, "2026-02-01T00:00:00Z");
+  assert.equal(part.paidAt, null);
+
+  const settled = applyInvoicePayment(part, 600, ctx, "2026-03-01T00:00:00Z");
+  assert.equal(settled.amountPaid, 1000);
+  assert.equal(settled.balance, 0);
+  assert.equal(settled.status, "paid");
+  assert.equal(settled.paidAt, "2026-03-01T00:00:00Z");
+});
+
+test("applyInvoicePayment clamps overpayment to the total and ignores payment on a void invoice", () => {
+  const w = sanitizeInvoiceWrite({ number: "INV-1", clientName: "Acme", currency: "USD", storage: "org", lines: [{ kind: "fixed", description: "Work", quantity: 1, unitPrice: 500 }] });
+  const draft = newInvoiceRow(makeInvoiceId("org", "i1"), w, ctx, "2026-01-01T00:00:00Z");
+  const over = applyInvoicePayment(draft, 999, ctx, "2026-02-01T00:00:00Z");
+  assert.equal(over.amountPaid, 500); // clamped
+  assert.equal(over.balance, 0);
+  assert.equal(over.status, "paid");
+
+  const voided = applyInvoiceStatus(draft, "void", ctx, "2026-02-01T00:00:00Z");
+  assert.equal(applyInvoicePayment(voided, 100, ctx, "2026-03-01T00:00:00Z"), voided); // unchanged
 });

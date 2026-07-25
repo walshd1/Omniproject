@@ -1059,6 +1059,34 @@ export const FIELDS_DATA: FieldDescriptor[] = [
     "entity": "product"
   },
   {
+    "key": "paymentAmount",
+    "label": "Payment amount",
+    "type": "currency",
+    "group": "financial",
+    "entity": "payment"
+  },
+  {
+    "key": "paymentDate",
+    "label": "Payment date",
+    "type": "date",
+    "group": "financial",
+    "entity": "payment"
+  },
+  {
+    "key": "paymentMethod",
+    "label": "Payment method",
+    "type": "enum",
+    "group": "financial",
+    "entity": "payment"
+  },
+  {
+    "key": "paymentReference",
+    "label": "Payment reference",
+    "type": "string",
+    "group": "financial",
+    "entity": "payment"
+  },
+  {
     "key": "invoiceNumber",
     "label": "Invoice Number",
     "type": "string",

@@ -57,6 +57,20 @@
       "body": "={{ JSON.stringify($json.body.payload) }}",
       "method": "PUT",
       "url": "={{ $env.INVOICE_NINJA_URL }}/api/v1/products/{{ $json.body.payload.productId }}"
+    },
+    "list_payments": {
+      "method": "GET",
+      "note": "AR receipts (finance superset F3) — settlements applied to invoices.",
+      "url": "={{ $env.INVOICE_NINJA_URL }}/api/v1/payments"
+    },
+    "get_payment": {
+      "method": "GET",
+      "url": "={{ $env.INVOICE_NINJA_URL }}/api/v1/payments/{{ $json.body.payload.paymentId }}"
+    },
+    "create_payment": {
+      "body": "={{ JSON.stringify($json.body.payload) }}",
+      "method": "POST",
+      "url": "={{ $env.INVOICE_NINJA_URL }}/api/v1/payments"
     }
   },
   "authHeader": "",
@@ -93,7 +107,11 @@
     "productName",
     "productSku",
     "productTaxRate",
-    "productUnitPrice"
+    "productUnitPrice",
+    "paymentAmount",
+    "paymentDate",
+    "paymentMethod",
+    "paymentReference"
   ],
   "fields": [
     {
@@ -135,7 +153,7 @@
   ],
   "id": "invoice-ninja",
   "label": "Invoice Ninja (billing)",
-  "notes": "Open-source, self-hostable billing system of record. Implements the invoice contract verbs plus the client (customer-master) and product (item-catalogue) verbs (financials capability) — not a project/issue tracker. Auth via the X-API-Token header (configure an n8n Header Auth credential holding INVOICE_NINJA_TOKEN). INVOICE_NINJA_URL e.g. https://invoicing.example.com. The gateway shapes the payload (lib/invoice-ninja.ts toNinjaInvoice) and dispatches the verb through the broker, so the API token never leaves the broker's secret store.",
+  "notes": "Open-source, self-hostable billing system of record. Implements the invoice contract verbs plus the client (customer-master), product (item-catalogue) and payment (AR-receipt) verbs (financials capability) — not a project/issue tracker. Auth via the X-API-Token header (configure an n8n Header Auth credential holding INVOICE_NINJA_TOKEN). INVOICE_NINJA_URL e.g. https://invoicing.example.com. The gateway shapes the payload (lib/invoice-ninja.ts toNinjaInvoice) and dispatches the verb through the broker, so the API token never leaves the broker's secret store.",
   "primaryRecord": "invoice",
   "requiredEnv": [
     "INVOICE_NINJA_URL"
