@@ -11,6 +11,7 @@ import { PortfolioIncome } from "./PortfolioIncome";
 import { PortfolioBenefits } from "./PortfolioBenefits";
 import { PortfolioPrioritisation } from "./PortfolioPrioritisation";
 import { IncomeInvoicing } from "./IncomeInvoicing";
+import { FinancialStatements } from "./FinancialStatements";
 import { StaffTimeCost } from "./StaffTimeCost";
 import { Burndown } from "./Burndown";
 import { Burnup } from "./Burnup";
@@ -69,6 +70,7 @@ export const REPORT_RENDERERS: Record<string, ReportRendererComponent> = {
   PortfolioBenefits,
   PortfolioPrioritisation,
   IncomeInvoicing,
+  FinancialStatements,
   StaffTimeCost,
   Burndown,
   Burnup,
