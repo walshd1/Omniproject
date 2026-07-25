@@ -80,6 +80,16 @@ export type ContractAction =
   | "list_journal_entries"
   | "get_journal_entry"
   | "create_journal_entry"
+  // ── Banking + FX (finance superset F8) — bank accounts, feed transactions, exchange rates ──
+  | "list_bank_accounts"
+  | "get_bank_account"
+  | "create_bank_account"
+  | "list_bank_transactions"
+  | "get_bank_transaction"
+  | "create_bank_transaction"
+  | "list_fx_rates"
+  | "get_fx_rate"
+  | "create_fx_rate"
   | "get_capabilities";
 
 /** Catalogue tier — enterprise backends gate the premium workflow generation. */
@@ -150,13 +160,14 @@ export interface KeyFormat {
  * estimate that precedes an invoice) or `tax_rate` (a jurisdiction's tax-rate table) or an accounts-payable
  * record — `vendor` (supplier master), `expense` (a cost), `bill` (a vendor invoice) or `purchase_order` —
  * or a general-ledger record: `gl_account` (chart-of-accounts entry) or `journal_entry` (a double-entry
- * posting). Extend as new record domains land.
+ * posting) — or a banking record: `bank_account`, `bank_transaction` (a feed line) or `fx_rate` (an exchange
+ * rate). Extend as new record domains land.
  *
  * NOTE: the field superset is ONE universal registry — the union of `assets/fields.json` and EVERY backend's
  * contributed `fields[]` — so whatever any backend can provide maps through to the standard surface. It is NOT
  * scoped per record type; `primaryRecord` governs required actions, not which fields exist.
  */
-export const BACKEND_RECORD_TYPES = ["issue", "invoice", "client", "product", "payment", "credit_note", "quote", "tax_rate", "vendor", "expense", "bill", "purchase_order", "gl_account", "journal_entry"] as const;
+export const BACKEND_RECORD_TYPES = ["issue", "invoice", "client", "product", "payment", "credit_note", "quote", "tax_rate", "vendor", "expense", "bill", "purchase_order", "gl_account", "journal_entry", "bank_account", "bank_transaction", "fx_rate"] as const;
 export type BackendRecordType = (typeof BACKEND_RECORD_TYPES)[number];
 
 /** The contract READ verbs a backend of each primary-record type must implement (the verifier enforces this).
@@ -179,6 +190,9 @@ export const RECORD_TYPE_REQUIRED_READS: Record<BackendRecordType, ContractActio
   purchase_order: ["list_purchase_orders"],
   gl_account: ["list_accounts"],
   journal_entry: ["list_journal_entries"],
+  bank_account: ["list_bank_accounts"],
+  bank_transaction: ["list_bank_transactions"],
+  fx_rate: ["list_fx_rates"],
 };
 
 export interface BackendManifest {
