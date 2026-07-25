@@ -129,6 +129,12 @@ test("backends: an ISSUE backend must expose projects + issues; an INVOICE backe
   assert.ok(payMissing.errors.some((e) => e.includes("list_payments")), "payment read required");
   const payOk = verifyPlaneEntry("backends", { id: "pay", label: "Pay", primaryRecord: "payment", kind: "live", verification: "catalogued", via: "http", requiredEnv: [], capabilities: {}, authHeader: "x", actions: { list_payments: { method: "GET", url: "x" } } });
   assert.equal(payOk.ok, true);
+
+  // credit_note + quote (AR documents) → each requires its own list read.
+  assert.ok(verifyPlaneEntry("backends", { id: "cn", label: "CN", primaryRecord: "credit_note", kind: "live", verification: "catalogued", via: "http", requiredEnv: [], capabilities: {}, authHeader: "x", actions: {} }).errors.some((e) => e.includes("list_credit_notes")));
+  assert.equal(verifyPlaneEntry("backends", { id: "cn", label: "CN", primaryRecord: "credit_note", kind: "live", verification: "catalogued", via: "http", requiredEnv: [], capabilities: {}, authHeader: "x", actions: { list_credit_notes: { method: "GET", url: "x" } } }).ok, true);
+  assert.ok(verifyPlaneEntry("backends", { id: "q", label: "Q", primaryRecord: "quote", kind: "live", verification: "catalogued", via: "http", requiredEnv: [], capabilities: {}, authHeader: "x", actions: {} }).errors.some((e) => e.includes("list_quotes")));
+  assert.equal(verifyPlaneEntry("backends", { id: "q", label: "Q", primaryRecord: "quote", kind: "live", verification: "catalogued", via: "http", requiredEnv: [], capabilities: {}, authHeader: "x", actions: { list_quotes: { method: "GET", url: "x" } } }).ok, true);
 });
 
 test("brokers: every field-level guard fires for a fully-empty entry", () => {

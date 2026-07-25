@@ -44,6 +44,14 @@ export type ContractAction =
   | "list_payments"
   | "get_payment"
   | "create_payment"
+  // ── Credit note + quote/estimate (finance superset F4) — AR completeness ──
+  | "list_credit_notes"
+  | "get_credit_note"
+  | "create_credit_note"
+  | "list_quotes"
+  | "get_quote"
+  | "create_quote"
+  | "update_quote"
   | "get_capabilities";
 
 /** Catalogue tier — enterprise backends gate the premium workflow generation. */
@@ -110,25 +118,29 @@ export interface KeyFormat {
  * contract) or `invoice` (a billing system of record like Invoice Ninja / Dolibarr) or `client` (a customer
  * master — a CRM/billing system whose primary record is the bill-to party) or `product` (an item catalogue
  * whose primary record is the priced line item) or `payment` (an AR-receipt system whose primary record is a
- * settlement applied to invoices). Extend as new record domains land.
+ * settlement applied to invoices) or `credit_note` / `quote` (AR documents — a credit against an account, an
+ * estimate that precedes an invoice). Extend as new record domains land.
  *
  * NOTE: the field superset is ONE universal registry — the union of `assets/fields.json` and EVERY backend's
  * contributed `fields[]` — so whatever any backend can provide maps through to the standard surface. It is NOT
  * scoped per record type; `primaryRecord` governs required actions, not which fields exist.
  */
-export const BACKEND_RECORD_TYPES = ["issue", "invoice", "client", "product", "payment"] as const;
+export const BACKEND_RECORD_TYPES = ["issue", "invoice", "client", "product", "payment", "credit_note", "quote"] as const;
 export type BackendRecordType = (typeof BACKEND_RECORD_TYPES)[number];
 
 /** The contract READ verbs a backend of each primary-record type must implement (the verifier enforces this).
  *  An `issue` backend must expose projects + issues; an `invoice` backend must expose its invoice list; a
  *  `client` (customer-master) backend must expose its client list; a `product` (item-catalogue) backend must
- *  expose its product list; a `payment` (AR-receipt) backend must expose its payment list. */
+ *  expose its product list; a `payment` (AR-receipt) backend must expose its payment list; a `credit_note` /
+ *  `quote` backend must expose its own list. */
 export const RECORD_TYPE_REQUIRED_READS: Record<BackendRecordType, ContractAction[]> = {
   issue: ["list_projects", "list_issues"],
   invoice: ["list_invoices"],
   client: ["list_clients"],
   product: ["list_products"],
   payment: ["list_payments"],
+  credit_note: ["list_credit_notes"],
+  quote: ["list_quotes"],
 };
 
 export interface BackendManifest {
