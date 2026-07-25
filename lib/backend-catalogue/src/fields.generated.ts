@@ -1024,6 +1024,41 @@ export const FIELDS_DATA: FieldDescriptor[] = [
     "entity": "client"
   },
   {
+    "key": "productSku",
+    "label": "SKU / item code",
+    "type": "string",
+    "group": "financial",
+    "entity": "product"
+  },
+  {
+    "key": "productName",
+    "label": "Product / item",
+    "type": "string",
+    "group": "financial",
+    "entity": "product"
+  },
+  {
+    "key": "productUnitPrice",
+    "label": "Unit price",
+    "type": "currency",
+    "group": "financial",
+    "entity": "product"
+  },
+  {
+    "key": "productCost",
+    "label": "Item cost",
+    "type": "currency",
+    "group": "financial",
+    "entity": "product"
+  },
+  {
+    "key": "productTaxRate",
+    "label": "Item tax rate",
+    "type": "percent",
+    "group": "financial",
+    "entity": "product"
+  },
+  {
     "key": "invoiceNumber",
     "label": "Invoice Number",
     "type": "string",

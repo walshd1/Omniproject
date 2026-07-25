@@ -114,6 +114,14 @@ test("backends: an ISSUE backend must expose projects + issues; an INVOICE backe
   assert.ok(!clientMissing.errors.some((e) => e.includes("list_projects")), "a client backend is NOT forced to expose projects");
   const clientOk = verifyPlaneEntry("backends", { id: "crm", label: "CRM", primaryRecord: "client", kind: "live", verification: "catalogued", via: "http", requiredEnv: [], capabilities: {}, authHeader: "x", actions: { list_clients: { method: "GET", url: "x" } } });
   assert.equal(clientOk.ok, true);
+
+  // product (item-catalogue) backend → list_products required, NOT list_clients/list_invoices.
+  const productMissing = verifyPlaneEntry("backends", { id: "cat", label: "Catalogue", primaryRecord: "product", kind: "live", verification: "catalogued", via: "http", requiredEnv: [], capabilities: {}, authHeader: "x", actions: { create_product: { method: "POST", url: "x" } } });
+  assert.equal(productMissing.ok, false);
+  assert.ok(productMissing.errors.some((e) => e.includes("list_products")), "product read required");
+  assert.ok(!productMissing.errors.some((e) => e.includes("list_clients")), "a product backend is NOT forced to expose clients");
+  const productOk = verifyPlaneEntry("backends", { id: "cat", label: "Catalogue", primaryRecord: "product", kind: "live", verification: "catalogued", via: "http", requiredEnv: [], capabilities: {}, authHeader: "x", actions: { list_products: { method: "GET", url: "x" } } });
+  assert.equal(productOk.ok, true);
 });
 
 test("brokers: every field-level guard fires for a fully-empty entry", () => {
