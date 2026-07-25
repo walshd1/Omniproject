@@ -140,3 +140,33 @@ test("the catalogue exposes each rule + its mode for the admin UI", () => {
   assert.equal(cat.find((r) => r.id === "no-deletes")?.mode, "warn");
   assert.ok(cat.every((r) => r.label && r.description && r.defaultMode));
 });
+
+// ── Finance controls (F14) ───────────────────────────────────────────────────────────────────────────────
+test("finance: double-entry — an unbalanced journal is blocked, a balanced one passes, no lines can't fire", () => {
+  setRuleModes({ "finance-journal-balanced": "hard" });
+  const unbal = evaluateRuleset({ action: "create_journal_entry", write: true, role: "manager", payload: { lines: [{ journalDebit: 100 }, { journalCredit: 60 }] } });
+  assert.equal(unbal.allow, false);
+  assert.equal(unbal.blocked?.id, "finance-journal-balanced");
+  assert.equal(evaluateRuleset({ action: "create_journal_entry", write: true, role: "manager", payload: { lines: [{ debit: 100 }, { credit: 100 }] } }).allow, true);
+  assert.equal(evaluateRuleset({ action: "create_journal_entry", write: true, role: "manager", payload: {} }).allow, true); // restrict-only: unassessable → no block
+});
+
+test("finance: no posting to a closed or locked period", () => {
+  setRuleModes({ "finance-no-post-closed-period": "hard" });
+  assert.equal(evaluateRuleset({ action: "create_journal_entry", write: true, role: "manager", payload: { journalPeriodStatus: "closed" } }).allow, false);
+  assert.equal(evaluateRuleset({ action: "update_journal_entry", write: true, role: "manager", payload: { periodStatus: "locked" } }).allow, false);
+  assert.equal(evaluateRuleset({ action: "create_journal_entry", write: true, role: "manager", payload: { journalPeriodStatus: "open" } }).allow, true);
+});
+
+test("finance: a posted journal entry is immutable (reverse, don't edit)", () => {
+  setRuleModes({ "finance-posted-immutable": "hard" });
+  assert.equal(evaluateRuleset({ action: "update_journal_entry", write: true, role: "manager", payload: { journalPostingStatus: "posted" } }).allow, false);
+  assert.equal(evaluateRuleset({ action: "update_journal_entry", write: true, role: "manager", payload: { journalPostingStatus: "draft" } }).allow, true);
+});
+
+test("finance: a new journal entry requires a fiscal period and a posting date", () => {
+  setRuleModes({ "finance-journal-period": "hard", "finance-journal-posting-date": "hard" });
+  assert.equal(evaluateRuleset({ action: "create_journal_entry", write: true, role: "manager", payload: { journalPostingDate: "2026-07-25" } }).allow, false); // missing period
+  assert.equal(evaluateRuleset({ action: "create_journal_entry", write: true, role: "manager", payload: { journalFiscalPeriod: "fp1" } }).allow, false); // missing posting date
+  assert.equal(evaluateRuleset({ action: "create_journal_entry", write: true, role: "manager", payload: { journalFiscalPeriod: "fp1", journalPostingDate: "2026-07-25" } }).allow, true);
+});
