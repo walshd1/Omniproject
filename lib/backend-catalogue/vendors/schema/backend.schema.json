@@ -80,6 +80,19 @@
           "note": { "type": "string" }
         }
       }
+    },
+    "invoiceSync": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["correlation", "env", "outbound", "inbound", "webhook"],
+      "description": "Advertised invoice-sync mapping applied by the gateway's generic projector (broker/backends/invoice-mapping) — maps OmniProject's agnostic invoice surface to/from this backend's billing API, both ways, as data. Only needed by a backend that reconciles an external settlement onto the local sealed invoice.",
+      "properties": {
+        "correlation": { "type": "object" },
+        "env": { "type": "object" },
+        "outbound": { "type": "object" },
+        "inbound": { "type": "object" },
+        "webhook": { "type": "object" }
+      }
     }
   }
 }

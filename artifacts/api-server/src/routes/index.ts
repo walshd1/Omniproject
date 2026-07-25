@@ -101,7 +101,7 @@ import reportsRouter from "./reports";
 import resourceAllocationsRouter from "./resource-allocations";
 import budgetPlansRouter from "./budget-plans";
 import scimRouter from "./scim";
-import { invoiceNinjaWebhookRouter } from "./invoice-ninja-webhook";
+import { billingWebhookRouter } from "./billing-webhook";
 import breakGlassRouter from "./break-glass";
 import { isDeprovisioned, requireRole } from "../lib/rbac";
 import { hasValidApiToken } from "../lib/api-token";
@@ -171,10 +171,10 @@ router.use(mcpRouter);
 // it's mounted outside requireAuth. Rate-limited + audited like the rest of /api.
 router.use(scimRouter);
 
-// Invoice Ninja inbound payment webhook — self-authed by INVOICE_NINJA_WEBHOOK_SECRET (not a user
-// session, since n8n/Invoice Ninja hold none), so mounted outside requireAuth. Rate-limited + audited
-// like the rest of /api; gated internally by INVOICE_NINJA_SYNC + the artifact store.
-router.use(invoiceNinjaWebhookRouter);
+// Inbound billing settlement webhook — self-authed by the connected backend's webhook secret (not a user
+// session, since the broker / billing backend hold none), so mounted outside requireAuth. Rate-limited +
+// audited like the rest of /api; gated internally by the adapter's sync flag + the artifact store.
+router.use(billingWebhookRouter);
 
 // Strict, per-IP throttle on login / step-up initiation (brute-force / flow-cookie
 // spam) — tighter than the general apiLimiter and applied just to these endpoints.

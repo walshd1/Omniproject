@@ -37,6 +37,7 @@ const GUARDS = [
   "src/guard-dashboard-preset-coverage.ts",
   "src/guard-i18n-coverage.ts",
   "src/guard-broker-isolation.ts",
+  "src/guard-backend-isolation.ts",
 ];
 
 for (const script of GUARDS) {

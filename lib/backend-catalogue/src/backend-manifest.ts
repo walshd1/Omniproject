@@ -265,4 +265,66 @@ export interface BackendManifest {
     toCanonical: Record<string, string>;
     fromCanonical?: Record<string, string>;
   };
+  /**
+   * Optional INVOICE-SYNC mapping — how this backend's billing API shapes maps to/from OmniProject's agnostic
+   * invoice surface, ADVERTISED as data so the gateway holds no vendor-shaped billing code. A generic projector
+   * (broker/backends/invoice-mapping) applies it both ways: outbound (agnostic Invoice → the vendor payload the
+   * broker POSTs) and inbound (the vendor's response / settlement webhook → agnostic external ref + paid signal).
+   * Only a backend that reconciles an external settlement onto the LOCAL sealed invoice artifact needs this;
+   * ordinary contract verbs are already executed from `actions`. See {@link InvoiceSyncSpec}.
+   */
+  invoiceSync?: InvoiceSyncSpec;
+}
+
+/** One outbound invoice-field mapping: agnostic `from` → vendor `to`, via an optional named transform (a CLOSED
+ *  set — no server-side evaluation of vendor-supplied expressions). */
+export type InvoiceSyncOutboundField =
+  | { to: string; from: string }
+  | { to: string; from: string; transform: "date-only" }
+  | { to: string; from: string; transform: "map"; map: Record<string, string>; default: string }
+  | { to: string; from: string; transform: "sign-when"; whenField: string; equals: string }
+  | { to: string; from: string; transform: "const-when-gt"; gt: number; then: string; else: string };
+
+/** A leaf settlement predicate over a normalised vendor record field. */
+export interface InvoiceSyncLeafPredicate {
+  field: string;
+  equalsAny?: (string | number)[];
+  finite?: true;
+  lte?: number;
+  gt?: number;
+}
+/** A settlement predicate: a leaf, or a boolean combinator. */
+export type InvoiceSyncPredicate =
+  | InvoiceSyncLeafPredicate
+  | { anyOf: InvoiceSyncPredicate[] }
+  | { allOf: InvoiceSyncPredicate[] };
+
+/** The advertised invoice-sync mapping a backend carries in its manifest (data, applied by the generic
+ *  projector). See broker/backends/invoice-mapping in the gateway for the engine. */
+export interface InvoiceSyncSpec {
+  correlation: { field: string; altFields?: string[] };
+  env: { enable: string[]; webhookSecret: string[] };
+  outbound: {
+    fields: InvoiceSyncOutboundField[];
+    lines: { to: string; from: string; fields: InvoiceSyncOutboundField[] };
+    correlationTo: string;
+  };
+  inbound: {
+    unwrap?: string[];
+    id: string;
+    number?: string;
+    pdf?: string;
+    paid: InvoiceSyncPredicate;
+  };
+  webhook: {
+    wrappers?: string[];
+    arrayWrappers?: string[];
+    invoicesKey?: string;
+    amountWrappers?: string[];
+    amountField: string;
+    /** Original vendor-named inbound URLs / header names kept working as back-compat aliases (advertised data,
+     *  so the neutral webhook router mounts/accepts them without a vendor name appearing in gateway code). */
+    legacyPaths?: string[];
+    legacyHeaders?: string[];
+  };
 }

@@ -441,6 +441,9 @@ jobs:
       - name: Verify a concrete broker adapter is imported only via the seam
         run: pnpm --filter @workspace/scripts run guard-broker-isolation
 
+      - name: Verify a concrete backend adapter is imported only via the seam
+        run: pnpm --filter @workspace/scripts run guard-backend-isolation
+
       - name: Verify every clickable affordance is keyboard-operable (parity guard)
         run: pnpm --filter @workspace/scripts run guard-interactive
 
