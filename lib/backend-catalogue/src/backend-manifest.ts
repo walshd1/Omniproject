@@ -14,13 +14,22 @@
  * only consume the neutral half (see `backendCatalogue`).
  */
 
-/** The contract actions a backend must implement (broker-neutral). */
+/**
+ * The contract actions a backend can implement (broker-neutral). A backend implements a SUBSET (the `actions`
+ * map is Partial) — a project tool maps the issue/project verbs; a billing system of record (Invoice Ninja,
+ * Dolibarr, …) maps the invoice verbs. Finance verbs are gated by the `financials` capability domain.
+ */
 export type ContractAction =
   | "list_projects"
   | "list_issues"
   | "create_issue"
   | "update_issue"
   | "delete_issue"
+  // ── Billing / finance system-of-record (capability: financials) ──
+  | "create_invoice"
+  | "update_invoice"
+  | "get_invoice"
+  | "list_invoices"
   | "get_capabilities";
 
 /** Catalogue tier — enterprise backends gate the premium workflow generation. */

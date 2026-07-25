@@ -48,7 +48,7 @@ const ALWAYS: ContractAction = "get_capabilities";
 // checking the mapping would silently under-classify every native-node write action. The
 // contract action set is closed to these six names, so checking the action name directly is
 // exhaustive regardless of which transport a given backend uses for it.
-const WRITE_ACTIONS: ReadonlySet<ContractAction> = new Set(["create_issue", "update_issue", "delete_issue"]);
+const WRITE_ACTIONS: ReadonlySet<ContractAction> = new Set(["create_issue", "update_issue", "delete_issue", "create_invoice", "update_invoice"]);
 function isWrite(action: ContractAction): boolean {
   return WRITE_ACTIONS.has(action);
 }

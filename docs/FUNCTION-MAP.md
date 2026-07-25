@@ -2299,6 +2299,19 @@ INSTANCE RECOVERY KEY (IRK) — the portable secret an operator SAVES on first s
 | `markInstanceKeyRevealed` | Mark the current IRK revealed (called after a successful one-time reveal). |
 | `instanceKeyFingerprint` | A non-secret fingerprint of the current IRK — confirm which key a backup needs without revealing it. |
 
+### `artifacts/api-server/src/lib/invoice-ninja.ts`
+
+Invoice Ninja bridge — phase 1 (docs/design/INVOICE-NINJA.md).
+
+| Function | What it does |
+| --- | --- |
+| `invoiceNinjaSyncEnabled` | The bridge is opt-in: it needs both the `invoicing` feature (checked at the route) AND this deploy flag, since it emits outbound commands the operator must have wired an n8n workflow for. |
+| `ninjaCorrelation` | The correlation value stored on the Invoice Ninja invoice (and matched on the inbound webhook). |
+| `parseNinjaCorrelation` | Parse the OmniProject invoice id back out of a correlation value, or null if it isn't one of ours. |
+| `toNinjaLine` | Map one OmniProject line to an Invoice Ninja line item. |
+| `toNinjaInvoice` | Map a local {@link Invoice} to the Invoice Ninja invoice payload. |
+| `ninjaCommand` | Dispatch an invoice contract verb through the broker to the Invoice Ninja backend. |
+
 ### `artifacts/api-server/src/lib/invoice.ts`
 
 INVOICE server logic (roadmap 3.3) — the authoritative sanitiser + storage access for first-class generated invoices.
