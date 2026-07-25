@@ -3196,8 +3196,15 @@ Release provenance — the "sign + verify at boot" foundation of the update mech
 | `buildSignedRelease` | Build a {@link SignedRelease} from a manifest + a private key PEM/seed (release-side convenience). |
 | `parseSignedRelease` | Parse + shape-check an untrusted signed-release object (dropping anything malformed). |
 | `loadSignedRelease` | Load the baked signed release: inline JSON in `RELEASE_MANIFEST`, else the file at `RELEASE_MANIFEST_FILE` (default `./release.json`). |
-| `verifyReleaseProvenance` | Verify this build's provenance. |
+| `verifyRelease` | Does this signed release verify against the trusted public key? Pure; never throws. |
+| `expectedDigest` | The digest the current environment has PROMOTED (the approved production build) — from `RELEASE_EXPECTED_DIGEST`, set by the deploy/admission layer from the promotion record (§3, phase 2). |
+| `verifyReleaseProvenance` | Verify this build's provenance AND promote-by-digest admission. |
 | `enforceReleaseProvenanceAtBoot` | Boot gate: verify provenance and enforce the mode. |
+| `canonicalPromotion` | Canonical signed message for a promotion — sorted-key compact JSON, like {@link canonicalManifest}. |
+| `buildSignedPromotion` | Sign a promotion record with the release/promotion PRIVATE key (PEM/DER/seed). |
+| `verifyPromotion` | Verify a signed promotion against the trusted public key. |
+| `parseSignedPromotion` | Parse + shape-check an untrusted signed promotion (dropping anything malformed). |
+| `admitBuild` | The ADMISSION check (§3, phase 2): should this build be admitted to production? Both the build's signed manifest AND the signed promotion must verify against the trusted key, and the build's digest must EQUAL the promoted digest. |
 
 ### `artifacts/api-server/src/lib/reminder-sweep.ts`
 
@@ -4798,6 +4805,10 @@ Timesheet STORE seam — where timesheets live is BELOW the seam (the operator's
 | `resetTimesheetStore` | Reset to no store — used by tests to isolate. |
 | `timesheetStoreFor` | The store for a scope, or null. |
 | `describeTimesheetSources` | Report which timesheet sources a deployment COULD use, for the UI to explain availability: - self-host: adoption is on (settings.selfHost.mode !== "off"); - backend: a backend-source provider is registered. |
+
+### `artifacts/api-server/src/tools/sign-promotion.ts`
+
+Promotion-signing CLI (docs/UPDATE-MECHANISM.md §3, phase 2) — records "production = this digest".
 
 ### `artifacts/api-server/src/tools/sign-release.ts`
 

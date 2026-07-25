@@ -180,7 +180,12 @@ Data outlives code, so **new code must read old data**:
    Ed25519 `lib/signing` verify path. CI wiring (produce + bake the signed manifest) is intentionally
    deferred to a workflow change.
 2. **Promote-by-digest record + admission check.** Promotion sets prod to a digest; admission verifies
-   it. Mutable tags become human-facing aliases only.
+   it. Mutable tags become human-facing aliases only. **— BUILT.** A signed `PromotionRecord` names the
+   approved digest (`sign-promotion` tool). `admitBuild(manifest, promotion, key)` admits a build only when
+   both signatures verify AND the build's digest equals the promoted digest (fail-closed). At boot,
+   `verifyReleaseProvenance` also enforces `RELEASE_EXPECTED_DIGEST` — the running build's digest must match
+   the environment's approved digest, so a same-tag rebuild is refused. The k8s admission-policy / entrypoint
+   wiring that calls `admitBuild` is deferred to a deploy change.
 3. **Approval-gated promotion.** Wire promotion through the approval-chain (passkey sign-off), audited.
 4. **Auto-backup + restore.** Pre-adopt snapshot; one-command restore bound to a digest rollback.
 5. **Per-org test canary.** Spawn the new digest against an isolated data copy; tear down on

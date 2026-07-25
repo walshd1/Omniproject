@@ -119,6 +119,19 @@ export function loadSignedRelease(env: NodeJS.ProcessEnv = process.env): SignedR
   } catch { return null; }
 }
 
+/** Does this signed release verify against the trusted public key? Pure; never throws. */
+export function verifyRelease(signed: SignedRelease, publicKeyPemStr: string): boolean {
+  return verifySignature(canonicalManifest(signed.manifest), signed.signature, publicKeyPemStr);
+}
+
+/** The digest the current environment has PROMOTED (the approved production build) — from
+ *  `RELEASE_EXPECTED_DIGEST`, set by the deploy/admission layer from the promotion record (§3, phase 2).
+ *  Empty ⇒ no digest pin (provenance is checked; the promote-by-digest admission is skipped). */
+export function expectedDigest(env: NodeJS.ProcessEnv = process.env): string | null {
+  const d = (env["RELEASE_EXPECTED_DIGEST"] ?? "").trim();
+  return d || null;
+}
+
 export interface ProvenanceResult {
   ok: boolean;
   mode: VerifyMode;
@@ -127,9 +140,12 @@ export interface ProvenanceResult {
 }
 
 /**
- * Verify this build's provenance. In "off" mode it's a no-op pass. Otherwise it loads the signed release +
- * the trusted release public key and verifies the signature. Missing manifest/key or a bad signature ⇒ not
- * ok (the caller decides warn vs refuse by mode). Pure apart from reading env/the baked file; never throws.
+ * Verify this build's provenance AND promote-by-digest admission. In "off" mode it's a no-op pass. Otherwise:
+ *   1. load the signed release + trusted public key and verify the SIGNATURE (phase 1), then
+ *   2. if the environment pins an approved digest (`RELEASE_EXPECTED_DIGEST`, phase 2), require the build's
+ *      manifest digest to be present AND equal it — so only the exact approved build boots, never a
+ *      same-tag rebuild.
+ * Any failure ⇒ not ok (the caller decides warn vs refuse by mode). Pure apart from env/the baked file; never throws.
  */
 export function verifyReleaseProvenance(env: NodeJS.ProcessEnv = process.env): ProvenanceResult {
   const mode = releaseVerifyMode(env);
@@ -138,10 +154,16 @@ export function verifyReleaseProvenance(env: NodeJS.ProcessEnv = process.env): P
   if (!signed) return { ok: false, mode, reason: "no signed release manifest present" };
   const pub = releasePublicKeyPem(env);
   if (!pub) return { ok: false, mode, reason: "no RELEASE_PUBLIC_KEY configured (trust root)" };
-  const valid = verifySignature(canonicalManifest(signed.manifest), signed.signature, pub);
-  return valid
-    ? { ok: true, mode, manifest: signed.manifest }
-    : { ok: false, mode, reason: "release signature does not verify against the trusted key", manifest: signed.manifest };
+  if (!verifyRelease(signed, pub)) {
+    return { ok: false, mode, reason: "release signature does not verify against the trusted key", manifest: signed.manifest };
+  }
+  // Promote-by-digest admission: the running build must be the digest this environment approved.
+  const expected = expectedDigest(env);
+  if (expected) {
+    if (!signed.manifest.digest) return { ok: false, mode, reason: "environment pins an approved digest but this build's manifest carries none", manifest: signed.manifest };
+    if (signed.manifest.digest !== expected) return { ok: false, mode, reason: `running digest ${signed.manifest.digest} is not the approved digest ${expected}`, manifest: signed.manifest };
+  }
+  return { ok: true, mode, manifest: signed.manifest };
 }
 
 /**
@@ -166,4 +188,86 @@ export function enforceReleaseProvenanceAtBoot(
   }
   logger.warn({ reason: result.reason }, "release provenance failed (warn) — continuing; set RELEASE_VERIFY=strict to fail closed");
   return result;
+}
+
+// ── Phase 2: the promote-by-digest RECORD + the admission check ──────────────────────────────────────────
+//
+// Promotion sets production to ONE digest. That decision is itself a signed artifact — a PromotionRecord
+// naming the approved digest — so the deploy/admission layer can verify "this digest is the one that was
+// promoted" against the same trust root, and pin the runtime to it (RELEASE_EXPECTED_DIGEST). The mutable
+// tag is a human alias only; the digest is the join key (§3).
+
+export interface PromotionRecord {
+  /** The approved production image content digest (e.g. "sha256:…") — the promote-by-digest key. */
+  digest: string;
+  promotedAt: string;
+  /** Optional free-text (e.g. "promoted from staging after org acceptance"). */
+  note?: string;
+}
+
+export interface SignedPromotion {
+  record: PromotionRecord;
+  /** base64 Ed25519 signature over {@link canonicalPromotion}. */
+  signature: string;
+  keyId?: string;
+}
+
+/** Canonical signed message for a promotion — sorted-key compact JSON, like {@link canonicalManifest}. */
+export function canonicalPromotion(r: PromotionRecord): string {
+  const ordered: Record<string, unknown> = {};
+  const rec = r as unknown as Record<string, unknown>;
+  for (const k of Object.keys(r).sort()) { const v = rec[k]; if (v !== undefined) ordered[k] = v; }
+  return JSON.stringify(ordered);
+}
+
+/** Sign a promotion record with the release/promotion PRIVATE key (PEM/DER/seed). Null on unparseable key. */
+export function buildSignedPromotion(record: PromotionRecord, privateKeyRaw: string): SignedPromotion | null {
+  const pk = parsePrivateKey(privateKeyRaw);
+  if (!pk) return null;
+  const signature = crypto.sign(null, Buffer.from(canonicalPromotion(record)), pk).toString("base64");
+  const pub = crypto.createPublicKey(pk.export({ format: "pem", type: "pkcs8" }));
+  const keyId = crypto.createHash("sha256").update(pub.export({ format: "der", type: "spki" })).digest("hex").slice(0, 16);
+  return { record, signature, keyId };
+}
+
+/** Verify a signed promotion against the trusted public key. Pure; never throws. */
+export function verifyPromotion(signed: SignedPromotion, publicKeyPemStr: string): boolean {
+  return verifySignature(canonicalPromotion(signed.record), signed.signature, publicKeyPemStr);
+}
+
+/** Parse + shape-check an untrusted signed promotion (dropping anything malformed). */
+export function parseSignedPromotion(value: unknown): SignedPromotion | null {
+  if (!value || typeof value !== "object") return null;
+  const o = value as Record<string, unknown>;
+  const r = o["record"];
+  if (!r || typeof r !== "object") return null;
+  const rr = r as Record<string, unknown>;
+  if (!isStr(rr["digest"]) || !isStr(rr["promotedAt"])) return null;
+  if (!isStr(o["signature"])) return null;
+  const record: PromotionRecord = { digest: rr["digest"], promotedAt: rr["promotedAt"] };
+  if (isStr(rr["note"])) record.note = rr["note"];
+  return { record, signature: o["signature"], ...(isStr(o["keyId"]) ? { keyId: o["keyId"] } : {}) };
+}
+
+export interface AdmissionResult {
+  admitted: boolean;
+  reason?: string;
+  digest?: string;
+}
+
+/**
+ * The ADMISSION check (§3, phase 2): should this build be admitted to production? Both the build's signed
+ * manifest AND the signed promotion must verify against the trusted key, and the build's digest must EQUAL
+ * the promoted digest. Fail-closed — any gap denies. Pure; usable by an entrypoint / k8s admission tool that
+ * has the running signed manifest, the signed promotion, and the trust root. Never throws.
+ */
+export function admitBuild(signedManifest: SignedRelease, signedPromotion: SignedPromotion, publicKeyPemStr: string): AdmissionResult {
+  if (!verifyRelease(signedManifest, publicKeyPemStr)) return { admitted: false, reason: "build manifest signature does not verify" };
+  if (!verifyPromotion(signedPromotion, publicKeyPemStr)) return { admitted: false, reason: "promotion record signature does not verify" };
+  const running = signedManifest.manifest.digest;
+  if (!running) return { admitted: false, reason: "build manifest carries no digest" };
+  if (running !== signedPromotion.record.digest) {
+    return { admitted: false, reason: `running digest ${running} is not the promoted digest ${signedPromotion.record.digest}` };
+  }
+  return { admitted: true, digest: running };
 }

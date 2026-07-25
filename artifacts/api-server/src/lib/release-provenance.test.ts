@@ -4,6 +4,7 @@ import crypto from "node:crypto";
 import {
   buildSignedRelease, canonicalManifest, verifyReleaseProvenance, enforceReleaseProvenanceAtBoot,
   releaseVerifyMode, parseSignedRelease, type ReleaseManifest,
+  buildSignedPromotion, verifyPromotion, parseSignedPromotion, admitBuild, type PromotionRecord,
 } from "./release-provenance";
 
 /**
@@ -83,6 +84,61 @@ test("parseSignedRelease drops malformed input", () => {
   assert.equal(parseSignedRelease({ manifest: { version: "1" }, signature: "x" }), null); // missing gitSha/builtAt
   assert.equal(parseSignedRelease({ manifest: MANIFEST }), null); // missing signature
   assert.ok(parseSignedRelease({ manifest: MANIFEST, signature: "x" }));
+});
+
+// ── Phase 2: promote-by-digest + admission ──────────────────────────────────────────────────────────────
+
+test("promote-by-digest: a matching approved digest is admitted; a mismatch is refused", () => {
+  const { privPem, pubPem } = keypair();
+  const signed = buildSignedRelease(MANIFEST, privPem)!; // digest sha256:deadbeef
+  const base = { RELEASE_VERIFY: "strict", RELEASE_MANIFEST_FILE: "/nonexistent", RELEASE_PUBLIC_KEY: pubPem, RELEASE_MANIFEST: JSON.stringify(signed) };
+  assert.equal(verifyReleaseProvenance({ ...base, RELEASE_EXPECTED_DIGEST: "sha256:deadbeef" }).ok, true);
+  const bad = verifyReleaseProvenance({ ...base, RELEASE_EXPECTED_DIGEST: "sha256:0ther" });
+  assert.equal(bad.ok, false);
+  assert.match(bad.reason!, /not the approved digest/);
+});
+
+test("promote-by-digest: an expected digest is pinned but the build carries none → refused", () => {
+  const { privPem, pubPem } = keypair();
+  const noDigest = buildSignedRelease({ version: "1", gitSha: "s", builtAt: "t" }, privPem)!;
+  const r = verifyReleaseProvenance({ RELEASE_VERIFY: "strict", RELEASE_MANIFEST_FILE: "/nonexistent", RELEASE_PUBLIC_KEY: pubPem, RELEASE_MANIFEST: JSON.stringify(noDigest), RELEASE_EXPECTED_DIGEST: "sha256:deadbeef" });
+  assert.equal(r.ok, false);
+  assert.match(r.reason!, /carries none/);
+});
+
+test("promotion record signs + verifies; a tampered digest fails", () => {
+  const { privPem, pubPem } = keypair();
+  const rec: PromotionRecord = { digest: "sha256:deadbeef", promotedAt: "2026-07-24T00:00:00Z", note: "org accepted" };
+  const signed = buildSignedPromotion(rec, privPem)!;
+  assert.equal(verifyPromotion(signed, pubPem), true);
+  signed.record.digest = "sha256:evil";
+  assert.equal(verifyPromotion(signed, pubPem), false);
+});
+
+test("admitBuild: admits only when both signatures verify AND the digests match", () => {
+  const { privPem, pubPem } = keypair();
+  const manifest = buildSignedRelease(MANIFEST, privPem)!;                                   // digest sha256:deadbeef
+  const promo = buildSignedPromotion({ digest: "sha256:deadbeef", promotedAt: "t" }, privPem)!;
+  assert.equal(admitBuild(manifest, promo, pubPem).admitted, true);
+
+  // digest mismatch → denied
+  const otherPromo = buildSignedPromotion({ digest: "sha256:other", promotedAt: "t" }, privPem)!;
+  const denied = admitBuild(manifest, otherPromo, pubPem);
+  assert.equal(denied.admitted, false);
+  assert.match(denied.reason!, /not the promoted digest/);
+
+  // wrong trust root → denied (manifest sig fails against a foreign key)
+  assert.equal(admitBuild(manifest, promo, keypair().pubPem).admitted, false);
+
+  // build with no digest → denied
+  const noDigest = buildSignedRelease({ version: "1", gitSha: "s", builtAt: "t" }, privPem)!;
+  assert.equal(admitBuild(noDigest, promo, pubPem).admitted, false);
+});
+
+test("parseSignedPromotion drops malformed input", () => {
+  assert.equal(parseSignedPromotion({ record: { digest: "d" }, signature: "x" }), null); // missing promotedAt
+  assert.equal(parseSignedPromotion({ record: { digest: "d", promotedAt: "t" } }), null); // missing signature
+  assert.ok(parseSignedPromotion({ record: { digest: "d", promotedAt: "t" }, signature: "x" }));
 });
 
 test("boot gate: strict + failure refuses to run (fail-closed); warn + ok never exit", () => {
