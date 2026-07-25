@@ -160,14 +160,44 @@ Data outlives code, so **new code must read old data**:
 
 ## 10. Open questions
 
-- **Signing toolchain.** Cosign/sigstore (keyless OIDC or key-pair) vs. a bespoke `signing.ts`-style
-  detached signature over the digest. Cosign + an admission policy is the least-custom path.
-- **Where the public key lives per deploy target.** k8s admission policy vs. entrypoint-embedded vs. both.
-- **Migration runner.** Where signed migrations execute (init container / entrypoint step) and how their
-  reversibility is proven before promotion.
-- **Multi-tenant test canaries.** One canary per org vs. a shared canary with per-org data copies, and
-  who pays for the canary's lifetime.
-- **Registry retention.** How many previous signed digests are kept for rollback, and the GC policy.
+- **Signing toolchain.** ~~Cosign/sigstore vs. a bespoke `signing.ts` detached signature.~~ **RESOLVED
+  (bespoke, extensible).** The runtime verifies a bespoke Ed25519 detached signature over the manifest
+  (`release-provenance.ts`) against `RELEASE_PUBLIC_KEY`. §12 layers this behind the k8s admission boundary;
+  a cosign/sigstore `verifyImages` policy can be added *on top* for registry-signature verification.
+- **Where the public key lives per deploy target.** ~~k8s admission policy vs. entrypoint vs. both.~~
+  **RESOLVED — both (§12).** `RELEASE_PUBLIC_KEY` rides the ConfigMap (it's non-secret); it's consumed by the
+  `verify-release` init container AND the app at boot. A native `ValidatingAdmissionPolicy` separately forces
+  images to be digest-pinned.
+- **Migration runner.** ~~Where signed migrations execute.~~ **RESOLVED (phase 6).** `runSignedMigrations` runs
+  at boot after provenance verify, before serving; reversibility gates promotion. See §8/§11 phase 6.
+- **Multi-tenant test canaries.** N/A for the single-tenant architecture — a canary is per-deployment
+  (§11 phase 5). One canary at a time; the deploy layer owns its container lifetime.
+- **Registry retention.** *Still open* (deploy-layer): how many previous signed digests to keep for rollback,
+  and the GC policy. The app only needs the previous digest + its §6 backup.
+
+## 12. Deploy-layer admission enforcement (wiring)
+
+Phases 1–6 make provenance *recorded, signed, and gated in-app*; this is the wiring that makes it
+*mechanically enforced at the deploy boundary*, so an unsigned or wrong-digest image can't run even if the
+app check were bypassed. Three independent layers, all fail-closed, all opt-in via `RELEASE_VERIFY=strict`:
+
+1. **In-process boot gate** — `enforceReleaseProvenanceAtBoot()` runs first thing in `start()`; strict +
+   failure refuses to serve. (Phase 1/2.)
+2. **Init-container preflight** — `node dist/index.mjs --verify-release` runs the SAME verification and exits
+   *before* the app container starts. Wired as a Kubernetes init container (`verify-release`) in
+   `k8s-enterprise-manifest.yaml` and, gated by `release.preflight`, in the Helm chart. A strict failure fails
+   the init container, so the pod never starts the app — defence in depth one layer out from the boot gate.
+3. **Cluster admission policy** — a native `ValidatingAdmissionPolicy` (`k8s-enterprise-manifest.yaml`) REJECTS
+   any Pod in the namespace whose images aren't pinned by digest (`image@sha256:…`), so a re-pointed mutable
+   tag can never substitute a different image behind an approved digest — promote-by-digest (§3) enforced by
+   the cluster itself, no external controller required. Layer a cosign/Kyverno `verifyImages` policy on top to
+   also verify the image's registry signature.
+
+Config (all non-secret, on the ConfigMap / Helm `config`): `RELEASE_VERIFY` (off|warn|strict),
+`RELEASE_PUBLIC_KEY` (trust root), `RELEASE_MANIFEST`/`RELEASE_MANIFEST_FILE` (the baked signed manifest),
+`RELEASE_EXPECTED_DIGEST` (the approved production digest to pin, from `GET /api/admin/release/promotion`). The
+release private key never ships — it signs the manifest/promotion/migrations in the release trust root
+(`src/tools/sign-release.ts`, `sign-promotion.ts`, `sign-migrations.ts`).
 
 ## 11. Build phases
 

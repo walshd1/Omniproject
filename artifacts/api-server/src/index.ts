@@ -175,6 +175,18 @@ async function start(): Promise<void> {
   installShutdownHandlers(server, logger);
 }
 
+// Deploy-layer admission preflight (docs/UPDATE-MECHANISM.md §4). `node dist/index.mjs --verify-release`
+// runs the SAME provenance verification as boot — signature + promote-by-digest admission — and EXITS,
+// without starting the server. Run it as a Kubernetes init container (and/or the image entrypoint) so an
+// unsigned or wrong-digest image fails closed at the boundary, before the app container ever serves: strict
+// + failure exits non-zero (the init container fails → the pod never starts the app); warn/off pass through
+// with the same semantics as boot. This makes the in-process boot check enforceable one layer out.
+if (process.argv.includes("--verify-release")) {
+  enforceReleaseProvenanceAtBoot(); // strict + failure ⇒ process.exit(1) inside
+  logger.info("release preflight passed — provenance admitted");
+  process.exit(0);
+}
+
 // Crash backstop: an escaped throw / unhandled rejection is logged and SURVIVED, not fatal (see
 // lib/process-guards). Installed before boot so it also covers an async boot failure.
 installProcessGuards(logger);
