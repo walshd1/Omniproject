@@ -23,6 +23,34 @@ test("field keys are unique", () => {
   assert.equal(new Set(keys).size, keys.length, "duplicate field keys would corrupt the reconcile lookup");
 });
 
+test("options only appear on enum fields, and each is a non-empty id-safe allow-list", () => {
+  const idSafe = /^[a-z0-9][a-z0-9_]*$/;
+  for (const f of FIELD_REGISTRY) {
+    if (f.options === undefined) continue;
+    assert.equal(f.type, "enum", `${f.key} declares options but is type "${f.type}" (options are only meaningful for enum)`);
+    assert.ok(Array.isArray(f.options) && f.options.length > 0, `${f.key} options must be a non-empty array`);
+    assert.equal(new Set(f.options).size, f.options.length, `${f.key} options must be unique`);
+    for (const o of f.options) assert.ok(idSafe.test(o), `${f.key} option "${o}" must be lower_snake_case id-safe`);
+  }
+});
+
+test("the finance enum fields declare their canonical value sets (options threaded through)", () => {
+  // The value sets the finance business rules key off (period closed/locked, journal posted, 3-way matched,
+  // AP approved) must be present so a UI element bound to these fields inherits the allow-list.
+  const expect: Record<string, string[]> = {
+    periodStatus: ["open", "closed", "locked"],
+    journalPostingStatus: ["draft", "posted", "reversed"],
+    matchStatus: ["unmatched", "partially_matched", "matched", "exception"],
+    approvalState: ["draft", "pending", "approved", "rejected"],
+    accountType: ["asset", "liability", "equity", "revenue", "expense"],
+  };
+  for (const [key, opts] of Object.entries(expect)) {
+    const f = FIELD_REGISTRY.find((d) => d.key === key);
+    assert.ok(f, `${key} should exist in the registry`);
+    assert.deepEqual(f!.options, opts, `${key} should declare its canonical options`);
+  }
+});
+
 test("CANONICAL_FIELD_KEYS mirrors exactly the registry keys", () => {
   assert.equal(CANONICAL_FIELD_KEYS.size, FIELD_REGISTRY.length);
   for (const f of FIELD_REGISTRY) {

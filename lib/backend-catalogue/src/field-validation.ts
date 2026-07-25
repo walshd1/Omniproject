@@ -97,7 +97,10 @@ function defaultPolicy(type: string, options: string[]): FieldPolicy {
       return { sanitise: ["trim", "numeric"], validation: {} };
     case "date":
       return { sanitise: ["trim"], validation: { pattern: DATE_PATTERN, patternMessage: "must be a date (YYYY-MM-DD)" } };
-    // Single-choice families — the value must be one of the field's options.
+    // Single-choice families — the value must be one of the field's options. `enum` is the CANONICAL
+    // field-vocabulary choice type (assets/fields.json): its declared `options` are the allow-list, so a
+    // canonical enum field validates against its value set instead of falling through to free-text escaping.
+    case "enum":
     case "select":
     case "radio":
     case "single-choice":

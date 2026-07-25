@@ -1077,6 +1077,15 @@ export const FIELDS_DATA: FieldDescriptor[] = [
     "key": "paymentMethod",
     "label": "Payment method",
     "type": "enum",
+    "options": [
+      "bank_transfer",
+      "card",
+      "cash",
+      "cheque",
+      "direct_debit",
+      "paypal",
+      "other"
+    ],
     "group": "financial",
     "entity": "payment"
   },
@@ -1105,6 +1114,12 @@ export const FIELDS_DATA: FieldDescriptor[] = [
     "key": "creditNoteStatus",
     "label": "Credit note status",
     "type": "enum",
+    "options": [
+      "draft",
+      "issued",
+      "applied",
+      "voided"
+    ],
     "group": "financial",
     "entity": "credit_note"
   },
@@ -1126,6 +1141,14 @@ export const FIELDS_DATA: FieldDescriptor[] = [
     "key": "quoteStatus",
     "label": "Quote status",
     "type": "enum",
+    "options": [
+      "draft",
+      "sent",
+      "accepted",
+      "declined",
+      "expired",
+      "converted"
+    ],
     "group": "financial",
     "entity": "quote"
   },
@@ -1140,6 +1163,14 @@ export const FIELDS_DATA: FieldDescriptor[] = [
     "key": "recurringFrequency",
     "label": "Recurring frequency",
     "type": "enum",
+    "options": [
+      "weekly",
+      "biweekly",
+      "monthly",
+      "quarterly",
+      "semiannually",
+      "annually"
+    ],
     "group": "financial",
     "entity": "invoice"
   },
@@ -1217,6 +1248,18 @@ export const FIELDS_DATA: FieldDescriptor[] = [
     "key": "expenseCategory",
     "label": "Expense category",
     "type": "enum",
+    "options": [
+      "travel",
+      "meals",
+      "accommodation",
+      "supplies",
+      "equipment",
+      "software",
+      "professional_fees",
+      "marketing",
+      "utilities",
+      "other"
+    ],
     "group": "financial",
     "entity": "expense"
   },
@@ -1245,6 +1288,15 @@ export const FIELDS_DATA: FieldDescriptor[] = [
     "key": "billStatus",
     "label": "Bill status",
     "type": "enum",
+    "options": [
+      "draft",
+      "open",
+      "approved",
+      "paid",
+      "partially_paid",
+      "overdue",
+      "void"
+    ],
     "group": "financial",
     "entity": "bill"
   },
@@ -1266,6 +1318,14 @@ export const FIELDS_DATA: FieldDescriptor[] = [
     "key": "poStatus",
     "label": "PO status",
     "type": "enum",
+    "options": [
+      "draft",
+      "open",
+      "approved",
+      "received",
+      "closed",
+      "cancelled"
+    ],
     "group": "financial",
     "entity": "purchase_order"
   },
@@ -1287,6 +1347,13 @@ export const FIELDS_DATA: FieldDescriptor[] = [
     "key": "accountType",
     "label": "Account type",
     "type": "enum",
+    "options": [
+      "asset",
+      "liability",
+      "equity",
+      "revenue",
+      "expense"
+    ],
     "group": "financial",
     "entity": "gl_account"
   },
@@ -1420,6 +1487,11 @@ export const FIELDS_DATA: FieldDescriptor[] = [
     "key": "periodStatus",
     "label": "Period status",
     "type": "enum",
+    "options": [
+      "open",
+      "closed",
+      "locked"
+    ],
     "group": "financial",
     "entity": "fiscal_period"
   },
@@ -1441,6 +1513,11 @@ export const FIELDS_DATA: FieldDescriptor[] = [
     "key": "journalPostingStatus",
     "label": "Posting status",
     "type": "enum",
+    "options": [
+      "draft",
+      "posted",
+      "reversed"
+    ],
     "group": "financial",
     "entity": "journal_entry"
   },
@@ -1464,6 +1541,16 @@ export const FIELDS_DATA: FieldDescriptor[] = [
     "key": "dimensionType",
     "label": "Dimension type",
     "type": "enum",
+    "options": [
+      "department",
+      "location",
+      "class",
+      "business_unit",
+      "segment",
+      "fund",
+      "project",
+      "cost_center"
+    ],
     "group": "financial",
     "entity": "dimension"
   },
@@ -1547,6 +1634,13 @@ export const FIELDS_DATA: FieldDescriptor[] = [
     "key": "revRecMethod",
     "label": "Revenue recognition method",
     "type": "enum",
+    "options": [
+      "point_in_time",
+      "straight_line",
+      "usage_based",
+      "milestone",
+      "percent_complete"
+    ],
     "group": "financial"
   },
   {
@@ -1603,6 +1697,12 @@ export const FIELDS_DATA: FieldDescriptor[] = [
     "key": "revRecScheduleStatus",
     "label": "Recognition status",
     "type": "enum",
+    "options": [
+      "scheduled",
+      "recognized",
+      "deferred",
+      "cancelled"
+    ],
     "group": "financial",
     "entity": "rev_rec_schedule"
   },
@@ -1699,6 +1799,12 @@ export const FIELDS_DATA: FieldDescriptor[] = [
     "key": "matchStatus",
     "label": "Match status",
     "type": "enum",
+    "options": [
+      "unmatched",
+      "partially_matched",
+      "matched",
+      "exception"
+    ],
     "group": "financial"
   },
   {
@@ -1723,6 +1829,12 @@ export const FIELDS_DATA: FieldDescriptor[] = [
     "key": "approvalState",
     "label": "Approval state",
     "type": "enum",
+    "options": [
+      "draft",
+      "pending",
+      "approved",
+      "rejected"
+    ],
     "group": "financial"
   },
   {
@@ -1774,6 +1886,13 @@ export const FIELDS_DATA: FieldDescriptor[] = [
     "key": "agingBucket",
     "label": "Aging bucket",
     "type": "enum",
+    "options": [
+      "current",
+      "days_1_30",
+      "days_31_60",
+      "days_61_90",
+      "over_90"
+    ],
     "group": "financial"
   },
   {
@@ -1786,6 +1905,13 @@ export const FIELDS_DATA: FieldDescriptor[] = [
     "key": "collectionStatus",
     "label": "Collection status",
     "type": "enum",
+    "options": [
+      "current",
+      "reminder_sent",
+      "in_collections",
+      "disputed",
+      "written_off"
+    ],
     "group": "financial"
   },
   {

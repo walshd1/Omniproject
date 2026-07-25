@@ -86,6 +86,16 @@ test("a single-choice field validates its value against its options", () => {
   assert.deepEqual(validateValue("nope", policy.validation, "Level"), ['Level: "nope" is not an allowed option']);
 });
 
+test("a canonical enum field validates its value against its declared options", () => {
+  const policy = resolveFieldPolicy("enum", { options: ["open", "closed", "locked"] });
+  assert.deepEqual(policy.validation.options, ["open", "closed", "locked"]);
+  assert.deepEqual(validateValue("closed", policy.validation, "Period status"), []);
+  assert.deepEqual(validateValue("banana", policy.validation, "Period status"), ['Period status: "banana" is not an allowed option']);
+  // An enum field still sanitises (never leaves input un-cleaned) and passes the contract check.
+  assert.ok(resolveFieldPolicy("enum").sanitise.length > 0);
+  assert.equal(assertFieldHasPolicy("enum", { options: ["a"] }, "enum"), null);
+});
+
 test("a multi-choice field validates every member of the comma-joined set", () => {
   const policy = resolveFieldPolicy("multi-choice", { options: ["a", "b", "c"] });
   assert.deepEqual(validateValue("a,b", policy.validation, "Tags"), []);
