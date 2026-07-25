@@ -135,6 +135,10 @@ test("backends: an ISSUE backend must expose projects + issues; an INVOICE backe
   assert.equal(verifyPlaneEntry("backends", { id: "cn", label: "CN", primaryRecord: "credit_note", kind: "live", verification: "catalogued", via: "http", requiredEnv: [], capabilities: {}, authHeader: "x", actions: { list_credit_notes: { method: "GET", url: "x" } } }).ok, true);
   assert.ok(verifyPlaneEntry("backends", { id: "q", label: "Q", primaryRecord: "quote", kind: "live", verification: "catalogued", via: "http", requiredEnv: [], capabilities: {}, authHeader: "x", actions: {} }).errors.some((e) => e.includes("list_quotes")));
   assert.equal(verifyPlaneEntry("backends", { id: "q", label: "Q", primaryRecord: "quote", kind: "live", verification: "catalogued", via: "http", requiredEnv: [], capabilities: {}, authHeader: "x", actions: { list_quotes: { method: "GET", url: "x" } } }).ok, true);
+
+  // tax_rate → requires list_tax_rates.
+  assert.ok(verifyPlaneEntry("backends", { id: "t", label: "T", primaryRecord: "tax_rate", kind: "live", verification: "catalogued", via: "http", requiredEnv: [], capabilities: {}, authHeader: "x", actions: {} }).errors.some((e) => e.includes("list_tax_rates")));
+  assert.equal(verifyPlaneEntry("backends", { id: "t", label: "T", primaryRecord: "tax_rate", kind: "live", verification: "catalogued", via: "http", requiredEnv: [], capabilities: {}, authHeader: "x", actions: { list_tax_rates: { method: "GET", url: "x" } } }).ok, true);
 });
 
 test("brokers: every field-level guard fires for a fully-empty entry", () => {
