@@ -194,6 +194,11 @@ seams above *enforceable* rather than aspirational:
   Match the surrounding density and idiom; the cheapest documentation is a well-named function.
 - **Open for extension, closed for modification.** `extends` + property-by-property merge (principle 4) is the
   open/closed principle made concrete: ship a default, let a customer override it, never fork it.
+- **Functional core, imperative shell.** The computation is a *pure* function — the ruleset fold, the
+  consolidation engine, the depreciation planner, the cron matcher all take data and return data, with the
+  only IO (broker, shared KV, the clock) **injected**. So the logic is unit-tested without a broker or a live
+  request, and the effect/adapter stays the *only* place side-effects live. When a "helper" reaches for
+  `getBroker()` or `Date.now()` mid-computation, lift the IO to the caller and pass the result in.
 
 When a change makes one of these *harder* — a core module reaching outward for an adapter, a "quick" second
 writer, a function that needs a comment because its name lies — that's the smell, and the fix is a boundary,
@@ -396,6 +401,43 @@ Guard story (per 13): this one is a **review-time heuristic**, not something a s
 is backed indirectly, because the primitives it produces carry drift guards (the wire-format and idempotence
 guards on the crypto helpers and generated maps). When you *do* extract a mechanism, add or extend that
 primitive's guard so the consolidation cannot silently come undone.
+
+## 18. Every mutation is guarded by construction
+
+Principle 3 gives one validated *reader* per boundary; its mutation-side twin is that every WRITE rides a spine
+which applies the full gate — **RBAC → validation → business ruleset → scope → write** — *by construction*, so a
+new endpoint cannot ship a hole. There are exactly three lanes: **Lane 1**, the entity pipeline (CRUD by
+descriptor, `mountEntity`); **Lane 2**, the action base (verbs/commands by descriptor, `mountCommand`); and
+**Lane 3**, `BESPOKE_WRITES` — the genuinely irreducible hand-written writes (auth/session redirects, SSE,
+break-glass, SCIM protocol). Membership in Lane 1/2 *is* the guarantee: the mounter can't skip a gate. A ratchet
+test asserts every live `POST/PUT/PATCH/DELETE` is in **exactly one** lane and fails the build on any new
+unguarded write; Lane 3 may only **shrink**. So "did we remember to check permissions, validate, and apply the
+ruleset on this write?" is answered mechanically, not left to a reviewer's memory. When you add a write, put it
+on a spine; reach for Lane 3 only for a true oddball, and record it there.
+
+## 19. Autonomous action is default-deny, granted, and attributable
+
+Whenever the system acts with **no live human request** — a rule fired by a domain event, a scheduled job, an
+AI/agent step — the write does not run on the system's own authority. It runs as a **named autonomous
+principal** (`automation:rule_<id>`, `agent:<id>:<onBehalfOf>`), and the autonomous-write guard **refuses** it
+unless an admin has granted that *exact* action (**default-deny**). Layered on top: a sensitive action can be
+held behind an approval chain; every autonomous principal is subject to the kill switch; and each run carries
+attributable **audit + causation**, so an emergent A→B→A chain is both **bounded** (depth + fan-out caps) and
+traceable. The rule holds at the effect surface too — a mutating effect is reachable *only* on the autonomous,
+grant-gated path; the human/direct surface stays read-and-notify. The permission to *automate* something is
+never wider than the permission to *do* it by hand, and "the machine did it" is never an escalation.
+
+## 20. Background work is idempotent and fleet-safe
+
+"Make truncation loud" (principle 10) has a sibling for anything that runs on a timer or a queue: **never
+double-act.** A scheduled or dispatched job must be safe to run twice, and safe to run on every replica at once.
+Two disciplines. **Idempotency:** the "already done" marker lives in the **system of record** — a field
+write-back on the record itself (e.g. an asset's `depreciationThroughDate`), never an in-memory flag a restart
+forgets — so a re-run recomputes the same slice and posts nothing new. **Exactly-once across a fleet:** claim
+each unit of work once (a compare-and-set on the shared KV) *before* acting, so overlapping ticks or N replicas
+do the work once, not N times; a claim outage fails **closed** (skip), never double-fires. The in-process
+interval timer is an opt-out convenience for a single instance — a fleet sets it to zero and drives the job from
+an external cron hitting one `…/run` endpoint. A job that isn't idempotent is a double-post waiting for a retry.
 
 ---
 
