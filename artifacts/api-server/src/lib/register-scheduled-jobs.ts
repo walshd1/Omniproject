@@ -3,6 +3,7 @@ import { execDigestScheduledJob } from "./exec-digest";
 import { proactiveDigestScheduledJob } from "./proactive-digest";
 import { scheduledExportScheduledJob } from "./scheduled-export";
 import { driftCanaryScheduledJob } from "./drift-canary";
+import { healthWatchScheduledJob } from "./health-watch";
 import { recipeScheduledJobs } from "./schedule-dispatcher";
 
 /**
@@ -19,5 +20,6 @@ export function registerScheduledJobs(): void {
   registerScheduledJob(proactiveDigestScheduledJob());
   registerScheduledJob(scheduledExportScheduledJob());
   registerScheduledJob(driftCanaryScheduledJob());
+  registerScheduledJob(healthWatchScheduledJob());
   registerScheduledJobProvider(() => recipeScheduledJobs());
 }

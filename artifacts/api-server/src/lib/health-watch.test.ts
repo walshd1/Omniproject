@@ -1,6 +1,6 @@
 import { test, afterEach } from "node:test";
 import assert from "node:assert/strict";
-import { evaluateHealth, runHealthWatch, recentFindings, __resetHealthWatch, DEFAULT_THRESHOLDS, getHealthThresholds, setHealthThresholds, type HealthFinding } from "./health-watch";
+import { evaluateHealth, runHealthWatch, recentFindings, __resetHealthWatch, DEFAULT_THRESHOLDS, getHealthThresholds, setHealthThresholds, healthWatchScheduledJob, healthWatchIntervalHours, type HealthFinding } from "./health-watch";
 import type { Broker, PortfolioRow } from "../broker/types";
 
 /**
@@ -61,4 +61,16 @@ test("an unhealthy run with no rows yields nothing", async () => {
   const broker = { portfolioHealth: async () => [] } as unknown as Broker;
   const findings = await runHealthWatch({ now: Date.parse(AT), broker, notify: () => {} });
   assert.deepEqual(findings, []);
+});
+
+test("the scheduled job is disabled unless HEALTH_WATCH_INTERVAL_HOURS > 0", () => {
+  const prev = process.env["HEALTH_WATCH_INTERVAL_HOURS"];
+  delete process.env["HEALTH_WATCH_INTERVAL_HOURS"];
+  const job = healthWatchScheduledJob();
+  assert.equal(job.id, "health-watch");
+  assert.equal(healthWatchIntervalHours(), 0);
+  assert.equal(job.resolveSchedule(), null); // opt-in — off by default
+  process.env["HEALTH_WATCH_INTERVAL_HOURS"] = "6";
+  assert.deepEqual(job.resolveSchedule(), { kind: "interval", hours: 6 });
+  if (prev === undefined) delete process.env["HEALTH_WATCH_INTERVAL_HOURS"]; else process.env["HEALTH_WATCH_INTERVAL_HOURS"] = prev;
 });

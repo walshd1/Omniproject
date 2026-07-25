@@ -2253,6 +2253,9 @@ Health / anomaly watch.
 | `recentFindings` | The most recent findings (newest last). |
 | `__resetHealthWatch` | Test-only: clear the findings ring + restore default thresholds. |
 | `runHealthWatch` | Run the watch: mint the keyed actor, read the portfolio THROUGH the broker as that actor, evaluate the rules, notify per finding, and record the run. |
+| `deliverHealthFinding` | Deliver one finding as a broadcast notification — the health-watch notify sink shared by the manual `/run` route and the scheduled job, so both surface findings identically. |
+| `healthWatchIntervalHours` | The configured cadence in hours (0 = disabled, the default — opt in with HEALTH_WATCH_INTERVAL_HOURS>0). |
+| `healthWatchScheduledJob` | The unified-scheduler job for the portfolio health / anomaly watch. |
 
 ### `artifacts/api-server/src/lib/history-retention.ts`
 

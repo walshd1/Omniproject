@@ -227,6 +227,8 @@ Format: each principle is a RULE + how to CHECK it + the usual FIX.
   (`SCHEDULER_HEARTBEAT_MINUTES=0`), and a fleet may instead drive `runDueScheduledJobs` from external cron.
 - CHECK: A new `setInterval` for recurring work instead of a `ScheduledJob`; a job keyed on module/in-memory
   state; acting before the claim; a non-deterministic (boot-relative) occurrence that breaks the shared claim.
+  ENFORCED: `__tests__/scheduler-coverage.test.ts` fails on any `setInterval` outside `job-scheduler.ts` that
+  isn't an allowlisted per-replica/non-job timer (convergence poll, buffer flush, heartbeat, keepalive).
 
 ---
 
