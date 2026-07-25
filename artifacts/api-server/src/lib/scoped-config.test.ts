@@ -9,7 +9,7 @@ process.env["SESSION_SECRET"] = "test-session-secret-do-not-use-in-prod";
 const CONFIG_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "scoped-config-"));
 process.env["OMNI_CONFIG_DIR"] = CONFIG_DIR;
 
-const { resolveScopedConfig, configDefLayers, resolveConfig, resolveScheduling, sanitizeSchedulingValues, DEFAULT_SCHEDULING, readConfigCollection, writeOrgConfigCollection, resolveFloorConfig, tightenAllowlist } = await import("./scoped-config");
+const { resolveScopedConfig, configDefLayers, resolveConfig, resolveScheduling, sanitizeSchedulingValues, DEFAULT_SCHEDULING, readConfigCollection, writeOrgConfigCollection, resolveFloorConfig, tightenAllowlist, resolveAccounting, sanitizeAccountingValues, DEFAULT_ACCOUNTING, depreciationAccounts, disposalAccounts, missingAccountingAccounts } = await import("./scoped-config");
 const { putDef, deleteDef } = await import("./def-import");
 
 const now = "2026-07-18T00:00:00.000Z";
@@ -121,4 +121,49 @@ test("sanitizeSchedulingValues validates + normalises (partial, sorted, de-duped
   assert.throws(() => sanitizeSchedulingValues({ workingWeekdays: [] }), /workingWeekdays/);
   assert.throws(() => sanitizeSchedulingValues({ workingWeekdays: [7] }), /workingWeekdays/);
   assert.throws(() => sanitizeSchedulingValues({ holidays: ["25/12/2026"] }), /holidays/);
+});
+
+test("resolveAccounting: code default beneath an org config def, deep-merging the accounts map", () => {
+  try {
+    // Nothing authored ⇒ the code default (empty account codes, factor 2, straight_line).
+    assert.deepEqual(resolveAccounting(), DEFAULT_ACCOUNTING);
+    // An org sets SOME account codes + a 150% DB policy — the accounts map DEEP-merges over the default.
+    putDef({ kind: "org" }, configRow("org~config-accounting", "accounting", {
+      accounts: { depreciationExpense: "6800", accumulatedDepreciation: "1590" },
+      decliningBalanceFactor: 1.5,
+    }));
+    const eff = resolveAccounting();
+    assert.equal(eff.accounts.depreciationExpense, "6800");
+    assert.equal(eff.accounts.accumulatedDepreciation, "1590");
+    assert.equal(eff.accounts.assetCost, ""); // untouched keys keep the default
+    assert.equal(eff.decliningBalanceFactor, 1.5);
+    assert.equal(eff.defaultDepreciationMethod, "straight_line");
+    // A project scope overrides the factor further (nearest wins).
+    putDef({ kind: "project", projectId: "PZ" }, configRow("project~PZ~config-accounting", "accounting", { decliningBalanceFactor: 2 }));
+    assert.equal(resolveAccounting({ projectId: "PZ" }).decliningBalanceFactor, 2);
+    assert.equal(resolveAccounting().decliningBalanceFactor, 1.5); // org scope unchanged
+  } finally {
+    deleteDef({ kind: "org" }, "org~config-accounting");
+    deleteDef({ kind: "project", projectId: "PZ" }, "project~PZ~config-accounting");
+  }
+});
+
+test("accounting account mappers + missing-accounts report feed the depreciation engine", () => {
+  const cfg = { ...DEFAULT_ACCOUNTING, accounts: { depreciationExpense: "6800", accumulatedDepreciation: "1590", assetCost: "1500", disposalProceeds: "1010", gainLossOnDisposal: "7400" } };
+  assert.deepEqual(depreciationAccounts(cfg), { expenseAccount: "6800", accumulatedAccount: "1590" });
+  assert.deepEqual(disposalAccounts(cfg), { assetAccount: "1500", accumulatedAccount: "1590", proceedsAccount: "1010", gainLossAccount: "7400" });
+  assert.deepEqual(missingAccountingAccounts(cfg), []);
+  // A partly-configured org reports exactly which GL codes are still blank.
+  assert.deepEqual(missingAccountingAccounts(DEFAULT_ACCOUNTING), ["depreciationExpense", "accumulatedDepreciation", "assetCost", "disposalProceeds", "gainLossOnDisposal"]);
+});
+
+test("sanitizeAccountingValues validates codes + policy (partial), rejecting bad input", () => {
+  assert.deepEqual(sanitizeAccountingValues({ accounts: { depreciationExpense: " 6800 " } }), { accounts: { depreciationExpense: "6800" } });
+  assert.deepEqual(sanitizeAccountingValues({ decliningBalanceFactor: 1.5 }), { decliningBalanceFactor: 1.5 });
+  assert.deepEqual(sanitizeAccountingValues({ defaultDepreciationMethod: "declining_balance" }), { defaultDepreciationMethod: "declining_balance" });
+  assert.deepEqual(sanitizeAccountingValues({ accounts: { assetCost: "" } }), { accounts: { assetCost: "" } }); // "" clears a code
+  assert.throws(() => sanitizeAccountingValues({ accounts: { depreciationExpense: "has space" } }), /account code/);
+  assert.throws(() => sanitizeAccountingValues({ decliningBalanceFactor: 0.5 }), /decliningBalanceFactor/);
+  assert.throws(() => sanitizeAccountingValues({ decliningBalanceFactor: 5 }), /decliningBalanceFactor/);
+  assert.throws(() => sanitizeAccountingValues({ defaultDepreciationMethod: "nonsense" }), /depreciation method/);
 });

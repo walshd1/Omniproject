@@ -45,6 +45,7 @@ export * from "./container-constraints";
 export * from "./def-refs";
 export * from "./report-catalogue";
 export * from "./num";
+export * from "./depreciation";
 export * from "./sort-filter";
 export * from "./priority-weights";
 export * from "./work-vocabulary";

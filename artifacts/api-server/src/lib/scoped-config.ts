@@ -19,7 +19,9 @@
 import {
   mergeValue,
   cleanDelegationPolicy, isDelegationAllowed, DEFAULT_DELEGATION_POLICY,
+  DEFAULT_DECLINING_BALANCE_FACTOR,
   type DelegationPolicy, type DelegationArea, type DelegationLevel,
+  type DepreciationMethod, type DepreciationAccounts, type DisposalAccounts,
 } from "@workspace/backend-catalogue";
 import { listDefs, listSystemDefs, getDef, putDef, type StoredDef } from "./def-import";
 import { isTruthy } from "./env-config";
@@ -282,4 +284,113 @@ export function sanitizeSchedulingValues(raw: unknown): Partial<SchedulingConfig
  */
 export function resolveScheduling(scopes: ConfigScopes = {}): SchedulingConfig {
   return resolveConfig(SCHEDULING_CONFIG_ID, DEFAULT_SCHEDULING, scopes);
+}
+
+// ── Accounting config (finance org policy) ───────────────────────────────────────────────────────────────────
+// The chart-of-accounts codes + depreciation policy an ORG sets, held as a scope-layered `accounting` config def
+// (system default < org < programme < project < user), exactly like `scheduling`. Finance postings — the
+// depreciation engine's GL journals — read the RESOLVED config instead of carrying baked-in account codes or a
+// hardcoded declining-balance factor: an org's finance variables live in org JSON, not in code.
+
+export const ACCOUNTING_CONFIG_ID = "accounting";
+
+/** The GL account codes a finance posting maps its concepts onto — the org's chart-of-accounts mapping. Empty by
+ *  default (an org authors its own codes); each is validated as an id-safe token when set. */
+export interface AccountingAccounts {
+  /** Depreciation-expense account (debited by a depreciation run). */
+  depreciationExpense: string;
+  /** Accumulated-depreciation contra-asset account (credited by a run, debited on disposal). */
+  accumulatedDepreciation: string;
+  /** Fixed-asset cost account (credited on disposal to remove the asset). */
+  assetCost: string;
+  /** Cash/receivable account disposal proceeds land in (debited on disposal). */
+  disposalProceeds: string;
+  /** Gain-or-loss-on-disposal account. */
+  gainLossOnDisposal: string;
+}
+
+/** Org ACCOUNTING POLICY — the finance variables an org sets that the finance engines read. Scope-layered like
+ *  scheduling; a deployment that authors no `accounting` config def gets these code defaults. */
+export interface AccountingConfig {
+  /** Chart-of-accounts code mapping. */
+  accounts: AccountingAccounts;
+  /** Declining-balance multiplier (2 = double-declining / 200%, 1.5 = 150% DB). */
+  decliningBalanceFactor: number;
+  /** The depreciation method applied when an asset record does not specify one. */
+  defaultDepreciationMethod: DepreciationMethod;
+}
+
+export const DEFAULT_ACCOUNTING: AccountingConfig = {
+  accounts: { depreciationExpense: "", accumulatedDepreciation: "", assetCost: "", disposalProceeds: "", gainLossOnDisposal: "" },
+  decliningBalanceFactor: DEFAULT_DECLINING_BALANCE_FACTOR,
+  defaultDepreciationMethod: "straight_line",
+};
+
+const ACCOUNT_CODE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/; // an id-safe GL code (empty "" = unset)
+const DEPRECIATION_METHODS: ReadonlySet<string> = new Set<DepreciationMethod>(["straight_line", "declining_balance", "units_of_production", "sum_of_years_digits"]);
+const ACCOUNT_KEYS: (keyof AccountingAccounts)[] = ["depreciationExpense", "accumulatedDepreciation", "assetCost", "disposalProceeds", "gainLossOnDisposal"];
+
+/**
+ * Validate + normalise a partial accounting `values` payload (the org admin's edit) into a clean partial: account
+ * codes are id-safe tokens (or "" to unset), the DB factor is in [1, 4], the default method is one of the four.
+ * Throws {@link Error} on an invalid value. Returns only the keys present (a partial config layer).
+ */
+export function sanitizeAccountingValues(raw: unknown): Partial<AccountingConfig> {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) throw new Error("accounting values must be an object");
+  const r = raw as Record<string, unknown>;
+  const out: Partial<AccountingConfig> = {};
+  if (r["accounts"] !== undefined) {
+    const a = r["accounts"];
+    if (!a || typeof a !== "object" || Array.isArray(a)) throw new Error("accounting.accounts must be an object");
+    const acc: Partial<AccountingAccounts> = {};
+    for (const k of ACCOUNT_KEYS) {
+      const v = (a as Record<string, unknown>)[k];
+      if (v === undefined) continue;
+      if (typeof v !== "string") throw new Error(`accounting.accounts.${k} must be a string`);
+      const code = v.trim();
+      if (code !== "" && !ACCOUNT_CODE.test(code)) throw new Error(`accounting.accounts.${k} must be an id-safe account code`);
+      acc[k] = code;
+    }
+    out.accounts = acc as AccountingAccounts; // a partial map; the resolver deep-merges it over the default
+  }
+  if (r["decliningBalanceFactor"] !== undefined) {
+    const f = r["decliningBalanceFactor"];
+    if (typeof f !== "number" || !Number.isFinite(f) || f < 1 || f > 4) throw new Error("accounting.decliningBalanceFactor must be a number in [1, 4]");
+    out.decliningBalanceFactor = f;
+  }
+  if (r["defaultDepreciationMethod"] !== undefined) {
+    const m = r["defaultDepreciationMethod"];
+    if (typeof m !== "string" || !DEPRECIATION_METHODS.has(m)) throw new Error("accounting.defaultDepreciationMethod must be a valid depreciation method");
+    out.defaultDepreciationMethod = m as DepreciationMethod;
+  }
+  return out;
+}
+
+/**
+ * The effective accounting policy at a scope: the code default with every `accounting` config-def layer folded on
+ * top (system < org < programme < project < user), nearest scope winning.
+ */
+export function resolveAccounting(scopes: ConfigScopes = {}): AccountingConfig {
+  return resolveConfig(ACCOUNTING_CONFIG_ID, DEFAULT_ACCOUNTING, scopes);
+}
+
+/** Map the resolved accounting config to the depreciation engine's period-run account params. */
+export function depreciationAccounts(cfg: AccountingConfig): DepreciationAccounts {
+  return { expenseAccount: cfg.accounts.depreciationExpense, accumulatedAccount: cfg.accounts.accumulatedDepreciation };
+}
+
+/** Map the resolved accounting config to the depreciation engine's disposal account params. */
+export function disposalAccounts(cfg: AccountingConfig): DisposalAccounts {
+  return {
+    assetAccount: cfg.accounts.assetCost,
+    accumulatedAccount: cfg.accounts.accumulatedDepreciation,
+    proceedsAccount: cfg.accounts.disposalProceeds,
+    gainLossAccount: cfg.accounts.gainLossOnDisposal,
+  };
+}
+
+/** The GL account codes still blank in the resolved config — the ones an org must set before a depreciation or
+ *  disposal posting can run. Empty array ⇒ the chart-of-accounts mapping is complete. */
+export function missingAccountingAccounts(cfg: AccountingConfig): (keyof AccountingAccounts)[] {
+  return ACCOUNT_KEYS.filter((k) => !cfg.accounts[k]);
 }
