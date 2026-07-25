@@ -8,6 +8,7 @@ import {
   captureReleaseBackup, latestReleaseBackupMeta, proposeRestore,
   ensureRestoreExecutor, ensurePreAdoptBackupHook,
 } from "../lib/release-backup";
+import { startCanary, acceptCanary, rejectCanary, canaryView } from "../lib/release-canary";
 
 /**
  * Release promotion (docs/UPDATE-MECHANISM.md §7, phase 3). `POST /api/admin/release/promote` approves a
@@ -30,6 +31,11 @@ router.get("/admin/release/promotion", requireRole("admin"), (_req, res) => {
 // GET /api/admin/release/backup — non-secret metadata of the stored pre-adopt backup (digest + when).
 router.get("/admin/release/backup", requireRole("admin"), (_req, res) => {
   res.json({ backup: latestReleaseBackupMeta() });
+});
+
+// GET /api/admin/release/canary — the current canary's state (digest under test + accept/reject state).
+router.get("/admin/release/canary", requireRole("admin"), (_req, res) => {
+  res.json({ canary: canaryView() });
 });
 
 // POST /api/admin/release/promote — approve a digest for production. LANE 2 (mountCommand).
@@ -109,5 +115,74 @@ export const restoreCommand: CommandDescriptor<{ digest: string }> = {
   auditMeta: (_req, args) => ({ digest: args.digest }),
 };
 mountCommand(router, restoreCommand);
+
+// POST /api/admin/release/canary — start a canary for a digest: seed an isolated data copy and record
+// `testing`. LANE 2. Admin-only; seeding is a safe read-then-seal (like backup capture), so not gated.
+export const canaryStartCommand: CommandDescriptor<{ digest: string }> = {
+  name: "release.canary.start",
+  method: "post",
+  path: "/admin/release/canary",
+  role: "admin",
+  parse: (req, res) => {
+    const body = (req.body ?? {}) as { digest?: unknown };
+    if (!isDigest(body.digest)) { res.status(400).json({ error: "digest must be a content digest (sha256:…)" }); return null; }
+    return { digest: body.digest };
+  },
+  run: async (req, res, args) => {
+    const outcome = startCanary(contextFromReq(req), args.digest, new Date().toISOString());
+    if (!outcome.started) { res.status(409).json({ started: false, error: outcome.reason }); return undefined; }
+    return { started: true, canary: outcome.canary };
+  },
+  audit: "release.canary.start",
+  auditCategory: "admin",
+  auditMeta: (_req, args) => ({ digest: args.digest }),
+};
+mountCommand(router, canaryStartCommand);
+
+// POST /api/admin/release/canary/accept — accept the canary → promote its digest (funnels the SAME human-only
+// `release.promote` chain). LANE 2, human-only.
+export const canaryAcceptCommand: CommandDescriptor<Record<string, never>> = {
+  name: "release.canary.accept",
+  method: "post",
+  path: "/admin/release/canary/accept",
+  role: "admin",
+  parse: (req, res) => {
+    if (isAutonomous(contextFromReq(req))) { res.status(403).json({ error: "accepting a canary is a human-only action" }); return null; }
+    return {};
+  },
+  run: async (req, res) => {
+    const outcome = await acceptCanary(contextFromReq(req), new Date().toISOString());
+    if (!outcome.accepted) { res.status(409).json({ accepted: false, error: outcome.reason }); return undefined; }
+    if (outcome.promotion?.held) {
+      res.status(202).json({ accepted: true, held: true, pending: outcome.promotion.proposalId, message: "canary accepted — promotion held for approval sign-off" });
+      return undefined;
+    }
+    return { accepted: true, promotion: outcome.promotion };
+  },
+  audit: "release.canary.accept",
+  auditCategory: "admin",
+};
+mountCommand(router, canaryAcceptCommand);
+
+// POST /api/admin/release/canary/reject — reject the canary → discard it (isolated writes dropped). LANE 2,
+// human-only.
+export const canaryRejectCommand: CommandDescriptor<Record<string, never>> = {
+  name: "release.canary.reject",
+  method: "post",
+  path: "/admin/release/canary/reject",
+  role: "admin",
+  parse: (req, res) => {
+    if (isAutonomous(contextFromReq(req))) { res.status(403).json({ error: "rejecting a canary is a human-only action" }); return null; }
+    return {};
+  },
+  run: async (req, res) => {
+    const outcome = rejectCanary(contextFromReq(req), new Date().toISOString());
+    if (!outcome.rejected) { res.status(409).json({ rejected: false, error: outcome.reason }); return undefined; }
+    return { rejected: true, canary: outcome.canary };
+  },
+  audit: "release.canary.reject",
+  auditCategory: "admin",
+};
+mountCommand(router, canaryRejectCommand);
 
 export default router;

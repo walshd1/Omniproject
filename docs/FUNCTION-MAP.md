@@ -3200,6 +3200,19 @@ Auto-backup + digest-bound restore (docs/UPDATE-MECHANISM.md §6, phase 4).
 | `ensurePreAdoptBackupHook` | Wire the pre-adopt auto-backup: a recorded promotion captures the outgoing state before adoption (§6). |
 | `proposeRestore` | Propose a digest-bound restore. |
 
+### `artifacts/api-server/src/lib/release-canary.ts`
+
+Per-org test canary (docs/UPDATE-MECHANISM.md §5, phase 5).
+
+| Function | What it does |
+| --- | --- |
+| `currentCanary` | The current canary record, or null when none is active/decided. |
+| `canaryView` | Non-secret view of the current canary, or null. |
+| `__resetCanary` | Test seam: clear the in-memory + loaded-once state. |
+| `startCanary` | Start a canary for `digest`: seed a sealed copy of the current state (the artifact the deploy layer mounts into the isolated canary volume) and record `testing`. |
+| `acceptCanary` | Accept the canary → promote its digest to production. |
+| `rejectCanary` | Reject the canary → discard it. |
+
 ### `artifacts/api-server/src/lib/release-promotion.ts`
 
 Approval-gated promotion (docs/UPDATE-MECHANISM.md §7, phase 3).
