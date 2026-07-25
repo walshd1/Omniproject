@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import {
   useCreateIssue,
   useListProjects,
@@ -6,6 +6,8 @@ import {
   getListProjectMembersQueryKey,
   type IssueInput,
 } from "@workspace/api-client-react";
+import { parseQuickAdd } from "../lib/quick-add";
+import { splitEntryLines, isMultiLine, MAX_MULTI_ENTRY } from "../lib/multi-entry";
 import { useInvalidateIssueQueries } from "../hooks/use-invalidate-issue-queries";
 import {
   Dialog,
@@ -36,6 +38,10 @@ export function NewTaskDialog({ open, onOpenChange }: { open: boolean; onOpenCha
   const { activeProjectId } = useStore();
 
   const { form, setForm, reset, close: resetOnClose } = useFormDialog({ projectId: "", title: "", status: "todo", priority: "none", assignee: "" });
+  // Multi-entry (auto-split): pending lines from a multi-line paste into the title, awaiting confirm.
+  const [pending, setPending] = useState<string[] | null>(null);
+  const [pendingCut, setPendingCut] = useState(0);
+  const [bulkBusy, setBulkBusy] = useState(false);
 
   // Default the project to the active one (or the first) whenever the dialog opens.
   useEffect(() => {
@@ -56,6 +62,7 @@ export function NewTaskDialog({ open, onOpenChange }: { open: boolean; onOpenCha
   const projectError = form.projectId ? "" : "A task must belong to a project";
   const close = (o: boolean) => {
     resetOnClose(o);
+    if (!o) { setPending(null); setPendingCut(0); }
     onOpenChange(o);
   };
 
@@ -80,6 +87,64 @@ export function NewTaskDialog({ open, onOpenChange }: { open: boolean; onOpenCha
         onError: () => toast({ title: "ERROR", description: "Could not create the task.", variant: "destructive" }),
       },
     );
+  };
+
+  // Build one issue create body from a single pasted line. Reuses the task quick-add parser (#tag @context
+  // !priority ^date); tags → labels, ^date → dueDate. The dialog's explicit priority, when set, overrides
+  // the per-line parse; status + assignee from the dialog are shared across every created task. @context
+  // has no issue field, so it's ignored here.
+  const issueFromLine = (line: string, today: Date): IssueInput => {
+    const parsed = parseQuickAdd(line, today);
+    const prio = form.priority !== "none" ? form.priority : (parsed.priority ?? "none");
+    return {
+      title: parsed.title || line.trim(),
+      status: form.status as NonNullable<IssueInput["status"]>,
+      priority: prio as NonNullable<IssueInput["priority"]>,
+      assignee: form.assignee || null,
+      ...(parsed.tags.length ? { labels: parsed.tags } : {}),
+      ...(parsed.dueDate ? { dueDate: parsed.dueDate } : {}),
+    };
+  };
+
+  // Intercept a MULTI-LINE paste into the title box and offer the split; a single-line paste is untouched.
+  const onTitlePaste = (e: React.ClipboardEvent<HTMLInputElement>) => {
+    const text = e.clipboardData?.getData("text") ?? "";
+    if (!isMultiLine(text)) return;
+    e.preventDefault();
+    const { lines, truncated } = splitEntryLines(text);
+    setPending(lines);
+    setPendingCut(truncated);
+  };
+
+  // Confirm the split: create one issue per line in the selected project, settling ALL (a bad line never
+  // aborts the rest), invalidating once, then reporting partial success.
+  const createMany = async () => {
+    if (!pending || pending.length === 0 || projectError) return;
+    setBulkBusy(true);
+    const today = new Date();
+    const results = await Promise.allSettled(
+      pending.map((line) => create.mutateAsync({ projectId: form.projectId, data: issueFromLine(line, today) })),
+    );
+    setBulkBusy(false);
+    const ok = results.filter((r) => r.status === "fulfilled").length;
+    const failed = results.length - ok;
+    invalidateIssueQueries(form.projectId);
+    if (ok > 0) {
+      toast({ title: `${ok} TASK${ok === 1 ? "" : "S"} CREATED`, ...(failed ? { description: `${failed} could not be created`, variant: "destructive" as const } : {}) });
+      reset();
+      setPending(null);
+      setPendingCut(0);
+      onOpenChange(false);
+    } else {
+      toast({ title: "ERROR", description: "Could not create the tasks.", variant: "destructive" });
+    }
+  };
+
+  // "Add as one" escape hatch: drop the paste back into the title box (joined) instead of splitting.
+  const addAsOne = () => {
+    if (pending) setForm((p) => ({ ...p, title: pending.join(" ") }));
+    setPending(null);
+    setPendingCut(0);
   };
 
   const noProjects = !projects || projects.length === 0;
@@ -114,10 +179,45 @@ export function NewTaskDialog({ open, onOpenChange }: { open: boolean; onOpenCha
             <div className="space-y-1.5">
               <label htmlFor="nt-title" className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Title</label>
               <Input id="nt-title" value={form.title} onChange={(e) => setForm((p) => ({ ...p, title: e.target.value }))}
+                onPaste={onTitlePaste}
                 aria-invalid={form.title.length > 0 && !!titleError ? true : undefined}
-                className="rounded-none border-border font-mono h-11" placeholder="Wire the auth callback" />
+                className="rounded-none border-border font-mono h-11" placeholder="Wire the auth callback — or paste a list" />
               {form.title.length > 0 && titleError && <p role="alert" className="text-xs font-bold text-red-500">{titleError}</p>}
             </div>
+
+            {/* Multi-entry / auto-split preview — after a multi-line paste, confirm to create one task per line. */}
+            {pending && (
+              <div role="region" aria-label="Multi-task preview" className="rounded-none border border-border bg-muted/30 p-3 space-y-2">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-sm font-bold">{pending.length} task{pending.length === 1 ? "" : "s"} detected</span>
+                  <span className="text-xs text-muted-foreground">— one per line, in this project</span>
+                </div>
+                {pendingCut > 0 && (
+                  <p className="text-xs font-bold text-amber-600">Only the first {MAX_MULTI_ENTRY} lines will be added — {pendingCut} more were left out.</p>
+                )}
+                <ul className="max-h-40 overflow-auto divide-y divide-border border border-border text-sm bg-card">
+                  {pending.map((line, i) => {
+                    const p = parseQuickAdd(line, new Date());
+                    return (
+                      <li key={i} className="flex flex-wrap items-center gap-2 px-2 py-1">
+                        <span className="tabular-nums text-xs text-muted-foreground w-6">{i + 1}.</span>
+                        <span className="flex-1">{p.title || line}</span>
+                        {p.priority && p.priority !== "none" && <span className="text-[10px] uppercase tracking-wide border border-border px-1">{p.priority}</span>}
+                        {p.tags.map((t) => <span key={t} className="text-[10px] font-mono text-muted-foreground">#{t}</span>)}
+                        {p.dueDate && <span className="text-[10px] font-mono text-muted-foreground">due {p.dueDate}</span>}
+                      </li>
+                    );
+                  })}
+                </ul>
+                <div className="flex flex-wrap gap-2">
+                  <Button type="button" className="rounded-none uppercase font-bold tracking-wider text-xs" onClick={createMany} disabled={bulkBusy || !!projectError}>
+                    {bulkBusy ? "Creating…" : `Create ${pending.length} task${pending.length === 1 ? "" : "s"}`}
+                  </Button>
+                  <Button type="button" variant="outline" className="rounded-none uppercase font-bold tracking-wider text-xs" onClick={addAsOne} disabled={bulkBusy}>Add as one</Button>
+                  <Button type="button" variant="ghost" className="rounded-none uppercase font-bold tracking-wider text-xs" onClick={() => { setPending(null); setPendingCut(0); }} disabled={bulkBusy}>Cancel</Button>
+                </div>
+              </div>
+            )}
 
             {assignable.length > 0 && (
               <div className="space-y-1.5">
