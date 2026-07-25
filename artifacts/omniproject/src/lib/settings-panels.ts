@@ -14,7 +14,7 @@ export const SETTINGS_PANEL_KEYS = [
   "raci", "stakeholders", "guestInvite", "forms", "automations", "templates", "screens", "customReports", "customBackend",
   "contentPages", "priorityWeights", "federatedPeers", "governanceRules", "fieldVisibility",
   "governanceDashboard", "governance", "users", "passkeySecurity", "recoveryKey", "roleMap", "customRoles", "defPolicy", "aiProviders", "aiAllowlists", "actionCatalogue", "a11y", "calendarPush", "labels",
-  "priorityLabels", "viewBuilder", "methodologyComposer", "performance", "scheduling", "accounting", "usageLimits",
+  "priorityLabels", "viewBuilder", "methodologyComposer", "performance", "scheduling", "usageLimits",
 ] as const;
 
 export type SettingsPanelKey = (typeof SETTINGS_PANEL_KEYS)[number];

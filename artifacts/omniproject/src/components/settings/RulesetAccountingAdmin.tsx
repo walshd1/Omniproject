@@ -1,33 +1,28 @@
 import { useEffect, useState } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
 import { Landmark } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { getJson, sendJson } from "../../lib/api";
+import { sendJson } from "../../lib/api";
 import {
-  accountingOrgKey, accountingResolvedKey, ACCOUNTING_ACCOUNT_FIELDS, DEPRECIATION_METHODS,
+  useRulesetAccounting, rulesetAccountingKey, ACCOUNTING_ACCOUNT_FIELDS, DEPRECIATION_METHODS,
   DEPRECIATION_METHOD_LABELS, isValidAccountCode, isValidDbFactor,
-  type RawAccountingConfig, type AccountingAccounts, type DepreciationMethod,
-} from "../../lib/accounting-settings";
+  type AccountingAccounts, type DepreciationMethod,
+} from "../../lib/ruleset-accounting";
 
 /**
- * Admin control for the org's ACCOUNTING POLICY — the chart-of-accounts codes the finance postings map onto plus
- * the depreciation policy (declining-balance factor + default method). The policy is a scope-layered `accounting`
- * config def, not a settings key: this reads the org-scope values from `GET /api/accounting` and writes them with
- * `PUT /api/accounting`. The depreciation engine reads the RESOLVED policy, so an org's finance variables live in
- * org JSON, not in code. Admin/PMO.
+ * Accounting policy — the finance-CONFIG facet of the business-ruleset governance (chart-of-accounts codes + the
+ * depreciation policy the fixed-asset engine applies). Not a standalone settings panel: it is a section of the
+ * ruleset/methodology governance surface (PMO authority), reading `GET /api/admin/ruleset/accounting` and writing
+ * `PUT /api/admin/ruleset/accounting`. Programme/project overrides ride the ruleset scope-override editor above.
  */
 
 const EMPTY_ACCOUNTS: AccountingAccounts = {
   depreciationExpense: "", accumulatedDepreciation: "", assetCost: "", disposalProceeds: "", gainLossOnDisposal: "",
 };
 
-export function AccountingSettingsAdmin() {
-  const { data: orgConfig } = useQuery({
-    queryKey: accountingOrgKey,
-    queryFn: () => getJson<{ accounting: RawAccountingConfig }>("/api/accounting"),
-    staleTime: 15_000,
-  });
-  const raw = orgConfig?.accounting;
+export function RulesetAccountingAdmin() {
+  const { data } = useRulesetAccounting();
+  const raw = data?.accounting;
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
@@ -36,7 +31,6 @@ export function AccountingSettingsAdmin() {
   const [method, setMethod] = useState<DepreciationMethod>("straight_line");
   const [saving, setSaving] = useState(false);
 
-  // Seed the editor from the org config once it arrives (and whenever it changes under us).
   useEffect(() => {
     if (!raw) return;
     if (raw.accounts) setAccounts({ ...EMPTY_ACCOUNTS, ...raw.accounts });
@@ -61,15 +55,9 @@ export function AccountingSettingsAdmin() {
       disposalProceeds: accounts.disposalProceeds.trim(),
       gainLossOnDisposal: accounts.gainLossOnDisposal.trim(),
     };
-    const accounting: RawAccountingConfig = {
-      accounts: trimmed,
-      decliningBalanceFactor: factorNum,
-      defaultDepreciationMethod: method,
-    };
     try {
-      await sendJson("/api/accounting", { accounting }, "PUT");
-      queryClient.invalidateQueries({ queryKey: accountingOrgKey });
-      queryClient.invalidateQueries({ queryKey: accountingResolvedKey });
+      await sendJson("/api/admin/ruleset/accounting", { accounts: trimmed, decliningBalanceFactor: factorNum, defaultDepreciationMethod: method }, "PUT");
+      queryClient.invalidateQueries({ queryKey: rulesetAccountingKey });
       const set = ACCOUNTING_ACCOUNT_FIELDS.filter((f) => accounts[f.key].trim()).length;
       toast({ title: "ACCOUNTING POLICY SAVED", description: `${set}/${ACCOUNTING_ACCOUNT_FIELDS.length} accounts · ${factorNum}× DB · ${DEPRECIATION_METHOD_LABELS[method]}` });
     } catch {
@@ -80,7 +68,7 @@ export function AccountingSettingsAdmin() {
   };
 
   return (
-    <section data-testid="accounting-settings">
+    <section data-testid="ruleset-accounting" className="mt-8">
       <div className="flex items-center gap-3 mb-4">
         <Landmark className="w-4 h-4 text-muted-foreground" />
         <h2 className="text-sm font-black uppercase tracking-widest text-muted-foreground">Accounting policy</h2>
@@ -89,8 +77,9 @@ export function AccountingSettingsAdmin() {
       <div className="bg-card border border-border p-4 space-y-5">
         <p className="text-xs text-muted-foreground">
           The general-ledger accounts finance postings map onto, and the depreciation policy the fixed-asset
-          engine applies. Scope-layered org config — a programme or project may override it. Leave an account
-          blank until you know its code; a depreciation posting can't run until the accounts it needs are set.
+          engine applies — a governance facet alongside the business rules above. A programme or project can
+          override it via the scope editor. Leave an account blank until you know its code; a depreciation posting
+          can't run until the accounts it needs are set.
         </p>
 
         <div>

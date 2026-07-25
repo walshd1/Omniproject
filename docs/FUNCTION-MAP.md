@@ -717,6 +717,18 @@ History-retention vocabulary — the durable time-series layer that lets the sel
 
 Server entrypoint.
 
+### `artifacts/api-server/src/lib/accounting-policy.ts`
+
+ACCOUNTING POLICY — the org-set finance variables the ledger postings read: the chart-of-accounts code map plus the depreciation policy (declining-balance factor + default method).
+
+| Function | What it does |
+| --- | --- |
+| `sanitizeAccountingValues` | Validate + normalise a partial accounting `values` payload (the admin's edit) into a clean PARTIAL: account codes are id-safe tokens (or "" to unset), the DB factor is in [1, 4], the default method is one of the four. |
+| `foldAccounting` | Fold a partial accounting OVERRIDE onto a base, OVERRIDE-style (nearest wins): each supplied account code replaces the base's, the factor/method replace when present. |
+| `depreciationAccounts` | Map the resolved accounting config to the depreciation engine's period-run account params. |
+| `disposalAccounts` | Map the resolved accounting config to the depreciation engine's disposal account params. |
+| `missingAccountingAccounts` | The GL account codes still blank in a resolved config — the ones an org must set before a depreciation or disposal posting can run. |
+
 ### `artifacts/api-server/src/lib/action-base.ts`
 
 LANE 2 — the generic ACTION base.
@@ -3459,7 +3471,7 @@ SCOPED RULESET OVERLAY — lets a programme or project TIGHTEN the org's busines
 | `stricterMode` | The stricter of two modes (used to tighten, never loosen). |
 | `tightenModes` | Fold an override's MODES onto a base, keeping only the stricter mode per rule (tighten-only). |
 | `tightenFieldRules` | Fold an override's FIELD RULES onto a base. |
-| `resolveEffectiveRuleset` | Resolve the EFFECTIVE ruleset for a request scope: the org baseline, tightened by the programme override (if any), then the project override (if any) — system < org < programme < project, each only able to make things stricter. |
+| `resolveEffectiveRuleset` | Resolve the EFFECTIVE finance governance for a request scope: the org baseline, folded by the programme override (if any), then the project override (if any) — system < org < programme < project. |
 | `getRulesetOverride` | The stored override for one scope (for an admin UI to read/edit), or undefined. |
 | `setRulesetOverride` | Persist a scope's ruleset override (already delegation-gated by the caller). |
 
@@ -3469,6 +3481,10 @@ Business ruleset engine — EXTRA, admin-configurable rules layered ON TOP of th
 
 | Function | What it does |
 | --- | --- |
+| `getAccounting` | The org baseline accounting policy (a defensive copy). |
+| `setAccounting` | Admin sets the org baseline accounting policy — a validated PARTIAL folded onto the current baseline (an account code / factor / method is replaced; absent keys are untouched). |
+| `resolveScopedAccounting` | The EFFECTIVE accounting policy for a scope — the org baseline folded with any programme/project override (nearest wins), resolved through the same governance path as the rule modes. |
+| `accountingCatalogue` | The org baseline accounting policy + which GL codes are still unset — for the ruleset admin surface. |
 | `getFieldRules` | The current admin-authored field rules (a defensive copy). |
 | `setFieldRules` | Admin replaces the field-rule set. |
 | `getRuleModes` | The effective mode of every rule (configured, else its default). |
@@ -3614,11 +3630,6 @@ SCOPED CONFIG RESOLUTION — the reusable vehicle for the model migration (roadm
 | `resolveErrorTelemetry` | — |
 | `sanitizeSchedulingValues` | Validate + normalise a partial scheduling `values` payload (the org admin's working-time edit) into a clean partial: hours/day in (0,24], working weekdays a non-empty set of integers 0–6 (a week with no working day would make the scheduler's day arithmetic non-terminating), holidays a de-duped sorted list of ISO dates. |
 | `resolveScheduling` | The effective working-time policy at a scope: the code default with every `scheduling` config-def layer folded on top (system < org < programme < project < user), nearest scope winning. |
-| `sanitizeAccountingValues` | Validate + normalise a partial accounting `values` payload (the org admin's edit) into a clean partial: account codes are id-safe tokens (or "" to unset), the DB factor is in [1, 4], the default method is one of the four. |
-| `resolveAccounting` | The effective accounting policy at a scope: the code default with every `accounting` config-def layer folded on top (system < org < programme < project < user), nearest scope winning. |
-| `depreciationAccounts` | Map the resolved accounting config to the depreciation engine's period-run account params. |
-| `disposalAccounts` | Map the resolved accounting config to the depreciation engine's disposal account params. |
-| `missingAccountingAccounts` | The GL account codes still blank in the resolved config — the ones an org must set before a depreciation or disposal posting can run. |
 
 ### `artifacts/api-server/src/lib/screen-def.ts`
 
@@ -4340,10 +4351,6 @@ Minimal, dependency-free STORED (uncompressed) ZIP writer.
 ### `artifacts/api-server/src/routes/accessibility.ts`
 
 The ORG-wide accessibility DEFAULTS — a partial UserPrefs the org sets as everyone's starting point (a default font, reduced motion for a sensitive environment, …).
-
-### `artifacts/api-server/src/routes/accounting.ts`
-
-The ORG ACCOUNTING POLICY — chart-of-accounts codes + depreciation policy — held in the composition model as a scope-layered `accounting` config def (NOT a settings key — see lib/scoped-config), exactly like `scheduling`.
 
 ### `artifacts/api-server/src/routes/ai-allowlist.ts`
 

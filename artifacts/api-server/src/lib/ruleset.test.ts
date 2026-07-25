@@ -1,6 +1,6 @@
 import { test, afterEach } from "node:test";
 import assert from "node:assert/strict";
-import { evaluateRuleset, setRuleModes, getRuleModes, rulesetCatalogue, resetRuleModes, BUSINESS_RULES, setFieldRules, getFieldRules, applyRuleset } from "./ruleset";
+import { evaluateRuleset, setRuleModes, getRuleModes, rulesetCatalogue, resetRuleModes, BUSINESS_RULES, setFieldRules, getFieldRules, applyRuleset, getAccounting, setAccounting, resolveScopedAccounting, accountingCatalogue } from "./ruleset";
 import { getReferenceRuleset, referenceRulesetCatalogue } from "@workspace/backend-catalogue";
 
 afterEach(() => resetRuleModes());
@@ -192,4 +192,24 @@ test("finance: no new invoice/quote to a customer on credit hold", () => {
   assert.equal(evaluateRuleset({ action: "create_quote", write: true, role: "manager", payload: { creditHold: true } }).allow, false);
   assert.equal(evaluateRuleset({ action: "create_invoice", write: true, role: "manager", payload: { creditHold: false } }).allow, true);
   assert.equal(evaluateRuleset({ action: "create_invoice", write: true, role: "manager", payload: {} }).allow, true);
+});
+
+test("accounting policy is part of the governance baseline — default, override, and missing-accounts report", () => {
+  // Default baseline: empty GL codes, 200% DB, straight-line.
+  assert.deepEqual(accountingCatalogue().missingAccounts, ["depreciationExpense", "accumulatedDepreciation", "assetCost", "disposalProceeds", "gainLossOnDisposal"]);
+  assert.equal(getAccounting().decliningBalanceFactor, 2);
+
+  // An admin sets some codes + a 150% DB policy — a validated partial folded onto the baseline (override, not tighten).
+  setAccounting({ accounts: { depreciationExpense: "6800", accumulatedDepreciation: "1590" }, decliningBalanceFactor: 1.5 });
+  const cfg = getAccounting();
+  assert.equal(cfg.accounts.depreciationExpense, "6800");
+  assert.equal(cfg.accounts.assetCost, ""); // untouched
+  assert.equal(cfg.decliningBalanceFactor, 1.5);
+  assert.deepEqual(accountingCatalogue().missingAccounts, ["assetCost", "disposalProceeds", "gainLossOnDisposal"]);
+
+  // resolveScopedAccounting with no scope returns the org baseline (same governance path as the rule modes).
+  assert.deepEqual(resolveScopedAccounting(), cfg);
+  // A bad value is rejected, not silently applied.
+  assert.throws(() => setAccounting({ decliningBalanceFactor: 9 }), /decliningBalanceFactor/);
+  assert.equal(getAccounting().decliningBalanceFactor, 1.5); // unchanged after the rejected write
 });

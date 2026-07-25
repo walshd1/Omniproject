@@ -41,7 +41,6 @@ import { ViewBuilder } from "../../components/settings/ViewBuilder";
 import { MethodologyComposer } from "../../components/settings/MethodologyComposer";
 import { PerformanceSettings } from "../../components/settings/PerformanceSettings";
 import { SchedulingSettingsAdmin } from "../../components/settings/SchedulingSettingsAdmin";
-import { AccountingSettingsAdmin } from "../../components/settings/AccountingSettingsAdmin";
 import { UsageLimitsAdmin } from "../../components/settings/UsageLimitsAdmin";
 import { GovernanceAdmin } from "../../components/settings/GovernanceAdmin";
 import { ActionCatalogue } from "../../components/settings/ActionCatalogue";
@@ -185,7 +184,6 @@ const ADMIN_PANELS: AdminPanel[] = [
   { key: "methodologyComposer", Component: MethodologyComposer, wrap: "section" },
   { key: "performance", Component: PerformanceSettings },
   { key: "scheduling", Component: SchedulingSettingsAdmin },
-  { key: "accounting", Component: AccountingSettingsAdmin },
   { key: "usageLimits", Component: UsageLimitsAdmin },
 ];
 
