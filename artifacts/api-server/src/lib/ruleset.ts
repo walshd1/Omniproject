@@ -168,6 +168,13 @@ export const BUSINESS_RULES: BusinessRule[] = [
       && lower(c.payload?.["approvalState"]) === "approved" && lower(c.payload?.["matchStatus"]) !== "matched",
     message: () => "A bill cannot be approved until it is matched to its purchase order and goods receipt (business rule).",
   },
+  {
+    // Finance superset F18 — no new AR to a customer on credit hold.
+    id: "finance-credit-hold", label: "No new billing to a customer on credit hold",
+    description: "Block a new invoice or quote when the customer is on credit hold.", defaultMode: "off",
+    applies: (c) => (c.action === "create_invoice" || c.action === "create_quote") && c.payload?.["creditHold"] === true,
+    message: () => "The customer is on credit hold — new invoices/quotes are blocked until the hold is cleared (business rule).",
+  },
 ];
 
 /**
