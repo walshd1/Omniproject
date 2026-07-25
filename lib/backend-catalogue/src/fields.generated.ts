@@ -1318,6 +1318,76 @@ export const FIELDS_DATA: FieldDescriptor[] = [
     "entity": "journal_entry"
   },
   {
+    "key": "bankAccountName",
+    "label": "Bank account",
+    "type": "string",
+    "group": "financial",
+    "entity": "bank_account"
+  },
+  {
+    "key": "bankAccountNumber",
+    "label": "Account number",
+    "type": "string",
+    "group": "financial",
+    "entity": "bank_account"
+  },
+  {
+    "key": "bankAccountBalance",
+    "label": "Bank balance",
+    "type": "currency",
+    "group": "financial",
+    "entity": "bank_account"
+  },
+  {
+    "key": "bankTxnDate",
+    "label": "Transaction date",
+    "type": "date",
+    "group": "financial",
+    "entity": "bank_transaction"
+  },
+  {
+    "key": "bankTxnAmount",
+    "label": "Transaction amount",
+    "type": "currency",
+    "group": "financial",
+    "entity": "bank_transaction"
+  },
+  {
+    "key": "bankTxnReconciled",
+    "label": "Reconciled",
+    "type": "boolean",
+    "group": "financial",
+    "entity": "bank_transaction"
+  },
+  {
+    "key": "fxFromCurrency",
+    "label": "FX from currency",
+    "type": "string",
+    "group": "financial",
+    "entity": "fx_rate"
+  },
+  {
+    "key": "fxToCurrency",
+    "label": "FX to currency",
+    "type": "string",
+    "group": "financial",
+    "entity": "fx_rate"
+  },
+  {
+    "key": "fxRate",
+    "label": "Exchange rate",
+    "type": "number",
+    "group": "financial",
+    "entity": "fx_rate"
+  },
+  {
+    "key": "fxRateDate",
+    "label": "FX rate date",
+    "type": "date",
+    "group": "financial",
+    "entity": "fx_rate"
+  },
+  {
     "key": "invoiceNumber",
     "label": "Invoice Number",
     "type": "string",
