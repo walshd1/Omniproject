@@ -1,5 +1,5 @@
 import type { BackendManifest, ActionMapping, ContractAction, KeyFormat } from "@workspace/backend-catalogue";
-import { validateVendor, getBackend, ACTION_KINDS, VERIFICATION_STATUSES } from "@workspace/backend-catalogue";
+import { validateVendor, getBackend, ACTION_KINDS, VERIFICATION_STATUSES, BACKEND_RECORD_TYPES } from "@workspace/backend-catalogue";
 import { safeParseJson } from "./safe-json";
 import { downloadJson } from "./custom-report-file";
 
@@ -41,6 +41,7 @@ export const CAPABILITY_DOMAINS = [
   "quality", "crm", "service", "benefits", "stakeholders", "raci",
 ] as const;
 
+export { BACKEND_RECORD_TYPES };
 export const KEY_SCHEMES: NonNullable<KeyFormat["scheme"]>[] = ["psk", "bearer", "apiKey", "basic", "oauth2", "per-user", "none"];
 export const BACKEND_KINDS: NonNullable<BackendManifest["kind"]>[] = ["live", "import", "database"];
 export { VERIFICATION_STATUSES };
@@ -70,6 +71,8 @@ export interface BackendDraft {
   id: string;
   label: string;
   docsUrl: string;
+  /** The primary record this backend owns (`issue` | `invoice`) — decides which contract read verbs it must map. */
+  primaryRecord: BackendManifest["primaryRecord"];
   verification: BackendManifest["verification"];
   via: string;
   requiredEnv: string[];
@@ -93,6 +96,8 @@ export function emptyBackendDraft(): BackendDraft {
     id: "",
     label: "",
     docsUrl: "",
+    // Most authored backends are project/issue tools; a billing system of record switches this to "invoice".
+    primaryRecord: "issue",
     // A self-authored draft has no track record yet — default to the least-trusted
     // status; the admin can upgrade it once they've actually run it against a
     // live instance (or leave it "catalogued" if cloning a shipped definition).
@@ -151,6 +156,9 @@ export function toDraft(value: Record<string, unknown>): BackendDraft {
     id: typeof value["id"] === "string" ? value["id"] : "",
     label: typeof value["label"] === "string" ? value["label"] : "",
     docsUrl: typeof value["docsUrl"] === "string" ? value["docsUrl"] : "",
+    primaryRecord: (BACKEND_RECORD_TYPES as readonly string[]).includes(value["primaryRecord"] as string)
+      ? (value["primaryRecord"] as BackendDraft["primaryRecord"])
+      : base.primaryRecord,
     verification: (VERIFICATION_STATUSES as readonly string[]).includes(value["verification"] as string)
       ? (value["verification"] as BackendDraft["verification"])
       : base.verification,
@@ -234,6 +242,7 @@ function buildManifest(draft: BackendDraft): { manifest: Record<string, unknown>
     id: draft.id.trim(),
     label: draft.label.trim(),
     docsUrl: draft.docsUrl.trim(),
+    primaryRecord: draft.primaryRecord,
     verification: draft.verification,
     via: draft.via.trim(),
     requiredEnv: draft.requiredEnv.map((e) => e.trim()).filter(Boolean),
