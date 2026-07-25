@@ -6,6 +6,8 @@ import { deliverDigestEmail } from "./digest-delivery";
 import type { Mailer } from "./email";
 import { recordAudit } from "./audit";
 import { logger } from "./logger";
+import { resolveIntervalHours, type ScheduledJob } from "./job-scheduler";
+import { getBroker } from "../broker";
 
 /**
  * Scheduled executive digest — a periodic, read-only portfolio roll-up delivered over the
@@ -87,19 +89,21 @@ export async function runExecDigest(opts: RunDigestOptions): Promise<ExecDigest>
   return digest;
 }
 
-let timer: ReturnType<typeof setInterval> | null = null;
-
-/** Start the in-process digest timer when EXEC_DIGEST_INTERVAL_HOURS > 0 (single-instance).
- *  Returns true if started. Errors in a run are logged, never fatal. */
-export function startExecDigestScheduler(run: () => Promise<unknown>): boolean {
-  const hours = Number(process.env["EXEC_DIGEST_INTERVAL_HOURS"]);
-  if (!Number.isFinite(hours) || hours <= 0) return false;
-  if (timer) clearInterval(timer);
-  timer = setInterval(() => { void run().catch((err) => logger.warn({ err }, "exec-digest run failed")); }, hours * 60 * 60 * 1000);
-  if (typeof timer.unref === "function") timer.unref(); // don't keep the process alive for the timer
-  logger.info({ everyHours: hours }, "exec-digest: scheduled in-process (single-instance; use the trigger endpoint + external cron for a fleet)");
-  return true;
+/** The configured cadence in hours (0 = disabled, the default — opt in with EXEC_DIGEST_INTERVAL_HOURS>0). */
+export function execDigestIntervalHours(): number {
+  return resolveIntervalHours("EXEC_DIGEST_INTERVAL_HOURS", 0);
 }
 
-/** Test-only: stop the timer. */
-export function __stopExecDigestScheduler(): void { if (timer) { clearInterval(timer); timer = null; } }
+/**
+ * The unified-scheduler job for the executive digest. OFF by default; enabled when
+ * `EXEC_DIGEST_INTERVAL_HOURS`>0. Registered once at boot — the shared heartbeat runs it, claim-once, so a
+ * fleet dispatches exactly one digest per occurrence rather than one per replica.
+ */
+export function execDigestScheduledJob(): ScheduledJob {
+  return {
+    id: "exec-digest",
+    label: "executive portfolio digest",
+    resolveSchedule: () => { const hours = execDigestIntervalHours(); return hours > 0 ? { kind: "interval", hours } : null; },
+    run: (now) => runExecDigest({ now, broker: getBroker() }),
+  };
+}

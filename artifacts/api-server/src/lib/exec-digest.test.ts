@@ -1,9 +1,9 @@
 import { test, afterEach } from "node:test";
 import assert from "node:assert/strict";
-import { buildExecDigest, runExecDigest, startExecDigestScheduler, __stopExecDigestScheduler } from "./exec-digest";
+import { buildExecDigest, runExecDigest, execDigestScheduledJob } from "./exec-digest";
 import type { Broker, PortfolioRow } from "../broker/types";
 
-afterEach(() => { delete process.env["EXEC_DIGEST_INTERVAL_HOURS"]; __stopExecDigestScheduler(); });
+afterEach(() => { delete process.env["EXEC_DIGEST_INTERVAL_HOURS"]; });
 
 const rows: PortfolioRow[] = [
   { projectId: "p1", projectName: "Alpha", ragStatus: "green", scheduleVarianceDays: 0, budgetVariancePercentage: 2, activeBlockersCount: 0 },
@@ -34,8 +34,10 @@ test("runExecDigest reads under an autonomous principal and dispatches one notif
   assert.equal(digest.stats.atRisk, 2);
 });
 
-test("the scheduler is off unless EXEC_DIGEST_INTERVAL_HOURS > 0", () => {
-  assert.equal(startExecDigestScheduler(async () => {}), false);
+test("the scheduled job is disabled unless EXEC_DIGEST_INTERVAL_HOURS > 0", () => {
+  const job = execDigestScheduledJob();
+  assert.equal(job.id, "exec-digest");
+  assert.equal(job.resolveSchedule(), null); // off by default
   process.env["EXEC_DIGEST_INTERVAL_HOURS"] = "6";
-  assert.equal(startExecDigestScheduler(async () => {}), true);
+  assert.deepEqual(job.resolveSchedule(), { kind: "interval", hours: 6 });
 });

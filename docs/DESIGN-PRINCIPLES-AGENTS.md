@@ -219,9 +219,14 @@ Format: each principle is a RULE + how to CHECK it + the usual FIX.
   restart forgets — a re-run posts nothing new.
 - RULE: Exactly-once across a fleet — claim each unit (`sharedKv.cas`) BEFORE acting; a lost claim means another
   tick/replica owns it, so skip. A claim outage fails CLOSED (don't act), never double-fires.
-- RULE: The in-process interval timer (`createIntervalScheduler`, env-hours, `0` = off) is an opt-out
-  single-instance convenience; a fleet sets it to 0 and drives the `…/run` endpoint from external cron.
-- CHECK: A job keyed on module/in-memory state; acting before the claim; a "run twice" path that re-posts.
+- RULE: There is ONE scheduler (`lib/job-scheduler.ts`). A recurring job is a `ScheduledJob` (interval OR cron)
+  registered via `registerScheduledJob` / `registerScheduledJobProvider` — never a new bespoke `setInterval`.
+  The single heartbeat computes each job's due occurrences (epoch-anchored interval boundaries / absolute UTC
+  cron minutes — deterministic across replicas) and claims each before running.
+- RULE: Because occurrences are claim-once, the in-process heartbeat is SAFE on every replica; it stays opt-out
+  (`SCHEDULER_HEARTBEAT_MINUTES=0`), and a fleet may instead drive `runDueScheduledJobs` from external cron.
+- CHECK: A new `setInterval` for recurring work instead of a `ScheduledJob`; a job keyed on module/in-memory
+  state; acting before the claim; a non-deterministic (boot-relative) occurrence that breaks the shared claim.
 
 ---
 

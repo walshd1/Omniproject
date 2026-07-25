@@ -435,9 +435,16 @@ Two disciplines. **Idempotency:** the "already done" marker lives in the **syste
 write-back on the record itself (e.g. an asset's `depreciationThroughDate`), never an in-memory flag a restart
 forgets — so a re-run recomputes the same slice and posts nothing new. **Exactly-once across a fleet:** claim
 each unit of work once (a compare-and-set on the shared KV) *before* acting, so overlapping ticks or N replicas
-do the work once, not N times; a claim outage fails **closed** (skip), never double-fires. The in-process
-interval timer is an opt-out convenience for a single instance — a fleet sets it to zero and drives the job from
-an external cron hitting one `…/run` endpoint. A job that isn't idempotent is a double-post waiting for a retry.
+do the work once, not N times; a claim outage fails **closed** (skip), never double-fires. There is **one
+scheduler** (`artifacts/api-server/src/lib/job-scheduler.ts`): every recurring unit — the infra jobs (exec /
+proactive digests, scheduled export, drift canary) and the user's schedule-triggered automation recipes alike —
+is a `ScheduledJob` declaring an interval **or** a cron, and a single heartbeat computes each job's due
+*occurrences* (epoch-anchored interval boundaries, or absolute UTC cron minutes — deterministic, so every
+replica agrees) and claims each before running. Because occurrences are claim-once, the in-process timer is
+**safe on every replica** (no more "set it to zero on all but one"); it stays an opt-out convenience
+(`SCHEDULER_HEARTBEAT_MINUTES=0` disables it and a fleet drives the jobs from an external cron). A job that
+isn't idempotent is a double-post waiting for a retry; a scheduler with N bespoke timers is N places to get that
+wrong — hence one.
 
 ---
 

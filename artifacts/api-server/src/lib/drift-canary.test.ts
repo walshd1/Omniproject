@@ -6,8 +6,7 @@ import {
   recentDriftFindings,
   __resetDriftCanaryState,
   driftCanaryIntervalHours,
-  startDriftCanaryScheduler,
-  __stopDriftCanaryScheduler,
+  driftCanaryScheduledJob,
   type CanarySnapshot,
 } from "./drift-canary";
 import type { Broker, VerifyReport } from "../broker/types";
@@ -20,7 +19,6 @@ import type { Broker, VerifyReport } from "../broker/types";
  */
 afterEach(() => {
   __resetDriftCanaryState();
-  __stopDriftCanaryScheduler();
   delete process.env["DRIFT_CANARY_INTERVAL_HOURS"];
 });
 
@@ -171,9 +169,11 @@ test("driftCanaryIntervalHours: defaults to 6, respects env, falls back on garba
   assert.equal(driftCanaryIntervalHours(), 6);
 });
 
-test("startDriftCanaryScheduler: 0 hours opts out; a positive value starts the timer", () => {
+test("driftCanaryScheduledJob: 0 hours disables the job; a positive value schedules it", () => {
+  const job = driftCanaryScheduledJob();
+  assert.equal(job.id, "drift-canary");
   process.env["DRIFT_CANARY_INTERVAL_HOURS"] = "0";
-  assert.equal(startDriftCanaryScheduler(async () => {}), false);
+  assert.equal(job.resolveSchedule(), null);
   process.env["DRIFT_CANARY_INTERVAL_HOURS"] = "1";
-  assert.equal(startDriftCanaryScheduler(async () => {}), true);
+  assert.deepEqual(job.resolveSchedule(), { kind: "interval", hours: 1 });
 });

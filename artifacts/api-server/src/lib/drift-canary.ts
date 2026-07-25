@@ -1,7 +1,9 @@
 import type { ActorContext, Broker, VerifyReport } from "../broker/types";
 import { logger } from "./logger";
 import { reconcileFields, type EnumeratedField, type FieldReconciliation } from "./field-registry";
-import { runScheduledAutonomousJob, createIntervalScheduler } from "./scheduled-job";
+import { runScheduledAutonomousJob } from "./scheduled-job";
+import { resolveIntervalHours, type ScheduledJob } from "./job-scheduler";
+import { getBroker } from "../broker";
 
 /**
  * Third-party API drift canary.
@@ -201,23 +203,22 @@ export async function runDriftCanary(opts: RunDriftCanaryOptions): Promise<RunDr
 // operator opts OUT by setting DRIFT_CANARY_INTERVAL_HOURS=0, mirroring proactive-digest.
 const DEFAULT_INTERVAL_HOURS = 6;
 
-const scheduler = createIntervalScheduler("DRIFT_CANARY_INTERVAL_HOURS", DEFAULT_INTERVAL_HOURS, "drift-canary");
-
 /** The configured cadence in hours: the env override when a valid non-negative number,
  *  else the 6-hour default. 0 = disabled (opt-out). */
 export function driftCanaryIntervalHours(): number {
-  return scheduler.intervalHours();
+  return resolveIntervalHours("DRIFT_CANARY_INTERVAL_HOURS", DEFAULT_INTERVAL_HOURS);
 }
 
 /**
- * Start the in-process canary timer (single-instance / homelab). ON by the 6-hour
- * default; `DRIFT_CANARY_INTERVAL_HOURS=0` turns it OFF. Errors in a run are logged,
- * never fatal. For a fleet, set the interval to 0 and drive it from an external
- * scheduler hitting the trigger endpoint, so it fires once rather than once per replica.
+ * The unified-scheduler job for the drift canary. ON by the 6-hour default; disabled when
+ * `DRIFT_CANARY_INTERVAL_HOURS=0`. Registered once at boot — the shared heartbeat runs it, claim-once, so a
+ * fleet fires exactly one canary per occurrence rather than one per replica.
  */
-export function startDriftCanaryScheduler(run: () => Promise<unknown>): boolean {
-  return scheduler.start(run);
+export function driftCanaryScheduledJob(): ScheduledJob {
+  return {
+    id: "drift-canary",
+    label: "third-party API drift canary",
+    resolveSchedule: () => { const hours = driftCanaryIntervalHours(); return hours > 0 ? { kind: "interval", hours } : null; },
+    run: (now) => runDriftCanary({ now, broker: getBroker() }),
+  };
 }
-
-/** Test-only: stop the timer. */
-export function __stopDriftCanaryScheduler(): void { scheduler.stop(); }

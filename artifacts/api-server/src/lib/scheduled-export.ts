@@ -5,7 +5,8 @@ import { stampSource } from "../broker/identity";
 import { DATASET_META, EXPORT_FORMATS, type RenderableDataset } from "./export-datasets";
 import { deliverExportEmail } from "./digest-delivery";
 import type { Mailer } from "./email";
-import { createIntervalScheduler } from "./scheduled-job";
+import { resolveIntervalHours, type ScheduledJob } from "./job-scheduler";
+import { getBroker } from "../broker";
 import { recordAudit } from "./audit";
 import { logger } from "./logger";
 import { poolMap } from "./concurrency-pool";
@@ -96,19 +97,21 @@ export async function runScheduledExport(opts: RunScheduledExportOptions): Promi
   return { dataset, format, rows: rows.length, emailed };
 }
 
-// Off by default — an operator opts IN with SCHEDULED_EXPORT_INTERVAL_HOURS>0.
-const scheduler = createIntervalScheduler("SCHEDULED_EXPORT_INTERVAL_HOURS", 0, "scheduled-export");
-
-/** The configured cadence in hours (0 = disabled, the default). */
+/** The configured cadence in hours (0 = disabled, the default — opt in with SCHEDULED_EXPORT_INTERVAL_HOURS>0). */
 export function scheduledExportIntervalHours(): number {
-  return scheduler.intervalHours();
+  return resolveIntervalHours("SCHEDULED_EXPORT_INTERVAL_HOURS", 0);
 }
 
-/** Start the in-process export timer when SCHEDULED_EXPORT_INTERVAL_HOURS>0 (single-instance).
- *  Returns true if started. For a fleet, use the trigger endpoint + external cron. */
-export function startScheduledExportScheduler(run: () => Promise<unknown>): boolean {
-  return scheduler.start(run);
+/**
+ * The unified-scheduler job for the scheduled export. OFF by default; enabled when
+ * `SCHEDULED_EXPORT_INTERVAL_HOURS`>0. Registered once at boot — the shared heartbeat runs it, claim-once, so a
+ * fleet emails exactly one export per occurrence rather than one per replica.
+ */
+export function scheduledExportScheduledJob(): ScheduledJob {
+  return {
+    id: "scheduled-export",
+    label: "scheduled data export",
+    resolveSchedule: () => { const hours = scheduledExportIntervalHours(); return hours > 0 ? { kind: "interval", hours } : null; },
+    run: (now) => runScheduledExport({ now, broker: getBroker() }),
+  };
 }
-
-/** Test-only: stop the timer. */
-export function __stopScheduledExportScheduler(): void { scheduler.stop(); }

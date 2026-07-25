@@ -1890,8 +1890,7 @@ Third-party API drift canary.
 | `__resetDriftCanaryState` | Test-only: clear the baseline snapshot + findings ring. |
 | `runDriftCanary` | Run the canary: snapshot the broker's read-only surface, diff against the last snapshot, and dispatch a notification (kind "integration_drift", targeted at admins) when something broke or a field disappeared. |
 | `driftCanaryIntervalHours` | The configured cadence in hours: the env override when a valid non-negative number, else the 6-hour default. |
-| `startDriftCanaryScheduler` | Start the in-process canary timer (single-instance / homelab). |
-| `__stopDriftCanaryScheduler` | Test-only: stop the timer. |
+| `driftCanaryScheduledJob` | The unified-scheduler job for the drift canary. |
 
 ### `artifacts/api-server/src/lib/dsar.ts`
 
@@ -2025,8 +2024,8 @@ Scheduled executive digest — a periodic, read-only portfolio roll-up delivered
 | --- | --- |
 | `buildExecDigest` | Build the digest from portfolio rows (pure). |
 | `runExecDigest` | Read the portfolio under a keyed autonomous principal, build the digest, and dispatch it. |
-| `startExecDigestScheduler` | Start the in-process digest timer when EXEC_DIGEST_INTERVAL_HOURS > 0 (single-instance). |
-| `__stopExecDigestScheduler` | Test-only: stop the timer. |
+| `execDigestIntervalHours` | The configured cadence in hours (0 = disabled, the default — opt in with EXEC_DIGEST_INTERVAL_HOURS>0). |
+| `execDigestScheduledJob` | The unified-scheduler job for the executive digest. |
 
 ### `artifacts/api-server/src/lib/export-datasets.ts`
 
@@ -2436,6 +2435,22 @@ Correct (not string-prefix) containment checks for the link-local / cloud-metada
 | `isPrivateOrLoopbackIPv6` | IPv6 literal → true if loopback (::1), unique-local (fc00::/7), or an IPv4-mapped private/loopback v4. |
 | `isPrivateOrLoopbackIp` | Is a resolved DNS address in a private/loopback range (opt-in hardened egress)? |
 | `isPrivateOrLoopbackHostLiteral` | Is `host` (lower-cased, brackets stripped) a private/loopback IP literal? A plain hostname is not a literal — its resolved addresses are checked separately with `isPrivateOrLoopbackIp`. |
+
+### `artifacts/api-server/src/lib/job-scheduler.ts`
+
+UNIFIED JOB SCHEDULER — the one place background work is scheduled across the whole gateway.
+
+| Function | What it does |
+| --- | --- |
+| `resolveIntervalHours` | Resolve an interval cadence in hours from an env var: the override when it parses as a finite, non-negative number, else the default. |
+| `occurrencesInWindow` | The distinct occurrence timestamps (ms) at which `schedule` fires in `(sinceMs, nowMs]` (PURE, deterministic). |
+| `registerScheduledJob` | Register a static scheduled job (an infra job). |
+| `registerScheduledJobProvider` | Register a provider of dynamic jobs (e.g. the automation recipes), re-resolved fresh each tick. |
+| `__clearScheduledJobRegistry` | Test-only: drop all registrations. |
+| `runDueScheduledJobs` | Fire every registered job's occurrences due in `(sinceMs, nowMs]`. |
+| `jobSchedulerHeartbeatMinutes` | The heartbeat cadence in minutes: the SCHEDULER_HEARTBEAT_MINUTES override when a valid positive number, else 60. |
+| `startJobScheduler` | Start the single in-process heartbeat that drives every registered job. |
+| `stopJobScheduler` | Stop the heartbeat (tests / shutdown). |
 
 ### `artifacts/api-server/src/lib/jql.ts`
 
@@ -2970,8 +2985,7 @@ Proactive "what needs me" digest.
 | `buildProactiveDigest` | Build the "what needs me" digest from portfolio rows (PURE). |
 | `runProactiveDigest` | Read the portfolio under a keyed autonomous principal, build the "what needs me" digest, and dispatch it over the notify bus (kind "digest") targeted at the recipient role — unless it's empty (then it's skipped, so a healthy portfolio never pings). |
 | `digestIntervalHours` | The configured cadence in hours: the env override when a valid non-negative number, else the weekly default. |
-| `startProactiveDigestScheduler` | Start the in-process digest timer (single-instance / homelab). |
-| `__stopProactiveDigestScheduler` | Test-only: stop the timer. |
+| `proactiveDigestScheduledJob` | The unified-scheduler job for the proactive digest. |
 
 ### `artifacts/api-server/src/lib/process-guards.ts`
 
@@ -3261,6 +3275,14 @@ Recurring-task engine — the PURE next-occurrence computer.
 ### `artifacts/api-server/src/lib/redis-bus.ts`
 
 Shared Redis Pub/Sub fan-out base.
+
+### `artifacts/api-server/src/lib/register-scheduled-jobs.ts`
+
+The composition root for scheduled work: registers every background job with the unified {@link job-scheduler} exactly once.
+
+| Function | What it does |
+| --- | --- |
+| `registerScheduledJobs` | The composition root for scheduled work: registers every background job with the unified {@link job-scheduler} exactly once. |
 
 ### `artifacts/api-server/src/lib/registry.ts`
 
@@ -3576,13 +3598,11 @@ How long a pending SP-initiated AuthnRequest id stays valid for InResponseTo mat
 
 ### `artifacts/api-server/src/lib/schedule-dispatcher.ts`
 
-SCHEDULE DISPATCHER — the time-driven half of the rules engine, the counterpart to the event-driven rules-dispatcher.
+SCHEDULE PROVIDER — the time-driven half of the rules engine, expressed as jobs for the unified {@link job-scheduler}.
 
 | Function | What it does |
 | --- | --- |
-| `dispatchScheduledRecipes` | Fire every enabled schedule-triggered recipe whose cron matched a minute in `(sinceMs, nowMs]`. |
-| `startScheduleDispatcher` | Start the schedule dispatcher's opt-in in-process timer. |
-| `stopScheduleDispatcher` | Stop the dispatcher's timer (tests / shutdown). |
+| `recipeScheduledJobs` | SCHEDULE PROVIDER — the time-driven half of the rules engine, expressed as jobs for the unified {@link job-scheduler}. |
 
 ### `artifacts/api-server/src/lib/scheduled-export.ts`
 
@@ -3591,9 +3611,8 @@ Scheduled data export — periodically renders a dataset (projects / issues / ac
 | Function | What it does |
 | --- | --- |
 | `runScheduledExport` | Render + email one scheduled export. |
-| `scheduledExportIntervalHours` | The configured cadence in hours (0 = disabled, the default). |
-| `startScheduledExportScheduler` | Start the in-process export timer when SCHEDULED_EXPORT_INTERVAL_HOURS>0 (single-instance). |
-| `__stopScheduledExportScheduler` | Test-only: stop the timer. |
+| `scheduledExportIntervalHours` | The configured cadence in hours (0 = disabled, the default — opt in with SCHEDULED_EXPORT_INTERVAL_HOURS>0). |
+| `scheduledExportScheduledJob` | The unified-scheduler job for the scheduled export. |
 
 ### `artifacts/api-server/src/lib/scheduled-job.ts`
 
@@ -3602,7 +3621,6 @@ Shared skeleton behind every scheduled autonomous job (proactive-digest, drift-c
 | Function | What it does |
 | --- | --- |
 | `runScheduledAutonomousJob` | Run one scheduled autonomous job and return its result plus whether it dispatched a notification. |
-| `createIntervalScheduler` | The shared "env-var hours → setInterval → unref → stoppable timer" bootstrap behind every scheduled job's in-process cadence: an env-var override in hours (0 = opt out), a self-unref'd interval so it never keeps the process alive, and a run's errors logged (never fatal, never lost). |
 
 ### `artifacts/api-server/src/lib/scim.ts`
 
