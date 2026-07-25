@@ -197,6 +197,20 @@ Data outlives code, so **new code must read old data**:
    the currently-approved digest the deploy layer pins (`RELEASE_EXPECTED_DIGEST`, §2). The
    repoint-to-prod itself remains a deploy-layer act on the approved digest.
 4. **Auto-backup + restore.** Pre-adopt snapshot; one-command restore bound to a digest rollback.
+   **— BUILT.** `lib/release-backup.ts` captures the COMPLETE current state — the sealed full backup
+   (settings + defs + ai-providers/rate-card/audit stores, `full-backup.ts`) PLUS the **security state**
+   (keys/grants/containment/kill/maintenance/role-map, the leg no existing backup carried) — and tags it with
+   the running **code digest** (`loadSignedRelease().manifest.digest`). It is persisted sealed at rest under
+   the deployment key (`RELEASE_BACKUP_FILE`, via the `SealedFile` pattern). The capture fires automatically
+   the moment a promotion is recorded (`setPromotionRecordedHook`), so the OUTGOING (still-good) state is
+   snapshotted before the new digest is adopted — best-effort, so a backup failure never voids a promotion.
+   Restore is **bound to a digest**: `POST /api/admin/release/restore` is refused unless the rollback target
+   equals the digest the backup was taken under, so only the data-state belonging to the code you roll back to
+   can be restored. Restore overwrites live state, so — like promotion — it is admin + **human-only** and held
+   for a passkey-signed chain when one is bound to `release.restore`; the decision is audited
+   (`release.backup.restored`). `POST /api/admin/release/backup` captures on demand; `GET /api/admin/release/backup`
+   reads the stored backup's non-secret metadata (digest + when). The code-rollback half (repoint prod to the
+   previous signed digest) remains a deploy-layer act on that same digest.
 5. **Per-org test canary.** Spawn the new digest against an isolated data copy; tear down on
    accept/reject.
 6. **Signed migration runner.** Only if/when a release needs a data-shape change that isn't forward-safe.

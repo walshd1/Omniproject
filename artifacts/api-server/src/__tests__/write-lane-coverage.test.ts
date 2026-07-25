@@ -54,7 +54,7 @@ import {
   setupEnvironmentCreateCommand, setupEnvironmentActivateCommand, setupPromoteCommand,
   setupVersionKnownGoodCommand, setupRollbackCommand,
 } from "../routes/setup/environments";
-import { promoteCommand } from "../routes/release";
+import { promoteCommand, backupCaptureCommand, restoreCommand } from "../routes/release";
 import { collectionWriteRoutes } from "../lib/settings-collection-router";
 
 /**
@@ -183,6 +183,8 @@ const LANE2 = new Set<string>([
   ...commandRoutes(createProjectCommand),
   ...commandRoutes(createTaskItemCommand),
   ...commandRoutes(promoteCommand),
+  ...commandRoutes(backupCaptureCommand),
+  ...commandRoutes(restoreCommand),
 ]);
 
 // Lane 3 — hand-written writes not (yet) on a spine. SEED — regenerate by running the first test with this

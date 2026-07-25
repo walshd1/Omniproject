@@ -915,7 +915,10 @@ Release promotion (docs/UPDATE-MECHANISM.md §7, phase 3).
 | Method | Path | Gate | Description |
 | --- | --- | --- | --- |
 | GET | `/api/admin/release/promotion` | requireRole(admin) | — |
+| GET | `/api/admin/release/backup` | requireRole(admin) | GET /api/admin/release/backup — non-secret metadata of the stored pre-adopt backup (digest + when). |
 | POST | `/api/admin/release/promote` | requireRole(admin) | POST /api/admin/release/promote — approve a digest for production. |
+| POST | `/api/admin/release/backup` | requireRole(admin) | POST /api/admin/release/backup — capture a pre-adopt backup NOW, tagged with the running digest. |
+| POST | `/api/admin/release/restore` | requireRole(admin) | POST /api/admin/release/restore — restore the pre-adopt backup, BOUND to a rollback digest. |
 
 ### `artifacts/api-server/src/routes/report-overrides.ts`
 
