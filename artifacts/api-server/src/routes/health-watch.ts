@@ -1,8 +1,7 @@
 import { Router, type Response } from "express";
 import { requireRole, ROLES, type Role } from "../lib/rbac";
 import { getBroker } from "../broker";
-import { deliverLocal } from "../lib/notify-hub";
-import { runHealthWatch, recentFindings, type HealthFinding } from "../lib/health-watch";
+import { runHealthWatch, recentFindings, deliverHealthFinding } from "../lib/health-watch";
 import { runExecDigest } from "../lib/exec-digest";
 import { runProactiveDigest } from "../lib/proactive-digest";
 import { runScheduledExport } from "../lib/scheduled-export";
@@ -29,16 +28,8 @@ async function runJob(res: Response, label: string, fn: () => Promise<unknown>):
   }
 }
 
-/** Turn a finding into a delivered notification (broadcast to connected clients). */
-function notify(f: HealthFinding): void {
-  deliverLocal({
-    title: `${f.severity === "critical" ? "🔴" : "🟠"} ${f.projectName}: ${f.message}`,
-    severity: f.severity,
-    source: "health-watch",
-    projectId: f.projectId,
-    at: f.at,
-  });
-}
+/** The health-watch notify sink, shared with the scheduled job (single delivery implementation). */
+const notify = deliverHealthFinding;
 
 router.post("/health-watch/run", requireRole("admin"), (_req, res) =>
   runJob(res, "health-watch", async () => {
