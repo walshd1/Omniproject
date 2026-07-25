@@ -172,10 +172,30 @@ Data outlives code, so **new code must read old data**:
 ## 11. Build phases
 
 1. **Sign + verify at boot.** Sign the release image by digest; verify signature + digest at the
-   entrypoint (fail-closed). *No workflow change yet — just provenance.*
+   entrypoint (fail-closed). *No workflow change yet — just provenance.* **— BUILT.**
+   `lib/release-provenance.ts` verifies a signed `ReleaseManifest` (version / gitSha / digest) against
+   a trusted release public key (`RELEASE_PUBLIC_KEY`) at boot; `RELEASE_VERIFY` gates enforcement
+   (`off` default / `warn` / `strict` = refuse to boot an unattested or tampered build). The release side
+   signs via `src/tools/sign-release.ts` with the release private key (never shipped). Reuses the existing
+   Ed25519 `lib/signing` verify path. CI wiring (produce + bake the signed manifest) is intentionally
+   deferred to a workflow change.
 2. **Promote-by-digest record + admission check.** Promotion sets prod to a digest; admission verifies
-   it. Mutable tags become human-facing aliases only.
+   it. Mutable tags become human-facing aliases only. **— BUILT.** A signed `PromotionRecord` names the
+   approved digest (`sign-promotion` tool). `admitBuild(manifest, promotion, key)` admits a build only when
+   both signatures verify AND the build's digest equals the promoted digest (fail-closed). At boot,
+   `verifyReleaseProvenance` also enforces `RELEASE_EXPECTED_DIGEST` — the running build's digest must match
+   the environment's approved digest, so a same-tag rebuild is refused. The k8s admission-policy / entrypoint
+   wiring that calls `admitBuild` is deferred to a deploy change.
 3. **Approval-gated promotion.** Wire promotion through the approval-chain (passkey sign-off), audited.
+   **— BUILT.** `POST /api/admin/release/promote` (`routes/release.ts`, Lane 2 `mountCommand`) approves a
+   digest for production. It is admin-only and **human-only** — an autonomous/agentic actor is refused (403).
+   `lib/release-promotion.ts` funnels the decision through the existing approval machinery via
+   `proposeIfBound(release.promote, …)`: bound to a chain it is HELD as a passkey-signed proposal (202,
+   params only — never code) and recorded only when the chain reaches sign-off (registered executor);
+   unbound it records immediately. Either path writes `release.promoted` to the hash-chained audit log, so
+   which digest was promoted, by whom, and when is non-repudiable. `GET /api/admin/release/promotion` reads
+   the currently-approved digest the deploy layer pins (`RELEASE_EXPECTED_DIGEST`, §2). The
+   repoint-to-prod itself remains a deploy-layer act on the approved digest.
 4. **Auto-backup + restore.** Pre-adopt snapshot; one-command restore bound to a digest rollback.
 5. **Per-org test canary.** Spawn the new digest against an isolated data copy; tear down on
    accept/reject.

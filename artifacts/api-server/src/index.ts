@@ -21,6 +21,7 @@ import { startProactiveDigestScheduler, runProactiveDigest } from "./lib/proacti
 import { startScheduledExportScheduler, runScheduledExport } from "./lib/scheduled-export";
 import { startDriftCanaryScheduler, runDriftCanary } from "./lib/drift-canary";
 import { startRulesDispatcher } from "./lib/rules-dispatcher";
+import { enforceReleaseProvenanceAtBoot } from "./lib/release-provenance";
 import { loadConfigDir } from "./lib/config-dir";
 import { assertSessionSecretForLocalPrincipals } from "./lib/session-secret-guard";
 import { localUsersActive } from "./lib/user-directory";
@@ -56,6 +57,11 @@ if (readCacheEnabled()) {
 // ready), THEN read the config directory and the broker-log bus, THEN serve. A KMS/unwrap
 // failure is logged (not fatal) inside bootstrap(); a hard config-read failure surfaces here.
 async function start(): Promise<void> {
+  // Release provenance (docs/UPDATE-MECHANISM.md §4) — verify this build is a signed, attested release
+  // before doing ANY work. Off by default (RELEASE_VERIFY unset); `strict` refuses to boot an unattested
+  // or tampered build (fail-closed), `warn` logs and continues.
+  enforceReleaseProvenanceAtBoot();
+
   await bootstrap();
 
   // Load this deployment's config directory (OMNI_CONFIG_DIR) BEFORE serving, so the vendor

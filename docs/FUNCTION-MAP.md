@@ -3183,6 +3183,43 @@ ORG REGISTRY server logic (org-wide store of APPROVED bespoke items) — the aut
 | `approvedRegistryItems` | Every APPROVED item (optionally of a kind) — the reuse hook the app draws curated building blocks from. |
 | `communityRegistryItems` | Every item RELEASED to the community — what a connected online marketplace would publish. |
 
+### `artifacts/api-server/src/lib/release-promotion.ts`
+
+Approval-gated promotion (docs/UPDATE-MECHANISM.md §7, phase 3).
+
+| Function | What it does |
+| --- | --- |
+| `isDigest` | — |
+| `approvedPromotion` | The digest currently approved for production (or null). |
+| `__resetPromotion` | Test seam: clear the recorded promotion. |
+| `recordApprovedPromotion` | Record that a digest is APPROVED for production — the actual promotion decision, audited. |
+| `runPromotionExecutor` | The "apply once approved" body for a promotion proposal — records the approved digest from the proposal's params (params only ever travel the approval queue, never code). |
+| `ensurePromotionExecutor` | Register the approval executor so a bound, passkey-approved promotion actually records on sign-off. |
+| `proposePromotion` | Propose a promotion. |
+
+### `artifacts/api-server/src/lib/release-provenance.ts`
+
+Release provenance — the "sign + verify at boot" foundation of the update mechanism (docs/UPDATE-MECHANISM.md §4, phase 1).
+
+| Function | What it does |
+| --- | --- |
+| `releaseVerifyMode` | How strictly to enforce provenance at boot. |
+| `releasePublicKeyPem` | The trusted release verification key (SPKI PEM), from `RELEASE_PUBLIC_KEY` (PEM, or base64-DER SPKI). |
+| `canonicalManifest` | The canonical message a signature covers: the manifest as compact JSON with SORTED keys, so signing and verification agree byte-for-byte regardless of property order. |
+| `signReleaseManifest` | Sign a manifest with a release PRIVATE key — the release/CI side (used by scripts/sign-release). |
+| `buildSignedRelease` | Build a {@link SignedRelease} from a manifest + a private key PEM/seed (release-side convenience). |
+| `parseSignedRelease` | Parse + shape-check an untrusted signed-release object (dropping anything malformed). |
+| `loadSignedRelease` | Load the baked signed release: inline JSON in `RELEASE_MANIFEST`, else the file at `RELEASE_MANIFEST_FILE` (default `./release.json`). |
+| `verifyRelease` | Does this signed release verify against the trusted public key? Pure; never throws. |
+| `expectedDigest` | The digest the current environment has PROMOTED (the approved production build) — from `RELEASE_EXPECTED_DIGEST`, set by the deploy/admission layer from the promotion record (§3, phase 2). |
+| `verifyReleaseProvenance` | Verify this build's provenance AND promote-by-digest admission. |
+| `enforceReleaseProvenanceAtBoot` | Boot gate: verify provenance and enforce the mode. |
+| `canonicalPromotion` | Canonical signed message for a promotion — sorted-key compact JSON, like {@link canonicalManifest}. |
+| `buildSignedPromotion` | Sign a promotion record with the release/promotion PRIVATE key (PEM/DER/seed). |
+| `verifyPromotion` | Verify a signed promotion against the trusted public key. |
+| `parseSignedPromotion` | Parse + shape-check an untrusted signed promotion (dropping anything malformed). |
+| `admitBuild` | The ADMISSION check (§3, phase 2): should this build be admitted to production? Both the build's signed manifest AND the signed promotion must verify against the trusted key, and the build's digest must EQUAL the promoted digest. |
+
 ### `artifacts/api-server/src/lib/reminder-sweep.ts`
 
 Active reminder delivery.
@@ -4550,6 +4587,10 @@ Rate card + hashed identity→role map + project types, and the server-side staf
 
 Parse the activation target from a review body — org-wide by default, or a programme/project to CONFINE the activated primitive to (downward-only).
 
+### `artifacts/api-server/src/routes/release.ts`
+
+Release promotion (docs/UPDATE-MECHANISM.md §7, phase 3).
+
 ### `artifacts/api-server/src/routes/report-overrides.ts`
 
 Metadata overrides for the built-in (catalogue) reports.
@@ -4782,6 +4823,14 @@ Timesheet STORE seam — where timesheets live is BELOW the seam (the operator's
 | `resetTimesheetStore` | Reset to no store — used by tests to isolate. |
 | `timesheetStoreFor` | The store for a scope, or null. |
 | `describeTimesheetSources` | Report which timesheet sources a deployment COULD use, for the UI to explain availability: - self-host: adoption is on (settings.selfHost.mode !== "off"); - backend: a backend-source provider is registered. |
+
+### `artifacts/api-server/src/tools/sign-promotion.ts`
+
+Promotion-signing CLI (docs/UPDATE-MECHANISM.md §3, phase 2) — records "production = this digest".
+
+### `artifacts/api-server/src/tools/sign-release.ts`
+
+Release-signing CLI (docs/UPDATE-MECHANISM.md §4, phase 1) — the release/CI side of provenance.
 
 ## Backend catalogue (`lib/backend-catalogue`)
 
