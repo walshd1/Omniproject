@@ -215,6 +215,41 @@ export async function dispatchDomainEvent(
   return result;
 }
 
+/** The outcome of dispatching ONE recipe (schedule path) — mirrors the per-recipe branches of the event path. */
+export type RecipeRunOutcome = "ran" | "deferredApproval" | "deniedNoGrant" | "failed";
+
+/**
+ * Run ONE schedule-triggered recipe now (the schedule dispatcher's per-recipe step) through the SAME grant-gated
+ * path the event dispatch uses. A schedule recipe has no triggering entity, so the subject is empty and there is
+ * no cascade parent. Mutating recipes run as the autonomous `rule_<id>` principal (default-deny under the grant,
+ * held first if an approval chain is bound); inform-only recipes run under a plain `automation` actor. Never
+ * throws — the outcome is returned for the dispatcher's summary.
+ */
+export async function runScheduledRecipe(recipe: AutomationRecipe): Promise<RecipeRunOutcome> {
+  if (recipeMutates(recipe)) {
+    try {
+      ensureRuleExecutor(recipe.id);
+      const proposalId = await proposeIfBound(ruleRunAction(recipe.id), { recipeId: recipe.id, subject: {} }, "schedule");
+      if (proposalId) { logger.info({ recipe: recipe.id, proposalId }, "schedule-dispatcher: mutating recipe held for approval"); return "deferredApproval"; }
+      await runRecipeAutonomously(recipe, {});
+      logger.info({ recipe: recipe.id }, "schedule-dispatcher: mutating recipe ran under grant");
+      return "ran";
+    } catch (err) {
+      if (err instanceof AutonomousWriteDenied) { logger.info({ recipe: recipe.id, reason: err.message }, "schedule-dispatcher: mutating recipe denied (no autonomous grant)"); return "deniedNoGrant"; }
+      logger.warn({ err, recipe: recipe.id }, "schedule-dispatcher: mutating recipe failed");
+      return "failed";
+    }
+  }
+  try {
+    await runWorkflow(compileRecipe(recipe), effectsForActor({ sub: "automation" }, "automation"));
+    logger.info({ recipe: recipe.id }, "schedule-dispatcher: recipe ran");
+    return "ran";
+  } catch (err) {
+    logger.warn({ err, recipe: recipe.id }, "schedule-dispatcher: recipe run failed");
+    return "failed";
+  }
+}
+
 let started = false;
 
 /** Register the dispatcher as a domain-event handler (idempotent). No-op unless the engine is enabled, so

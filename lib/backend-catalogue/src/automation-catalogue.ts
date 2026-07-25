@@ -137,6 +137,10 @@ export const AUTOMATION_ACTIONS: ActionDef[] = [
   { kind: "set-status", label: "Set the status", mutating: true, requires: { kind: "project-write" }, effect: "broker.writeIssue", surface: "issue" },
   { kind: "assign", label: "Assign to a person", mutating: true, requires: { kind: "project-write" }, effect: "broker.writeIssue", surface: "issue" },
   { kind: "create-issue", label: "Create a work item", mutating: true, requires: { kind: "project-write" }, effect: "broker.writeIssue", surface: "issue" },
+  // Finance — an ORG-level posting action (not a project work-item write): run the fixed-asset depreciation
+  // period-run. Its effect (`finance.runDepreciation`) reads the register + posts balanced GL journals through
+  // the grant-gated command edge, so like every mutating action it runs only under an autonomous grant.
+  { kind: "run-depreciation", label: "Post fixed-asset depreciation", mutating: true, requires: { kind: "collection", collection: "accounting" }, effect: "finance.runDepreciation" },
 ];
 
 const actionById = new Map(AUTOMATION_ACTIONS.map((a) => [a.kind, a]));

@@ -1,6 +1,8 @@
 import type { Request } from "express";
-import { getBroker, contextFromReq, type Broker, type ActorContext } from "../broker";
+import { getBroker, contextFromReq, brokerCommand, type Broker, type ActorContext } from "../broker";
 import type { IssueWrite } from "../broker/types";
+import { runDepreciationPosting } from "./depreciation-effect";
+import { resolveScopedAccounting } from "./ruleset";
 import { getNotifyBus } from "./notify-bus";
 import { getSettings } from "./settings";
 import { registerApprovalExecutor } from "./approval-service";
@@ -71,6 +73,15 @@ export function makeEffects(deps: EffectDeps, opts: EffectOptions = {}): Workflo
         const input: Record<string, unknown> = {};
         for (const [k, v] of Object.entries(params)) if (!META_KEYS.has(k)) input[k] = v;
         return deps.broker.writeIssue(deps.ctx, op, input as unknown as IssueWrite);
+      }
+      case "finance.runDepreciation": {
+        if (!opts.allowWrites) throw new WorkflowRunError(`action "${action}" is not permitted here (a finance posting runs only on the autonomous, grant-gated rules path)`);
+        // The org accounting policy (GL accounts + depreciation policy) is resolved from the ruleset governance;
+        // each journal/write-back posts through the AUTONOMOUS-GUARDED command edge, so it lands only inside the
+        // rule actor's admin-declared grant for create_journal_entry / update_fixed_asset (default-deny). `asOf`
+        // defaults to today (UTC); a recipe may pin a date.
+        const asOf = /^\d{4}-\d{2}-\d{2}$/.test(String(params["asOf"] ?? "")) ? String(params["asOf"]) : new Date().toISOString().slice(0, 10);
+        return runDepreciationPosting((a, p) => brokerCommand(deps.ctx, a, p, "depreciation"), resolveScopedAccounting(), asOf);
       }
       default:
         throw new WorkflowRunError(`action "${action}" is not permitted in a workflow (reads + notify only; a mutation needs an approval-gated step)`);

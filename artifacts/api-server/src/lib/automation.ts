@@ -76,8 +76,9 @@ export function validateAutomations(value: unknown): AutomationRecipe[] {
       if (!def) throw new AutomationError(`recipe "${id}" has an unknown action "${str(a["kind"])}"`);
       const params = (a["params"] && typeof a["params"] === "object" && !Array.isArray(a["params"])) ? (a["params"] as Record<string, unknown>) : {};
       for (const k of Object.keys(params)) if (isForbiddenKey(k)) delete params[k];
-      // A project-write action inside an org recipe must name a project; a project recipe binds it implicitly.
-      if (def.mutating && scope.kind === "org" && !str(params["projectId"])) throw new AutomationError(`recipe "${id}" action "${def.kind}" needs a projectId (org-scoped recipe)`);
+      // A PROJECT-WRITE action inside an org recipe must name a project (a project recipe binds it implicitly).
+      // Org-level actions (e.g. a finance posting) carry no project and are exempt.
+      if (def.mutating && def.requires.kind === "project-write" && scope.kind === "org" && !str(params["projectId"])) throw new AutomationError(`recipe "${id}" action "${def.kind}" needs a projectId (org-scoped recipe)`);
       return { kind: def.kind, params };
     });
 
