@@ -2323,6 +2323,9 @@ Invoice Ninja bridge — phase 1 (docs/design/INVOICE-NINJA.md).
 | `ninjaCommand` | Dispatch an invoice contract verb through the broker to the Invoice Ninja backend. |
 | `parseNinjaResult` | Parse an Invoice Ninja create/update response into the external ref we store back on the local invoice. |
 | `pushInvoice` | Push a local invoice to the Invoice Ninja backend: create it, or UPDATE it in place when it already carries an Invoice Ninja external ref (idempotent re-push). |
+| `invoiceNinjaWebhookSecret` | The shared secret the inbound Invoice Ninja payment webhook must present (via n8n). |
+| `ninjaSystemContext` | The session-less actor context for a webhook-driven state change — invoices are org/project scoped (never personal), so no `sub` is needed to resolve their store; this only labels the audit trail (`updatedBy`) and marks the change as automation-initiated. |
+| `parseNinjaWebhook` | Pull the local invoice id out of an inbound Invoice Ninja webhook by its `omni:<id>` correlation (the `custom_value1` we stamped on push). |
 
 ### `artifacts/api-server/src/lib/invoice.ts`
 
@@ -2343,6 +2346,7 @@ INVOICE server logic (roadmap 3.3) — the authoritative sanitiser + storage acc
 | `applyInvoiceExternalRef` | Record the external billing-system pointer after a successful push (phase 2). |
 | `mergeInvoiceRow` | Apply an UPDATE, preserving id/owner/storage/status/timestamps; totals recomputed. |
 | `applyInvoiceStatus` | Move an invoice to `next` status (assumes the transition was validated by {@link canTransitionInvoice}). |
+| `paidTransitionChain` | The status steps to drive an invoice to `paid` from its current status, or `null` when it can't be paid (a void invoice). |
 | `invoiceMeta` | The metadata view of an invoice (lines dropped) — the list projection. |
 
 ### `artifacts/api-server/src/lib/ip-allow.ts`
@@ -4539,6 +4543,10 @@ The /api router assembly — mounts every route module in order and applies the 
 ### `artifacts/api-server/src/routes/integrations.ts`
 
 BI / observability integration endpoints.
+
+### `artifacts/api-server/src/routes/invoice-ninja-webhook.ts`
+
+Invoice Ninja INBOUND payment webhook (phase 4, docs/design/INVOICE-NINJA.md).
 
 ### `artifacts/api-server/src/routes/invoices.ts`
 

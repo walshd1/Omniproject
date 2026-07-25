@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import type { Invoice, InvoiceLine } from "./invoice";
 import {
   invoiceNinjaSyncEnabled, toNinjaInvoice, toNinjaLine, ninjaCorrelation, parseNinjaCorrelation,
-  parseNinjaResult,
+  parseNinjaResult, parseNinjaWebhook, invoiceNinjaWebhookSecret, ninjaSystemContext,
 } from "./invoice-ninja";
 import { applyInvoiceExternalRef, newInvoiceRow, invoiceMeta, type InvoiceExternalRef } from "./invoice";
 
@@ -98,4 +98,44 @@ test("a new invoice row starts unsynced; applyInvoiceExternalRef records the ref
   assert.deepEqual(synced.externalRef, ref);
   assert.equal(synced.version, row.version + 1);
   assert.deepEqual(invoiceMeta(synced).externalRef, ref);
+});
+
+// ── Phase 4: inbound payment webhook ─────────────────────────────────────────────────────────────────
+
+test("parseNinjaWebhook pulls the omni id from custom_value1 at the top level", () => {
+  assert.deepEqual(parseNinjaWebhook({ custom_value1: ninjaCorrelation("proj~p1~inv9"), status_id: "4" }), { invoiceId: "proj~p1~inv9" });
+});
+
+test("parseNinjaWebhook tolerates data/invoice/payload wrappers and an invoices[] array", () => {
+  assert.deepEqual(parseNinjaWebhook({ data: { custom_value1: "omni:org~inv1" } }), { invoiceId: "org~inv1" });
+  assert.deepEqual(parseNinjaWebhook({ invoice: { custom_value1: "omni:org~inv2" } }), { invoiceId: "org~inv2" });
+  assert.deepEqual(parseNinjaWebhook({ payload: { custom_value1: "omni:org~inv3" } }), { invoiceId: "org~inv3" });
+  // A payment event references its invoices — correlation sits on the first invoice.
+  assert.deepEqual(parseNinjaWebhook({ event_type: "payment", invoices: [{ id: "IN-1", custom_value1: "omni:org~inv4" }] }), { invoiceId: "org~inv4" });
+  assert.deepEqual(parseNinjaWebhook({ data: { invoices: [{ custom_value1: "omni:org~inv5" }] } }), { invoiceId: "org~inv5" });
+});
+
+test("parseNinjaWebhook accepts an explicit `correlation` field too", () => {
+  assert.deepEqual(parseNinjaWebhook({ correlation: "omni:org~inv6" }), { invoiceId: "org~inv6" });
+});
+
+test("parseNinjaWebhook returns null when no omni correlation is present", () => {
+  assert.equal(parseNinjaWebhook({ custom_value1: "someone-elses-ref" }), null);
+  assert.equal(parseNinjaWebhook({ status_id: "4" }), null);
+  assert.equal(parseNinjaWebhook(null), null);
+  assert.equal(parseNinjaWebhook("nope"), null);
+  assert.equal(parseNinjaWebhook({ invoices: [] }), null);
+});
+
+test("invoiceNinjaWebhookSecret trims and treats blank as unset", () => {
+  assert.equal(invoiceNinjaWebhookSecret({ INVOICE_NINJA_WEBHOOK_SECRET: "  s3cret  " } as NodeJS.ProcessEnv), "s3cret");
+  assert.equal(invoiceNinjaWebhookSecret({ INVOICE_NINJA_WEBHOOK_SECRET: "   " } as NodeJS.ProcessEnv), undefined);
+  assert.equal(invoiceNinjaWebhookSecret({} as NodeJS.ProcessEnv), undefined);
+});
+
+test("ninjaSystemContext is a sub-less automation actor (invoices are org/project scoped)", () => {
+  const ctx = ninjaSystemContext();
+  assert.equal(ctx.actorKind, "automation");
+  assert.equal(ctx.sub, "system:invoice-ninja");
+  assert.ok(ctx.name && ctx.name.length > 0);
 });

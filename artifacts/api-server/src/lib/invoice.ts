@@ -300,6 +300,21 @@ export function applyInvoiceStatus(existing: Invoice, next: InvoiceStatus, ctx: 
   };
 }
 
+/**
+ * The status steps to drive an invoice to `paid` from its current status, or `null` when it can't be
+ * paid (a void invoice). `paid` → `[]` (already settled, idempotent); `issued` → `["paid"]`; `draft` →
+ * `["issued","paid"]` (an external settlement implies external issuance, so issue-then-pay rather than
+ * leaving a stuck draft). Pure — the caller applies each step via {@link applyInvoiceStatus}.
+ */
+export function paidTransitionChain(from: InvoiceStatus): InvoiceStatus[] | null {
+  switch (from) {
+    case "paid": return [];
+    case "issued": return ["paid"];
+    case "draft": return ["issued", "paid"];
+    case "void": return null;
+  }
+}
+
 /** The metadata view of an invoice (lines dropped) — the list projection. */
 export function invoiceMeta(inv: Invoice): InvoiceMeta {
   const meta: InvoiceMeta = {
