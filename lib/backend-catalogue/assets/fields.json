@@ -975,5 +975,47 @@
     "type": "string",
     "group": "task",
     "entity": "task"
+  },
+  {
+    "key": "clientName",
+    "label": "Client / Bill-To",
+    "type": "string",
+    "group": "crm",
+    "entity": "client"
+  },
+  {
+    "key": "clientEmail",
+    "label": "Client email",
+    "type": "string",
+    "group": "crm",
+    "entity": "client"
+  },
+  {
+    "key": "clientBillingAddress",
+    "label": "Billing address",
+    "type": "text",
+    "group": "crm",
+    "entity": "client"
+  },
+  {
+    "key": "clientTaxId",
+    "label": "Client tax ID",
+    "type": "string",
+    "group": "financial",
+    "entity": "client"
+  },
+  {
+    "key": "clientPaymentTerms",
+    "label": "Payment terms",
+    "type": "string",
+    "group": "financial",
+    "entity": "client"
+  },
+  {
+    "key": "clientCreditLimit",
+    "label": "Credit limit",
+    "type": "currency",
+    "group": "financial",
+    "entity": "client"
   }
 ]

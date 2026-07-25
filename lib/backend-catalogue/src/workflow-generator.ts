@@ -46,9 +46,9 @@ const ALWAYS: ContractAction = "get_capabilities";
 // Write-ness is a property of the CONTRACT action, not the transport: an HTTP mapping's
 // method is meaningless for an "n8nNode" mapping (it uses parameters.operation instead), so
 // checking the mapping would silently under-classify every native-node write action. The
-// contract action set is closed to these six names, so checking the action name directly is
-// exhaustive regardless of which transport a given backend uses for it.
-const WRITE_ACTIONS: ReadonlySet<ContractAction> = new Set(["create_issue", "update_issue", "delete_issue", "create_invoice", "update_invoice"]);
+// contract action set is a closed union, so checking the action name directly is exhaustive
+// regardless of which transport a given backend uses for it.
+const WRITE_ACTIONS: ReadonlySet<ContractAction> = new Set(["create_issue", "update_issue", "delete_issue", "create_invoice", "update_invoice", "create_client", "update_client"]);
 function isWrite(action: ContractAction): boolean {
   return WRITE_ACTIONS.has(action);
 }

@@ -106,6 +106,14 @@ test("backends: an ISSUE backend must expose projects + issues; an INVOICE backe
 
   const billOk = verifyPlaneEntry("backends", { id: "bill", label: "Bill", primaryRecord: "invoice", kind: "live", verification: "catalogued", via: "http", requiredEnv: [], capabilities: { financials: true }, authHeader: "x", actions: { list_invoices: { method: "GET", url: "x" } } });
   assert.equal(billOk.ok, true);
+
+  // client (customer-master) backend → list_clients required, NOT list_projects/list_invoices.
+  const clientMissing = verifyPlaneEntry("backends", { id: "crm", label: "CRM", primaryRecord: "client", kind: "live", verification: "catalogued", via: "http", requiredEnv: [], capabilities: {}, authHeader: "x", actions: { create_client: { method: "POST", url: "x" } } });
+  assert.equal(clientMissing.ok, false);
+  assert.ok(clientMissing.errors.some((e) => e.includes("list_clients")), "client read required");
+  assert.ok(!clientMissing.errors.some((e) => e.includes("list_projects")), "a client backend is NOT forced to expose projects");
+  const clientOk = verifyPlaneEntry("backends", { id: "crm", label: "CRM", primaryRecord: "client", kind: "live", verification: "catalogued", via: "http", requiredEnv: [], capabilities: {}, authHeader: "x", actions: { list_clients: { method: "GET", url: "x" } } });
+  assert.equal(clientOk.ok, true);
 });
 
 test("brokers: every field-level guard fires for a fully-empty entry", () => {

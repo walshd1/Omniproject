@@ -1010,6 +1010,25 @@ export const BACKENDS_DATA: BackendDefinition[] = [
         "method": "GET",
         "note": "Optional client filter via ?client_id=…; the workflow forwards query params from the payload.",
         "url": "={{ $env.INVOICE_NINJA_URL }}/api/v1/invoices"
+      },
+      "list_clients": {
+        "method": "GET",
+        "note": "Client master (finance superset F1) — the invoice bill-to parties.",
+        "url": "={{ $env.INVOICE_NINJA_URL }}/api/v1/clients"
+      },
+      "get_client": {
+        "method": "GET",
+        "url": "={{ $env.INVOICE_NINJA_URL }}/api/v1/clients/{{ $json.body.payload.clientId }}"
+      },
+      "create_client": {
+        "body": "={{ JSON.stringify($json.body.payload) }}",
+        "method": "POST",
+        "url": "={{ $env.INVOICE_NINJA_URL }}/api/v1/clients"
+      },
+      "update_client": {
+        "body": "={{ JSON.stringify($json.body.payload) }}",
+        "method": "PUT",
+        "url": "={{ $env.INVOICE_NINJA_URL }}/api/v1/clients/{{ $json.body.payload.clientId }}"
       }
     },
     "authHeader": "",
@@ -1027,7 +1046,12 @@ export const BACKENDS_DATA: BackendDefinition[] = [
     "credentialType": "httpHeaderAuth",
     "docsUrl": "https://api-docs.invoicing.co/",
     "fieldKeys": [
+      "clientBillingAddress",
+      "clientCreditLimit",
+      "clientEmail",
       "clientName",
+      "clientPaymentTerms",
+      "clientTaxId",
       "currency",
       "dueDate",
       "invoiceBalance",
@@ -1074,17 +1098,11 @@ export const BACKENDS_DATA: BackendDefinition[] = [
         "label": "Invoice Paid Date",
         "type": "date",
         "group": "financial"
-      },
-      {
-        "key": "clientName",
-        "label": "Client / Bill-To",
-        "type": "string",
-        "group": "crm"
       }
     ],
     "id": "invoice-ninja",
     "label": "Invoice Ninja (billing)",
-    "notes": "Open-source, self-hostable billing system of record. Implements the invoice contract verbs only (financials capability) — not a project/issue tracker. Auth via the X-API-Token header (configure an n8n Header Auth credential holding INVOICE_NINJA_TOKEN). INVOICE_NINJA_URL e.g. https://invoicing.example.com. The gateway shapes the payload (lib/invoice-ninja.ts toNinjaInvoice) and dispatches the verb through the broker, so the API token never leaves the broker's secret store.",
+    "notes": "Open-source, self-hostable billing system of record. Implements the invoice contract verbs plus the client (customer-master) verbs (financials capability) — not a project/issue tracker. Auth via the X-API-Token header (configure an n8n Header Auth credential holding INVOICE_NINJA_TOKEN). INVOICE_NINJA_URL e.g. https://invoicing.example.com. The gateway shapes the payload (lib/invoice-ninja.ts toNinjaInvoice) and dispatches the verb through the broker, so the API token never leaves the broker's secret store.",
     "primaryRecord": "invoice",
     "requiredEnv": [
       "INVOICE_NINJA_URL"

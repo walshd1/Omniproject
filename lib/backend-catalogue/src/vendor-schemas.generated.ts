@@ -36,9 +36,10 @@ export const VENDOR_SCHEMAS: Record<string, JsonSchema> = {
       "primaryRecord": {
         "enum": [
           "issue",
-          "invoice"
+          "invoice",
+          "client"
         ],
-        "description": "The primary record this backend is a system of record for. Decides the required contract read verbs and which field superset applies — a backend need not be a project tool, but it must own a record type. \"issue\": PM/CRM/ITSM/ERP tools (normalised to the issue/project contract). \"invoice\": a billing system of record (Invoice Ninja, Dolibarr, …)."
+        "description": "The primary record this backend is a system of record for. Decides the required contract read verbs and which field superset applies — a backend need not be a project tool, but it must own a record type. \"issue\": PM/CRM/ITSM/ERP tools (normalised to the issue/project contract). \"invoice\": a billing system of record (Invoice Ninja, Dolibarr, …). \"client\": a customer master whose primary record is the bill-to party."
       },
       "verification": {
         "enum": [
