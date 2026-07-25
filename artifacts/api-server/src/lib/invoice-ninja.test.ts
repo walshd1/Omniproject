@@ -4,6 +4,7 @@ import type { Invoice, InvoiceLine } from "./invoice";
 import {
   invoiceNinjaSyncEnabled, toNinjaInvoice, toNinjaLine, ninjaCorrelation, parseNinjaCorrelation,
   parseNinjaResult, parseNinjaWebhook, invoiceNinjaWebhookSecret, ninjaSystemContext,
+  parseNinjaStatus, pullInvoice,
 } from "./invoice-ninja";
 import { applyInvoiceExternalRef, newInvoiceRow, invoiceMeta, type InvoiceExternalRef } from "./invoice";
 
@@ -138,4 +139,28 @@ test("ninjaSystemContext is a sub-less automation actor (invoices are org/projec
   assert.equal(ctx.actorKind, "automation");
   assert.equal(ctx.sub, "system:invoice-ninja");
   assert.ok(ctx.name && ctx.name.length > 0);
+});
+
+// ── Phase 5: pull-back (get_invoice → refresh + reconcile paid) ───────────────────────────────────────
+
+test("parseNinjaStatus reads the paid signal from status_id (4) and a zeroed balance", () => {
+  assert.equal(parseNinjaStatus({ status_id: 4 }), "paid");
+  assert.equal(parseNinjaStatus({ status_id: "4" }), "paid"); // string form
+  assert.equal(parseNinjaStatus({ data: { status_id: 4 } }), "paid"); // {data} wrapper
+  assert.equal(parseNinjaStatus({ balance: 0, paid_to_date: 1200 }), "paid"); // settled by balance
+  assert.equal(parseNinjaStatus({ balance: -0.0, paid_to_date: 5 }), "paid");
+});
+
+test("parseNinjaStatus returns null for any non-paid / unknown record", () => {
+  assert.equal(parseNinjaStatus({ status_id: 2 }), null); // sent, not paid
+  assert.equal(parseNinjaStatus({ balance: 100, paid_to_date: 0 }), null); // outstanding
+  assert.equal(parseNinjaStatus({ balance: 0, paid_to_date: 0 }), null); // zero invoice, nothing paid
+  assert.equal(parseNinjaStatus({}), null);
+  assert.equal(parseNinjaStatus(null), null);
+  assert.equal(parseNinjaStatus("nope"), null);
+});
+
+test("pullInvoice short-circuits (no broker call) when the invoice was never pushed", async () => {
+  const notPushed = invoice({ externalRef: null });
+  assert.deepEqual(await pullInvoice({ sub: "u1" } as Parameters<typeof pullInvoice>[0], notPushed, NOW), { ref: null, paid: false });
 });

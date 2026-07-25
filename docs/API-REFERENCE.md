@@ -592,6 +592,7 @@ INVOICES (roadmap 3.3).
 | PUT | `/api/invoices/:id` | requireRole(manager) | PUT /api/invoices/:id — update an invoice in place; only a DRAFT may be edited (manager+). |
 | POST | `/api/invoices/:id/status` | requireRole(manager) | POST /api/invoices/:id/status — transition an invoice (draft→issued→paid; live→void) (manager+). |
 | POST | `/api/invoices/:id/push` | requireRole(manager) | back on the sealed artifact (manager+; gated by INVOICE_NINJA_SYNC). |
+| POST | `/api/invoices/:id/pull` | requireRole(manager) | INVOICE_NINJA_SYNC. |
 | DELETE | `/api/invoices/:id` | requireRole(manager) | DELETE /api/invoices/:id — remove an invoice (manager+). |
 
 ### `artifacts/api-server/src/routes/labels.ts`

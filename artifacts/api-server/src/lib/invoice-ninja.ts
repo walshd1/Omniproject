@@ -155,6 +155,40 @@ export async function pushInvoice(ctx: ActorContext, invoice: Invoice, now: stri
   return parseNinjaResult(result, now);
 }
 
+// ── Phase 5: pull-back (get_invoice → refresh number/PDF + reconcile paid) ───────────────────────────────
+
+/**
+ * Read the settlement signal out of an Invoice Ninja invoice record: `"paid"` when Invoice Ninja marks it
+ * settled (v5 `status_id` 4 = paid), or when the balance has reached zero against a positive paid amount;
+ * otherwise null (we only ever reconcile the PAID signal on pull — other statuses aren't force-synced from
+ * the external system). Tolerates the `{data}` wrapper like {@link parseNinjaResult}. Pure.
+ */
+export function parseNinjaStatus(raw: unknown): "paid" | null {
+  const outer = raw && typeof raw === "object" ? (raw as Record<string, unknown>) : null;
+  const data = outer && outer["data"] && typeof outer["data"] === "object" ? (outer["data"] as Record<string, unknown>) : outer;
+  if (!data) return null;
+  const statusId = data["status_id"];
+  if (statusId === 4 || statusId === "4") return "paid";
+  const balance = Number(data["balance"]);
+  const paidToDate = Number(data["paid_to_date"]);
+  if (Number.isFinite(balance) && balance <= 0 && Number.isFinite(paidToDate) && paidToDate > 0) return "paid";
+  return null;
+}
+
+/**
+ * Pull the current Invoice Ninja record for a pushed invoice (`get_invoice`) and return the refreshed
+ * external ref (its assigned number + portal/PDF link) plus whether Invoice Ninja now reports it PAID —
+ * so the caller can update the local `externalRef` and reconcile status (a manual fallback for a missed
+ * webhook). Returns `{ ref: null, paid: false }` when the invoice hasn't been pushed yet or the backend
+ * returns nothing usable. Throws only on a broker/transport error (the caller wraps it).
+ */
+export async function pullInvoice(ctx: ActorContext, invoice: Invoice, now: string): Promise<{ ref: InvoiceExternalRef | null; paid: boolean }> {
+  const externalId = invoice.externalRef?.system === "invoice-ninja" ? invoice.externalRef.id : null;
+  if (!externalId) return { ref: null, paid: false };
+  const result = await ninjaCommand(ctx, "get_invoice", { invoiceId: externalId });
+  return { ref: parseNinjaResult(result, now), paid: parseNinjaStatus(result) === "paid" };
+}
+
 // ── Phase 4: inbound payment webhook ─────────────────────────────────────────────────────────────────────
 
 /**

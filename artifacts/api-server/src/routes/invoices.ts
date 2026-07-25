@@ -9,10 +9,10 @@ import { artifactStoreEnabled, listArtifacts, getArtifact, putArtifact, deleteAr
 import {
   INVOICE_ARTIFACT, sanitizeInvoiceWrite, makeInvoiceId, parseInvoiceId, invoiceScope,
   newInvoiceRow, mergeInvoiceRow, invoiceMeta, isInvoiceStatus, canTransitionInvoice, applyInvoiceStatus,
-  applyInvoiceExternalRef, InvoiceError,
+  applyInvoiceExternalRef, paidTransitionChain, InvoiceError,
   type Invoice, type InvoiceMeta, type InvoiceStorage,
 } from "../lib/invoice";
-import { invoiceNinjaSyncEnabled, pushInvoice } from "../lib/invoice-ninja";
+import { invoiceNinjaSyncEnabled, pushInvoice, pullInvoice } from "../lib/invoice-ninja";
 import { billableStaffCostForProject, labourLinesFromStaffCost } from "../lib/invoice-autobuild";
 
 /**
@@ -173,6 +173,33 @@ router.post("/invoices/:id/push", requireRole("manager"), (req, res) =>
     const ref = await pushInvoice(ctx, existing, now);
     if (!ref) { res.status(502).json({ error: "Invoice Ninja returned no usable invoice id" }); return; }
     const row = applyInvoiceExternalRef(existing, ref, ctx, now);
+    putArtifact(INVOICE_ARTIFACT, scope, row);
+    res.json(row);
+  }),
+);
+
+// POST /api/invoices/:id/pull — pull the invoice's Invoice Ninja record (get_invoice) and refresh the
+// external ref (assigned number + PDF/portal link) on the local artifact, reconciling status to `paid` if
+// Invoice Ninja now reports it settled (a manual fallback for a missed inbound webhook). manager+; gated by
+// INVOICE_NINJA_SYNC. Requires the invoice to have been pushed already.
+router.post("/invoices/:id/pull", requireRole("manager"), (req, res) =>
+  withBrokerErrors(req, res, "pull_invoice failed", async () => {
+    if (!invoiceNinjaSyncEnabled()) { res.status(409).json({ error: "Invoice Ninja sync is not enabled (set INVOICE_NINJA_SYNC)" }); return; }
+    const id = String(req.params["id"]);
+    const parsed = parseInvoiceId(id);
+    if (!parsed || !artifactStoreEnabled()) { res.status(404).json({ error: "Invoice not found" }); return; }
+    if (!(await authorizeTarget(req, res, parsed.storage, parsed.projectId, "write"))) return;
+    const ctx = contextFromReq(req);
+    const scope = invoiceScope(parsed, ctx.sub);
+    const existing = scope ? getArtifact<Invoice>(INVOICE_ARTIFACT, scope, id) : null;
+    if (!scope || !existing) { res.status(404).json({ error: "Invoice not found" }); return; }
+    if (existing.externalRef?.system !== "invoice-ninja") { res.status(409).json({ error: "invoice has not been pushed to Invoice Ninja yet" }); return; }
+    const now = new Date().toISOString();
+    const { ref, paid } = await pullInvoice(ctx, existing, now);
+    if (!ref) { res.status(502).json({ error: "Invoice Ninja returned no usable invoice record" }); return; }
+    let row = applyInvoiceExternalRef(existing, ref, ctx, now);
+    // Reconcile a settlement Invoice Ninja reports but we missed (webhook fallback): advance to paid.
+    if (paid) { for (const step of paidTransitionChain(row.status) ?? []) row = applyInvoiceStatus(row, step, ctx, now); }
     putArtifact(INVOICE_ARTIFACT, scope, row);
     res.json(row);
   }),
