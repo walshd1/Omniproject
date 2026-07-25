@@ -2323,6 +2323,8 @@ Invoice Ninja bridge — phase 1 (docs/design/INVOICE-NINJA.md).
 | `ninjaCommand` | Dispatch an invoice contract verb through the broker to the Invoice Ninja backend. |
 | `parseNinjaResult` | Parse an Invoice Ninja create/update response into the external ref we store back on the local invoice. |
 | `pushInvoice` | Push a local invoice to the Invoice Ninja backend: create it, or UPDATE it in place when it already carries an Invoice Ninja external ref (idempotent re-push). |
+| `parseNinjaStatus` | Read the settlement signal out of an Invoice Ninja invoice record: `"paid"` when Invoice Ninja marks it settled (v5 `status_id` 4 = paid), or when the balance has reached zero against a positive paid amount; otherwise null (we only ever reconcile the PAID signal on pull — other statuses aren't force-synced from the external system). |
+| `pullInvoice` | Pull the current Invoice Ninja record for a pushed invoice (`get_invoice`) and return the refreshed external ref (its assigned number + portal/PDF link) plus whether Invoice Ninja now reports it PAID — so the caller can update the local `externalRef` and reconcile status (a manual fallback for a missed webhook). |
 | `invoiceNinjaWebhookSecret` | The shared secret the inbound Invoice Ninja payment webhook must present (via n8n). |
 | `ninjaSystemContext` | The session-less actor context for a webhook-driven state change — invoices are org/project scoped (never personal), so no `sub` is needed to resolve their store; this only labels the audit trail (`updatedBy`) and marks the change as automation-initiated. |
 | `parseNinjaWebhook` | Pull the local invoice id out of an inbound Invoice Ninja webhook by its `omni:<id>` correlation (the `custom_value1` we stamped on push). |
