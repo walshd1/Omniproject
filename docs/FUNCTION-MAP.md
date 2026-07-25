@@ -2311,6 +2311,8 @@ Invoice Ninja bridge — phase 1 (docs/design/INVOICE-NINJA.md).
 | `toNinjaLine` | Map one OmniProject line to an Invoice Ninja line item. |
 | `toNinjaInvoice` | Map a local {@link Invoice} to the Invoice Ninja invoice payload. |
 | `ninjaCommand` | Dispatch an invoice contract verb through the broker to the Invoice Ninja backend. |
+| `parseNinjaResult` | Parse an Invoice Ninja create/update response into the external ref we store back on the local invoice. |
+| `pushInvoice` | Push a local invoice to the Invoice Ninja backend: create it, or UPDATE it in place when it already carries an Invoice Ninja external ref (idempotent re-push). |
 
 ### `artifacts/api-server/src/lib/invoice.ts`
 
@@ -2328,6 +2330,7 @@ INVOICE server logic (roadmap 3.3) — the authoritative sanitiser + storage acc
 | `parseInvoiceId` | — |
 | `invoiceScope` | — |
 | `newInvoiceRow` | Build the row for a NEW invoice (owner stamped from ctx; totals derived; status draft; version 1). |
+| `applyInvoiceExternalRef` | Record the external billing-system pointer after a successful push (phase 2). |
 | `mergeInvoiceRow` | Apply an UPDATE, preserving id/owner/storage/status/timestamps; totals recomputed. |
 | `applyInvoiceStatus` | Move an invoice to `next` status (assumes the transition was validated by {@link canTransitionInvoice}). |
 | `invoiceMeta` | The metadata view of an invoice (lines dropped) — the list projection. |

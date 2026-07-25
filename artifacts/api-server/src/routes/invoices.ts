@@ -8,9 +8,11 @@ import { enforceBusinessRules } from "../lib/ruleset-guard";
 import { artifactStoreEnabled, listArtifacts, getArtifact, putArtifact, deleteArtifact, requireArtifactStore } from "../lib/artifact-store";
 import {
   INVOICE_ARTIFACT, sanitizeInvoiceWrite, makeInvoiceId, parseInvoiceId, invoiceScope,
-  newInvoiceRow, mergeInvoiceRow, invoiceMeta, isInvoiceStatus, canTransitionInvoice, applyInvoiceStatus, InvoiceError,
+  newInvoiceRow, mergeInvoiceRow, invoiceMeta, isInvoiceStatus, canTransitionInvoice, applyInvoiceStatus,
+  applyInvoiceExternalRef, InvoiceError,
   type Invoice, type InvoiceMeta, type InvoiceStorage,
 } from "../lib/invoice";
+import { invoiceNinjaSyncEnabled, pushInvoice } from "../lib/invoice-ninja";
 
 /**
  * INVOICES (roadmap 3.3). A generated, client-facing invoice — a number + currency + typed line primitives,
@@ -118,6 +120,29 @@ router.post("/invoices/:id/status", requireRole("manager"), (req, res) => {
     res.json(row);
   });
 });
+
+// POST /api/invoices/:id/push — sync the invoice to the Invoice Ninja backend and record the external ref
+// back on the sealed artifact (manager+; gated by INVOICE_NINJA_SYNC). Re-push updates in place (idempotent).
+router.post("/invoices/:id/push", requireRole("manager"), (req, res) =>
+  withBrokerErrors(req, res, "push_invoice failed", async () => {
+    if (!invoiceNinjaSyncEnabled()) { res.status(409).json({ error: "Invoice Ninja sync is not enabled (set INVOICE_NINJA_SYNC)" }); return; }
+    const id = String(req.params["id"]);
+    const parsed = parseInvoiceId(id);
+    if (!parsed || !artifactStoreEnabled()) { res.status(404).json({ error: "Invoice not found" }); return; }
+    if (!(await authorizeTarget(req, res, parsed.storage, parsed.projectId, "write"))) return;
+    const ctx = contextFromReq(req);
+    const scope = invoiceScope(parsed, ctx.sub);
+    const existing = scope ? getArtifact<Invoice>(INVOICE_ARTIFACT, scope, id) : null;
+    if (!scope || !existing) { res.status(404).json({ error: "Invoice not found" }); return; }
+    if (existing.status === "void") { res.status(409).json({ error: "a void invoice cannot be pushed" }); return; }
+    const now = new Date().toISOString();
+    const ref = await pushInvoice(ctx, existing, now);
+    if (!ref) { res.status(502).json({ error: "Invoice Ninja returned no usable invoice id" }); return; }
+    const row = applyInvoiceExternalRef(existing, ref, ctx, now);
+    putArtifact(INVOICE_ARTIFACT, scope, row);
+    res.json(row);
+  }),
+);
 
 // DELETE /api/invoices/:id — remove an invoice (manager+).
 router.delete("/invoices/:id", requireRole("manager"), (req, res) =>
