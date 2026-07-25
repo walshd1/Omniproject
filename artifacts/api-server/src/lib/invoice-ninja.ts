@@ -154,3 +154,50 @@ export async function pushInvoice(ctx: ActorContext, invoice: Invoice, now: stri
   const result = await ninjaCommand(ctx, op, payload);
   return parseNinjaResult(result, now);
 }
+
+// ── Phase 4: inbound payment webhook ─────────────────────────────────────────────────────────────────────
+
+/**
+ * The shared secret the inbound Invoice Ninja payment webhook must present (via n8n). Separate from the
+ * generic `NOTIFY_INGEST_SECRET` — a different trust boundary — so a leak of one doesn't grant the other.
+ * Absent ⇒ the webhook route is disabled (503), even when sync is on.
+ */
+export function invoiceNinjaWebhookSecret(env: NodeJS.ProcessEnv = process.env): string | undefined {
+  const s = env["INVOICE_NINJA_WEBHOOK_SECRET"]?.trim();
+  return s || undefined;
+}
+
+/**
+ * The session-less actor context for a webhook-driven state change — invoices are org/project scoped
+ * (never personal), so no `sub` is needed to resolve their store; this only labels the audit trail
+ * (`updatedBy`) and marks the change as automation-initiated.
+ */
+export function ninjaSystemContext(): ActorContext {
+  return { sub: "system:invoice-ninja", name: "Invoice Ninja (webhook)", role: "manager", actorKind: "automation" };
+}
+
+/**
+ * Pull the local invoice id out of an inbound Invoice Ninja webhook by its `omni:<id>` correlation
+ * (the `custom_value1` we stamped on push). Tolerant of the shapes n8n forwards: the correlation may sit
+ * at the top level, under a `data` / `invoice` / `payload` wrapper, or on the first element of an
+ * `invoices[]` array (a payment event references its invoices). Returns null when no correlation of ours
+ * is present. Pure — the route resolves + transitions the invoice.
+ */
+export function parseNinjaWebhook(raw: unknown): { invoiceId: string } | null {
+  if (!raw || typeof raw !== "object") return null;
+  const obj = raw as Record<string, unknown>;
+  const asRec = (v: unknown): Record<string, unknown> | null =>
+    v && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : null;
+
+  const candidates: Array<Record<string, unknown> | null> = [obj, asRec(obj["data"]), asRec(obj["invoice"]), asRec(obj["payload"])];
+  for (const wrapper of [obj, asRec(obj["data"]), asRec(obj["payload"])]) {
+    const invoices = wrapper?.["invoices"];
+    if (Array.isArray(invoices)) for (const inv of invoices) candidates.push(asRec(inv));
+  }
+  for (const c of candidates) {
+    if (!c) continue;
+    const id = parseNinjaCorrelation(c["custom_value1"] ?? c["correlation"]);
+    if (id) return { invoiceId: id };
+  }
+  return null;
+}

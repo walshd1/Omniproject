@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import {
   sanitizeInvoiceWrite, computeTotals, makeInvoiceId, parseInvoiceId,
   newInvoiceRow, mergeInvoiceRow, invoiceMeta, canTransitionInvoice, applyInvoiceStatus,
-  InvoiceError, type InvoiceLine,
+  paidTransitionChain, InvoiceError, type InvoiceLine,
 } from "./invoice";
 import type { ActorContext } from "../broker/types";
 
@@ -69,4 +69,20 @@ test("status flow: draft→issued→paid; live→void; terminal states are close
   assert.equal(paid.paidAt, "2026-01-09T00:00:00Z");
   assert.equal(paid.issuedAt, "2026-01-02T00:00:00Z"); // preserved
   assert.equal(paid.version, 3);
+});
+
+test("paidTransitionChain: draft issues-then-pays, issued pays, paid is idempotent, void can't", () => {
+  assert.deepEqual(paidTransitionChain("draft"), ["issued", "paid"]);
+  assert.deepEqual(paidTransitionChain("issued"), ["paid"]);
+  assert.deepEqual(paidTransitionChain("paid"), []); // already settled → no steps (idempotent)
+  assert.equal(paidTransitionChain("void"), null); // a void invoice cannot be settled
+});
+
+test("paidTransitionChain steps applied in order reach paid and stamp issuedAt + paidAt", () => {
+  const draft = newInvoiceRow("proj~p1~inv1", { number: "INV-9", clientName: "Acme", currency: "USD", taxRatePct: 0, note: null, dueAt: null, lines: [line({})], storage: "project", projectId: "p1" } as never, ctx, "2026-01-01T00:00:00Z");
+  let row = draft;
+  for (const step of paidTransitionChain(draft.status)!) row = applyInvoiceStatus(row, step, ctx, "2026-02-01T00:00:00Z");
+  assert.equal(row.status, "paid");
+  assert.equal(row.issuedAt, "2026-02-01T00:00:00Z");
+  assert.equal(row.paidAt, "2026-02-01T00:00:00Z");
 });

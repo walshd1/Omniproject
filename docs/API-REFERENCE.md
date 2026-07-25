@@ -571,6 +571,14 @@ BI / observability integration endpoints.
 | GET | `/api/metrics` | — | — |
 | GET | `/api/bi/feeds` | — | — |
 
+### `artifacts/api-server/src/routes/invoice-ninja-webhook.ts`
+
+Invoice Ninja INBOUND payment webhook (phase 4, docs/design/INVOICE-NINJA.md).
+
+| Method | Path | Gate | Description |
+| --- | --- | --- | --- |
+| POST | `/api/invoices/ninja-webhook` | — | invoice to `paid` (issuing a draft first, since an external settlement implies external issuance). |
+
 ### `artifacts/api-server/src/routes/invoices.ts`
 
 INVOICES (roadmap 3.3).
