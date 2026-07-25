@@ -1,0 +1,46 @@
+{
+  "actions": {
+    "create_invoice": {
+      "body": "={{ JSON.stringify($json.body.payload) }}",
+      "method": "POST",
+      "note": "Body is the OmniProject-shaped Invoice Ninja invoice payload (toNinjaInvoice). custom_value1 carries omni:<invoiceId> for inbound correlation.",
+      "url": "={{ $env.INVOICE_NINJA_URL }}/api/v1/invoices"
+    },
+    "update_invoice": {
+      "body": "={{ JSON.stringify($json.body.payload) }}",
+      "method": "PUT",
+      "url": "={{ $env.INVOICE_NINJA_URL }}/api/v1/invoices/{{ $json.body.payload.invoiceId }}"
+    },
+    "get_invoice": {
+      "method": "GET",
+      "url": "={{ $env.INVOICE_NINJA_URL }}/api/v1/invoices/{{ $json.body.payload.invoiceId }}"
+    },
+    "list_invoices": {
+      "method": "GET",
+      "note": "Optional client filter via ?client_id=…; the workflow forwards query params from the payload.",
+      "url": "={{ $env.INVOICE_NINJA_URL }}/api/v1/invoices"
+    }
+  },
+  "authHeader": "",
+  "capabilities": {
+    "baseline": false,
+    "blockers": false,
+    "financials": true,
+    "history": false,
+    "issues": false,
+    "portfolio": false,
+    "raid": false,
+    "resources": false,
+    "scheduling": false
+  },
+  "credentialType": "httpHeaderAuth",
+  "docsUrl": "https://api-docs.invoicing.co/",
+  "id": "invoice-ninja",
+  "label": "Invoice Ninja (billing)",
+  "notes": "Open-source, self-hostable billing system of record. Implements the invoice contract verbs only (financials capability) — not a project/issue tracker. Auth via the X-API-Token header (configure an n8n Header Auth credential holding INVOICE_NINJA_TOKEN). INVOICE_NINJA_URL e.g. https://invoicing.example.com. The gateway shapes the payload (lib/invoice-ninja.ts toNinjaInvoice) and dispatches the verb through the broker, so the API token never leaves the broker's secret store.",
+  "requiredEnv": [
+    "INVOICE_NINJA_URL"
+  ],
+  "verification": "catalogued",
+  "via": "HTTP (Invoice Ninja v5 REST) + n8n Header-Auth credential (X-API-Token)"
+}

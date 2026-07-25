@@ -2301,7 +2301,7 @@ INSTANCE RECOVERY KEY (IRK) — the portable secret an operator SAVES on first s
 
 ### `artifacts/api-server/src/lib/invoice-ninja.ts`
 
-Invoice Ninja bridge — phase 1 foundation (docs/design/INVOICE-NINJA.md).
+Invoice Ninja bridge — phase 1 (docs/design/INVOICE-NINJA.md).
 
 | Function | What it does |
 | --- | --- |
@@ -2310,7 +2310,7 @@ Invoice Ninja bridge — phase 1 foundation (docs/design/INVOICE-NINJA.md).
 | `parseNinjaCorrelation` | Parse the OmniProject invoice id back out of a correlation value, or null if it isn't one of ours. |
 | `toNinjaLine` | Map one OmniProject line to an Invoice Ninja line item. |
 | `toNinjaInvoice` | Map a local {@link Invoice} to the Invoice Ninja invoice payload. |
-| `ninjaCommand` | Dispatch a bridge operation through the broker passthrough. |
+| `ninjaCommand` | Dispatch an invoice contract verb through the broker to the Invoice Ninja backend. |
 
 ### `artifacts/api-server/src/lib/invoice.ts`
 

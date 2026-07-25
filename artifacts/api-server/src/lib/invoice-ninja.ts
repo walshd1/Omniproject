@@ -3,35 +3,25 @@ import { brokerCommand } from "../broker";
 import type { Invoice, InvoiceLine } from "./invoice";
 
 /**
- * Invoice Ninja bridge — phase 1 foundation (docs/design/INVOICE-NINJA.md).
+ * Invoice Ninja bridge — phase 1 (docs/design/INVOICE-NINJA.md).
  *
  * OmniProject already OWNS invoicing (lib/invoice.ts: a sealed, zero-at-rest invoice with a draft→issued→paid
  * state machine). Invoice Ninja is an external BILLING SYSTEM OF RECORD; this bridge SYNCS the local invoice
  * to it and reads status back — it does not reinvent invoicing.
  *
- * Transport: the generic broker passthrough (`brokerCommand`), NOT a direct HTTP client and NOT the neutral
- * backend contract. Rationale:
- *   - The neutral broker contract (ContractAction) is deliberately project/issue-centric; adding a finance
- *     vocabulary would bloat a PM-focused contract that every backend implements.
- *   - Routing through the broker keeps the Invoice Ninja API token in the BROKER's secret store (the n8n
- *     workflow that handles `invoice-ninja.*` holds `INVOICE_NINJA_TOKEN`), so OmniProject stays zero-at-rest
- *     — the gateway never holds the vendor credential.
- *   - The passthrough is already wrapped by the always-on autonomous-write guard.
- * The operator authors one n8n workflow that receives `invoice-ninja.<op>` and calls the Invoice Ninja v5 REST
- * API (`X-API-Token`); this module only produces the vendor-shaped payload and dispatches the op.
+ * Invoice Ninja is just another BACKEND: it's registered in the backend catalogue
+ * (`vendors/backends/invoice-ninja.json`, `financials` capability) implementing the invoice contract verbs
+ * (`create_invoice`/`update_invoice`/`get_invoice`/`list_invoices`), so its n8n workflow is GENERATED like any
+ * other backend and the Invoice Ninja `X-API-Token` lives in the broker's secret store — the gateway stays
+ * zero-at-rest, never holding the vendor credential. This module shapes the vendor payload
+ * (`toNinjaInvoice`) and dispatches the verb through the broker; the broker routes it to the backend.
  */
 
 /** Audit/source tag carried on every bridged command (matches the local `invoicing` feature domain). */
 export const NINJA_SOURCE = "invoicing";
 
-/** The namespaced operations the operator's n8n workflow routes to the Invoice Ninja REST API. */
-export type NinjaOp =
-  | "upsert_invoice"
-  | "get_invoice"
-  | "list_invoices"
-  | "upsert_client"
-  | "upsert_product"
-  | "upsert_expense";
+/** The invoice contract verbs Invoice Ninja implements as a backend (a subset of ContractAction). */
+export type NinjaOp = "create_invoice" | "update_invoice" | "get_invoice" | "list_invoices";
 
 /** The bridge is opt-in: it needs both the `invoicing` feature (checked at the route) AND this deploy flag,
  *  since it emits outbound commands the operator must have wired an n8n workflow for. */
@@ -122,8 +112,8 @@ export function toNinjaInvoice(inv: Invoice): NinjaInvoicePayload {
   };
 }
 
-/** Dispatch a bridge operation through the broker passthrough. The operator's n8n workflow routes
- *  `invoice-ninja.<op>` to the Invoice Ninja REST API; the vendor token lives in the broker, never here. */
+/** Dispatch an invoice contract verb through the broker to the Invoice Ninja backend. The broker routes the
+ *  action to the generated Invoice Ninja workflow; the vendor token lives in the broker, never here. */
 export function ninjaCommand(ctx: ActorContext, op: NinjaOp, payload: Record<string, unknown>): Promise<unknown> {
-  return brokerCommand(ctx, `invoice-ninja.${op}`, payload, NINJA_SOURCE);
+  return brokerCommand(ctx, op, payload, NINJA_SOURCE);
 }

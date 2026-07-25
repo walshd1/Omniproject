@@ -11,28 +11,36 @@ stack (`lib/currency.ts`, `fx-fallback`, `round2`/`formatMoney`). Rate cards + a
 blend into a `staff-cost` roll-up. So this is **not "build invoicing" — it's a sync/bridge** to an external
 billing system of record.
 
-## 1. Transport: broker passthrough, not a direct client, not the neutral contract
+## 1. Invoice Ninja is just another backend
 
-Outbound calls go through the generic broker passthrough — `brokerCommand(ctx, "invoice-ninja.<op>", payload,
-"invoicing")` — for three reasons:
+Invoice Ninja is modelled as a catalogue **backend** — the same plane as Jira / OpenProject / Dolibarr — not
+a bespoke integration. It implements a SUBSET of the broker contract: the invoice verbs (`create_invoice`,
+`update_invoice`, `get_invoice`, `list_invoices`), gated by the `financials` capability. It does NOT implement
+the issue/project verbs (it isn't a PM tool) — the `actions` map is `Partial`, so that's legal. The contract
+gained these finance verbs (`backend-manifest.ts`) so a billing system of record is a first-class backend, and
+Dolibarr/Odoo/NetSuite could implement the same verbs once the catalogue freeze lifts.
 
-1. **Keep the neutral contract clean.** The broker's `ContractAction` vocabulary is deliberately
-   project/issue-centric (`list_projects`, `create_issue`, …). A finance vocabulary would bloat a PM-focused
-   contract every backend implements. The passthrough takes a free-form action string, so the finance domain
-   stays out of the neutral contract.
-2. **Zero-at-rest credentials.** The Invoice Ninja v5 API token (`X-API-Token`) lives in the **broker's**
-   secret store — the operator's n8n workflow that handles `invoice-ninja.*` holds `INVOICE_NINJA_TOKEN`. The
-   gateway never holds the vendor credential (unlike a direct `safeFetch` client, which would force the token
-   into the gateway vault).
-3. **Guarded by construction.** The passthrough is already wrapped by the always-on autonomous-write guard.
+Because it's a backend:
+- its n8n workflow is **GENERATED** from the vendor def (like every backend), not hand-authored;
+- the Invoice Ninja v5 API token (`X-API-Token`) lives in the **broker's** secret store (an n8n Header-Auth
+  credential holding `INVOICE_NINJA_TOKEN`) — the gateway stays **zero-at-rest**, never holding the credential;
+- outbound dispatch is `brokerCommand(ctx, "create_invoice", payload, "invoicing")` (the contract verb),
+  wrapped by the always-on autonomous-write guard.
 
-The operator authors ONE n8n workflow: receive `invoice-ninja.<op>` → call the Invoice Ninja v5 REST API →
-return the result. This bridge only produces the vendor-shaped payload and dispatches the op.
+### Shipped as an operator overlay (catalogue freeze)
 
-## 2. Operations (namespaced)
+The shipped backend catalogue is **frozen at 41** until the flagship set is verified live
+(`scripts/src/lib/backend-freeze.ts`). Invoice Ninja is therefore shipped as an **operator overlay** — the
+sanctioned, freeze-exempt way to add a backend: the operator drops
+[`docs/vendors/overlays/invoice-ninja.json`](../vendors/overlays/invoice-ninja.json) into
+`$OMNI_CONFIG_DIR/vendors/backends/`, where it's schema-validated at boot and merged via the vendor overlay.
+The gateway code (contract verbs + the `toNinjaInvoice` mapping) ships regardless. When the freeze lifts, the
+overlay def can be promoted into the shipped catalogue unchanged.
 
-`invoice-ninja.upsert_invoice` · `get_invoice` · `list_invoices` · `upsert_client` · `upsert_product` ·
-`upsert_expense`. Inbound payment/status events arrive via the operator's n8n workflow re-posting to
+## 2. Operations (invoice contract verbs)
+
+`create_invoice` · `update_invoice` · `get_invoice` · `list_invoices` (client/product/expense verbs arrive in
+phase 5). Inbound payment/status events arrive via the operator's n8n workflow re-posting to
 `POST /api/notifications/ingest`, matched back to the local invoice by the `custom_value1` correlation key
 (`omni:<invoiceId>`), and drive the existing `POST /invoices/:id/status` (issued→paid).
 
@@ -50,10 +58,13 @@ manager+ RBAC, reusing `sanitizeInvoiceWrite` + the sealed artifact store as the
 
 ## 5. Build phases
 
-1. **Bridge foundation — BUILT.** `lib/invoice-ninja.ts`: config gate (`invoiceNinjaSyncEnabled`), the
-   namespaced `ninjaCommand` dispatch via the broker passthrough, the pure `Invoice → NinjaInvoicePayload`
-   mapping (`toNinjaInvoice`/`toNinjaLine`, discounts signed, local totals intentionally not sent — Invoice
-   Ninja recomputes), and the `omni:<id>` correlation helpers.
+1. **Backend registration + payload mapping — BUILT.** Invoice verbs added to the broker contract
+   (`ContractAction`, `WRITE_ACTIONS`); Invoice Ninja authored as a backend def
+   (`docs/vendors/overlays/invoice-ninja.json`, `financials` capability) shipped as a freeze-exempt operator
+   overlay. `lib/invoice-ninja.ts`: config gate (`invoiceNinjaSyncEnabled`), `ninjaCommand` dispatch via the
+   broker to the backend's contract verb, the pure `Invoice → NinjaInvoicePayload` mapping
+   (`toNinjaInvoice`/`toNinjaLine`, discounts signed, local totals intentionally not sent — Invoice Ninja
+   recomputes), and the `omni:<id>` correlation helpers.
 2. **Outbound push.** A manager-gated command that pushes a local invoice and records the returned external
    id / number / PDF link back on the sealed invoice artifact.
 3. **Auto-build from time × rate.** Seed a draft invoice from approved timesheets × rate card (labour) +
