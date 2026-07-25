@@ -3183,6 +3183,20 @@ ORG REGISTRY server logic (org-wide store of APPROVED bespoke items) — the aut
 | `approvedRegistryItems` | Every APPROVED item (optionally of a kind) — the reuse hook the app draws curated building blocks from. |
 | `communityRegistryItems` | Every item RELEASED to the community — what a connected online marketplace would publish. |
 
+### `artifacts/api-server/src/lib/release-promotion.ts`
+
+Approval-gated promotion (docs/UPDATE-MECHANISM.md §7, phase 3).
+
+| Function | What it does |
+| --- | --- |
+| `isDigest` | — |
+| `approvedPromotion` | The digest currently approved for production (or null). |
+| `__resetPromotion` | Test seam: clear the recorded promotion. |
+| `recordApprovedPromotion` | Record that a digest is APPROVED for production — the actual promotion decision, audited. |
+| `runPromotionExecutor` | The "apply once approved" body for a promotion proposal — records the approved digest from the proposal's params (params only ever travel the approval queue, never code). |
+| `ensurePromotionExecutor` | Register the approval executor so a bound, passkey-approved promotion actually records on sign-off. |
+| `proposePromotion` | Propose a promotion. |
+
 ### `artifacts/api-server/src/lib/release-provenance.ts`
 
 Release provenance — the "sign + verify at boot" foundation of the update mechanism (docs/UPDATE-MECHANISM.md §4, phase 1).
@@ -4572,6 +4586,10 @@ Rate card + hashed identity→role map + project types, and the server-side staf
 ### `artifacts/api-server/src/routes/registry.ts`
 
 Parse the activation target from a review body — org-wide by default, or a programme/project to CONFINE the activated primitive to (downward-only).
+
+### `artifacts/api-server/src/routes/release.ts`
+
+Release promotion (docs/UPDATE-MECHANISM.md §7, phase 3).
 
 ### `artifacts/api-server/src/routes/report-overrides.ts`
 

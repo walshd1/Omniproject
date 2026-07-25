@@ -908,6 +908,15 @@ Parse the activation target from a review body — org-wide by default, or a pro
 | POST | `/api/registry/:id/retract` | requireRole(admin) | POST /api/registry/:id/retract — pull a released item back to internal-only (admin). |
 | DELETE | `/api/registry/:id` | requireRole(contributor) | DELETE /api/registry/:id — remove an item (admin, or the submitter while it's still a draft). |
 
+### `artifacts/api-server/src/routes/release.ts`
+
+Release promotion (docs/UPDATE-MECHANISM.md §7, phase 3).
+
+| Method | Path | Gate | Description |
+| --- | --- | --- | --- |
+| GET | `/api/admin/release/promotion` | requireRole(admin) | — |
+| POST | `/api/admin/release/promote` | requireRole(admin) | POST /api/admin/release/promote — approve a digest for production. |
+
 ### `artifacts/api-server/src/routes/report-overrides.ts`
 
 Metadata overrides for the built-in (catalogue) reports.
