@@ -11,7 +11,7 @@
  * on WHICH grades exist. The internal ordinal LEVEL is the anchor the risk-exposure maths (P×I) key off (see
  * the api-server resolver's nearest-band fallback, so a scope-added grade still yields a bounded number).
  */
-import { vocabMethodologies, tokensForMethodology } from "./work-vocabulary";
+import { defineGradedVocabulary } from "./vocabulary-base";
 import { LIKELIHOOD_VOCABULARY_DATA } from "./likelihood-vocabulary.generated";
 
 /** One canonical RAID/risk likelihood grade (with its internal ordinal level + display order). */
@@ -36,25 +36,21 @@ export interface LikelihoodVocabEntry {
  *  a drift test asserts the two agree. */
 export type CanonicalLikelihood = "low" | "medium" | "high";
 
-const entries: LikelihoodVocabEntry[] = [...LIKELIHOOD_VOCABULARY_DATA].sort((a, b) => a.order - b.order);
+const vocab = defineGradedVocabulary<LikelihoodVocabEntry>(LIKELIHOOD_VOCABULARY_DATA);
 
 /** Canonical (internal) likelihood grades in ascending order (low → high). Derived from the shipped
  *  entries, so a drift test can assert the set never silently changes. */
-export const CANONICAL_LIKELIHOOD: readonly CanonicalLikelihood[] = entries.map((e) => e.id as CanonicalLikelihood);
+export const CANONICAL_LIKELIHOOD: readonly CanonicalLikelihood[] = vocab.ids as readonly CanonicalLikelihood[];
 
 /** Canonical likelihood grade → its internal ordinal level (the invariant the exposure/ordering key off). */
-export const LIKELIHOOD_LEVEL: Record<CanonicalLikelihood, number> = Object.fromEntries(
-  entries.map((e) => [e.id, e.level]),
-) as Record<CanonicalLikelihood, number>;
+export const LIKELIHOOD_LEVEL: Record<CanonicalLikelihood, number> = vocab.levelById as Record<CanonicalLikelihood, number>;
 
 /** Canonical likelihood grade → its display label. */
-export const LIKELIHOOD_LABEL: Record<CanonicalLikelihood, string> = Object.fromEntries(
-  entries.map((e) => [e.id, e.label]),
-) as Record<CanonicalLikelihood, string>;
+export const LIKELIHOOD_LABEL: Record<CanonicalLikelihood, string> = vocab.labelById as Record<CanonicalLikelihood, string>;
 
 /** The full likelihood vocabulary (a defensive copy) — for a consumer that needs the raw entries. */
 export function likelihoodVocabulary(): LikelihoodVocabEntry[] {
-  return entries.map((e) => ({ ...e }));
+  return vocab.vocabulary();
 }
 
 /** The scope-layerable shape of the likelihood vocabulary: the grades. This is BOTH the `values` seeded into
@@ -67,13 +63,11 @@ export interface LikelihoodVocabularyValues {
 
 /** Build the shipped-default {@link LikelihoodVocabularyValues} from the canonical entries. */
 export function likelihoodVocabularyValues(): LikelihoodVocabularyValues {
-  return {
-    levels: entries.map((e) => ({ id: e.id, label: e.label, order: e.order, level: e.level, methodologies: vocabMethodologies(e), ...(e.labels ? { labels: e.labels } : {}), ...(e.color ? { color: e.color } : {}) })),
-  };
+  return { levels: vocab.resolved() };
 }
 
 /** The likelihood grades that apply to `methodologyId` — its tagged ones plus the neutral ("*") ones. Pass
  *  the shipped default or a resolved set. */
 export function likelihoodLevelsForMethodology(methodologyId: string, levels: readonly ResolvedLikelihood[] = likelihoodVocabularyValues().levels): ResolvedLikelihood[] {
-  return tokensForMethodology(methodologyId, levels);
+  return vocab.forMethodology(methodologyId, levels);
 }

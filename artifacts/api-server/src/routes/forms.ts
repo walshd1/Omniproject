@@ -1,10 +1,6 @@
 import { Router } from "express";
-import { getSettings, SettingsValidationError } from "../lib/settings";
-import { captureVersion } from "../lib/config-store";
-import { applySettingsGuarded } from "../lib/settings-guard";
 import { requireRole, roleForReq } from "../lib/rbac";
 import { getBroker, contextFromReq, withBrokerErrors } from "../broker";
-import { actorForAudit } from "../lib/audit";
 import type { IssueWrite } from "../broker/types";
 import { guardProjectScope } from "../lib/project-scope";
 import { evaluateRuleset } from "../lib/ruleset";
@@ -89,41 +85,11 @@ router.post("/forms/:formId/submit", requireRole("contributor"), async (req, res
   }, { projectId: def.target.projectId });
 });
 
-// The LEGACY form-definitions slice (roadmap X.10 forms convergence). Forms are now DEFINITIONS authored through
-// the importer (`POST`/`PUT /api/defs`, kind `form`); this survives READ-ONLY, plus one permitted write:
-// draining the slice to `[]` (the one-time migration in the forms admin). GET stays so the migration can read
-// the old list; a non-empty write is a retired bypass → 410 Gone, pointing at the importer.
-router.get("/forms", (_req, res) => {
-  res.json({ forms: getSettings().forms ?? [] });
-});
-
-// GET /api/forms/resolved — the RESOLVED submittable set (legacy settings bridge + org/project/user def-store
-// forms, def store winning). The renderer reads THIS (not the legacy slice), so a migrated form shows up and
-// an un-migrated one still does until the drain. Read-open, same as the legacy slice.
+// GET /api/forms/resolved — the RESOLVED submittable set (org/project/user def-store forms, nearest scope
+// winning by id). Forms are DEFINITIONS authored through the importer (`POST`/`PUT /api/defs`, kind `form`);
+// the renderer reads THIS.
 router.get("/forms/resolved", (req, res) => {
   res.json({ forms: resolveFormDefs(req) });
-});
-
-router.put("/forms", requireRole("pmo"), async (req, res) => {
-  const value = (req.body as Record<string, unknown> | undefined)?.["forms"];
-  if (!Array.isArray(value) || value.length > 0) {
-    res.status(410).json({
-      error: "Forms are now definitions — author them through the importer (POST /api/defs, kind \"form\"). The legacy settings store is read-only and accepts only an empty array to complete migration.",
-    });
-    return;
-  }
-  try {
-    const guarded = await applySettingsGuarded({ forms: [] }, actorForAudit(req)?.sub ?? "admin");
-    if (!guarded.applied) {
-      res.status(202).json({ pending: guarded.pending, message: "This change needs a signed sign-off before it applies. See /api/approvals/inbox." });
-      return;
-    }
-    captureVersion("forms drained (migrated to definitions)");
-    res.json({ forms: getSettings().forms });
-  } catch (err) {
-    if (err instanceof SettingsValidationError) { res.status(400).json({ error: err.message }); return; }
-    throw err;
-  }
 });
 
 export default router;

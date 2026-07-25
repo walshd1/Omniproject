@@ -12,6 +12,18 @@ import {
   isTaskStatusDone,
   TASK_CLOSED_STATUSES,
 } from "./task-vocabulary";
+import { getMethodology } from "./methodology-catalogue";
+
+test("the task vocabulary is DERIVED from the methodology definitions, not a standalone asset", () => {
+  // The GTD methodology OWNS the task axis (assets/methodologies/gtd.json → tools.taskStatuses); the canonical
+  // task vocabulary is derived from it, so the two can never drift.
+  const gtd = getMethodology("gtd");
+  assert.ok(gtd?.tools.taskStatuses, "gtd methodology declares its task-status axis");
+  assert.deepEqual(
+    [...CANONICAL_TASK_STATUS].sort(),
+    gtd!.tools.taskStatuses!.map((s) => s.id).sort(),
+  );
+});
 
 test("canonical GTD task statuses are in workflow order with their workflow class", () => {
   assert.deepEqual([...CANONICAL_TASK_STATUS], ["next", "waiting", "scheduled", "someday", "done", "dropped"]);

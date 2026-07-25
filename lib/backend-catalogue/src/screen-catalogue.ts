@@ -9,6 +9,7 @@
 import { isCapabilityMet } from "./compatibility";
 import { matchesMethodology } from "./methodology-match";
 import { SCREENS_DATA } from "./screens.generated";
+import { defineCatalogue } from "./catalogue-base";
 
 export type ScreenKind = "dashboard" | "detail" | "planning" | "report" | "admin";
 
@@ -43,18 +44,17 @@ export interface ScreenDefinition extends ScreenManifest {
 
 /** Every shipped screen, in display order. Authored as JSON under
  *  assets/screens/<id>.json and embedded by gen-screens (drift-guarded in CI). */
-export const SCREENS: ScreenDefinition[] = [...SCREENS_DATA].sort((a, b) => a.order - b.order);
-
-const byId = new Map(SCREENS.map((s) => [s.id, s]));
+const catalogue = defineCatalogue(SCREENS_DATA, { sortByOrder: true });
+export const SCREENS: ScreenDefinition[] = catalogue.all;
 
 /** One screen definition by id, or undefined. */
 export function getScreen(id: string): ScreenDefinition | undefined {
-  return byId.get(id);
+  return catalogue.get(id);
 }
 
 /** All screen definitions (a defensive copy). */
 export function screenCatalogue(): ScreenDefinition[] {
-  return SCREENS.map((s) => ({ ...s }));
+  return catalogue.list();
 }
 
 /**

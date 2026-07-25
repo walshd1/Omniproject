@@ -11,7 +11,7 @@
  * add a band. The 3-way classifier (`classifyRag` → GREEN/AMBER/RED) and every health roll-up that keys off
  * it stay in code and are UNCHANGED; the internal ordinal BAND here is what an adjustable band binds to.
  */
-import { vocabMethodologies, tokensForMethodology } from "./work-vocabulary";
+import { defineGradedVocabulary } from "./vocabulary-base";
 import { RAG_VOCABULARY_DATA } from "./rag-vocabulary.generated";
 
 /** One canonical RAG/health band (with its internal ordinal band + display order). */
@@ -36,25 +36,21 @@ export interface RagVocabEntry {
  *  test asserts the two agree. Mirrors the classifier's three-way GREEN/AMBER/RED mapping (lower-cased ids). */
 export type CanonicalRag = "red" | "amber" | "green";
 
-const entries: RagVocabEntry[] = [...RAG_VOCABULARY_DATA].sort((a, b) => a.order - b.order);
+const vocab = defineGradedVocabulary<RagVocabEntry>(RAG_VOCABULARY_DATA);
 
 /** Canonical (internal) RAG bands in ascending health order (red → green). Derived from the shipped
  *  entries, so a drift test can assert the set never silently changes. */
-export const CANONICAL_RAG: readonly CanonicalRag[] = entries.map((e) => e.id as CanonicalRag);
+export const CANONICAL_RAG: readonly CanonicalRag[] = vocab.ids as readonly CanonicalRag[];
 
 /** Canonical RAG band → its internal ordinal band (the invariant the ordering/filtering key off). */
-export const RAG_BAND_LEVEL: Record<CanonicalRag, number> = Object.fromEntries(
-  entries.map((e) => [e.id, e.level]),
-) as Record<CanonicalRag, number>;
+export const RAG_BAND_LEVEL: Record<CanonicalRag, number> = vocab.levelById as Record<CanonicalRag, number>;
 
 /** Canonical RAG band → its display label. */
-export const RAG_BAND_LABEL: Record<CanonicalRag, string> = Object.fromEntries(
-  entries.map((e) => [e.id, e.label]),
-) as Record<CanonicalRag, string>;
+export const RAG_BAND_LABEL: Record<CanonicalRag, string> = vocab.labelById as Record<CanonicalRag, string>;
 
 /** The full RAG vocabulary (a defensive copy) — for a consumer that needs the raw entries. */
 export function ragVocabulary(): RagVocabEntry[] {
-  return entries.map((e) => ({ ...e }));
+  return vocab.vocabulary();
 }
 
 /** The scope-layerable shape of the RAG vocabulary: the bands. This is BOTH the `values` seeded into the
@@ -67,13 +63,11 @@ export interface RagVocabularyValues {
 
 /** Build the shipped-default {@link RagVocabularyValues} from the canonical entries. */
 export function ragVocabularyValues(): RagVocabularyValues {
-  return {
-    bands: entries.map((e) => ({ id: e.id, label: e.label, order: e.order, level: e.level, methodologies: vocabMethodologies(e), ...(e.labels ? { labels: e.labels } : {}), ...(e.color ? { color: e.color } : {}) })),
-  };
+  return { bands: vocab.resolved() };
 }
 
 /** The RAG bands that apply to `methodologyId` — its tagged ones plus the neutral ("*") ones. Pass the
  *  shipped default or a resolved set. */
 export function ragBandsForMethodology(methodologyId: string, bands: readonly ResolvedRag[] = ragVocabularyValues().bands): ResolvedRag[] {
-  return tokensForMethodology(methodologyId, bands);
+  return vocab.forMethodology(methodologyId, bands);
 }

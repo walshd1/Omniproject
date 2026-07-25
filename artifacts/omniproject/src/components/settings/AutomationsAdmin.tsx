@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Workflow } from "lucide-react";
-import { AUTOMATION_TRIGGERS, AUTOMATION_ACTIONS, type AutomationCondition, type AutomationAction, type TriggerKind, type ActionKind } from "@workspace/backend-catalogue";
+import { AUTOMATION_TRIGGERS, AUTOMATION_ACTIONS, type Predicate, type Op, type AutomationAction, type TriggerKind, type ActionKind } from "@workspace/backend-catalogue";
 import { useAuth, isPmoOrAdmin } from "../../lib/auth";
 import { useDraftAdmin } from "../../hooks/use-draft-admin";
 import { useToast } from "@/hooks/use-toast";
@@ -19,7 +19,16 @@ import { safeParseJson } from "../../lib/safe-json";
  * Gated to PMO/admin for now (the org-config authoring surface); the per-recipe permission check is enforced
  * server-side regardless of who opens this panel.
  */
-const OPS: AutomationCondition["op"][] = ["eq", "ne", "in", "gt", "lt", "truthy"];
+// The predicate operator set the builder offers (the shared engine accepts more via raw JSON). Unary ops
+// take no value.
+const OPS: Op[] = ["eq", "ne", "gt", "gte", "lt", "lte", "in", "nin", "truthy", "falsy"];
+const UNARY = new Set<Op>(["truthy", "falsy"]);
+
+/** The IF is a ConditionSet; the builder edits its `all` list (every predicate must hold). */
+const whenAll = (r: Automation): Predicate[] => r.when?.all ?? [];
+/** `in`/`nin` compare against a LIST — author comma-separated, stored as an array; others store the string. */
+const parseValue = (op: Op, s: string): unknown => (op === "in" || op === "nin" ? s.split(",").map((x) => x.trim()).filter(Boolean) : s);
+const showValue = (v: unknown): string => (Array.isArray(v) ? v.join(", ") : String(v ?? ""));
 
 function uniqueId(base: string, taken: Set<string>): string {
   let id = base, n = 2;
@@ -41,6 +50,12 @@ export function AutomationsAdmin() {
   const recipes = draft ?? [];
   const ids = new Set(recipes.map((r) => r.id));
   const setRecipe = (i: number, patch: Partial<Automation>) => setDraft(recipes.map((r, j) => (j === i ? { ...r, ...patch } : r)));
+  // Write the recipe's `when.all` (dropping `when` entirely when the list is empty ⇒ fires unconditionally).
+  const setWhen = (i: number, preds: Predicate[]) => setDraft(recipes.map((r, j) => {
+    if (j !== i) return r;
+    if (!preds.length) { const { when: _drop, ...rest } = r; return rest as Automation; }
+    return { ...r, when: { all: preds } };
+  }));
 
   const addRecipe = () => {
     const id = uniqueId("recipe", ids);
@@ -119,23 +134,23 @@ export function AutomationsAdmin() {
               )}
             </div>
 
-            {/* Conditions */}
+            {/* Conditions — the recipe's `when.all` (every predicate must hold). */}
             <div className="space-y-1">
               <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Only if</span>
               <EditableRowTable
-                rows={r.conditions ?? []}
+                rows={whenAll(r)}
                 rowKey={(_, i) => i}
                 rowTestId={(_, i) => `automation-${r.id}-cond-${i}`}
-                onRemove={(i) => setRecipe(ri, { conditions: (r.conditions ?? []).filter((_, j) => j !== i) })}
+                onRemove={(i) => setWhen(ri, whenAll(r).filter((_, j) => j !== i))}
                 removeLabel={(i) => `Remove condition ${i + 1}`}
                 emptyText="Always."
                 columns={[
-                  { header: "Field", cell: (c: AutomationCondition, i) => <Input aria-label={`Condition ${i + 1} field`} value={c.field} onChange={(e) => setRecipe(ri, { conditions: (r.conditions ?? []).map((x, j) => j === i ? { ...x, field: e.target.value } : x) })} className="h-8 max-w-32" /> },
-                  { header: "Op", cell: (c: AutomationCondition, i) => <select aria-label={`Condition ${i + 1} op`} value={c.op} onChange={(e) => setRecipe(ri, { conditions: (r.conditions ?? []).map((x, j) => j === i ? { ...x, op: e.target.value as AutomationCondition["op"] } : x) })} className="h-8 border border-foreground bg-background px-1 text-xs">{OPS.map((o) => <option key={o} value={o}>{o}</option>)}</select> },
-                  { header: "Value", cell: (c: AutomationCondition, i) => c.op === "truthy" ? <span className="text-xs text-muted-foreground">—</span> : <Input aria-label={`Condition ${i + 1} value`} value={c.value ?? ""} onChange={(e) => setRecipe(ri, { conditions: (r.conditions ?? []).map((x, j) => j === i ? { ...x, value: e.target.value } : x) })} className="h-8 max-w-32" /> },
+                  { header: "Field", cell: (c: Predicate, i) => <Input aria-label={`Condition ${i + 1} field`} value={c.field} onChange={(e) => setWhen(ri, whenAll(r).map((x, j) => j === i ? { ...x, field: e.target.value } : x))} className="h-8 max-w-32" /> },
+                  { header: "Op", cell: (c: Predicate, i) => <select aria-label={`Condition ${i + 1} op`} value={c.op} onChange={(e) => { const op = e.target.value as Op; setWhen(ri, whenAll(r).map((x, j) => j === i ? { field: x.field, op, ...(UNARY.has(op) ? {} : { value: parseValue(op, showValue(x.value)) }) } : x)); }} className="h-8 border border-foreground bg-background px-1 text-xs">{OPS.map((o) => <option key={o} value={o}>{o}</option>)}</select> },
+                  { header: "Value", cell: (c: Predicate, i) => UNARY.has(c.op) ? <span className="text-xs text-muted-foreground">—</span> : <Input aria-label={`Condition ${i + 1} value`} value={showValue(c.value)} onChange={(e) => setWhen(ri, whenAll(r).map((x, j) => j === i ? { ...x, value: parseValue(c.op, e.target.value) } : x))} className="h-8 max-w-32" /> },
                 ]}
               />
-              <Button type="button" variant="outline" size="sm" onClick={() => setRecipe(ri, { conditions: [...(r.conditions ?? []), { field: "", op: "eq", value: "" }] })} data-testid={`automation-${r.id}-add-cond`}>Add condition</Button>
+              <Button type="button" variant="outline" size="sm" onClick={() => setWhen(ri, [...whenAll(r), { field: "", op: "eq", value: "" }])} data-testid={`automation-${r.id}-add-cond`}>Add condition</Button>
             </div>
 
             {/* Actions */}

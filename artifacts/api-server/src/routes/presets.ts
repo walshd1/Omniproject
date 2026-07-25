@@ -1,15 +1,15 @@
 import { Router } from "express";
 import { randomUUID } from "node:crypto";
 import { requireRole } from "../lib/rbac";
-import { getBroker, contextFromReq, withBrokerErrors } from "../broker";
+import { getBroker, contextFromReq } from "../broker";
 import type { IssueWrite } from "../broker/types";
 import { readConfigCollection } from "../lib/scoped-config";
 import { planInstantiation } from "../lib/project-template";
 import { applyRuleset } from "../lib/ruleset";
-import { recordRequestAudit } from "../lib/audit";
 import { planPresetApply, PresetError } from "../lib/preset-apply";
 import { resolvePresets, resolvePreset } from "../lib/preset-config";
 import { type ProjectTemplate } from "@workspace/backend-catalogue";
+import { mountCommand, type CommandDescriptor } from "../lib/action-base";
 
 /**
  * QUICK-LOAD PRESETS — land an org on a way of working in one action. A preset is a first-class bundle that
@@ -34,18 +34,31 @@ router.get("/presets/:id", requireRole("viewer"), (req, res) => {
   res.json(preset);
 });
 
-// POST /api/presets/:id/apply — apply the preset (pmo). Body: { name?, programmeId? } for the starter project.
-router.post("/presets/:id/apply", requireRole("pmo"), (req, res) => {
-  let plan;
-  try {
-    const preset = resolvePreset(String((req.params as { id?: unknown }).id ?? ""));
-    plan = planPresetApply(preset, readConfigCollection<ProjectTemplate[]>("templates", []));
-  } catch (e) {
-    if (e instanceof PresetError) { res.status(e.status).json({ error: e.message }); return; }
-    throw e;
-  }
-
-  return withBrokerErrors(req, res, "apply preset failed", async () => {
+/**
+ * POST /api/presets/:id/apply — apply the preset (pmo). Body: { name?, programmeId? } for the starter project.
+ *
+ * LANE 2 (broker-aware): the preset resolution + plan (which throws PresetError → 4xx for an unknown preset)
+ * is the parse gate; the effect — apply the reference ruleset, instantiate the starter project via the broker,
+ * seed its issues — is `run`, marked `broker: true` so the action base wraps it in withBrokerErrors (a broker
+ * failure maps to its status and records NO success audit). The existing `preset_apply` audit moves verbatim
+ * to auditMeta/auditStatus (201). Response (presetId + methodology + applied + followUps) unchanged.
+ */
+export const presetApplyCommand: CommandDescriptor<{ plan: ReturnType<typeof planPresetApply>; body: unknown }> = {
+  name: "preset_apply",
+  method: "post",
+  path: "/presets/:id/apply",
+  role: "pmo",
+  parse: (req, res) => {
+    try {
+      const preset = resolvePreset(String((req.params as { id?: unknown }).id ?? ""));
+      return { plan: planPresetApply(preset, readConfigCollection<ProjectTemplate[]>("templates", [])), body: req.body };
+    } catch (e) {
+      if (e instanceof PresetError) { res.status(e.status).json({ error: e.message }); return null; }
+      throw e;
+    }
+  },
+  broker: { message: "apply preset failed" },
+  run: async (req, _res, { plan, body }) => {
     const applied: { referenceRuleset?: string; project?: { id: string; seeded: number } } = {};
 
     // 1) Apply the reference ruleset (field/mode rules for the methodology).
@@ -56,10 +69,10 @@ router.post("/presets/:id/apply", requireRole("pmo"), (req, res) => {
 
     // 2) Instantiate the starter project + seed its work items (the tangible "working instance").
     if (plan.template) {
-      const body = (req.body ?? {}) as { name?: unknown; programmeId?: unknown };
+      const b = (body ?? {}) as { name?: unknown; programmeId?: unknown };
       const instPlan = planInstantiation(plan.template, {
-        ...(typeof body.name === "string" ? { name: body.name } : {}),
-        ...(typeof body.programmeId === "string" ? { programmeId: body.programmeId } : {}),
+        ...(typeof b.name === "string" ? { name: b.name } : {}),
+        ...(typeof b.programmeId === "string" ? { programmeId: b.programmeId } : {}),
       });
       const broker = getBroker();
       const ctx = contextFromReq(req);
@@ -72,12 +85,20 @@ router.post("/presets/:id/apply", requireRole("pmo"), (req, res) => {
       applied.project = { id: project.id, seeded };
     }
 
-    recordRequestAudit(req, {
-      category: "admin", action: "preset_apply", result: "success", status: 201,
-      meta: { presetId: plan.preset.id, methodology: plan.preset.methodology, ruleset: applied.referenceRuleset ?? null, projectId: applied.project?.id ?? null, seeded: applied.project?.seeded ?? 0 },
-    });
-    res.status(201).json({ presetId: plan.preset.id, methodology: plan.preset.methodology, applied, followUps: plan.followUps });
-  });
-});
+    return { presetId: plan.preset.id, methodology: plan.preset.methodology, applied, followUps: plan.followUps };
+  },
+  status: 201,
+  audit: "preset_apply",
+  auditCategory: "admin",
+  auditStatus: 201,
+  auditMeta: (_req, { plan }, result) => {
+    const applied = (result as { applied: { referenceRuleset?: string; project?: { id: string; seeded: number } } }).applied;
+    return {
+      presetId: plan.preset.id, methodology: plan.preset.methodology,
+      ruleset: applied.referenceRuleset ?? null, projectId: applied.project?.id ?? null, seeded: applied.project?.seeded ?? 0,
+    };
+  },
+};
+mountCommand(router, presetApplyCommand);
 
 export default router;

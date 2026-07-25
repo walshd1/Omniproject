@@ -342,6 +342,46 @@ good developer, or an agent picking up where another left off, can learn how the
 from the map and the comments, trust that behaviour is pinned by tests, and never inherit a known-red state
 someone chose not to fix.
 
+## 17. Centralize by mechanism, not by noun
+
+Principle 14 says write a behaviour once; principle 12 says split a unit the moment it grows a second reason
+to change. This principle is the **decision procedure between them** — the test for whether two things are the
+same behaviour *in the first place*, so you know which of the other two applies.
+
+The axis of centralization is the shared **mechanism**, never the shared **noun**. Merge two call sites only
+when they must change *together* anyway — the same wire format, the same security property, the same validation
+order, the same serialization. If a plausible future change would touch one but not the other, they are not the
+same thing: keep them separate and share only the primitive underneath.
+
+The failure mode this rules out is **false unification** — collapsing things that merely *look* alike (same
+shape, same word) into one function that switches on a `kind`/`type`/`mode` flag. That doesn't remove
+duplication; it *couples things that change for different reasons*, so a change made for one purpose silently
+breaks the others. That is whack-a-mole behind a single point of failure — the exact opposite of what DRY (14)
+buys you. The tell is in the naming (as in 12 and 14): if a would-be shared function needs an "and", or an
+internal `switch` on *what it is being used for*, it is two functions wearing one name — split it into distinct
+purposes over one shared primitive.
+
+Worked examples in the tree:
+
+- **`hmac-chain`** shares the identical keyed-chain link formula (`chainLinkHash`) between the audit chain and
+  the OmniStore log — but deliberately does *not* fold in provenance's per-entry MAC, which binds a different
+  field set for a different reason. Share the identical formula; keep the divergent one out.
+- **`aesGcmSeal`/`aesGcmOpen`** is the one AES-GCM wire format, while each domain (session, config, broker PSK)
+  keeps its *own* key derivation and prefix — the parts that must stay separate because their threat models
+  differ.
+- **"log" is the cautionary noun.** The application logger (`lib/logger.ts`) and the three tamper-evident
+  *ledgers* (audit chain, provenance, OmniStore log) share a word and nothing else. Merging them into one
+  `log()` would be textbook false unification — they change for entirely different reasons.
+- **Correct non-merges, on purpose:** `masterSecret` documents *why* the key registry keeps its own
+  differently-ordered key ladder rather than share one (`crypto-keys.ts`); notification delivery stays split
+  across push/digest/bus/hub because those channels evolve independently. Declining to centralize is sometimes
+  the rule-respecting move.
+
+Guard story (per 13): this one is a **review-time heuristic**, not something a single test can assert — but it
+is backed indirectly, because the primitives it produces carry drift guards (the wire-format and idempotence
+guards on the crypto helpers and generated maps). When you *do* extract a mechanism, add or extend that
+primitive's guard so the consolidation cannot silently come undone.
+
 ---
 
 ## Operational implications (read this if you run OmniProject)

@@ -1,25 +1,34 @@
 /**
- * Canonical GTD TASK-STATUS vocabulary — the single source of truth for the next-action statuses
- * OmniProject knows about, their workflow class and their display order. Authored as JSON
- * (assets/task-vocabulary.json), validated + embedded by gen-task-vocabulary, drift-guarded in CI —
- * the same data-not-code pattern as the work-item (issue) vocabulary next to it.
+ * Canonical TASK-STATUS vocabulary — the single source of truth for the next-action statuses OmniProject
+ * knows about, their workflow class and their display order. This is METHODOLOGY-AGNOSTIC infrastructure:
+ * the code doesn't know about any one methodology. The vocabulary is DERIVED from the methodology
+ * definitions (assets/methodologies/<id>.json → `tools.taskStatuses`), not a standalone asset — a task axis
+ * is a methodology's OWN next-action nomenclature, so it's authored WHERE the methodology is, and ANY
+ * methodology can declare one (GTD is the one that ships a task axis today; another could add its own with
+ * no code change). The methodology JSON is validated + drift-guarded by gen-methodologies in CI, so this
+ * stays data-not-code and can never drift from the methodology that owns it.
  *
- * This is the TASK axis (David Allen's GTD next-actions), DISTINCT from the work-item/issue status axis
- * in ./work-vocabulary. It keeps GTD's richer FIVE workflow classes (actionable/waiting/deferred/done/
- * dropped) rather than collapsing onto the four issue lifecycle classes. It lives BELOW the seam because
- * BOTH planes read it: the gateway's broker/vocabulary re-exports the status list + workflow class (and
- * adds the native⇄canonical synonym/dialect behaviour, which stays above the seam), and the SPA derives
- * its GTD status order + labels from it — so the two can never drift on WHICH task statuses exist.
+ * This is the TASK axis (next-actions — GTD's exemplar), DISTINCT from the work-item/issue status axis in
+ * ./work-vocabulary. It carries a richer FIVE workflow classes (actionable/waiting/deferred/done/dropped)
+ * rather than collapsing onto the four issue lifecycle classes — the class set is the fixed internal
+ * invariant every declared status (from any methodology) binds to, so the actionable/closed/done maths are
+ * universal. It lives BELOW the seam because BOTH planes read it: the gateway's broker/vocabulary re-exports
+ * the status list + workflow class (and adds the native⇄canonical synonym/dialect behaviour, which stays
+ * above the seam), and the SPA derives its status order + labels from it — so the two can never drift on
+ * WHICH task statuses exist. A methodology DEPLOY lands that methodology's own task statuses via the deploy
+ * nomenclature (see methodology-deploy.ts).
  */
 import { vocabMethodologies, tokensForMethodology } from "./work-vocabulary";
-import { TASK_VOCABULARY_DATA } from "./task-vocabulary.generated";
+import { METHODOLOGIES_DATA } from "./methodologies.generated";
 
-/** The GTD workflow class a task status falls in — what the actionable/closed/done maths key off.
+/** The workflow class a task status falls in — what the actionable/closed/done maths key off.
  *  actionable = doable now · waiting = delegated/blocked on someone · deferred = scheduled or someday ·
- *  done · dropped (decided not to do). KEPT at five classes — the GTD axis is NOT the issue axis. */
+ *  done · dropped (decided not to do). The fixed FIVE-class taxonomy every methodology's task statuses bind
+ *  to (GTD's exemplar) — the next-action axis, NOT the issue axis. */
 export type TaskStatusClass = "actionable" | "waiting" | "deferred" | "done" | "dropped";
 
-/** One canonical GTD task-status token (with its workflow class + display order). */
+/** One canonical task-status token (with its workflow class + display order). A methodology declares these
+ *  under `tools.taskStatuses`; the shape is methodology-agnostic. */
 export interface TaskVocabEntry {
   id: string;
   /** The base/default label (the authoring language). */
@@ -27,25 +36,39 @@ export interface TaskVocabEntry {
   /** Optional per-locale translations (BCP-47 key → text). A viewer sees {@link localeLabel}. */
   labels?: Record<string, string>;
   order: number;
-  /** The workflow class this status binds to — the ONE internal invariant kept for the GTD maths. Every
-   *  status (shipped OR a scope-added custom one) must declare it, so a custom status behaves exactly like
-   *  the internal class it binds to. */
+  /** The workflow class this status binds to — the ONE internal invariant kept for the next-action maths.
+   *  Every status (shipped OR a scope-added custom one) must declare it, so a custom status behaves exactly
+   *  like the internal class it binds to. */
   class: TaskStatusClass;
   /** Swatch colour as a 6-digit hex, rendered via inline style (absent ⇒ a neutral swatch). */
   color?: string;
   /** Methodology tags this status belongs to ("*" = neutral / all). Absent ⇒ neutral. Lets each
-   *  methodology carry its own normal GTD nomenclature (surfaced by {@link taskStatusesForMethodology}). */
+   *  methodology carry its own next-action nomenclature (surfaced by {@link taskStatusesForMethodology}). */
   methodologies?: string[];
 }
 
-/** The canonical GTD task statuses (compile-time contract). The runtime list comes from the asset; a
- *  drift test asserts the two agree. */
+/** The concrete task-status ids the shipped methodologies declare (compile-time contract — GTD's set today).
+ *  The runtime list is derived from the methodology definitions; a drift test asserts the two agree. */
 export type CanonicalTaskStatus = "next" | "waiting" | "scheduled" | "someday" | "done" | "dropped";
 
-const entries: TaskVocabEntry[] = [...TASK_VOCABULARY_DATA].sort((a, b) => a.order - b.order);
+/** The canonical task vocabulary, DERIVED from every methodology's declared `tools.taskStatuses` (deduped by
+ *  id — first declarer wins), sorted by order. Today only GTD declares a task axis, so this is GTD's set; a
+ *  future methodology that ships its own next-action statuses widens it as data, no code change. */
+const entries: TaskVocabEntry[] = (() => {
+  const out: TaskVocabEntry[] = [];
+  const seen = new Set<string>();
+  for (const m of METHODOLOGIES_DATA) {
+    for (const s of m.tools.taskStatuses ?? []) {
+      if (seen.has(s.id)) continue;
+      seen.add(s.id);
+      out.push(s);
+    }
+  }
+  return out.sort((a, b) => a.order - b.order);
+})();
 
-/** Canonical (internal) GTD task statuses in workflow order (next → dropped). Derived from the shipped
- *  entries, so a drift test can assert the set never silently changes. */
+/** Canonical (internal) task statuses in workflow order (next → dropped). Derived from the methodology
+ *  definitions, so a drift test can assert the set never silently changes. */
 export const CANONICAL_TASK_STATUS: readonly CanonicalTaskStatus[] = entries.map((e) => e.id as CanonicalTaskStatus);
 
 /** Canonical task status → its workflow class. */
@@ -65,7 +88,7 @@ export function taskStatusClassOf(id: string | null | undefined): TaskStatusClas
   return TASK_STATUS_CLASS[id as CanonicalTaskStatus] ?? null;
 }
 
-/** True when a task status is CLOSED — its class is `done` or `dropped`. The completion test, asset-backed. */
+/** True when a task status is CLOSED — its class is `done` or `dropped`. The completion test, class-backed. */
 export function isTaskStatusClosed(id: string | null | undefined): boolean {
   const c = taskStatusClassOf(id);
   return c === "done" || c === "dropped";

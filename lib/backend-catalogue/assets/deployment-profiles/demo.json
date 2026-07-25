@@ -1,0 +1,12 @@
+{
+  "id": "demo",
+  "label": "Demo / evaluation",
+  "order": 50,
+  "audience": "Throwaway evaluation. Nothing to protect.",
+  "tls": "lan-ok",
+  "demoAuthSeverity": "info",
+  "summary": "No auth, sample data, nothing at rest.",
+  "relaxes": ["Everything — no auth, no TLS, sample data"],
+  "presetEnv": [],
+  "recommend": ["Switch to a real profile before storing anything that matters"]
+}
