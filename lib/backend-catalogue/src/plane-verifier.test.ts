@@ -140,8 +140,8 @@ test("backends: an ISSUE backend must expose projects + issues; an INVOICE backe
   assert.ok(verifyPlaneEntry("backends", { id: "t", label: "T", primaryRecord: "tax_rate", kind: "live", verification: "catalogued", via: "http", requiredEnv: [], capabilities: {}, authHeader: "x", actions: {} }).errors.some((e) => e.includes("list_tax_rates")));
   assert.equal(verifyPlaneEntry("backends", { id: "t", label: "T", primaryRecord: "tax_rate", kind: "live", verification: "catalogued", via: "http", requiredEnv: [], capabilities: {}, authHeader: "x", actions: { list_tax_rates: { method: "GET", url: "x" } } }).ok, true);
 
-  // AP spine (F6): vendor / expense / bill / purchase_order each require their own list read.
-  for (const [rec, read] of [["vendor", "list_vendors"], ["expense", "list_expenses"], ["bill", "list_bills"], ["purchase_order", "list_purchase_orders"]] as const) {
+  // AP spine (F6) + GL (F7): each record type requires its own list read.
+  for (const [rec, read] of [["vendor", "list_vendors"], ["expense", "list_expenses"], ["bill", "list_bills"], ["purchase_order", "list_purchase_orders"], ["gl_account", "list_accounts"], ["journal_entry", "list_journal_entries"]] as const) {
     assert.ok(verifyPlaneEntry("backends", { id: rec, label: rec, primaryRecord: rec, kind: "live", verification: "catalogued", via: "http", requiredEnv: [], capabilities: {}, authHeader: "x", actions: {} }).errors.some((e) => e.includes(read)), `${rec} requires ${read}`);
     assert.equal(verifyPlaneEntry("backends", { id: rec, label: rec, primaryRecord: rec, kind: "live", verification: "catalogued", via: "http", requiredEnv: [], capabilities: {}, authHeader: "x", actions: { [read]: { method: "GET", url: "x" } } }).ok, true);
   }
