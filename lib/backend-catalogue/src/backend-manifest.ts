@@ -90,6 +90,11 @@ export type ContractAction =
   | "list_fx_rates"
   | "get_fx_rate"
   | "create_fx_rate"
+  // ── Period & posting (finance superset F12) — the accounting-period master the ledger posts through ──
+  | "list_fiscal_periods"
+  | "get_fiscal_period"
+  | "create_fiscal_period"
+  | "update_fiscal_period"
   | "get_capabilities";
 
 /** Catalogue tier — enterprise backends gate the premium workflow generation. */
@@ -167,7 +172,7 @@ export interface KeyFormat {
  * contributed `fields[]` — so whatever any backend can provide maps through to the standard surface. It is NOT
  * scoped per record type; `primaryRecord` governs required actions, not which fields exist.
  */
-export const BACKEND_RECORD_TYPES = ["issue", "invoice", "client", "product", "payment", "credit_note", "quote", "tax_rate", "vendor", "expense", "bill", "purchase_order", "gl_account", "journal_entry", "bank_account", "bank_transaction", "fx_rate"] as const;
+export const BACKEND_RECORD_TYPES = ["issue", "invoice", "client", "product", "payment", "credit_note", "quote", "tax_rate", "vendor", "expense", "bill", "purchase_order", "gl_account", "journal_entry", "bank_account", "bank_transaction", "fx_rate", "fiscal_period"] as const;
 export type BackendRecordType = (typeof BACKEND_RECORD_TYPES)[number];
 
 /** The contract READ verbs a backend of each primary-record type must implement (the verifier enforces this).
@@ -193,6 +198,7 @@ export const RECORD_TYPE_REQUIRED_READS: Record<BackendRecordType, ContractActio
   bank_account: ["list_bank_accounts"],
   bank_transaction: ["list_bank_transactions"],
   fx_rate: ["list_fx_rates"],
+  fiscal_period: ["list_fiscal_periods"],
 };
 
 export interface BackendManifest {

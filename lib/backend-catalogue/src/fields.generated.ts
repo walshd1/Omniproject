@@ -1388,6 +1388,78 @@ export const FIELDS_DATA: FieldDescriptor[] = [
     "entity": "fx_rate"
   },
   {
+    "key": "periodName",
+    "label": "Period name",
+    "type": "string",
+    "group": "financial",
+    "entity": "fiscal_period"
+  },
+  {
+    "key": "periodFiscalYear",
+    "label": "Fiscal year",
+    "type": "string",
+    "group": "financial",
+    "entity": "fiscal_period"
+  },
+  {
+    "key": "periodStartDate",
+    "label": "Period start",
+    "type": "date",
+    "group": "financial",
+    "entity": "fiscal_period"
+  },
+  {
+    "key": "periodEndDate",
+    "label": "Period end",
+    "type": "date",
+    "group": "financial",
+    "entity": "fiscal_period"
+  },
+  {
+    "key": "periodStatus",
+    "label": "Period status",
+    "type": "enum",
+    "group": "financial",
+    "entity": "fiscal_period"
+  },
+  {
+    "key": "journalDocumentDate",
+    "label": "Document date",
+    "type": "date",
+    "group": "financial",
+    "entity": "journal_entry"
+  },
+  {
+    "key": "journalPostingDate",
+    "label": "Posting date",
+    "type": "date",
+    "group": "financial",
+    "entity": "journal_entry"
+  },
+  {
+    "key": "journalPostingStatus",
+    "label": "Posting status",
+    "type": "enum",
+    "group": "financial",
+    "entity": "journal_entry"
+  },
+  {
+    "key": "journalFiscalPeriod",
+    "label": "Fiscal period",
+    "type": "reference",
+    "references": "fiscal_period",
+    "group": "financial",
+    "entity": "journal_entry"
+  },
+  {
+    "key": "journalReversalOf",
+    "label": "Reversal of",
+    "type": "reference",
+    "references": "journal_entry",
+    "group": "financial",
+    "entity": "journal_entry"
+  },
+  {
     "key": "invoiceNumber",
     "label": "Invoice Number",
     "type": "string",
