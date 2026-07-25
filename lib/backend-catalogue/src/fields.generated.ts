@@ -1178,6 +1178,97 @@ export const FIELDS_DATA: FieldDescriptor[] = [
     "entity": "tax_rate"
   },
   {
+    "key": "vendorName",
+    "label": "Vendor / supplier",
+    "type": "string",
+    "group": "financial",
+    "entity": "vendor"
+  },
+  {
+    "key": "vendorEmail",
+    "label": "Vendor email",
+    "type": "string",
+    "group": "financial",
+    "entity": "vendor"
+  },
+  {
+    "key": "vendorTaxId",
+    "label": "Vendor tax ID",
+    "type": "string",
+    "group": "financial",
+    "entity": "vendor"
+  },
+  {
+    "key": "expenseAmount",
+    "label": "Expense amount",
+    "type": "currency",
+    "group": "financial",
+    "entity": "expense"
+  },
+  {
+    "key": "expenseDate",
+    "label": "Expense date",
+    "type": "date",
+    "group": "financial",
+    "entity": "expense"
+  },
+  {
+    "key": "expenseCategory",
+    "label": "Expense category",
+    "type": "enum",
+    "group": "financial",
+    "entity": "expense"
+  },
+  {
+    "key": "billNumber",
+    "label": "Bill number",
+    "type": "string",
+    "group": "financial",
+    "entity": "bill"
+  },
+  {
+    "key": "billAmount",
+    "label": "Bill amount",
+    "type": "currency",
+    "group": "financial",
+    "entity": "bill"
+  },
+  {
+    "key": "billDueDate",
+    "label": "Bill due date",
+    "type": "date",
+    "group": "financial",
+    "entity": "bill"
+  },
+  {
+    "key": "billStatus",
+    "label": "Bill status",
+    "type": "enum",
+    "group": "financial",
+    "entity": "bill"
+  },
+  {
+    "key": "poNumber",
+    "label": "PO number",
+    "type": "string",
+    "group": "financial",
+    "entity": "purchase_order"
+  },
+  {
+    "key": "poAmount",
+    "label": "PO amount",
+    "type": "currency",
+    "group": "financial",
+    "entity": "purchase_order"
+  },
+  {
+    "key": "poStatus",
+    "label": "PO status",
+    "type": "enum",
+    "group": "financial",
+    "entity": "purchase_order"
+  },
+  {
     "key": "invoiceNumber",
     "label": "Invoice Number",
     "type": "string",

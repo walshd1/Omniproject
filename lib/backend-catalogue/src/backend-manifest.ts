@@ -57,6 +57,22 @@ export type ContractAction =
   | "get_tax_rate"
   | "create_tax_rate"
   | "update_tax_rate"
+  // ── Accounts payable spine (finance superset F6) — vendor, expense, bill (vendor invoice), PO ──
+  | "list_vendors"
+  | "get_vendor"
+  | "create_vendor"
+  | "update_vendor"
+  | "list_expenses"
+  | "get_expense"
+  | "create_expense"
+  | "update_expense"
+  | "list_bills"
+  | "get_bill"
+  | "create_bill"
+  | "list_purchase_orders"
+  | "get_purchase_order"
+  | "create_purchase_order"
+  | "update_purchase_order"
   | "get_capabilities";
 
 /** Catalogue tier — enterprise backends gate the premium workflow generation. */
@@ -124,14 +140,15 @@ export interface KeyFormat {
  * master — a CRM/billing system whose primary record is the bill-to party) or `product` (an item catalogue
  * whose primary record is the priced line item) or `payment` (an AR-receipt system whose primary record is a
  * settlement applied to invoices) or `credit_note` / `quote` (AR documents — a credit against an account, an
- * estimate that precedes an invoice) or `tax_rate` (a jurisdiction's tax-rate table). Extend as new record
- * domains land.
+ * estimate that precedes an invoice) or `tax_rate` (a jurisdiction's tax-rate table) or an accounts-payable
+ * record — `vendor` (supplier master), `expense` (a cost), `bill` (a vendor invoice) or `purchase_order`.
+ * Extend as new record domains land.
  *
  * NOTE: the field superset is ONE universal registry — the union of `assets/fields.json` and EVERY backend's
  * contributed `fields[]` — so whatever any backend can provide maps through to the standard surface. It is NOT
  * scoped per record type; `primaryRecord` governs required actions, not which fields exist.
  */
-export const BACKEND_RECORD_TYPES = ["issue", "invoice", "client", "product", "payment", "credit_note", "quote", "tax_rate"] as const;
+export const BACKEND_RECORD_TYPES = ["issue", "invoice", "client", "product", "payment", "credit_note", "quote", "tax_rate", "vendor", "expense", "bill", "purchase_order"] as const;
 export type BackendRecordType = (typeof BACKEND_RECORD_TYPES)[number];
 
 /** The contract READ verbs a backend of each primary-record type must implement (the verifier enforces this).
@@ -148,6 +165,10 @@ export const RECORD_TYPE_REQUIRED_READS: Record<BackendRecordType, ContractActio
   credit_note: ["list_credit_notes"],
   quote: ["list_quotes"],
   tax_rate: ["list_tax_rates"],
+  vendor: ["list_vendors"],
+  expense: ["list_expenses"],
+  bill: ["list_bills"],
+  purchase_order: ["list_purchase_orders"],
 };
 
 export interface BackendManifest {
