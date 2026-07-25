@@ -212,5 +212,16 @@ Data outlives code, so **new code must read old data**:
    reads the stored backup's non-secret metadata (digest + when). The code-rollback half (repoint prod to the
    previous signed digest) remains a deploy-layer act on that same digest.
 5. **Per-org test canary.** Spawn the new digest against an isolated data copy; tear down on
-   accept/reject.
+   accept/reject. **— BUILT (app-layer).** OmniProject is single-tenant (one deployment = one org), so a
+   per-org canary is a per-DEPLOYMENT canary. `lib/release-canary.ts` holds the honest app-layer surface: a
+   single tagged `CanaryRecord` state machine (`testing → accepted | rejected`; one canary at a time, like
+   `approvedPromotion` is one `current`), sealed at rest (`RELEASE_CANARY_FILE`). `POST /api/admin/release/canary`
+   starts a canary for a digest and **seeds a sealed data copy** (`captureReleaseBackup`) — the artifact the
+   deploy layer mounts into the canary container as its isolated volume. `POST …/canary/accept` funnels the
+   SAME human-only, passkey-gated `release.promote` chain (`proposePromotion`), so a canary is never a second
+   ungated route to prod; `POST …/canary/reject` discards it (isolated writes dropped). Both accept/reject are
+   human-only (autonomous refused); all transitions are audited; `GET …/canary` reads the state. The digest is
+   the join key across canary → promotion → backup. **Deploy-layer (not in-app):** spawning the canary
+   container on the digest, attaching the seeded isolated volume, enforcing write-isolation/discard on it, and
+   physical teardown — signalled by the record's `accepted`/`rejected` state.
 6. **Signed migration runner.** Only if/when a release needs a data-shape change that isn't forward-safe.

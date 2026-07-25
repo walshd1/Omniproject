@@ -916,9 +916,13 @@ Release promotion (docs/UPDATE-MECHANISM.md §7, phase 3).
 | --- | --- | --- | --- |
 | GET | `/api/admin/release/promotion` | requireRole(admin) | — |
 | GET | `/api/admin/release/backup` | requireRole(admin) | GET /api/admin/release/backup — non-secret metadata of the stored pre-adopt backup (digest + when). |
+| GET | `/api/admin/release/canary` | requireRole(admin) | GET /api/admin/release/canary — the current canary's state (digest under test + accept/reject state). |
 | POST | `/api/admin/release/promote` | requireRole(admin) | POST /api/admin/release/promote — approve a digest for production. |
 | POST | `/api/admin/release/backup` | requireRole(admin) | POST /api/admin/release/backup — capture a pre-adopt backup NOW, tagged with the running digest. |
 | POST | `/api/admin/release/restore` | requireRole(admin) | POST /api/admin/release/restore — restore the pre-adopt backup, BOUND to a rollback digest. |
+| POST | `/api/admin/release/canary` | requireRole(admin) | POST /api/admin/release/canary — start a canary for a digest: seed an isolated data copy and record `testing`. |
+| POST | `/api/admin/release/canary/accept` | requireRole(admin) | POST /api/admin/release/canary/accept — accept the canary → promote its digest (funnels the SAME human-only `release.promote` chain). |
+| POST | `/api/admin/release/canary/reject` | requireRole(admin) | POST /api/admin/release/canary/reject — reject the canary → discard it (isolated writes dropped). |
 
 ### `artifacts/api-server/src/routes/report-overrides.ts`
 
