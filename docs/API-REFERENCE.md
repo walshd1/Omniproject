@@ -160,6 +160,14 @@ Automation RECIPES — the user-facing "when X, do Y" builder (Phase 1.2).
 | GET | `/api/automations` | requireAuth | Read the collection. |
 | PUT | `/api/automations` | requireAuth | Replace the collection (write-guarded). |
 
+### `artifacts/api-server/src/routes/billing-webhook.ts`
+
+INBOUND settlement webhook for the connected billing backend (finance superset; docs/design/INVOICE-NINJA.md).
+
+| Method | Path | Gate | Description |
+| --- | --- | --- | --- |
+| POST | `/api/invoices/billing-webhook` | — | The canonical neutral path (documented + statically analysable) … |
+
 ### `artifacts/api-server/src/routes/branding.ts`
 
 SPDX-License-Identifier: LicenseRef-OmniProject-Premium Premium feature — governed by licenses/PREMIUM.txt, NOT Apache-2.0.
@@ -571,14 +579,6 @@ BI / observability integration endpoints.
 | GET | `/api/metrics` | — | — |
 | GET | `/api/bi/feeds` | — | — |
 
-### `artifacts/api-server/src/routes/invoice-ninja-webhook.ts`
-
-Invoice Ninja INBOUND payment webhook (phase 4, docs/design/INVOICE-NINJA.md).
-
-| Method | Path | Gate | Description |
-| --- | --- | --- | --- |
-| POST | `/api/invoices/ninja-webhook` | — | invoice to `paid` (issuing a draft first, since an external settlement implies external issuance). |
-
 ### `artifacts/api-server/src/routes/invoices.ts`
 
 INVOICES (roadmap 3.3).
@@ -591,8 +591,8 @@ INVOICES (roadmap 3.3).
 | POST | `/api/invoices/from-project/:projectId` | requireRole(manager) | supplies the header (number, clientName, currency, …) and edits the draft before pushing it. |
 | PUT | `/api/invoices/:id` | requireRole(manager) | PUT /api/invoices/:id — update an invoice in place; only a DRAFT may be edited (manager+). |
 | POST | `/api/invoices/:id/status` | requireRole(manager) | POST /api/invoices/:id/status — transition an invoice (draft→issued→paid; live→void) (manager+). |
-| POST | `/api/invoices/:id/push` | requireRole(manager) | back on the sealed artifact (manager+; gated by INVOICE_NINJA_SYNC). |
-| POST | `/api/invoices/:id/pull` | requireRole(manager) | INVOICE_NINJA_SYNC. |
+| POST | `/api/invoices/:id/push` | requireRole(manager) | never names a vendor. |
+| POST | `/api/invoices/:id/pull` | requireRole(manager) | gated by the backend's sync flag. |
 | DELETE | `/api/invoices/:id` | requireRole(manager) | DELETE /api/invoices/:id — remove an invoice (manager+). |
 
 ### `artifacts/api-server/src/routes/labels.ts`

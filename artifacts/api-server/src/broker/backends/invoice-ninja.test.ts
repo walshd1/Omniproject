@@ -1,12 +1,12 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import type { Invoice, InvoiceLine } from "./invoice";
+import type { Invoice, InvoiceLine } from "../../lib/invoice";
 import {
   invoiceNinjaSyncEnabled, toNinjaInvoice, toNinjaLine, ninjaCorrelation, parseNinjaCorrelation,
   parseNinjaResult, parseNinjaWebhook, invoiceNinjaWebhookSecret, ninjaSystemContext,
   parseNinjaStatus, pullInvoice,
 } from "./invoice-ninja";
-import { applyInvoiceExternalRef, newInvoiceRow, invoiceMeta, type InvoiceExternalRef } from "./invoice";
+import { applyInvoiceExternalRef, newInvoiceRow, invoiceMeta, type InvoiceExternalRef } from "../../lib/invoice";
 
 /** Phase-1 Invoice Ninja bridge — pure mapping + config gate + correlation (docs/design/INVOICE-NINJA.md). */
 

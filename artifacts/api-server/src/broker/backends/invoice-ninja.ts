@@ -1,6 +1,7 @@
-import type { ActorContext } from "../broker/types";
-import { brokerCommand } from "../broker";
-import type { Invoice, InvoiceLine, InvoiceExternalRef } from "./invoice";
+import type { ActorContext } from "../types";
+import { brokerCommand } from "..";
+import type { Invoice, InvoiceLine, InvoiceExternalRef } from "../../lib/invoice";
+import type { BillingAdapter } from "./index";
 
 /**
  * Invoice Ninja bridge — phase 1 (docs/design/INVOICE-NINJA.md).
@@ -245,3 +246,23 @@ export function parseNinjaWebhook(raw: unknown): { invoiceId: string; amount: nu
   }
   return null;
 }
+
+// ── The neutral billing-adapter binding ──────────────────────────────────────────────────────────────────
+/**
+ * Invoice Ninja as a {@link BillingAdapter} — the ONE place the vendor's push/pull/webhook capabilities are
+ * bound to the neutral seam the gateway routes consume. Every field above stays vendor-shaped and lives in
+ * this sanctioned home (broker/backends/); the routes never name the vendor, they resolve an adapter by the
+ * connected `backendSource` and call this interface. `legacyWebhookPaths` keeps the original vendor-named
+ * inbound URL working as a back-compat alias without leaking the name into the neutral webhook router.
+ */
+export const invoiceNinjaBillingAdapter: BillingAdapter = {
+  id: "invoice-ninja",
+  enabled: invoiceNinjaSyncEnabled,
+  push: pushInvoice,
+  pull: pullInvoice,
+  webhookSecret: invoiceNinjaWebhookSecret,
+  parseWebhook: parseNinjaWebhook,
+  systemContext: ninjaSystemContext,
+  legacyWebhookPaths: ["/invoices/ninja-webhook"],
+  legacyWebhookHeaders: ["x-invoice-ninja-secret"],
+};

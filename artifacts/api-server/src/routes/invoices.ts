@@ -12,7 +12,7 @@ import {
   applyInvoiceExternalRef, paidTransitionChain, InvoiceError,
   type Invoice, type InvoiceMeta, type InvoiceStorage,
 } from "../lib/invoice";
-import { invoiceNinjaSyncEnabled, pushInvoice, pullInvoice } from "../lib/invoice-ninja";
+import { resolveBillingAdapter } from "../broker/backends";
 import { billableStaffCostForProject, labourLinesFromStaffCost } from "../lib/invoice-autobuild";
 
 /**
@@ -155,11 +155,14 @@ router.post("/invoices/:id/status", requireRole("manager"), (req, res) => {
   });
 });
 
-// POST /api/invoices/:id/push — sync the invoice to the Invoice Ninja backend and record the external ref
-// back on the sealed artifact (manager+; gated by INVOICE_NINJA_SYNC). Re-push updates in place (idempotent).
+// POST /api/invoices/:id/push — sync the invoice to the connected billing backend and record the external
+// ref back on the sealed artifact (manager+; gated by the backend's sync flag). Re-push updates in place
+// (idempotent). The backend is resolved from `backendSource` through the neutral billing seam — this route
+// never names a vendor.
 router.post("/invoices/:id/push", requireRole("manager"), (req, res) =>
   withBrokerErrors(req, res, "push_invoice failed", async () => {
-    if (!invoiceNinjaSyncEnabled()) { res.status(409).json({ error: "Invoice Ninja sync is not enabled (set INVOICE_NINJA_SYNC)" }); return; }
+    const billing = resolveBillingAdapter();
+    if (!billing?.enabled()) { res.status(409).json({ error: "Billing sync is not enabled for the connected backend" }); return; }
     const id = String(req.params["id"]);
     const parsed = parseInvoiceId(id);
     if (!parsed || !artifactStoreEnabled()) { res.status(404).json({ error: "Invoice not found" }); return; }
@@ -170,21 +173,22 @@ router.post("/invoices/:id/push", requireRole("manager"), (req, res) =>
     if (!scope || !existing) { res.status(404).json({ error: "Invoice not found" }); return; }
     if (existing.status === "void") { res.status(409).json({ error: "a void invoice cannot be pushed" }); return; }
     const now = new Date().toISOString();
-    const ref = await pushInvoice(ctx, existing, now);
-    if (!ref) { res.status(502).json({ error: "Invoice Ninja returned no usable invoice id" }); return; }
+    const ref = await billing.push(ctx, existing, now);
+    if (!ref) { res.status(502).json({ error: "the billing backend returned no usable invoice id" }); return; }
     const row = applyInvoiceExternalRef(existing, ref, ctx, now);
     putArtifact(INVOICE_ARTIFACT, scope, row);
     res.json(row);
   }),
 );
 
-// POST /api/invoices/:id/pull — pull the invoice's Invoice Ninja record (get_invoice) and refresh the
-// external ref (assigned number + PDF/portal link) on the local artifact, reconciling status to `paid` if
-// Invoice Ninja now reports it settled (a manual fallback for a missed inbound webhook). manager+; gated by
-// INVOICE_NINJA_SYNC. Requires the invoice to have been pushed already.
+// POST /api/invoices/:id/pull — pull the invoice's record from the connected billing backend (get_invoice)
+// and refresh the external ref (assigned number + PDF/portal link) on the local artifact, reconciling status
+// to `paid` if the backend now reports it settled (a manual fallback for a missed inbound webhook). manager+;
+// gated by the backend's sync flag. Requires the invoice to have been pushed already.
 router.post("/invoices/:id/pull", requireRole("manager"), (req, res) =>
   withBrokerErrors(req, res, "pull_invoice failed", async () => {
-    if (!invoiceNinjaSyncEnabled()) { res.status(409).json({ error: "Invoice Ninja sync is not enabled (set INVOICE_NINJA_SYNC)" }); return; }
+    const billing = resolveBillingAdapter();
+    if (!billing?.enabled()) { res.status(409).json({ error: "Billing sync is not enabled for the connected backend" }); return; }
     const id = String(req.params["id"]);
     const parsed = parseInvoiceId(id);
     if (!parsed || !artifactStoreEnabled()) { res.status(404).json({ error: "Invoice not found" }); return; }
@@ -193,12 +197,12 @@ router.post("/invoices/:id/pull", requireRole("manager"), (req, res) =>
     const scope = invoiceScope(parsed, ctx.sub);
     const existing = scope ? getArtifact<Invoice>(INVOICE_ARTIFACT, scope, id) : null;
     if (!scope || !existing) { res.status(404).json({ error: "Invoice not found" }); return; }
-    if (existing.externalRef?.system !== "invoice-ninja") { res.status(409).json({ error: "invoice has not been pushed to Invoice Ninja yet" }); return; }
+    if (existing.externalRef?.system !== billing.id) { res.status(409).json({ error: "invoice has not been pushed to the billing backend yet" }); return; }
     const now = new Date().toISOString();
-    const { ref, paid } = await pullInvoice(ctx, existing, now);
-    if (!ref) { res.status(502).json({ error: "Invoice Ninja returned no usable invoice record" }); return; }
+    const { ref, paid } = await billing.pull(ctx, existing, now);
+    if (!ref) { res.status(502).json({ error: "the billing backend returned no usable invoice record" }); return; }
     let row = applyInvoiceExternalRef(existing, ref, ctx, now);
-    // Reconcile a settlement Invoice Ninja reports but we missed (webhook fallback): advance to paid.
+    // Reconcile a settlement the backend reports but we missed (webhook fallback): advance to paid.
     if (paid) { for (const step of paidTransitionChain(row.status) ?? []) row = applyInvoiceStatus(row, step, ctx, now); }
     putArtifact(INVOICE_ARTIFACT, scope, row);
     res.json(row);
