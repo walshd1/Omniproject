@@ -1,16 +1,17 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { validateAutomations, compileRecipe, matchesConditions, recipeRequirements, actionProjectId, AutomationError } from "./automation";
+import { validateAutomations, compileRecipe, ruleMatches, recipeRequirements, actionProjectId, AutomationError } from "./automation";
 import { recipeMutates } from "@workspace/backend-catalogue";
 
 /**
  * Automation recipes — validation, compile-to-workflow, and the RBAC requirement set. Pure; malformed
- * recipes throw {@link AutomationError} (→ 400).
+ * recipes throw {@link AutomationError} (→ 400). The IF is a single `when` ConditionSet (shared predicate
+ * engine) — there is no separate condition shape.
  */
 const INFORM = {
   id: "r1", label: "Notify on high priority", scope: { kind: "org" },
   trigger: { kind: "issue.created" },
-  conditions: [{ field: "priority", op: "eq", value: "high" }],
+  when: { all: [{ field: "priority", op: "eq", value: "high" }] },
   actions: [{ kind: "notify", params: { to: "pm@x.io", message: "New high-priority item" } }],
 };
 const MUTATING = {
@@ -23,7 +24,7 @@ test("validateAutomations accepts well-formed recipes", () => {
   const recipes = validateAutomations([INFORM, MUTATING]);
   assert.equal(recipes.length, 2);
   assert.equal(recipes[0]!.trigger.kind, "issue.created");
-  assert.equal(recipes[0]!.conditions![0]!.field, "priority");
+  assert.equal(recipes[0]!.when!.all![0]!.field, "priority");
 });
 
 test("validateAutomations rejects malformed recipes", () => {
@@ -52,7 +53,7 @@ test("actionProjectId resolves an explicit param, else the project scope", () =>
   assert.equal(actionProjectId(withParam, withParam.actions[0]!), "proj-9"); // explicit param wins
 });
 
-test("compileRecipe compiles ACTIONS only (conditions are evaluated by the runner)", () => {
+test("compileRecipe compiles ACTIONS only (the `when` is evaluated by the runner)", () => {
   const [inform] = validateAutomations([INFORM]);
   const wf = compileRecipe(inform!);
   assert.equal(wf.id, "recipe:r1");
@@ -61,19 +62,61 @@ test("compileRecipe compiles ACTIONS only (conditions are evaluated by the runne
   assert.equal(wf.steps[0]!.action, "notify");
 });
 
-test("matchesConditions evaluates the trigger-subject predicate (ALL must pass)", () => {
-  const [inform] = validateAutomations([INFORM]); // condition: priority eq high
-  assert.equal(matchesConditions(inform!, { priority: "high" }), true);
-  assert.equal(matchesConditions(inform!, { priority: "low" }), false);
-  assert.equal(matchesConditions(inform!, {}), false);
-  // no conditions ⇒ always matches
+test("compileRecipe binds a mutating action's target from the triggering subject (+ stamps the write op)", () => {
+  // set-status on the triggering issue: the target issueId/projectId come from the subject.
+  const recipe = validateAutomations([{
+    id: "auto", label: "Auto", scope: { kind: "project", projectId: "p1" },
+    trigger: { kind: "issue.updated" },
+    actions: [{ kind: "set-status", params: { status: "triage" } }],
+  }])[0]!;
+  const wf = compileRecipe(recipe, { id: "iss-9", projectId: "p1", status: "blocked" });
+  const params = wf.steps[0]!.params as Record<string, unknown>;
+  assert.equal(wf.steps[0]!.action, "broker.writeIssue");
+  assert.equal(params["__op"], "update");
+  assert.equal(params["issueId"], "iss-9");   // bound from subject.id
+  assert.equal(params["projectId"], "p1");
+  assert.equal(params["status"], "triage");   // author param preserved
+  // create-issue compiles to a create op and does NOT bind an issueId (it makes a new one).
+  const createRecipe = validateAutomations([{
+    id: "mk", label: "Make", scope: { kind: "project", projectId: "p1" },
+    trigger: { kind: "issue.created" },
+    actions: [{ kind: "create-issue", params: { projectId: "p1", title: "X" } }],
+  }])[0]!;
+  const createParams = compileRecipe(createRecipe, { id: "iss-1", projectId: "p1" }).steps[0]!.params as Record<string, unknown>;
+  assert.equal(createParams["__op"], "create");
+  assert.equal(createParams["issueId"], undefined);
+});
+
+test("ruleMatches evaluates the recipe's `when` against the trigger subject (ALL must pass)", () => {
+  const [inform] = validateAutomations([INFORM]); // when: priority eq high
+  assert.equal(ruleMatches(inform!, { priority: "high" }), true);
+  assert.equal(ruleMatches(inform!, { priority: "low" }), false);
+  assert.equal(ruleMatches(inform!, {}), false);
+  // no `when` ⇒ always matches
   const [mutating] = validateAutomations([MUTATING]);
-  assert.equal(matchesConditions(mutating!, {}), true);
-  // operator coverage
-  const r = validateAutomations([{ ...INFORM, conditions: [
-    { field: "status", op: "in", value: "todo, doing" }, { field: "points", op: "gt", value: "3" }, { field: "blocked", op: "truthy" },
-  ] }])[0]!;
-  assert.equal(matchesConditions(r, { status: "doing", points: 5, blocked: true }), true);
-  assert.equal(matchesConditions(r, { status: "done", points: 5, blocked: true }), false); // status not in set
-  assert.equal(matchesConditions(r, { status: "todo", points: 2, blocked: true }), false); // points not > 3
+  assert.equal(ruleMatches(mutating!, {}), true);
+  // operator coverage: in (array), gt (numeric coercion), truthy (unary)
+  const r = validateAutomations([{ ...INFORM, when: { all: [
+    { field: "status", op: "in", value: ["todo", "doing"] }, { field: "points", op: "gt", value: 3 }, { field: "blocked", op: "truthy" },
+  ] } }])[0]!;
+  assert.equal(ruleMatches(r, { status: "doing", points: 5, blocked: true }), true);
+  assert.equal(ruleMatches(r, { status: "done", points: 5, blocked: true }), false); // status not in set
+  assert.equal(ruleMatches(r, { status: "todo", points: 2, blocked: true }), false); // points not > 3
+});
+
+test("`when` supports all-of AND any-of nesting over the full operator set", () => {
+  const rich = validateAutomations([{ ...INFORM, when: {
+    all: [{ field: "points", op: "gte", value: 3 }],
+    any: [{ field: "status", op: "eq", value: "doing" }, { field: "status", op: "eq", value: "review" }],
+  } }])[0]!;
+  assert.equal(ruleMatches(rich, { points: 3, status: "review" }), true);
+  assert.equal(ruleMatches(rich, { points: 5, status: "done" }), false);  // any-of fails
+  assert.equal(ruleMatches(rich, { points: 2, status: "doing" }), false); // all-of fails
+});
+
+test("validateAutomations rejects a malformed `when`", () => {
+  assert.throws(() => validateAutomations([{ ...INFORM, when: "nope" }]), AutomationError);           // not an object
+  assert.throws(() => validateAutomations([{ ...INFORM, when: { all: "nope" } }]), AutomationError);  // all not an array
+  assert.throws(() => validateAutomations([{ ...INFORM, when: { all: [{ op: "eq", value: 1 }] } }]), AutomationError); // predicate missing field
+  assert.throws(() => validateAutomations([{ ...INFORM, when: { any: [{ field: "s", op: "bogus" }] } }]), AutomationError); // bad op
 });

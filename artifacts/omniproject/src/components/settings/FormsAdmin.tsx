@@ -11,7 +11,7 @@ import { familyFolders } from "../../lib/primitive-store";
 import { useDraftAdmin } from "../../hooks/use-draft-admin";
 import { useToast } from "@/hooks/use-toast";
 import { useResolvedDefs, useImportDef, useUpdateDef, useDeleteDef } from "../../lib/defs";
-import { useLegacyForms, useDrainLegacyForms, formsResolvedKey, type FormDef } from "../../lib/forms";
+import { formsResolvedKey, type FormDef } from "../../lib/forms";
 import { AdminSection } from "./AdminSection";
 import { EditableRowTable } from "./EditableRowTable";
 
@@ -47,9 +47,7 @@ export function FormsAdmin() {
   const updateDef = useUpdateDef();
   const deleteDef = useDeleteDef();
   const qc = useQueryClient();
-  const legacy = useLegacyForms();
-  const drain = useDrainLegacyForms();
-  const saving = importDef.isPending || updateDef.isPending || deleteDef.isPending || drain.isPending;
+  const saving = importDef.isPending || updateDef.isPending || deleteDef.isPending;
   // Issue fields a form may map onto: the catalogue targets the connected backend advertises as storable.
   // title/description/labels are core (always offered); the rest are capability-gated.
   const CORE_TARGETS = new Set(["title", "description", "labels"]);
@@ -121,19 +119,6 @@ export function FormsAdmin() {
     }
   };
 
-  // One-shot migration of any pre-convergence `settings.forms` into the def store, then drain the legacy slice.
-  const legacyForms = legacy.data ?? [];
-  const migrateLegacy = async () => {
-    try {
-      for (const f of legacyForms) if (!idByFormId.has(f.id)) await importDef.mutateAsync({ kind: "form", storage: "org", name: f.label, payload: f });
-      await drain.mutateAsync();
-      await qc.invalidateQueries({ queryKey: formsResolvedKey });
-      toast({ title: "MIGRATED", description: "Legacy forms moved into the def store." });
-    } catch (e) {
-      toast({ title: "MIGRATION FAILED", description: e instanceof Error ? e.message : "Try again.", variant: "destructive" });
-    }
-  };
-
   return (
     <AdminSection icon={ClipboardList} title="Forms" testId="forms-admin" bodyClassName="space-y-4">
       <p className="text-xs text-muted-foreground">
@@ -148,11 +133,6 @@ export function FormsAdmin() {
           {FORMS.map((t) => <option key={t.id} value={t.id}>{t.label}</option>)}
         </select>
         <Button type="button" variant="outline" size="sm" onClick={addFromTemplate} disabled={!templateId} data-testid="form-add-template">Add</Button>
-        {legacyForms.length > 0 && (
-          <Button type="button" variant="outline" size="sm" onClick={migrateLegacy} disabled={saving} data-testid="forms-migrate-legacy">
-            Migrate {legacyForms.length} legacy form{legacyForms.length === 1 ? "" : "s"}
-          </Button>
-        )}
       </div>
 
       {forms.length === 0 && <p className="text-xs text-muted-foreground" data-testid="forms-empty">No forms yet.</p>}

@@ -71,8 +71,12 @@ let taskCommentCounter = 100;
 let taskAttachmentCounter = 100;
 let wikiDocCounter = 100;
 /** In-memory task comments + attachments per task (demo only). */
-const SAMPLE_TASK_COMMENTS: Record<string, TaskComment[]> = {};
-const SAMPLE_TASK_ATTACHMENTS: Record<string, TaskAttachment[]> = {};
+// Null-prototype maps: these are keyed by a caller-supplied taskId (the `issueId` route param). A plain `{}`
+// would let a reserved id (`__proto__`, `constructor`, `toString`, …) resolve to an inherited member, so
+// `map[taskId] ?? []` / `??= []` would return a non-array and the following `.map`/`.push` would throw (500).
+// A prototype-free map has no inherited members, so any id key is just plain data.
+const SAMPLE_TASK_COMMENTS: Record<string, TaskComment[]> = Object.create(null);
+const SAMPLE_TASK_ATTACHMENTS: Record<string, TaskAttachment[]> = Object.create(null);
 /** Demo wiki spaces + documents (the knowledge base the seam proves out). */
 const SAMPLE_WIKI_SPACES: WikiSpace[] = [
   { id: "space-eng", key: "eng", name: "Engineering", description: "How the delivery team works." },
@@ -161,7 +165,8 @@ function seedWhiteboards(): Whiteboard[] {
 let SAMPLE_WHITEBOARDS: Whiteboard[] = seedWhiteboards();
 let whiteboardCounter = 100;
 /** In-memory child issues/notes per task (demo only). */
-const SAMPLE_TASK_ITEMS: Record<string, TaskItem[]> = {};
+// Null-prototype: keyed by the caller-supplied taskId — see SAMPLE_TASK_COMMENTS above for why `{}` would crash.
+const SAMPLE_TASK_ITEMS: Record<string, TaskItem[]> = Object.create(null);
 /** Demo GTD tasks — actionable next-actions across the portfolio, distinct from issues. */
 const SAMPLE_TASKS: Task[] = [
   { id: "task-1", title: "Draft the migration cutover plan", status: "next", projectId: "proj-001", context: "@computer", assignee: "pat@demo", priority: "high", tags: ["migration", "planning"], estimateHours: 4, dueDate: null, waitingOn: null, energy: "high", section: "Cutover", sortOrder: 1, collaborators: ["sam@demo"], reminderAt: null, source: "plane" },

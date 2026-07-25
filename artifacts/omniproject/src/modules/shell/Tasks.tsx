@@ -1,10 +1,12 @@
-import { useTaskSummary, useCreateTask, PRIORITIES, type Task, type Priority } from "../../lib/tasks";
+import { useTaskSummary, useCreateTask, useCreateTasksBulk, PRIORITIES, type Task, type Priority } from "../../lib/tasks";
 import { TaskDetailDialog } from "../../components/TaskDetailDialog";
 import { EntityViews } from "../../components/view-engine/EntityViews";
 import { taskDescriptor } from "../../lib/view-engine/task-descriptor";
 import { useMemo, useState } from "react";
 import { usePriorityLabels } from "../../lib/priority-labels";
 import { parseQuickAdd } from "../../lib/quick-add";
+import { splitEntryLines, isMultiLine, MAX_MULTI_ENTRY } from "../../lib/multi-entry";
+import { useToast } from "@/hooks/use-toast";
 import { parseTaskSearch } from "../../lib/task-search";
 import { useTagPrefs } from "../../lib/use-tag-prefs";
 import { tagDescendants } from "../../lib/tag-prefs";
@@ -32,11 +34,17 @@ export function Tasks() {
   const { data: summary } = useTaskSummary();
   const { labelFor } = usePriorityLabels();
   const create = useCreateTask();
+  const bulk = useCreateTasksBulk();
+  const { toast } = useToast();
   const [title, setTitle] = useState("");
   const [context, setContext] = useState("");
   const [priority, setPriority] = useState<Priority>("none");
   const [detail, setDetail] = useState<Task | null>(null);
   const [search, setSearch] = useState("");
+  // Multi-entry (auto-split): the pending lines from a multi-line paste, awaiting confirm. null = no
+  // pending split. `pendingCut` is how many lines the MAX_MULTI_ENTRY cap dropped, if any.
+  const [pending, setPending] = useState<string[] | null>(null);
+  const [pendingCut, setPendingCut] = useState(0);
   const tagPrefs = useTagPrefs((s) => s.prefs);
 
   // Compile the search box into a predicate: parse the syntax, then for each record enrich its raw task
@@ -57,24 +65,63 @@ export function Tasks() {
     };
   }, [search, tagPrefs]);
 
+  // Build one create body from a single line: parse inline syntax (#tag @context !priority ^date), then
+  // let the explicit context/priority controls, when set, OVERRIDE the parsed values — so both ways of
+  // entering work together. Shared by the single add and the multi-line/auto-split path (one per line).
+  const bodyFromLine = (line: string, today: Date): Partial<Task> => {
+    const parsed = parseQuickAdd(line, today);
+    const ctx = context.trim() || parsed.context || "";
+    const prio = priority !== "none" ? priority : (parsed.priority ?? "none");
+    return {
+      title: parsed.title || line.trim(),
+      ...(ctx ? { context: ctx } : {}),
+      ...(prio !== "none" ? { priority: prio as Priority } : {}),
+      ...(parsed.tags.length ? { tags: parsed.tags } : {}),
+      ...(parsed.dueDate ? { dueDate: parsed.dueDate } : {}),
+    };
+  };
+
+  const resetEntry = () => { setTitle(""); setContext(""); setPriority("none"); setPending(null); setPendingCut(0); };
+
   const add = () => {
     const raw = title.trim();
     if (!raw) return;
-    // Parse inline syntax (#tag @context !priority ^date) out of the title; the explicit context/priority
-    // controls, when set, OVERRIDE the parsed values so both ways of entering work together.
-    const parsed = parseQuickAdd(raw, new Date());
-    const ctx = context.trim() || parsed.context || "";
-    const prio = priority !== "none" ? priority : (parsed.priority ?? "none");
-    create.mutate(
-      {
-        title: parsed.title || raw,
-        ...(ctx ? { context: ctx } : {}),
-        ...(prio !== "none" ? { priority: prio as Priority } : {}),
-        ...(parsed.tags.length ? { tags: parsed.tags } : {}),
-        ...(parsed.dueDate ? { dueDate: parsed.dueDate } : {}),
+    create.mutate(bodyFromLine(raw, new Date()), { onSuccess: resetEntry });
+  };
+
+  // A multi-line paste is intercepted (below) and parked in `pending`; here we fan out one create per
+  // line, reusing the SAME per-line builder so inline sigils are honoured on every line.
+  const addMany = () => {
+    if (!pending || pending.length === 0) return;
+    const today = new Date();
+    bulk.mutate(pending.map((line) => bodyFromLine(line, today)), {
+      onSuccess: (r) => {
+        toast({
+          title: `Added ${r.created.length} task${r.created.length === 1 ? "" : "s"}`,
+          ...(r.failed ? { description: `${r.failed} could not be created`, variant: "destructive" as const } : {}),
+        });
+        resetEntry();
       },
-      { onSuccess: () => { setTitle(""); setContext(""); setPriority("none"); } },
-    );
+    });
+  };
+
+  // "Add as one" escape hatch: treat the whole paste as a single task instead of splitting — drop it back
+  // into the title box (joined) for the user to review/submit normally.
+  const addAsOne = () => {
+    if (pending) setTitle(pending.join(" "));
+    setPending(null);
+    setPendingCut(0);
+  };
+
+  // Intercept a MULTI-LINE paste into the title box and offer the split; a single-line paste is left to
+  // the browser's default (normal typing/paste is untouched).
+  const onTitlePaste = (e: React.ClipboardEvent<HTMLInputElement>) => {
+    const text = e.clipboardData?.getData("text") ?? "";
+    if (!isMultiLine(text)) return;
+    e.preventDefault();
+    const { lines, truncated } = splitEntryLines(text);
+    setPending(lines);
+    setPendingCut(truncated);
   };
 
   return (
@@ -101,10 +148,11 @@ export function Tasks() {
         <div className="flex flex-wrap gap-2">
           <input
             className="flex-1 min-w-[12rem] rounded-none border border-border bg-card px-3 py-2 text-sm"
-            placeholder="Add a next action…  (try #tag @context !p1 ^tomorrow)"
+            placeholder="Add a next action…  (try #tag @context !p1 ^tomorrow — or paste a list)"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             onKeyDown={(e) => { if (e.key === "Enter") add(); }}
+            onPaste={onTitlePaste}
           />
           <input
             className="w-40 rounded-none border border-border bg-card px-3 py-2 text-sm font-mono"
@@ -123,6 +171,41 @@ export function Tasks() {
           </select>
           <Button className="rounded-none" onClick={add} disabled={!title.trim() || create.isPending}>Add</Button>
         </div>
+
+        {/* Multi-entry / auto-split preview — appears after a multi-line paste; confirm to create one task per line. */}
+        {pending && (
+          <div role="region" aria-label="Multi-task preview" className="rounded-none border border-border bg-card p-3 space-y-2">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-sm font-bold">{pending.length} task{pending.length === 1 ? "" : "s"} detected</span>
+              <span className="text-xs text-muted-foreground">— one per line from your paste</span>
+              <div className="ml-auto flex gap-2">
+                <Button className="rounded-none" onClick={addMany} disabled={bulk.isPending}>
+                  {bulk.isPending ? "Adding…" : `Add ${pending.length} task${pending.length === 1 ? "" : "s"}`}
+                </Button>
+                <Button variant="outline" className="rounded-none" onClick={addAsOne} disabled={bulk.isPending}>Add as one</Button>
+                <Button variant="ghost" className="rounded-none" onClick={() => { setPending(null); setPendingCut(0); }} disabled={bulk.isPending}>Cancel</Button>
+              </div>
+            </div>
+            {pendingCut > 0 && (
+              <p className="text-xs font-bold text-amber-600">Only the first {MAX_MULTI_ENTRY} lines will be added — {pendingCut} more were left out.</p>
+            )}
+            <ul className="max-h-48 overflow-auto divide-y divide-border border border-border text-sm">
+              {pending.map((line, i) => {
+                const p = parseQuickAdd(line, new Date());
+                return (
+                  <li key={i} className="flex flex-wrap items-center gap-2 px-2 py-1">
+                    <span className="tabular-nums text-xs text-muted-foreground w-6">{i + 1}.</span>
+                    <span className="flex-1">{p.title || line}</span>
+                    {p.priority && p.priority !== "none" && <span className="text-[10px] uppercase tracking-wide border border-border px-1">{labelFor(p.priority as Priority)}</span>}
+                    {p.context && <span className="text-[10px] font-mono text-muted-foreground">@{p.context}</span>}
+                    {p.tags.map((t) => <span key={t} className="text-[10px] font-mono text-muted-foreground">#{t}</span>)}
+                    {p.dueDate && <span className="text-[10px] font-mono text-muted-foreground">due {p.dueDate}</span>}
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        )}
 
         {/* Search — free text + syntax (#tag @context is:overdue priority>=high -is:done). */}
         <input

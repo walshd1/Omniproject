@@ -37,3 +37,25 @@ test("edges are deduped and a def with no extends adds none", () => {
   assert.equal(defHasChildren(ix, "primitive", "root"), false);
   assert.equal(ix.children["primitive"]!["root"], undefined);
 });
+
+test("a reserved-key `extends` ref never crashes index building and always forces the full scan", () => {
+  // A def whose `extends` collides with an Object.prototype member is untrusted + pathological. Building the
+  // index used to do `byParent["constructor"] ??= []` → read the inherited constructor → `.includes` threw a
+  // TypeError (an uncaught crash on every full-path integrity check). It must build cleanly now, and the
+  // reserved id must be treated as HAVING children so the caller falls to the authoritative full scan.
+  for (const bad of ["constructor", "__proto__", "prototype", "toString", "valueOf"]) {
+    const ix = buildDefIndex([{ items: [def("report", "kid", bad), def("report", bad)] }]); // must not throw
+    assert.equal(defHasChildren(ix, "report", bad), true);           // over-report → safe full scan, never a crash
+    assert.equal(hasProp(ix.children["report"], bad), false);        // the reserved edge is never stored as a key
+  }
+});
+
+test("indexing a reserved-key edge does not pollute Object.prototype", () => {
+  buildDefIndex([{ items: [def("report", "kid", "__proto__"), def("report", "evil", "constructor")] }]);
+  assert.equal(({} as Record<string, unknown>)["kid"], undefined);  // no stray global property leaked in
+  assert.equal(({} as Record<string, unknown>)["polluted"], undefined);
+});
+
+function hasProp(o: Record<string, unknown> | undefined, k: string): boolean {
+  return !!o && Object.prototype.hasOwnProperty.call(o, k);
+}

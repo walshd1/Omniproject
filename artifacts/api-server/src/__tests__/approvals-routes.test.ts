@@ -80,6 +80,26 @@ test("admin/PMO can revoke a named user's passkeys and everyone's; unauth is ref
   assert.equal((await h.req("/approvals/passkey/revoke", { method: "POST", body: { sub: "x" } })).status, 401);
 });
 
+test("a command honours a portfolio read-only freeze by construction (mountCommand runs the ruleset)", async () => {
+  // The action base checks the business ruleset for EVERY command — keyed on `ruleAction`, else the command
+  // name (here `approval.passkey.revoke`, which sets no explicit ruleAction). A `read-only` hard freeze is a
+  // write-wide rule, so it now blocks verb writes exactly as it blocks entity writes. This is a no-op under
+  // default config (all rules off) — it only bites when an operator turns the freeze on.
+  const cookie = adminCookie(); // harness admin holds pmo+ via hierarchy
+  const { setRuleModes } = await import("../lib/ruleset");
+  setRuleModes({ "read-only": "hard" });
+  try {
+    const frozen = await h.req("/approvals/passkey/revoke", { method: "POST", cookie, body: { sub: "u-harness" } });
+    assert.equal(frozen.status, 422);
+    assert.equal((await json(frozen)).rule, "read-only");
+  } finally {
+    setRuleModes({ "read-only": "off" }); // modes are process-global — restore for the other tests
+  }
+  // With the freeze lifted the same command proceeds.
+  const ok = await h.req("/approvals/passkey/revoke", { method: "POST", cookie, body: { sub: "u-harness" } });
+  assert.equal(ok.status, 200);
+});
+
 test("writing a SECURITY collection (approvalChains) is held for a signed sign-off (202), not applied", async () => {
   const cookie = adminCookie();
   const chain = { id: "c-http", scope: { kind: "org" }, rejectionPolicy: "abort", stages: [{ id: "s1", approvers: [{ kind: "role", role: "admin" }] }] };

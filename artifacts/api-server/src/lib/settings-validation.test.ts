@@ -133,11 +133,6 @@ test("artifact style: enums for font/align, capped colour + title strings", () =
   throwsView({ textColor: "x".repeat(65) }); // over the colour cap
   throwsView({ title: "t".repeat(201) }); // over the title cap
   assert.doesNotThrow(() => validateSavedViews(view({ title: "Velocity", fontFamily: "serif", textColor: "#123456", background: "rgba(0,0,0,0.1)", align: "center" })));
-  // The same guard applies to custom reports.
-  const okReport = { id: "r", label: "R", scope: "tasks" as const, viz: "bar" as const, metrics: [{ id: "m", field: "count", agg: "count" as const }] };
-  throws({ customReports: [{ ...okReport, style: { fontFamily: "papyrus" } }] });
-  assert.doesNotThrow(() => updateSettings({ customReports: [{ ...okReport, style: { title: "By status" } }] }));
-  updateSettings({ customReports: [] });
 });
 
 test("fieldOverrides support-map validation", () => {
@@ -207,9 +202,8 @@ test("previously-unvalidated writable keys are type-checked (aiModel / backendSo
   throws({ aiModel: 5 });
   throws({ backendSource: {} }); // object where a string is required (crashed broker-command before)
   throws({ capabilityStates: [] }); // array is not an object map
-  throws({ screenLayouts: "nope" });
   throws({ userPrefs: 3 });
-  assert.doesNotThrow(() => updateSettings({ aiModel: null, backendSource: "all", capabilityStates: {}, screenLayouts: {}, userPrefs: {} }));
+  assert.doesNotThrow(() => updateSettings({ aiModel: null, backendSource: "all", capabilityStates: {}, userPrefs: {} }));
 });
 
 test("redactSettingsForRead masks webhook secrets and peer tokens", () => {

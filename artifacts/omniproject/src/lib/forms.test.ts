@@ -4,16 +4,12 @@ import { renderHook, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
   formsResolvedKey,
-  legacyFormsKey,
   useForms,
-  useLegacyForms,
   useSaveFormDef,
-  useDrainLegacyForms,
   submitForm,
   findForm,
   type FormDef,
 } from "./forms";
-import { settingsQueryKey } from "./settings-query";
 
 /**
  * forms.ts is the intake-forms client seam over `/api/forms/*` + the def-store importer: the resolved/legacy
@@ -40,7 +36,6 @@ afterEach(() => vi.restoreAllMocks());
 describe("query keys", () => {
   it("are the stable, shared cache keys", () => {
     expect(formsResolvedKey).toEqual(["forms", "resolved"]);
-    expect(legacyFormsKey).toEqual(["forms", "legacy"]);
   });
 });
 
@@ -57,24 +52,6 @@ describe("useForms", () => {
   it("falls back to [] when the envelope has no forms field", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => jsonResponse({})));
     const { result } = renderHook(() => useForms(), { wrapper: wrapper(newClient()) });
-    await waitFor(() => expect(result.current.isSuccess).toBe(true));
-    expect(result.current.data).toEqual([]);
-  });
-});
-
-describe("useLegacyForms", () => {
-  it("GETs the legacy endpoint and unwraps the forms array", async () => {
-    const fetchMock = vi.fn(async () => jsonResponse({ forms: [] }));
-    vi.stubGlobal("fetch", fetchMock);
-    const { result } = renderHook(() => useLegacyForms(), { wrapper: wrapper(newClient()) });
-    await waitFor(() => expect(result.current.isSuccess).toBe(true));
-    expect(fetchMock.mock.calls[0]![0]).toBe("/api/forms");
-    expect(result.current.data).toEqual([]);
-  });
-
-  it("falls back to [] when the envelope has no forms field", async () => {
-    vi.stubGlobal("fetch", vi.fn(async () => jsonResponse({})));
-    const { result } = renderHook(() => useLegacyForms(), { wrapper: wrapper(newClient()) });
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(result.current.data).toEqual([]);
   });
@@ -113,24 +90,6 @@ describe("useSaveFormDef", () => {
     result.current.mutate(form());
     await waitFor(() => expect(result.current.isError).toBe(true));
     expect((result.current.error as Error).message).toBe("denied");
-  });
-});
-
-describe("useDrainLegacyForms", () => {
-  it("PUTs an empty forms list and invalidates the legacy + settings caches", async () => {
-    const fetchMock = vi.fn(async () => jsonResponse({ ok: true }));
-    vi.stubGlobal("fetch", fetchMock);
-    const client = newClient();
-    const invalidate = vi.spyOn(client, "invalidateQueries");
-    const { result } = renderHook(() => useDrainLegacyForms(), { wrapper: wrapper(client) });
-    result.current.mutate();
-    await waitFor(() => expect(result.current.isSuccess).toBe(true));
-    const [url, opts] = fetchMock.mock.calls.at(-1)!;
-    expect(url).toBe("/api/forms");
-    expect((opts as RequestInit).method).toBe("PUT");
-    expect(JSON.parse(String((opts as RequestInit).body))).toEqual({ forms: [] });
-    expect(invalidate).toHaveBeenCalledWith({ queryKey: legacyFormsKey });
-    expect(invalidate).toHaveBeenCalledWith({ queryKey: settingsQueryKey });
   });
 });
 

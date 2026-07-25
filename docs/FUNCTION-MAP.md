@@ -679,6 +679,15 @@ History-retention vocabulary — the durable time-series layer that lets the sel
 
 Server entrypoint.
 
+### `artifacts/api-server/src/lib/action-base.ts`
+
+LANE 2 — the generic ACTION base.
+
+| Function | What it does |
+| --- | --- |
+| `commandRoutes` | The "METHOD /path" this command contributes — for the write-lane ratchet. |
+| `mountCommand` | Mount a command descriptor, running the fixed shell: (role) → parse → [prepare] → ruleset → run → audit → respond. |
+
 ### `artifacts/api-server/src/lib/actor.ts`
 
 Shared actor-identity helpers over the broker's `ActorContext`.
@@ -962,7 +971,7 @@ Automation recipes — validation, compile-to-workflow, and the RBAC requirement
 | `recipeRequirements` | The set of PERMISSION requirements a recipe imposes — what the author (and the runner) must be allowed to do. |
 | `actionProjectId` | Which project a mutating action touches (explicit param, or the recipe's project scope). |
 | `compileRecipe` | Compile a recipe's ACTIONS to the existing workflow-engine JSON (one `action` step each). |
-| `matchesConditions` | Evaluate a recipe's conditions against the triggering entity (`subject`) — ALL must pass. |
+| `ruleMatches` | Does a recipe's `when` match the triggering entity (`subject`)? Straight through the shared predicate engine ({@link matches}) — one condition language across the product. |
 
 ### `artifacts/api-server/src/lib/autonomous-grant.ts`
 
@@ -1217,7 +1226,7 @@ Capability governance's activity/audit LOG — the in-RAM decision ring, its opt
 
 ### `artifacts/api-server/src/lib/charity-onboarding.ts`
 
-"We're a charity" one-click onboarding preset — the small-org counterpart to picking a deployment profile by hand.
+A dashboard is a def now (kind `dashboard`, payload = this shape); charity onboarding MINTS them into the org def store.
 
 | Function | What it does |
 | --- | --- |
@@ -1500,6 +1509,7 @@ Small shared key/hash primitives, so the same derivations aren't hand-rolled in 
 | `decodeKey32` | Parse a base64 key that must be exactly 32 bytes (an AES-256 key), or null if it isn't. |
 | `fingerprint` | A short hex fingerprint of a value (SHA-256, truncated). |
 | `constantTimeEqual` | Constant-time string equality: length-checked first (a length mismatch is not secret-dependent, so short-circuiting on it leaks nothing), then `crypto.timingSafeEqual` over equal-length buffers so a MATCHING prefix can't be timed out of a comparison against a secret (tokens, HMACs, CSRF doubles-submit values, SCIM bearer). |
+| `constantTimeEqualBuf` | Buffer variant of {@link constantTimeEqual} — the SAME length-check-then-`timingSafeEqual` mechanism for raw bytes (e.g. hex-decoded password hashes / MACs), so byte-comparing callers don't re-hand-roll it. |
 
 ### `artifacts/api-server/src/lib/csp.ts`
 
@@ -1720,8 +1730,8 @@ Deployment profile — lets a deployment declare its CONTEXT so the gateway's de
 | --- | --- |
 | `setRuntimeProfile` | Set the runtime (persisted) profile — called by the settings layer on load/change. |
 | `deploymentProfile` | The active deployment profile. |
-| `profilePosture` | The posture for the active profile. |
-| `profileCatalogue` | Every profile's posture (the picker catalogue + per-customer-type presets). |
+| `profilePosture` | The posture for the active profile (always defined — `resolve` returns a shipped id or the default). |
+| `profileCatalogue` | Every profile's posture keyed by id (the picker catalogue + per-customer-type presets). |
 | `acceptDemoAuth` | Has the operator explicitly accepted no-IdP demo auth (everyone admin)? |
 | `requireTls` | Should the gateway treat itself as served over TLS (secure cookies + HSTS)? An explicit PUBLIC_TLS wins; otherwise "lan-ok" profiles default to HTTP (a deliberate, accepted posture — a self-hoster/charity can run production-stable on plain HTTP without breaking sessions), and "required" profiles (business/enterprise) default to true whenever this looks like a real deployment. |
 | `demoAuthSeverity` | The severity of the no-IdP finding for this deployment: the profile's default, or "info" once the operator explicitly accepts it (so SECURITY_STRICT won't block a deliberate choice). |
@@ -1743,8 +1753,8 @@ Dev-mode production guard — the hard safety interlock that stops a developer/ 
 
 | Function | What it does |
 | --- | --- |
-| `devModeActive` | Dev mode computed purely from an env map (mirrors lib/dev-mode.isDevMode). |
-| `isProductionLike` | Does this environment look like production — literally, or via `productionSignals`? |
+| `devModeActive` | Dev mode computed purely from an env map — the SINGLE source of truth for "is a dev/debug surface allowed to be active?". |
+| `isProductionLike` | Does this environment look like production — by NODE_ENV, or via `productionSignals`? |
 | `productionSignals` | Production signals that must not coexist with dev mode (or a default SESSION_SECRET). |
 | `evaluateDevModeGuard` | Evaluate the guard (pure). |
 | `runDevModeGuard` | Boot hook: evaluate the guard, log loudly, and THROW (refuse to boot) when dev mode collides with production signals. |
@@ -1775,6 +1785,21 @@ Optional ABOVE-THE-SEAM email delivery of the scheduled digests (proactive + exe
 | --- | --- |
 | `deliverDigestEmail` | Email a built digest to the configured recipients, in addition to the notify-bus dispatch. |
 | `deliverExportEmail` | Email a rendered export as an attachment to the configured recipients — same recipient list + SMTP-gating (a no-op unless configured) + best-effort posture as `deliverDigestEmail`. |
+
+### `artifacts/api-server/src/lib/domain-event.ts`
+
+Domain events — the "ON" of the rules engine.
+
+| Function | What it does |
+| --- | --- |
+| `domainEventsEnabled` | Is the rules-engine event subsystem enabled? Off by default — a single flag gates emit + dispatch. |
+| `onDomainEvent` | Register a domain-event handler (the dispatcher). |
+| `domainEventHandlerCount` | Test seam: current subscriber count. |
+| `emitDomainEvent` | Emit a domain event out-of-band: schedule delivery on the next tick and swallow every error, so neither a slow nor a throwing handler can affect the request that produced the event. |
+| `makeDomainEvent` | Assemble a {@link DomainEvent} from explicit parts (id + triggerKind + timestamp stamped here). |
+| `childCausation` | The causation a rule's emergent write carries: one generation deeper, same cascade root, `ruleId` appended to the path (so a repeat is a detectable cycle). |
+| `buildDomainEvent` | Build a {@link DomainEvent} from a request + the change. |
+| `emitEntityWrite` | Emit for a Lane-1 entity write (`mountEntity`). |
 
 ### `artifacts/api-server/src/lib/drift-canary.ts`
 
@@ -1826,6 +1851,14 @@ Egress / SSRF guard for the gateway's outbound HTTP.
 | `__setEgressLookupForTest` | Install (or clear, with null) the TEST-ONLY resolver seam used by safeFetch/assertEgressAllowed. |
 | `safeFetch` | fetch() with the egress guard applied first — throws EgressError before any network call when the target is disallowed. |
 
+### `artifacts/api-server/src/lib/email-shape.ts`
+
+Linear (ReDoS-free) email-shape validation.
+
+| Function | What it does |
+| --- | --- |
+| `isEmailShape` | Linear (ReDoS-free) email-shape validation. |
+
 ### `artifacts/api-server/src/lib/email.ts`
 
 Real SMTP email sending — off unless `SMTP_URL` is set (e.g. `smtps://user:pass@smtp.example.com`), so passwordless sign-in (magic-link) can actually deliver mail for a small org with real SMTP (Google Workspace / Microsoft 365 / any relay) instead of only logging the link.
@@ -1852,6 +1885,15 @@ SCOPE-OVERRIDABLE GTD energy-level vocabulary — the resolver + write sanitiser
 | --- | --- |
 | `resolveEnergyVocabulary` | The effective GTD energy vocabulary at the given scopes: the shipped default with every `energy-vocabulary` config-def layer folded on top (system → org → programme → project → user), nearest scope winning within each (id-keyed arrays merge by id). |
 | `sanitizeEnergyVocabularyOverride` | Validate + normalise a PUT body into the config-def `values` to store. |
+
+### `artifacts/api-server/src/lib/entity-pipeline.ts`
+
+LANE 1 — the generic ENTITY pipeline.
+
+| Function | What it does |
+| --- | --- |
+| `entityRoutes` | The "METHOD /path" routes a descriptor contributes — for the write-lane ratchet. |
+| `mountEntity` | Mount an entity descriptor's ops, each running the fixed RBAC → validate → ruleset → scope → run pipeline. |
 
 ### `artifacts/api-server/src/lib/env-config.ts`
 
@@ -2145,6 +2187,25 @@ HISTORY RETENTION — the durable-snapshot cadence (org default + PMO programme/
 | `resolveHistoryRetention` | The resolved retention config (org config def → built-in default). |
 | `retentionDaysNow` | The org disposal window in days, or `null` for infinite retention. |
 | `legalHoldsNow` | The org legal-hold key set (`"entity#id"`). |
+
+### `artifacts/api-server/src/lib/hmac-chain.ts`
+
+Shared primitives for the deployment's keyed, hash-chained tamper-evidence logs — the audit chain (lib/audit-chain), the provenance ring (lib/provenance) and OmniStore's event log (broker/builtin/omnistore-log).
+
+| Function | What it does |
+| --- | --- |
+| `chainLinkHash` | The keyed link hash binding an event to its sequence position and its predecessor: the exact, reproducible `HMAC(chainKey, "seq\|prevHash\|canonicalBody")` the chained logs commit each link with. |
+| `verifyChainLink` | Recompute a link's hash and compare it CONSTANT-TIME to the claimed value — the tamper check every chain `verify()` runs. |
+| `attachAnchorSignature` | Attach an Ed25519 signature over `message` to a chain-tip anchor `base`, when signing is configured (else return `base` unsigned). |
+| `verifyAnchorSignature` | Verify an anchor's Ed25519 signature over the caller's rebuilt tip `message`. |
+
+### `artifacts/api-server/src/lib/http-error.ts`
+
+The one home for the northbound JSON error envelope.
+
+| Function | What it does |
+| --- | --- |
+| `sendError` | The one home for the northbound JSON error envelope. |
 
 ### `artifacts/api-server/src/lib/ical.ts`
 
@@ -2528,6 +2589,14 @@ Natural-language → canonical action planner.
 | `toPlan` | Validate a parsed model reply against the tool catalogue into a typed plan. |
 | `planAction` | Plan an action from natural language. |
 
+### `artifacts/api-server/src/lib/node-env.ts`
+
+The SINGLE source of truth for "is this a production environment?".
+
+| Function | What it does |
+| --- | --- |
+| `isProductionEnv` | True when this looks like a production environment. |
+
 ### `artifacts/api-server/src/lib/nomenclature.ts`
 
 SPDX-License-Identifier: LicenseRef-OmniProject-Premium Premium feature — governed by licenses/PREMIUM.txt, NOT Apache-2.0.
@@ -2736,14 +2805,7 @@ Portfolio-wide AGGREGATE summary — the one shape allowed to cross an instance 
 
 ### `artifacts/api-server/src/lib/predicate.ts`
 
-Conditional predicate engine — the pure "when" of the PMO rule plane.
-
-| Function | What it does |
-| --- | --- |
-| `evaluatePredicate` | Evaluate one predicate against the context. |
-| `matches` | Does this condition set match the context? (all-of `all` AND any-of `any`; empty ⇒ matches all.) |
-| `selectMatching` | From a list of conditioned items, the ones whose condition matches the context, **in declared order**. |
-| `validatePredicate` | Validate a predicate's shape (used at the rule-authoring boundary). |
+Predicate engine — re-exported from the shared catalogue.
 
 ### `artifacts/api-server/src/lib/presence-bus.ts`
 
@@ -3129,6 +3191,94 @@ ORG REGISTRY server logic (org-wide store of APPROVED bespoke items) — the aut
 | `approvedRegistryItems` | Every APPROVED item (optionally of a kind) — the reuse hook the app draws curated building blocks from. |
 | `communityRegistryItems` | Every item RELEASED to the community — what a connected online marketplace would publish. |
 
+### `artifacts/api-server/src/lib/release-backup.ts`
+
+Auto-backup + digest-bound restore (docs/UPDATE-MECHANISM.md §6, phase 4).
+
+| Function | What it does |
+| --- | --- |
+| `runningDigest` | The content digest of the build the runtime is currently running (from the signed manifest), or null. |
+| `captureReleaseBackup` | Capture the complete current state, tag it with the running code digest, and persist it sealed. |
+| `latestReleaseBackup` | The stored pre-adopt backup, or null when none / persistence off / undecryptable. |
+| `latestReleaseBackupMeta` | Non-secret metadata of the stored backup (for the admin API). |
+| `__resetReleaseBackupStore` | Test seam: drop the loaded-once guard so the next read re-reads the file. |
+| `restoreReleaseBackup` | Restore the stored pre-adopt backup — BOUND TO A DIGEST. |
+| `runRestoreExecutor` | The "apply once approved" body for a restore proposal — restores the pre-adopt backup for the digest named in the proposal params (params only ever travel the approval queue, never code). |
+| `ensureRestoreExecutor` | Register the restore approval executor so a bound, passkey-approved rollback actually restores on sign-off. |
+| `ensurePreAdoptBackupHook` | Wire the pre-adopt auto-backup: a recorded promotion captures the outgoing state before adoption (§6). |
+| `proposeRestore` | Propose a digest-bound restore. |
+
+### `artifacts/api-server/src/lib/release-canary.ts`
+
+Per-org test canary (docs/UPDATE-MECHANISM.md §5, phase 5).
+
+| Function | What it does |
+| --- | --- |
+| `currentCanary` | The current canary record, or null when none is active/decided. |
+| `canaryView` | Non-secret view of the current canary, or null. |
+| `__resetCanary` | Test seam: clear the in-memory + loaded-once state. |
+| `startCanary` | Start a canary for `digest`: seed a sealed copy of the current state (the artifact the deploy layer mounts into the isolated canary volume) and record `testing`. |
+| `acceptCanary` | Accept the canary → promote its digest to production. |
+| `rejectCanary` | Reject the canary → discard it. |
+
+### `artifacts/api-server/src/lib/release-migration.ts`
+
+Signed migration runner (docs/UPDATE-MECHANISM.md §8, phase 6).
+
+| Function | What it does |
+| --- | --- |
+| `registerMigration` | Register a migration (at module load). |
+| `__clearMigrations` | Test seam: drop all registered migrations. |
+| `appliedMigrationIds` | The ids of migrations already applied on this deployment. |
+| `__resetMigrationLedger` | Test seam: clear the in-memory ledger + the loaded-once guard. |
+| `pendingMigrations` | Registered migrations not yet applied, in registration order. |
+| `pendingIrreversibleMigrations` | Pending migrations that are NOT reversible — these block promotion (§8). |
+| `migrationBlockReason` | Why a promotion must be blocked, or null when safe. |
+| `canonicalMigrationManifest` | The canonical message a signature covers: the SORTED, de-duplicated id list as compact JSON — so signing and verifying are byte-identical regardless of source ordering. |
+| `buildSignedMigrationManifest` | Release-side: sign an approved id list with the RELEASE PRIVATE key, producing the manifest the runtime verifies. |
+| `parseMigrationManifest` | Parse an untrusted value into a SignedMigrationManifest, or null when structurally invalid. |
+| `loadMigrationManifest` | Load the signed manifest: inline JSON in `RELEASE_MIGRATIONS`, else the file at `RELEASE_MIGRATIONS_FILE`. |
+| `approvedMigrationIds` | The set of migration ids approved by a VERIFIED signed manifest, or null when unsigned / unverifiable. |
+| `runSignedMigrations` | Run the pending migrations at boot — each ONLY if it's named in a verified signed manifest. |
+
+### `artifacts/api-server/src/lib/release-promotion.ts`
+
+Approval-gated promotion (docs/UPDATE-MECHANISM.md §7, phase 3).
+
+| Function | What it does |
+| --- | --- |
+| `isDigest` | — |
+| `approvedPromotion` | The digest currently approved for production (or null). |
+| `__resetPromotion` | Test seam: clear the recorded promotion. |
+| `setPromotionRecordedHook` | — |
+| `recordApprovedPromotion` | Record that a digest is APPROVED for production — the actual promotion decision, audited. |
+| `runPromotionExecutor` | The "apply once approved" body for a promotion proposal — records the approved digest from the proposal's params (params only ever travel the approval queue, never code). |
+| `ensurePromotionExecutor` | Register the approval executor so a bound, passkey-approved promotion actually records on sign-off. |
+| `proposePromotion` | Propose a promotion. |
+
+### `artifacts/api-server/src/lib/release-provenance.ts`
+
+Release provenance — the "sign + verify at boot" foundation of the update mechanism (docs/UPDATE-MECHANISM.md §4, phase 1).
+
+| Function | What it does |
+| --- | --- |
+| `releaseVerifyMode` | How strictly to enforce provenance at boot. |
+| `releasePublicKeyPem` | The trusted release verification key (SPKI PEM), from `RELEASE_PUBLIC_KEY` (PEM, or base64-DER SPKI). |
+| `canonicalManifest` | The canonical message a signature covers: the manifest as compact JSON with SORTED keys, so signing and verification agree byte-for-byte regardless of property order. |
+| `signReleaseManifest` | Sign a manifest with a release PRIVATE key — the release/CI side (used by scripts/sign-release). |
+| `buildSignedRelease` | Build a {@link SignedRelease} from a manifest + a private key PEM/seed (release-side convenience). |
+| `parseSignedRelease` | Parse + shape-check an untrusted signed-release object (dropping anything malformed). |
+| `loadSignedRelease` | Load the baked signed release: inline JSON in `RELEASE_MANIFEST`, else the file at `RELEASE_MANIFEST_FILE` (default `./release.json`). |
+| `verifyRelease` | Does this signed release verify against the trusted public key? Pure; never throws. |
+| `expectedDigest` | The digest the current environment has PROMOTED (the approved production build) — from `RELEASE_EXPECTED_DIGEST`, set by the deploy/admission layer from the promotion record (§3, phase 2). |
+| `verifyReleaseProvenance` | Verify this build's provenance AND promote-by-digest admission. |
+| `enforceReleaseProvenanceAtBoot` | Boot gate: verify provenance and enforce the mode. |
+| `canonicalPromotion` | Canonical signed message for a promotion — sorted-key compact JSON, like {@link canonicalManifest}. |
+| `buildSignedPromotion` | Sign a promotion record with the release/promotion PRIVATE key (PEM/DER/seed). |
+| `verifyPromotion` | Verify a signed promotion against the trusted public key. |
+| `parseSignedPromotion` | Parse + shape-check an untrusted signed promotion (dropping anything malformed). |
+| `admitBuild` | The ADMISSION check (§3, phase 2): should this build be admitted to production? Both the build's signed manifest AND the signed promotion must verify against the trusted key, and the build's digest must EQUAL the promoted digest. |
+
 ### `artifacts/api-server/src/lib/reminder-sweep.ts`
 
 Active reminder delivery.
@@ -3229,6 +3379,25 @@ RISK-EXPOSURE maths, routed through the SCOPE-RESOLVED graded vocabularies.
 ### `artifacts/api-server/src/lib/rollup.ts`
 
 Re-export of the ONE shared, artifact-agnostic roll-up (`@workspace/backend-catalogue`), so the backend (rollup endpoints, exports) and the SPA (no-code report engine) run the SAME aggregation implementation — a single roll-up behind every output of the system.
+
+### `artifacts/api-server/src/lib/rules-dispatcher.ts`
+
+Cascade bounds — a rule's write emits a follow-on event that can trigger more rules; these stop a runaway.
+
+| Function | What it does |
+| --- | --- |
+| `ruleActorId` | The autonomous actor id a rule's writes run under (`automation:rule_<id>`); the grant is keyed on the bare id (`rule_<id>`). |
+| `ruleRunAction` | The approval action a rule's RUN binds to — an admin can gate ONE sensitive rule via an approval chain. |
+| `dispatchDomainEvent` | Handle one domain event: run every matching, enabled, INFORM-ONLY recipe. |
+| `startRulesDispatcher` | Register the dispatcher as a domain-event handler (idempotent). |
+
+### `artifacts/api-server/src/lib/ruleset-guard.ts`
+
+The SINGLE business-ruleset gate every domain write should route through.
+
+| Function | What it does |
+| --- | --- |
+| `enforceBusinessRules` | The SINGLE business-ruleset gate every domain write should route through. |
 
 ### `artifacts/api-server/src/lib/ruleset-scope.ts`
 
@@ -3548,7 +3717,8 @@ Factory for the recurring "settings collection" route shape: a GET that reads on
 
 | Function | What it does |
 | --- | --- |
-| `settingsCollectionRouter` | Build a `Router` exposing the GET + write pair for one settings-collection field. |
+| `collectionWriteRoutes` | The write routes ("METHOD /path") mounted by {@link settingsCollectionRouter} — the ratchet's Lane-0. |
+| `settingsCollectionRouter` | — |
 
 ### `artifacts/api-server/src/lib/settings-constraints.ts`
 
@@ -3883,6 +4053,7 @@ Zero-trust request validation — a tiny, dependency-free schema validator for t
 | Function | What it does |
 | --- | --- |
 | `parseOr400` | Parse an untrusted request part against a schema. |
+| `zodParseOr400` | The zod-schema sibling of {@link parseOr400}: parse `input` through a zod contract; on failure send `400 { error: message }` and return null (so the caller early-returns), else return the typed data. |
 
 ### `artifacts/api-server/src/lib/vault-aws.ts`
 
@@ -3924,6 +4095,16 @@ AI secret vault — where provider API keys live now that they are OUT of docker
 | `secretFingerprint` | A short, non-reversible fingerprint of the stored secret (for "did it save?" UX), or null. |
 | `listSecretRefs` | The refs that currently have a secret (no values). |
 | `__resetVault` | Test-only: wipe the in-memory cache and force a reload on next access. |
+
+### `artifacts/api-server/src/lib/vocabulary-command.ts`
+
+The scope-overridable VOCABULARY plane (energy / impact / likelihood / severity / work / task / RAG) is seven byte-for-byte identical routers: `GET /api/<x>-vocabulary` resolves the effective levels for the caller's scope, `PUT` sets the org-scope override (pmo/admin).
+
+| Function | What it does |
+| --- | --- |
+| `vocabularyScopes` | Read the request's resolution scopes: programme/project from the query, user from the auth context. |
+| `vocabularyParse` | Build the `parse` for a vocabulary PUT: the artifact-store guard, then sanitise (→ 400 on throw). |
+| `vocabularyRun` | Build the `run` for a vocabulary PUT: upsert the org-scope def, then resolve the effective vocab. |
 
 ### `artifacts/api-server/src/lib/wbs-mapping-resolve.ts`
 
@@ -4067,6 +4248,7 @@ Runtime side of workflows — binds the pure engine's injected effect to the REA
 | `makeEffects` | Build the effect surface from injected deps. |
 | `scopedEffects` | The RBAC-scoped effect surface for a real request (the caller's broker context). |
 | `effectsForActor` | The effect surface for a recorded actor (the approval-gated executor path). |
+| `effectsForAutonomousContext` | The effect surface for an AUTONOMOUS principal (the rules-engine dispatch path) — reads + notify AND the mutating effects, run under the given minted autonomous context through the autonomous-guarded broker. |
 | `runStoredWorkflow` | Run a stored workflow by id with the caller's live request scope. |
 | `runStoredWorkflowForActor` | Run a stored workflow under a recorded actor (used by the approval executor). |
 | `workflowRunAction` | The approval action a specific workflow's RUN binds to — per-id, so an admin can gate ONE sensitive workflow while leaving benign ones on the direct path. |
@@ -4145,6 +4327,8 @@ Authentication routes + the session helpers the rest of the gateway reads from.
 
 | Function | What it does |
 | --- | --- |
+| `sealFlowCookie` | Flow cookies (OIDC / OAuth2 / SAML step-up) carry short-lived SECRETS — the PKCE code_verifier, the OIDC nonce, the CSRF `state`, and the bound `sub`. |
+| `openFlowCookie` | Open a sealed flow cookie back to its payload (null if absent/tampered/garbage), tolerating a legacy plaintext cookie during rollout. |
 | `resolveBaseUrl` | Pure decision for the gateway's own public base URL, used to construct every security- sensitive link (magic-link verification, OAuth2/OIDC redirect URIs). |
 | `baseUrl` | The gateway's own public base URL for THIS request — see `resolveBaseUrl` for the hardening. |
 | `slideSession` | Slide the idle timeout forward on activity: re-stamp `seen` (throttled) so an active user stays signed in, and tidy up an expired/garbage session cookie. |
@@ -4238,10 +4422,6 @@ Bespoke REPORT DEFINITIONS (roadmap X.10 — reports convergence).
 
 ADMIN custom-roles + permission-sets editor.
 
-### `artifacts/api-server/src/routes/dashboards.ts`
-
-Custom dashboards — the LEGACY settings-bundle path (roadmap X.10).
-
 ### `artifacts/api-server/src/routes/def-bindings.ts`
 
 DEF SELECTION BINDINGS routes (roadmap X.12).
@@ -4268,7 +4448,7 @@ The OFF switch for screens.
 
 ### `artifacts/api-server/src/routes/energy-vocabulary.ts`
 
-Scope-overridable GTD energy-level vocabulary (the "how much have I got in the tank" axis, orthogonal to an hour estimate).
+Scope-overridable Energy vocabulary.
 
 ### `artifacts/api-server/src/routes/error-telemetry.ts`
 
@@ -4320,7 +4500,7 @@ Time-travel replay — read recorded portfolio states back from the operator's l
 
 ### `artifacts/api-server/src/routes/impact-vocabulary.ts`
 
-Scope-overridable RAID/risk IMPACT vocabulary (the consequence magnitude — the I in risk-exposure P×I).
+Scope-overridable Impact vocabulary.
 
 ### `artifacts/api-server/src/routes/import.ts`
 
@@ -4348,7 +4528,7 @@ Licence endpoint — GET /api/license reports the current licence summary + prem
 
 ### `artifacts/api-server/src/routes/likelihood-vocabulary.ts`
 
-Scope-overridable RAID/risk LIKELIHOOD vocabulary (the probability a risk occurs — the P in risk-exposure P×I).
+Scope-overridable Likelihood vocabulary.
 
 ### `artifacts/api-server/src/routes/logging-sync.ts`
 
@@ -4452,7 +4632,7 @@ RACI register store.
 
 ### `artifacts/api-server/src/routes/rag-vocabulary.ts`
 
-Scope-overridable RAG/health BAND vocabulary (a project/programme's traffic-light status).
+Scope-overridable RAG vocabulary.
 
 ### `artifacts/api-server/src/routes/rate-card.ts`
 
@@ -4465,6 +4645,10 @@ Rate card + hashed identity→role map + project types, and the server-side staf
 ### `artifacts/api-server/src/routes/registry.ts`
 
 Parse the activation target from a review body — org-wide by default, or a programme/project to CONFINE the activated primitive to (downward-only).
+
+### `artifacts/api-server/src/routes/release.ts`
+
+Release promotion (docs/UPDATE-MECHANISM.md §7, phase 3).
 
 ### `artifacts/api-server/src/routes/report-overrides.ts`
 
@@ -4502,10 +4686,6 @@ SCIM 2.0 provisioning endpoints (RFC 7644).
 
 Org-authored SCREEN DEFINITIONS (roadmap X.10 — screens convergence).
 
-### `artifacts/api-server/src/routes/screen-layouts.ts`
-
-Per-screen saved LAYOUTS — the drag-customised arrangement (panel order / spans / hidden).
-
 ### `artifacts/api-server/src/routes/security.ts`
 
 Typed + bounded bodies for the admin write endpoints (untrusted input).
@@ -4540,7 +4720,7 @@ Setup environments plane — the sandbox → promote → rollback lifecycle over
 
 ### `artifacts/api-server/src/routes/severity-vocabulary.ts`
 
-Scope-overridable RAID/risk SEVERITY vocabulary ("how bad is it if this bites").
+Scope-overridable Severity vocabulary.
 
 ### `artifacts/api-server/src/routes/snapshots.ts`
 
@@ -4560,7 +4740,7 @@ The SYSTEM DEFAULTS update mechanism (roadmap X.11).
 
 ### `artifacts/api-server/src/routes/task-vocabulary.ts`
 
-Scope-overridable GTD task-status vocabulary (next-actions axis, distinct from the work-item/issue status axis).
+Scope-overridable Task vocabulary.
 
 ### `artifacts/api-server/src/routes/tasks.ts`
 
@@ -4616,7 +4796,7 @@ WIKI / collaborative docs (roadmap 2.1).
 
 ### `artifacts/api-server/src/routes/work-vocabulary.ts`
 
-Scope-overridable work-item vocabulary (statuses + priorities).
+Scope-overridable Work vocabulary.
 
 ### `artifacts/api-server/src/routes/workflows.ts`
 
@@ -4703,6 +4883,18 @@ Timesheet STORE seam — where timesheets live is BELOW the seam (the operator's
 | `timesheetStoreFor` | The store for a scope, or null. |
 | `describeTimesheetSources` | Report which timesheet sources a deployment COULD use, for the UI to explain availability: - self-host: adoption is on (settings.selfHost.mode !== "off"); - backend: a backend-source provider is registered. |
 
+### `artifacts/api-server/src/tools/sign-migrations.ts`
+
+Migration-manifest signing CLI (docs/UPDATE-MECHANISM.md §8, phase 6) — approves which migrations may run.
+
+### `artifacts/api-server/src/tools/sign-promotion.ts`
+
+Promotion-signing CLI (docs/UPDATE-MECHANISM.md §3, phase 2) — records "production = this digest".
+
+### `artifacts/api-server/src/tools/sign-release.ts`
+
+Release-signing CLI (docs/UPDATE-MECHANISM.md §4, phase 1) — the release/CI side of provenance.
+
 ## Backend catalogue (`lib/backend-catalogue`)
 
 The seven vendor-neutral integration-plane registries (backends, brokers, outputs, notifications, methodologies, reports, screens) shared across the workspace.
@@ -4713,6 +4905,7 @@ AUTOMATION catalogue — the primitives of the user-facing "when X, do Y" recipe
 
 | Function | What it does |
 | --- | --- |
+| `getRuleSurface` | The surface definition for a key (e.g. "task"), or undefined. |
 | `getActionDef` | The catalogue definition for an action kind (its permission requirement + compiled effect), or undefined. |
 | `getTriggerDef` | The catalogue definition for a trigger kind (event vs schedule), or undefined. |
 | `recipeMutates` | Does a recipe mutate state (⇒ needs an autonomous grant to execute)? |
@@ -4748,6 +4941,14 @@ BROKER registry — the automation/translation layer that sits between the gatew
 ### `lib/backend-catalogue/src/canvas-catalogue.ts`
 
 WHITEBOARD / canvas content model — the neutral, primitive-built shape for OmniProject's visual canvas (roadmap 2.3).
+
+### `lib/backend-catalogue/src/catalogue-base.ts`
+
+defineCatalogue — the read-side twin of the write-lane spines.
+
+| Function | What it does |
+| --- | --- |
+| `defineCatalogue` | Build a catalogue over a generated `_DATA` array. |
 
 ### `lib/backend-catalogue/src/compatibility.ts`
 
@@ -4870,6 +5071,21 @@ DELEGATION POLICY — the admin-set governance dial for how far DOWN the scope h
 | `levelDepth` | A level's depth (org=0 … user=3); unknown → 0 (org, the safe/tightest). |
 | `isDelegationAllowed` | May a write at `target` scope proceed under a policy that allows variation down to `allowed`? True when the target is no deeper than the allowed level. |
 | `cleanDelegationPolicy` | Coerce untrusted input (imported/stored) into a valid policy, filling unknowns from the default. |
+
+### `lib/backend-catalogue/src/deployment-profile-catalogue.ts`
+
+DEPLOYMENT-PROFILE catalogue — a deployment's CONTEXT posture.
+
+| Function | What it does |
+| --- | --- |
+| `isDeploymentProfile` | True when `id` is a shipped deployment profile. |
+| `getProfilePosture` | One profile's posture by id, or undefined. |
+| `defaultDeploymentProfile` | The default profile id (the JSON asset flagged `default`, else the first in order). |
+| `profilePostureCatalogue` | The picker catalogue keyed by id (a defensive copy) — every profile's posture + per-customer-type preset. |
+
+### `lib/backend-catalogue/src/deployment-profiles.generated.ts`
+
+GENERATED by scripts/src/gen-deployment-profiles.ts — do not edit.
 
 ### `lib/backend-catalogue/src/deployment-resolve.ts`
 
@@ -5220,6 +5436,18 @@ The PLANES meta-registry — the seven integration planes OmniProject models, al
 | `getPlane` | Look up a single plane descriptor by its id. |
 | `planeCatalogue` | All plane descriptors (a defensive copy). |
 
+### `lib/backend-catalogue/src/predicate.ts`
+
+Conditional predicate engine — the shared "when" language of every OmniProject rule plane.
+
+| Function | What it does |
+| --- | --- |
+| `evaluatePredicate` | Evaluate one predicate against the context. |
+| `matches` | Does this condition set match the context? (all-of `all` AND any-of `any`; empty ⇒ matches all.) |
+| `selectMatching` | From a list of conditioned items, the ones whose condition matches the context, **in declared order**. |
+| `validatePredicate` | Validate a predicate's shape (used at the rule-authoring boundary). |
+| `cleanConditionSet` | Normalise a validated condition set (drops malformed predicates rather than throwing) — the shape the dispatcher/evaluator can trust. |
+
 ### `lib/backend-catalogue/src/preset-catalogue.ts`
 
 PRESET catalogue — the QUICK-LOAD presets that configure an org for a way of working in ONE action.
@@ -5403,13 +5631,9 @@ SORT + FILTER — the ONE shared, pure "view controls" engine a screen table or 
 | `filterRowsBoolean` | Keep rows matching the boolean filter tree. |
 | `applyView` | The common "view" application: filter THEN sort, in one pure pass. |
 
-### `lib/backend-catalogue/src/task-vocabulary.generated.ts`
-
-GENERATED by scripts/src/gen-task-vocabulary.ts — do not edit.
-
 ### `lib/backend-catalogue/src/task-vocabulary.ts`
 
-Canonical GTD TASK-STATUS vocabulary — the single source of truth for the next-action statuses OmniProject knows about, their workflow class and their display order.
+Canonical TASK-STATUS vocabulary — the single source of truth for the next-action statuses OmniProject knows about, their workflow class and their display order.
 
 | Function | What it does |
 | --- | --- |
@@ -5480,6 +5704,14 @@ VIEW catalogue — the methodology lenses over a project's work items (Kanban, S
 ### `lib/backend-catalogue/src/views.generated.ts`
 
 GENERATED by scripts/src/gen-views.ts — do not edit.
+
+### `lib/backend-catalogue/src/vocabulary-base.ts`
+
+GRADED-VOCABULARY generic — the shared read-side spine of the level-based vocabularies (energy, impact, likelihood, severity, rag).
+
+| Function | What it does |
+| --- | --- |
+| `defineGradedVocabulary` | Build a graded vocabulary from a JSON-authored token list. |
 
 ### `lib/backend-catalogue/src/widget-catalogue.ts`
 
@@ -5560,6 +5792,10 @@ Broker-contract generator.
 
 Dashboard-preset catalogue generator.
 
+### `scripts/src/gen-deployment-profiles.ts`
+
+Deployment-profile catalogue generator.
+
 ### `scripts/src/gen-deployment-types.ts`
 
 Deployment-type catalogue generator.
@@ -5639,10 +5875,6 @@ Settings-preset (archetype blueprint) generator.
 ### `scripts/src/gen-severity-vocabulary.ts`
 
 Canonical RAID/risk severity vocabulary generator.
-
-### `scripts/src/gen-task-vocabulary.ts`
-
-Canonical GTD task-status vocabulary generator.
 
 ### `scripts/src/gen-templates.ts`
 

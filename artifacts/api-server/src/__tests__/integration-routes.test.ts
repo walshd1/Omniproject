@@ -259,16 +259,10 @@ test("POST /api/setup/charity-onboarding applies the one-click charity preset", 
     assert.ok(names.includes("Trustee report"));
     assert.ok(names.includes("Funder report"));
 
-    const dashboards = await readJson(await get("/api/dashboards"));
-    const dashNames = dashboards.dashboards.map((d: { name: string }) => d.name);
-    assert.ok(dashNames.includes("Trustee report"));
-    assert.ok(dashNames.includes("Funder report"));
-
     const profile = await readJson(await get("/api/setup/profile"));
     assert.equal(profile.profile, "nonprofit");
   } finally {
     await get("/api/setup/profile", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ profile: "business" }) });
-    await get("/api/dashboards", { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify({ dashboards: [] }) });
   }
 });
 

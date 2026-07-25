@@ -7,7 +7,6 @@ import { aiKillEngaged, engageAiKill, releaseAiKill } from "../lib/ai-kill";
 import { listApprovedActions, listApprovedVocab, setApproved, approveAction, revokeApprovedAction, approveTerm, actionScope, type ActionScope } from "../lib/approved-actions";
 import { MCP_TOOLS } from "../lib/mcp";
 import { persistSecurityState } from "../lib/security-state";
-import { recordRequestAudit } from "../lib/audit";
 import { captureVersion } from "../lib/config-store";
 import { getSession } from "./auth";
 import {
@@ -17,6 +16,7 @@ import {
 import { getSettings } from "../lib/settings";
 import { applySettingsGuarded } from "../lib/settings-guard";
 import { v, parseOr400 } from "../lib/validate";
+import { mountCommand, type CommandDescriptor } from "../lib/action-base";
 
 /**
  * Capability governance plane — the admin-set deployment state (off / user-defined /
@@ -72,51 +72,90 @@ router.get("/governance/actions", requireRole("admin"), (_req, res) => {
 
 // Extend / replace the approved allowlist (admin + step-up — widening what AI may do is
 // a sensitive change). `replace` swaps the whole file; otherwise the items are added.
-router.put("/governance/approved", requireRole("admin"), requireStepUp, (req, res) => {
-  const body = (req.body ?? {}) as { actions?: unknown; rules?: unknown; remove?: unknown; vocab?: unknown; replace?: unknown };
-  const acts = Array.isArray(body.actions) ? body.actions.filter((a): a is string => typeof a === "string") : undefined;
-  const remove = Array.isArray(body.remove) ? body.remove.filter((a): a is string => typeof a === "string") : undefined;
-  const terms = Array.isArray(body.vocab) ? body.vocab.filter((v): v is string => typeof v === "string") : undefined;
-  // Scoped approvals: { action, scope:{surfaces?,minRole?,backends?} } — re-approving an
-  // action with a scope narrows it (cleanScope drops invalid fields). Empty scope = global.
-  const rules = Array.isArray(body.rules)
-    ? body.rules.filter((r): r is { action: string; scope?: ActionScope } => !!r && typeof (r as { action?: unknown }).action === "string")
-    : undefined;
-  if (body.replace === true) {
-    setApproved({ ...(rules ? { rules: rules.map((r) => ({ action: r.action, scope: r.scope ?? {} })) } : acts ? { actions: acts } : {}), ...(terms ? { vocab: terms } : {}) });
-  } else {
-    for (const a of acts ?? []) approveAction(a);
-    for (const r of rules ?? []) approveAction(r.action, r.scope); // set/replace the action's scope
-    for (const a of remove ?? []) revokeApprovedAction(a);
-    for (const v of terms ?? []) approveTerm(v);
-  }
-  persistSecurityState();
-  recordRequestAudit(req, { category: "admin", action: "approved.update", write: true, result: "success", meta: { actions: listApprovedActions().length, vocab: listApprovedVocab().length } });
-  res.json({ actions: listApprovedActions(), vocab: listApprovedVocab() });
-});
+interface ApprovedUpdateArgs {
+  acts: string[] | undefined;
+  remove: string[] | undefined;
+  terms: string[] | undefined;
+  rules: { action: string; scope?: ActionScope }[] | undefined;
+  replace: boolean;
+}
+// PUT /api/governance/approved — set the approved actions/vocab + scoped approval rules (admin + step-up).
+export const approvedUpdateCommand: CommandDescriptor<ApprovedUpdateArgs> = {
+  name: "approved.update",
+  method: "put",
+  path: "/governance/approved",
+  role: "admin",
+  gates: [requireStepUp],
+  parse: (req) => {
+    const body = (req.body ?? {}) as { actions?: unknown; rules?: unknown; remove?: unknown; vocab?: unknown; replace?: unknown };
+    const acts = Array.isArray(body.actions) ? body.actions.filter((a): a is string => typeof a === "string") : undefined;
+    const remove = Array.isArray(body.remove) ? body.remove.filter((a): a is string => typeof a === "string") : undefined;
+    const terms = Array.isArray(body.vocab) ? body.vocab.filter((v): v is string => typeof v === "string") : undefined;
+    // Scoped approvals: { action, scope:{surfaces?,minRole?,backends?} } — re-approving an
+    // action with a scope narrows it (cleanScope drops invalid fields). Empty scope = global.
+    const rules = Array.isArray(body.rules)
+      ? body.rules.filter((r): r is { action: string; scope?: ActionScope } => !!r && typeof (r as { action?: unknown }).action === "string")
+      : undefined;
+    return { acts, remove, terms, rules, replace: body.replace === true };
+  },
+  run: async (_req, _res, { acts, remove, terms, rules, replace }) => {
+    if (replace) {
+      setApproved({ ...(rules ? { rules: rules.map((r) => ({ action: r.action, scope: r.scope ?? {} })) } : acts ? { actions: acts } : {}), ...(terms ? { vocab: terms } : {}) });
+    } else {
+      for (const a of acts ?? []) approveAction(a);
+      for (const r of rules ?? []) approveAction(r.action, r.scope); // set/replace the action's scope
+      for (const a of remove ?? []) revokeApprovedAction(a);
+      for (const v of terms ?? []) approveTerm(v);
+    }
+    persistSecurityState();
+    return { actions: listApprovedActions(), vocab: listApprovedVocab() };
+  },
+  audit: "approved.update",
+  auditCategory: "admin",
+  auditMeta: () => ({ actions: listApprovedActions().length, vocab: listApprovedVocab().length }),
+};
+mountCommand(router, approvedUpdateCommand);
 
 // Break-glass AI kill switch (admin + step-up): one toggle stops all AI calls and
 // suspends every autonomous write. Audited; grants are left intact so release restores them.
-router.put("/governance/ai-kill", requireRole("admin"), requireStepUp, (req, res) => {
-  const engage = (req.body as { engage?: unknown }).engage === true;
-  if (engage) engageAiKill(); else releaseAiKill();
-  persistSecurityState();
-  recordRequestAudit(req, { category: "admin", action: engage ? "ai-kill.engage" : "ai-kill.release", write: true, result: "success" });
-  res.json({ aiKill: aiKillEngaged() });
-});
+export const aiKillCommand: CommandDescriptor<{ engage: boolean }> = {
+  name: "governance.ai-kill",
+  method: "put",
+  path: "/governance/ai-kill",
+  role: "admin",
+  gates: [requireStepUp],
+  parse: (req) => ({ engage: (req.body as { engage?: unknown }).engage === true }),
+  run: async (_req, _res, { engage }) => { if (engage) engageAiKill(); else releaseAiKill(); persistSecurityState(); return { aiKill: aiKillEngaged() }; },
+  audit: ({ engage }) => (engage ? "ai-kill.engage" : "ai-kill.release"),
+  auditCategory: "admin",
+};
+mountCommand(router, aiKillCommand);
 
 // Relax (or re-tighten) the default-full containment posture (admin + step-up). The AI
 // source level remains a hard floor, so a remote/public AI can never be relaxed below max.
 const CONTAINMENT_LEVELS: readonly AiContainment[] = ["off", "local", "remote", "public"];
 const CONTAINMENT_BODY = v.object({ level: v.enum(CONTAINMENT_LEVELS) });
 const TEST_BODY = v.object({ endpoint: v.optional(v.string({ trim: true, max: 2_000 })) });
-router.put("/governance/containment", requireRole("admin"), requireStepUp, (req, res) => {
-  const parsed = parseOr400(req, res, CONTAINMENT_BODY);
-  if (!parsed) return;
-  setContainmentRelax(parsed.level);
-  persistSecurityState();
-  res.json({ relax: getContainmentRelax(), level: aiContainmentLevel(), source: aiSourceLevel() });
-});
+export const containmentCommand: CommandDescriptor<{ level: AiContainment }> = {
+  name: "governance.containment",
+  method: "put",
+  path: "/governance/containment",
+  role: "admin",
+  gates: [requireStepUp],
+  parse: (req, res) => {
+    const parsed = parseOr400(req, res, CONTAINMENT_BODY);
+    if (!parsed) return null;
+    return { level: parsed.level };
+  },
+  run: async (_req, _res, { level }) => { setContainmentRelax(level); persistSecurityState(); return { relax: getContainmentRelax(), level: aiContainmentLevel(), source: aiSourceLevel() }; },
+  // NOTE: the hand-written route did not audit. Routing it through the action base adds a success audit —
+  // an additive gap-closure (a security-sensitive write that wasn't audited now is), same spirit as the
+  // ruleset gap-closure every migrated command carries.
+  audit: "containment.update",
+  auditCategory: "admin",
+  auditMeta: (_req, { level }) => ({ level }),
+};
+mountCommand(router, containmentCommand);
 
 // Probe a user-defined endpoint's reachability (admin). Tests the endpoint in the
 // request body, or the one already stored for the capability.

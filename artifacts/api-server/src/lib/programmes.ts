@@ -2,6 +2,7 @@ import type { Row } from "./data";
 import type { TaskSummary } from "./task-summary";
 import { type RagStatus, ragFor, financialHealthFrom } from "../broker/vocabulary";
 import { numLoose as num, optNum } from "@workspace/backend-catalogue";
+import { isForbiddenKey } from "./safe-json";
 
 /**
  * Programmes are a grouping of related projects, **derived** from each project's
@@ -215,6 +216,9 @@ export function validateProgrammeRegistry(value: unknown): ProgrammeRegistry {
   for (const [rawId, def] of Object.entries(value)) {
     const id = rawId.trim();
     if (!id) throw new ProgrammeRegistryError("programme id must be non-empty");
+    // The id keys the returned registry (`out[id] = …`); reject a reserved name inline (defence in depth —
+    // the settings write also strips dangerous keys, but this validator has non-HTTP callers too).
+    if (isForbiddenKey(id)) throw new ProgrammeRegistryError(`programme id "${id}" is not allowed`);
     if (!def || typeof def !== "object" || Array.isArray(def)) throw new ProgrammeRegistryError(`programme "${id}" must be an object { name, instanceIds }`);
     const d = def as Record<string, unknown>;
     const rawName = typeof d["name"] === "string" ? (d["name"] as string).trim() : "";

@@ -18,9 +18,10 @@
 import { CANONICAL_STATUS, STATUS_CLASS, canonicalStatusOf, type CanonicalStatus, type StatusClass } from "@workspace/backend-catalogue";
 export { CANONICAL_STATUS, STATUS_CLASS, canonicalStatusOf, type CanonicalStatus, type StatusClass };
 
-// The canonical GTD task states + their workflow class are likewise shared reference data, sourced from the
-// backend-catalogue task-vocabulary asset (assets/task-vocabulary.json) — mirroring the work-item status axis
-// above — so the gateway and the SPA can't drift on WHICH task statuses exist. Re-exported here so this module
+// The canonical GTD task states + their workflow class are likewise shared reference data, DERIVED from the
+// methodology definitions (assets/methodologies/gtd.json → tools.taskStatuses — GTD owns the task axis) —
+// mirroring the work-item status axis above — so the gateway and the SPA can't drift on WHICH task statuses
+// exist. Re-exported here so this module
 // stays the gateway's single import surface for task vocabulary; the native⇄canonical synonym behaviour below
 // stays above the seam.
 import { CANONICAL_TASK_STATUS, TASK_STATUS_CLASS, type CanonicalTaskStatus, type TaskStatusClass } from "@workspace/backend-catalogue";

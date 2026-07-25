@@ -11,10 +11,6 @@ vi.mock("../../lib/auth", async (importActual) => {
   const actual = await importActual<typeof import("../../lib/auth")>();
   return { ...actual, useAuth: () => ({ data: { role: "pmo" } }) };
 });
-vi.mock("../../lib/screen-layouts", () => ({
-  useScreenLayouts: () => ({ data: {} }),
-  useSaveScreenLayouts: () => ({ mutate: vi.fn(), isPending: false }),
-}));
 // Stub the hosted-component registry so the bare-screen test doesn't pull in real pages.
 vi.mock("../../components/screen/screen-components", () => ({
   SCREEN_COMPONENTS: {
