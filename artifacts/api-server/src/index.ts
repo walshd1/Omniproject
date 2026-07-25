@@ -22,6 +22,7 @@ import { startScheduledExportScheduler, runScheduledExport } from "./lib/schedul
 import { startDriftCanaryScheduler, runDriftCanary } from "./lib/drift-canary";
 import { startRulesDispatcher } from "./lib/rules-dispatcher";
 import { enforceReleaseProvenanceAtBoot } from "./lib/release-provenance";
+import { runSignedMigrations } from "./lib/release-migration";
 import { loadConfigDir } from "./lib/config-dir";
 import { assertSessionSecretForLocalPrincipals } from "./lib/session-secret-guard";
 import { localUsersActive } from "./lib/user-directory";
@@ -68,6 +69,12 @@ async function start(): Promise<void> {
   // overlay + settings from the operator's folder of JSON are in place when the first request
   // lands. Runs after bootstrap() so a KMS-wrapped config key is already unwrapped.
   loadConfigDir();
+
+  // Signed migration runner (docs/UPDATE-MECHANISM.md §8) — after provenance verify + data load, before
+  // serving. Runs only migrations named in a manifest signed by the release trust root, snapshotting first
+  // (§6). No-op when nothing is registered; in strict verify mode an unsigned/unlisted pending migration is
+  // fatal (fail-closed).
+  runSignedMigrations();
 
   // SECURITY: the import-time SESSION_SECRET guard (app.ts) ran BEFORE the store loaded, so it could not see
   // native local accounts — a real password login that may have been bootstrapped while the env still read as

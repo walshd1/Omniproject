@@ -225,3 +225,14 @@ Data outlives code, so **new code must read old data**:
    container on the digest, attaching the seeded isolated volume, enforcing write-isolation/discard on it, and
    physical teardown — signalled by the record's `accepted`/`rejected` state.
 6. **Signed migration runner.** Only if/when a release needs a data-shape change that isn't forward-safe.
+   **— BUILT.** `lib/release-migration.ts` runs a pending migration ONLY if it's named in a manifest signed by
+   the SAME release trust root that signs the image (`RELEASE_PUBLIC_KEY`) — an unsigned/tampered/unlisted
+   migration never runs (fail-closed); in `RELEASE_VERIFY=strict` an unapproved pending migration is a fatal
+   boot error. Migrations run at boot AFTER provenance verify + data load, BEFORE serving (`runSignedMigrations`
+   in `index.ts`), each preceded by the §6 pre-migration backup (`captureReleaseBackup`), and every applied one
+   lands in a sealed, audited ledger (`RELEASE_MIGRATION_LEDGER_FILE`) so it runs exactly once. A pending
+   **irreversible** migration BLOCKS promotion (`migrationBlockReason`, enforced in both the promote and
+   canary-accept routes with a 409) rather than shipping silently. The release side approves the id list with
+   `src/tools/sign-migrations.ts` (release private key, never shipped). `GET /api/admin/release/migrations`
+   reports pending vs applied + any block reason. The transform itself is code in the image; this is the signed
+   governance AROUND it — which migrations may run, which have, and when one must stop a promotion.
