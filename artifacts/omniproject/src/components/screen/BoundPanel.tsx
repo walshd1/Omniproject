@@ -38,6 +38,15 @@ export function BoundPanel({ panel, render }: { panel: Panel; render: (p: Panel)
     enabled: !unresolved,
   });
 
+  // Live, push-based revalidation: when a relevant change is announced, revalidate THIS panel only.
+  // MUST run before any early return — hooks are unconditional (rules-of-hooks). The callback itself
+  // is inert while `unresolved` (nothing subscribed matches an unresolved panel's key).
+  useLiveEvents((event) => {
+    if (source.live && matchesLive(event, source.liveOn)) {
+      void qc.invalidateQueries({ queryKey });
+    }
+  });
+
   if (unresolved) {
     return (
       <div className="rounded border border-border p-4" data-testid={`bound-panel-pending-${panel.id}`}>
@@ -45,14 +54,6 @@ export function BoundPanel({ panel, render }: { panel: Panel; render: (p: Panel)
       </div>
     );
   }
-
-  // Live, push-based revalidation: when a relevant change is announced, revalidate
-  // THIS panel only (conditionally). The hook is a no-op when not opted in.
-  useLiveEvents((event) => {
-    if (source.live && matchesLive(event, source.liveOn)) {
-      void qc.invalidateQueries({ queryKey });
-    }
-  });
 
   const merged: Panel = { ...panel, config: { ...(panel.config ?? {}), ...(data ?? {}) } };
 

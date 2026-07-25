@@ -1,0 +1,16 @@
+{
+  "id": "nonprofit",
+  "label": "Nonprofit / NGO",
+  "audience": "Charities and NGOs focused on outcomes over throughput",
+  "description": "Impact-led and lean: nonprofit profile, benefit/strategy-weighted prioritisation, and the heavier OData + external-integration modules switched off to keep the surface small. Turn them back on any time.",
+  "order": 30,
+  "settings": {
+    "deploymentProfile": "nonprofit",
+    "reportingCurrency": "USD",
+    "fxRatePolicy": "spot",
+    "aiProvider": "none",
+    "sttProvider": "browser",
+    "priorityWeights": { "rice": 15, "wsjf": 10, "moscow": 15, "strategic": 25, "benefit": 35 },
+    "disabledFeatures": ["odata", "integrations"]
+  }
+}

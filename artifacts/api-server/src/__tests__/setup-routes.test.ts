@@ -3,6 +3,12 @@ import assert from "node:assert/strict";
 // A production build (harness sets NODE_ENV=production) refuses to build redirect URLs from a
 // client Host header, so /setup/idp needs an explicit PUBLIC_URL. Set before the app imports.
 process.env["PUBLIC_URL"] = "https://setup-test.omni.example";
+// self-host adoption (Phase C) is a config def — enable the sealed store so the setup route can persist it.
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+process.env["SESSION_SECRET"] ??= "integration-harness-secret";
+process.env["OMNI_CONFIG_DIR"] = fs.mkdtempSync(path.join(os.tmpdir(), "setup-routes-"));
 import { startHarness, adminCookie, stepUpAdminCookie, type Harness } from "./_harness";
 
 /**
@@ -17,7 +23,9 @@ before(async () => { h = await startHarness(); });
 after(() => h.close());
 afterEach(async () => {
   const { updateSettings } = await import("../lib/settings");
-  updateSettings({ screenLayouts: {}, deploymentProfile: null, selfHost: { mode: "off", adopted: [], acknowledgedDataResponsibility: false } });
+  updateSettings({ deploymentProfile: null });
+  const { writeOrgConfigCollection } = await import("../lib/scoped-config");
+  writeOrgConfigCollection("self-host", "Self-host", { mode: "off", adopted: [], acknowledgedDataResponsibility: false });
 });
 
 const admin = () => adminCookie();
@@ -137,15 +145,6 @@ test("reports + screens honour the ?available=1 backend filter", async () => {
   }
 });
 
-test("screen layout: open GET, manager PUT round-trips", async () => {
-  assert.equal((await h.req("/setup/screens/board/layout", { cookie: admin() })).status, 200);
-  const put = await h.req("/setup/screens/board/layout", { method: "PUT", cookie: admin(), body: { order: ["a", "b"], spans: { a: 6, bad: 99 }, hidden: ["c"] } });
-  assert.equal(put.status, 200);
-  const body = await put.json() as { layout: { order: string[]; spans: Record<string, number> } };
-  assert.deepEqual(body.layout.order, ["a", "b"]);
-  assert.equal(body.layout.spans.a, 6);
-  assert.ok(!("bad" in body.layout.spans)); // out-of-range span dropped
-});
 
 test("GET /setup/connections returns credential names + templates", async () => {
   const r = await h.req("/setup/connections?backends=jira,asana", { cookie: admin() });

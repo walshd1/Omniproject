@@ -21,7 +21,7 @@ export function BudgetPlansAdmin() {
   const { data: server } = useBudgetPlans();
   const save = useSaveBudgetPlans();
   const { toast } = useToast();
-  const { draft, setDraft, dirty, reset } = useDraftAdmin<BudgetPlan[], BudgetPlan[]>(server, structuredClone);
+  const { draft, setDraft, dirty, reset } = useDraftAdmin<BudgetPlan[], BudgetPlan[]>(server);
 
   if (!roleAtLeast(auth?.role, "manager")) return null;
 

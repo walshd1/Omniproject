@@ -62,7 +62,10 @@ function scopeQuery(scope: FeatureScope): string {
 export function useFeatures(scope: FeatureScope = {}) {
   return useQuery({
     queryKey: featuresQueryKey(scope),
-    queryFn: () => getJson<{ features: FeatureStatus[] }>(`/api/features${scopeQuery(scope)}`).then((r) => r.features),
+    // Coalesce a missing/empty `features` field to `[]` so the queryFn never resolves to `undefined`
+    // (react-query treats an undefined result as an invariant violation). `featureEnabled([], id)`
+    // still returns true — the fail-open default — so gating behaviour is unchanged.
+    queryFn: () => getJson<{ features: FeatureStatus[] }>(`/api/features${scopeQuery(scope)}`).then((r) => r.features ?? []),
     staleTime: 30_000,
   });
 }
@@ -76,6 +79,17 @@ export function featureEnabled(features: FeatureStatus[] | undefined, id: string
   if (!f) return true;
   if (f.policy === "forbid") return false;
   return f.enabled;
+}
+
+/**
+ * Fetch-gate variant of {@link featureEnabled}: true only once the feature list has LOADED and the module
+ * is enabled. `featureEnabled` is fail-OPEN (returns true for an undefined list) so core UI never flickers
+ * off, but that same fail-open answer would fire a default-off module's `/api/<module>` request during the
+ * initial features-loading window — before the (off) status arrives — and 404-spam the console on a
+ * features-off instance. Gate a hook's `enabled` on THIS so the speculative fetch never races the load. */
+export function useFeatureEnabled(id: string): boolean {
+  const { data: features } = useFeatures();
+  return features !== undefined && featureEnabled(features, id);
 }
 
 export const scopeFeatureMapsQueryKey = ["scope-feature-maps"] as const;

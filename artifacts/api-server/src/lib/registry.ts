@@ -7,7 +7,10 @@
  * `sanitizeRegistrySubmit` is the single choke point; identity + review + release are stamped server-side.
  */
 import type { ActorContext } from "../broker/types";
+import type { ActivationScope } from "./def-import";
 import { listArtifacts, getArtifact, putArtifact, deleteArtifact, type ArtifactScope } from "./artifact-store";
+import { sanitizeText as cleanText } from "./coerce";
+import { actorLabel } from "./actor";
 import {
   REGISTRY_ITEM_KINDS, type RegistryItemKind, type RegistryApprovalStatus, type RegistryVisibility,
 } from "@workspace/backend-catalogue";
@@ -58,6 +61,10 @@ export interface RegistryItem {
   releasedAt: string | null;
   /** The id the community marketplace assigned on publish, when a remote is connected (else null). */
   communityRef: string | null;
+  /** For an APPROVED primitive: the scope its def was activated into (org-wide by default, or a programme/project
+   *  it was confined to) — recorded so reject/delete can undo the activation at the exact scope it was written to.
+   *  Null/absent for a non-primitive item, or a primitive not (yet) activated. */
+  activatedScope?: ActivationScope | null;
   updatedAt: string;
   rowVersion: number;
 }
@@ -75,6 +82,9 @@ export interface RegistryItemMeta {
   submittedBy: string | null;
   submittedAt: string;
   updatedAt: string;
+  /** For an approved primitive: where its def was activated (org / programme / project). Surfaced so the UI can
+   *  badge the scope without fetching the full item. Absent for non-primitives / not-yet-activated items. */
+  activatedScope?: ActivationScope | null;
 }
 
 export interface SanitizedRegistrySubmit {
@@ -85,18 +95,6 @@ export interface SanitizedRegistrySubmit {
   description: string | null;
   tags: string[];
   payload: unknown;
-}
-
-function cleanText(value: unknown, max: number): string {
-  if (typeof value !== "string") return "";
-  let out = "";
-  for (const ch of value) {
-    const c = ch.codePointAt(0)!;
-    const printable = c === 9 || c === 10 || (c >= 32 && c !== 127 && !(c >= 128 && c <= 159));
-    if (printable) out += ch;
-    if (out.length >= max) break;
-  }
-  return out.slice(0, max);
 }
 
 function cleanTags(raw: unknown): string[] {
@@ -126,7 +124,6 @@ export function sanitizeRegistrySubmit(raw: unknown): SanitizedRegistrySubmit {
   return { kind: obj["kind"], name, publisher, version, description: description || null, tags: cleanTags(obj["tags"]), payload };
 }
 
-const actorLabel = (ctx: ActorContext): string | null => ctx.email ?? ctx.name ?? ctx.sub ?? null;
 
 /** Build the row for a newly submitted item (draft, internal; identity stamped from ctx). */
 export function newRegistryItem(id: string, input: SanitizedRegistrySubmit, ctx: ActorContext, now: string): RegistryItem {
@@ -153,6 +150,8 @@ export function reviewRegistryItem(existing: RegistryItem, decision: "approved" 
     visibility: decision === "rejected" ? "internal" : existing.visibility,
     releasedAt: decision === "rejected" ? null : existing.releasedAt,
     communityRef: decision === "rejected" ? null : existing.communityRef,
+    // A rejected primitive is deactivated (route-side), so its recorded activation scope is cleared.
+    activatedScope: decision === "rejected" ? null : existing.activatedScope ?? null,
     updatedAt: now,
     rowVersion: (existing.rowVersion ?? 1) + 1,
   };
@@ -174,6 +173,7 @@ export function registryItemMeta(it: RegistryItem): RegistryItemMeta {
     id: it.id, kind: it.kind, name: it.name, publisher: it.publisher, version: it.version,
     approvalStatus: it.approvalStatus ?? "draft", visibility: it.visibility ?? "internal",
     tags: it.tags ?? [], submittedBy: it.submittedBy ?? null, submittedAt: it.submittedAt, updatedAt: it.updatedAt,
+    ...(it.activatedScope ? { activatedScope: it.activatedScope } : {}),
   };
 }
 

@@ -11,6 +11,7 @@
 import { isCapabilityMet } from "./compatibility";
 import { matchesMethodology } from "./methodology-match";
 import { REPORTS_DATA } from "./reports.generated";
+import { defineCatalogue } from "./catalogue-base";
 import { composeExtends, type Resolved } from "./def-compose";
 import type { DrillTo } from "./drill-to";
 
@@ -84,20 +85,20 @@ export function resolveReport(id: string): Resolved<ReportDefinition> | undefine
 /** Every shipped report FLATTENED (extends executed), in display order. Authored as JSON under
  *  assets/reports/<id>.json and embedded by gen-reports (drift-guarded in CI). `lineage` is kept only on the
  *  explicit `resolveReport` return, not on the catalogue entries. */
-export const REPORTS: ReportDefinition[] = [...REPORTS_DATA]
-  .map((r) => { const { lineage: _l, ...def } = resolveReport(r.id)!; return def; })
-  .sort((a, b) => a.order - b.order);
-
-const byId = new Map(REPORTS.map((r) => [r.id, r]));
+const catalogue = defineCatalogue(
+  REPORTS_DATA.map((r) => { const { lineage: _l, ...def } = resolveReport(r.id)!; return def; }),
+  { sortByOrder: true },
+);
+export const REPORTS: ReportDefinition[] = catalogue.all;
 
 /** One report definition (flattened) by id, or undefined. */
 export function getReport(id: string): ReportDefinition | undefined {
-  return byId.get(id);
+  return catalogue.get(id);
 }
 
 /** All report definitions (a defensive copy). */
 export function reportCatalogue(): ReportDefinition[] {
-  return REPORTS.map((r) => ({ ...r }));
+  return catalogue.list();
 }
 
 /**

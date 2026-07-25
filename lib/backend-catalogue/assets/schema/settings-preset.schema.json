@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://omniproject.dev/assets/settings-preset.schema.json",
+  "title": "OmniProject settings preset",
+  "description": "A known-good settings blueprint for a customer archetype: a partial settings posture an operator loads in setup and then tweaks. The `settings` payload is validated against the live cross-field constraint registry by the api-server test, not this schema. One file per preset under assets/settings-presets/<id>.json.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["id", "label", "audience", "description", "order", "settings"],
+  "properties": {
+    "id": { "type": "string", "pattern": "^[a-z0-9-]+$" },
+    "label": { "type": "string", "minLength": 1 },
+    "audience": { "type": "string", "minLength": 1 },
+    "description": { "type": "string", "minLength": 1 },
+    "order": { "type": "integer" },
+    "settings": {
+      "type": "object",
+      "description": "A partial settings posture (deploymentProfile, reportingCurrency, fxRatePolicy, priorityWeights, disabledFeatures, …). Typed as Partial<SettingsState> at the api-server boundary; arbitrary keys allowed here."
+    }
+  }
+}

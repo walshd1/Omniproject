@@ -1,6 +1,7 @@
 import type { Request, Response } from "express";
 import { unwritableMapFields, type FormDef } from "./form-def";
 import { resolveCapabilities, type Capabilities } from "./capabilities";
+import { isGovernedConfigId, configPayloadId } from "./governed-config-ids";
 
 /**
  * Request-aware AUTHORING guards that run inside the ONE importer write path (routes/defs `POST`/`PUT`), keyed
@@ -17,6 +18,18 @@ function writableIssueFields(caps: Capabilities): Set<string> {
 }
 
 export async function runDefWriteHook(req: Request, res: Response, kind: string, payload: unknown): Promise<boolean> {
+  if (kind === "config") {
+    // A `config` def resolves by its LOGICAL id via the scope-layered fold, so the generic importer must NOT be
+    // a back door into a GOVERNED config (a security-classified posture control, or the def-scope-policy
+    // authoring gate). Those have a dedicated writer that holds a relaxing change for a signed sign-off; writing
+    // the same logical id here would fold into the resolved value with none of that. Refuse it — the admin
+    // settings surface stays the only writer. See lib/governed-config-ids.
+    const id = configPayloadId(payload);
+    if (isGovernedConfigId(id)) {
+      res.status(403).json({ error: `The "${id}" configuration is governed and can't be authored through the generic def importer — change it on its dedicated admin settings surface (a relaxing change is held for a signed sign-off).` });
+      return false;
+    }
+  }
   if (kind === "form") {
     // A form may only MAP onto issue fields the connected backend can store — the same capability plane that
     // gates the interactive grid. Enforce it at authoring (early, named feedback); the submit path re-checks

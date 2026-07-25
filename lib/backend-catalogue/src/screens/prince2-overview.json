@@ -1,0 +1,5 @@
+{ "id": "prince2-overview", "label": "PRINCE2 overview", "methodologies": ["prince2"], "panels": [
+  { "id": "stage", "kind": "metric", "title": "Current stage", "config": { "label": "Stage", "value": "—" } },
+  { "id": "stage-gates", "kind": "register", "title": "Stage gates", "config": { "slot": "stages" } },
+  { "id": "raid", "kind": "register", "title": "RAID", "config": { "slot": "raid" } }
+] }

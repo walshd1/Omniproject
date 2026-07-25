@@ -3,6 +3,7 @@ import { screen, fireEvent, waitFor } from "@testing-library/react";
 import { QueryClient } from "@tanstack/react-query";
 import { renderWithProviders, mockFetchRouter, resetFetchMock } from "../../test/utils";
 import type { Role } from "../../lib/auth";
+import { featuresQueryKey } from "../../lib/features";
 import { DefBindingControl } from "./DefBindingControl";
 
 /**
@@ -15,6 +16,10 @@ afterEach(() => resetFetchMock());
 function seed(role: Role): QueryClient {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: 0 }, mutations: { retry: false } } });
   qc.setQueryData(["auth", "me"], { authenticated: true, role, user: { sub: "u1" } });
+  // The def hooks gate their fetch on the `defImporter` module having LOADED (fail-closed while the
+  // feature list is undefined, to avoid a speculative 404). This control only renders when the module
+  // is on, so seed the feature list with it enabled.
+  qc.setQueryData(featuresQueryKey(), [{ id: "defImporter", kind: "module", label: "Def importer", description: "", enabled: true, loaded: true, needsRestart: false }]);
   return qc;
 }
 

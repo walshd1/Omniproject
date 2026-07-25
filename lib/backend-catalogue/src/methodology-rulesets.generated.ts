@@ -5,6 +5,24 @@ import type { ReferenceRulesetData } from "./methodology-rulesets";
 
 export const REFERENCE_RULESETS_DATA: ReferenceRulesetData[] = [
   {
+    "id": "gtd",
+    "label": "GTD next-action baseline",
+    "rationale": "GTD keeps work trustworthy: every actionable item is a concrete next action, so capture is fast but nothing stalls. Schedule sanity stays hard; estimation is never imposed. (The cross-entity invariant 'every active project must have a next action' is enforced by the engine, not a field rule.)",
+    "modes": {
+      "due-after-start": "hard"
+    },
+    "fieldRules": [
+      {
+        "id": "gtd-waiting-on",
+        "action": "any-write",
+        "field": "waitingOn",
+        "whenPresent": "waiting",
+        "mode": "warn",
+        "message": "A waiting item should record who/what it is waiting on (GTD)."
+      }
+    ]
+  },
+  {
     "id": "kanban",
     "label": "Kanban flow baseline",
     "rationale": "Pulled work should be owned, and a blocked card must say why so the flow is visible. No estimation is imposed.",

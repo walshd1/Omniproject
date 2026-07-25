@@ -1,27 +1,23 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { getJson, sendJson } from "./api";
 import { closedProjectsQueryKey, type ClosedProjectRecord } from "./closed-projects";
+import { configResource } from "./config-resource";
 import { triggerBlobDownload } from "./setup";
 
 export type GuidAliases = Record<string, string>;
 export const guidAliasesQueryKey = ["guid-aliases"] as const;
 
-export function useGuidAliases() {
-  return useQuery({
-    queryKey: guidAliasesQueryKey,
-    queryFn: () => getJson<{ guidAliases?: GuidAliases }>("/api/guid-aliases").then((r) => r.guidAliases ?? {}),
-    staleTime: 0,
-  });
-}
-
+const resource = configResource<GuidAliases>({
+  queryKey: guidAliasesQueryKey,
+  path: "/api/guid-aliases",
+  envelopeKey: "guidAliases",
+  empty: {},
+  staleTime: 0,
+  saveErrorMessage: "Failed to save GUID aliases", // server rejects self-aliases and cycles (PMO/admin)
+});
+export const useGuidAliases = resource.useResource;
 /** Persist the relink table (PMO/admin). The server rejects self-aliases and cycles. */
-export function useSaveGuidAliases() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (aliases: GuidAliases) => sendJson("/api/guid-aliases", { guidAliases: aliases }, "PUT", "Failed to save GUID aliases"),
-    onSuccess: () => qc.invalidateQueries({ queryKey: guidAliasesQueryKey }),
-  });
-}
+export const useSaveGuidAliases = resource.useSaveResource;
 
 export interface ForgetResult {
   guid: string;

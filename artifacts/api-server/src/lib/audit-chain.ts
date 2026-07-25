@@ -1,13 +1,12 @@
-import { createHmac } from "node:crypto";
 import { constantTimeEqual } from "./crypto-keys";
 import { derivedKey, currentVersion } from "./key-registry";
 import { canonical } from "./provenance";
-import { signMessage, publicKeyId, verifySignature } from "./signing";
+import { chainLinkHash, attachAnchorSignature, verifyAnchorSignature } from "./hmac-chain";
 import { logger } from "./logger";
 import { SealedFile, resolveConfigFile } from "./sealed-file";
 import { sharedKv, sharedStateMode } from "./shared-state";
 import { safeParseJson } from "./safe-json";
-import { getSettings } from "./settings";
+import { retentionDaysNow } from "./history-retention";
 import type { AuditEvent } from "./audit";
 
 /**
@@ -44,9 +43,7 @@ const GENESIS = "0".repeat(64);
 function linkHash(seq: number, prevHash: string, ev: AuditEvent, version: number): string {
   // The event is canonicalised WITHOUT any existing seal so the MAC is stable + reproducible.
   const { seal: _omit, ...bare } = ev as SealedAuditEvent;
-  return createHmac("sha256", derivedKey("audit", version))
-    .update(`${seq}|${prevHash}|${canonical(bare)}`)
-    .digest("hex");
+  return chainLinkHash(derivedKey("audit", version), seq, prevHash, canonical(bare));
 }
 
 // ── Chain head (in-memory; optionally persisted sealed) ─────────────────────────
@@ -94,7 +91,7 @@ function ensureLogLoaded(): void {
 /** Drop events past the retention window (`historyRetention.retentionDays`; null/≤0 ⇒ keep forever) and, as a
  *  hard backstop regardless of time, cap the total count so the sealed file + every backup stay bounded. */
 function pruneLog(): void {
-  const days = getSettings().historyRetention?.retentionDays;
+  const days = retentionDaysNow();
   if (typeof days === "number" && days > 0) {
     const min = Date.now() - days * 24 * 60 * 60 * 1000;
     logEvents = logEvents.filter((e) => { const t = Date.parse(e.ts); return Number.isNaN(t) || t >= min; });
@@ -210,10 +207,7 @@ export function auditAnchorMessage(a: { seq: number; lastHash: string; algorithm
 /** Wrap a chain tip in an anchor, adding the Ed25519 signature when asymmetric signing is on. */
 function signAnchor(seq: number, lastHash: string): AuditAnchor {
   const base = { seq, lastHash, algorithm: "HMAC-SHA256/chain", keyVersion: currentVersion("audit") };
-  const signature = signMessage(auditAnchorMessage(base));
-  if (!signature) return base;
-  const kid = publicKeyId();
-  return { ...base, signatureAlgorithm: "Ed25519", signature, ...(kid ? { publicKeyId: kid } : {}) };
+  return attachAnchorSignature(base, auditAnchorMessage(base));
 }
 
 /** The current chain anchor — what an external verifier checks the tip against. When
@@ -235,7 +229,7 @@ export async function auditAnchorShared(): Promise<AuditAnchor> {
 /** Verify an anchor's Ed25519 signature against a published public key (PEM). False when the
  *  anchor is unsigned or the signature doesn't match — pure, for an offline auditor. */
 export function verifyAuditAnchor(anchor: AuditAnchor, publicKeyPemStr: string): boolean {
-  return anchor.signature ? verifySignature(auditAnchorMessage(anchor), anchor.signature, publicKeyPemStr) : false;
+  return verifyAnchorSignature(anchor.signature, auditAnchorMessage(anchor), publicKeyPemStr);
 }
 
 export interface ChainVerdict { ok: boolean; count: number; brokenAt: number | null; reason?: string }
@@ -305,7 +299,7 @@ export function importAuditChain(data: unknown): { applied: boolean; reason?: st
  *  window, the span, whether the log is DURABLE (a config dir is set — else RAM-only), and the hard cap. */
 export function auditLogStatus(): { retained: number; retentionDays: number | null; oldest: string | null; newest: string | null; durable: boolean; cap: number } {
   ensureLogLoaded();
-  const days = getSettings().historyRetention?.retentionDays;
+  const days = retentionDaysNow();
   return {
     retained: logEvents.length,
     retentionDays: typeof days === "number" && days > 0 ? days : null,

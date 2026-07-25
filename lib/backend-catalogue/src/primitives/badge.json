@@ -1,0 +1,30 @@
+{
+  "id": "badge",
+  "label": "Badge",
+  "category": "tile",
+  "extends": "tile",
+  "description": "A small status pill — a labelled chip toned for genuine state. A tile specialized as a compact status marker.",
+  "params": [
+    {
+      "key": "children",
+      "label": "Text",
+      "type": "string",
+      "required": true,
+      "description": "The pill label."
+    },
+    {
+      "key": "tone",
+      "label": "Tone",
+      "type": "enum",
+      "required": false,
+      "description": "State colour.",
+      "options": [
+        "neutral",
+        "good",
+        "warn",
+        "bad",
+        "info"
+      ]
+    }
+  ]
+}

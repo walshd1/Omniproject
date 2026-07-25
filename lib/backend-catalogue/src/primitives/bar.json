@@ -1,0 +1,63 @@
+{
+  "id": "bar",
+  "label": "Bar chart",
+  "category": "chart",
+  "extends": "chart",
+  "chartType": "bar",
+  "description": "Compare a measure across categories; multiple series can be grouped or stacked, horizontal or vertical.",
+  "params": [
+    {
+      "key": "data",
+      "label": "Rows",
+      "type": "rows",
+      "required": true,
+      "description": "One object per category; keys are the plotted fields."
+    },
+    {
+      "key": "series",
+      "label": "Series",
+      "type": "series",
+      "required": true,
+      "description": "Which row keys to plot and their labels."
+    },
+    {
+      "key": "stacked",
+      "label": "Stacked",
+      "type": "boolean",
+      "required": false,
+      "description": "Stack series into one bar instead of grouping."
+    },
+    {
+      "key": "orientation",
+      "label": "Orientation",
+      "type": "enum",
+      "required": false,
+      "description": "Bar direction.",
+      "options": [
+        "horizontal",
+        "vertical"
+      ]
+    },
+    {
+      "key": "legend",
+      "label": "Legend",
+      "type": "boolean",
+      "required": false,
+      "description": "Show the series legend (auto for ≥2 series)."
+    },
+    {
+      "key": "height",
+      "label": "Height",
+      "type": "number",
+      "required": false,
+      "description": "Pixel height, or a percent string for responsive containers."
+    },
+    {
+      "key": "palette",
+      "label": "Palette",
+      "type": "palette",
+      "required": false,
+      "description": "Ordered hex colours; series/slices take them in turn."
+    }
+  ]
+}

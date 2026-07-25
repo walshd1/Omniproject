@@ -19,7 +19,7 @@ export function ContentPagesAdmin() {
   const { data: auth } = useAuth();
   const { data: server } = useContentPages();
   const save = useSaveContentPages();
-  const { draft, setDraft, dirty, reset } = useDraftAdmin<ContentPageDef[], ContentPageDef[]>(server, structuredClone);
+  const { draft, setDraft, dirty, reset } = useDraftAdmin<ContentPageDef[], ContentPageDef[]>(server);
   const { data: composition } = useMethodologyComposition();
 
   if (!roleAtLeast(auth?.role, "pmo")) return null;

@@ -1,5 +1,6 @@
 import type { Request } from "express";
 import { getBroker, contextFromReq, type Broker, type ActorContext } from "../broker";
+import type { IssueWrite } from "../broker/types";
 import { getNotifyBus } from "./notify-bus";
 import { getSettings } from "./settings";
 import { registerApprovalExecutor } from "./approval-service";
@@ -32,8 +33,21 @@ export interface EffectDeps {
   owner: string;
 }
 
-/** Build the effect surface from injected deps. Pure allowlist — no action outside it can run. */
-export function makeEffects(deps: EffectDeps): WorkflowEffect {
+/** Options for the effect surface. `allowWrites` opens the MUTATING effects — used ONLY by the autonomous,
+ *  grant-gated rules path ({@link effectsForAutonomousContext}); the human/direct surfaces leave it off, so a
+ *  human-run workflow stays read+notify (fail-closed) exactly as before. */
+export interface EffectOptions {
+  allowWrites?: boolean;
+}
+
+/** The recipe-action meta keys the compiler stamps — stripped before a write reaches the broker. */
+const META_KEYS = new Set(["__recipeAction", "__op"]);
+
+/** Build the effect surface from injected deps. Pure allowlist — no action outside it can run. Mutating
+ *  effects are OFF unless `opts.allowWrites` (the autonomous path); otherwise a mutation is refused exactly
+ *  as before. When a mutation IS allowed, deps.broker is the autonomous-guarded broker, so the write is
+ *  still bounded by the actor's grant (default-deny) — `allowWrites` opens the EFFECT, not the gate. */
+export function makeEffects(deps: EffectDeps, opts: EffectOptions = {}): WorkflowEffect {
   return async (action, params, _ctx: WorkflowRunContext): Promise<unknown> => {
     switch (action) {
       case "broker.listProjects": return deps.broker.listProjects(deps.ctx);
@@ -47,6 +61,16 @@ export function makeEffects(deps: EffectDeps): WorkflowEffect {
           { sub: params["sub"] ? String(params["sub"]) : deps.owner, ...(params["email"] ? { email: String(params["email"]) } : {}) },
         );
         return { sent: true };
+      }
+      case "broker.writeIssue": {
+        if (!opts.allowWrites) throw new WorkflowRunError(`action "${action}" is not permitted here (reads + notify only; a mutation runs only on the autonomous, grant-gated rules path)`);
+        // The write reaches the AUTONOMOUS-GUARDED broker under the actor's context: an autonomous actor
+        // with no matching grant is denied here (fail-closed), so `allowWrites` opens the effect, never the
+        // authorization. Strip the compiler's meta keys; the rest is the IssueWrite input.
+        const op = (String(params["__op"] ?? "update")) as "create" | "update" | "delete";
+        const input: Record<string, unknown> = {};
+        for (const [k, v] of Object.entries(params)) if (!META_KEYS.has(k)) input[k] = v;
+        return deps.broker.writeIssue(deps.ctx, op, input as unknown as IssueWrite);
       }
       default:
         throw new WorkflowRunError(`action "${action}" is not permitted in a workflow (reads + notify only; a mutation needs an approval-gated step)`);
@@ -86,6 +110,17 @@ function ctxFromActor(a: RunActor): ActorContext {
 /** The effect surface for a recorded actor (the approval-gated executor path). */
 export function effectsForActor(a: RunActor, owner: string): WorkflowEffect {
   return makeEffects({ broker: getBroker(), ctx: ctxFromActor(a), owner, notify: busNotify });
+}
+
+/**
+ * The effect surface for an AUTONOMOUS principal (the rules-engine dispatch path) — reads + notify AND the
+ * mutating effects, run under the given minted autonomous context through the autonomous-guarded broker. The
+ * write authorization is NOT here: `getBroker()` wraps the broker with the autonomous-write guard, so a
+ * mutation is allowed only inside the actor's admin-declared grant (default-deny). This is the one surface
+ * with `allowWrites`, and it only ever runs under an `automation:`/`agent:` context.
+ */
+export function effectsForAutonomousContext(ctx: ActorContext, owner: string): WorkflowEffect {
+  return makeEffects({ broker: getBroker(), ctx, owner, notify: busNotify }, { allowWrites: true });
 }
 
 /** Run a stored workflow by id with the caller's live request scope. Throws when unknown. */

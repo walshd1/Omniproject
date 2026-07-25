@@ -1,5 +1,7 @@
 import type { CrossPlaneRef } from "./planes";
+import type { TaskVocabEntry } from "./task-vocabulary";
 import { METHODOLOGIES_DATA } from "./methodologies.generated";
+import { defineCatalogue } from "./catalogue-base";
 
 /**
  * METHODOLOGY registry — the PM methodologies OmniProject can shape itself to
@@ -27,6 +29,23 @@ export interface MethodologyCapabilities {
   estimation: "story-points" | "hours" | "t-shirt" | "none";
 }
 
+/**
+ * A declarative BUSINESS-RULE INVARIANT a methodology asserts about the WHOLE portfolio — a cross-entity
+ * check the write-time ruleset (single-payload, restrict-only) can't express. GTD's "every active project
+ * must have a next action" is the exemplar: it's a compliance SIGNAL (surfaced, not a write block), evaluated
+ * by {@link evaluateMethodologyInvariants}. The `kind` selects a shipped, code-backed checker; the def carries
+ * only the declaration (id + kind + message + severity), keeping the rule in the methodology FILE (data).
+ */
+export interface MethodologyInvariant {
+  id: string;
+  /** Which shipped checker enforces this (see METHODOLOGY_INVARIANT_KINDS). */
+  kind: string;
+  /** The human message shown when the invariant is breached. */
+  message: string;
+  /** How hard the breach reads — a hard "error" or a soft "warn" (default). */
+  severity?: "error" | "warn";
+}
+
 export interface MethodologyManifest {
   id: string;
   label: string;
@@ -35,13 +54,24 @@ export interface MethodologyManifest {
   capabilities: MethodologyCapabilities;
   /** Other planes this methodology also lights up. */
   alsoProvides?: CrossPlaneRef[];
+  /** Declarative cross-entity business rules this methodology asserts (see {@link MethodologyInvariant}). */
+  invariants?: MethodologyInvariant[];
+  /** PRESET SETTINGS (first-class fields) this methodology lands on a one-click deploy — the "known-good
+   *  posture" half of the bundle. Keys must be writable settings keys (reportingCurrency, fxRatePolicy,
+   *  priorityWeights, …); they are validated against the settings field descriptors at apply time, so an
+   *  invalid block is rejected (never silently mis-applied). */
+  settings?: Record<string, unknown>;
   notes?: string;
 }
 
 /** A catalogue entry: the manifest + its tools (the workflow states + ceremonies). */
 export interface MethodologyDefinition extends MethodologyManifest {
-  /** Default workflow states + ceremonies/artefacts it introduces. */
-  tools: { states: string[]; ceremonies: string[] };
+  /** Default workflow states + ceremonies/artefacts it introduces, plus the optional task-status axis.
+   *  `taskStatuses` is the methodology's OWN next-action nomenclature (id + label + workflow class); ANY
+   *  methodology may declare one (methodology-agnostic) — the canonical task vocabulary is derived from these
+   *  across the catalogue (see task-vocabulary.ts), and a deploy lands them via {@link MethodologyNomenclature}.
+   *  GTD ships a task axis today; omitted ⇒ no task axis. */
+  tools: { states: string[]; ceremonies: string[]; taskStatuses?: TaskVocabEntry[] };
   /** Display order in the methodology picker. */
   order: number;
   /** COMPOSITION: the id of a parent methodology this one is built on (see def-compose). A customer fork
@@ -52,16 +82,17 @@ export interface MethodologyDefinition extends MethodologyManifest {
 /** Every shipped methodology, in display order. Authored as JSON under
  *  assets/methodologies/<id>.json and embedded by gen-methodologies (drift-guarded
  *  in CI). Being data is what lets a methodology PACK ship as an importable bundle. */
-export const METHODOLOGIES: MethodologyDefinition[] = [...METHODOLOGIES_DATA].sort((a, b) => a.order - b.order);
+const catalogue = defineCatalogue(METHODOLOGIES_DATA, { sortByOrder: true });
 
-const byId = new Map(METHODOLOGIES.map((m) => [m.id, m]));
+/** Every shipped methodology, in display order. */
+export const METHODOLOGIES: MethodologyDefinition[] = catalogue.all;
 
 /** One methodology definition by id, or undefined. */
 export function getMethodology(id: string): MethodologyDefinition | undefined {
-  return byId.get(id);
+  return catalogue.get(id);
 }
 
 /** All methodology definitions (a defensive copy). */
 export function methodologyCatalogue(): MethodologyDefinition[] {
-  return METHODOLOGIES.map((m) => ({ ...m }));
+  return catalogue.list();
 }

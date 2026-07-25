@@ -9,8 +9,8 @@ import {
 import { buildRoadmap, roadmapKey, type RoadmapProject, type RoadmapIssue } from "./roadmap";
 import { buildExecHealth } from "./exec-pack";
 import { rollupByProgramme, type ProjectCapacity } from "./capacity-rollup";
-import { consolidateFinancials, type ProjectFin } from "./portfolio-finance";
-import { rollupIncome, rollupBenefits, type ProjectItems } from "./portfolio-value";
+import { consolidateByGroup, consolidationSpec, type ConsolidationInput } from "@workspace/backend-catalogue";
+import { rollupBySpec, type ProjectItems } from "./portfolio-value";
 
 /**
  * LOGIC & COLLISION STRESS HARNESS (SPA / derivations side).
@@ -183,21 +183,22 @@ describe("programme rollups — grouping + deterministic equal-key ordering", ()
   });
 
   it("finance consolidation: equal-variance programmes order deterministically", () => {
-    const fin = { currency: "GBP", budgetAllocated: 100, actualBurn: 50, earnedValue: 50, cpi: 1, spi: 1, financialHealth: "on_track", forecastCostAtCompletion: 100 };
-    const mk = (pid: string): ProjectFin => ({ projectId: `x-${pid}`, projectName: pid, programmeId: pid, programmeName: pid, fin: fin as ProjectFin["fin"] });
-    const first = consolidateFinancials([mk("prog-b"), mk("prog-a")], "GBP").programmes.map((p) => p.key);
-    const second = consolidateFinancials([mk("prog-a"), mk("prog-b")], "GBP").programmes.map((p) => p.key);
+    const fin = { currency: "GBP", budgetAllocated: 100, actualBurn: 50, earnedValue: 50, forecastCostAtCompletion: 100 };
+    const mk = (pid: string): ConsolidationInput => ({ groupKey: pid, groupLabel: pid, currency: "GBP", items: [fin] });
+    const spec = consolidationSpec("financials");
+    const first = consolidateByGroup([mk("prog-b"), mk("prog-a")], spec, "GBP").groups.map((r) => r.key);
+    const second = consolidateByGroup([mk("prog-a"), mk("prog-b")], spec, "GBP").groups.map((r) => r.key);
     expect(first).toEqual(second);
     expect(first).toEqual(["prog-a", "prog-b"]); // equal variance ⇒ tiebreak by key
   });
 
   it("income/benefits rollups: equal-metric programmes order deterministically", () => {
     const mk = (pid: string): ProjectItems => ({ projectId: `x-${pid}`, projectName: pid, programmeId: pid, programmeName: pid, currency: "GBP", items: [] });
-    const inc1 = rollupIncome([mk("prog-b"), mk("prog-a")], "GBP").programmes.map((p) => p.key);
-    const inc2 = rollupIncome([mk("prog-a"), mk("prog-b")], "GBP").programmes.map((p) => p.key);
+    const inc1 = rollupBySpec("income", [mk("prog-b"), mk("prog-a")], "GBP").programmes.map((p) => p.key);
+    const inc2 = rollupBySpec("income", [mk("prog-a"), mk("prog-b")], "GBP").programmes.map((p) => p.key);
     expect(inc1).toEqual(inc2);
-    const ben1 = rollupBenefits([mk("prog-b"), mk("prog-a")], "GBP").programmes.map((p) => p.key);
-    const ben2 = rollupBenefits([mk("prog-a"), mk("prog-b")], "GBP").programmes.map((p) => p.key);
+    const ben1 = rollupBySpec("benefits", [mk("prog-b"), mk("prog-a")], "GBP").programmes.map((p) => p.key);
+    const ben2 = rollupBySpec("benefits", [mk("prog-a"), mk("prog-b")], "GBP").programmes.map((p) => p.key);
     expect(ben1).toEqual(ben2);
   });
 });

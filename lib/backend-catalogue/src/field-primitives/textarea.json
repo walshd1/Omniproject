@@ -1,0 +1,6 @@
+{
+  "id": "textarea",
+  "extends": "form-field",
+  "label": "Textarea",
+  "params": []
+}

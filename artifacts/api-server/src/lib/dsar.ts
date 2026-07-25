@@ -3,7 +3,7 @@ import { recentProvenance } from "./provenance";
 import { userSessionsRevokedAt } from "./key-registry";
 import { auditAnchor, auditLogSubjectRefs } from "./audit-chain";
 import { configuredBrokerUrls } from "./broker-url";
-import { getSettings } from "./settings";
+import { retentionDaysNow } from "./history-retention";
 
 /**
  * DSAR (data-subject access request) evidence report — the automated, honest answer to
@@ -97,7 +97,7 @@ export function buildDsarReport(subject: DsarSubject, now: number): DsarReport {
     },
     auditEvidence: (() => {
       const refs = auditLogSubjectRefs((actor) => matches(actor?.sub, subject) || matches(actor?.email, subject));
-      const retentionDays = getSettings().historyRetention?.retentionDays ?? null;
+      const retentionDays = retentionDaysNow();
       return {
         note:
           "Audit events are emitted to your external SIEM/stdout sink AND retained in the gateway's sealed, tamper-evident evidence log (bounded by the history-retention window; carried only in an encrypted backup). Audit records are kept under a legal-obligation / legitimate-interest basis for security + integrity: they are EXEMPT from erasure, but disposed once past the retention window (unless under a legal hold). The chain anchor below verifies the slice is intact (see /api/security/audit/verify).",

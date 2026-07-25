@@ -12,7 +12,10 @@ import { ROUTES } from "./routes";
 
 // Benign console noise that is expected in demo mode (no broker/backend wired) and is NOT a
 // regression: the health poll 5xx, favicon, and generic resource-load lines for those.
-const BENIGN = [/healthz?/i, /favicon/i, /manifest\.webmanifest/i];
+// `/api/portal/status` is a 404-by-design for a non-guest session: the portal page fetches it and
+// shows an "unavailable" notice when the caller isn't a scoped guest (the sweep drives it as an admin).
+// Like the healthz probe, that 404 is expected in this demo context, not a regression.
+const BENIGN = [/healthz?/i, /favicon/i, /manifest\.webmanifest/i, /\/api\/portal\/status/i];
 const isBenign = (text: string) => BENIGN.some((re) => re.test(text));
 
 function collect(page: Page) {
@@ -20,7 +23,13 @@ function collect(page: Page) {
   const pageErrors: string[] = [];
   const serverErrors: string[] = [];
   const onConsole = (m: ConsoleMessage) => {
-    if (m.type() === "error" && !isBenign(m.text())) consoleErrors.push(m.text());
+    if (m.type() !== "error") return;
+    // A failed resource load ("Failed to load resource: … 404") logs its message text WITHOUT the URL,
+    // so a URL-based BENIGN entry (favicon, manifest, /api/portal/status) can't match the text — the URL
+    // lives on the message's location() instead. Check BOTH so an expected 404 stays benign here too.
+    const locUrl = m.location?.().url ?? "";
+    if (isBenign(m.text()) || (locUrl && isBenign(locUrl))) return;
+    consoleErrors.push(m.text());
   };
   const onPageError = (e: Error) => pageErrors.push(e.message);
   const onResponse = (r: import("@playwright/test").Response) => {

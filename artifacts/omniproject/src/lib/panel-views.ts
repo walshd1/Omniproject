@@ -1,5 +1,6 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { sendJson } from "./api";
+import { slug } from "./slug";
 import { useSettingsSlice, settingsQueryKey } from "./settings-query";
 import type { ControlsState } from "./panel-controls";
 
@@ -39,6 +40,5 @@ export function viewsForPanel(views: readonly PanelView[], screen: string, panel
 
 /** A stable-ish id for a new saved view. Derived from the scope + label so re-saving the same name upserts. */
 export function panelViewId(screen: string, panel: string, label: string): string {
-  const slug = label.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
-  return `${screen}:${panel}:${slug || "view"}`;
+  return `${screen}:${panel}:${slug(label, "view")}`;
 }

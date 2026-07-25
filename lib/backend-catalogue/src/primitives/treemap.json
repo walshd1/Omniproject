@@ -1,0 +1,24 @@
+{
+  "id": "treemap",
+  "label": "Treemap / work breakdown",
+  "category": "chart",
+  "extends": "chart",
+  "chartType": "treemap",
+  "description": "Nested rectangles sized by value — a work-breakdown structure or any part-of-whole hierarchy.",
+  "params": [
+    {
+      "key": "data",
+      "label": "Tree",
+      "type": "tree",
+      "required": true,
+      "description": "{ name, value | children } hierarchy."
+    },
+    {
+      "key": "height",
+      "label": "Height",
+      "type": "number",
+      "required": false,
+      "description": "Pixel height, or a percent string for responsive containers."
+    }
+  ]
+}

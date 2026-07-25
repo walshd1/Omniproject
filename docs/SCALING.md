@@ -66,6 +66,43 @@ Aggregate rollups (portfolio health, programme summaries) so one screen is one (
 call rather than a fetch per child. Route heavy/bulk consumers (BI) through the **OData feed +
 scheduled exports** instead of live fan-out.
 
+The sharpest instance is the **org-wide portfolio summary** (`computeLocalPortfolioSummary`): it fans
+one broker call per project (financials + capacity), bounded to `PORTFOLIO_FANOUT_LIMIT = 10` combined
+concurrency. Per programme (~hundreds of projects) that's fine; **org-wide at thousands of projects**
+it is up to *N* upstream round-trips for a single request — the real ceiling, and only ever as fast as
+the SoR.
+- **Shipped (opt-in):** the whole computed summary is memoised through the shared `ReadCache`
+  (`READ_CACHE_TTL_MS`), keyed by the caller's **resolved data scope** (never served across scopes) and
+  the reporting-currency posture. So repeat org-wide loads within the TTL are one in-memory fold, not a
+  fresh 5,500-way fan-out. Off by default (byte-identical when the TTL is unset); a hot instance sets a
+  few seconds.
+- **Planned (larger):** a periodic/incremental **materialized rollup snapshot** so even the first
+  request in a window doesn't re-derive every project — the OData/BI/export seams are the right place to
+  offload heavy analytical reads.
+
+### 4. Config/def-store decrypt cache (server-side resolution)
+Distinct from the *broker* read caches above: defs/config live as per-(type, scope) AES-256-GCM sealed
+JSON blobs, and scope resolution (`resolveScopedConfig`, mappings, screens, vocabulary) reads them
+through the one `readCollection` choke point — an **AES-decrypt + JSON-parse per call**. At many users'
+worth of defs a single board render can re-decrypt the store repeatedly.
+- **Shipped (opt-in):** `readCollection` consults a process-local **decrypted-collection cache keyed by
+  file path + mtime + size** (`SEALED_READ_CACHE=true`). Because the key includes the file's mtime, the
+  cache **self-invalidates on any write** — ours *or* another replica's on a shared volume — so it can
+  never serve a stale def; a miss/stat-failure falls straight through to the full sealed read
+  (fail-open to correctness). Returns a defensive copy so a read-modify-write caller can't mutate the
+  cached snapshot. Off by default.
+- Pairs with the existing write-path optimisation (one decrypt per write, fold the graph N times in
+  memory) so both the read and write hot paths avoid repeated decrypts.
+
+### 5. Durable store beyond sealed files (the datastore seam)
+At high **write** concurrency, many replicas sealing the same `org.json` contend on one file
+(last-write-wins via `rowVersion` + atomic rename is safe, but serialises). The per-(type, scope)
+sharding already in place makes the migration clean: move the sealed-file store behind a **transactional
+datastore or object store with per-scope keys**, keeping the same seal-at-rest posture. This is a
+design, not a shipped change — see the archived **[RFC-003 (DB broker)](./archive/design/RFC-003-db-broker.md)**
+for the storage-seam shape. Read-heavy deployments don't need it; it's the lever for write-heavy,
+many-replica fleets.
+
 ## Responsiveness tweaks (frontend, mostly independent of backend load)
 
 - **List virtualization** for the grid/board so a project with thousands of issues stays flat

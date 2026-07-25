@@ -97,6 +97,29 @@ Layered on the same `aiChat` chokepoint, all OFF by default (`lib/ai-governance`
   `GET /api/ai/governance` reports the active policy. Token counts are APPROXIMATE (chars/4) — a
   cost signal + chargeback aid, not a hard biller; use the provider's own quota for hard limits.
 
+## 3a-i. Provider / model / STT allowlist floors (scope-layered, admin-authored)
+
+A distinct, admin-authored governance surface (Phase C) that constrains **which AI provider, model,
+and speech-to-text provider a scope may even select** — the ceiling that sits *above* a user's
+per-surface AI choice. Unlike §3a's env-configured, per-role, runtime `aiChat` enforcement, these are
+scope-layered **config defs** in the composition model (`lib/ai-allowlist.ts`): `ai-provider-allowlist`,
+`ai-model-allowlist`, and `stt-provider-allowlist`.
+
+- **Floor semantics ("lower scope may only tighten").** Each allowlist folds
+  system < org < programme < project < user via `resolveFloorConfig` + `tightenAllowlist` (a
+  null-aware intersection): a lower scope may only **narrow** what its parent permits, never widen it.
+  A `null` allowlist means "unrestricted"; a set allowlist (even `[]`) restricts.
+- **Always-permitted escapes.** `"none"` (AI off) and the empty / default model are always selectable,
+  so a restrictive allowlist can never lock a scope out of turning AI *off* or falling back to the
+  provider's default model.
+- **Enforced before the write.** `routes/settings.ts` PATCH rejects (400) an `aiProvider`, `aiModel`,
+  or `sttProvider` selection outside the resolved floor (`aiProviderAllowed` / `aiModelAllowed` /
+  `sttProviderAllowed`) before it is persisted; the SPA picker (**Settings → AI providers**) also
+  filters the options to the allowed set, and the **AI allowlists** admin panel authors the org floor.
+- These are net-new allowlists (the `aiProvider` / `aiModel` / `sttProvider` settings are *selections*,
+  not allowlists); see [FEATURE-ROADMAP.md](FEATURE-ROADMAP.md) Phase C for the cross-scope floor
+  resolver they are built on.
+
 ## 3b. AI-depth capabilities (insights, estimation, rebalancing)
 
 Three higher-value AI capabilities layer on the SAME `aiChat` egress chokepoint as the copilot, so

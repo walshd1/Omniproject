@@ -9,7 +9,7 @@ process.env["SESSION_SECRET"] = "test-session-secret-do-not-use-in-prod";
 const CONFIG_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "scoped-config-"));
 process.env["OMNI_CONFIG_DIR"] = CONFIG_DIR;
 
-const { resolveScopedConfig, configDefLayers, resolveConfig, resolveScheduling, sanitizeSchedulingValues, DEFAULT_SCHEDULING, readConfigCollection, writeOrgConfigCollection } = await import("./scoped-config");
+const { resolveScopedConfig, configDefLayers, resolveConfig, resolveScheduling, sanitizeSchedulingValues, DEFAULT_SCHEDULING, readConfigCollection, writeOrgConfigCollection, resolveFloorConfig, tightenAllowlist } = await import("./scoped-config");
 const { putDef, deleteDef } = await import("./def-import");
 
 const now = "2026-07-18T00:00:00.000Z";
@@ -30,6 +30,32 @@ test("resolveScopedConfig folds layers base → leaf, later wins, deep-merges ob
     "not-an-object",                      // skipped (only object layers apply)
   ]);
   assert.deepEqual(out, { a: 2, nested: { x: 1, y: 9 }, list: [3] });
+});
+
+test("tightenAllowlist: a lower scope may only NARROW (intersect), never add; null = no restriction", () => {
+  // null parent (allow-all) → child sets the ceiling.
+  assert.deepEqual(tightenAllowlist(null, ["openai", "anthropic"]), ["openai", "anthropic"]);
+  // null child (this scope adds nothing) → inherit the parent.
+  assert.deepEqual(tightenAllowlist(["openai", "anthropic"], null), ["openai", "anthropic"]);
+  // both present → intersection, order-preserving; a provider the parent forbids can't be re-added.
+  assert.deepEqual(tightenAllowlist(["openai", "anthropic"], ["anthropic", "cohere"]), ["anthropic"]);
+  // both null → still unrestricted.
+  assert.equal(tightenAllowlist(null, null), null);
+});
+
+test("resolveFloorConfig: the org sets the ceiling; each lower scope can only tighten it (never loosen)", () => {
+  // system(null) → org[openai,anthropic] → programme[anthropic] → project(null, inherits) → user[anthropic,cohere]
+  // The org ceiling is {openai,anthropic}; programme narrows to {anthropic}; user CANNOT re-add cohere.
+  const layers = [null, ["openai", "anthropic"], ["anthropic"], null, ["anthropic", "cohere"]];
+  assert.deepEqual(resolveFloorConfig<string[] | null>(null, layers, tightenAllowlist), ["anthropic"]);
+
+  // A lower scope trying to WIDEN (add a provider the org forbade) has no effect.
+  assert.deepEqual(
+    resolveFloorConfig<string[] | null>(null, [["openai"], ["openai", "anthropic"]], tightenAllowlist),
+    ["openai"],
+  );
+  // No layers ⇒ base (unrestricted) stands.
+  assert.equal(resolveFloorConfig<string[] | null>(null, [], tightenAllowlist), null);
 });
 
 test("resolveScopedConfig with no layers returns the base unchanged", () => {

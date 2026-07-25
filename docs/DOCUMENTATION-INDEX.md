@@ -16,6 +16,8 @@ live under **[archive/](archive/README.md)** and are not maintained.
 How the system is put together, the broker seam, and the extensibility model.
 
 - **[ARCHITECTURE.md](ARCHITECTURE.md)** — the system overview: stateless / zero-at-rest model, the layer cake, the broker seam, the security spine, dev-mode gating (Mermaid diagrams).
+- **[DESIGN-PRINCIPLES.md](DESIGN-PRINCIPLES.md)** — the *why* behind the architecture: the small set of principles everything follows from (zero-at-rest, JSON-as-data, choke points, composition, scope layering, tiered auth, separation of accounts), with operational implications for people who run it.
+- **[DESIGN-PRINCIPLES-AGENTS.md](DESIGN-PRINCIPLES-AGENTS.md)** — the same principles as terse, directive invariants (RULE / CHECK / FIX) for AI agents editing the repo.
 - **[TECHNICAL.md](TECHNICAL.md)** — the single consolidated technical reference.
 - **[SEQUENCES.md](SEQUENCES.md)** — traced sequence walkthroughs (auth, broker read, optimistic-concurrency write, capability resolution, snapshot sign/verify, notification dispatch, dev-mode gating).
 - **[READING-GUIDE.md](READING-GUIDE.md)** — subsystem → entry-point-file map, plus a glossary of the domain vocabulary.
@@ -54,6 +56,7 @@ Capability-honest notes on each catalogued connector — what's mapped and what'
 Short how-tos for extending each integration plane (`docs/dev/`).
 
 - **[dev/PLANE-BACKENDS.md](dev/PLANE-BACKENDS.md)**, **[dev/PLANE-BROKERS.md](dev/PLANE-BROKERS.md)**, **[dev/PLANE-OUTPUTS.md](dev/PLANE-OUTPUTS.md)**, **[dev/PLANE-NOTIFICATIONS.md](dev/PLANE-NOTIFICATIONS.md)**, **[dev/PLANE-METHODOLOGIES.md](dev/PLANE-METHODOLOGIES.md)**, **[dev/PLANE-REPORTS.md](dev/PLANE-REPORTS.md)**, **[dev/PLANE-SCREENS.md](dev/PLANE-SCREENS.md)** — one per plane.
+- **[BRANCHING.md](BRANCHING.md)** — the branching & release flow: `main` = stable, `next` = standing dev line (Dependabot targets it), promotion + the `next` re-seat ritual, and how to keep CI fast without lowering the bar.
 
 ## Security & compliance
 

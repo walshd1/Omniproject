@@ -57,11 +57,10 @@ const req = (p: string, o: { method?: string; body?: unknown; cookie: string }) 
     ...(o.body ? { body: JSON.stringify(o.body) } : {}),
   });
 
-const PRIMITIVE = {
-  id: "grouped-column", label: "Grouped columns", category: "chart", chartType: "bar",
-  description: "compare series", params: [{ key: "data", label: "Rows", type: "rows", required: true, description: "rows" }],
-};
-const orgWrite = (c: string) => req("/defs", { method: "POST", body: { kind: "primitive", storage: "org", name: "Org chart", payload: PRIMITIVE }, cookie: c });
+// A FORKABLE recipe (a screen) — used to exercise the scope gate. Primitives are vendor-controlled and can't be
+// authored at any customer scope, so the gate is tested with a kind an org may actually own.
+const SCREEN = { id: "org-screen", label: "Org screen", panels: [{ id: "p1", kind: "text", config: { content: "hi" } }] };
+const orgWrite = (c: string) => req("/defs", { method: "POST", body: { kind: "screen", storage: "org", name: "Org screen", payload: SCREEN }, cookie: c });
 
 test("policy defaults: user→contributor, project→manager, programme→programmeManager, org→pmoOrAdmin", async () => {
   const { policy } = (await req("/defs/policy", { cookie: MANAGER }).then((x) => x.json())) as { policy: Record<string, string> };
@@ -87,9 +86,24 @@ test("an admin can relax the org gate so a manager may then write org-wide", asy
   assert.equal((await orgWrite(MANAGER)).status, 201);
 });
 
+// ── Vendor-controlled kinds: primitives are OURS — no customer scope may author or fork one ──
+const PRIMITIVE = {
+  id: "grouped-column", label: "Grouped columns", category: "chart", chartType: "bar",
+  description: "compare series", params: [{ key: "data", label: "Rows", type: "rows", required: true, description: "rows" }],
+};
+const primWrite = (c: string, storage: string, extra: object = {}) =>
+  req("/defs", { method: "POST", body: { kind: "primitive", storage, name: "Org chart", payload: PRIMITIVE, ...extra }, cookie: c });
+
+test("a primitive cannot be authored at ANY customer scope — not even by an admin (vendor-controlled)", async () => {
+  assert.equal((await primWrite(ADMIN, "org")).status, 403);
+  assert.equal((await primWrite(ADMIN, "user")).status, 403);
+  assert.equal((await primWrite(PMO, "org")).status, 403);
+  assert.equal((await primWrite(PROG_LEAD, "programme", { programmeId: "alpha" })).status, 403);
+});
+
 // ── Programme write path (roadmap X.12 / X.13) — the programmeManager rung AND that programme's row-scope ──
 const progWrite = (c: string, programmeId: string) =>
-  req("/defs", { method: "POST", body: { kind: "primitive", storage: "programme", programmeId, name: "Prog chart", payload: PRIMITIVE }, cookie: c });
+  req("/defs", { method: "POST", body: { kind: "screen", storage: "programme", programmeId, name: "Prog screen", payload: SCREEN }, cookie: c });
 
 test("a programme def needs the programmeManager gate: a plain manager is refused, a programme lead is not", async () => {
   // A plain manager lacks the programmeManager rung → 403 at the gate.
@@ -106,7 +120,7 @@ test("a programme write is confined to a programme the caller owns (scoping)", a
 });
 
 test("a programmeId is required for a programme write", async () => {
-  assert.equal((await req("/defs", { method: "POST", body: { kind: "primitive", storage: "programme", name: "x", payload: PRIMITIVE }, cookie: PROG_LEAD })).status, 400);
+  assert.equal((await req("/defs", { method: "POST", body: { kind: "screen", storage: "programme", name: "x", payload: SCREEN }, cookie: PROG_LEAD })).status, 400);
 });
 
 test("a written programme def is listable + resolvable to an in-scope caller via ?programmeId", async () => {
@@ -117,7 +131,7 @@ test("a written programme def is listable + resolvable to an in-scope caller via
   // It shows up in the caller's list + resolved seam only when ?programmeId is in scope.
   const list = (await req("/defs?programmeId=alpha", { cookie: PROG_LEAD }).then((x) => x.json())) as Array<{ id: string }>;
   assert.ok(list.some((m) => m.id === created.id));
-  const resolved = (await req("/defs/resolved/primitive?programmeId=alpha", { cookie: PROG_LEAD }).then((x) => x.json())) as Array<{ id: string }>;
+  const resolved = (await req("/defs/resolved/screen?programmeId=alpha", { cookie: PROG_LEAD }).then((x) => x.json())) as Array<{ id: string }>;
   assert.ok(resolved.some((r) => r.id === created.id));
   // An out-of-scope caller (owns only alpha) asking for beta sees no beta programme rows.
   const beta = (await req("/defs?programmeId=beta", { cookie: PROG_LEAD }).then((x) => x.json())) as Array<{ id: string }>;

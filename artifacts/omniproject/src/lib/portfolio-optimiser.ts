@@ -15,6 +15,7 @@
  * bounded result is never mistaken for exact).
  */
 
+import { round1 } from "./num";
 /** One candidate project: its value (composite score) and the two resources it consumes. */
 export interface OptItem {
   id: string;
@@ -262,4 +263,3 @@ function knapsack2D(items: OptItem[], W: number, C: number, granK: number, capBu
   return chosen.reverse();
 }
 
-const round1 = (n: number): number => Math.round(n * 10) / 10;

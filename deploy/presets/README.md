@@ -18,6 +18,7 @@ one you want to a project-root `.env`, add your secrets (`SESSION_SECRET`, and f
 | `agency-services` | `docker-compose.enterprise.yml` | shell + n8n, BYO | Agencies / professional services |
 | `nonprofit` | `docker-compose.slim.yml` | lean LAN stack, demo/BYO auth | Charities / NGOs |
 | `regulated-selfhost` | `docker-compose.slim.yml` | lean self-hosted, on-device, minimal egress | Regulated / air-gap-leaning |
+| `regulated-selfhost` (+ `BUILTIN_BROKER=omnistore`) | `docker-compose.slim.yml` | fully self-hosted, **built-in database as the SoR** — no external backend or DB (`self-hosted-sidecar.env`) | Batteries-included self-host; pairs with the "Self-hosted Scrum" app preset |
 | `demo-trial` | `docker-compose.standalone.yml` | full local stack (n8n + Ollama + Authentik + Traefik TLS) | Evaluation with demo data |
 
 `enterprise`, `slim` and `standalone` each already default `SETTINGS_PRESET` to their primary archetype;

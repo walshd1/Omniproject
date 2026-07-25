@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useMemo, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { I18nProvider } from "./i18n";
 import { brandTokensFromHex } from "./color";
@@ -92,9 +92,12 @@ export function BrandingProvider({ children }: { children: ReactNode }) {
     setOrClear("--brand-font-family", FONT_FAMILY.test(value.fontFamily ?? "") ? value.fontFamily : undefined);
   }, [value.appName, value.primaryColor, value.fontFamily]);
 
+  // Stable reference while `labels` loads (`labels ?? {}` would allocate a fresh `{}` each render, defeating
+  // the memoised `overrides`/`t` in I18nProvider).
+  const labelOverrides = useMemo(() => labels ?? {}, [labels]);
   return (
     <BrandingContext.Provider value={value}>
-      <I18nProvider labelOverrides={labels ?? {}}>{children}</I18nProvider>
+      <I18nProvider labelOverrides={labelOverrides}>{children}</I18nProvider>
     </BrandingContext.Provider>
   );
 }

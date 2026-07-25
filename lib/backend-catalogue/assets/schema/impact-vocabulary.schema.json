@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://omniproject.dev/assets/impact-vocabulary.schema.json",
+  "title": "OmniProject RAID/risk IMPACT vocabulary entry",
+  "description": "One canonical RAID/risk impact grade (the consequence magnitude if a risk materialises — the I in risk-exposure P×I), authored as a single JSON array (assets/impact-vocabulary.json), validated element-by-element against this schema and embedded by gen-impact-vocabulary. Every grade binds to an internal ordinal `level` — the invariant the risk-exposure maths + ordering + filtering key off.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["id", "label", "order", "level"],
+  "properties": {
+    "id": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$" },
+    "label": { "type": "string", "minLength": 1, "description": "The base/default label (the authoring language)." },
+    "labels": {
+      "type": "object",
+      "description": "Optional per-locale translations of the label (BCP-47 key → text, e.g. { \"de\": \"Niedrig\", \"en-GB\": \"Low\" }). A viewer sees labels[theirLocale] ?? labels[lang] ?? label, so the same screen renders in each user's language.",
+      "propertyNames": { "pattern": "^[a-z]{2}(-[A-Za-z0-9]{2,8})?$" },
+      "additionalProperties": { "type": "string", "minLength": 1 }
+    },
+    "order": { "type": "integer", "minimum": 0 },
+    "level": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "The internal ordinal LEVEL this impact grade binds to (1 = least impact … ascending) — the invariant the risk-exposure maths (P×I) + ordering/filtering key off, kept SEPARATE from `order` (display position). The three shipped grades ARE the anchors (low=1, medium=2, high=3); an adjustable grade declares which ordinal band it binds to."
+    },
+    "color": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$", "description": "Swatch colour as a 6-digit hex (rendered via inline style, so a custom grade can carry any colour). Absent ⇒ a neutral swatch." },
+    "methodologies": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Methodology tags this grade belongs to ('*' = neutral / all). Selecting a methodology surfaces its tagged grades, so each methodology can carry its own normal nomenclature. Absent ⇒ neutral."
+    }
+  }
+}

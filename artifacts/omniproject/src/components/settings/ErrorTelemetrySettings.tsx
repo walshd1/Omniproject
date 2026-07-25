@@ -1,38 +1,41 @@
-import { useQueryClient } from "@tanstack/react-query";
-import { useGetSettings, useUpdateSettings, getGetSettingsQueryKey } from "@workspace/api-client-react";
 import { Bug } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { useErrorTelemetry, useSaveErrorTelemetry } from "@/lib/error-telemetry-api";
 
 /**
  * Admin control for internal client-error telemetry. OFF by default, matching the app's
  * no-external-telemetry posture. When on, the SPA reports uncaught render errors (message +
  * component stack + page — never user or project data) to the gateway's own audit log; nothing
  * leaves the deployment. Admin-only, mirroring the other diagnostics controls.
+ *
+ * It's a SECURITY-classified `error-telemetry` config def (roadmap Phase C): enabling it REDUCES the
+ * posture, so the save may be HELD for a signed sign-off (the response carries `pending`) rather than
+ * applied at once — the toast reflects which happened.
  */
 export function ErrorTelemetrySettings() {
-  const { data: settings } = useGetSettings();
-  const update = useUpdateSettings();
-  const queryClient = useQueryClient();
+  const { data: enabled } = useErrorTelemetry(true);
+  const update = useSaveErrorTelemetry();
   const { toast } = useToast();
 
-  const enabled = !!settings?.errorTelemetry;
-
   const save = (next: boolean) => {
-    update.mutate(
-      { data: { errorTelemetry: next } },
-      {
-        onSuccess: () => {
-          queryClient.invalidateQueries({ queryKey: getGetSettingsQueryKey() });
+    update.mutate(next, {
+      onSuccess: (res) => {
+        if (res?.pending) {
           toast({
-            title: next ? "ERROR TELEMETRY ENABLED" : "ERROR TELEMETRY DISABLED",
-            description: next
-              ? "Uncaught UI errors are now recorded to the internal audit log."
-              : "Client-error reporting stopped.",
+            title: "SIGN-OFF REQUIRED",
+            description: "Enabling error telemetry reduces the security posture — it's held for a signed sign-off. See Approvals.",
           });
-        },
-        onError: () => toast({ title: "COULD NOT SAVE", description: "Please try again.", variant: "destructive" }),
+          return;
+        }
+        toast({
+          title: next ? "ERROR TELEMETRY ENABLED" : "ERROR TELEMETRY DISABLED",
+          description: next
+            ? "Uncaught UI errors are now recorded to the internal audit log."
+            : "Client-error reporting stopped.",
+        });
       },
-    );
+      onError: () => toast({ title: "COULD NOT SAVE", description: "Please try again.", variant: "destructive" }),
+    });
   };
 
   return (

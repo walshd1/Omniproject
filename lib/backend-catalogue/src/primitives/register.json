@@ -1,0 +1,58 @@
+{
+  "id": "register",
+  "label": "Editable register",
+  "category": "data-structure",
+  "extends": "record-set",
+  "description": "A record set you can complete and update in place — add / edit / delete rows and Save. Rows come from a settings collection or a generic mapping slot; the server owns the write.",
+  "params": [
+    {
+      "key": "rows",
+      "label": "Rows",
+      "type": "rows",
+      "required": false,
+      "description": "Rows come from the bound source (a settings collection or a mapping slot), not authored inline."
+    },
+    {
+      "key": "collection",
+      "label": "Settings collection",
+      "type": "string",
+      "required": false,
+      "description": "Settings field key to read/write (settings-collection source)."
+    },
+    {
+      "key": "endpoint",
+      "label": "Endpoint",
+      "type": "string",
+      "required": false,
+      "description": "PUT target for the settings-collection source."
+    },
+    {
+      "key": "slot",
+      "label": "Slot",
+      "type": "string",
+      "required": false,
+      "description": "Mapping slot to read/write via the generic surface (slot source); mutually exclusive with collection."
+    },
+    {
+      "key": "addLabel",
+      "label": "Add-button label",
+      "type": "string",
+      "required": false,
+      "description": "Caption on the add-row button."
+    },
+    {
+      "key": "defaultEditRole",
+      "label": "Edit role",
+      "type": "enum",
+      "required": false,
+      "description": "Minimum role allowed to edit; anyone below sees it read-only.",
+      "options": [
+        "contributor",
+        "manager",
+        "pmo",
+        "admin",
+        "readonly"
+      ]
+    }
+  ]
+}

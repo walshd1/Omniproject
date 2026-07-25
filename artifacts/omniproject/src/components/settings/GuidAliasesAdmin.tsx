@@ -27,6 +27,9 @@ export function GuidAliasesAdmin() {
   const { toast } = useToast();
   const { draft, setDraft, dirty, reset } = useDraftAdmin<GuidAliases, Row[]>(server, toRows);
   const [forgetGuid, setForgetGuid] = useState("");
+  // Declared up here with the other hooks — a useState after the early return below would be a
+  // conditional hook (rules-of-hooks).
+  const [exporting, setExporting] = useState(false);
 
   if (!isPmoOrAdmin(auth?.role)) return null;
 
@@ -56,7 +59,6 @@ export function GuidAliasesAdmin() {
     });
   };
 
-  const [exporting, setExporting] = useState(false);
   const onExport = async () => {
     const g = forgetGuid.trim();
     if (!g) return;

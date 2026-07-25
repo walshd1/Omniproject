@@ -6,6 +6,8 @@
  * the timer is a tiny {startedAt, projectId, …} record, TTL-bounded, and nothing sensitive is stored.
  */
 
+import { sanitizeText } from "./coerce";
+
 /** The shared-state key for a person's running timer (one per user). */
 export const runningTimerKey = (sub: string): string => `timer:running:${sub}`;
 
@@ -36,18 +38,8 @@ const MAX_NOTE = 2000;
 /** A timer auto-expires after 24h of wall-clock so a forgotten clock can't run forever. */
 export const TIMER_TTL_MS = 24 * 60 * 60 * 1000;
 
-/** Strip control characters (keep printable text) and cap length. */
-function cleanText(value: unknown, max: number): string {
-  if (typeof value !== "string") return "";
-  let out = "";
-  for (const ch of value) {
-    const c = ch.codePointAt(0)!;
-    const printable = c === 9 || (c >= 32 && c !== 127 && !(c >= 128 && c <= 159));
-    if (printable) out += ch;
-    if (out.length >= max) break;
-  }
-  return out.trim();
-}
+/** A timer note is single-line: strip control chars incl. newline, cap length, and trim. */
+const cleanText = (value: unknown, max: number): string => sanitizeText(value, max, { newlines: false, trim: true });
 
 /** Validate a timer start (needs a projectId; issueId/note optional). Throws {@link TimerError} (→ 400). */
 export function sanitizeTimerStart(raw: unknown, startedAt: string): RunningTimer {

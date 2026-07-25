@@ -32,8 +32,8 @@ const ADMIN = cookie({ sub: "a", name: "Ada", email: "ada@x.io", roles: ["omni-a
 const ADMIN_STEPPED = cookie({ sub: "a", name: "Ada", email: "ada@x.io", roles: ["omni-admins"], amr: ["hwk"], stepUpAt: Date.now() });
 const CONTRIB = cookie({ sub: "c", email: "cee@x.io", roles: ["omni-contributors"] });
 
-const PRIMITIVE = { id: "grouped-column", label: "Grouped columns", category: "chart", chartType: "bar",
-  description: "compare series", params: [{ key: "data", label: "Rows", type: "rows", required: true, description: "rows" }] };
+// A forkable customer-authored def (a dashboard) — primitives are vendor-controlled and can't be authored at a scope.
+const DASHBOARD = { id: "exec-dash", name: "Exec", widgets: [{ id: "w1", type: "portfolioHealth" }] };
 
 const req = (p: string, o: { method?: string; body?: unknown; cookie?: string } = {}) =>
   fetch(`${base}/api${p}`, {
@@ -48,7 +48,7 @@ before(async () => {
   await new Promise<void>((r) => server.once("listening", () => r()));
   base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
   // Author an org def + an org selection binding through the real importer, so there's something to back up.
-  await req("/defs", { method: "POST", body: { kind: "primitive", storage: "org", name: "Org chart", payload: PRIMITIVE } });
+  await req("/defs", { method: "POST", body: { kind: "dashboard", storage: "org", name: "Exec", payload: DASHBOARD } });
   await req("/defs/bindings", { method: "PUT", body: { scope: "org", slot: "screens", defId: "system~x" } });
 });
 after(() => { server?.close(); fs.rmSync(CONFIG_DIR, { recursive: true, force: true }); });
@@ -63,7 +63,7 @@ test("export → wipe → import round-trips the def-store (the migration path)"
   const bundle = await req("/setup/defs-export", { cookie: ADMIN_STEPPED }).then((r) => r.json()) as { collections: unknown[] };
   assert.ok(bundle.collections.length >= 1);
   // The org def is gone from a fresh perspective: clear it, confirm, then reimport.
-  assert.equal((await req("/defs?kind=primitive").then((r) => r.json()) as unknown[]).length >= 1, true);
+  assert.equal((await req("/defs?kind=dashboard").then((r) => r.json()) as unknown[]).length >= 1, true);
   // Reimport the SAME bundle (idempotent on this instance) and confirm the def + binding survive.
   const imp = await req("/setup/defs-import", { method: "POST", body: bundle, cookie: ADMIN_STEPPED });
   assert.equal(imp.status, 200);

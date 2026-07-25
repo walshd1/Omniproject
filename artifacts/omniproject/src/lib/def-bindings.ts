@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { getJson, sendJson } from "./api";
-import type { DefBinding } from "./defs";
+import { useDefImporterEnabled, type DefBinding } from "./defs";
 
 /**
  * Def SELECTION-BINDINGS client (roadmap X.12). A binding records which def is IN USE for a logical SLOT at a
@@ -22,9 +22,11 @@ export function useDefBindings(projectId?: string, programmeId?: string) {
   if (projectId) qs.set("projectId", projectId);
   if (programmeId) qs.set("programmeId", programmeId);
   const suffix = qs.toString();
+  const enabled = useDefImporterEnabled();
   return useQuery({
     queryKey: [...bindingsKey, projectId ?? null, programmeId ?? null] as const,
     queryFn: () => getJson<BindingMaps>(`/api/defs/bindings${suffix ? `?${suffix}` : ""}`),
+    enabled,
     staleTime: 15_000,
   });
 }

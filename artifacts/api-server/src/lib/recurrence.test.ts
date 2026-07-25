@@ -4,6 +4,15 @@ import { nextOccurrence, isRecurring } from "./recurrence";
 
 /** The pure recurring-task next-occurrence computer (Todoist-style rules + RRULE-lite). */
 
+test("a hostile INTERVAL that overflows the ±8.64e15ms Date range yields null, never a RangeError", () => {
+  // Regression: `FREQ=DAILY;INTERVAL=9999999999` used to make addUnit produce an Invalid Date, then
+  // toISOString() threw a RangeError that surfaced as a 502 on every completion of a poisoned task.
+  assert.equal(nextOccurrence("FREQ=DAILY;INTERVAL=9999999999", "2026-01-10"), null);
+  assert.equal(nextOccurrence("every 9999999999 weeks", "2026-01-10"), null);
+  assert.doesNotThrow(() => nextOccurrence("FREQ=YEARLY;INTERVAL=999999999999", "2026-01-10"));
+  assert.equal(isRecurring("FREQ=DAILY;INTERVAL=9999999999"), false); // no valid next ⇒ not "recurring"
+});
+
 test("simple intervals: daily / weekly / monthly / yearly", () => {
   assert.equal(nextOccurrence("every day", "2026-01-10"), "2026-01-11");
   assert.equal(nextOccurrence("daily", "2026-01-10"), "2026-01-11");

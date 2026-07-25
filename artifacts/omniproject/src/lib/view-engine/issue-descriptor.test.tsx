@@ -3,7 +3,7 @@ import { renderHook, waitFor, act } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 import { getGetProjectIssuesQueryKey, type Issue } from "@workspace/api-client-react";
-import { STATUS_ORDER, PRIORITY_LABELS } from "../constants";
+import { STATUS_ORDER } from "../constants";
 import { issueDescriptor } from "./issue-descriptor";
 import type { ViewRecord } from "./types";
 
@@ -133,13 +133,37 @@ describe("issueDescriptor.useMove", () => {
 });
 
 describe("issueDescriptor.usePriorityLabel", () => {
-  it("labels a known priority, echoes an unknown one, and blanks a null", () => {
+  it("labels a known priority from the resolved vocabulary, humanises an unknown one, and blanks a null", () => {
     const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     const { result } = renderHook(() => issueDescriptor.usePriorityLabel(), { wrapper: wrapper(qc) });
     const label = result.current;
-    expect(label("high")).toBe(PRIORITY_LABELS["high"]);
-    expect(label("weird-priority")).toBe("weird-priority");
+    // No WorkVocabularyProvider here → the compiled shipped default (English) is used.
+    expect(label("high")).toBe("High");
+    // Unknown value is humanised (id → Title Case) rather than dropped.
+    expect(label("weird-priority")).toBe("Weird Priority");
     expect(label(null)).toBe("");
     expect(label(undefined)).toBe("");
+  });
+});
+
+describe("issueDescriptor vocab seams", () => {
+  it("derives board columns (status/label/colour) from the resolved vocabulary", () => {
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const { result } = renderHook(() => issueDescriptor.useBoardColumns!(), { wrapper: wrapper(qc) });
+    const cols = result.current;
+    // Compiled default order matches STATUS_ORDER; every column carries a label and a hex swatch.
+    expect(cols.map((c) => c.status)).toEqual([...STATUS_ORDER]);
+    for (const c of cols) {
+      expect(c.label.length).toBeGreaterThan(0);
+      expect(c.color).toMatch(/^#[0-9a-fA-F]{6}$/);
+    }
+  });
+
+  it("labels a status from the resolved vocabulary and blanks a null", () => {
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const { result } = renderHook(() => issueDescriptor.useStatusLabel!(), { wrapper: wrapper(qc) });
+    const label = result.current;
+    expect(label("in_progress")).toBe("In progress");
+    expect(label(null)).toBe("");
   });
 });

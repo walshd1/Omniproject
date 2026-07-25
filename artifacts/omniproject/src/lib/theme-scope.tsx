@@ -1,5 +1,6 @@
 import { createContext, useContext, useMemo, useState, useCallback, type ReactNode, type CSSProperties } from "react";
 import { useA11yPrefsOptional, type ScopedOverride } from "./a11y-prefs";
+import { isForbiddenKey } from "./safe-json";
 import { brandTokensFromHex } from "./color";
 import { FONT_STACKS } from "./artifact-style";
 
@@ -56,6 +57,7 @@ const ThemeScopeContext = createContext<ThemeScopeContextValue | null>(null);
 export function ThemeScopeProvider({ children }: { children: ReactNode }) {
   const [session, setSessionMap] = useState<Record<string, ScopedOverride>>({});
   const setSession = useCallback((scopeId: string, override: ScopedOverride | null) => {
+    if (!scopeId || isForbiddenKey(scopeId)) return; // scopeId keys the map; never a prototype name (matches a11y-prefs.setSavedScope)
     setSessionMap((prev) => {
       const next = { ...prev };
       if (!override || !hasScopedStyle(override)) delete next[scopeId];

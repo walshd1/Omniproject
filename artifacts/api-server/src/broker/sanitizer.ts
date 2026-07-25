@@ -1,4 +1,5 @@
 import { AsyncLocalStorage } from "node:async_hooks";
+import { consolidationFields } from "@workspace/backend-catalogue";
 import type { Broker, Row, PortfolioRow, HistoryPoint, Project, Issue } from "./types";
 
 /**
@@ -106,15 +107,20 @@ export function sanitizeHistoryPoint(r: Row): HistoryPoint {
 /** Financial fields on a project financials Row — the money figures the finance roll-ups read. Coerces
  *  the known numeric fields to finite (junk → null so a roll-up drops it, never sums it raw) and keeps
  *  every other field. */
-const FINANCE_NUM_FIELDS = ["budgetAllocated", "actualBurn", "forecastCostAtCompletion", "earnedValue", "committed", "budget", "actualCost"] as const;
+// Derived from the consolidation specs (the single source of truth for which fields a roll-up reads):
+// the financials + costs specs, plus `committed` — a raw figure the programme-level aggregateFinancials
+// reads that is NOT a consolidation measure. Adding a measure field to a spec now auto-extends the
+// sanitiser, so the two can't drift.
+const FINANCE_NUM_FIELDS = [...new Set([...consolidationFields(["financials", "costs"]), "committed"])];
 export function sanitizeFinancials(r: Row): Row {
   const out: Row = { ...r };
   for (const f of FINANCE_NUM_FIELDS) if (f in r) out[f] = optNum(r[f]);
   return out;
 }
 
-/** Resource-capacity Row — the hours/allocation figures the capacity roll-ups read. */
-const CAPACITY_NUM_FIELDS = ["availableHours", "allocatedHours", "allocationPercentage", "assignedHours"] as const;
+/** Resource-capacity Row — the hours/allocation figures the capacity roll-ups read. Derived from the
+ *  capacity consolidation spec plus the alternate `allocatedHours` figure some backends report. */
+const CAPACITY_NUM_FIELDS = [...new Set([...consolidationFields(["capacity"]), "allocatedHours"])];
 export function sanitizeCapacityRow(r: Row): Row {
   const out: Row = { ...r };
   for (const f of CAPACITY_NUM_FIELDS) if (f in r) out[f] = optNum(r[f]);

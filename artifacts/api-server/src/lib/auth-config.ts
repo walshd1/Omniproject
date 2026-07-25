@@ -84,11 +84,45 @@ export function isDemoAuthFrom(env: Env): boolean {
   // Magic-link is a real login method; it is only ever enabled when no OIDC/SAML is present (all
   // excluded above), so its env flag alone is sufficient here.
   if (isTruthy(env["MAGIC_LINK_ENABLED"])) return false;
+  // Native in-app users are a real login method too. `LOCAL_USERS_ENABLED` lets an operator DECLARE the intent
+  // up front (so the boot self-check passes and demo is off even before the first account exists); the runtime
+  // gate additionally turns demo off once a local user actually exists (see `isDemoAuth`).
+  if (isTruthy(env["LOCAL_USERS_ENABLED"])) return false;
   return true;
 }
 
-/** Runtime gate: is the live process in demo auth mode? Delegates to the pure `isDemoAuthFrom` so the
- *  gate and the boot-time blocker share one definition and can never drift. */
-export function isDemoAuth(): boolean {
-  return isDemoAuthFrom(process.env);
+// The RUNTIME `isDemoAuth()` (which additionally consults the live local-user directory) lives in
+// `auth-runtime.ts`, NOT here — so this module stays a PURE env-only leaf that the offline tooling/typecheck
+// (the setup wizard's security-check) can import without pulling in the sealed artifact-store subgraph.
+
+// ── In-app (local password) tier gating — downgrade prevention ────────────────────────────────────────────────
+// Native in-app users are the ENTRY tier (solo/homelab), BELOW an external-container backend and BELOW enterprise
+// OIDC/SSO. Once a STRONGER auth method (real SSO — OIDC / OAuth2 / SAML) is configured, local passwords are
+// AUTOMATICALLY DISABLED, so an attacker who reaches the box can't sign in with a local password to bypass SSO
+// (a downgrade attack). The ONLY way back to local passwords while SSO is configured is the host-side RECOVERY
+// break-glass (`LOCAL_PASSWORD_RECOVERY`) — deliberately DESTRUCTIVE: it re-keys the credential store domain
+// (see lib/user-credentials `credKey`), so the existing sealed credentials become unreadable and you must start
+// afresh or restore from backup. That cost is the point: recovery can't be a stealth downgrade.
+
+/** True when a STRONGER-than-local real SSO method (legacy/named OIDC, OAuth2, or SAML) is configured. Magic-link
+ *  is passwordless-but-same-tier and does NOT, by itself, disable local passwords. */
+export function strongerAuthConfigured(env: Env = process.env): boolean {
+  if (isSet(env["OIDC_ISSUER_URL"])) return true;
+  if (namedOidcConfigured(env)) return true;
+  if (oauth2Configured(env)) return true;
+  if (samlConfigured(env)) return true;
+  return false;
+}
+
+/** The host-side RECOVERY break-glass: force local passwords back on despite a configured SSO. DESTRUCTIVE — it
+ *  re-keys the credential store, invalidating existing local credentials (start afresh / restore from backup). */
+export function localPasswordRecovery(env: Env = process.env): boolean {
+  return isTruthy(env["LOCAL_PASSWORD_RECOVERY"]);
+}
+
+/** Whether local (in-app password) sign-in is ALLOWED at all: only when no stronger SSO is configured, UNLESS the
+ *  destructive recovery break-glass is engaged. This is the downgrade-prevention gate every local-auth surface
+ *  (login, bootstrap, /auth/me, the users admin plane) consults — separate from whether the store is configured. */
+export function localPasswordsAllowed(env: Env = process.env): boolean {
+  return localPasswordRecovery(env) || !strongerAuthConfigured(env);
 }

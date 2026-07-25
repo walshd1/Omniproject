@@ -36,6 +36,29 @@ spec:
       terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
       securityContext:
         {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      {{- if .Values.release.preflight }}
+      # Release-admission preflight (docs/UPDATE-MECHANISM.md §4): the SAME image, run with `--verify-release`,
+      # verifies the signed release manifest + promote-by-digest admission and exits. With release.verify=strict
+      # an unsigned/wrong-digest image makes this fail, so the pod never starts the app container — fail-closed.
+      initContainers:
+        - name: verify-release
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          args: ["dist/index.mjs", "--verify-release"]
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          envFrom:
+            - configMapRef:
+                name: {{ include "omniproject.fullname" . }}-config
+            - secretRef:
+                name: {{ include "omniproject.secretName" . }}
+          {{- with .Values.extraEnv }}
+          env:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          resources:
+            {{- toYaml .Values.release.preflightResources | nindent 12 }}
+      {{- end }}
       containers:
         - name: {{ .Chart.Name }}
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"

@@ -1,0 +1,6 @@
+{
+  "id": "text",
+  "extends": "form-field",
+  "label": "Text",
+  "params": []
+}

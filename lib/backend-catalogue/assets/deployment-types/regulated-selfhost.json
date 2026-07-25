@@ -1,0 +1,39 @@
+{
+  "id": "regulated-selfhost",
+  "label": "Regulated self-host",
+  "description": "Self-hosted under a compliance regime: encrypted at rest, data residency enforced, strict audit, SSO.",
+  "order": 50,
+  "questions": [
+    {
+      "id": "residency",
+      "label": "Which residency posture?",
+      "options": [
+        { "value": "on", "label": "Enforce a single region" },
+        { "value": "multi", "label": "Multi-region, each pinned" }
+      ],
+      "default": "on"
+    },
+    {
+      "id": "dr",
+      "label": "Disaster-recovery backups?",
+      "options": [
+        { "value": "scheduled", "label": "Scheduled" },
+        { "value": "continuous", "label": "Continuous replication" }
+      ],
+      "default": "scheduled"
+    }
+  ],
+  "setup": {
+    "storage": "omnistore",
+    "auth": "idp",
+    "broker": "builtin:omnistore",
+    "residency": "on",
+    "methodology": "prince2",
+    "audit": "strict",
+    "backups": "scheduled"
+  },
+  "refinements": [
+    { "when": { "dr": "continuous" }, "set": { "backups": "continuous" } }
+  ],
+  "notes": "OmniStore's hash-chained, encrypted, tamper-evident log fits a regulated self-host; residency + strict audit are on by default."
+}

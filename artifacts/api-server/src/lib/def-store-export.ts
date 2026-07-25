@@ -1,10 +1,13 @@
 import {
   listAllArtifactCollections, replaceArtifacts, artifactStoreEnabled, type ArtifactScope,
 } from "./artifact-store";
-import { DEF_ARTIFACT, validateDef, DEF_KINDS, type StoredDef, type DefKind } from "./def-import";
+import { DEF_ARTIFACT, validateDef, DEF_KINDS, isVendorControlledKind, type StoredDef, type DefKind } from "./def-import";
+import { validatePrimitiveDef, primitiveSafetyErrors } from "@workspace/backend-catalogue";
 import { BINDING_ARTIFACT } from "./def-binding";
 import { EXTENSION_ARTIFACT, isImportableExtension } from "./extension";
 import { REGISTRY_ARTIFACT, isImportableRegistryItem } from "./registry";
+import { isGovernedConfigId, configPayloadId } from "./governed-config-ids";
+import { sanitizeCustomRolesConfig } from "./custom-roles";
 
 /**
  * DEF-STORE export / import (roadmap X.14) — the portable backup of everything an admin AUTHORS into the
@@ -42,6 +45,21 @@ const EXPORT_TYPES = [DEF_ARTIFACT, BINDING_ARTIFACT, "def-policy", "custom-role
 const CONFIG_VALIDATORS: Record<string, (row: unknown) => boolean> = {
   [EXTENSION_ARTIFACT]: isImportableExtension,
   [REGISTRY_ARTIFACT]: isImportableRegistryItem,
+};
+
+/** Per-type SANITIZERS for the single-row config blobs whose payload must pass the SAME sanitizer the LIVE writer
+ *  uses before it can be trusted at read time. Unlike the boolean validators above (which keep/drop a row as-is),
+ *  a sanitizer TRANSFORMS the row to its normalised form (or returns null to drop it) — so a reimported blob can
+ *  never carry a shape the authoring path would have rejected. `custom-roles` needs this because its getter
+ *  (`getCustomRolesConfig`) trusts the stored row verbatim: without re-sanitising on import, a crafted bundle
+ *  could confer a custom role that shadows a built-in role, references an unknown permission set / capability, or
+ *  carries a bad `baseRole` — a base-role privilege escalation. (`def-policy` / `user-prefs` are re-validated by
+ *  their getters at read time, so the `{id}` shape gate suffices for those.) */
+const CONFIG_SANITIZERS: Record<string, (row: Row) => Row | null> = {
+  "custom-roles": (row) => {
+    try { return { id: row.id, ...sanitizeCustomRolesConfig(row) }; }
+    catch { return null; } // a blob the authoring path would reject is DROPPED, not written (fails toward no custom grants)
+  },
 };
 
 type Row = { id: string } & Record<string, unknown>;
@@ -158,9 +176,22 @@ export function applyDefStoreExport(input: unknown): ApplyReport {
       const clean: StoredDef[] = [];
       for (const it of rawItems) {
         const def = cleanDef(it);
-        if (def) clean.push(def); else { skipped++; }
+        if (!def) { skipped++; continue; }
+        // A customer-authored primitive round-trips ONLY if it re-passes shape + the customer safety rails (it
+        // must sit below a system primitive, be bounded and render-safe); an unsafe/rootless/malformed one is
+        // dropped, not re-introduced. Other kinds are already re-validated by cleanDef.
+        if (isVendorControlledKind(def.kind)) {
+          const shape = validatePrimitiveDef(def.payload);
+          if (!shape.ok || !shape.def || primitiveSafetyErrors(shape.def).length) { skipped++; continue; }
+        }
+        // A `config` def resolves by its LOGICAL id via the scope-layered fold, so a governed config id (a
+        // security-classified posture control, or the def-scope-policy authoring gate) smuggled through a backup
+        // bundle would weaken the resolved posture with none of its dedicated writer's sign-off. Drop it — the
+        // governed admin surface is the only writer for these ids. Mirrors the `/api/defs` importer guard.
+        if (def.kind === "config" && isGovernedConfigId(configPayloadId(def.payload))) { skipped++; continue; }
+        clean.push(def);
       }
-      if (clean.length < rawItems.length) warnings.push(`dropped ${rawItems.length - clean.length} invalid def(s) in ${describeScope(scope)}`);
+      if (clean.length < rawItems.length) warnings.push(`dropped ${rawItems.length - clean.length} invalid or unsafe def(s) in ${describeScope(scope)}`);
       replaceArtifacts(DEF_ARTIFACT, scope, clean);
       written.push({ type, scope, count: clean.length });
     } else {
@@ -169,8 +200,14 @@ export function applyDefStoreExport(input: unknown): ApplyReport {
       // must also pass that validator (a tampered/injected row is dropped, not written). Types without one rely
       // on the shape gate + the store's own read-time validators.
       const validate = CONFIG_VALIDATORS[type];
-      const clean = rawItems.filter((it): it is Row =>
-        !!it && typeof it === "object" && typeof (it as Row).id === "string" && (!validate || validate(it)));
+      const sanitize = CONFIG_SANITIZERS[type];
+      const clean: Row[] = [];
+      for (const it of rawItems) {
+        if (!it || typeof it !== "object" || typeof (it as Row).id !== "string") continue; // {id}-object shape gate
+        if (validate && !validate(it)) continue;                                            // per-row keep/drop validator
+        if (sanitize) { const s = sanitize(it as Row); if (s) clean.push(s); }               // TRANSFORM to the sanitised shape (or drop)
+        else clean.push(it as Row);
+      }
       if (clean.length < rawItems.length) { skipped += rawItems.length - clean.length; warnings.push(`dropped ${rawItems.length - clean.length} malformed ${type} row(s) in ${describeScope(scope)}`); }
       replaceArtifacts(type, scope, clean);
       written.push({ type, scope, count: clean.length });

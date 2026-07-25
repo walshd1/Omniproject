@@ -1,7 +1,17 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { updateSettings } from "../lib/settings";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+// history-retention (Phase C) is a config def — enable the sealed store so writes persist.
+process.env["SESSION_SECRET"] ??= "lifecycle-test-secret";
+process.env["OMNI_CONFIG_DIR"] = fs.mkdtempSync(path.join(os.tmpdir(), "lifecycle-test-"));
 import type { RetentionSource, DisposalResult } from "./retention";
+
+async function setRetention(cfg: unknown): Promise<void> {
+  const { writeOrgConfigCollection } = await import("../lib/scoped-config");
+  writeOrgConfigCollection("history-retention", "History retention", cfg);
+}
 import {
   holdKey,
   isUnderLegalHold,
@@ -52,14 +62,14 @@ test("disposalCutoff is null for infinite retention and an ISO cutoff for a wind
   assert.equal(disposalCutoff(30, NOW), new Date(NOW - 30 * 86_400_000).toISOString());
 });
 
-test("legal hold is read from settings", () => {
-  updateSettings({ historyRetention: { orgDefault: { kind: "manual" }, programme: {}, project: {}, legalHolds: [holdKey("project", "p-9")] } });
+test("legal hold is read from the config def", async () => {
+  await setRetention({ orgDefault: { kind: "manual" }, programme: {}, project: {}, legalHolds: [holdKey("project", "p-9")] });
   assert.equal(isUnderLegalHold("project", "p-9"), true);
   assert.equal(isUnderLegalHold("project", "p-8"), false);
 });
 
 test("disposeExpired is a no-op under infinite retention (never a silent prune)", async () => {
-  updateSettings({ historyRetention: { orgDefault: { kind: "manual" }, programme: {}, project: {}, retentionDays: null, legalHolds: [] } });
+  await setRetention({ orgDefault: { kind: "manual" }, programme: {}, project: {}, retentionDays: null, legalHolds: [] });
   const { source, disposeCalls } = fakeSource();
   const run = await disposeExpired(source, NOW);
   assert.equal(run.disposed, false);
@@ -69,7 +79,7 @@ test("disposeExpired is a no-op under infinite retention (never a silent prune)"
 
 test("disposeExpired prunes older-than-window and forwards the legal holds", async () => {
   const holds = [holdKey("project", "keep-me")];
-  updateSettings({ historyRetention: { orgDefault: { kind: "manual" }, programme: {}, project: {}, retentionDays: 90, legalHolds: holds } });
+  await setRetention({ orgDefault: { kind: "manual" }, programme: {}, project: {}, retentionDays: 90, legalHolds: holds });
   const { source, disposeCalls } = fakeSource();
   const run = await disposeExpired(source, NOW);
   assert.equal(run.disposed, true);
@@ -81,13 +91,13 @@ test("disposeExpired prunes older-than-window and forwards the legal holds", asy
 });
 
 test("disposeExpired throws RetentionUnsupportedError when the source can't dispose", async () => {
-  updateSettings({ historyRetention: { orgDefault: { kind: "manual" }, programme: {}, project: {}, retentionDays: 30, legalHolds: [] } });
+  await setRetention({ orgDefault: { kind: "manual" }, programme: {}, project: {}, retentionDays: 30, legalHolds: [] });
   const { source } = fakeSource({ dispose: false });
   await assert.rejects(() => disposeExpired(source, NOW), RetentionUnsupportedError);
 });
 
 test("eraseEntityHistory deletes an entity's history when not held", async () => {
-  updateSettings({ historyRetention: { orgDefault: { kind: "manual" }, programme: {}, project: {}, legalHolds: [] } });
+  await setRetention({ orgDefault: { kind: "manual" }, programme: {}, project: {}, legalHolds: [] });
   const { source, eraseCalls } = fakeSource();
   const r = await eraseEntityHistory(source, "project", "p-1");
   assert.deepEqual(r, { snapshots: 1, journal: 4 });
@@ -95,14 +105,14 @@ test("eraseEntityHistory deletes an entity's history when not held", async () =>
 });
 
 test("eraseEntityHistory refuses a legally-held entity (hold wins over erasure)", async () => {
-  updateSettings({ historyRetention: { orgDefault: { kind: "manual" }, programme: {}, project: {}, legalHolds: [holdKey("project", "p-hold")] } });
+  await setRetention({ orgDefault: { kind: "manual" }, programme: {}, project: {}, legalHolds: [holdKey("project", "p-hold")] });
   const { source, eraseCalls } = fakeSource();
   await assert.rejects(() => eraseEntityHistory(source, "project", "p-hold"), LegalHoldError);
   assert.equal(eraseCalls.length, 0); // never dispatched below the seam
 });
 
 test("eraseEntityHistory throws RetentionUnsupportedError when the source can't erase", async () => {
-  updateSettings({ historyRetention: { orgDefault: { kind: "manual" }, programme: {}, project: {}, legalHolds: [] } });
+  await setRetention({ orgDefault: { kind: "manual" }, programme: {}, project: {}, legalHolds: [] });
   const { source } = fakeSource({ erase: false });
   await assert.rejects(() => eraseEntityHistory(source, "project", "p-2"), RetentionUnsupportedError);
 });

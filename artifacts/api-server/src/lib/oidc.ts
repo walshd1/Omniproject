@@ -64,6 +64,10 @@ export interface SessionUser {
    *  tier of access. Present ONLY on guest sessions minted via a scoped magic-link invite — never
    *  from an IdP. Its presence is what drops the principal to the `guest` role + `project` scope. */
   guest?: GuestClaim | undefined;
+  /** True for a NATIVE in-app (non-IdP) user signed in with a local password. Lets RBAC honour the
+   *  `LOCAL_ADMIN_REQUIRE_PASSKEY` policy: by default a local password is NOT strong auth (so admin/PMO needs a
+   *  passkey step-up), but an operator can opt into password-only local admin. */
+  local?: boolean | undefined;
 }
 
 /** The access tier a guest holds within its one project. `read` = view the status portal only;

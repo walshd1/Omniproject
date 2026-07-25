@@ -27,7 +27,7 @@ export function GovernanceRulesAdmin() {
   const { data: rules } = useGovernanceRules();
   const { data: features } = useFeatures();
   const save = useSaveGovernanceRules();
-  const { draft, setDraft, dirty, reset } = useDraftAdmin<GovernanceRule[], GovernanceRule[]>(rules, structuredClone);
+  const { draft, setDraft, dirty, reset } = useDraftAdmin<GovernanceRule[], GovernanceRule[]>(rules);
 
   if (!roleAtLeast(auth?.role, "pmo")) return null;
   if (!draft || !features) return null;

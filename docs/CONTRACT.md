@@ -29,6 +29,15 @@ Every operation a broker must (or, where marked optional, may) implement. Each t
 | `addTaskComment` _(optional)_ | `taskId: string`, `input: TaskCommentWrite` | `Promise<TaskComment>` |  |
 | `listTaskAttachments` _(optional)_ | `taskId: string` | `Promise<TaskAttachment[]>` | Task attachments — file REFERENCES, only when the backend supports them (capability-gated). |
 | `addTaskAttachment` _(optional)_ | `taskId: string`, `input: TaskAttachmentWrite` | `Promise<TaskAttachment>` |  |
+| `listWikiSpaces` _(optional)_ | — | `Promise<WikiSpace[]>` | The wiki spaces (knowledge bases / team spaces). |
+| `listWikiDocs` _(optional)_ | `opts: { spaceId?: string }` | `Promise<WikiDoc[]>` | Documents, optionally scoped to one space. |
+| `getWikiDoc` _(optional)_ | `id: string` | `Promise<WikiDoc \| null>` | One document by id (with its blocks), or null. |
+| `writeWikiDoc` _(optional)_ | `op: "create" \| "update" \| "delete"`, `input: WikiDocWrite & { id?: string }` | `Promise<WikiDoc \| null>` | Create / update / delete a document (contributor+, capability-gated). Returns the doc (null on delete). |
+| `listWikiDocVersions` _(optional)_ | `docId: string` | `Promise<WikiDocVersionMeta[]>` | A document's saved revisions, newest first (metadata only) — the version history. Optional: a backend that doesn't retain revisions omits it and the history route answers 501. |
+| `getWikiDocVersion` _(optional)_ | `docId: string`, `versionId: string` | `Promise<WikiDocVersion \| null>` | One saved revision with its blocks (for preview / diff / restore), or null. |
+| `listWhiteboards` _(optional)_ | `opts: { projectId?: string }` | `Promise<Whiteboard[]>` | The whiteboards, optionally scoped to one project (scene bodies omitted in the list). |
+| `getWhiteboard` _(optional)_ | `id: string` | `Promise<Whiteboard \| null>` | One whiteboard by id (with its scene), or null. |
+| `writeWhiteboard` _(optional)_ | `op: "create" \| "update" \| "delete"`, `input: WhiteboardWrite & { id?: string }` | `Promise<Whiteboard \| null>` | Create / update / delete a whiteboard (contributor+, capability-gated). Returns the board (null on delete). |
 | `listActivity` | — | `Promise<Row[]>` |  |
 | `projectSummary` | `projectId: string` | `Promise<Summary>` |  |
 | `projectHistory` | `projectId: string` | `Promise<HistoryPoint[]>` |  |
@@ -48,6 +57,11 @@ Every operation a broker must (or, where marked optional, may) implement. Each t
 | `changeToken` _(optional)_ | `resource: string` | `Promise<string \| null>` | OPTIONAL — a cheap, opaque CHANGE TOKEN for a resource (e.g. `"projects"`, `"issues:proj-001"`), used for conditional/delta reads: the gateway compares it to the client's last-seen token and, on a match, returns 304 WITHOUT performing the full read — so the heavy backend call is skipped. Map it to a backend ETag, a max(updatedAt), or a sync cursor. Return null when the resource has no cheap version (the gateway falls back to hashing the full payload). Brokers that don't implement this are unaffected — conditional reads degrade to the payload hash. |
 | `verifyConnection` _(optional)_ | `backend: string` | `Promise<{ ok: boolean; detail?: string }>` | OPTIONAL — verify the broker can reach a backend with its configured credentials (a "test connection"). Returns `{ ok }`. Brokers that don't implement it report "unsupported" upstream. |
 | `storeCredential` _(optional)_ | `input: { backend: string; name: string; value: string }` | `Promise<{ stored: boolean; ref?: string }>` | OPTIONAL — delegate a vendor credential to the BROKER's own encrypted credential store (e.g. n8n credentials). The secret is relayed ONCE through the gateway and never persisted here; the broker owns it thereafter. Returns a non-secret reference. Brokers without a vault report "unsupported" so the operator falls back to the env/Docker-secret scaffolding. |
+| `nativeSurfaces` _(optional)_ | — | `Promise<NativeSurface[]>` | The native surfaces this backend fronts (unioned across connected backends, capability-gating the SPA's "Use native" affordance). |
+| `nativeHandoff` _(optional)_ | `req: NativeHandoffRequest` | `Promise<NativeHandoff>` | Mint the vetted vendor handoff URL — built against the vendor's real domain (host-allowlisted); the user opens it in THEIR OWN browser and authenticates to the vendor directly (we never wrap its auth screen). |
+| `nativeImport` _(optional)_ | `req: NativeImportRequest` | `Promise<TaskAttachment>` | Bring the native artifact back THROUGH the broker: a reference (importMode "reference") or enriched content. Returns the attachment written to `target`; sanitised + provenance-stamped + audited. |
+| `listWbsElements` _(optional)_ | `projectId: string` | `Promise<WbsElement[]>` | The WBS elements (the project cost-structure tree; `parentId` gives the nesting). |
+| `getWbsFinancials` _(optional)_ | `wbsId: string` | `Promise<WbsFinancials \| null>` | The financial roll-up for one WBS element (actual / commitment / budget / WIP / planned), read from the ERP. |
 
 ## Response envelope & provenance
 
@@ -99,6 +113,28 @@ Who initiated an action. Autonomous actors (scheduled jobs, AI agents) are first
 
 Enum: `human`, `automation`, `agent`
 
+### Annotation
+
+One annotation pinned onto a deliverable. Which optional fields apply depends on `type`: a `pin` uses just `x`/`y`; a `box`/`highlight` adds `w`/`h`. `text` is the reviewer's note; `resolved` marks a raised point as addressed. `page` targets a page of a multi-page PDF (1-based; defaults to 1). A generic overlay renderer switches on `type`. All coordinates are normalised (0..1).
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `id` | string | yes | Stable id within the proof (for keys + comment-thread anchoring). |
+| `type` | [AnnotationType](#annotationtype) | yes |  |
+| `x` | number | yes | Normalised top-left / point position on the deliverable (0..1). |
+| `y` | number | yes |  |
+| `w` | number | — | Normalised region size — box / highlight (0..1). |
+| `h` | number | — |  |
+| `text` | string | — | The reviewer's note. |
+| `page` | number | — | Which page of a multi-page deliverable (PDF) this pins to (1-based). |
+| `resolved` | boolean | — | Whether the raised point has been addressed. |
+
+### AnnotationType
+
+PROOFING / deliverable review model — the neutral, primitive-built shape for OmniProject's creative-review surface (roadmap 2.4). Same architectural principle as documents (wiki blocks) and whiteboards (canvas elements): a proof is a JSON DEFINITION that REFERENCES a deliverable (an image/PDF that lives elsewhere — attachments-as-references, zero-at-rest) and carries a list of typed ANNOTATION PRIMITIVES pinned onto it, plus a review decision. NOT an opaque third-party markup blob. The single `ANNOTATION_TYPES` list is what the authoring palette, the validator AND the unified primitive store (the `annotation` family) all draw from, so the store can never drift from what a proof can contain. The authoritative sanitiser runs server-side before anything is written.
+
+Enum: `pin`, `box`, `highlight`
+
 ### BackendFieldMap
 
 Per-field / per-entity support a backend declares. Finer-grained than the domain flags: e.g. a backend may surface `dueDate` read-only (surface without store), or have no `programmeId` field at all (programme entity unsupported).
@@ -132,7 +168,43 @@ The wire envelope an HTTP-transport broker returns. The gateway unwraps it befor
 
 Normalised error taxonomy — no broker-specific status quirks leak upward.
 
-Enum: `conflict`, `not_found`, `unauthorized`, `bad_request`, `unavailable`
+Enum: `conflict`, `not_found`, `unauthorized`, `bad_request`, `rate_limited`, `unavailable`
+
+### CalloutTone
+
+The tones a `callout` block can carry.
+
+Enum: `info`, `warn`, `success`, `danger`
+
+### CanvasElement
+
+One element on a whiteboard. Which optional fields apply depends on `type`: `sticky` uses text+color+box; `shape` uses shape+box (+optional text label); `text` uses text+fontSize; `connector` uses the end point `x2/y2` (start is `x/y`) and may bind to element ids via `from`/`to`; `frame` uses text (its label)+box. A generic renderer switches on `type`. `link` (any type) is an OPTIONAL external reference — e.g. a sticky that links to a work item — restricted to safe schemes by the sanitiser (zero-at-rest, never inlined).
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `id` | string | yes | Stable id within the scene (for keys, connector binding, live-cursor anchoring). |
+| `type` | [CanvasElementType](#canvaselementtype) | yes |  |
+| `x` | number | yes | Top-left position on the infinite canvas. |
+| `y` | number | yes |  |
+| `w` | number | — | Box size — sticky / shape / frame. |
+| `h` | number | — |  |
+| `text` | string | — | Text — a sticky's note, a shape's label, a text element's body, a frame's label. |
+| `color` | [StickyColor](#stickycolor) | — | Sticky colour. |
+| `shape` | [ShapeKind](#shapekind) | — | Shape kind. |
+| `fontSize` | number | — | Text size for a `text` element. |
+| `x2` | number | — | Connector end point (its start is `x`/`y`). |
+| `y2` | number | — |  |
+| `from` | string | — | Optional connector endpoints bound to element ids (so the line follows them). |
+| `to` | string | — |  |
+| `points` | number[][] | — | Freehand path points for a `draw` element — `[x, y]` pairs relative to `x`/`y` (the stroke origin). |
+| `strokeWidth` | number | — | Stroke width (draw) / border weight. |
+| `link` | string | — | Optional external reference (safe scheme only) — the content lives elsewhere (zero-at-rest). |
+
+### CanvasElementType
+
+WHITEBOARD / canvas content model — the neutral, primitive-built shape for OmniProject's visual canvas (roadmap 2.3). Same architectural principle as documents (wiki blocks), forms, screens and reports: a whiteboard is a JSON DEFINITION built of typed CANVAS-ELEMENT PRIMITIVES, authored once and rendered by a generic renderer — NOT an opaque third-party scene blob. A whiteboard scene is an ordered list of `CanvasElement`s. Each element TYPE is a small primitive (its config are properties; it renders and validates by its type). The single `CANVAS_ELEMENT_TYPES` list is what the authoring palette, the validator AND the unified primitive store (the `canvas` family) all draw from, so the store can never drift from what a canvas can contain. Because the model is ours, a rich third-party editor (Excalidraw/Miro) is an OPTIONAL "use native" enhancement, not the source of truth. Scenes are stored through the broker seam (zero-at-rest); this module defines the neutral shape only — the authoritative sanitiser runs server-side before anything is written.
+
+Enum: `sticky`, `shape`, `text`, `connector`, `frame`, `draw`
 
 ### CapabilityFlags
 
@@ -143,6 +215,53 @@ Type: map → boolean
 ### ContractVersion
 
 Type: `v1`
+
+### Deliverable
+
+A deliverable under review — a REFERENCE to media that lives elsewhere (never inlined; zero-at-rest).
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `kind` | [DeliverableKind](#deliverablekind) | yes |  |
+| `url` | string | yes | Safe-scheme URL of the media (validated by the sanitiser). |
+| `label` | string | — | Optional human label / filename. |
+
+### DeliverableKind
+
+The deliverable media kinds a proof can reference.
+
+Enum: `image`, `pdf`
+
+### DocBlock
+
+One block in a document. Which optional fields apply depends on `type`: text blocks use `text`; `heading` adds `level`; `callout` adds `tone`; list blocks use `items`; `table` uses `rows`; `embed` uses `url` (+ optional `caption`). A generic renderer switches on `type`.
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `id` | string | yes | Stable id within the document (for keys, presence anchoring, comment threading). |
+| `type` | [DocBlockType](#docblocktype) | yes |  |
+| `text` | string | — | Free text for a text block (heading/paragraph/quote/callout/code). |
+| `level` | number | — | Heading level (1–3); defaulted to 2 when omitted. |
+| `tone` | [CalloutTone](#callouttone) | — | Callout tone. |
+| `items` | [DocListItem](#doclistitem)[] | — | Items for a list block. |
+| `rows` | string[][] | — | Rows of cells for a `table` block. |
+| `url` | string | — | External reference for an `embed` block (the content lives elsewhere — zero-at-rest). |
+| `caption` | string | — | Optional caption for an `embed`. |
+
+### DocBlockType
+
+WIKI / document content model — the neutral, primitive-built shape for OmniProject's collaborative docs and knowledge base (roadmap 2.1). Same architectural principle as forms, screens and reports: a document is a JSON DEFINITION built of typed BLOCK PRIMITIVES, authored once and rendered by a generic renderer. A document is an ordered list of `DocBlock`s. Each block TYPE is a small class (its config are properties; it renders and validates by its type). The block types are the "documents built of primitives" allow-list: the single `DOC_BLOCK_TYPES` list is what the validator, the authoring palette AND the unified primitive store (the `block` family) all draw from, so the store can never drift from what a document can contain. Bodies are stored through the broker seam (zero-at-rest) — this module only defines the neutral shape and pure helpers (block-type registry, wiki-link parsing, slugging); the authoritative sanitiser runs server-side before anything is written.
+
+Enum: `heading`, `paragraph`, `quote`, `callout`, `code`, `bullet-list`, `numbered-list`, `checklist`, `divider`, `table`, `embed`
+
+### DocListItem
+
+One item in a list block. `checked` only applies to a `checklist`.
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `text` | string | yes |  |
+| `checked` | boolean | — |  |
 
 ### EnumeratedField
 
@@ -158,6 +277,11 @@ A field a backend reports it can expose, from API enumeration during wiring.
 | `references` | string | — | If the backend's API schema says this field references another entity. |
 | `sourceSystem` | string | — | The system of record this field is read from (e.g. "jira", "openproject"). Lets the UI show granular lineage: "this canonical field ← that backend." |
 | `sourceField` | string | — | The backend's NATIVE field name/id this canonical field maps from (e.g. "duedate", "customfield_10016") — supplied by the broker/workflow, so the overlay can say exactly which backend field a value came from. |
+| `maxLength` | number | — | Max character length the backend accepts for this field. |
+| `precision` | number | — | Decimal places for a numeric/currency/percent field. |
+| `options` | string[] | — | Allowed values for an enum field. |
+| `pattern` | string | — | A regular expression the value must match (postcode/email/date shapes). ReDoS-guarded before use. |
+| `nullable` | boolean | — | Whether the backend accepts an empty value (⇒ the UI field is optional). |
 
 ### FieldSupport
 
@@ -279,6 +403,65 @@ A normalised issue mutation. `expectedVersion` drives optimistic concurrency.
 | `defectCount` | number \| null | — |  |
 | `expectedVersion` | number | — |  |
 
+### NativeContextRef
+
+Anchor: WHAT OmniProject entity the native surface is bound to, so a reimport attaches back.
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `projectId` | string | — |  |
+| `issueId` | string | — |  |
+| `entity` | string | — |  |
+| `id` | string | — |  |
+
+### NativeHandoff
+
+The vetted, connector-minted handoff. `url` is built by the connector against the vendor's REAL domain (host-allowlisted) — never from user input. `embedUrl` is the vendor's sandboxed Live-Embed, if any.
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `url` | string | yes |  |
+| `embedUrl` | string | — |  |
+| `handoffId` | string | yes |  |
+
+### NativeHandoffRequest
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `kind` | [NativeSurfaceKind](#nativesurfacekind) | yes |  |
+| `vendor` | string | yes |  |
+| `action` | `open` \| `create` \| `embed` | yes |  |
+| `contextRef` | [NativeContextRef](#nativecontextref) | — |  |
+| `externalRef` | string | — |  |
+
+### NativeImportRequest
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `kind` | [NativeSurfaceKind](#nativesurfacekind) | yes |  |
+| `vendor` | string | yes |  |
+| `handoffId` | string | — |  |
+| `externalRef` | string | — |  |
+| `target` | object | yes |  |
+
+### NativeSurface
+
+What a connected backend advertises it can do natively for a given artifact kind. Pure metadata — no secrets, no URLs (URLs are minted per-request by `nativeHandoff`, host-allowlisted server-side).
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `kind` | [NativeSurfaceKind](#nativesurfacekind) | yes |  |
+| `vendor` | string | yes |  |
+| `label` | string | yes |  |
+| `actions` | `open` \| `create` \| `embed`[] | yes |  |
+| `importMode` | `reference` \| `content` \| `screenshot` | yes | How the artifact comes back: "reference" (a bare link; always available, zero-at-rest), "content" (pull data via the vendor API), or "screenshot" (capture + AI vision). |
+
+### NativeSurfaceKind
+
+An artifact kind OmniProject renders inline and a backend can front NATIVELY (Miro, Notion, …). Matches our primitive/artifact kinds so the SPA can offer "Use native" on the right surfaces.
+
+Enum: `whiteboard`, `document`, `diagram`, `sheet`, `board`, `schedule`, `dashboard`, `report`, `form`, `wiki`
+
 ### NotificationIngest
 
 Body of POST /api/notifications/ingest — a broker/tool pushes an event in. Authenticated by the NOTIFY_INGEST_SECRET shared secret (Bearer or X-Notify-Secret header). `notification.title` is the only required field.
@@ -354,6 +537,61 @@ A normalised project create/update. `name` is required on create.
 | `omniInstanceId` | string | — | The gateway-minted correlation GUID, passed to the backend to store on create (never sent by a client). See `Project.omniInstanceId`. |
 | `status` | string \| null | — | The project's lifecycle status (backend-native string). Set/clear to move a project between live and closed. See `Project.status`. |
 
+### Proof
+
+A PROOF — a deliverable (image/PDF, referenced not inlined) under creative review (roadmap 2.4). Carries a list of typed `annotation`-family primitives pinned onto it and a review decision bound to the current version. Held in the encrypted-JSON store (storage-target model), like a whiteboard.
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `id` | string | yes |  |
+| `name` | string | yes |  |
+| `projectId` | string \| null | — |  |
+| `ownerSub` | string \| null | — |  |
+| `storage` | `user` \| `project` \| `org` | — | Where the proof lives: user / project / org (encrypted-JSON) — the id also encodes this. |
+| `deliverable` | [Deliverable](#deliverable) | yes | The deliverable under review — a safe-scheme reference (zero-at-rest). |
+| `version` | number | yes | Bumps when the deliverable is replaced; a review decision is bound to the version it was made against. |
+| `annotations` | [Annotation](#annotation)[] | yes |  |
+| `decision` | [ProofDecision](#proofdecision) | yes | The current review decision, and who/when — stamped server-side, never from the client. |
+| `decisionVersion` | number | — |  |
+| `decidedBy` | string \| null | — |  |
+| `decidedAt` | string \| null | — |  |
+| `updatedAt` | string | yes |  |
+| `updatedBy` | string \| null | — |  |
+| _(other)_ | any | — | Open row — backend-specific fields pass through. |
+
+### ProofDecision
+
+A review decision on a proof version. `pending` — awaiting review; `approved` — signed off; `rejected` — declined; `changes-requested` — needs rework before re-review. Bound to a version so a new deliverable revision re-opens the decision.
+
+Enum: `pending`, `approved`, `rejected`, `changes-requested`
+
+### ProofMeta
+
+A proof's metadata (no annotations/deliverable body) — the list view.
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `id` | string | yes |  |
+| `name` | string | yes |  |
+| `projectId` | string \| null | — |  |
+| `ownerSub` | string \| null | — |  |
+| `storage` | `user` \| `project` \| `org` | — |  |
+| `version` | number | yes |  |
+| `decision` | [ProofDecision](#proofdecision) | yes |  |
+| `updatedAt` | string | yes |  |
+| `updatedBy` | string \| null | — |  |
+
+### ProofWrite
+
+A proof write (create/update) — the sanitised, client-supplied fields (decision is set via its own route).
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `name` | string | yes |  |
+| `projectId` | string \| null | — |  |
+| `deliverable` | [Deliverable](#deliverable) | yes |  |
+| `annotations` | [Annotation](#annotation)[] | yes |  |
+
 ### Provenance
 
 Enum: `sourced`, `derived`, `sample`, `replayed`, `projected`
@@ -396,16 +634,17 @@ A backend's self-describing SCHEMA manifest — the tables, canonical fields and
 | `level` | [ScopeLevel](#scopelevel) | yes |  |
 | `sub` | string | — | The owning principal (used for user-level ownership/membership checks). |
 | `programmes` | string[] | — | The programmes this principal may act within (used for programme-level checks). |
+| `projectId` | string | — | The single project a `project`-level (guest) principal is confined to. |
 
 ### ScopeLevel
 
-DATA scope — the per-principal authorization boundary the backend enforces on top of the coarse RBAC tier. The gateway resolves it from the user's grants + claim/SCIM groups and forwards it (verified, inside the PSK-signed broker envelope) as part of `userContext`, so the system of record can confirm-and-enforce it: - `all` — pmo / admin: every project and programme. - `programme` — a programme manager: only projects in their owned programmes. In a "basic" (no-IdP) deployment `programmes` is empty and the backend maps `sub → owned programmes` from its own records instead. - `user` — a standard user: only resources they own or are a member of. This module is PURE (no request/IO) so it is the shared contract: the gateway resolves + forwards it, an in-repo backend (or an external n8n one) enforces it with the same helpers.
+DATA scope — the per-principal authorization boundary the backend enforces on top of the coarse RBAC tier. The gateway resolves it from the user's grants + claim/SCIM groups and forwards it (verified, inside the PSK-signed broker envelope) as part of `userContext`, so the system of record can confirm-and-enforce it: - `all` — pmo / admin: every project and programme. - `programme` — a programme manager: only projects in their owned programmes. In a "basic" (no-IdP) deployment `programmes` is empty and the backend maps `sub → owned programmes` from its own records instead. - `user` — a standard user: only resources they own or are a member of. - `project` — a GUEST principal (client-facing portal): exactly ONE project, nothing else. The narrowest scope; a guest can't even see the rest of its programme. This module is PURE (no request/IO) so it is the shared contract: the gateway resolves + forwards it, an in-repo backend (or an external n8n one) enforces it with the same helpers.
 
-Enum: `user`, `programme`, `all`
+Enum: `user`, `programme`, `project`, `all`
 
 ### SessionBind
 
-The non-secret material needed to re-derive a session's broker key.
+Per-session broker signing key. The key used to sign a gateway→broker request is NOT the static env master — it is DERIVED, per session, as: sessionBrokerKey = HMAC( derivedKey("broker", v), sub ‖ smono ‖ salt ) - `derivedKey("broker", v)` = HMAC(env master, "broker:vN"). Only our system holds the master, so a signature that verifies under this key PROVES the request originated from our gateway — and rolls forward on key revocation. - `sub ‖ smono ‖ salt` binds the key to one USER and one SESSION: · sub — the acting username/subject. · smono — the monotonic-clock reading at session creation (a non-rewindable "session start time"; ordering is guaranteed within a replica). · salt — CSPRNG entropy minted once per session, so the key is regenerated from fresh entropy on every login and stays unique even across a process restart that resets the monotonic clock. The key itself NEVER leaves the gateway. We sign each request with it and transmit only the (non-secret) binding material — sub, smono, salt, broker-key version — so the broker re-derives the same key from ITS copy of the master and verifies. An observer who captures the binding material still cannot forge a signature without the master (HMAC), and a leaked session key is scoped to a single session. This is a shared-secret MAC, not a third-party signature: it authenticates to a party that holds the master (the broker), proving valid origin + that a specific user's valid session sent it. It does not provide non-repudiation against the gateway itself (the same trust boundary as the existing PSK).
 
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
@@ -413,6 +652,18 @@ The non-secret material needed to re-derive a session's broker key.
 | `smono` | string | yes | Monotonic-clock reading (ns string) at session creation. |
 | `salt` | string | yes | Per-session CSPRNG entropy (hex). |
 | `bkver` | number | — | Broker-key version the session key was derived under (for revocation/rotation). |
+
+### ShapeKind
+
+The shapes a `shape` element can be.
+
+Enum: `rectangle`, `ellipse`, `diamond`
+
+### StickyColor
+
+The palette of sticky-note colours (named, not raw hex — so the renderer owns the actual values).
+
+Enum: `yellow`, `green`, `blue`, `pink`, `gray`
 
 ### Summary
 
@@ -558,3 +809,150 @@ Dry-run verification of the broker contract — must never mutate a backend.
 | --- | --- | --- | --- |
 | `ok` | boolean | yes |  |
 | `actions` | object[] | yes |  |
+
+### WbsElement
+
+SAP read model — a WBS element in a project's cost structure (docs/SAP-CONNECTOR.md §4.6). SAP owns these; we render them by reference (the id is the cost-collecting key), never copying at rest.
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `id` | string | yes |  |
+| `projectId` | string | yes |  |
+| `parentId` | string \| null | yes |  |
+| `name` | string | yes |  |
+| `level` | number | yes |  |
+| `status` | string | — | SAP system/user status label (display-only). |
+| `responsible` | string \| null | — |  |
+
+### WbsFinancials
+
+SAP read model — the financial roll-up for one WBS element, READ from SAP's ledger (ACDOCA). We never post or settle; all amounts are in `currency`. `available` = budget − (actual + commitment).
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `wbsId` | string | yes |  |
+| `currency` | string | yes |  |
+| `budget` | number | yes |  |
+| `actual` | number | yes |  |
+| `commitment` | number | yes |  |
+| `wip` | number | yes |  |
+| `planned` | number | yes |  |
+| `available` | number | yes |  |
+
+### Whiteboard
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `id` | string | yes |  |
+| `name` | string | yes |  |
+| `projectId` | string \| null | — | Optional owning project (a board raised against a project); null for an org-level board. |
+| `ownerSub` | string \| null | — | The board's creator (a user `sub`) — the owner for a personal board. Set server-side, never trusted from the client. |
+| `visibility` | [WhiteboardVisibility](#whiteboardvisibility) | — | Org-wide vs personal. A `user` board is visible/editable only to its `ownerSub`. Defaults to `org`. (Used by the sidecar store; the encrypted-JSON stores encode location in `storage`/the id instead.) |
+| `storage` | `user` \| `project` \| `org` \| `sidecar` | — | Where the board lives: user / project / org (encrypted-JSON areas) or sidecar (the built-in SoR). The id also encodes this; the field is a convenience for the client. |
+| `scene` | [WhiteboardScene](#whiteboardscene) | yes |  |
+| `updatedAt` | string | yes |  |
+| `updatedBy` | string \| null | — |  |
+| _(other)_ | any | — | Open row — backend-specific fields pass through. |
+
+### WhiteboardMeta
+
+A board's metadata (no scene body) — the list view.
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `id` | string | yes |  |
+| `name` | string | yes |  |
+| `projectId` | string \| null | — |  |
+| `ownerSub` | string \| null | — |  |
+| `visibility` | [WhiteboardVisibility](#whiteboardvisibility) | — |  |
+| `storage` | `user` \| `project` \| `org` \| `sidecar` | — |  |
+| `updatedAt` | string | yes |  |
+| `updatedBy` | string \| null | — |  |
+
+### WhiteboardScene
+
+A WHITEBOARD — a freeform visual canvas (roadmap 2.3). The drawing is an opaque scene of vector elements; like a wiki page it is authored in OmniProject but STORED through the broker (zero-at-rest), so it inherits the data seam's residency + audit. `scene` is a bounded, sanitised JSON payload (no embedded image data, links restricted to safe schemes) — never executed, just persisted + rendered.
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `elements` | [CanvasElement](#canvaselement)[] | yes | The canvas elements — typed `canvas`-family primitives (sticky/shape/text/connector/frame), validated per-type at the gateway. Built of shared primitives, not an opaque third-party scene blob. |
+| `appState` | map → any | — | A minimal, sanitised view state (e.g. background colour) — never a full editor appState. |
+
+### WhiteboardVisibility
+
+Where a board lives: `org` = shared org-wide (any viewer+); `user` = personal to its owner only.
+
+Enum: `org`, `user`
+
+### WhiteboardWrite
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `name` | string | yes |  |
+| `projectId` | string \| null | — |  |
+| `visibility` | [WhiteboardVisibility](#whiteboardvisibility) | — | Requested visibility (org-wide vs personal). The OWNER is set server-side from the caller, never here. |
+| `scene` | [WhiteboardScene](#whiteboardscene) | yes |  |
+
+### WikiDoc
+
+A WIKI DOCUMENT — a page in a space, built of primitive `DocBlock`s (see backend-catalogue). Nesting is by `parentId` (a page tree); `slug` is the URL segment within the space. Content is authored in OmniProject but STORED through the broker, so it inherits the data seam's residency and audit controls.
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `id` | string | yes |  |
+| `spaceId` | string | yes |  |
+| `parentId` | string \| null | — |  |
+| `slug` | string | yes |  |
+| `title` | string | yes |  |
+| `blocks` | [DocBlock](#docblock)[] | yes |  |
+| `updatedAt` | string | yes |  |
+| `updatedBy` | string \| null | — |  |
+| _(other)_ | any | — | Open row — backend-specific fields pass through. |
+
+### WikiDocVersion
+
+A saved REVISION of a wiki document — a point-in-time snapshot captured by the system of record on each write, so a page's history is auditable and any prior state can be restored (by re-saving its content through the normal update path). `versionId` is unique within the document's history.
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `versionId` | string | yes |  |
+| `docId` | string | yes |  |
+| `at` | string | yes |  |
+| `author` | string \| null | — |  |
+| `title` | string | yes |  |
+| `blocks` | [DocBlock](#docblock)[] | yes |  |
+| _(other)_ | any | — | Open row — backend-specific fields pass through. |
+
+### WikiDocVersionMeta
+
+A revision's metadata (no block body) — the history list view.
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `versionId` | string | yes |  |
+| `docId` | string | yes |  |
+| `at` | string | yes |  |
+| `author` | string \| null | — |  |
+| `title` | string | yes |  |
+
+### WikiDocWrite
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `spaceId` | string | yes |  |
+| `parentId` | string \| null | — |  |
+| `slug` | string | — |  |
+| `title` | string | yes |  |
+| `blocks` | [DocBlock](#docblock)[] | yes |  |
+
+### WikiSpace
+
+A WIKI SPACE — a named container for documents (a knowledge base / team space). Like everything else the body lives in the backend system of record; OmniProject is zero-at-rest. Only backends that model a wiki/knowledge base expose these.
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `id` | string | yes |  |
+| `key` | string | yes | Short stable key (URL segment). |
+| `name` | string | yes |  |
+| `description` | string \| null | — |  |
+| _(other)_ | any | — | Open row — backend-specific fields pass through. |

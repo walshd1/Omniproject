@@ -12,7 +12,6 @@ import { WIDGET_COMPONENTS } from "../components/dashboard/widgets";
  * Heterogeneous props (report renderers may take `projectId`; widgets take none), so the return type is
  * intentionally loose — the caller supplies the right props for the surface.
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type LibraryRenderer = ComponentType<any>;
 
 /**

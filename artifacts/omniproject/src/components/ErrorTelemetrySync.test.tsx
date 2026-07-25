@@ -1,20 +1,21 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { QueryClient } from "@tanstack/react-query";
-import { getGetSettingsQueryKey } from "@workspace/api-client-react";
 import { renderWithProviders } from "../test/utils";
 import { ErrorTelemetrySync } from "./ErrorTelemetrySync";
+import { errorTelemetryKey } from "../lib/error-telemetry-api";
 import { isErrorTelemetryEnabled, setErrorTelemetryEnabled } from "../lib/error-telemetry";
 
 /**
- * Headless sync: mirrors the admin `errorTelemetry` setting into the module singleton the
+ * Headless sync: mirrors the admin error-telemetry opt-in into the module singleton the
  * class-component ErrorBoundary reads synchronously. It must only report ON when the session
- * is authenticated AND the server setting is on — otherwise the flag stays false.
+ * is authenticated AND the server value (the `error-telemetry` config def) is on — otherwise
+ * the flag stays false.
  */
 function seed(opts: { authed?: boolean; errorTelemetry?: boolean; seedSettings?: boolean } = {}): QueryClient {
   const { authed = true, errorTelemetry = true, seedSettings = true } = opts;
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } });
   qc.setQueryData(["auth", "me"], { authenticated: authed, mode: "demo", user: { sub: "u1" }, role: "admin" });
-  if (seedSettings) qc.setQueryData(getGetSettingsQueryKey(), { errorTelemetry });
+  if (seedSettings) qc.setQueryData(errorTelemetryKey, { errorTelemetry });
   return qc;
 }
 
@@ -51,17 +52,17 @@ describe("ErrorTelemetrySync", () => {
     expect(isErrorTelemetryEnabled()).toBe(false);
   });
 
-  it("treats a missing settings payload as OFF (nullish `settings?.errorTelemetry`)", () => {
+  it("treats a missing payload as OFF (nullish → false)", () => {
     renderWithProviders(<ErrorTelemetrySync />, { client: seed({ authed: true, seedSettings: false }) });
     expect(isErrorTelemetryEnabled()).toBe(false);
   });
 
-  it("re-syncs when the server setting flips off (effect re-runs on the dependency change)", () => {
+  it("re-syncs when the server value flips off (effect re-runs on the dependency change)", () => {
     const qc = seed({ authed: true, errorTelemetry: true });
     renderWithProviders(<ErrorTelemetrySync />, { client: qc });
     expect(isErrorTelemetryEnabled()).toBe(true);
-    // Flip the cached setting; the effect's dep (settings?.errorTelemetry) changes → it re-runs.
-    qc.setQueryData(getGetSettingsQueryKey(), { errorTelemetry: false });
+    // Flip the cached value; the effect's dep (the resolved boolean) changes → it re-runs.
+    qc.setQueryData(errorTelemetryKey, { errorTelemetry: false });
     renderWithProviders(<ErrorTelemetrySync />, { client: qc });
     expect(isErrorTelemetryEnabled()).toBe(false);
   });

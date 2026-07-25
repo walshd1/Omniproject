@@ -1,0 +1,29 @@
+{
+  "id": "cloud-saas",
+  "label": "Managed cloud",
+  "description": "Hosted for you, SSO on, scheduled backups. A team that wants to log in and go.",
+  "order": 30,
+  "questions": [
+    {
+      "id": "methodology",
+      "label": "How does the team work?",
+      "options": [
+        { "value": "scrum", "label": "Scrum (sprints)" },
+        { "value": "kanban", "label": "Kanban (flow)" }
+      ],
+      "default": "scrum"
+    }
+  ],
+  "setup": {
+    "storage": "omnistore",
+    "auth": "idp",
+    "broker": "builtin:omnistore",
+    "residency": "off",
+    "methodology": "scrum",
+    "audit": "standard",
+    "backups": "scheduled"
+  },
+  "refinements": [
+    { "when": { "methodology": "kanban" }, "set": { "methodology": "kanban" } }
+  ]
+}

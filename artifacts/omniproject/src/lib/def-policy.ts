@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { getJson, sendJson } from "./api";
 import { roleAtLeast, isPmoOrAdmin, type Role } from "./auth";
-import type { DefStorage } from "./defs";
+import { useDefImporterEnabled, type DefStorage } from "./defs";
 
 /**
  * Admin client for the definition-importer's per-scope WRITE policy over `/api/defs/policy` (roadmap X.5).
@@ -17,7 +17,10 @@ export const defPolicyKey = ["defs", "policy"] as const;
 
 /** The current per-scope write policy + the allowed gate values. */
 export function useDefPolicy() {
-  return useQuery({ queryKey: defPolicyKey, queryFn: () => getJson<DefPolicyState>("/api/defs/policy"), retry: false, staleTime: 30_000 });
+  // Gate the fetch on the (default-off) defImporter module — the /api/defs/policy route is only mounted
+  // when it's on, so an unconditional fetch 404-spams the console on any page that mounts this hook.
+  const enabled = useDefImporterEnabled();
+  return useQuery({ queryKey: defPolicyKey, queryFn: () => getJson<DefPolicyState>("/api/defs/policy"), enabled, retry: false, staleTime: 30_000 });
 }
 
 /** Change who may write at one or more scopes (admin). */

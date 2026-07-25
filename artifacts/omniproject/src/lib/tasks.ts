@@ -13,6 +13,8 @@ export interface Task {
   title: string;
   status: string;
   projectId?: string | null;
+  /** Parent task id (its subtask link), or null/absent for a top-level task. */
+  parentTaskId?: string | null;
   context?: string | null;
   waitingOn?: string | null;
   assignee?: string | null;
@@ -21,6 +23,9 @@ export interface Task {
   tags?: string[];
   startDate?: string | null;
   dueDate?: string | null;
+  /** Recurrence rule (free text, e.g. "every 2 weeks", "every weekday", "FREQ=MONTHLY"). The server spawns
+   *  the next occurrence when a recurring task is completed. Empty/one-off ⇒ no repeat. */
+  recurrence?: string | null;
   reminderAt?: string | null;
   energy?: string | null;
   section?: string | null;
@@ -60,6 +65,29 @@ export function useCreateTask() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (body: Partial<Task>) => sendJson<Task>("/api/tasks", body, "POST", "Could not create the next action"),
+    onSuccess: () => qc.invalidateQueries({ queryKey: TASKS_KEY }),
+  });
+}
+
+/** Result of a bulk create: how many of the N attempts landed, and how many failed. */
+export interface BulkCreateResult { created: Task[]; failed: number; total: number }
+
+/**
+ * Create MANY tasks in one go (the multi-entry / auto-split path). Fires the N `POST /api/tasks` calls
+ * concurrently and settles ALL of them — a single bad line never aborts the rest — then invalidates the
+ * task queries ONCE. Returns the created tasks plus a failure count so the caller can report partial
+ * success. Tasks aren't in the OpenAPI contract, so this stays a thin fetch hook like {@link useCreateTask}.
+ */
+export function useCreateTasksBulk() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (bodies: Partial<Task>[]): Promise<BulkCreateResult> => {
+      const settled = await Promise.allSettled(
+        bodies.map((body) => sendJson<Task>("/api/tasks", body, "POST", "Could not create the next action")),
+      );
+      const created = settled.flatMap((r) => (r.status === "fulfilled" ? [r.value] : []));
+      return { created, failed: settled.length - created.length, total: settled.length };
+    },
     onSuccess: () => qc.invalidateQueries({ queryKey: TASKS_KEY }),
   });
 }

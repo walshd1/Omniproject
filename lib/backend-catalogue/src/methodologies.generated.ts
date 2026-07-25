@@ -89,6 +89,101 @@ export const METHODOLOGIES_DATA: MethodologyDefinition[] = [
     "order": 70
   },
   {
+    "id": "gtd",
+    "label": "Getting Things Done (GTD)",
+    "docsUrl": "https://gettingthingsdone.com/",
+    "kind": "agile",
+    "capabilities": {
+      "iterations": false,
+      "board": true,
+      "wipLimits": false,
+      "phases": false,
+      "baseline": false,
+      "estimation": "none"
+    },
+    "tools": {
+      "states": [
+        "inbox",
+        "next",
+        "waiting",
+        "scheduled",
+        "someday",
+        "done"
+      ],
+      "ceremonies": [
+        "capture",
+        "clarify",
+        "organise",
+        "weekly-review",
+        "engage"
+      ],
+      "taskStatuses": [
+        {
+          "id": "next",
+          "label": "Next",
+          "order": 0,
+          "class": "actionable",
+          "color": "#3b82f6"
+        },
+        {
+          "id": "waiting",
+          "label": "Waiting",
+          "order": 1,
+          "class": "waiting",
+          "color": "#f59e0b"
+        },
+        {
+          "id": "scheduled",
+          "label": "Scheduled",
+          "order": 2,
+          "class": "deferred",
+          "color": "#a855f7"
+        },
+        {
+          "id": "someday",
+          "label": "Someday",
+          "order": 3,
+          "class": "deferred",
+          "color": "#71717a"
+        },
+        {
+          "id": "done",
+          "label": "Done",
+          "order": 4,
+          "class": "done",
+          "color": "#22c55e"
+        },
+        {
+          "id": "dropped",
+          "label": "Dropped",
+          "order": 5,
+          "class": "dropped",
+          "color": "#ef4444"
+        }
+      ]
+    },
+    "alsoProvides": [
+      {
+        "plane": "reports",
+        "note": "weekly review (stalled projects, waiting-for follow-ups)"
+      },
+      {
+        "plane": "screens",
+        "note": "next actions by context; weekly review"
+      }
+    ],
+    "invariants": [
+      {
+        "id": "gtd-next-action",
+        "kind": "every-active-project-has-next-action",
+        "message": "Every active project must have a defined next action (GTD).",
+        "severity": "warn"
+      }
+    ],
+    "notes": "Personal-productivity flow: capture to an inbox, clarify to a single next action per project, organise by context/energy, reflect in a weekly review, engage. Core business rule: every ACTIVE project must have a defined next action.",
+    "order": 5
+  },
+  {
     "id": "kanban",
     "label": "Kanban",
     "docsUrl": "https://kanban.university/kanban-guide/",
@@ -239,6 +334,15 @@ export const METHODOLOGIES_DATA: MethodologyDefinition[] = [
         "note": "sprint board"
       }
     ],
+    "settings": {
+      "priorityWeights": {
+        "rice": 20,
+        "wsjf": 40,
+        "moscow": 10,
+        "strategic": 20,
+        "benefit": 10
+      }
+    },
     "notes": "Time-boxed sprints, story points, the four ceremonies.",
     "order": 10
   },
@@ -348,6 +452,16 @@ export const METHODOLOGIES_DATA: MethodologyDefinition[] = [
         "note": "schedule / Gantt"
       }
     ],
+    "settings": {
+      "fxRatePolicy": "periodClose",
+      "priorityWeights": {
+        "rice": 15,
+        "wsjf": 10,
+        "moscow": 20,
+        "strategic": 40,
+        "benefit": 15
+      }
+    },
     "notes": "Sequential phases, baselines, critical path.",
     "order": 40
   }

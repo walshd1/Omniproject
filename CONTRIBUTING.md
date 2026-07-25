@@ -16,6 +16,13 @@ By participating you agree to the [Code of Conduct](CODE_OF_CONDUCT.md).
   By submitting a PR you agree your contribution is licensed under the licence
   that already applies to the file(s) you change.
 
+## Branching
+
+Base your work on **`next`**, not `main`. `main` is the stable release line; `next` is the
+standing development branch that sits one step ahead and is kept green. Dependency-bump PRs
+target `next` too. Full flow (promotion, the `next` re-seat ritual, hotfixes) is in
+**[docs/BRANCHING.md](docs/BRANCHING.md)**.
+
 ## Development setup
 
 Requires **Node 26+** and **pnpm 11.8+** (`corepack enable`).
@@ -36,7 +43,15 @@ PORT=3000 BASE_PATH=/ pnpm --filter omniproject run build               # SPA bu
 # Live n8n contract verification (starts a mock n8n; needs the gateway running)
 PORT=5000 node artifacts/api-server/dist/index.mjs &
 OMNI_API_BASE=http://localhost:5000 pnpm --filter @workspace/scripts run verify-broker
+
+# End-to-end (Playwright) — install the browser ONCE, then build + run the suite
+pnpm run e2e:install    # downloads the pinned Chromium (skip if $PLAYWRIGHT_BROWSERS_PATH already has it)
+pnpm run e2e            # builds the SPA + gateway, then runs the acceptance specs
 ```
+
+The e2e browser is a one-time setup step, kept out of `pnpm install` so a normal
+install stays fast and offline-friendly. CI installs it per job; locally you run
+`pnpm run e2e:install` once. `pnpm run e2e:run` runs the specs against an already-built app.
 
 Copy [`.env.example`](.env.example) to `.env` to configure — with nothing set the
 gateway runs in stateless **demo mode** (sample data, no SSO), which is the
@@ -53,6 +68,18 @@ pnpm --filter @workspace/api-spec run codegen
 
 CI fails on codegen drift, so commit the regenerated output.
 
+## Dependencies and imported code
+
+- **Every dependency is tracked by Dependabot.** Runtime and dev dependencies are declared in the workspace
+  manifests and watched by [`.github/dependabot.yml`](.github/dependabot.yml), so upstream fixes arrive as
+  small, reviewable PRs on a cadence. Don't add a package outside the manifest, and don't disable the 1-day
+  `minimumReleaseAge` supply-chain buffer in [`pnpm-workspace.yaml`](pnpm-workspace.yaml).
+- **Borrowed code is a tracked dependency, not a copy-paste.** Any imported / vendored third-party code (e.g.
+  the `yjs` CRDT core behind the wiki co-editor) must be pulled in as a **version-pinned dependency**, clearly
+  **marked at its call site with its provenance and licence**, so it flows through the same Dependabot update
+  path as everything else. Pasting a snippet into the tree — untracked, unversioned, invisible to CVE scanning —
+  is not allowed; if you must borrow, pin it and mark it.
+
 ## Pull requests
 
 1. Branch off `main` (e.g. `feature/…`, `fix/…`).
@@ -63,7 +90,12 @@ CI fails on codegen drift, so commit the regenerated output.
    coverage gates, drift-guards, security scans (secret-scan, taint-scan, CodeQL),
    accessibility and e2e.
 4. Add tests for new logic and update docs (`docs/TECHNICAL.md`, READMEs) when
-   behaviour changes.
+   behaviour changes. **Tests land in the same PR as the code they cover** — a
+   screen, a lib or a hook and its tests are one change, not a "someday" follow-up.
+   The coverage thresholds are a **floor to stay above, per PR**: don't merge feature
+   code that drops global coverage, and never lower a threshold to green a red gate —
+   the fix is always the missing tests. (A per-change floor is what stops an untested
+   phase from silently becoming an audit backlog.)
 5. Open the PR against `main` and fill in the template.
 
 ## Adding a backend

@@ -1,5 +1,4 @@
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { getJson, sendJson } from "./api";
+import { configResource } from "./config-resource";
 import { DEFAULT_PRIORITY_WEIGHTS, type PriorityWeights } from "./portfolio-priority";
 
 /**
@@ -10,24 +9,16 @@ import { DEFAULT_PRIORITY_WEIGHTS, type PriorityWeights } from "./portfolio-prio
  */
 export const priorityWeightsQueryKey = ["portfolio-priority-weights"] as const;
 
+const resource = configResource<PriorityWeights>({
+  queryKey: priorityWeightsQueryKey,
+  path: "/api/portfolio/priority-weights",
+  envelopeKey: "priorityWeights",
+  reconcile: "set-from-response", // pmo-gated; the endpoint echoes the saved weights back
+});
 /** The saved prioritisation weights, defaulting to DEFAULT_PRIORITY_WEIGHTS while unset/loading. */
-export function usePriorityWeights() {
-  return useQuery({
-    queryKey: priorityWeightsQueryKey,
-    queryFn: () => getJson<{ priorityWeights: PriorityWeights }>("/api/portfolio/priority-weights").then((r) => r.priorityWeights),
-    staleTime: 30_000,
-  });
-}
-
+export const usePriorityWeights = resource.useResource;
 /** Persist the prioritisation weights (pmo). */
-export function useSavePriorityWeights() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (priorityWeights: PriorityWeights) =>
-      sendJson<{ priorityWeights: PriorityWeights }>("/api/portfolio/priority-weights", { priorityWeights }),
-    onSuccess: (data) => qc.setQueryData(priorityWeightsQueryKey, data.priorityWeights),
-  });
-}
+export const useSavePriorityWeights = resource.useSaveResource;
 
 export { DEFAULT_PRIORITY_WEIGHTS };
 export type { PriorityWeights };

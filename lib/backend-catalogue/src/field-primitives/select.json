@@ -1,0 +1,21 @@
+{
+  "id": "select",
+  "extends": "form-field",
+  "label": "Select",
+  "params": [
+    {
+      "key": "options",
+      "required": true
+    }
+  ],
+  "constraints": [
+    {
+      "id": "select-options",
+      "kind": "floor",
+      "type": "cardinality",
+      "path": "options",
+      "min": 1,
+      "message": "a select field needs at least one option"
+    }
+  ]
+}

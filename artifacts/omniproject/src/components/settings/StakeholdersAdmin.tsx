@@ -20,7 +20,7 @@ export function StakeholdersAdmin() {
   const { data: server } = useStakeholders();
   const save = useSaveStakeholders();
   const { toast } = useToast();
-  const { draft, setDraft, dirty, reset } = useDraftAdmin<Stakeholder[], Stakeholder[]>(server, structuredClone);
+  const { draft, setDraft, dirty, reset } = useDraftAdmin<Stakeholder[], Stakeholder[]>(server);
 
   if (!roleAtLeast(auth?.role, "manager")) return null;
 

@@ -49,8 +49,11 @@ router.get("/collab/rooms/:roomId/stream", requireRole("contributor"), async (re
   if (!(await guardRoomScope(req, res, roomId))) return;
 
   const session = getSession(req);
-  const sub = session?.sub ?? "anonymous";
-  if (sub !== "anonymous" && collabConnectionCount(sub) >= MAX_COLLAB_STREAMS_PER_SUB) {
+  // SSE requires an interactive session: a subless (API-token) principal can't be capped, so refuse it
+  // rather than exempt it from the per-principal held-stream cap (uncapped-socket DoS).
+  if (!session?.sub) { res.status(403).json({ error: "Co-edit streaming requires an interactive session." }); return; }
+  const sub = session.sub;
+  if (collabConnectionCount(sub) >= MAX_COLLAB_STREAMS_PER_SUB) {
     res.status(429).json({ error: "too many concurrent co-edit streams for this account" });
     return;
   }

@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://omniproject.dev/assets/priority-weight.schema.json",
+  "title": "OmniProject prioritisation weight",
+  "description": "One dimension of the portfolio-prioritisation composite score and its shipped default relative weight, authored as a single JSON array (assets/priority-weights.json) and embedded by gen-priority-weights. Admin/PMO tune the live values through the settings store; this is only the seed.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["key", "weight"],
+  "properties": {
+    "key": { "enum": ["rice", "wsjf", "moscow", "strategic", "benefit"] },
+    "weight": { "type": "number", "minimum": 0 }
+  }
+}

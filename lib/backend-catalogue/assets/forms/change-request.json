@@ -1,0 +1,14 @@
+{
+  "id": "change-request",
+  "label": "Change request",
+  "description": "Request a change to an in-flight project (governance intake).",
+  "submitLabel": "Raise change",
+  "methodologies": ["prince2", "waterfall", "governance"],
+  "fields": [
+    { "key": "summary", "label": "Change summary", "type": "text", "mapTo": "title", "required": true, "maxLength": 200 },
+    { "key": "rationale", "label": "Rationale / business case", "type": "textarea", "mapTo": "description", "required": true, "maxLength": 4000 },
+    { "key": "impact", "label": "Impact", "type": "select", "mapTo": "impact", "options": ["low", "medium", "high"], "required": true },
+    { "key": "urgency", "label": "Urgency", "type": "select", "mapTo": "urgency", "options": ["low", "medium", "high"], "required": true }
+  ],
+  "target": { "kind": "issue", "status": "triage", "labels": ["change-request"] }
+}

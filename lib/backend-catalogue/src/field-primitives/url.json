@@ -1,0 +1,6 @@
+{
+  "id": "url",
+  "extends": "form-field",
+  "label": "Url",
+  "params": []
+}

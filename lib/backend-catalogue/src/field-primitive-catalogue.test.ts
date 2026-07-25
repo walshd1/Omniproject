@@ -1,13 +1,25 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { fieldPrimitive, fieldPrimitiveCatalogue, validateFieldInstance, validateFormFields } from "./field-primitive-catalogue";
-import { formCatalogue, FORM_FIELD_TYPES } from "./form-catalogue";
+import { formCatalogue, FORM_FIELD_TYPES, ISSUE_WRITE_TARGETS } from "./form-catalogue";
 
 /**
  * `field` as a ROOT primitive with a child per form-field type. The load-bearing guard: the per-field validator
  * accepts every shipped form's fields (no import/submission regression), and the `mapTo` allow-list — now a floor
  * on the root — actually bites.
  */
+
+test("the derived field recipes (JSON) don't drift from the TS type union / allow-list", () => {
+  // The concrete leaves authored as JSON == FORM_FIELD_TYPES (the one type union the SPA field family uses).
+  const derivedLeaves = fieldPrimitiveCatalogue().filter((p) => p.extends === "form-field").map((p) => p.id).sort();
+  assert.deepEqual(derivedLeaves, [...FORM_FIELD_TYPES].sort());
+  // Only `field` is a root (TS); everything with `extends` is a JSON recipe.
+  assert.deepEqual(fieldPrimitiveCatalogue().filter((p) => !p.extends).map((p) => p.id), ["field"]);
+  // The inlined `mapTo` allow-list in the form-field recipe still equals ISSUE_WRITE_TARGETS (no silent drift).
+  const formField = fieldPrimitive("form-field")!;
+  const mapToFloor = (formField.constraints ?? []).find((c) => c.id === "form-field-target");
+  assert.deepEqual((mapToFloor as { values?: string[] }).values, [...ISSUE_WRITE_TARGETS]);
+});
 
 test("field is the permissive ROOT (no floors); form-field carries the mapTo floor; types extend form-field", () => {
   const root = fieldPrimitive("field")!;

@@ -6,6 +6,7 @@ import { builtinArtifactViewsFor } from "../../definitions/artifact-views";
 import { useMethodologyComposition } from "../../lib/methodology-composition-api";
 import { isEnabled } from "../../lib/methodology-composition";
 import { useSavedViews } from "../../lib/saved-views";
+import { DataState } from "../DataState";
 import { RecordBoard } from "./RecordBoard";
 import { RecordList } from "./RecordList";
 import { RecordTable } from "./RecordTable";
@@ -22,14 +23,31 @@ export function EntityViews<T>({
   descriptor,
   scope = {},
   onOpen,
+  onCreate,
+  lockView,
+  recordFilter,
 }: {
   descriptor: EntityDescriptor<T>;
   scope?: ViewScope;
   onOpen: (record: ViewRecord<T>) => void;
+  /** OPTIONAL: create a new record seeded with a status (from a board column). Enables the board's
+   *  per-column "+" / empty "+ Add" affordance. Omitted → the board is read/move-only. */
+  onCreate?: (seed: { status?: string }) => void;
+  /** OPTIONAL: lock the engine to a single view id and hide the switcher chrome — how a methodology
+   *  single-view renderer (kanban/list) reuses the generic engine without the multi-view switcher. */
+  lockView?: string;
+  /** OPTIONAL: an entity-agnostic predicate applied to the records BEFORE the view's own filters/sort —
+   *  how a page adds a free search box (e.g. task-search syntax) without the engine knowing the entity. */
+  recordFilter?: (record: ViewRecord<T>) => boolean;
 }) {
-  const { records, isLoading, error } = descriptor.useRecords(scope);
+  const { records: rawRecords, isLoading, error, refetch } = descriptor.useRecords(scope);
+  const records = useMemo(() => (recordFilter ? rawRecords.filter(recordFilter) : rawRecords), [rawRecords, recordFilter]);
   const move = descriptor.useMove();
   const labelForPriority = descriptor.usePriorityLabel();
+  // Optional vocab seams — a given descriptor either always supplies these or never does (module
+  // singleton), so the conditional call order is stable (Rules-of-Hooks safe).
+  const vocabColumns = descriptor.useBoardColumns?.();
+  const labelForStatus = descriptor.useStatusLabel?.();
   const { data: savedAll } = useSavedViews();
   const { data: composition } = useMethodologyComposition();
 
@@ -41,7 +59,10 @@ export function EntityViews<T>({
   ], [descriptor, savedAll, composition]);
 
   const [viewId, setViewId] = useState<string | null>(null);
-  const current = views.find((v) => v.id === viewId) ?? views[0]!;
+  // `lockView` (when set) forces a single view and hides the switcher — the rest of the engine is
+  // unchanged, so a locked board still moves/creates/filters exactly like the full engine's board.
+  const effectiveId = lockView ?? viewId;
+  const current = views.find((v) => v.id === effectiveId) ?? views[0]!;
   const [filter, setFilter] = useState<string>("all");
 
   const dateFields = descriptor.fields.filter((f) => f.isDate);
@@ -63,17 +84,27 @@ export function EntityViews<T>({
       onToggleDone={(r) => move(r, descriptor.closedStatuses.includes(r.status) ? descriptor.reopenStatus : descriptor.doneStatus)}
       onOpen={onOpen}
       emptyMessage={emptyMessage}
+      {...(descriptor.parentOf ? { parentOf: descriptor.parentOf, treeStorageKey: descriptor.treeStorageKey ?? `${descriptor.entity}-tree-fold` } : {})}
     />
   );
 
   const body = () => {
     if (current.kind === "board") {
+      // Built-in board views take their columns LIVE from the org's resolved vocabulary (order,
+      // labels, colours) when the descriptor supplies them; a custom saved board view keeps its own
+      // authored columns; otherwise fall back to the descriptor's static preset.
+      const columns =
+        current.builtin && vocabColumns
+          ? vocabColumns
+          : current.boardColumns ?? vocabColumns ?? descriptor.presets[0]?.columns ?? [];
       return (
         <RecordBoard
           records={shaped}
-          columns={current.boardColumns ?? descriptor.presets[0]?.columns ?? []}
+          columns={columns}
           noun={descriptor.noun}
           labelForPriority={labelForPriority}
+          {...(labelForStatus ? { labelForStatus } : {})}
+          {...(onCreate ? { onCreate: (status: string) => onCreate({ status }) } : {})}
           onMove={move}
           onOpen={onOpen}
         />
@@ -97,8 +128,6 @@ export function EntityViews<T>({
       return <EntityChart records={shaped} fields={descriptor.fields} spec={current.chart ?? { type: "bar" }} noun={descriptor.noun} {...(current.style ? { style: current.style } : {})} />;
     }
     // list
-    if (isLoading) return <p className="text-sm text-muted-foreground">Loading…</p>;
-    if (error) return <p className="text-sm text-muted-foreground">Couldn't load {descriptor.noun}s.</p>;
     return (
       <>
         {current.statusFilter && (
@@ -122,13 +151,20 @@ export function EntityViews<T>({
 
   return (
     <div className="space-y-4">
-      {/* View switcher — built-in (read-only) views plus any custom saved views for this entity. */}
-      <div className="inline-flex flex-wrap border border-border" role="tablist" aria-label="View">
-        {views.map((v) => (
-          <button key={v.id} role="tab" aria-selected={current.id === v.id} onClick={() => { setViewId(v.id); setFilter("all"); }} className={tabClass(current.id === v.id)}>{v.name}</button>
-        ))}
-      </div>
-      {body()}
+      {/* View switcher — built-in (read-only) views plus any custom saved views for this entity.
+          Hidden when the engine is locked to a single view (a methodology single-view renderer). */}
+      {!lockView && (
+        <div className="inline-flex flex-wrap border border-border" role="tablist" aria-label="View">
+          {views.map((v) => (
+            <button key={v.id} role="tab" aria-selected={current.id === v.id} onClick={() => { setViewId(v.id); setFilter("all"); }} className={tabClass(current.id === v.id)}>{v.name}</button>
+          ))}
+        </div>
+      )}
+      {/* One loading/error/retry surface for EVERY view kind (board included), so a failed fetch shows
+          a recoverable alert instead of an empty board — the affordance the legacy board owned. */}
+      <DataState isLoading={isLoading} isError={error != null} error={error} {...(refetch ? { onRetry: refetch } : {})} className="w-full">
+        {body()}
+      </DataState>
     </div>
   );
 }

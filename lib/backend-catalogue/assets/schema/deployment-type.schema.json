@@ -1,0 +1,62 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://omniproject.dev/assets/deployment-type.schema.json",
+  "title": "OmniProject deployment type",
+  "description": "A deployment archetype a user picks on the way in — answer a few questions, get a known-good setup. One file per type under assets/deployment-types/<id>.json. Modelled on the methodology catalogue.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["id", "label", "description", "order", "setup"],
+  "properties": {
+    "id": { "type": "string", "pattern": "^[a-z0-9-]+$" },
+    "label": { "type": "string" },
+    "description": { "type": "string" },
+    "order": { "type": "integer", "description": "Display order in the picker." },
+    "questions": {
+      "type": "array",
+      "description": "The few questions asked after picking this type; each answer may refine the setup.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "label", "options", "default"],
+        "properties": {
+          "id": { "type": "string", "pattern": "^[a-z0-9-]+$" },
+          "label": { "type": "string" },
+          "help": { "type": "string" },
+          "options": {
+            "type": "array",
+            "minItems": 2,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["value", "label"],
+              "properties": {
+                "value": { "type": "string" },
+                "label": { "type": "string" }
+              }
+            }
+          },
+          "default": { "type": "string", "description": "The value used when the question is left unanswered." }
+        }
+      }
+    },
+    "setup": {
+      "type": "object",
+      "description": "The known-good base setup for this type (recommended config keys → values).",
+      "additionalProperties": { "type": "string" }
+    },
+    "refinements": {
+      "type": "array",
+      "description": "Conditional overrides: when ALL of `when` matches the answers, `set` is merged onto the setup (later refinements win).",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["when", "set"],
+        "properties": {
+          "when": { "type": "object", "additionalProperties": { "type": "string" } },
+          "set": { "type": "object", "additionalProperties": { "type": "string" } }
+        }
+      }
+    },
+    "notes": { "type": "string" }
+  }
+}

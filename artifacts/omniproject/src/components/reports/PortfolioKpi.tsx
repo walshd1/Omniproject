@@ -1,8 +1,7 @@
 import type { KeyboardEvent, MouseEvent, ReactNode } from "react";
 import { useGetPortfolioHealth, type PortfolioHealthSummary } from "@workspace/api-client-react";
 import { Link, useLocation } from "wouter";
-import { getComponent } from "@workspace/backend-catalogue";
-import { resolveDrillTo, overdueDrillTo, costOverrunDrillTo, type ResolvedDrillTo } from "../../lib/drill-to";
+import { resolveHealthDrills, type ResolvedDrillTo } from "../../lib/drill-to";
 import { DataState } from "../DataState";
 
 const RAG: Record<string, { dot: string; text: string; border: string }> = {
@@ -11,12 +10,6 @@ const RAG: Record<string, { dot: string; text: string; border: string }> = {
   RED: { dot: "bg-red-500", text: "text-red-500", border: "border-red-500/40" },
 };
 
-// The portfolioHealth widget's own JSON definition (lib/backend-catalogue/assets/widgets/portfolioHealth.json)
-// declares a `drillTo` for its BLOCKERS figure — the same declarative descriptor the generic SPA
-// drill-down resolver (lib/drill-to.ts) consumes for ANY report/widget. Reading it off the catalogue
-// (rather than hardcoding the predicate here) is what makes it declarative: editing the JSON changes
-// what clicking BLOCKERS filters to, with no code change here (backlog #122).
-const BLOCKERS_DRILL_TO = getComponent("widget:portfolioHealth")?.drillTo;
 
 /** A KPI figure that's also a drill-through when `canDrill` — a `role="link"` span (not a nested
  *  wouter `Link`, which would be invalid HTML inside the card's own `<a>`) with its own click/keyboard
@@ -56,17 +49,12 @@ function DrillFigure({
 }
 
 function KpiCard({ p }: { p: PortfolioHealthSummary }) {
-  const row = p as unknown as Record<string, unknown>;
   const rag = RAG[p.ragStatus] ?? RAG.AMBER!; // AMBER is a literal key of RAG, always present
-  const blockersDrill = BLOCKERS_DRILL_TO ? resolveDrillTo(BLOCKERS_DRILL_TO, row) : null;
-  // Built in code, not read off a catalogue JSON asset — "overdue"/"cost-incurring" aren't fixed
-  // literals the way portfolioHealth's `blocked truthy` is (backlog #132, see drill-to.ts).
-  const scheduleDrill = resolveDrillTo(overdueDrillTo(), row);
-  const budgetDrill = resolveDrillTo(costOverrunDrillTo(), row);
-  // A figure with nothing to show ("0 blocked", on-schedule, on-budget) has nothing to drill into.
-  const canDrillBlockers = !!blockersDrill && p.activeBlockersCount > 0;
-  const canDrillSchedule = !!scheduleDrill && p.scheduleVarianceDays < 0;
-  const canDrillBudget = !!budgetDrill && p.budgetVariancePercentage > 0;
+  // Blockers/schedule/budget drill-throughs (+ "nothing to show ⇒ not drillable") derived once, shared
+  // with the exec board-pack via lib/drill-to `resolveHealthDrills`.
+  const { blockers, schedule, budget } = resolveHealthDrills(p);
+  const blockersDrill = blockers.drill, scheduleDrill = schedule.drill, budgetDrill = budget.drill;
+  const canDrillBlockers = blockers.canDrill, canDrillSchedule = schedule.canDrill, canDrillBudget = budget.canDrill;
   return (
     <Link
       href={`/projects/${p.projectId}`}

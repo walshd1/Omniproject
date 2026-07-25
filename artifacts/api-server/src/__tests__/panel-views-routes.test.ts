@@ -1,16 +1,28 @@
 import { test, before, after, afterEach } from "node:test";
 import assert from "node:assert/strict";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import { startHarness, adminCookie, memberCookie, type Harness } from "./_harness";
 
 /**
  * routes/panel-views.ts over the REAL app — the org store of saved filtered/pivoted panel views. GET is open;
  * PUT follows the collection edit-policy (default user-editable, admin can lock/raise). Malformed entries 400.
+ * panelViews + collectionEditRoles are config defs now, so enable the sealed store.
  */
+process.env["SESSION_SECRET"] ??= "integration-harness-secret";
+const CONFIG_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "panel-views-routes-"));
+process.env["OMNI_CONFIG_DIR"] = CONFIG_DIR;
+
 let h: Harness;
 const ADMIN = adminCookie();
 before(async () => { h = await startHarness(); });
-after(() => h?.close());
-afterEach(async () => { const { updateSettings } = await import("../lib/settings"); updateSettings({ panelViews: [], collectionEditRoles: {} }); });
+after(() => { h?.close(); fs.rmSync(CONFIG_DIR, { recursive: true, force: true }); });
+afterEach(async () => {
+  const { writeOrgConfigCollection } = await import("../lib/scoped-config");
+  writeOrgConfigCollection("panel-views", "Panel views", []);
+  writeOrgConfigCollection("collection-edit-roles", "Collection edit roles", {});
+});
 const req = (p: string, o: Parameters<Harness["req"]>[1] = {}) => h.req(p, { cookie: ADMIN, ...o });
 
 const VIEW = { id: "budget-plans:budget-all-periods:by-year", label: "By year", screen: "budget-plans", panel: "budget-all-periods", state: { groupBy: "period:year", agg: "sum", filters: { currency: ["GBP"] } } };
@@ -34,19 +46,19 @@ test("panel-views: non-array filter values → 400", async () => {
 });
 
 test("panel-views: read-only policy blocks the write; default allows it", async () => {
-  const { updateSettings } = await import("../lib/settings");
-  updateSettings({ collectionEditRoles: { panelViews: "readonly" } });
+  const { writeOrgConfigCollection } = await import("../lib/scoped-config");
+  writeOrgConfigCollection("collection-edit-roles", "Collection edit roles", { panelViews: "readonly" });
   assert.equal((await req("/panel-views", { method: "PUT", body: { panelViews: [] } })).status, 403);
-  updateSettings({ collectionEditRoles: {} });
+  writeOrgConfigCollection("collection-edit-roles", "Collection edit roles", {});
   assert.equal((await req("/panel-views", { method: "PUT", body: { panelViews: [] } })).status, 200);
 });
 
 test("panel-views: a raised role gate is enforced; reads stay open", async () => {
-  const { updateSettings } = await import("../lib/settings");
+  const { writeOrgConfigCollection } = await import("../lib/scoped-config");
   const prev = process.env["OIDC_ISSUER_URL"]; process.env["OIDC_ISSUER_URL"] = "https://idp.example";
   try {
-    updateSettings({ collectionEditRoles: { panelViews: "pmo" } });
+    writeOrgConfigCollection("collection-edit-roles", "Collection edit roles", { panelViews: "pmo" });
     assert.equal((await h.req("/panel-views", { cookie: memberCookie(), method: "PUT", body: { panelViews: [] } })).status, 403);
     assert.equal((await h.req("/panel-views", { cookie: memberCookie() })).status, 200);
-  } finally { updateSettings({ collectionEditRoles: {} }); if (prev === undefined) delete process.env["OIDC_ISSUER_URL"]; else process.env["OIDC_ISSUER_URL"] = prev; }
+  } finally { writeOrgConfigCollection("collection-edit-roles", "Collection edit roles", {}); if (prev === undefined) delete process.env["OIDC_ISSUER_URL"]; else process.env["OIDC_ISSUER_URL"] = prev; }
 });

@@ -1,5 +1,5 @@
 import type { RequestHandler } from "express";
-import { getSettings } from "./settings";
+import { resolveMethodologyComposition } from "./scoped-config";
 import { isComposed } from "@workspace/backend-catalogue";
 
 /**
@@ -13,7 +13,7 @@ import { isComposed } from "@workspace/backend-catalogue";
 
 /** Is the OUTPUT `id` enabled under the current composition? (`null` composition ⇒ yes.) */
 export function isOutputComposed(id: string): boolean {
-  return isComposed(getSettings().methodologyComposition, "output", id);
+  return isComposed(resolveMethodologyComposition(), "output", id);
 }
 
 /** Map an /api-relative request path to the OUTPUT it serves (the catalogue output id), or null. */
@@ -29,9 +29,12 @@ const OUTPUT_ROUTES: ReadonlyArray<{ re: RegExp; output: string }> = [
   // not an egress output to gate, so it is deliberately omitted.
 ];
 
-/** The output an /api-relative path serves, or null when it isn't an output surface. */
+/** The output an /api-relative path serves, or null when it isn't an output surface. Normalises the path the
+ *  way Express routes it — case-insensitively and ignoring a trailing slash — BEFORE matching, so `/METRICS`
+ *  or `/metrics/` (which still reach the handler) can't slip past these case-sensitive, `$`-anchored patterns. */
 export function outputForPath(path: string): string | null {
-  return OUTPUT_ROUTES.find((r) => r.re.test(path))?.output ?? null;
+  const p = (path.length > 1 ? path.replace(/\/+$/, "") : path).toLowerCase();
+  return OUTPUT_ROUTES.find((r) => r.re.test(p))?.output ?? null;
 }
 
 /** Central middleware: 403 a request to an OUTPUT surface curated out of the composition; pass everything

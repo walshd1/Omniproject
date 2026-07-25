@@ -1,0 +1,6 @@
+{ "id": "gtd-overview", "label": "GTD overview", "methodologies": ["gtd"], "panels": [
+  { "id": "next-count", "kind": "metric", "title": "Next actions", "config": { "label": "Actionable now", "value": "0" } },
+  { "id": "next-actions", "kind": "table", "title": "Next actions by context", "config": { "source": "tasks" } },
+  { "id": "waiting-for", "kind": "register", "title": "Waiting for", "config": { "source": "tasks" } },
+  { "id": "weekly-review", "kind": "chart", "title": "Weekly review — stalled projects", "config": { "chart": { "type": "sparkline" } } }
+] }

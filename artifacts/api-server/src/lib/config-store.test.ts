@@ -70,6 +70,13 @@ test("createEnvironment clones the active env; rejects bad + duplicate names", (
   assert.throws(() => createEnvironment("sandbox"), /already exists/);
   assert.throws(() => createEnvironment(""), /Invalid environment name/);
   assert.throws(() => createEnvironment("bad name!"), /Invalid environment name/);
+  // Reserved prototype names pass the charset (constructor/prototype) or not (__proto__) but must all be
+  // refused — they'd otherwise key the shared `environments` plain object / read as an inherited member.
+  for (const bad of ["__proto__", "constructor", "prototype"]) {
+    assert.throws(() => createEnvironment(bad), /Invalid environment name/, `create ${bad}`);
+    assert.throws(() => activateEnvironment(bad), /Invalid environment name/, `activate ${bad}`);
+    assert.throws(() => promote("production", bad), /Invalid environment name/, `promote→${bad}`);
+  }
 });
 
 test("activateEnvironment switches the active env; rejects an unknown one", () => {

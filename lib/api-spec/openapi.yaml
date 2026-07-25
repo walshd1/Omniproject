@@ -685,6 +685,29 @@ paths:
               schema:
                 $ref: "#/components/schemas/PortfolioSummary"
 
+  /portfolio/financials:
+    get:
+      operationId: getPortfolioFinancials
+      tags: [projects]
+      summary: Portfolio financials consolidated into one reporting currency, rolled up by programme
+      description: >-
+        Fans out every project's financials + the FX table through the broker and folds them into
+        programme roll-ups + a portfolio total in one reporting currency (via the broker FX table).
+        `currency` overrides the org default reporting currency. Read-through and derive-only; nothing
+        is stored.
+      parameters:
+        - name: currency
+          in: query
+          required: false
+          schema: { type: string }
+      responses:
+        "200":
+          description: Consolidated portfolio financials
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PortfolioFinancials"
+
   /federated-portfolio:
     get:
       operationId: getFederatedPortfolio
@@ -1772,6 +1795,70 @@ components:
           allOf: [{ $ref: "#/components/schemas/CapacityTotals" }]
       required: [projects, health, finance, capacity]
 
+    FinanceLocalTotals:
+      type: object
+      description: A roll-up row's un-converted totals in its single local currency.
+      properties:
+        budget: { type: number }
+        actual: { type: number }
+        forecast: { type: number }
+        earnedValue: { type: number }
+      required: [budget, actual, forecast, earnedValue]
+
+    FinanceRollup:
+      type: object
+      description: A consolidated financial row (a programme, or the whole portfolio) in the reporting currency.
+      properties:
+        key: { type: string }
+        label: { type: string }
+        projects: { type: integer }
+        budget: { type: number }
+        actual: { type: number }
+        forecast: { type: number }
+        earnedValue: { type: number }
+        variance: { type: number }
+        cpi:
+          type: ["number", "null"]
+        localCurrency:
+          type: ["string", "null"]
+        local:
+          nullable: true
+          allOf: [{ $ref: "#/components/schemas/FinanceLocalTotals" }]
+        excludedForFx: { type: integer }
+      required: [key, label, projects, budget, actual, forecast, earnedValue, variance, cpi, localCurrency, local, excludedForFx]
+
+    CurrencyMix:
+      type: object
+      description: A distinct source currency seen across the portfolio and how many projects used it.
+      properties:
+        currency: { type: string }
+        projects: { type: integer }
+      required: [currency, projects]
+
+    PortfolioFinancials:
+      type: object
+      description: Portfolio financials consolidated into one reporting currency, rolled up by programme.
+      properties:
+        reportingCurrency: { type: string }
+        programmes:
+          type: array
+          items: { $ref: "#/components/schemas/FinanceRollup" }
+        portfolio: { $ref: "#/components/schemas/FinanceRollup" }
+        currencyMix:
+          type: array
+          items: { $ref: "#/components/schemas/CurrencyMix" }
+        fx:
+          nullable: true
+          type: object
+          properties:
+            base: { type: string }
+            provenance:
+              type: ["string", "null"]
+            asOf:
+              type: ["string", "null"]
+          required: [base, provenance, asOf]
+      required: [reportingCurrency, programmes, portfolio, currencyMix, fx]
+
     PeerPortfolioResult:
       type: object
       description: One configured peer's contribution to a federated view — always separately labeled, never blended into the local total.
@@ -2166,15 +2253,6 @@ components:
             Optional; absent until an admin selects one. The infra-level DEPLOYMENT_PROFILE
             env var takes precedence on a fresh boot (see docs/REVERSE-PROXY.md).
           enum: [enterprise, business, nonprofit, self-hosted, demo]
-        errorTelemetry:
-          type: boolean
-          description: >-
-            Admin opt-in. When true the SPA reports uncaught render errors (message +
-            component stack + page, never user/project data) to POST /client-errors, which
-            records them to the gateway's INTERNAL audit log. Off by default — the same
-            no-external-telemetry posture as the rest of the app.
-        loggingSync:
-          $ref: "#/components/schemas/LoggingSync"
         fieldOverrides:
           $ref: "#/components/schemas/FieldMapOverride"
       required:
@@ -2195,25 +2273,6 @@ components:
           type: object
           additionalProperties:
             $ref: "#/components/schemas/FieldSupport"
-
-    LoggingSync:
-      type: object
-      description: >-
-        Opt-in state-history egress to an operator-owned logging server (off by
-        default). The single deliberate relaxation of OmniProject's stateless
-        posture; egressed data is the operator's responsibility and outside
-        OmniProject's warranty. Enabling it unlocks historical time-travel.
-      properties:
-        enabled:
-          type: boolean
-        url:
-          type: ["string", "null"]
-        acknowledgedWarranty:
-          type: boolean
-          description: The admin acknowledged egressed data is outside OmniProject's warranty.
-      required:
-        - enabled
-        - acknowledgedWarranty
 
     SettingsUpdate:
       type: object
@@ -2254,11 +2313,6 @@ components:
             Set the deployment profile (admin). Persisted; the infra-level
             DEPLOYMENT_PROFILE env var still wins on a fresh boot (see docs/REVERSE-PROXY.md).
           enum: [enterprise, business, nonprofit, self-hosted, demo]
-        errorTelemetry:
-          type: boolean
-          description: Admin opt-in for internal client-error reporting (see Settings.errorTelemetry).
-        loggingSync:
-          $ref: "#/components/schemas/LoggingSync"
         fieldOverrides:
           $ref: "#/components/schemas/FieldMapOverride"
 

@@ -1,20 +1,34 @@
 import { test, before, after, afterEach } from "node:test";
 import assert from "node:assert/strict";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import { startHarness, adminCookie, type Harness } from "./_harness";
 
 /**
  * The per-deployment report-definition store (routes/reports.ts). Seeded from the built-in catalogue at
  * first boot, then deployment-owned JSON: GET is read-open, PUT is pmo+ and validated. This is the storage
  * half of "reports are data in the deployment's JSON store, bound to a registered renderer — never in code".
+ * The composition gate reads the `methodology-composition` config def, so enable the sealed store.
  */
+process.env["SESSION_SECRET"] ??= "integration-harness-secret";
+const CONFIG_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "reports-store-routes-"));
+process.env["OMNI_CONFIG_DIR"] = CONFIG_DIR;
+
+async function setComposition(value: string[] | null): Promise<void> {
+  const { writeOrgConfigCollection } = await import("../lib/scoped-config");
+  writeOrgConfigCollection("methodology-composition", "Methodology composition", value);
+}
+
 let h: Harness;
 before(async () => { h = await startHarness(); });
-after(() => h?.close());
+after(() => { h?.close(); fs.rmSync(CONFIG_DIR, { recursive: true, force: true }); });
 afterEach(async () => {
   // Restore the store to the catalogue seed so tests don't leak a mutated set.
   const { updateSettings } = await import("../lib/settings");
   const { reportCatalogue } = await import("@workspace/backend-catalogue");
   updateSettings({ reports: reportCatalogue() });
+  await setComposition(null);
 });
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -55,23 +69,21 @@ test("PUT /reports rejects a definition with no renderer → 400", async () => {
 });
 
 test("GET /reports is HARD-GATED by the methodology composition (curated → only composed reports)", async () => {
-  const { updateSettings } = await import("../lib/settings");
   try {
     // Curate the deployment strictly to two reports.
-    updateSettings({ methodologyComposition: ["report:evm", "report:burndown"] });
+    await setComposition(["report:evm", "report:burndown"]);
     const body = await json(await h.req("/reports", { cookie: adminCookie() }));
     const ids = body.reports.map((r: { id: string }) => r.id).sort();
     assert.deepEqual(ids, ["burndown", "evm"], "only the composed reports are served");
     // A curated-out report is NOT retrievable via the API — server-authoritative, not just an SPA filter.
     assert.equal(body.reports.find((r: { id: string }) => r.id === "portfolio-rag"), undefined);
   } finally {
-    updateSettings({ methodologyComposition: null }); // back to relaxed (everything)
+    await setComposition(null); // back to relaxed (everything)
   }
 });
 
 test("GET /reports with a null (uncurated) composition serves everything", async () => {
-  const { updateSettings } = await import("../lib/settings");
-  updateSettings({ methodologyComposition: null });
+  await setComposition(null);
   const body = await json(await h.req("/reports", { cookie: adminCookie() }));
   assert.ok(body.reports.length >= 20, "uncurated ⇒ all reports");
 });

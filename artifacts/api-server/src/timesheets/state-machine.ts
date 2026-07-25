@@ -5,6 +5,7 @@
  * is loaded from / saved to the store below the seam (self-host DB or a backend), so the gateway holds
  * nothing; this module only decides the next legal state.
  */
+import { round1 } from "@workspace/backend-catalogue";
 
 export type TimesheetStatus = "draft" | "submitted" | "approved" | "rejected";
 
@@ -36,8 +37,6 @@ export type TimesheetAction =
   | { type: "reopen" };
 
 export class TimesheetError extends Error {}
-
-const round1 = (n: number): number => Math.round(n * 10) / 10;
 
 /** Total logged hours on a sheet (non-finite entries ignored). */
 export function timesheetHours(sheet: Timesheet): number {

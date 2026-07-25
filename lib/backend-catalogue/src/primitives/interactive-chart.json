@@ -1,0 +1,23 @@
+{
+  "id": "interactive-chart",
+  "label": "Interactive chart",
+  "category": "chart",
+  "extends": "chart",
+  "description": "A chart WITH interaction — inherits every chart property and adds the interaction layer (hover/focus tooltips). Interactivity is a level in the taxonomy, so an interactive chart is a chart plus this.",
+  "params": [
+    {
+      "key": "interactive",
+      "label": "Interactive",
+      "type": "boolean",
+      "required": false,
+      "description": "Enable the hover/focus tooltip layer over the chart's marks."
+    },
+    {
+      "key": "tooltip",
+      "label": "Tooltip",
+      "type": "string",
+      "required": false,
+      "description": "Tooltip content template for a mark (defaults to its label + value)."
+    }
+  ]
+}

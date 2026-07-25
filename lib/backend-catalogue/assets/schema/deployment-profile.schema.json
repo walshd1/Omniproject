@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://omniproject.dev/assets/deployment-profile.schema.json",
+  "title": "OmniProject deployment profile",
+  "description": "A deployment's CONTEXT posture — it adjusts the couplings the gateway would otherwise make mandatory (TLS expectation, no-IdP severity) and carries the setup picker's per-audience preset. One file per profile under assets/deployment-profiles/<id>.json. Data, not code, so a new profile type ships as JSON.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["id", "label", "order", "audience", "tls", "demoAuthSeverity", "summary", "relaxes", "presetEnv", "recommend"],
+  "properties": {
+    "id": { "type": "string", "pattern": "^[a-z0-9-]+$" },
+    "label": { "type": "string" },
+    "order": { "type": "integer", "description": "Display order in the picker (strict → relaxed)." },
+    "default": { "type": "boolean", "description": "The profile chosen when none is set (exactly one asset should carry this)." },
+    "audience": { "type": "string", "description": "Who this profile is for (shown in the setup picker)." },
+    "tls": { "enum": ["required", "lan-ok"], "description": "Does the profile assume the gateway is served over HTTPS?" },
+    "demoAuthSeverity": { "enum": ["critical", "warn", "info"], "description": "Default severity of running without an IdP (demo auth = everyone admin)." },
+    "summary": { "type": "string" },
+    "relaxes": { "type": "array", "items": { "type": "string" }, "description": "What the profile relaxes vs the strict baseline (for the picker)." },
+    "presetEnv": {
+      "type": "array",
+      "description": "Suggested env to set for this customer type (the preset).",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["key", "why"],
+        "properties": {
+          "key": { "type": "string" },
+          "value": { "type": "string" },
+          "why": { "type": "string" }
+        }
+      }
+    },
+    "recommend": { "type": "array", "items": { "type": "string" }, "description": "What we'd recommend an operator on this profile do next." }
+  }
+}

@@ -1,14 +1,8 @@
 import { useEffect, useState } from "react";
-import { useQueryClient } from "@tanstack/react-query";
-import {
-  useGetSettings,
-  useUpdateSettings,
-  getGetSettingsQueryKey,
-  getGetCapabilitiesQueryKey,
-} from "@workspace/api-client-react";
 import { ServerCog, ShieldAlert } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { urlFormatError } from "../../lib/validation";
+import { useLoggingSync, useSaveLoggingSync } from "../../lib/logging-sync-api";
 
 /**
  * Admin control for the opt-in state-history egress (the "logging server").
@@ -17,35 +11,43 @@ import { urlFormatError } from "../../lib/validation";
  * destination URL AND an explicit acknowledgement that egressed data leaves
  * OmniProject's warranty — the server enforces both. Turning it on unlocks
  * historical time-travel.
+ *
+ * It's a SECURITY-classified `logging-sync` config def (roadmap Phase C): enabling (or redirecting the
+ * destination) reduces the posture, so the save may be HELD for a signed sign-off (the response carries
+ * `pending`) rather than applied at once — the toast reflects which happened.
  */
 export function LoggingSyncSettings() {
-  const { data: settings } = useGetSettings();
-  const update = useUpdateSettings();
-  const queryClient = useQueryClient();
+  const { data: sync } = useLoggingSync();
+  const update = useSaveLoggingSync();
   const { toast } = useToast();
 
-  const sync = settings?.loggingSync;
   const enabled = !!sync?.enabled;
   const [url, setUrl] = useState("");
   const [ack, setAck] = useState(false);
 
+  // Seed the local fields from the server config whenever it changes. `sync` is react-query-stable,
+  // so depending on the object (not its picked fields) is safe and keeps exhaustive-deps clean.
   useEffect(() => {
-    if (sync) {
-      setUrl(sync.url ?? "");
-      setAck(sync.acknowledgedWarranty);
-    }
-  }, [sync?.url, sync?.acknowledgedWarranty]);
+    if (!sync) return;
+    setUrl(sync.url ?? "");
+    setAck(sync.acknowledgedWarranty);
+  }, [sync]);
 
   const urlError = urlFormatError(url);
   const canEnable = !!url.trim() && !urlError && ack && !update.isPending;
 
   const save = (nextEnabled: boolean) => {
     update.mutate(
-      { data: { loggingSync: { enabled: nextEnabled, url: url.trim() || null, acknowledgedWarranty: ack } } },
+      { enabled: nextEnabled, url: url.trim() || null, acknowledgedWarranty: ack },
       {
-        onSuccess: () => {
-          queryClient.invalidateQueries({ queryKey: getGetSettingsQueryKey() });
-          queryClient.invalidateQueries({ queryKey: getGetCapabilitiesQueryKey() });
+        onSuccess: (res) => {
+          if (res?.pending) {
+            toast({
+              title: "SIGN-OFF REQUIRED",
+              description: "Enabling egress reduces the security posture — it's held for a signed sign-off. See Approvals.",
+            });
+            return;
+          }
           toast({
             title: nextEnabled ? "LOGGING SYNC ENABLED" : "LOGGING SYNC DISABLED",
             description: nextEnabled ? "Historical time-travel is now unlocked." : "Egress stopped; time-travel locked.",
