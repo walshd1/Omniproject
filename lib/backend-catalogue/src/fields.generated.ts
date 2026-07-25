@@ -1460,6 +1460,77 @@ export const FIELDS_DATA: FieldDescriptor[] = [
     "entity": "journal_entry"
   },
   {
+    "key": "dimensionType",
+    "label": "Dimension type",
+    "type": "enum",
+    "group": "financial",
+    "entity": "dimension"
+  },
+  {
+    "key": "dimensionCode",
+    "label": "Dimension code",
+    "type": "string",
+    "group": "financial",
+    "entity": "dimension"
+  },
+  {
+    "key": "dimensionName",
+    "label": "Dimension name",
+    "type": "string",
+    "group": "financial",
+    "entity": "dimension"
+  },
+  {
+    "key": "dimensionParentId",
+    "label": "Parent dimension",
+    "type": "reference",
+    "references": "dimension",
+    "group": "financial",
+    "entity": "dimension"
+  },
+  {
+    "key": "department",
+    "label": "Department",
+    "type": "reference",
+    "references": "dimension",
+    "group": "financial"
+  },
+  {
+    "key": "location",
+    "label": "Location",
+    "type": "reference",
+    "references": "dimension",
+    "group": "financial"
+  },
+  {
+    "key": "accountingClass",
+    "label": "Class",
+    "type": "reference",
+    "references": "dimension",
+    "group": "financial"
+  },
+  {
+    "key": "businessUnit",
+    "label": "Business unit",
+    "type": "reference",
+    "references": "dimension",
+    "group": "financial"
+  },
+  {
+    "key": "segment",
+    "label": "Segment",
+    "type": "reference",
+    "references": "dimension",
+    "group": "financial"
+  },
+  {
+    "key": "fund",
+    "label": "Fund",
+    "type": "reference",
+    "references": "dimension",
+    "group": "financial"
+  },
+  {
     "key": "invoiceNumber",
     "label": "Invoice Number",
     "type": "string",
