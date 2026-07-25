@@ -7,8 +7,7 @@ import {
   getDigestThresholds,
   DEFAULT_DIGEST_THRESHOLDS,
   __resetDigestThresholds,
-  startProactiveDigestScheduler,
-  __stopProactiveDigestScheduler,
+  proactiveDigestScheduledJob,
   digestIntervalHours,
 } from "./proactive-digest";
 import type { Broker, PortfolioRow } from "../broker/types";
@@ -17,7 +16,6 @@ import { updateSettings } from "./settings";
 
 afterEach(() => {
   delete process.env["PROACTIVE_DIGEST_INTERVAL_HOURS"];
-  __stopProactiveDigestScheduler();
   __resetDigestThresholds();
   updateSettings({ digestDelivery: { emailRecipients: [] } });
 });
@@ -162,19 +160,20 @@ test("runProactiveDigest SKIPS delivery for a healthy portfolio unless sendWhenE
   assert.equal(published.length, 1);
 });
 
-test("the scheduler is ON by a safe default and opts OUT at interval 0", () => {
-  // Default (no env) → weekly cadence, scheduler starts.
+test("the scheduled job is ON by a safe default and opts OUT at interval 0", () => {
+  const job = proactiveDigestScheduledJob();
+  assert.equal(job.id, "proactive-digest");
+  // Default (no env) → weekly cadence, job enabled.
   assert.equal(digestIntervalHours(), 24 * 7);
-  assert.equal(startProactiveDigestScheduler(async () => {}), true);
-  __stopProactiveDigestScheduler();
+  assert.deepEqual(job.resolveSchedule(), { kind: "interval", hours: 24 * 7 });
 
   // Explicit opt-out.
   process.env["PROACTIVE_DIGEST_INTERVAL_HOURS"] = "0";
   assert.equal(digestIntervalHours(), 0);
-  assert.equal(startProactiveDigestScheduler(async () => {}), false);
+  assert.equal(job.resolveSchedule(), null);
 
   // Custom cadence.
   process.env["PROACTIVE_DIGEST_INTERVAL_HOURS"] = "12";
   assert.equal(digestIntervalHours(), 12);
-  assert.equal(startProactiveDigestScheduler(async () => {}), true);
+  assert.deepEqual(job.resolveSchedule(), { kind: "interval", hours: 12 });
 });

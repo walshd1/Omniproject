@@ -5,7 +5,7 @@
  */
 import app, { bootstrap } from "./app";
 import { logger } from "./lib/logger";
-import { brokerKind, getBroker } from "./broker";
+import { brokerKind } from "./broker";
 import { isOidcConfigured } from "./lib/oidc";
 import { getSettings } from "./lib/settings";
 import { installShutdownHandlers } from "./lib/shutdown";
@@ -16,12 +16,9 @@ import { refreshMaintenanceFromShared, startMaintenanceFleetSync } from "./lib/m
 import { refreshAiAuthzFromShared, startAiAuthzFleetSync } from "./lib/security-state";
 import { startKeyRegistryFleetSync, refreshKeyRegistryFromShared } from "./lib/key-registry";
 import { startScimFleetSync, refreshScimFromShared } from "./lib/scim";
-import { startExecDigestScheduler, runExecDigest } from "./lib/exec-digest";
-import { startProactiveDigestScheduler, runProactiveDigest } from "./lib/proactive-digest";
-import { startScheduledExportScheduler, runScheduledExport } from "./lib/scheduled-export";
-import { startDriftCanaryScheduler, runDriftCanary } from "./lib/drift-canary";
 import { startRulesDispatcher } from "./lib/rules-dispatcher";
-import { startScheduleDispatcher } from "./lib/schedule-dispatcher";
+import { registerScheduledJobs } from "./lib/register-scheduled-jobs";
+import { startJobScheduler } from "./lib/job-scheduler";
 import { enforceReleaseProvenanceAtBoot } from "./lib/release-provenance";
 import { runSignedMigrations } from "./lib/release-migration";
 import { loadConfigDir } from "./lib/config-dir";
@@ -122,37 +119,23 @@ async function start(): Promise<void> {
   void refreshScimFromShared();
   startScimFleetSync();
 
-  // Optional single-instance scheduled executive digest (off unless EXEC_DIGEST_INTERVAL_HOURS>0;
-  // for a fleet, use the trigger endpoint + an external scheduler so it fires once).
-  startExecDigestScheduler(() => runExecDigest({ now: Date.now(), broker: getBroker() }));
-
   // Optional OTLP metrics push (off unless OTEL_EXPORTER_OTLP_ENDPOINT is set) — additive to the
   // always-on /api/metrics Prometheus scrape and the W3C-trace/OTLP span export. Interval-driven,
   // unref'd, best-effort.
   startMetricExport();
 
-  // Proactive "what needs me" digest — ON by a safe weekly default (opt-out): set
-  // PROACTIVE_DIGEST_INTERVAL_HOURS=0 to disable, or to a custom cadence. Single-instance timer;
-  // for a fleet, set it to 0 and drive POST /api/admin/proactive-digest/run from external cron so
-  // it fires once. A healthy portfolio yields an empty digest that is skipped, so "on" ≠ "noisy".
-  startProactiveDigestScheduler(() => runProactiveDigest({ now: Date.now(), broker: getBroker() }));
-  startScheduledExportScheduler(() => runScheduledExport({ now: Date.now(), broker: getBroker() }));
-
-  // Third-party API drift canary — ON by a safe 6-hourly default (opt-out): set
-  // DRIFT_CANARY_INTERVAL_HOURS=0 to disable, or to a custom cadence. Diffs the broker's
-  // read-only verify probe (and field enumeration, where supported) against the last run so a
-  // vendor API regression raises an alert instead of surfacing as a silent failure later.
-  // Single-instance timer; for a fleet, set it to 0 and drive POST /api/admin/drift-canary/run
-  // from external cron so it fires once. A quiet run dispatches nothing.
-  startDriftCanaryScheduler(() => runDriftCanary({ now: Date.now(), broker: getBroker() }));
-
-  // Rules engine — subscribe the dispatcher to domain events so enabled recipes fire on real changes.
-  // No-op unless RULES_ENGINE_EVENTS is set; inform-only (mutating recipes need the autonomous-grant path).
+  // Rules engine (event half) — subscribe the dispatcher to domain events so enabled recipes fire on real
+  // changes. No-op unless RULES_ENGINE_EVENTS is set; inform-only (mutating recipes need the autonomous-grant
+  // path). The time half (schedule-triggered recipes) is registered with the unified job scheduler below.
   startRulesDispatcher();
-  // Schedule dispatcher — the time-driven half: fires enabled `schedule` recipes (e.g. the fixed-asset
-  // depreciation period-run) via the same grant-gated path. Opt-in in-process timer (SCHEDULE_DISPATCH_INTERVAL_HOURS
-  // > 0), gated by the same rules-engine flag; a fleet drives it from an external cron instead.
-  startScheduleDispatcher();
+
+  // Unified job scheduler — the ONE place recurring background work is driven. Register every job (the exec /
+  // proactive digests, scheduled export, drift canary — each opt-out/opt-in by its own *_INTERVAL_HOURS — plus
+  // the schedule-triggered automation recipes), then start the single heartbeat. Each occurrence is claim-once
+  // (shared-KV CAS), so the timer is SAFE on every replica; set SCHEDULER_HEARTBEAT_MINUTES=0 to disable it and
+  // drive the jobs from an external cron instead. Digests stay silent when a portfolio is healthy.
+  registerScheduledJobs();
+  startJobScheduler();
 
   const server = app.listen(port, (err) => {
     if (err) {
