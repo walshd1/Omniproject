@@ -185,3 +185,11 @@ test("finance: a bill can't be approved without a 3-way match", () => {
   assert.equal(evaluateRuleset({ action: "update_bill", write: true, role: "manager", payload: { approvalState: "approved", matchStatus: "matched" } }).allow, true);
   assert.equal(evaluateRuleset({ action: "update_bill", write: true, role: "manager", payload: { approvalState: "draft" } }).allow, true); // not an approval → n/a
 });
+
+test("finance: no new invoice/quote to a customer on credit hold", () => {
+  setRuleModes({ "finance-credit-hold": "hard" });
+  assert.equal(evaluateRuleset({ action: "create_invoice", write: true, role: "manager", payload: { creditHold: true } }).allow, false);
+  assert.equal(evaluateRuleset({ action: "create_quote", write: true, role: "manager", payload: { creditHold: true } }).allow, false);
+  assert.equal(evaluateRuleset({ action: "create_invoice", write: true, role: "manager", payload: { creditHold: false } }).allow, true);
+  assert.equal(evaluateRuleset({ action: "create_invoice", write: true, role: "manager", payload: {} }).allow, true);
+});

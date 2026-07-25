@@ -1753,6 +1753,60 @@ export const FIELDS_DATA: FieldDescriptor[] = [
     "entity": "vendor"
   },
   {
+    "key": "creditHold",
+    "label": "Credit hold",
+    "type": "boolean",
+    "group": "financial"
+  },
+  {
+    "key": "dunningLevel",
+    "label": "Dunning level",
+    "type": "number",
+    "group": "financial"
+  },
+  {
+    "key": "dunningDate",
+    "label": "Last dunning date",
+    "type": "date",
+    "group": "financial"
+  },
+  {
+    "key": "agingBucket",
+    "label": "Aging bucket",
+    "type": "enum",
+    "group": "financial"
+  },
+  {
+    "key": "daysSalesOutstanding",
+    "label": "Days sales outstanding",
+    "type": "number",
+    "group": "financial"
+  },
+  {
+    "key": "collectionStatus",
+    "label": "Collection status",
+    "type": "enum",
+    "group": "financial"
+  },
+  {
+    "key": "writeOffAmount",
+    "label": "Write-off amount",
+    "type": "currency",
+    "group": "financial"
+  },
+  {
+    "key": "badDebtProvision",
+    "label": "Bad-debt provision",
+    "type": "currency",
+    "group": "financial"
+  },
+  {
+    "key": "statementDate",
+    "label": "Statement date",
+    "type": "date",
+    "group": "financial"
+  },
+  {
     "key": "invoiceNumber",
     "label": "Invoice Number",
     "type": "string",
