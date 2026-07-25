@@ -2092,6 +2092,169 @@ export const FIELDS_DATA: FieldDescriptor[] = [
     "group": "financial"
   },
   {
+    "key": "assetNumber",
+    "label": "Asset number",
+    "type": "string",
+    "group": "financial",
+    "entity": "fixed_asset"
+  },
+  {
+    "key": "assetName",
+    "label": "Asset name",
+    "type": "string",
+    "group": "financial",
+    "entity": "fixed_asset"
+  },
+  {
+    "key": "assetTag",
+    "label": "Asset tag",
+    "type": "string",
+    "group": "financial",
+    "entity": "fixed_asset"
+  },
+  {
+    "key": "assetCategory",
+    "label": "Asset category",
+    "type": "enum",
+    "options": [
+      "land",
+      "building",
+      "machinery",
+      "vehicle",
+      "furniture",
+      "it_equipment",
+      "intangible"
+    ],
+    "group": "financial",
+    "entity": "fixed_asset"
+  },
+  {
+    "key": "acquisitionDate",
+    "label": "Acquisition date",
+    "type": "date",
+    "group": "financial",
+    "entity": "fixed_asset"
+  },
+  {
+    "key": "acquisitionCost",
+    "label": "Acquisition cost",
+    "type": "currency",
+    "group": "financial",
+    "entity": "fixed_asset"
+  },
+  {
+    "key": "inServiceDate",
+    "label": "In-service date",
+    "type": "date",
+    "group": "financial",
+    "entity": "fixed_asset"
+  },
+  {
+    "key": "usefulLifeMonths",
+    "label": "Useful life (months)",
+    "type": "number",
+    "group": "financial",
+    "entity": "fixed_asset"
+  },
+  {
+    "key": "depreciationMethod",
+    "label": "Depreciation method",
+    "type": "enum",
+    "options": [
+      "straight_line",
+      "declining_balance",
+      "units_of_production",
+      "sum_of_years_digits"
+    ],
+    "group": "financial",
+    "entity": "fixed_asset"
+  },
+  {
+    "key": "salvageValue",
+    "label": "Salvage / residual value",
+    "type": "currency",
+    "group": "financial",
+    "entity": "fixed_asset"
+  },
+  {
+    "key": "accumulatedDepreciation",
+    "label": "Accumulated depreciation",
+    "type": "currency",
+    "group": "financial",
+    "entity": "fixed_asset"
+  },
+  {
+    "key": "netBookValue",
+    "label": "Net book value",
+    "type": "currency",
+    "group": "financial",
+    "entity": "fixed_asset"
+  },
+  {
+    "key": "impairmentLoss",
+    "label": "Impairment loss",
+    "type": "currency",
+    "group": "financial",
+    "entity": "fixed_asset"
+  },
+  {
+    "key": "assetStatus",
+    "label": "Asset status",
+    "type": "enum",
+    "options": [
+      "in_service",
+      "disposed",
+      "impaired",
+      "held_for_sale"
+    ],
+    "group": "financial",
+    "entity": "fixed_asset"
+  },
+  {
+    "key": "assetCustodian",
+    "label": "Custodian",
+    "type": "user",
+    "group": "financial",
+    "entity": "fixed_asset"
+  },
+  {
+    "key": "assetLocation",
+    "label": "Asset location",
+    "type": "reference",
+    "references": "dimension",
+    "group": "financial",
+    "entity": "fixed_asset"
+  },
+  {
+    "key": "assetCostCentre",
+    "label": "Asset cost centre",
+    "type": "reference",
+    "references": "dimension",
+    "group": "financial",
+    "entity": "fixed_asset"
+  },
+  {
+    "key": "disposalDate",
+    "label": "Disposal date",
+    "type": "date",
+    "group": "financial",
+    "entity": "fixed_asset"
+  },
+  {
+    "key": "disposalProceeds",
+    "label": "Disposal proceeds",
+    "type": "currency",
+    "group": "financial",
+    "entity": "fixed_asset"
+  },
+  {
+    "key": "gainLossOnDisposal",
+    "label": "Gain / loss on disposal",
+    "type": "currency",
+    "group": "financial",
+    "entity": "fixed_asset"
+  },
+  {
     "key": "invoiceNumber",
     "label": "Invoice Number",
     "type": "string",
