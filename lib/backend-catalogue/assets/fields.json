@@ -1262,5 +1262,54 @@
     "type": "enum",
     "group": "financial",
     "entity": "purchase_order"
+  },
+  {
+    "key": "accountCode",
+    "label": "Account code",
+    "type": "string",
+    "group": "financial",
+    "entity": "gl_account"
+  },
+  {
+    "key": "accountName",
+    "label": "Account name",
+    "type": "string",
+    "group": "financial",
+    "entity": "gl_account"
+  },
+  {
+    "key": "accountType",
+    "label": "Account type",
+    "type": "enum",
+    "group": "financial",
+    "entity": "gl_account"
+  },
+  {
+    "key": "journalDate",
+    "label": "Journal date",
+    "type": "date",
+    "group": "financial",
+    "entity": "journal_entry"
+  },
+  {
+    "key": "journalDebit",
+    "label": "Debit",
+    "type": "currency",
+    "group": "financial",
+    "entity": "journal_entry"
+  },
+  {
+    "key": "journalCredit",
+    "label": "Credit",
+    "type": "currency",
+    "group": "financial",
+    "entity": "journal_entry"
+  },
+  {
+    "key": "journalMemo",
+    "label": "Journal memo",
+    "type": "string",
+    "group": "financial",
+    "entity": "journal_entry"
   }
 ]
