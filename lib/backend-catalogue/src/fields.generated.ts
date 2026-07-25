@@ -280,7 +280,8 @@ export const FIELDS_DATA: FieldDescriptor[] = [
   {
     "key": "costCenter",
     "label": "Cost centre",
-    "type": "string",
+    "type": "reference",
+    "references": "dimension",
     "group": "financial"
   },
   {
