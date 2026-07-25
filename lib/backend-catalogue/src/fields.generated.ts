@@ -1143,6 +1143,41 @@ export const FIELDS_DATA: FieldDescriptor[] = [
     "entity": "invoice"
   },
   {
+    "key": "taxRateName",
+    "label": "Tax rate name",
+    "type": "string",
+    "group": "financial",
+    "entity": "tax_rate"
+  },
+  {
+    "key": "taxRateCode",
+    "label": "Tax code",
+    "type": "string",
+    "group": "financial",
+    "entity": "tax_rate"
+  },
+  {
+    "key": "taxRatePercent",
+    "label": "Tax rate",
+    "type": "percent",
+    "group": "financial",
+    "entity": "tax_rate"
+  },
+  {
+    "key": "taxRateJurisdiction",
+    "label": "Tax jurisdiction",
+    "type": "string",
+    "group": "financial",
+    "entity": "tax_rate"
+  },
+  {
+    "key": "taxRateCompound",
+    "label": "Compound tax",
+    "type": "boolean",
+    "group": "financial",
+    "entity": "tax_rate"
+  },
+  {
     "key": "invoiceNumber",
     "label": "Invoice Number",
     "type": "string",

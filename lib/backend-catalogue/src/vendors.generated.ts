@@ -1095,6 +1095,25 @@ export const BACKENDS_DATA: BackendDefinition[] = [
         "body": "={{ JSON.stringify($json.body.payload) }}",
         "method": "PUT",
         "url": "={{ $env.INVOICE_NINJA_URL }}/api/v1/quotes/{{ $json.body.payload.quoteId }}"
+      },
+      "list_tax_rates": {
+        "method": "GET",
+        "note": "Tax-rate table (finance superset F5).",
+        "url": "={{ $env.INVOICE_NINJA_URL }}/api/v1/tax_rates"
+      },
+      "get_tax_rate": {
+        "method": "GET",
+        "url": "={{ $env.INVOICE_NINJA_URL }}/api/v1/tax_rates/{{ $json.body.payload.taxRateId }}"
+      },
+      "create_tax_rate": {
+        "body": "={{ JSON.stringify($json.body.payload) }}",
+        "method": "POST",
+        "url": "={{ $env.INVOICE_NINJA_URL }}/api/v1/tax_rates"
+      },
+      "update_tax_rate": {
+        "body": "={{ JSON.stringify($json.body.payload) }}",
+        "method": "PUT",
+        "url": "={{ $env.INVOICE_NINJA_URL }}/api/v1/tax_rates/{{ $json.body.payload.taxRateId }}"
       }
     },
     "authHeader": "",
@@ -1143,7 +1162,12 @@ export const BACKENDS_DATA: BackendDefinition[] = [
       "quoteExpiryDate",
       "quoteNumber",
       "quoteStatus",
-      "recurringFrequency"
+      "recurringFrequency",
+      "taxRateCode",
+      "taxRateCompound",
+      "taxRateJurisdiction",
+      "taxRateName",
+      "taxRatePercent"
     ],
     "fields": [
       {
@@ -1185,7 +1209,7 @@ export const BACKENDS_DATA: BackendDefinition[] = [
     ],
     "id": "invoice-ninja",
     "label": "Invoice Ninja (billing)",
-    "notes": "Open-source, self-hostable billing system of record. Implements the invoice contract verbs plus the client (customer-master), product (item-catalogue), payment (AR-receipt), credit-note and quote verbs (financials capability) — not a project/issue tracker. Auth via the X-API-Token header (configure an n8n Header Auth credential holding INVOICE_NINJA_TOKEN). INVOICE_NINJA_URL e.g. https://invoicing.example.com. The gateway shapes the payload (lib/invoice-ninja.ts toNinjaInvoice) and dispatches the verb through the broker, so the API token never leaves the broker's secret store.",
+    "notes": "Open-source, self-hostable billing system of record. Implements the invoice contract verbs plus the client (customer-master), product (item-catalogue), payment (AR-receipt), credit-note, quote and tax-rate verbs (financials capability) — not a project/issue tracker. Auth via the X-API-Token header (configure an n8n Header Auth credential holding INVOICE_NINJA_TOKEN). INVOICE_NINJA_URL e.g. https://invoicing.example.com. The gateway shapes the payload (lib/invoice-ninja.ts toNinjaInvoice) and dispatches the verb through the broker, so the API token never leaves the broker's secret store.",
     "primaryRecord": "invoice",
     "requiredEnv": [
       "INVOICE_NINJA_URL"
