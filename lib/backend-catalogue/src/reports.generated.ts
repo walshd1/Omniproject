@@ -442,6 +442,35 @@ export const REPORTS_DATA: ReportDefinition[] = [
     "order": 91
   },
   {
+    "id": "financial-statements",
+    "label": "Financial Statements",
+    "docsUrl": "",
+    "kind": "financial",
+    "renderer": {
+      "engine": "builtin",
+      "component": "FinancialStatements"
+    },
+    "capabilities": {
+      "requiresCapability": "financials",
+      "timeSeries": false,
+      "exports": [
+        "csv",
+        "pdf",
+        "png"
+      ]
+    },
+    "tools": [
+      "revenue",
+      "actualCost",
+      "grossProfit",
+      "margin",
+      "invoicedAmount",
+      "unbilled"
+    ],
+    "notes": "Consolidated financial statements (finance superset F9): a project-level P&L (income − cost → gross profit + margin) and a receivables summary (invoiced vs unbilled), derived live from the canonical revenue / actualCost / invoicedAmount fields. Balance sheet, cash-flow statement and aged AP populate when a general-ledger / banking backend (the finance ledger/banking contract verbs) is connected. Stateless.",
+    "order": 75
+  },
+  {
     "id": "financial-summary",
     "label": "Financial summary",
     "docsUrl": "",
