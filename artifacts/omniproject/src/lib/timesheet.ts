@@ -7,6 +7,7 @@
  * identically wherever they run.
  */
 
+import { round1 } from "./num";
 export type TimesheetStatus = "draft" | "submitted" | "approved" | "rejected";
 
 /** One line: hours logged against a project (and optionally a work item) on a day. */
@@ -42,7 +43,6 @@ export type TimesheetAction =
 
 export class TimesheetError extends Error {}
 
-const round1 = (n: number): number => Math.round(n * 10) / 10;
 
 /** Total hours on a sheet. */
 export function timesheetHours(sheet: Timesheet): number {

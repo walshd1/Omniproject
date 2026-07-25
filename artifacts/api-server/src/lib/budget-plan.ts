@@ -10,6 +10,11 @@ export class BudgetPlanError extends Error {
   constructor(message: string) { super(message); this.name = "BudgetPlanError"; }
 }
 
+/** Currency a plan falls back to when it omits `currency`. The deployment's reporting currency is passed in
+ *  by the caller (settings) so this module stays a pure JSON constructor and never imports settings back
+ *  — a static cycle would put BudgetPlanError in the TDZ and crash settings init. */
+const FALLBACK_CURRENCY = "GBP";
+
 /** One period's planned amount — `period` is a free label a deployment chooses ("2026", "2026-Q1", "2026-03"). */
 export interface BudgetPeriod {
   period: string;
@@ -26,15 +31,18 @@ export interface BudgetPlan {
 
 const str = (v: unknown): string => (typeof v === "string" ? v.trim() : "");
 
-/** Validate + normalise the stored budget-plan list. Pure — throws {@link BudgetPlanError}. */
-export function validateBudgetPlans(value: unknown): BudgetPlan[] {
+/** Validate + normalise the stored budget-plan list. Pure — throws {@link BudgetPlanError}. `defaultCurrency`
+ *  (the deployment's reporting currency, supplied by the caller) fills in a plan that omits `currency`, so a
+ *  USD/EUR enterprise doesn't silently get GBP; when unset it falls back to {@link FALLBACK_CURRENCY}. */
+export function validateBudgetPlans(value: unknown, defaultCurrency?: string): BudgetPlan[] {
   if (!Array.isArray(value)) throw new BudgetPlanError("budgetPlans must be an array");
+  const fallback = str(defaultCurrency) || FALLBACK_CURRENCY;
   const ids = new Set<string>();
   return value.map((raw) => {
     const o = (raw ?? {}) as Record<string, unknown>;
     const id = str(o["id"]);
     const projectId = str(o["projectId"]);
-    const currency = str(o["currency"]) || "GBP";
+    const currency = str(o["currency"]) || fallback;
     if (!id || !projectId) throw new BudgetPlanError("each budget plan needs id, projectId");
     if (ids.has(id)) throw new BudgetPlanError(`duplicate budget plan id "${id}"`);
     ids.add(id);

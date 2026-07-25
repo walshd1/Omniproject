@@ -1,0 +1,5 @@
+{ "id": "kanban-overview", "label": "Kanban overview", "methodologies": ["kanban"], "panels": [
+  { "id": "wip", "kind": "metric", "title": "WIP", "config": { "label": "In progress", "value": "0" } },
+  { "id": "board", "kind": "table", "title": "Board", "config": { "source": "issues" } },
+  { "id": "cycle-time", "kind": "chart", "title": "Cycle time", "config": { "chart": { "type": "sparkline" } } }
+] }

@@ -8,7 +8,7 @@ process.env["WEBAUTHN_ORIGIN"] = "https://omni.test";
 const { registerCredential } = await import("./passkey");
 const {
   createProposal, challengeForStage, submitDecision, inboxFor, registerApprovalExecutor,
-  ApprovalServiceError,
+  bypassProposal, challengeForBypass, ApprovalServiceError,
 } = await import("./approval-service");
 const { ApprovalChainError } = await import("./approval-chain");
 const { updateSettings } = await import("./settings");
@@ -39,6 +39,40 @@ const actor = (sub: string, roles: string[]): Actor => ({ sub, roles, via: "huma
 const twoStage = (): ChainDef => ({
   id: "cd1", scope: { kind: "org" }, rejectionPolicy: "abort",
   stages: [{ id: "s1", approvers: [{ kind: "role", role: "pm" }] }, { id: "s2", approvers: [{ kind: "user", sub: "pmo-1" }] }],
+});
+// A genuine dual-control chain (distinct approvers across 2 stages) — e.g. a security relaxation.
+const dualControl = (): ChainDef => ({
+  id: "dc", scope: { kind: "org" }, rejectionPolicy: "abort", requireDistinctApprovers: true,
+  stages: [{ id: "s1", approvers: [{ kind: "role", role: "admin" }] }, { id: "s2", approvers: [{ kind: "role", role: "admin" }] }],
+});
+const singleStage = (): ChainDef => ({
+  id: "ss", scope: { kind: "org" }, rejectionPolicy: "abort",
+  stages: [{ id: "s1", approvers: [{ kind: "role", role: "admin" }] }],
+});
+
+test("bypass: a single actor CANNOT override a dual-control chain, but the escape hatch still works on a single-approver chain", async () => {
+  await enroll("pmo-1");
+  let relaxed = false, shipped = false;
+  registerApprovalExecutor("relax", () => { relaxed = true; });
+  registerApprovalExecutor("ship", () => { shipped = true; });
+
+  // A dual-control proposal: no bypass challenge is issued, and bypass itself is refused (before any
+  // signature is even consumed) — so one PMO can't collapse a two-distinct-admin control.
+  const dcId = await createProposal({ def: dualControl(), action: "relax", params: {}, proposedBy: "maker" });
+  assert.equal(await challengeForBypass(dcId, "pmo-1"), null);
+  await assert.rejects(
+    () => bypassProposal(dcId, actor("pmo-1", ["pmo"]), sign("pmo-1", "unused", "approve")),
+    (e: unknown) => e instanceof ApprovalServiceError && /dual-control|distinct approvers/i.test(e.message),
+  );
+  assert.equal(relaxed, false); // the executor never ran
+
+  // A single-approver chain remains bypassable (the intended "get out of jail" escape hatch).
+  const ssId = await createProposal({ def: singleStage(), action: "ship", params: {}, proposedBy: "maker" });
+  const c = (await challengeForBypass(ssId, "pmo-1"))!;
+  assert.ok(c.challenge);
+  const r = await bypassProposal(ssId, actor("pmo-1", ["pmo"]), sign("pmo-1", c.challenge, "approve"));
+  assert.equal(r.executed, true);
+  assert.equal(shipped, true);
 });
 
 test("full signed chain drives to approved and runs the executor exactly once", async () => {

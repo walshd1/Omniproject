@@ -20,6 +20,26 @@ export interface DefBinding {
   locked?: boolean;
 }
 
+// ── Slot vocabulary ──────────────────────────────────────────────────────────────────────────────────────
+// A slot is an opaque string; the resolver never inspects it. But a slot must be UNAMBIGUOUS across the def
+// kinds that share this layer, so each kind namespaces its slots. Screens/reports/methodologies use their bare
+// logical id (`"projects"`, `"burn-rate"`); PRIMITIVES use `primitive:<id>` so an org can pin WHICH activated
+// primitive is in use for a family and LOCK it, without colliding with a same-named screen/report slot. Locking
+// a primitive slot is the mechanism behind "the org mandates this primitive down the subtree — a project can't
+// re-fork or re-select it": a project's own activated primitive (roadmap X — per-scope activation) is shadowed
+// by the org's locked selection exactly like any other slot.
+const PRIMITIVE_SLOT_PREFIX = "primitive:";
+
+/** The binding slot key for a primitive family (namespaced, so it never collides with a screen/report slot). */
+export function primitiveSlot(primitiveId: string): string {
+  return `${PRIMITIVE_SLOT_PREFIX}${primitiveId}`;
+}
+
+/** Whether a slot addresses a primitive selection (vs a screen/report/methodology slot). */
+export function isPrimitiveSlot(slot: string): boolean {
+  return slot.startsWith(PRIMITIVE_SLOT_PREFIX);
+}
+
 /** Bindings at each scope. `org` is the ceiling; `project` narrows it; `user` is the individual's own pick
  *  (a user binding never locks anyone else). Mirrors the governance scope maps (org default + per-id maps). */
 export interface DefBindingConfig {

@@ -285,7 +285,7 @@ export function patchUser(id: string, operations: Array<{ op: string; path?: str
     if (op === "replace" || op === "add") {
       if (p === "active" || (!p && typeof value === "object" && value && "active" in (value as object))) {
         const v = p === "active" ? value : (value as { active?: unknown }).active;
-        user.active = v === true || v === "true";
+        user.active = coerceActive(v, user.active);
       } else if (p === "displayname") {
         user.displayName = String(value ?? "");
       } else if (p === "username") {

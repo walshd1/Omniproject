@@ -3,6 +3,7 @@ import crypto from "node:crypto";
 import { getSession } from "./auth";
 import { roleForReq, isDeprovisioned, ROLES } from "../lib/rbac";
 import { addClient, clientCount, canAddClient } from "../lib/notify-hub";
+import { constantTimeEqual } from "../lib/crypto-keys";
 import { openSse, keepAlive, type SseStream } from "../lib/sse";
 import { getNotifyBus, busMode } from "../lib/notify-bus";
 import { emitWebhookEvent } from "../lib/webhooks";
@@ -28,6 +29,14 @@ export const ingestRouter: Router = Router();
 // GET /api/notifications/stream — live channel for the in-app bell.
 streamRouter.get("/notifications/stream", (req: Request, res: Response) => {
   const session = getSession(req);
+
+  // SSE requires an INTERACTIVE session. A read-only API/BI token has no `sub`, so it can't be counted
+  // against the per-principal stream cap — an uncapped held stream is a socket/timer-exhaustion DoS.
+  // Refuse it up front (the in-app bell is a session feature; tokens are for data feeds, not streams).
+  if (!session?.sub) {
+    res.status(403).json({ error: "Notification streaming requires an interactive session." });
+    return;
+  }
 
   // Cap concurrent streams per principal BEFORE opening the SSE response (a held connection isn't
   // counted by the request rate-limiter). Reject with 429 rather than opening an uncapped stream.
@@ -79,9 +88,8 @@ function ingestAuth(req: Request, res: Response, next: NextFunction): void {
   const token = Array.isArray(header) ? header[0] : header;
   const bearer = token?.startsWith("Bearer ") ? token.slice(7) : token;
   const provided = bearer ?? (req.headers["x-notify-secret"] as string | undefined);
-  // Constant-time comparison to avoid leaking the secret via timing.
-  const ok = !!provided && provided.length === INGEST_SECRET.length &&
-    crypto.timingSafeEqual(Buffer.from(provided), Buffer.from(INGEST_SECRET));
+  // Constant-time comparison (shared helper) to avoid leaking the secret via timing.
+  const ok = !!provided && constantTimeEqual(provided, INGEST_SECRET);
   if (!ok) {
     res.status(401).json({ error: "Invalid ingest secret" });
     return;

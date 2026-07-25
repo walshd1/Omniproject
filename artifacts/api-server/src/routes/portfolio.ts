@@ -7,6 +7,7 @@ import { Router, type Request } from "express";
 import { getBroker, contextFromReq, withBrokerErrors, type PortfolioRow } from "../broker";
 import { analyticsLimiter } from "../lib/rate-limit";
 import { computeLocalPortfolioSummary, type PortfolioSummary } from "../lib/portfolio-summary";
+import { computePortfolioFinancials } from "../lib/portfolio-financials";
 
 const router = Router();
 
@@ -33,6 +34,16 @@ router.get("/portfolio/summary", analyticsLimiter, (req, res) =>
   withBrokerErrors(req, res, "get_portfolio_summary failed", async () => {
     const summary: PortfolioSummary = await computeLocalPortfolioSummary(req);
     res.json(summary);
+  }),
+);
+
+// GET /api/portfolio/financials?currency=X — budget/actual/forecast consolidated across the whole
+// portfolio into ONE reporting currency (via the broker FX table), rolled up by programme. The
+// server-side fan-out that lets the Portfolio Financials report be a declarative definition bound to
+// this endpoint instead of a bespoke client renderer.
+router.get("/portfolio/financials", analyticsLimiter, (req, res) =>
+  withBrokerErrors(req, res, "get_portfolio_financials failed", async () => {
+    res.json(await computePortfolioFinancials(req, req.query["currency"]));
   }),
 );
 

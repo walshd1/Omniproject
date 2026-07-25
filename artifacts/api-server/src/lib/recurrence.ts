@@ -23,7 +23,10 @@ function parseDay(iso: string): Date | null {
   return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
 }
 
-const toISODate = (d: Date): string => d.toISOString().slice(0, 10);
+/** YYYY-MM-DD for a VALID date, or null when the date overflowed the ±8.64e15 ms JS Date range (e.g. an
+ *  absurd `INTERVAL=9999999999` from a hostile `recurrence` rule). Callers already surface null as "no next
+ *  occurrence", so this turns a would-be `RangeError` out of `toISOString()` into a benign no-recurrence. */
+const toISODate = (d: Date): string | null => (Number.isFinite(d.getTime()) ? d.toISOString().slice(0, 10) : null);
 
 /** Add a whole number of calendar units to a UTC date (month/year clamp the day-of-month, e.g. Jan 31 +1mo → Feb 28/29). */
 function addUnit(d: Date, unit: "day" | "week" | "month" | "year", n: number): Date {

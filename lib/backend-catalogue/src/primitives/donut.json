@@ -1,0 +1,38 @@
+{
+  "id": "donut",
+  "label": "Donut chart",
+  "category": "chart",
+  "extends": "chart",
+  "chartType": "donut",
+  "description": "A pie with a hollow centre — the same share-of-whole read, with room for a centre total.",
+  "params": [
+    {
+      "key": "data",
+      "label": "Slices",
+      "type": "slices",
+      "required": true,
+      "description": "{ name, value } per slice."
+    },
+    {
+      "key": "legend",
+      "label": "Legend",
+      "type": "boolean",
+      "required": false,
+      "description": "Show the series legend (auto for ≥2 series)."
+    },
+    {
+      "key": "height",
+      "label": "Height",
+      "type": "number",
+      "required": false,
+      "description": "Pixel height, or a percent string for responsive containers."
+    },
+    {
+      "key": "palette",
+      "label": "Palette",
+      "type": "palette",
+      "required": false,
+      "description": "Ordered hex colours; series/slices take them in turn."
+    }
+  ]
+}

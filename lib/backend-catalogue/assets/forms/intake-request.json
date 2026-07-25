@@ -1,0 +1,15 @@
+{
+  "id": "intake-request",
+  "label": "Work request",
+  "description": "Submit a new piece of work for triage.",
+  "submitLabel": "Submit request",
+  "methodologies": ["*"],
+  "fields": [
+    { "key": "summary", "label": "Summary", "type": "text", "mapTo": "title", "required": true, "placeholder": "Short title for the request", "maxLength": 200 },
+    { "key": "details", "label": "What do you need?", "type": "textarea", "mapTo": "description", "required": true, "maxLength": 4000 },
+    { "key": "priority", "label": "Priority", "type": "select", "mapTo": "priority", "options": ["low", "medium", "high", "urgent"], "required": true },
+    { "key": "neededBy", "label": "Needed by", "type": "date", "mapTo": "dueDate" },
+    { "key": "requestedBy", "label": "Requested by", "type": "text", "mapTo": "description", "maxLength": 120 }
+  ],
+  "target": { "kind": "issue", "status": "triage", "labels": ["intake"] }
+}

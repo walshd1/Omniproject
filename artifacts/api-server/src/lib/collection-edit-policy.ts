@@ -1,6 +1,6 @@
 import type { Request, Response, NextFunction } from "express";
-import { getSettings } from "./settings";
 import { grantsForReq, grantsSatisfy, roleForReq, ROLES, type Role } from "./rbac";
+import { readConfigCollection } from "./scoped-config";
 
 /**
  * Configurable per-collection EDIT policy for screen content. The product default is "content is
@@ -14,7 +14,7 @@ const VALID = new Set<string>([...ROLES, "readonly"]);
 
 /** The configured policy for a collection, or undefined to fall back to the route's default. */
 export function editPolicyFor(collection: string): EditPolicy | undefined {
-  const v = getSettings().collectionEditRoles?.[collection];
+  const v = readConfigCollection<Record<string, string>>("collection-edit-roles", {})[collection];
   return typeof v === "string" && VALID.has(v) ? (v as EditPolicy) : undefined;
 }
 

@@ -1,0 +1,14 @@
+{
+  "id": "scrum-starter",
+  "label": "Scrum project",
+  "description": "A sprint-ready backlog with the usual ceremonies as work items.",
+  "methodology": "scrum",
+  "methodologies": ["scrum", "agile"],
+  "project": { "description": "Scrum project created from a template." },
+  "seedIssues": [
+    { "title": "Sprint 0: set up the board & backlog", "status": "todo", "priority": "high", "labels": ["setup"] },
+    { "title": "Define the Definition of Done", "status": "todo", "priority": "medium" },
+    { "title": "First sprint planning", "status": "todo", "priority": "medium" },
+    { "title": "Backlog: sample user story", "status": "backlog", "priority": "low", "labels": ["story"] }
+  ]
+}

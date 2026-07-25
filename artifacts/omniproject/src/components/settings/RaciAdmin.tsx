@@ -21,7 +21,7 @@ export function RaciAdmin() {
   const { data: server } = useRaci();
   const save = useSaveRaci();
   const { toast } = useToast();
-  const { draft, setDraft, dirty, reset } = useDraftAdmin<RaciEntry[], RaciEntry[]>(server, structuredClone);
+  const { draft, setDraft, dirty, reset } = useDraftAdmin<RaciEntry[], RaciEntry[]>(server);
 
   if (!roleAtLeast(auth?.role, "manager")) return null;
 

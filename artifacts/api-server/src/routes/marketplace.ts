@@ -2,7 +2,7 @@ import crypto from "node:crypto";
 import { Router } from "express";
 import { contextFromReq, withBrokerErrors } from "../broker";
 import { requireRole } from "../lib/rbac";
-import { artifactStoreEnabled } from "../lib/artifact-store";
+import { artifactStoreEnabled, requireArtifactStore } from "../lib/artifact-store";
 import {
   sanitizeExtensionInstall, newExtensionRow, setExtensionStatus, extensionMeta,
   listExtensions, getExtension, putExtension, deleteExtension, ExtensionError,
@@ -45,7 +45,7 @@ router.post("/extensions", requireRole("admin"), (req, res) => {
   try { input = sanitizeExtensionInstall(req.body); }
   catch (e) { if (e instanceof ExtensionError) { res.status(400).json({ error: e.message }); return; } throw e; }
   return withBrokerErrors(req, res, "install_extension failed", async () => {
-    if (!artifactStoreEnabled()) { res.status(501).json({ error: "no encrypted-JSON store is configured on this deployment" }); return; }
+    if (!requireArtifactStore(res)) return;
     const row = newExtensionRow(crypto.randomUUID(), input, contextFromReq(req), new Date().toISOString());
     putExtension(row);
     res.status(201).json(row);

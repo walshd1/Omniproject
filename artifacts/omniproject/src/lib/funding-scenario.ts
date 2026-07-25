@@ -1,4 +1,4 @@
-import { num } from "./num";
+import { num, round1 } from "./num";
 import type { ProjectPriorityScore } from "./portfolio-priority";
 
 /**
@@ -33,7 +33,6 @@ export interface FundingTotals {
   fundedScore: number;
 }
 
-const round1 = (n: number): number => Math.round(n * 10) / 10;
 
 /** Roll every project's decision up into portfolio totals: cost/capacity/benefit funded vs given up. */
 export function summariseFunding(scored: readonly ProjectPriorityScore[], decisions: FundingDecisions): FundingTotals {

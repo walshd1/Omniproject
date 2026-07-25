@@ -14,15 +14,15 @@ import { lazy, type ComponentType } from "react";
 export type ScreenComponentProps = { projectId?: string; programmeId?: string };
 
 export const SCREEN_COMPONENTS: Record<string, ComponentType<ScreenComponentProps>> = {
-  home: lazy(() => import("../../pages/Home").then((m) => ({ default: m.Home as ComponentType<ScreenComponentProps> }))),
-  "my-work": lazy(() => import("../../pages/MyWork").then((m) => ({ default: m.MyWork as ComponentType<ScreenComponentProps> }))),
-  tasks: lazy(() => import("../../pages/Tasks").then((m) => ({ default: m.Tasks as ComponentType<ScreenComponentProps> }))),
-  reports: lazy(() => import("../../pages/Reports").then((m) => ({ default: m.Reports as ComponentType<ScreenComponentProps> }))),
-  programmes: lazy(() => import("../../pages/Programmes").then((m) => ({ default: m.Programmes as ComponentType<ScreenComponentProps> }))),
-  "programme-detail": lazy(() => import("../../pages/ProgrammeDetail").then((m) => ({ default: m.ProgrammeDetail as ComponentType<ScreenComponentProps> }))),
-  projects: lazy(() => import("../../pages/Projects").then((m) => ({ default: m.Projects as ComponentType<ScreenComponentProps> }))),
-  "project-detail": lazy(() => import("../../pages/ProjectDetail").then((m) => ({ default: m.ProjectDetail as ComponentType<ScreenComponentProps> }))),
-  explore: lazy(() => import("../../pages/Explore").then((m) => ({ default: m.Explore as ComponentType<ScreenComponentProps> }))),
+  home: lazy(() => import("../../modules/shell/Home").then((m) => ({ default: m.Home as ComponentType<ScreenComponentProps> }))),
+  "my-work": lazy(() => import("../../modules/shell/MyWork").then((m) => ({ default: m.MyWork as ComponentType<ScreenComponentProps> }))),
+  tasks: lazy(() => import("../../modules/shell/Tasks").then((m) => ({ default: m.Tasks as ComponentType<ScreenComponentProps> }))),
+  reports: lazy(() => import("../../modules/shell/Reports").then((m) => ({ default: m.Reports as ComponentType<ScreenComponentProps> }))),
+  programmes: lazy(() => import("../../modules/shell/Programmes").then((m) => ({ default: m.Programmes as ComponentType<ScreenComponentProps> }))),
+  "programme-detail": lazy(() => import("../../modules/shell/ProgrammeDetail").then((m) => ({ default: m.ProgrammeDetail as ComponentType<ScreenComponentProps> }))),
+  projects: lazy(() => import("../../modules/shell/Projects").then((m) => ({ default: m.Projects as ComponentType<ScreenComponentProps> }))),
+  "project-detail": lazy(() => import("../../modules/shell/ProjectDetail").then((m) => ({ default: m.ProjectDetail as ComponentType<ScreenComponentProps> }))),
+  explore: lazy(() => import("../../modules/shell/Explore").then((m) => ({ default: m.Explore as ComponentType<ScreenComponentProps> }))),
   burndown: lazy(() => import("../methodology/BurndownScreen").then((m) => ({ default: m.BurndownScreen as ComponentType<ScreenComponentProps> }))),
 };
 

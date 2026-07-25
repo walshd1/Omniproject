@@ -1,5 +1,6 @@
 import crypto from "node:crypto";
 import { deriveKey, masterSecret } from "./crypto-keys";
+import { round2 } from "@workspace/backend-catalogue";
 
 /**
  * Rate-card domain — the pure core of staff time-and-cost.
@@ -132,8 +133,6 @@ export const emptyUplift = (): Uplift => ({ margin: 0, overhead: 0 });
 export function chargeRate(cost: number, uplift: Uplift): number {
   return cost * (1 + Math.max(0, uplift.overhead) + Math.max(0, uplift.margin));
 }
-
-const round2 = (n: number): number => Math.round(n * 100) / 100;
 
 export interface StaffCostRow {
   titleHash: string;

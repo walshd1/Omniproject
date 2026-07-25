@@ -1,0 +1,52 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://omniproject.dev/assets/form.schema.json",
+  "title": "OmniProject form definition",
+  "description": "An intake/request form: typed fields (each mapped to a backend issue field) + a target. One file per form under assets/forms/<id>.json. Shipped untargeted; an admin binds target.projectId.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["id", "label", "fields", "target"],
+  "properties": {
+    "id": { "type": "string", "pattern": "^[a-z0-9-]+$" },
+    "label": { "type": "string", "minLength": 1 },
+    "description": { "type": "string" },
+    "submitLabel": { "type": "string" },
+    "enabled": { "type": "boolean" },
+    "methodologies": { "type": "array", "items": { "type": "string" } },
+    "extends": { "type": "string" },
+    "fields": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["key", "label", "type", "mapTo"],
+        "properties": {
+          "key": { "type": "string", "minLength": 1 },
+          "label": { "type": "string", "minLength": 1 },
+          "type": {
+            "type": "string",
+            "enum": ["text", "textarea", "number", "date", "email", "url", "select", "radio", "likert", "multiselect", "checkbox", "yesno", "address"]
+          },
+          "mapTo": { "type": "string", "minLength": 1 },
+          "required": { "type": "boolean" },
+          "options": { "type": "array", "items": { "type": "string" } },
+          "placeholder": { "type": "string" },
+          "help": { "type": "string" },
+          "maxLength": { "type": "integer" }
+        }
+      }
+    },
+    "target": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind"],
+      "properties": {
+        "kind": { "type": "string", "enum": ["issue"] },
+        "projectId": { "type": "string" },
+        "status": { "type": "string" },
+        "labels": { "type": "array", "items": { "type": "string" } }
+      }
+    }
+  }
+}

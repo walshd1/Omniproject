@@ -41,7 +41,10 @@ export function parsePrivateKey(raw: string): KeyObject | null {
 }
 
 const privateKey = parsePrivateKey(process.env["SIGNING_PRIVATE_KEY"] ?? "");
-const publicKey = privateKey ? crypto.createPublicKey(privateKey) : null;
+// node26's `createPublicKey` dropped its `KeyObject` overload; derive the public key
+// from the private key's exported PKCS#8 PEM (a `BinaryLike` string that createPublicKey
+// still accepts — a private-key input has its public half derived automatically).
+const publicKey = privateKey ? crypto.createPublicKey(privateKey.export({ format: "pem", type: "pkcs8" })) : null;
 
 /** Whether non-repudiation signing is configured (a private key was loaded). */
 export function signingEnabled(): boolean {

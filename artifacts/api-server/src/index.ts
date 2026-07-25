@@ -20,9 +20,16 @@ import { startExecDigestScheduler, runExecDigest } from "./lib/exec-digest";
 import { startProactiveDigestScheduler, runProactiveDigest } from "./lib/proactive-digest";
 import { startScheduledExportScheduler, runScheduledExport } from "./lib/scheduled-export";
 import { startDriftCanaryScheduler, runDriftCanary } from "./lib/drift-canary";
+import { startRulesDispatcher } from "./lib/rules-dispatcher";
+import { enforceReleaseProvenanceAtBoot } from "./lib/release-provenance";
+import { runSignedMigrations } from "./lib/release-migration";
 import { loadConfigDir } from "./lib/config-dir";
+import { assertSessionSecretForLocalPrincipals } from "./lib/session-secret-guard";
+import { localUsersActive } from "./lib/user-directory";
 import { readCacheEnabled, readCacheTtlMs } from "./broker/cache";
 import { startMetricExport } from "./lib/otlp-metrics";
+import { installProcessGuards } from "./lib/process-guards";
+import { configureServerTimeouts } from "./lib/server-timeouts";
 
 const rawPort = process.env["PORT"];
 
@@ -51,12 +58,29 @@ if (readCacheEnabled()) {
 // ready), THEN read the config directory and the broker-log bus, THEN serve. A KMS/unwrap
 // failure is logged (not fatal) inside bootstrap(); a hard config-read failure surfaces here.
 async function start(): Promise<void> {
+  // Release provenance (docs/UPDATE-MECHANISM.md §4) — verify this build is a signed, attested release
+  // before doing ANY work. Off by default (RELEASE_VERIFY unset); `strict` refuses to boot an unattested
+  // or tampered build (fail-closed), `warn` logs and continues.
+  enforceReleaseProvenanceAtBoot();
+
   await bootstrap();
 
   // Load this deployment's config directory (OMNI_CONFIG_DIR) BEFORE serving, so the vendor
   // overlay + settings from the operator's folder of JSON are in place when the first request
   // lands. Runs after bootstrap() so a KMS-wrapped config key is already unwrapped.
   loadConfigDir();
+
+  // Signed migration runner (docs/UPDATE-MECHANISM.md §8) — after provenance verify + data load, before
+  // serving. Runs only migrations named in a manifest signed by the release trust root, snapshotting first
+  // (§6). No-op when nothing is registered; in strict verify mode an unsigned/unlisted pending migration is
+  // fatal (fail-closed).
+  runSignedMigrations();
+
+  // SECURITY: the import-time SESSION_SECRET guard (app.ts) ran BEFORE the store loaded, so it could not see
+  // native local accounts — a real password login that may have been bootstrapped while the env still read as
+  // "demo". Now that the directory is loaded, refuse to serve on the public default secret if a real local
+  // principal exists (this also transitively protects the at-rest master key, which derives from SESSION_SECRET).
+  assertSessionSecretForLocalPrincipals(localUsersActive());
 
   // Start the broker-log fan-out so this replica begins RECEIVING the fleet's live entries
   // immediately. In-process unless REDIS_URL is set — see lib/broker-log-bus.ts.
@@ -121,6 +145,10 @@ async function start(): Promise<void> {
   // from external cron so it fires once. A quiet run dispatches nothing.
   startDriftCanaryScheduler(() => runDriftCanary({ now: Date.now(), broker: getBroker() }));
 
+  // Rules engine — subscribe the dispatcher to domain events so enabled recipes fire on real changes.
+  // No-op unless RULES_ENGINE_EVENTS is set; inform-only (mutating recipes need the autonomous-grant path).
+  startRulesDispatcher();
+
   const server = app.listen(port, (err) => {
     if (err) {
       logger.error({ err }, "Error listening on port");
@@ -139,9 +167,29 @@ async function start(): Promise<void> {
     );
   });
 
+  // Slowloris / slow-body defence + optional concurrent-connection cap (env-tunable). Applies to request
+  // RECEIPT only, so long-lived SSE responses are unaffected.
+  configureServerTimeouts(server);
+
   // Clean up on SIGTERM/SIGINT: drain SSE streams, finish in-flight requests, exit.
   installShutdownHandlers(server, logger);
 }
+
+// Deploy-layer admission preflight (docs/UPDATE-MECHANISM.md §4). `node dist/index.mjs --verify-release`
+// runs the SAME provenance verification as boot — signature + promote-by-digest admission — and EXITS,
+// without starting the server. Run it as a Kubernetes init container (and/or the image entrypoint) so an
+// unsigned or wrong-digest image fails closed at the boundary, before the app container ever serves: strict
+// + failure exits non-zero (the init container fails → the pod never starts the app); warn/off pass through
+// with the same semantics as boot. This makes the in-process boot check enforceable one layer out.
+if (process.argv.includes("--verify-release")) {
+  enforceReleaseProvenanceAtBoot(); // strict + failure ⇒ process.exit(1) inside
+  logger.info("release preflight passed — provenance admitted");
+  process.exit(0);
+}
+
+// Crash backstop: an escaped throw / unhandled rejection is logged and SURVIVED, not fatal (see
+// lib/process-guards). Installed before boot so it also covers an async boot failure.
+installProcessGuards(logger);
 
 start().catch((err) => {
   logger.error({ err }, "Fatal error during boot");

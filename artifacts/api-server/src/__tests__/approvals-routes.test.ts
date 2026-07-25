@@ -1,7 +1,7 @@
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import crypto from "node:crypto";
-import { startHarness, adminCookie, type Harness } from "./_harness";
+import { startHarness, adminCookie, cookie, type Harness } from "./_harness";
 
 /**
  * In-process HTTP coverage for the approval-chain router (routes/approvals.ts): passkey enrolment, the
@@ -80,6 +80,26 @@ test("admin/PMO can revoke a named user's passkeys and everyone's; unauth is ref
   assert.equal((await h.req("/approvals/passkey/revoke", { method: "POST", body: { sub: "x" } })).status, 401);
 });
 
+test("a command honours a portfolio read-only freeze by construction (mountCommand runs the ruleset)", async () => {
+  // The action base checks the business ruleset for EVERY command — keyed on `ruleAction`, else the command
+  // name (here `approval.passkey.revoke`, which sets no explicit ruleAction). A `read-only` hard freeze is a
+  // write-wide rule, so it now blocks verb writes exactly as it blocks entity writes. This is a no-op under
+  // default config (all rules off) — it only bites when an operator turns the freeze on.
+  const cookie = adminCookie(); // harness admin holds pmo+ via hierarchy
+  const { setRuleModes } = await import("../lib/ruleset");
+  setRuleModes({ "read-only": "hard" });
+  try {
+    const frozen = await h.req("/approvals/passkey/revoke", { method: "POST", cookie, body: { sub: "u-harness" } });
+    assert.equal(frozen.status, 422);
+    assert.equal((await json(frozen)).rule, "read-only");
+  } finally {
+    setRuleModes({ "read-only": "off" }); // modes are process-global — restore for the other tests
+  }
+  // With the freeze lifted the same command proceeds.
+  const ok = await h.req("/approvals/passkey/revoke", { method: "POST", cookie, body: { sub: "u-harness" } });
+  assert.equal(ok.status, 200);
+});
+
 test("writing a SECURITY collection (approvalChains) is held for a signed sign-off (202), not applied", async () => {
   const cookie = adminCookie();
   const chain = { id: "c-http", scope: { kind: "org" }, rejectionPolicy: "abort", stages: [{ id: "s1", approvers: [{ kind: "role", role: "admin" }] }] };
@@ -88,6 +108,20 @@ test("writing a SECURITY collection (approvalChains) is held for a signed sign-o
   const body = await json(r);
   assert.ok(body.pending?.proposalId);
   assert.deepEqual(body.pending.relaxes, ["approvalChains"]);
+});
+
+test("an autonomous principal is refused from the human approver surface (no session→actor, no passkey, no acceptance)", async () => {
+  // A namespaced non-human sub that somehow holds a session must never be treated as a human approver —
+  // `via:"human"` is the only thing engaging the AI-approver gate + the engine's humanOnly restriction.
+  const bot = cookie({ sub: "automation:bot-1", name: "bot", email: "bot@x.io", roles: ["omni-admins"] });
+  // No actor is minted → the approver surface reads as unauthenticated (401), never as a human approver.
+  assert.equal((await h.req("/approvals/inbox", { method: "GET", cookie: bot })).status, 401);
+  // Cannot enrol a human passkey (403), and cannot sign a responsibility acceptance (403).
+  assert.equal((await h.req("/approvals/passkey", { method: "POST", cookie: bot, body: { credentialId: "c", publicKeySpki: spki } })).status, 403);
+  assert.equal((await h.req("/approvals/workflow-acceptances/wf-x", { method: "POST", cookie: bot, body: sign("x", "approve") })).status, 403);
+  // An `agent:`-namespaced sub is treated the same way.
+  const agent = cookie({ sub: "agent:run-9:approver", name: "a", email: "a@x.io", roles: ["omni-admins"] });
+  assert.equal((await h.req("/approvals/passkey", { method: "POST", cookie: agent, body: { credentialId: "c", publicKeySpki: spki } })).status, 403);
 });
 
 test("a tampered signature is refused (403), executor does not run", async () => {

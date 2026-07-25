@@ -17,7 +17,7 @@ import {
   type Session,
   type Impersonation,
 } from "../lib/oidc";
-import { roleForReq } from "../lib/rbac";
+import { roleForReq, hasStrongAuth } from "../lib/rbac";
 import { isSamlConfigured, samlConfigStatus, samlLoginUrl, validateSamlResponse, samlMetadata } from "../lib/saml";
 import {
   isOAuth2Configured,
@@ -30,7 +30,12 @@ import {
 } from "../lib/oauth2";
 import { magicLinkEnabled, isValidEmail, mintMagicToken, verifyMagicToken, consumeMagicToken, sendMagicLink, guestPortalEnabled } from "../lib/magic-link";
 import { isDevMode } from "../lib/dev-mode";
-import { isDemoAuth } from "../lib/auth-config";
+import { isDemoAuthFrom, localPasswordsAllowed } from "../lib/auth-config";
+import { isDemoAuth } from "../lib/auth-runtime";
+import { getActiveUserByUserName, createUser, anyUserExists, userDirectoryEnabled, localAdminRequiresPasskey } from "../lib/user-directory";
+import { credentialsFor, getCredential, issueChallenge, consumeChallenge, verifyWebAuthnAssertion, AssertionError } from "../lib/passkey";
+import { verifyPassword, setPassword, credentialsEnabled, assertPasswordPolicy } from "../lib/user-credentials";
+import { getRoleMap, setRoleMap } from "../lib/rbac";
 import { effectiveSession } from "../lib/impersonation";
 import { seal, open } from "../lib/session-crypto";
 import { isSessionExpired, timeoutPolicy, sessionCookieMaxAgeMs } from "../lib/session-timeout";
@@ -40,7 +45,7 @@ import { requireTls } from "../lib/deployment-profile";
 import { productionSignals } from "../lib/dev-mode-guard";
 import { ensureCsrfCookie, setCsrfCookie, newCsrfToken } from "../lib/csrf";
 import { checkLogin } from "../lib/impossible-travel";
-import { recordAudit } from "../lib/audit";
+import { recordAudit, recordRequestAudit } from "../lib/audit";
 import { stepUpFresh, stepUpWindowMs } from "../lib/step-up";
 
 const router = Router();
@@ -101,6 +106,23 @@ function cookieBase() {
     secure: requireTls(),
     path: "/",
   };
+}
+
+// Flow cookies (OIDC / OAuth2 / SAML step-up) carry short-lived SECRETS — the PKCE code_verifier, the OIDC
+// nonce, the CSRF `state`, and the bound `sub`. They are cookie-parser `signed` (tamper-proof), but the payload
+// must ALSO be SEALED (AES-256-GCM) so those secrets are never stored in CLEAR TEXT in the browser (CWE-312).
+// This mirrors the session cookie: seal on write, open on read, with a plaintext fallback so a flow begun just
+// before this rolled out still completes within its 10-minute TTL.
+export function sealFlowCookie(payload: unknown): string {
+  return seal(JSON.stringify(payload));
+}
+/** Open a sealed flow cookie back to its payload (null if absent/tampered/garbage), tolerating a legacy
+ *  plaintext cookie during rollout. The parse is trusted: cookie-parser HMAC-verifies the value before we
+ *  see it, and `open()` AES-decrypts a sealed payload. */
+export function openFlowCookie<T>(raw: unknown): T | null {
+  if (typeof raw !== "string" || !raw) return null;
+  const json = open(raw) ?? raw; // sealed → plaintext; a legacy plaintext cookie (pre-seal, within TTL) passes through
+  try { return JSON.parse(json) as T; } catch { return null; }
 }
 
 /** Thrown by `resolveBaseUrl` when a production-like deployment has no `PUBLIC_URL` — building
@@ -302,6 +324,10 @@ router.get("/auth/me", (req, res) => {
       mode: isOidcConfigured ? "oidc" : "demo",
       user: { sub: session.sub, name: session.name, email: session.email },
       role: roleForReq(req),
+      // Whether this session already holds strong (hardware-MFA) auth. When false AND the caller is a local
+      // password user whose group would confer admin/PMO, the SPA offers a passkey step-up to unlock it.
+      strongAuth: hasStrongAuth(session),
+      local: session.local === true,
       // A guest principal's confinement, so the SPA knows to show ONLY the portal for this project.
       ...(session.guest ? { guest: { projectId: session.guest.projectId, tier: session.guest.tier } } : {}),
       // Lets the SPA warn before, and redirect on, an idle/absolute timeout.
@@ -316,7 +342,12 @@ router.get("/auth/me", (req, res) => {
     });
     return;
   }
-  res.json({ authenticated: false, mode: isOidcConfigured ? "oidc" : "demo", user: null, role: "viewer", samlConfigured: isSamlConfigured(), samlStatus: samlConfigStatus(), oauth2Configured: isOAuth2Configured, magicLinkEnabled: magicLinkEnabled() });
+  // Native in-app sign-in: available when the roster + credential stores are configured AND no stronger SSO has
+  // disabled it (downgrade prevention). `needsFirstAdmin` is the fresh-deployment bootstrap signal (no user yet
+  // + no IdP) that surfaces the "claim first admin" form.
+  const localSignInEnabled = userDirectoryEnabled() && credentialsEnabled() && localPasswordsAllowed();
+  const needsFirstAdmin = localSignInEnabled && !anyUserExists() && isDemoAuthFrom(process.env);
+  res.json({ authenticated: false, mode: isOidcConfigured ? "oidc" : "demo", user: null, role: "viewer", samlConfigured: isSamlConfigured(), samlStatus: samlConfigStatus(), oauth2Configured: isOAuth2Configured, magicLinkEnabled: magicLinkEnabled(), localSignInEnabled, needsFirstAdmin });
 });
 
 /** Sanitise a post-auth `returnTo` to a SAME-ORIGIN path — prevents open redirects (CWE-601).
@@ -352,8 +383,9 @@ router.get("/auth/login", async (req, res) => {
     const redirectUri = `${baseUrl(req)}/api/auth/callback`;
 
     // The flow cookie carries the provider id so the callback verifies against the SAME provider.
-    res.cookie(FLOW_COOKIE, JSON.stringify({ state, verifier, nonce, returnTo, provider: provider.id }), {
+    res.cookie(FLOW_COOKIE, sealFlowCookie({ state, verifier, nonce, returnTo, provider: provider.id }), {
       ...cookieBase(),
+      httpOnly: true, secure: requireTls(), // explicit (cookieBase sets them too) so static analysis sees them
       maxAge: FLOW_COOKIE_TTL_MS,
     });
 
@@ -371,22 +403,22 @@ router.get("/auth/callback", async (req, res) => {
     return;
   }
 
-  const flowRaw = req.signedCookies?.[FLOW_COOKIE];
-  res.clearCookie(FLOW_COOKIE, cookieBase());
-
-  if (!flowRaw) {
-    res.status(400).send("Login session expired. Please try again.");
-    return;
-  }
-
-  const { state, verifier, nonce, returnTo, stepup, provider: providerId } = JSON.parse(flowRaw) as {
+  const flow = openFlowCookie<{
     state: string;
     verifier: string;
     nonce?: string;
     returnTo: string;
     stepup?: boolean;
     provider?: string;
-  };
+  }>(req.signedCookies?.[FLOW_COOKIE]);
+  res.clearCookie(FLOW_COOKIE, cookieBase());
+
+  if (!flow) {
+    res.status(400).send("Login session expired. Please try again.");
+    return;
+  }
+
+  const { state, verifier, nonce, returnTo, stepup, provider: providerId } = flow;
 
   // Resolve the SAME provider the flow began with (the flow cookie is signed/sealed).
   const provider = getOidcProvider(providerId);
@@ -396,8 +428,11 @@ router.get("/auth/callback", async (req, res) => {
   }
 
   if (req.query["error"]) {
+    // Log the provider-supplied error for diagnosis, but NEVER reflect it into the response body:
+    // res.send(string) defaults to text/html, so echoing an attacker-controlled query param would be
+    // reflected XSS (CWE-79). A generic message is enough for the end user.
     req.log.warn({ error: req.query["error"] }, "OIDC provider returned an error");
-    res.status(401).send(`SSO error: ${String(req.query["error"])}`);
+    res.status(401).send("SSO sign-in failed. Please try again.");
     return;
   }
 
@@ -522,8 +557,9 @@ router.get("/auth/oauth2/login", async (req, res) => {
   if (!oauth2Config) { res.status(404).send("OAuth2 sign-in is not configured."); return; }
   const returnTo = safeLocalPath(req.query["returnTo"]);
   const { state, verifier } = newOAuth2Flow();
-  res.cookie(OAUTH2_FLOW_COOKIE, JSON.stringify({ state, verifier, returnTo }), {
+  res.cookie(OAUTH2_FLOW_COOKIE, sealFlowCookie({ state, verifier, returnTo }), {
     ...cookieBase(),
+    httpOnly: true, secure: requireTls(), // explicit (cookieBase sets them too) so static analysis sees them
     maxAge: FLOW_COOKIE_TTL_MS,
   });
   const redirectUri = `${baseUrl(req)}/api/auth/oauth2/callback`;
@@ -536,15 +572,17 @@ router.get("/auth/oauth2/login", async (req, res) => {
 router.get("/auth/oauth2/callback", async (req, res) => {
   if (!oauth2Config) { res.redirect("/"); return; }
 
-  const flowRaw = req.signedCookies?.[OAUTH2_FLOW_COOKIE];
+  const flow = openFlowCookie<{ state: string; verifier: string; returnTo: string; stepup?: boolean; sub?: string }>(req.signedCookies?.[OAUTH2_FLOW_COOKIE]);
   res.clearCookie(OAUTH2_FLOW_COOKIE, cookieBase());
-  if (!flowRaw) { res.status(400).send("Login session expired. Please try again."); return; }
+  if (!flow) { res.status(400).send("Login session expired. Please try again."); return; }
 
-  const { state, verifier, returnTo, stepup, sub: stepUpSub } = JSON.parse(flowRaw) as { state: string; verifier: string; returnTo: string; stepup?: boolean; sub?: string };
+  const { state, verifier, returnTo, stepup, sub: stepUpSub } = flow;
 
   if (req.query["error"]) {
+    // Log for diagnosis but do NOT reflect the provider-supplied error into the HTML response body
+    // (res.send(string) → text/html ⇒ reflected XSS, CWE-79). Generic message for the user.
     req.log.warn({ error: req.query["error"] }, "OAuth2 provider returned an error");
-    res.status(401).send(`OAuth2 error: ${String(req.query["error"])}`);
+    res.status(401).send("OAuth2 sign-in failed. Please try again.");
     return;
   }
   if (typeof req.query["code"] !== "string") {
@@ -620,6 +658,119 @@ router.get("/auth/magic/verify", async (req, res) => {
   res.redirect(safeLocalPath(req.query["returnTo"]));
 });
 
+// ── Native (in-app) local users ─────────────────────────────────────────────────
+// Sign in a native user against the SEPARATELY-KEYED credential store, then mint the standard session. The
+// user's `groups` become the `roles` claim, so the SAME group→role map an IdP uses resolves their role. A
+// local session is marked `local` + `amr:["pwd"]`: by default the password is NOT strong auth, so admin/PMO
+// still needs a passkey step-up (LOCAL_ADMIN_REQUIRE_PASSKEY), exactly like an IdP admin. No session cookie is
+// present at login time, so the CSRF gate naturally exempts these (defence rides the per-IP loginLimiter).
+
+router.post("/auth/local", async (req, res) => {
+  const body = (req.body ?? {}) as { userName?: unknown; password?: unknown; returnTo?: unknown };
+  const userName = typeof body.userName === "string" ? body.userName.trim() : "";
+  const password = typeof body.password === "string" ? body.password : "";
+  if (!userName || !password) { res.status(400).json({ error: "Enter your username and password." }); return; }
+  // Downgrade prevention: local passwords are unavailable once stronger SSO is configured (unless recovery).
+  if (!userDirectoryEnabled() || !credentialsEnabled() || !localPasswordsAllowed()) { res.status(404).json({ error: "In-app sign-in is not available on this deployment." }); return; }
+  const user = getActiveUserByUserName(userName);
+  // Verify even when the user is missing (verifyPassword burns equivalent work) so timing can't enumerate
+  // accounts; a single generic error covers "no such user", "inactive", and "wrong password".
+  const ok = !!user && verifyPassword(user.id, password);
+  const travel = user ? await travelCheck(user.id, user.email || user.id, req.ip) : {};
+  if (!ok || !user) {
+    recordRequestAudit(req, { category: "request", action: "auth.local.login", write: true, result: "error", status: 401, meta: { userName } });
+    res.status(401).json({ error: "That username or password is incorrect." });
+    return;
+  }
+  establishSession(res, {
+    sub: user.id, name: user.displayName || user.userName, email: user.email || undefined,
+    roles: user.groups, accessToken: "local", amr: ["pwd"], local: true, ...travel,
+  });
+  recordAudit({ ts: new Date().toISOString(), category: "request", action: "auth.local.login", actor: { sub: user.id, email: user.email }, write: true, result: "success" });
+  const needsPasskey = user.groups.length > 0 && localAdminRequiresPasskey();
+  res.json({ ok: true, returnTo: safeLocalPath(body.returnTo), passkeyStepUpAvailable: needsPasskey });
+});
+
+// FIRST-ADMIN bootstrap — the ONLY unauthenticated user-creation path, and only on a genuinely fresh,
+// IdP-less deployment: no user exists yet AND no real IdP is configured (so the mode would otherwise be
+// demo = everyone-admin). It mints the first admin, ensures their group maps to `admin`, and signs them in —
+// which, by creating the first active user, flips the runtime OUT of demo mode. Closed forever after: once any
+// user exists, this 404s and further accounts go through the admin-gated /api/users route.
+router.post("/auth/local/bootstrap", async (req, res) => {
+  if (!userDirectoryEnabled() || !credentialsEnabled() || !localPasswordsAllowed()) { res.status(404).json({ error: "In-app users are not available on this deployment." }); return; }
+  if (anyUserExists()) { res.status(409).json({ error: "This deployment already has users; ask an admin to add you." }); return; }
+  if (!isDemoAuthFrom(process.env)) { res.status(409).json({ error: "An identity provider is configured; sign in through it instead." }); return; }
+  const body = (req.body ?? {}) as { userName?: unknown; password?: unknown; displayName?: unknown; email?: unknown };
+  const userName = typeof body.userName === "string" ? body.userName.trim() : "";
+  const password = typeof body.password === "string" ? body.password : "";
+  if (!userName) { res.status(400).json({ error: "Choose a username for the first admin." }); return; }
+  try { assertPasswordPolicy(password); } catch (e) { res.status(400).json({ error: e instanceof Error ? e.message : "invalid password" }); return; }
+
+  // The admin group: reuse the configured admin claim if any, else the conventional "omni-admins", and make
+  // sure the role map actually maps it to `admin` so the new user is a real admin once demo mode turns off.
+  const configuredAdmin = getRoleMap().find((r) => r.role === "admin")?.claims ?? [];
+  const adminGroup = configuredAdmin[0] ?? "omni-admins";
+  if (!configuredAdmin.includes(adminGroup)) setRoleMap({ admin: [...configuredAdmin, adminGroup] });
+
+  const now = new Date().toISOString();
+  let user;
+  try { user = createUser({ userName, groups: [adminGroup], active: true }, "bootstrap", now); }
+  catch (e) { res.status(400).json({ error: e instanceof Error ? e.message : "could not create the user" }); return; }
+  setPassword(user.id, password);
+  establishSession(res, { sub: user.id, name: user.displayName, email: user.email || undefined, roles: user.groups, accessToken: "local", amr: ["pwd"], local: true });
+  recordAudit({ ts: now, category: "request", action: "auth.local.bootstrap", actor: { sub: user.id }, write: true, result: "success", meta: { adminGroup } });
+  res.status(201).json({ ok: true, user });
+});
+
+// ── Passkey STEP-UP (upgrade a session to strong auth) ────────────────────────────
+// A local password session is amr:["pwd"] — NOT strong — so with LOCAL_ADMIN_REQUIRE_PASSKEY on it can't hold
+// admin/PMO until the user proves a hardware-bound passkey. This WebAuthn step-up verifies an assertion from a
+// passkey the user has already ENROLLED (via /approvals/passkey — one credential store) and, on success,
+// re-issues the session with a strong `amr` (hwk) + a fresh `stepUpAt`, so `hasStrongAuth` (rbac) now passes.
+// General-purpose: any session (local or IdP) can strengthen itself this way. The passkey is bound to the sub,
+// so only its holder can elevate; the challenge is one-time + bound into the signed clientData (replay-safe).
+const webauthnRpId = (): string => process.env["WEBAUTHN_RP_ID"]?.trim() || "localhost";
+const webauthnOrigin = (): string => process.env["WEBAUTHN_ORIGIN"]?.trim() || `https://${webauthnRpId()}`;
+const stepUpScope = (sub: string): string => `auth-stepup:${sub}`;
+
+router.post("/auth/passkey/step-up/challenge", async (req, res) => {
+  const s = readSession(req);
+  if (!s) { res.status(401).json({ error: "Not signed in." }); return; }
+  const creds = await credentialsFor(s.sub);
+  if (!creds.length) { res.status(409).json({ error: "No passkey is enrolled for this account. Enrol one first.", needsEnrolment: true }); return; }
+  const challenge = await issueChallenge(stepUpScope(s.sub), s.sub);
+  res.json({ challenge, rpId: webauthnRpId(), credentialIds: creds.map((c) => c.credentialId) });
+});
+
+router.post("/auth/passkey/step-up", async (req, res) => {
+  const s = readSession(req);
+  if (!s) { res.status(401).json({ error: "Not signed in." }); return; }
+  const body = (req.body ?? {}) as { credentialId?: unknown; clientDataJSON?: unknown; authenticatorData?: unknown; signature?: unknown; challenge?: unknown };
+  const str = (v: unknown): string => (typeof v === "string" ? v : "");
+  const credentialId = str(body.credentialId), challenge = str(body.challenge);
+  if (!credentialId || !challenge || !str(body.clientDataJSON) || !str(body.authenticatorData) || !str(body.signature)) {
+    res.status(400).json({ error: "Incomplete passkey assertion." }); return;
+  }
+  const cred = await getCredential(s.sub, credentialId);
+  if (!cred) { res.status(400).json({ error: "That passkey isn't registered to this account." }); return; }
+  // Consume the one-time challenge BEFORE verifying, so a replay can't re-use it even on a verification error.
+  if (!(await consumeChallenge(stepUpScope(s.sub), challenge))) { res.status(400).json({ error: "This step-up challenge is invalid or has expired." }); return; }
+  try {
+    verifyWebAuthnAssertion({
+      credential: cred, clientDataJSON: str(body.clientDataJSON), authenticatorData: str(body.authenticatorData),
+      signature: str(body.signature), expectedChallenge: challenge, rpId: webauthnRpId(), origin: webauthnOrigin(),
+    });
+  } catch (err) {
+    recordRequestAudit(req, { category: "request", action: "auth.passkey.stepup", write: true, result: "error", status: 401 });
+    res.status(401).json({ error: err instanceof AssertionError ? err.message : "Passkey verification failed." }); return;
+  }
+  // Strengthen the session: add the hardware-key AMR (default member of STRONG_AMR) + stamp step-up freshness.
+  const amr = Array.from(new Set([...(s.amr ?? []), "hwk"]));
+  setSession(res, { ...s, amr, stepUpAt: Date.now() });
+  recordRequestAudit(req, { category: "request", action: "auth.passkey.stepup", write: true, result: "success" });
+  res.json({ ok: true, strongAuth: true });
+});
+
 // ── POST /api/auth/logout ─────────────────────────────────────────────────────
 router.post("/auth/logout", (_req, res) => {
   res.clearCookie(SESSION_COOKIE, cookieBase());
@@ -648,16 +799,12 @@ function stepUpMethodFor(session: Session): StepUpMethod {
 
 interface StepUpFlow { sub: string; returnTo: string }
 function setStepUpFlow(res: Response, flow: StepUpFlow): void {
-  res.cookie(STEPUP_COOKIE, JSON.stringify(flow), { ...cookieBase(), maxAge: FLOW_COOKIE_TTL_MS });
+  res.cookie(STEPUP_COOKIE, sealFlowCookie(flow), { ...cookieBase(), httpOnly: true, secure: requireTls(), maxAge: FLOW_COOKIE_TTL_MS }); // flags explicit (cookieBase sets them too) so static analysis sees them on this secret-bearing cookie
 }
 /** The step-up flow binding, when present + well-formed. */
 function readStepUpFlow(req: Request): StepUpFlow | null {
-  const raw = req.signedCookies?.[STEPUP_COOKIE];
-  if (typeof raw !== "string") return null;
-  try {
-    const d = JSON.parse(raw) as StepUpFlow;
-    return typeof d?.sub === "string" && typeof d?.returnTo === "string" ? d : null;
-  } catch { return null; }
+  const d = openFlowCookie<StepUpFlow>(req.signedCookies?.[STEPUP_COOKIE]);
+  return d && typeof d.sub === "string" && typeof d.returnTo === "string" ? d : null;
 }
 
 router.post("/auth/step-up", (req, res) => {
@@ -726,7 +873,7 @@ router.get("/auth/step-up", async (req, res) => {
   // OAuth2: prompt=login re-challenge; the callback stamps step-up only when the SAME sub returns.
   if (method === "oauth2" && oauth2Config) {
     const { state, verifier } = newOAuth2Flow();
-    res.cookie(OAUTH2_FLOW_COOKIE, JSON.stringify({ state, verifier, returnTo, stepup: true, sub: session.sub }), { ...cookieBase(), maxAge: FLOW_COOKIE_TTL_MS });
+    res.cookie(OAUTH2_FLOW_COOKIE, sealFlowCookie({ state, verifier, returnTo, stepup: true, sub: session.sub }), { ...cookieBase(), httpOnly: true, secure: requireTls(), maxAge: FLOW_COOKIE_TTL_MS }); // flags explicit (cookieBase sets them too) so static analysis sees them on this secret-bearing cookie
     const redirectUri = `${baseUrl(req)}/api/auth/oauth2/callback`;
     res.redirect(await buildAuthUrl({ config: oauth2Config, redirectUri, state, codeVerifier: verifier, reauth: true }));
     return;
@@ -750,7 +897,7 @@ router.get("/auth/step-up", async (req, res) => {
     const verifier = randomToken(48);
     const nonce = randomToken();
     const redirectUri = `${baseUrl(req)}/api/auth/callback`;
-    res.cookie(FLOW_COOKIE, JSON.stringify({ state, verifier, nonce, returnTo, stepup: true, provider: provider.id }), { ...cookieBase(), maxAge: FLOW_COOKIE_TTL_MS });
+    res.cookie(FLOW_COOKIE, sealFlowCookie({ state, verifier, nonce, returnTo, stepup: true, provider: provider.id }), { ...cookieBase(), httpOnly: true, secure: requireTls(), maxAge: FLOW_COOKIE_TTL_MS }); // flags explicit (cookieBase sets them too) so static analysis sees them on this secret-bearing cookie
     res.redirect(await buildOidcAuthUrl({ config, provider, redirectUri, state, nonce, verifier, prompt: "login" }));
   } catch (err) {
     req.log.error({ err }, "step-up initiation failed");

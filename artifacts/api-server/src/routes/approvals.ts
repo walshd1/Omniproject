@@ -13,7 +13,8 @@ import {
 import { ResponsibilityAcceptanceError } from "../lib/responsibility-acceptance";
 import { getSettings } from "../lib/settings";
 import { type Role } from "../lib/rbac";
-import { recordAudit, actorForAudit } from "../lib/audit";
+import { recordAudit, recordRequestAudit, actorForAudit } from "../lib/audit";
+import { mountCommand, type CommandDescriptor } from "../lib/action-base";
 import { logger } from "../lib/logger";
 
 /**
@@ -28,9 +29,15 @@ import { logger } from "../lib/logger";
 
 const router: IRouter = Router();
 
+/** An autonomous principal's identity is namespaced (`automation:<id>` / `agent:<id>:<who>`, see lib/autonomous).
+ *  The human approval surface hardcodes `via:"human"`, and that flag is the ONLY thing engaging the AI-approver
+ *  gate + the engine's `humanOnly` restriction — so a non-human sub that obtained a session must never be
+ *  treated as a human approver, or it would bypass both. Reject it everywhere the human surface mints an actor. */
+const isAutonomousSub = (sub: string): boolean => /^(?:automation|agent):/i.test(sub);
+
 function actorFor(req: Request): Actor | null {
   const s = getSession(req);
-  if (!s?.sub) return null;
+  if (!s?.sub || isAutonomousSub(s.sub)) return null; // no session, or an autonomous (non-human) principal
   return { sub: s.sub, roles: ROLES.filter((r) => hasRole(req, r)), via: "human" };
 }
 
@@ -55,7 +62,7 @@ function parseSigned(body: unknown, withDecision: boolean): SignedDecision | nul
 /** Map a thrown error to a client status: auth/verify failures are 4xx, everything else 500. */
 function fail(res: Response, err: unknown, req: Request, action: string): void {
   if (err instanceof AssertionError || err instanceof ApprovalServiceError || err instanceof ApprovalChainError || err instanceof ResponsibilityAcceptanceError) {
-    recordAudit({ ts: new Date().toISOString(), category: "request", action, actor: actorForAudit(req), write: true, result: "error", status: 403 });
+    recordRequestAudit(req, { category: "request", action, write: true, result: "error", status: 403 });
     res.status(403).json({ error: err.message });
     return;
   }
@@ -68,6 +75,7 @@ function fail(res: Response, err: unknown, req: Request, action: string): void {
 router.post("/approvals/passkey", async (req: Request, res: Response) => {
   const s = getSession(req);
   if (!s?.sub) { res.status(401).json({ error: "authentication required" }); return; }
+  if (isAutonomousSub(s.sub)) { res.status(403).json({ error: "autonomous principals cannot enrol a human passkey" }); return; }
   const credentialId = str((req.body as Record<string, unknown>)?.["credentialId"], 512);
   const publicKeySpki = str((req.body as Record<string, unknown>)?.["publicKeySpki"], 4096);
   if (!credentialId || !publicKeySpki) { res.status(400).json({ error: "credentialId and publicKeySpki are required" }); return; }
@@ -88,20 +96,35 @@ router.get("/approvals/passkey", async (req: Request, res: Response) => {
 // ── Revocation (admin/PMO governance) ───────────────────────────────────────
 // POST /approvals/passkey/revoke — revoke a NAMED user's passkeys (compromise, role change, suspension).
 // Revocation is fail-SAFE (removes the ability to approve), so admin/PMO gating suffices — no chain needed.
-router.post("/approvals/passkey/revoke", requireRole("pmo"), async (req: Request, res: Response) => {
-  const sub = str((req.body as Record<string, unknown>)?.["sub"], 256);
-  if (!sub) { res.status(400).json({ error: "sub is required" }); return; }
-  await revokeCredentials(sub);
-  recordAudit({ ts: new Date().toISOString(), category: "request", action: "approval.passkey.revoke", actor: actorForAudit(req), write: true, result: "success", meta: { target: sub } });
-  res.json({ ok: true, sub });
-});
+// LANE 2: the action base runs the shell (authorize → validate → run → audit).
+export const passkeyRevokeCommand: CommandDescriptor<{ sub: string }> = {
+  name: "approval.passkey.revoke",
+  method: "post",
+  path: "/approvals/passkey/revoke",
+  role: "pmo",
+  parse: (req, res) => {
+    const sub = str((req.body as Record<string, unknown>)?.["sub"], 256);
+    if (!sub) { res.status(400).json({ error: "sub is required" }); return null; }
+    return { sub };
+  },
+  run: async (_req, _res, { sub }) => { await revokeCredentials(sub); return { ok: true, sub }; },
+  audit: "approval.passkey.revoke",
+  auditMeta: (_req, { sub }) => ({ target: sub }),
+};
+mountCommand(router, passkeyRevokeCommand);
 
 // POST /approvals/passkey/revoke-all — revoke EVERYONE's passkeys (emergency reset). Heavily audited.
-router.post("/approvals/passkey/revoke-all", requireRole("pmo"), async (req: Request, res: Response) => {
-  const revoked = await revokeAllCredentials();
-  recordAudit({ ts: new Date().toISOString(), category: "request", action: "approval.passkey.revoke_all", actor: actorForAudit(req), write: true, result: "success", meta: { revoked } });
-  res.json({ ok: true, revoked });
-});
+export const passkeyRevokeAllCommand: CommandDescriptor<Record<string, never>> = {
+  name: "approval.passkey.revoke_all",
+  method: "post",
+  path: "/approvals/passkey/revoke-all",
+  role: "pmo",
+  parse: () => ({}),
+  run: async () => { const revoked = await revokeAllCredentials(); return { ok: true, revoked }; },
+  audit: "approval.passkey.revoke_all",
+  auditMeta: (_req, _args, result) => ({ revoked: (result as { revoked: number }).revoked }),
+};
+mountCommand(router, passkeyRevokeAllCommand);
 
 // ── Approver surface ─────────────────────────────────────────────────────────
 // GET /approvals/inbox — proposals awaiting THIS caller's decision.
@@ -120,37 +143,52 @@ router.post("/approvals/:id/challenge", async (req: Request, res: Response) => {
   res.json(c);
 });
 
-// POST /approvals/:id/decision — submit a passkey-signed approve/reject.
-router.post("/approvals/:id/decision", async (req: Request, res: Response) => {
-  const actor = actorFor(req);
-  if (!actor) { res.status(401).json({ error: "authentication required" }); return; }
-  const signed = parseSigned(req.body, true);
-  if (!signed) { res.status(400).json({ error: "a signed decision (decision, credentialId, clientDataJSON, authenticatorData, signature) is required" }); return; }
-  try {
-    const r = await submitDecision(String(req.params["id"]), actor, signed);
-    recordAudit({ ts: new Date().toISOString(), category: "request", action: `approval.${signed.decision}`, actor: actorForAudit(req), write: true, result: "success", meta: { proposalId: req.params["id"], status: r.status } });
-    res.json(r);
-  } catch (err) { fail(res, err, req, `approval.${signed.decision}`); }
-});
+// POST /approvals/:id/decision — submit a passkey-signed approve/reject. LANE 2: the action base runs the
+// fixed shell (authorize → validate → run → audit → map errors); the passkey assertion + approver
+// eligibility stay INSIDE submitDecision (the service), which is the command's irreducible core.
+export const decisionCommand: CommandDescriptor<{ actor: Actor; signed: SignedDecision }> = {
+  name: "approval.decide",
+  method: "post",
+  path: "/approvals/:id/decision",
+  parse: (req, res) => {
+    const actor = actorFor(req);
+    if (!actor) { res.status(401).json({ error: "authentication required" }); return null; }
+    const signed = parseSigned(req.body, true);
+    if (!signed) { res.status(400).json({ error: "a signed decision (decision, credentialId, clientDataJSON, authenticatorData, signature) is required" }); return null; }
+    return { actor, signed };
+  },
+  run: (req, _res, { actor, signed }) => submitDecision(String(req.params["id"]), actor, signed),
+  audit: ({ signed }) => `approval.${signed.decision}`,
+  auditMeta: (req, _args, result) => ({ proposalId: req.params["id"], status: (result as { status?: unknown }).status }),
+  onError: (res, err, req, action) => fail(res, err, req, action),
+};
+mountCommand(router, decisionCommand);
 
 // ── PMO escape hatches (pmo+ only) ───────────────────────────────────────────
-// POST /approvals/:id/redirect — reassign the current stage's approvers.
-router.post("/approvals/:id/redirect", requireRole("pmo"), async (req: Request, res: Response) => {
-  const approvers = (req.body as Record<string, unknown>)?.["approvers"];
-  if (!Array.isArray(approvers) || approvers.length === 0) { res.status(400).json({ error: "approvers[] is required" }); return; }
-  const parsed: ApproverRef[] = [];
-  for (const a of approvers) {
-    const o = a as Record<string, unknown>;
-    if (o["kind"] === "role" && str(o["role"], 64)) parsed.push({ kind: "role", role: String(o["role"]) });
-    else if (o["kind"] === "user" && str(o["sub"], 256)) parsed.push({ kind: "user", sub: String(o["sub"]) });
-    else { res.status(400).json({ error: "each approver is {kind:'role',role} or {kind:'user',sub}" }); return; }
-  }
-  try {
-    await redirectProposal(String(req.params["id"]), parsed);
-    recordAudit({ ts: new Date().toISOString(), category: "request", action: "approval.redirect", actor: actorForAudit(req), write: true, result: "success", meta: { proposalId: req.params["id"] } });
-    res.json({ ok: true });
-  } catch (err) { fail(res, err, req, "approval.redirect"); }
-});
+// POST /approvals/:id/redirect — reassign the current stage's approvers. LANE 2 (action base).
+export const redirectCommand: CommandDescriptor<ApproverRef[]> = {
+  name: "approval.redirect",
+  method: "post",
+  path: "/approvals/:id/redirect",
+  role: "pmo",
+  parse: (req, res) => {
+    const approvers = (req.body as Record<string, unknown>)?.["approvers"];
+    if (!Array.isArray(approvers) || approvers.length === 0) { res.status(400).json({ error: "approvers[] is required" }); return null; }
+    const parsed: ApproverRef[] = [];
+    for (const a of approvers) {
+      const o = a as Record<string, unknown>;
+      if (o["kind"] === "role" && str(o["role"], 64)) parsed.push({ kind: "role", role: String(o["role"]) });
+      else if (o["kind"] === "user" && str(o["sub"], 256)) parsed.push({ kind: "user", sub: String(o["sub"]) });
+      else { res.status(400).json({ error: "each approver is {kind:'role',role} or {kind:'user',sub}" }); return null; }
+    }
+    return parsed;
+  },
+  run: async (req, _res, parsed) => { await redirectProposal(String(req.params["id"]), parsed); return { ok: true }; },
+  audit: "approval.redirect",
+  auditMeta: (req) => ({ proposalId: req.params["id"] }),
+  onError: (res, err, req, action) => fail(res, err, req, action),
+};
+mountCommand(router, redirectCommand);
 
 // POST /approvals/:id/bypass/challenge — challenge for a PMO bypass signature.
 router.post("/approvals/:id/bypass/challenge", requireRole("pmo"), async (req: Request, res: Response) => {
@@ -161,18 +199,25 @@ router.post("/approvals/:id/bypass/challenge", requireRole("pmo"), async (req: R
   res.json(c);
 });
 
-// POST /approvals/:id/bypass — force-approve the chain with a PMO passkey signature (never silent).
-router.post("/approvals/:id/bypass", requireRole("pmo"), async (req: Request, res: Response) => {
-  const actor = actorFor(req);
-  if (!actor) { res.status(401).json({ error: "authentication required" }); return; }
-  const signed = parseSigned(req.body, false);
-  if (!signed) { res.status(400).json({ error: "a signed bypass (credentialId, clientDataJSON, authenticatorData, signature) is required" }); return; }
-  try {
-    const r = await bypassProposal(String(req.params["id"]), actor, signed);
-    recordAudit({ ts: new Date().toISOString(), category: "request", action: "approval.bypass", actor: actorForAudit(req), write: true, result: "success", meta: { proposalId: req.params["id"] } });
-    res.json({ status: "approved", ...r });
-  } catch (err) { fail(res, err, req, "approval.bypass"); }
-});
+// POST /approvals/:id/bypass — force-approve the chain with a PMO passkey signature (never silent). LANE 2.
+export const bypassCommand: CommandDescriptor<{ actor: Actor; signed: SignedDecision }> = {
+  name: "approval.bypass",
+  method: "post",
+  path: "/approvals/:id/bypass",
+  role: "pmo",
+  parse: (req, res) => {
+    const actor = actorFor(req);
+    if (!actor) { res.status(401).json({ error: "authentication required" }); return null; }
+    const signed = parseSigned(req.body, false);
+    if (!signed) { res.status(400).json({ error: "a signed bypass (credentialId, clientDataJSON, authenticatorData, signature) is required" }); return null; }
+    return { actor, signed };
+  },
+  run: async (req, _res, { actor, signed }) => { const r = await bypassProposal(String(req.params["id"]), actor, signed); return { status: "approved", ...r }; },
+  audit: "approval.bypass",
+  auditMeta: (req) => ({ proposalId: req.params["id"] }),
+  onError: (res, err, req, action) => fail(res, err, req, action),
+};
+mountCommand(router, bypassCommand);
 
 // ── AI responsibility acceptances (design §4.2) ──────────────────────────────
 // The standing, passkey-signed human grant that lets an AI approve/run a SPECIFIC workflow version. A hard
@@ -194,7 +239,7 @@ function workflowScopeGate(req: Request, res: Response, workflowId: string): boo
 
 // GET /approvals/workflow-acceptances — every stored acceptance with its LIVE active/void status (pmo+).
 router.get("/approvals/workflow-acceptances", requireRole("manager"), async (_req: Request, res: Response) => {
-  res.json({ acceptances: listAcceptances() });
+  res.json({ acceptances: await listAcceptances() });
 });
 
 // POST /approvals/workflow-acceptances/:workflowId/challenge — challenge to sign, bound to the CURRENT version.
@@ -212,6 +257,7 @@ router.post("/approvals/workflow-acceptances/:workflowId/challenge", async (req:
 router.post("/approvals/workflow-acceptances/:workflowId", async (req: Request, res: Response) => {
   const s = getSession(req);
   if (!s?.sub) { res.status(401).json({ error: "authentication required" }); return; }
+  if (isAutonomousSub(s.sub)) { res.status(403).json({ error: "only a human may sign a responsibility acceptance" }); return; }
   const workflowId = String(req.params["workflowId"]);
   if (!workflowScopeGate(req, res, workflowId)) return;
   const signed = parseSigned(req.body, false);
@@ -228,7 +274,7 @@ router.delete("/approvals/workflow-acceptances/:workflowId", async (req: Request
   const workflowId = String(req.params["workflowId"]);
   if (!workflowScopeGate(req, res, workflowId)) return;
   revokeAcceptance(workflowId);
-  recordAudit({ ts: new Date().toISOString(), category: "request", action: "approval.acceptance.revoke", actor: actorForAudit(req), write: true, result: "success", meta: { workflowId } });
+  recordRequestAudit(req, { category: "request", action: "approval.acceptance.revoke", write: true, result: "success", meta: { workflowId } });
   res.json({ ok: true, workflowId });
 });
 

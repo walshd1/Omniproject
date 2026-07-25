@@ -1,0 +1,14 @@
+{
+  "id": "prince2-starter",
+  "label": "PRINCE2 project",
+  "description": "A stage-gated project shell with the PRINCE2 management products as work items.",
+  "methodology": "prince2",
+  "methodologies": ["prince2", "governance"],
+  "project": { "description": "PRINCE2 project created from a template." },
+  "seedIssues": [
+    { "title": "Project Brief", "status": "todo", "priority": "high", "labels": ["initiation"] },
+    { "title": "Business Case", "status": "todo", "priority": "high", "labels": ["initiation"] },
+    { "title": "Stage 1 plan", "status": "todo", "priority": "medium" },
+    { "title": "Risk register set-up", "status": "todo", "priority": "medium", "labels": ["raid"] }
+  ]
+}

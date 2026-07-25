@@ -5,7 +5,7 @@
  * delegates. A provider is registered at boot (self-host / broker-backed, deferred like the retention
  * source); when none is available the API answers an honest "not enabled" instead of inventing a home.
  */
-import { getSettings } from "../lib/settings";
+import { resolveSelfHost } from "../lib/self-host-config";
 import type { Timesheet } from "./state-machine";
 
 /** Which below-seam store a timesheet was routed to. */
@@ -57,7 +57,7 @@ export function describeTimesheetSources(scope: TimesheetScope = {}): {
   source: TimesheetSource | null;
   selfHostAdopted: boolean;
 } {
-  const selfHostAdopted = getSettings().selfHost.mode !== "off";
+  const selfHostAdopted = resolveSelfHost().mode !== "off";
   const store = timesheetStoreFor(scope);
   return { available: !!store, source: store?.source ?? null, selfHostAdopted };
 }

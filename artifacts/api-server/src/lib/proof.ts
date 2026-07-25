@@ -12,6 +12,8 @@
  */
 import type { ActorContext, Proof, ProofMeta, ProofWrite } from "../broker/types";
 import { makeScopedId, parseScopedId, scopeFromParsed, type ArtifactScope, type StorageTarget } from "./artifact-store";
+import { sanitizeText as cleanText } from "./coerce";
+import { actorLabel } from "./actor";
 import {
   ANNOTATION_TYPES, REGION_ANNOTATION_TYPES, DELIVERABLE_KINDS, REVIEW_DECISIONS, PROOF_LIMITS,
   type Annotation, type AnnotationType, type Deliverable, type DeliverableKind, type ProofDecision,
@@ -41,19 +43,6 @@ const SAFE_URL_SCHEMES = new Set(["http:", "https:"]);
 export interface SanitizedProofWrite extends ProofWrite {
   storage: ProofStorage;
   projectId?: string;
-}
-
-/** Strip control characters and cap length on a free-text value. */
-function cleanText(value: unknown, max: number): string {
-  if (typeof value !== "string") return "";
-  let out = "";
-  for (const ch of value) {
-    const c = ch.codePointAt(0)!;
-    const printable = c === 9 || c === 10 || (c >= 32 && c !== 127 && !(c >= 128 && c <= 159));
-    if (printable) out += ch;
-    if (out.length >= max) break;
-  }
-  return out.slice(0, max);
 }
 
 /** A number clamped to the normalised annotation range [0, 1] (defaulted when absent/NaN). */
@@ -163,7 +152,7 @@ export const proofScope = (parsed: { storage: ProofStorage; projectId?: string }
   scopeFromParsed(parsed as { storage: StorageTarget; projectId?: string }, sub);
 
 /** A proof actor's label (email > name > sub) for the audit `decidedBy`/`updatedBy`. */
-export const actorLabel = (ctx: ActorContext): string | null => ctx.email ?? ctx.name ?? ctx.sub ?? null;
+export { actorLabel };
 
 /** Build the row for a NEW proof from a sanitised write. The owner is stamped from ctx (never the client);
  *  the proof starts at version 1 with a `pending` decision. */

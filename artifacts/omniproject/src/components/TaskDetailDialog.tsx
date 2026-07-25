@@ -4,6 +4,10 @@ import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { useTaskComments, useAddComment, useTaskAttachments, useAddAttachment, useUpdateTask, PRIORITIES, type Task } from "../lib/tasks";
 import { usePriorityLabels } from "../lib/priority-labels";
+import { TaskNotes } from "./TaskNotes";
+import { TagEditor } from "./TagEditor";
+import { TaskSubtasks } from "./TaskSubtasks";
+import { TaskRecurrence } from "./TaskRecurrence";
 
 /**
  * Task detail — the fields plus the discussion thread and file attachment REFERENCES for one task,
@@ -60,7 +64,21 @@ export function TaskDetailDialog({ task, open, onOpenChange }: { task: Task | nu
               </select>
             </label>
           </div>
-          {task.description && <p className="text-sm whitespace-pre-wrap">{task.description}</p>}
+          {/* Rich (markdown-lite) notes — the stored `description` string, rendered + inline-editable. */}
+          <TaskNotes
+            value={task.description ?? ""}
+            saving={updateTask.isPending}
+            onSave={(next) => updateTask.mutate({ id: task.id, patch: { description: next } })}
+          />
+
+          {/* Per-user tag colour + hierarchy overlay (personal, localStorage). */}
+          <TagEditor tags={task.tags ?? []} />
+
+          {/* Subtasks — create children + re-parent this task (builds the tree the list view renders). */}
+          <TaskSubtasks task={task} />
+
+          {/* Repeat — authoring for the server-side recurrence engine. */}
+          <TaskRecurrence task={task} />
 
           {/* Comments */}
           <div>

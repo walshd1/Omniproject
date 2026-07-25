@@ -40,17 +40,21 @@ export function reminderNotification(task: Task): { notification: { kind: string
 export interface ReminderSweepDeps {
   tasks: readonly Task[];
   nowMs: number;
+  /** Cheap pre-filter: has this reminder already fired? Best-effort — the authoritative gate is `claim`. */
   isFired: (key: string) => boolean | Promise<boolean>;
-  markFired: (key: string) => void | Promise<void>;
+  /** ATOMIC set-if-absent. Returns true iff THIS sweep claimed the key (it was not already set), in which
+   *  case this sweep — and only this sweep — must deliver. Concurrent/overlapping/multi-replica sweeps that
+   *  lose the race get false and skip, so a reminder is delivered exactly once fleet-wide. */
+  claim: (key: string) => boolean | Promise<boolean>;
   notify: (n: { kind: string; title: string; body: string }, target: { sub?: string; email?: string }) => void | Promise<void>;
 }
 
 /**
- * Run one reminder sweep: fire every due reminder exactly once (mark-then-notify, so a mid-sweep failure
- * can't produce a duplicate on the next run), returning the count fired. Deterministic given its deps.
+ * Run one reminder sweep: deliver every due reminder exactly once. Correctness under overlapping/multi-replica
+ * sweeps rests on `claim` being an ATOMIC set-if-absent (only the winner delivers) — the up-front `isFired`
+ * read is just a cheap pre-filter, never the dedupe gate. Returns the count delivered by THIS sweep.
  */
 export async function runReminderSweep(deps: ReminderSweepDeps): Promise<{ fired: number; taskIds: string[] }> {
-  // Resolve fired-state up front (the pure selector needs a sync predicate); tolerate async isFired.
   const flags = new Map<string, boolean>();
   for (const t of deps.tasks) {
     if (t.reminderAt) flags.set(reminderFireKey(t), !!(await deps.isFired(reminderFireKey(t))));
@@ -58,7 +62,7 @@ export async function runReminderSweep(deps: ReminderSweepDeps): Promise<{ fired
   const due = dueReminders(deps.tasks, deps.nowMs, (k) => flags.get(k) ?? false);
   const taskIds: string[] = [];
   for (const t of due) {
-    await deps.markFired(reminderFireKey(t)); // mark first — at-most-once even if notify throws
+    if (!(await deps.claim(reminderFireKey(t)))) continue; // lost the atomic claim → another sweep delivers
     const { notification, target } = reminderNotification(t);
     await deps.notify(notification, target);
     taskIds.push(t.id);

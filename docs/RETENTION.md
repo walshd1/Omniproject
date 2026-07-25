@@ -61,10 +61,19 @@ write ─▶ diffToJournal ─▶ issue_history        (append-only: one row per
 - `manual` — no automatic snapshots (a **baseline capture always forces one** regardless, so
   variance trends still get their on-baseline points).
 
-`resolveCadence(config, scope)` = **project override ▸ programme override ▸ org default**. Persisted in
-`settings.historyRetention` (`{ orgDefault, programme{}, project{} }`); edited via
+`resolveCadence(config, scope)` = **project override ▸ programme override ▸ org default**. Persisted as
+the scope-layered **`history-retention` config def** (`{ orgDefault, programme{}, project{}, disposal,
+legalHolds }`) in the composition model — no longer a `SettingsState` key (`lib/history-retention.ts`
+owns the type, default, `sanitizeHistoryRetention`, and `resolveHistoryRetention`). Edited via
 `PUT /api/history/retention` — **admin** owns the org default (and any scope), a **PMO** may set
 programme/project overrides but not the org default (403 otherwise).
+
+> **Shortening retention is floor-gated (Phase C).** Because a shorter disposal window / cadence
+> relaxes a data-governance guarantee, `history-retention` is a **security-classified config**: the
+> write path (`applyConfigCollectionGuarded`) reads the currently-resolved value and, if the new value
+> **shortens** retention, seals the write into a sign-off proposal (`202`, held) instead of applying it
+> immediately; lengthening (tightening) applies straight away. See
+> [FEATURE-ROADMAP.md](FEATURE-ROADMAP.md) Phase C for the floor-gate mechanism.
 
 ## Metrics supported
 

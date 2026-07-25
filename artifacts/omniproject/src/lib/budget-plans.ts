@@ -1,5 +1,4 @@
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { getJson, sendJson } from "./api";
+import { configResource } from "./config-resource";
 
 /**
  * Budget-plans client. A budget plan is a project's time-phased planned budget in a single currency
@@ -21,25 +20,15 @@ export interface BudgetPlan {
 
 export const budgetPlansQueryKey = ["budget-plans"] as const;
 
-export function useBudgetPlans() {
-  return useQuery({
-    queryKey: budgetPlansQueryKey,
-    queryFn: () => getJson<{ budgetPlans: BudgetPlan[] }>("/api/budget-plans").then((r) => r.budgetPlans ?? []),
-    staleTime: 30_000,
-  });
-}
-
+const resource = configResource<BudgetPlan[]>({
+  queryKey: budgetPlansQueryKey,
+  path: "/api/budget-plans",
+  envelopeKey: "budgetPlans",
+  empty: [],
+  saveErrorMessage: "Failed to save budget plans", // manager-gated server-side
+  // The screen panels read the rows endpoint under their own per-panel query keys; drop those too.
+  alsoInvalidate: [["panel-data"]],
+});
+export const useBudgetPlans = resource.useResource;
 /** Persist the full budget-plans list (CSRF attached by the global fetch patch). Manager-gated server-side. */
-export function useSaveBudgetPlans() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: async (budgetPlans: BudgetPlan[]) => {
-      return sendJson<unknown>("/api/budget-plans", { budgetPlans }, "PUT", "Failed to save budget plans");
-    },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: budgetPlansQueryKey });
-      // The screen panels read the rows endpoint under their own per-panel query keys; drop those too.
-      qc.invalidateQueries({ queryKey: ["panel-data"] });
-    },
-  });
-}
+export const useSaveBudgetPlans = resource.useSaveResource;

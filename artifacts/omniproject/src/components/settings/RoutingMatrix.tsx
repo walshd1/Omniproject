@@ -22,7 +22,7 @@ export function RoutingMatrix() {
   const pickable = usePickableFields();
   const save = useSaveFieldRouting();
   const { toast } = useToast();
-  const { draft, setDraft, dirty, reset } = useDraftAdmin<FieldRoute[], FieldRoute[]>(server, structuredClone);
+  const { draft, setDraft, dirty, reset } = useDraftAdmin<FieldRoute[], FieldRoute[]>(server);
 
   // Admin-only: routing decides where every value comes from.
   if (!roleAtLeast(auth?.role, "admin")) return null;

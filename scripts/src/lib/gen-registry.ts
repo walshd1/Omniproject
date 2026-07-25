@@ -117,3 +117,49 @@ export function runSingleAssetGenerator(opts: SingleAssetGeneratorOptions): void
   console.log(`${opts.label}: ${rows.length} validated`);
   console.log(`  → ${path.relative(REPO_ROOT, outTs)}`);
 }
+
+/** Config for an ARRAY-source asset generator: the rows come from a single JSON array or a computed
+ *  union (e.g. gen-fields' base ∪ vendor superset), not a directory of per-id files — so the loader
+ *  owns row order and dedup, and there is no filename===id / id-sort step. */
+export interface ArrayAssetGeneratorOptions {
+  /** Basename of the emitted lib/backend-catalogue/src/<label>.generated.ts (and the gen-<label> script). */
+  label: string;
+  /** Schema filename under assets/schema, e.g. "field.schema.json". */
+  schemaFile: string;
+  /** The exported const name + its element type + the module the type is imported from. */
+  constName: string;
+  typeName: string;
+  typeModule: string;
+  /** Row identifier property, used only for the per-row validation error label. Defaults to "id". */
+  idField?: string;
+  /** The header comment lines for the generated module — kept explicit because each array source needs
+   *  to explain where its rows come from (a single file, a computed union, …). */
+  headerLines: string[];
+  /** Produce the rows to validate + emit, given the repo root (e.g. base ∪ vendor field union). Row
+   *  order is preserved verbatim into the generated module — the loader is authoritative. */
+  loadRows: (repoRoot: string) => Array<Record<string, unknown>>;
+}
+
+/**
+ * Run one array-source asset generator: compute the rows, validate each against its schema, and emit the
+ * `<label>.generated.ts`. The array analogue of runSingleAssetGenerator — same validate/emit/log, but
+ * with NO directory read, NO filename===id check, and NO id-sort (the loader owns order + dedup).
+ */
+export function runArrayAssetGenerator(opts: ArrayAssetGeneratorOptions): void {
+  const assets = path.join(REPO_ROOT, "lib/backend-catalogue/assets");
+  const outTs = path.join(REPO_ROOT, `lib/backend-catalogue/src/${opts.label}.generated.ts`);
+  const schema = JSON.parse(fs.readFileSync(path.join(assets, "schema", opts.schemaFile), "utf8")) as JsonSchema;
+  const idField = opts.idField ?? "id";
+
+  const rows = opts.loadRows(REPO_ROOT);
+  rows.forEach((row, i) => {
+    const errs = validate(schema, row);
+    if (errs.length) throw new Error(`${opts.label}[${i}] (${idField} "${String(row[idField])}") fails its schema:\n  - ${errs.join("\n  - ")}`);
+  });
+
+  const group: AssetGroup = { dir: "", schema, label: opts.label, constName: opts.constName, typeName: opts.typeName, typeModule: opts.typeModule };
+  emitRegistry(outTs, opts.headerLines, [{ group, rows: rows as unknown as Array<{ id: string }> }]);
+
+  console.log(`${opts.label}: ${rows.length} validated`);
+  console.log(`  → ${path.relative(REPO_ROOT, outTs)}`);
+}

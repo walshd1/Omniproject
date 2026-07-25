@@ -50,6 +50,7 @@ const COVERED: Record<string, string> = {
   "/notifications": "e2e-smoke, broker-conformance",
   "/portfolio/health": "e2e-smoke, broker-conformance",
   "/portfolio/summary": "portfolio-summary.test.ts, federated-portfolio.test.ts (HTTP)",
+  "/portfolio/financials": "portfolio-financials-routes.test.ts (roll-up shape, ?currency override, invalid-currency fallback)",
   "/federated-portfolio": "federation.test.ts, federated-portfolio.test.ts (HTTP)",
   "/activity": "verify-broker, broker-conformance",
   "/capabilities": "e2e-smoke, broker-conformance",

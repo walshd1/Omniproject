@@ -1,17 +1,14 @@
 import { test, afterEach } from "node:test";
 import assert from "node:assert/strict";
-import { updateSettings, getSettings, redactSettingsForRead, SettingsValidationError, DEFAULT_PRIORITY_WEIGHTS } from "./settings";
+import { updateSettings, getSettings, redactSettingsForRead, SettingsValidationError, DEFAULT_PRIORITY_WEIGHTS, validateSavedViews } from "./settings";
 
 afterEach(() => {
-  updateSettings({ savedViews: [], hiddenFields: [], disabledFeatures: [], dashboards: [], reportingCurrency: null, fxRatePolicy: "spot", fxRateAsOfDate: null, customReports: [], reportOverrides: [], contentPages: [], priorityWeights: { ...DEFAULT_PRIORITY_WEIGHTS }, federatedPeers: [] }); // reset shared store
+  updateSettings({ disabledFeatures: [], reportingCurrency: null, fxRatePolicy: "spot", fxRateAsOfDate: null, reportOverrides: [], contentPages: [], priorityWeights: { ...DEFAULT_PRIORITY_WEIGHTS }, federatedPeers: [] }); // reset shared store
 });
 
-test("errorTelemetry: accepts a boolean, rejects a non-boolean, defaults off", () => {
-  assert.equal(getSettings().errorTelemetry, false); // off by default
-  assert.equal(updateSettings({ errorTelemetry: true }).errorTelemetry, true);
-  assert.equal(updateSettings({ errorTelemetry: false }).errorTelemetry, false);
-  assert.throws(() => updateSettings({ errorTelemetry: "yes" as unknown as boolean }), SettingsValidationError);
-});
+// errorTelemetry left SettingsState for the `error-telemetry` config def (roadmap Phase C, slice 7b) — it is now
+// a SECURITY-classified config governed by the floor gate. Its boolean validation + guard round-trip is covered
+// by error-telemetry-routes.test / config-guard.test, not here.
 
 test("reportOverrides: accepts partial metadata overrides and rejects bad shape", () => {
   const ok = updateSettings({ reportOverrides: [{ id: "evm", label: "Earned value", order: 5, hidden: true }, { id: "burndown" }] });
@@ -19,43 +16,6 @@ test("reportOverrides: accepts partial metadata overrides and rejects bad shape"
   assert.throws(() => updateSettings({ reportOverrides: [{ label: "no id" }] as unknown as [] }), SettingsValidationError); // missing id
   assert.throws(() => updateSettings({ reportOverrides: [{ id: "x", order: "nope" }] as unknown as [] }), SettingsValidationError); // bad order
   assert.throws(() => updateSettings({ reportOverrides: [{ id: "x", hidden: "yes" }] as unknown as [] }), SettingsValidationError); // bad hidden
-});
-
-test("dashboards: accept an optional refreshMs and reject a negative one", () => {
-  const ok = updateSettings({ dashboards: [{ id: "d1", name: "Ops", widgets: [], refreshMs: 30000 }] });
-  assert.equal(ok.dashboards[0]!.refreshMs, 30000);
-  assert.throws(() => updateSettings({ dashboards: [{ id: "d2", name: "Bad", widgets: [], refreshMs: -5 }] as unknown as [] }), SettingsValidationError);
-});
-
-test("customReports: accepts a well-formed bespoke report and rejects bad shape", () => {
-  const ok = updateSettings({ customReports: [{ id: "r1", label: "Spend by status", scope: "project", groupBy: "status", metrics: [{ id: "m1", field: "budget", agg: "sum" }], viz: "bar" }] });
-  assert.equal(ok.customReports.length, 1);
-  assert.throws(() => updateSettings({ customReports: [{ id: "r2", label: "x", scope: "nope", metrics: [{ id: "m", field: "b", agg: "sum" }], viz: "table" }] }), SettingsValidationError); // bad scope
-  assert.throws(() => updateSettings({ customReports: [{ id: "r3", label: "x", scope: "project", metrics: [], viz: "table" }] }), SettingsValidationError); // no metrics
-  assert.throws(() => updateSettings({ customReports: [{ id: "r4", label: "x", scope: "project", metrics: [{ id: "m", field: "b", agg: "median" }], viz: "table" }] }), SettingsValidationError); // bad agg
-});
-
-test("customReports: accepts the tasks scope (report over the GTD task entity)", () => {
-  const ok = updateSettings({ customReports: [{ id: "rt", label: "Tasks by context", scope: "tasks", groupBy: "context", metrics: [{ id: "m1", field: "id", agg: "count" }], viz: "bar" }] });
-  assert.equal(ok.customReports[0]!.scope, "tasks");
-});
-
-test("customReports: accepts area/pie viz + chart options, rejects bad chart", () => {
-  const ok = updateSettings({ customReports: [{ id: "rc", label: "Share", scope: "project", groupBy: "status", metrics: [{ id: "m1", field: "budget", agg: "sum" }], viz: "pie", chart: { legend: false, stacked: true } }] });
-  assert.equal(ok.customReports[0]!.viz, "pie");
-  assert.equal(ok.customReports[0]!.chart!.legend, false);
-  assert.throws(() => updateSettings({ customReports: [{ id: "x", label: "x", scope: "project", metrics: [{ id: "m", field: "b", agg: "sum" }], viz: "donut" }] }), SettingsValidationError); // bad viz
-  assert.throws(() => updateSettings({ customReports: [{ id: "x", label: "x", scope: "project", metrics: [{ id: "m", field: "b", agg: "sum" }], viz: "bar", chart: { stacked: "yes" } }] }), SettingsValidationError); // bad chart.stacked
-});
-
-test("customReports: accepts groupBy2 (pivot) and viz:line + dateField (trend), rejects bad shapes for both", () => {
-  const pivot = updateSettings({ customReports: [{ id: "r5", label: "Pivot", scope: "project", groupBy: "status", groupBy2: "region", metrics: [{ id: "m1", field: "budget", agg: "sum" }], viz: "table" }] });
-  assert.equal(pivot.customReports[0]!.groupBy2, "region");
-  const trend = updateSettings({ customReports: [{ id: "r6", label: "Trend", scope: "project", dateField: "closedAt", metrics: [{ id: "m1", field: "budget", agg: "sum" }], viz: "line" }] });
-  assert.equal(trend.customReports[0]!.viz, "line");
-  assert.throws(() => updateSettings({ customReports: [{ id: "r7", label: "x", scope: "project", groupBy2: 5, metrics: [{ id: "m", field: "b", agg: "sum" }], viz: "table" }] as never }), SettingsValidationError); // bad groupBy2
-  assert.throws(() => updateSettings({ customReports: [{ id: "r8", label: "x", scope: "project", dateField: 5, metrics: [{ id: "m", field: "b", agg: "sum" }], viz: "line" }] as never }), SettingsValidationError); // bad dateField
-  assert.throws(() => updateSettings({ customReports: [{ id: "r9", label: "x", scope: "project", metrics: [{ id: "m", field: "b", agg: "sum" }], viz: "donut" }] as never }), SettingsValidationError); // bad viz
 });
 
 test("contentPages: accepts a well-formed page and persists the component-id order", () => {
@@ -101,77 +61,51 @@ test("fxRateAsOfDate: accepts an ISO date, null to clear, rejects an unparseable
   assert.throws(() => updateSettings({ fxRateAsOfDate: "not-a-date" }), SettingsValidationError);
 });
 
-test("savedViews: accepts well-formed views and persists them", () => {
-  const views = [
-    { id: "v1", name: "My grid", scope: "grid", columns: ["title", "status"], sort: { field: "status", dir: "asc" as const } },
+// savedViews left settings for a `saved-views` config def (routes/views); its validator `validateSavedViews`
+// (throws on a bad shape) is exercised directly here — the same coverage the updateSettings path had.
+test("savedViews: accepts well-formed views", () => {
+  assert.doesNotThrow(() => validateSavedViews([
+    { id: "v1", name: "My grid", scope: "grid", columns: ["title", "status"], sort: { field: "status", dir: "asc" } },
     { id: "v2", name: "Due soon" },
-  ];
-  const s = updateSettings({ savedViews: views });
-  assert.equal(s.savedViews.length, 2);
-  assert.equal(getSettings().savedViews[0]!.name, "My grid");
+  ]));
 });
 
 test("savedViews: rejects a non-array and a view missing id/name", () => {
-  assert.throws(() => updateSettings({ savedViews: "nope" }), SettingsValidationError);
-  assert.throws(() => updateSettings({ savedViews: [{ name: "no id" }] }), SettingsValidationError);
-  assert.throws(() => updateSettings({ savedViews: [{ id: "x" }] }), SettingsValidationError);
+  assert.throws(() => validateSavedViews("nope"), SettingsValidationError);
+  assert.throws(() => validateSavedViews([{ name: "no id" }]), SettingsValidationError);
+  assert.throws(() => validateSavedViews([{ id: "x" }]), SettingsValidationError);
 });
 
 test("savedViews: accepts view-engine fields (entity/viewKind/filters/groupBy)", () => {
-  const s = updateSettings({ savedViews: [
-    { id: "e1", name: "Blocked", entity: "issue", viewKind: "board", filters: [{ field: "status", value: "in_progress" }], groupBy: "assignee", sort: { field: "priority", dir: "desc" as const } },
-  ] });
-  assert.equal(s.savedViews[0]!.entity, "issue");
-  assert.equal(s.savedViews[0]!.viewKind, "board");
+  assert.doesNotThrow(() => validateSavedViews([
+    { id: "e1", name: "Blocked", entity: "issue", viewKind: "board", filters: [{ field: "status", value: "in_progress" }], groupBy: "assignee", sort: { field: "priority", dir: "desc" } },
+  ]));
 });
 
 test("savedViews: accepts the table viewKind with columns", () => {
-  const s = updateSettings({ savedViews: [{ id: "t1", name: "Table", entity: "task", viewKind: "table", columns: ["status", "assignee"] }] });
-  assert.equal(s.savedViews[0]!.viewKind, "table");
+  assert.doesNotThrow(() => validateSavedViews([{ id: "t1", name: "Table", entity: "task", viewKind: "table", columns: ["status", "assignee"] }]));
 });
 
 test("savedViews: accepts the chart viewKind with a chart spec, rejects a bad chart type", () => {
-  const s = updateSettings({ savedViews: [{ id: "cv1", name: "By status", entity: "task", viewKind: "chart", chart: { type: "gantt", startField: "startDate", endField: "dueDate" } }] });
-  assert.equal(s.savedViews[0]!.viewKind, "chart");
-  assert.equal(s.savedViews[0]!.chart!.type, "gantt");
-  assert.throws(() => updateSettings({ savedViews: [{ id: "x", name: "n", viewKind: "chart", chart: { type: "sunburst" } }] }), SettingsValidationError);
+  assert.doesNotThrow(() => validateSavedViews([{ id: "cv1", name: "By status", entity: "task", viewKind: "chart", chart: { type: "gantt", startField: "startDate", endField: "dueDate" } }]));
+  assert.throws(() => validateSavedViews([{ id: "x", name: "n", viewKind: "chart", chart: { type: "sunburst" } }]), SettingsValidationError);
 });
 
 test("savedViews: accepts the timeline viewKind with a dateField", () => {
-  const s = updateSettings({ savedViews: [{ id: "tl1", name: "Timeline", entity: "issue", viewKind: "timeline", dateField: "dueDate" }] });
-  assert.equal(s.savedViews[0]!.viewKind, "timeline");
-  assert.equal(s.savedViews[0]!.dateField, "dueDate");
-  assert.throws(() => updateSettings({ savedViews: [{ id: "x", name: "n", dateField: 5 }] }), SettingsValidationError);
+  assert.doesNotThrow(() => validateSavedViews([{ id: "tl1", name: "Timeline", entity: "issue", viewKind: "timeline", dateField: "dueDate" }]));
+  assert.throws(() => validateSavedViews([{ id: "x", name: "n", dateField: 5 }]), SettingsValidationError);
 });
 
 test("savedViews: rejects malformed view-engine fields", () => {
-  assert.throws(() => updateSettings({ savedViews: [{ id: "x", name: "n", entity: "widget" }] }), SettingsValidationError);
-  assert.throws(() => updateSettings({ savedViews: [{ id: "x", name: "n", viewKind: "grid" }] }), SettingsValidationError);
-  assert.throws(() => updateSettings({ savedViews: [{ id: "x", name: "n", sort: { field: "s", dir: "up" } }] }), SettingsValidationError);
-  assert.throws(() => updateSettings({ savedViews: [{ id: "x", name: "n", filters: [{ field: "s" }] }] }), SettingsValidationError);
+  assert.throws(() => validateSavedViews([{ id: "x", name: "n", entity: "widget" }]), SettingsValidationError);
+  assert.throws(() => validateSavedViews([{ id: "x", name: "n", viewKind: "grid" }]), SettingsValidationError);
+  assert.throws(() => validateSavedViews([{ id: "x", name: "n", sort: { field: "s", dir: "up" } }]), SettingsValidationError);
+  assert.throws(() => validateSavedViews([{ id: "x", name: "n", filters: [{ field: "s" }] }]), SettingsValidationError);
 });
 
 // NB hiddenFields is no longer a settings key — it's a config-def-backed collection (`hidden-fields`, via
 // settingsCollectionRouter's config mode). Its sanitiser (sanitizeHiddenFields) is exercised in the
 // availability-curation route test.
-
-test("dashboards: accepts well-formed dashboards and persists them", () => {
-  const dashboards = [
-    { id: "d1", name: "Exec", widgets: [{ id: "w1", type: "portfolioHealth", span: 3 as const }, { id: "w2", type: "recentActivity" }] },
-    { id: "d2", name: "Empty", widgets: [] },
-  ];
-  const s = updateSettings({ dashboards });
-  assert.equal(s.dashboards.length, 2);
-  assert.equal(getSettings().dashboards[0]!.widgets[0]!.type, "portfolioHealth");
-});
-
-test("dashboards: rejects a non-array, a dashboard missing id/name/widgets, and a widget missing id/type", () => {
-  assert.throws(() => updateSettings({ dashboards: "nope" as unknown as [] }), SettingsValidationError);
-  assert.throws(() => updateSettings({ dashboards: [{ name: "no id", widgets: [] }] as never }), SettingsValidationError);
-  assert.throws(() => updateSettings({ dashboards: [{ id: "d", name: "no widgets" }] as never }), SettingsValidationError);
-  assert.throws(() => updateSettings({ dashboards: [{ id: "d", name: "x", widgets: [{ type: "noId" }] }] as never }), SettingsValidationError);
-  assert.throws(() => updateSettings({ dashboards: [{ id: "d", name: "x", widgets: [{ id: "w" }] }] as never }), SettingsValidationError);
-});
 
 // ── Federated peers (backlog #135) ────────────────────────────────────────────
 
@@ -240,13 +174,6 @@ test("calendarPush can't persist a forged 'granted' consent with an uncatalogued
   assert.equal(g.granted, false);  // consent to an uncatalogued target is void
   assert.equal(g.target, null);
   updateSettings({ calendarPush: {} });
-});
-
-test("screenLayouts drops an out-of-range span (structurally-invalid layout can't persist)", () => {
-  const s = updateSettings({ screenLayouts: { home: { order: ["a", "b"], spans: { a: 6, b: 99, c: "x" as unknown as number }, hidden: [] } } });
-  const l = s.screenLayouts["home"] as { spans: Record<string, number> };
-  assert.deepEqual(l.spans, { a: 6 }); // b (>12) + c (non-number) dropped
-  updateSettings({ screenLayouts: {} });
 });
 
 test("featureGovernance rejects a feature that is both required and forbidden", () => {

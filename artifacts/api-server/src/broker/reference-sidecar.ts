@@ -36,11 +36,13 @@ function seed(): Store {
     projects: [
       { id: "proj-ref-1", name: "Reference Project", identifier: "REF", description: "Seeded by the reference sidecar", source: "reference", programmeId: null, programmeName: null, issueCount: 1, completedCount: 0, memberCount: 1, updatedAt: now },
     ],
-    issues: {
+    // Null-prototype: `issues` is keyed by a caller-supplied projectId, so `store.issues[projectId] ??= []`
+    // must not resolve to an inherited member (a reserved id would otherwise make `.push` throw). See demo.ts.
+    issues: Object.assign(Object.create(null) as Record<string, Row[]>, {
       "proj-ref-1": [
         { id: "iss-ref-1", projectId: "proj-ref-1", title: "Sample work item", status: "todo", priority: "none", labels: [], source: "reference", version: 1, createdAt: now, updatedAt: now },
       ],
-    },
+    }),
     issueSeq: 1,
   };
 }

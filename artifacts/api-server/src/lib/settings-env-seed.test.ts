@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { brandingFromEnv } from "./branding";
 import { labelsFromEnv } from "./labels";
+import { loggingSyncFromEnv } from "./logging-sync";
 
 /**
  * Coverage for the environment-seed helpers: the deploy-time defaults from env vars.
@@ -287,52 +288,45 @@ test("peers: malformed JSON → warns and seeds no peers", async () => {
 // loggingSyncFromEnv
 // ---------------------------------------------------------------------------
 
+// loggingSyncFromEnv now lives in ./logging-sync (the `logging-sync` config def's env BASE layer, Phase C).
 test("loggingSync: no env → disabled, null url, not acknowledged", async () => {
-  const s = await loadFreshSettings();
-  assert.deepEqual(s.loggingSync, { enabled: false, url: null, acknowledgedWarranty: false });
+  const s = await withEnv({}, async () => loggingSyncFromEnv());
+  assert.deepEqual(s, { enabled: false, url: null, acknowledgedWarranty: false });
 });
 
 test("loggingSync: safe url + ack → enabled with url preserved", async () => {
   const s = await withEnv(
     { LOGGING_SYNC_URL: "https://logs.example.com/ingest", LOGGING_SYNC_ACK_WARRANTY: "true" },
-    loadFreshSettings,
+    async () => loggingSyncFromEnv(),
   );
-  assert.deepEqual(s.loggingSync, {
-    enabled: true,
-    url: "https://logs.example.com/ingest",
-    acknowledgedWarranty: true,
-  });
+  assert.deepEqual(s, { enabled: true, url: "https://logs.example.com/ingest", acknowledgedWarranty: true });
 });
 
 test("loggingSync: safe url but no ack → not enabled, url still preserved", async () => {
-  const s = await withEnv({ LOGGING_SYNC_URL: "https://logs.example.com/ingest" }, loadFreshSettings);
-  assert.deepEqual(s.loggingSync, {
-    enabled: false,
-    url: "https://logs.example.com/ingest",
-    acknowledgedWarranty: false,
-  });
+  const s = await withEnv({ LOGGING_SYNC_URL: "https://logs.example.com/ingest" }, async () => loggingSyncFromEnv());
+  assert.deepEqual(s, { enabled: false, url: "https://logs.example.com/ingest", acknowledgedWarranty: false });
 });
 
 test("loggingSync: ack but no url → not enabled, url null", async () => {
-  const s = await withEnv({ LOGGING_SYNC_ACK_WARRANTY: "true" }, loadFreshSettings);
-  assert.deepEqual(s.loggingSync, { enabled: false, url: null, acknowledgedWarranty: true });
+  const s = await withEnv({ LOGGING_SYNC_ACK_WARRANTY: "true" }, async () => loggingSyncFromEnv());
+  assert.deepEqual(s, { enabled: false, url: null, acknowledgedWarranty: true });
 });
 
 test("loggingSync: unsafe metadata url dropped → not enabled, url null even with ack", async () => {
   const s = await withEnv(
     { LOGGING_SYNC_URL: "http://169.254.169.254/logs", LOGGING_SYNC_ACK_WARRANTY: "true" },
-    loadFreshSettings,
+    async () => loggingSyncFromEnv(),
   );
-  assert.deepEqual(s.loggingSync, { enabled: false, url: null, acknowledgedWarranty: true });
+  assert.deepEqual(s, { enabled: false, url: null, acknowledgedWarranty: true });
 });
 
 test("loggingSync: ACK anything other than exactly 'true' is not acknowledged", async () => {
   const s = await withEnv(
     { LOGGING_SYNC_URL: "https://logs.example.com/ingest", LOGGING_SYNC_ACK_WARRANTY: "1" },
-    loadFreshSettings,
+    async () => loggingSyncFromEnv(),
   );
-  assert.equal(s.loggingSync.acknowledgedWarranty, false);
-  assert.equal(s.loggingSync.enabled, false);
+  assert.equal(s.acknowledgedWarranty, false);
+  assert.equal(s.enabled, false);
 });
 
 // ---------------------------------------------------------------------------

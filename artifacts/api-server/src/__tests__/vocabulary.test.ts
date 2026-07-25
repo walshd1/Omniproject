@@ -6,6 +6,7 @@ import {
   isDone,
   isClosed,
   ragFor,
+  classifyRag,
   financialHealthFrom,
   ragBuckets,
   type StatusVocabulary,
@@ -58,6 +59,16 @@ test("ragFor applies the completion thresholds (≥60 green, ≥25 amber)", () =
   assert.equal(ragFor(25), "AMBER");
   assert.equal(ragFor(24), "RED");
   assert.equal(ragFor(0), "RED");
+});
+
+test("classifyRag normalises any-case RAG strings, else null", () => {
+  assert.equal(classifyRag("green"), "GREEN");
+  assert.equal(classifyRag(" Amber "), "AMBER");
+  assert.equal(classifyRag("RED"), "RED");
+  assert.equal(classifyRag("purple"), null);
+  assert.equal(classifyRag(""), null);
+  assert.equal(classifyRag(null), null);
+  assert.equal(classifyRag(undefined), null);
 });
 
 test("financialHealthFrom prefers CPI, falls back to spend ratio", () => {

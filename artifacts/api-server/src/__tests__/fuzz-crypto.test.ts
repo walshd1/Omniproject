@@ -502,7 +502,7 @@ test("signing: parsePrivateKey accepts PEM / base64 DER / base64 seed, rejects g
     const k = parsePrivateKey(raw);
     assert.ok(k, "expected a parsed key");
     assert.equal(
-      crypto.createPublicKey(k!).export({ format: "pem", type: "spki" }).toString(),
+      crypto.createPublicKey(k!.export({ format: "pem", type: "pkcs8" })).export({ format: "pem", type: "spki" }).toString(),
       SIGN_PUBLIC_PEM,
     );
   }

@@ -1,0 +1,12 @@
+{
+  "id": "scrum-team",
+  "label": "Scrum team",
+  "description": "A sprint-ready Scrum setup: the Scrum methodology curated in, its reference ruleset applied, and a starter sprint project seeded with the ceremonies as work items — so a new team lands on a working board, backlog, burndown and velocity in one step.",
+  "methodology": "scrum",
+  "settingsPreset": "growth-business",
+  "referenceRuleset": "scrum",
+  "projectTemplate": "scrum-starter",
+  "dashboardPreset": "project-manager-today",
+  "tags": ["agile", "scrum"],
+  "order": 10
+}

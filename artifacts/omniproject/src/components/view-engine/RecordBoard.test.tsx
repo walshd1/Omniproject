@@ -200,6 +200,55 @@ describe("RecordBoard", () => {
     expect(onMove).not.toHaveBeenCalled();
   });
 
+  it("renders a per-column '+' that creates a record seeded with that column's status", () => {
+    const onCreate = vi.fn();
+    render(
+      <RecordBoard
+        records={[rec({ id: "a", status: "todo" })]}
+        columns={COLUMNS}
+        noun="task"
+        labelForPriority={labelForPriority}
+        onMove={vi.fn()}
+        onOpen={vi.fn()}
+        onCreate={onCreate}
+      />,
+    );
+    // The "Done" column header carries a labelled create button seeded with its status.
+    fireEvent.click(screen.getByRole("button", { name: "New task in Done" }));
+    expect(onCreate).toHaveBeenCalledWith("done");
+  });
+
+  it("offers a '+ Add' affordance in an empty column when onCreate is supplied (else an em dash)", () => {
+    const onCreate = vi.fn();
+    const { rerender } = render(
+      <RecordBoard
+        records={[rec({ id: "a", status: "todo" })]}
+        columns={COLUMNS}
+        noun="task"
+        labelForPriority={labelForPriority}
+        onMove={vi.fn()}
+        onOpen={vi.fn()}
+        onCreate={onCreate}
+      />,
+    );
+    // "Done" is empty → its "+ Add" seeds a create in that column.
+    fireEvent.click(screen.getByRole("button", { name: "+ Add" }));
+    expect(onCreate).toHaveBeenCalledWith("done");
+    // Without onCreate the empty column falls back to the em-dash placeholder (read/move-only).
+    rerender(
+      <RecordBoard
+        records={[rec({ id: "a", status: "todo" })]}
+        columns={COLUMNS}
+        noun="task"
+        labelForPriority={labelForPriority}
+        onMove={vi.fn()}
+        onOpen={vi.fn()}
+      />,
+    );
+    expect(screen.queryByRole("button", { name: "+ Add" })).not.toBeInTheDocument();
+    expect(within(screen.getByLabelText("Done")).getByText("—")).toBeInTheDocument();
+  });
+
   it("shows the no-records message when there are no columns and no records", () => {
     render(
       <RecordBoard

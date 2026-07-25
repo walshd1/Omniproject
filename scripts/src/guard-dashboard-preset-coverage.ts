@@ -9,12 +9,10 @@
  */
 import fs from "node:fs";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { REPO_ROOT as ROOT } from "./lib/repo-root";
 import { idsFromAssets } from "./lib/coverage";
 import { reportGuard } from "./lib/guard-harness";
 
-const HERE = path.dirname(fileURLToPath(import.meta.url));
-const ROOT = path.resolve(HERE, "../..");
 
 const widgetTypes = new Set(idsFromAssets(path.join(ROOT, "lib/backend-catalogue/assets/widgets")));
 const presetsDir = path.join(ROOT, "lib/backend-catalogue/assets/dashboard-presets");

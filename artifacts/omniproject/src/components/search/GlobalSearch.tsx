@@ -62,7 +62,7 @@ export function GlobalSearch() {
   // result referentially stable across renders that don't change the underlying query data — e.g.
   // every keystroke — instead of re-materializing the whole cross-project array each time (Theme C).
   const issues = useQueries({
-    queries: (open ? projects ?? [] : []).map((p) => ({
+    queries: (open ? (Array.isArray(projects) ? projects : []) : []).map((p) => ({
       queryKey: ["global-search-issues", p.id] as const,
       queryFn: () => issuesFetchPool(() => getJson<Issue[]>(`/api/projects/${encodeURIComponent(p.id)}/issues`)),
       staleTime: 30_000,
@@ -73,8 +73,8 @@ export function GlobalSearch() {
 
   const hits = useMemo(
     () => searchEntities(query, {
-      projects: (projects ?? []).map((p) => ({ id: p.id, name: p.name })),
-      programmes: (programmes ?? []).map((p) => ({ id: p.id, name: p.name })),
+      projects: (Array.isArray(projects) ? projects : []).map((p) => ({ id: p.id, name: p.name })),
+      programmes: (Array.isArray(programmes) ? programmes : []).map((p) => ({ id: p.id, name: p.name })),
       issues,
     }),
     [query, projects, programmes, issues],

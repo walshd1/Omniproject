@@ -8,6 +8,7 @@
  * store (the `invoiceLine` family, placeable on the `invoice` surface) all draw from, so the store can never
  * drift from what an invoice can contain. The authoritative sanitiser + totalling run server-side.
  */
+import { numLoose, round2 } from "./num";
 
 /**
  * The kinds of invoice line. `labour` — billable hours × a rate; `expense` — a pass-through cost;
@@ -26,19 +27,16 @@ export const INVOICE_LINE_KINDS: readonly InvoiceLineKind[] = ["labour", "expens
 export type InvoiceStatus = "draft" | "issued" | "paid" | "void";
 export const INVOICE_STATUSES: readonly InvoiceStatus[] = ["draft", "issued", "paid", "void"];
 
-/** Round a money amount to 2 decimal places (banker-free, half-up). Pure. */
-export const round2 = (n: number): number => Math.round((Number.isFinite(n) ? n : 0) * 100) / 100;
-
 /**
  * The signed amount of a line by its kind: `quantity × unitPrice`, forced ≤ 0 for a `discount` (so a
  * discount always reduces the total regardless of how its inputs were entered). Pure.
  */
 export function invoiceLineAmount(kind: InvoiceLineKind, quantity: number, unitPrice: number): number {
-  const raw = round2((Number.isFinite(quantity) ? quantity : 0) * (Number.isFinite(unitPrice) ? unitPrice : 0));
+  const raw = round2(numLoose(quantity) * numLoose(unitPrice));
   return kind === "discount" ? -Math.abs(raw) : raw;
 }
 
 /** Format a money amount with an ISO-4217 currency code as a prefix (e.g. "USD 1,000.00"). Pure. */
 export function formatMoney(amount: number, currency: string): string {
-  return `${currency} ${round2(amount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  return `${currency} ${round2(numLoose(amount)).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }

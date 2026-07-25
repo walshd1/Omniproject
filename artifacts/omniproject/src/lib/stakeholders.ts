@@ -1,5 +1,4 @@
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { getJson, sendJson } from "./api";
+import { configResource } from "./config-resource";
 
 /**
  * Stakeholder register client. Flat (name, role, influence, interest, engagement) rows stored as shared
@@ -19,18 +18,13 @@ export interface Stakeholder {
 
 export const stakeholdersQueryKey = ["stakeholders"] as const;
 
-export function useStakeholders() {
-  return useQuery({
-    queryKey: stakeholdersQueryKey,
-    queryFn: () => getJson<{ stakeholders: Stakeholder[] }>("/api/stakeholders").then((r) => r.stakeholders ?? []),
-    staleTime: 30_000,
-  });
-}
-
-export function useSaveStakeholders() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: async (stakeholders: Stakeholder[]) => sendJson<unknown>("/api/stakeholders", { stakeholders }, "PUT", "Failed to save stakeholders"),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: stakeholdersQueryKey }); qc.invalidateQueries({ queryKey: ["panel-data"] }); },
-  });
-}
+const resource = configResource<Stakeholder[]>({
+  queryKey: stakeholdersQueryKey,
+  path: "/api/stakeholders",
+  envelopeKey: "stakeholders",
+  empty: [],
+  saveErrorMessage: "Failed to save stakeholders", // manager-gated server-side
+  alsoInvalidate: [["panel-data"]], // the Stakeholders screen renders the rows generically under panel-data
+});
+export const useStakeholders = resource.useResource;
+export const useSaveStakeholders = resource.useSaveResource;

@@ -1,10 +1,12 @@
 import type { ResourceCapacity } from "@workspace/api-client-react";
-import { numLoose as num } from "./num";
+import { consolidateByGroup, consolidationSpec, type ConsolidatedRow } from "@workspace/backend-catalogue";
 
 /**
  * Capacity roll-up — aggregate per-project resource capacity into programme and portfolio totals, so a
- * programme manager sees utilisation across their projects and a PMO sees the whole portfolio. Pure and
- * derive-only (nothing stored); the component fetches each project's capacity and feeds it here.
+ * programme manager sees utilisation across their projects and a PMO sees the whole portfolio. The
+ * group → count/sum → derive → sort fold is the generic `consolidateByGroup` engine driven by the
+ * `capacity` JSON spec (no currency dimension — every row shares one nominal currency so FX is inert);
+ * this module only maps a project to its programme group and re-labels the generic row. Pure, derive-only.
  */
 
 /** One project's capacity, tagged with its programme for grouping. */
@@ -36,44 +38,33 @@ export interface CapacityRollup {
  *  key `rollupByProgramme` uses, instead of re-deriving the "standalone" sentinel themselves. */
 export const STANDALONE_PROGRAMME_KEY = "__standalone__";
 const STANDALONE = STANDALONE_PROGRAMME_KEY;
+const CAPACITY_SPEC = consolidationSpec("capacity");
 
-function blank(key: string, label: string): CapacityRollup {
-  return { key, label, projects: 0, allocations: 0, overAllocated: 0, assignedHours: 0, availableHours: 0, utilisation: null };
-}
-
-/** Fold one project's resources into an accumulating roll-up row. */
-function fold(acc: CapacityRollup, p: ProjectCapacity): void {
-  acc.projects += 1;
-  for (const r of p.resources) {
-    // Resource hours/percentages come from the untrusted read model — coerce so a string/null/NaN
-    // can't poison the summed totals (a single NaN would turn the whole roll-up into NaN).
-    acc.allocations += 1;
-    if (num(r.allocationPercentage) > 100) acc.overAllocated += 1;
-    acc.assignedHours += num(r.assignedHours);
-    acc.availableHours += num(r.availableHours);
-  }
-}
-
-/** Finalise utilisation once all projects are folded (kept null when no availability is known). */
-function withUtilisation(r: CapacityRollup): CapacityRollup {
-  return { ...r, utilisation: r.availableHours > 0 ? Math.round((r.assignedHours / r.availableHours) * 1000) / 10 : null };
+/** Re-label a generic consolidated row as a capacity roll-up (the spec's metric keys map 1:1). */
+function toCapacityRollup(r: ConsolidatedRow): CapacityRollup {
+  const m = r.metrics;
+  return {
+    key: r.key,
+    label: r.label,
+    projects: r.projects,
+    allocations: (m["allocations"] as number) ?? 0,
+    overAllocated: (m["overAllocated"] as number) ?? 0,
+    assignedHours: (m["assignedHours"] as number) ?? 0,
+    availableHours: (m["availableHours"] as number) ?? 0,
+    utilisation: (m["utilisation"] as number | null) ?? null,
+  };
 }
 
 /** Group projects into programme roll-ups (standalone projects share one "Standalone" group) plus a
  *  portfolio-wide total. Programmes are returned most-utilised first so contention surfaces at the top. */
 export function rollupByProgramme(projects: ProjectCapacity[]): { programmes: CapacityRollup[]; portfolio: CapacityRollup } {
-  const groups = new Map<string, CapacityRollup>();
-  const portfolio = blank("__portfolio__", "Portfolio");
-  for (const p of projects) {
-    const key = p.programmeId ?? STANDALONE;
-    const label = p.programmeId ? (p.programmeName ?? p.programmeId) : "Standalone";
-    const row = groups.get(key) ?? blank(key, label);
-    fold(row, p);
-    groups.set(key, row);
-    fold(portfolio, p);
-  }
-  const programmes = [...groups.values()].map(withUtilisation)
-    // key (the programmeId) is unique per group ⇒ deterministic order for equal utilisation.
-    .sort((a, b) => (b.utilisation ?? -1) - (a.utilisation ?? -1) || a.key.localeCompare(b.key));
-  return { programmes, portfolio: withUtilisation(portfolio) };
+  // One nominal currency for every group so the money engine's FX pass is a no-op (capacity has none).
+  const inputs = projects.map((p) => ({
+    groupKey: p.programmeId ?? STANDALONE,
+    groupLabel: p.programmeId ? (p.programmeName ?? p.programmeId) : "Standalone",
+    currency: "•",
+    items: p.resources as unknown as Record<string, unknown>[],
+  }));
+  const { groups, total } = consolidateByGroup(inputs, CAPACITY_SPEC, "•");
+  return { programmes: groups.map(toCapacityRollup), portfolio: toCapacityRollup(total) };
 }

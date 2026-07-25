@@ -10,6 +10,7 @@
  *     same disable/require/forbid controls as any other governed capability, no parallel store.
  */
 import { getSettings } from "../lib/settings";
+import { resolveSelfHost } from "../lib/self-host-config";
 import { resolveGating, type GatingInput, type SelfHostGating, type SelfHostScopeSelection } from "./capability-gating";
 import type { SelfHostDomainId } from "./domains";
 
@@ -38,11 +39,12 @@ function selectionFor(cfg: { disabled?: string[]; required?: string[]; forbidden
 /** Turn live settings into a `GatingInput` for a scope — the runtime entry to `resolveGating`. */
 export function gatingInputFromSettings(scope: SelfHostScope = {}): GatingInput {
   const s = getSettings();
+  const selfHost = resolveSelfHost();
   const prog = scope.programmeId ? s.programmeFeatures?.[scope.programmeId] : undefined;
   const proj = scope.projectId ? s.projectFeatures?.[scope.projectId] : undefined;
   return {
-    mode: s.selfHost.mode,
-    org: { adopted: s.selfHost.adopted as SelfHostDomainId[] },
+    mode: selfHost.mode,
+    org: { adopted: selfHost.adopted as SelfHostDomainId[] },
     programme: selectionFor(prog),
     project: selectionFor(proj),
   };

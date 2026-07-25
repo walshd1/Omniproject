@@ -1,0 +1,5 @@
+{ "id": "grant-tracking-overview", "label": "Grant tracking overview", "methodologies": ["grant-tracking"], "panels": [
+  { "id": "grants", "kind": "register", "title": "Grants", "config": { "slot": "grants" } },
+  { "id": "funding", "kind": "chart", "title": "Funding", "config": { "chart": { "type": "column" } } },
+  { "id": "deadlines", "kind": "metric", "title": "Next deadline", "config": { "label": "Due", "value": "—" } }
+] }

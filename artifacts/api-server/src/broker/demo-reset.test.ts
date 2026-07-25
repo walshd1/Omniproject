@@ -44,6 +44,20 @@ test("a reset also clears demo-created issues, raid entries, and task items", as
   assert.ok(!items.some((i) => i.id === item.id));
 });
 
+test("a reserved-key taskId (issueId route param) does not crash the task-item store", async () => {
+  // The taskId is the caller-supplied `issueId` route param. With a plain-object store, `SAMPLE_TASK_ITEMS["__proto__"]`
+  // resolves to Object.prototype so `?? []` / `??= []` keep a non-array and `.map`/`.push` throw a 500. The
+  // null-prototype store must treat any id as plain data.
+  const broker = new DemoBroker();
+  for (const bad of ["__proto__", "constructor", "toString"]) {
+    assert.deepEqual(await broker.listTaskItems(ctx, "proj-001", bad), []); // read: no crash, empty
+    const created = await broker.createTaskItem(ctx, "proj-001", bad, { kind: "note", content: "x" }); // write: no crash
+    const back = await broker.listTaskItems(ctx, "proj-001", bad);
+    assert.ok(back.some((i) => i.id === created.id));
+  }
+  resetDemoBrokerState();
+});
+
 test("a reset restores a mutated existing row (not just new inserts)", async () => {
   const broker = new DemoBroker();
   const projectId = "proj-001";

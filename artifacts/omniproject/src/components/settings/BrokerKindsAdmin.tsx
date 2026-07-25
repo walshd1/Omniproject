@@ -19,7 +19,7 @@ export function BrokerKindsAdmin() {
   const { data: available } = useAvailableBrokers(isAdmin);
   const save = useSaveBrokerKinds();
   const { toast } = useToast();
-  const { draft, setDraft, dirty, reset } = useDraftAdmin<string[], string[]>(server, structuredClone);
+  const { draft, setDraft, dirty, reset } = useDraftAdmin<string[], string[]>(server);
 
   if (!isAdmin) return null;
 

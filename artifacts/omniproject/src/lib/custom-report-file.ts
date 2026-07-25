@@ -1,4 +1,5 @@
 import type { CustomReportDef, CustomReportAgg, CustomReportMetric } from "./custom-report";
+import { slug } from "./slug";
 import type { ConditionSet } from "./rate-card";
 import { type StyleSpec, FONT_CHOICES } from "./artifact-style";
 import { safeParseJson } from "./safe-json";
@@ -78,7 +79,7 @@ export function parseReportDef(value: unknown): CustomReportDef {
 
 /** Ensure `id` is unique against `taken` (append -2, -3, … on collision); mint one from the label if blank. */
 export function uniqueReportId(def: CustomReportDef, taken: readonly string[]): string {
-  const base = def.id || def.label.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "report";
+  const base = def.id || slug(def.label, "report");
   if (!taken.includes(base)) return base;
   let n = 2;
   while (taken.includes(`${base}-${n}`)) n += 1;

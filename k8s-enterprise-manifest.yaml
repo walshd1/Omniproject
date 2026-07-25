@@ -30,6 +30,20 @@ data:
   OLLAMA_URL: "http://ollama:11434"           # only used when AI_PROVIDER=ollama
   GENERIC_TIMEZONE: "UTC"
   N8N_PORT: "5678"
+  # ── Release provenance / promote-by-digest admission (docs/UPDATE-MECHANISM.md §4) ──
+  # OFF by default. Set to "strict" to fail-closed: the init container below (and the app at boot) verify the
+  # image's signed release manifest against RELEASE_PUBLIC_KEY and refuse to run an unattested/tampered build.
+  RELEASE_VERIFY: "off"                        # off | warn | strict
+  # The trusted release PUBLIC key (SPKI PEM or base64 DER). NOT a secret — it only verifies signatures.
+  # The private key never ships; it signs images in the release/CI trust root. REPLACE for strict mode.
+  RELEASE_PUBLIC_KEY: ""
+  # The signed release manifest baked into the image names this build (version/gitSha/digest). Provide it
+  # inline or via RELEASE_MANIFEST_FILE (a mounted file). Left empty here — bake it at build/release time.
+  RELEASE_MANIFEST: ""
+  # Promote-by-digest: pin the APPROVED production digest (sha256:…). The build's manifest digest MUST equal
+  # this or the pod refuses to boot — so a re-pointed mutable tag can never substitute a different image.
+  # Set this to the digest your approval recorded (GET /api/admin/release/promotion). REPLACE on promote.
+  RELEASE_EXPECTED_DIGEST: ""
 
 ---
 # ── Secret: sensitive OIDC and service credentials ───────────────────────────
@@ -97,9 +111,37 @@ spec:
         runAsGroup: 1000
         seccompProfile:
           type: RuntimeDefault
+      # ── Release-admission preflight (docs/UPDATE-MECHANISM.md §4) ──────────────────────────────────────
+      # Runs the SAME image with `--verify-release`: it verifies the signed release manifest + promote-by-
+      # digest admission and EXITS. In RELEASE_VERIFY=strict, an unsigned or wrong-digest image makes this
+      # exit non-zero, the init container fails, and the pod NEVER starts the app container — fail-closed at
+      # the boundary, one layer out from the in-process boot check. A no-op when RELEASE_VERIFY=off.
+      initContainers:
+        - name: verify-release
+          image: your-registry/omniproject-shell:0.2.0  # MUST be the SAME digest as omni-shell below
+          args: ["dist/index.mjs", "--verify-release"]
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          envFrom:
+            - configMapRef:
+                name: omniproject-config
+            - secretRef:
+                name: omniproject-secrets
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "50m"
+            limits:
+              memory: "256Mi"
+              cpu: "250m"
       containers:
         - name: omni-shell
-          image: your-registry/omniproject-shell:0.2.0  # REPLACE with your image:tag (avoid :latest)
+          # Reference by DIGEST for real promote-by-digest (image@sha256:…), not a mutable tag. The
+          # ValidatingAdmissionPolicy at the end of this file REJECTS a tag-only reference in strict clusters.
+          image: your-registry/omniproject-shell:0.2.0  # REPLACE — prefer image@sha256:<approved digest>
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
@@ -205,7 +247,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: n8n
-          image: n8nio/n8n:1.123.61   # pinned to the blueprint-verified version, matching the compose files (2.x exists but is unverified against the bundled blueprint)
+          image: n8nio/n8n:2.31.5   # pinned to the blueprint-verified version, matching the compose files (2.x exists but is unverified against the bundled blueprint)
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:
@@ -415,3 +457,48 @@ spec:
             except:
               - fe80::/10          # IPv6 link-local
               - fd00:ec2::/32      # AWS IPv6 metadata prefix
+
+---
+# ── Promote-by-digest admission policy (docs/UPDATE-MECHANISM.md §3, §4) ──────────────────────────────
+# Cluster-level enforcement of "promote by digest": a native ValidatingAdmissionPolicy (k8s 1.30+, GA 1.30)
+# that REJECTS any Pod in the omniproject namespace whose containers reference an image by a mutable tag
+# instead of a content digest (image@sha256:…). A re-pointed `:latest`/`:stable` can then never substitute a
+# different image behind an approved one — the tested bytes are the deployed bytes. Pairs with the
+# verify-release init container (which checks the SIGNATURE + the approved digest) for defence in depth:
+# this policy guarantees a digest ref; the init container guarantees that digest is signed and approved.
+#
+# No external controller required (unlike Kyverno/Gatekeeper). To also verify the cosign/registry signature
+# of the image itself, layer a Kyverno `verifyImages` policy or a sigstore policy-controller on top.
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicy
+metadata:
+  name: omniproject-require-image-digest
+spec:
+  failurePolicy: Fail   # fail-closed: if the policy can't be evaluated, DENY rather than admit
+  matchConstraints:
+    resourceRules:
+      - apiGroups: [""]
+        apiVersions: ["v1"]
+        operations: ["CREATE", "UPDATE"]
+        resources: ["pods"]
+  validations:
+    # Every container/init/ephemeral image must be pinned by digest (contain "@sha256:"). Rejects tag-only refs.
+    - expression: >-
+        object.spec.containers.all(c, c.image.contains('@sha256:')) &&
+        (!has(object.spec.initContainers) || object.spec.initContainers.all(c, c.image.contains('@sha256:'))) &&
+        (!has(object.spec.ephemeralContainers) || object.spec.ephemeralContainers.all(c, c.image.contains('@sha256:')))
+      message: "images must be pinned by digest (image@sha256:…), not a mutable tag — promote-by-digest (UPDATE-MECHANISM.md §3)"
+      reason: Invalid
+---
+# Bind the policy to the omniproject namespace only (scope it so cluster add-ons elsewhere are unaffected).
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicyBinding
+metadata:
+  name: omniproject-require-image-digest-binding
+spec:
+  policyName: omniproject-require-image-digest
+  validationActions: ["Deny"]
+  matchResources:
+    namespaceSelector:
+      matchLabels:
+        kubernetes.io/metadata.name: omniproject

@@ -1,0 +1,4 @@
+{ "id": "volunteer-roster-overview", "label": "Volunteer roster overview", "methodologies": ["volunteer-roster"], "panels": [
+  { "id": "roster", "kind": "register", "title": "Roster", "config": { "slot": "roster" } },
+  { "id": "shifts", "kind": "chart", "title": "Shifts filled", "config": { "chart": { "type": "column" } } }
+] }

@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { INVOICE_LINE_KINDS, INVOICE_STATUSES, invoiceLineAmount, round2, formatMoney } from "./invoice-catalogue";
+import { INVOICE_LINE_KINDS, INVOICE_STATUSES, invoiceLineAmount, formatMoney } from "./invoice-catalogue";
+import { round2 } from "./num";
 
 /** The invoice line/status primitive catalogue — the source of truth for the `invoiceLine` family. */
 

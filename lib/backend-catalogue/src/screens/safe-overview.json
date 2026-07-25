@@ -1,0 +1,5 @@
+{ "id": "safe-overview", "label": "SAFe overview", "methodologies": ["safe"], "panels": [
+  { "id": "pi-objectives", "kind": "register", "title": "PI objectives", "config": { "slot": "objectives" } },
+  { "id": "program-board", "kind": "table", "title": "Program board", "config": { "source": "issues" } },
+  { "id": "burnup", "kind": "chart", "title": "PI burn-up", "config": { "chart": { "type": "sparkline" } } }
+] }

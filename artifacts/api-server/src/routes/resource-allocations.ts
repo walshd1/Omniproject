@@ -2,7 +2,8 @@ import { Router } from "express";
 import { requireCollectionEdit } from "../lib/collection-edit-policy";
 import { getSettings } from "../lib/settings";
 import { settingsCollectionRouter } from "../lib/settings-collection-router";
-import { allocationRows } from "../lib/resource-allocation";
+import { allocationRows, type ResourceAllocation } from "../lib/resource-allocation";
+import { filterRowsByProjectScope } from "../lib/project-scope";
 import { rollup, parseRollupQuery } from "../lib/rollup";
 
 /**
@@ -14,8 +15,10 @@ import { rollup, parseRollupQuery } from "../lib/rollup";
  */
 const router = Router();
 
-router.get("/resource-allocations/rows", (req, res) => {
-  const rows = allocationRows(getSettings().resourceAllocations ?? []);
+router.get("/resource-allocations/rows", async (req, res) => {
+  // Each row is per-project staffing PII — only expose the caller's in-scope allocations.
+  const scoped = await filterRowsByProjectScope(req, getSettings().resourceAllocations ?? [], (a: ResourceAllocation) => a.projectId);
+  const rows = allocationRows(scoped);
   const spec = parseRollupQuery(req.query as Record<string, unknown>);
   res.json({ rows: spec ? rollup(rows, spec) : rows });
 });
@@ -25,6 +28,7 @@ router.use(settingsCollectionRouter({
   settingsKey: "resourceAllocations",
   versionLabel: "resource allocations updated",
   writeGuards: [requireCollectionEdit("resourceAllocations", "manager")],
+  scopeByProject: (r) => (r as ResourceAllocation).projectId,
 }));
 
 export default router;

@@ -1,5 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { getJson, sendJson } from "./api";
+import { configResource } from "./config-resource";
 
 export const CUSTOM_FIELD_TYPES = ["string", "number", "boolean", "date"] as const;
 export type CustomFieldType = (typeof CUSTOM_FIELD_TYPES)[number];
@@ -13,20 +12,15 @@ export interface CustomField {
 
 export const customFieldsQueryKey = ["custom-fields"] as const;
 
-export function useCustomFields() {
-  return useQuery({
-    queryKey: customFieldsQueryKey,
-    queryFn: () => getJson<{ customFields?: CustomField[] }>("/api/custom-fields").then((r) => r.customFields ?? []),
-    staleTime: 0,
-  });
-}
-
-/** Persist the custom fields (admin). The server re-checks the source rule (mapped or built-in) and
- *  400s a field with no data source. */
-export function useSaveCustomFields() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (fields: CustomField[]) => sendJson("/api/custom-fields", { customFields: fields }, "PUT", "Failed to save custom fields"),
-    onSuccess: () => qc.invalidateQueries({ queryKey: customFieldsQueryKey }),
-  });
-}
+const resource = configResource<CustomField[]>({
+  queryKey: customFieldsQueryKey,
+  path: "/api/custom-fields",
+  envelopeKey: "customFields",
+  empty: [],
+  staleTime: 0,
+  // The server re-checks the source rule (mapped or built-in) and 400s a field with no data source.
+  saveErrorMessage: "Failed to save custom fields",
+});
+export const useCustomFields = resource.useResource;
+/** Persist the custom fields (admin). */
+export const useSaveCustomFields = resource.useSaveResource;

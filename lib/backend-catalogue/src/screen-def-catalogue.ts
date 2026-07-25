@@ -25,6 +25,20 @@ import sprints from "./screens/sprints.json";
 import stakeholders from "./screens/stakeholders.json";
 import tasks from "./screens/tasks.json";
 import userStories from "./screens/user-stories.json";
+// Methodology overview screens — ordinary screens, each built PURELY from atom-composable primitive panels
+// (a canvas + chart/table/register/metric/text panels that resolve to the primitive tree). Nothing special:
+// they seed and render through this same catalogue as every other screen; screen-primitives.test proves
+// their panels compose down to the primitive roots.
+import gtdOverview from "./screens/gtd-overview.json";
+import scrumOverview from "./screens/scrum-overview.json";
+import kanbanOverview from "./screens/kanban-overview.json";
+import scrumbanOverview from "./screens/scrumban-overview.json";
+import waterfallOverview from "./screens/waterfall-overview.json";
+import prince2Overview from "./screens/prince2-overview.json";
+import safeOverview from "./screens/safe-overview.json";
+import grantTrackingOverview from "./screens/grant-tracking-overview.json";
+import volunteerRosterOverview from "./screens/volunteer-roster-overview.json";
+import fundraisingPipelineOverview from "./screens/fundraising-pipeline-overview.json";
 
 /**
  * THE SHIPPED SCREEN-DEFINITION catalogue — the panel-bearing screen ARTIFACTS the generic builder renders,
@@ -52,6 +66,8 @@ export const SCREEN_DEF_CATALOGUE: RawScreenDef[] = [
   budgetPlans, resourceAllocations, home, myWork, tasks, reports, programmes, programmeDetail,
   projects, projectDetail, explore, kanban, scrum, sprints, userStories, epics, burndown, gantt, prince2,
   raid, intake, projectGantt, riskRegister, raciMatrix, stakeholders, sapProjectCost,
+  gtdOverview, scrumOverview, kanbanOverview, scrumbanOverview, waterfallOverview, prince2Overview, safeOverview,
+  grantTrackingOverview, volunteerRosterOverview, fundraisingPipelineOverview,
 ] as unknown as RawScreenDef[];
 
 const RAW_SCREEN_BY_ID = new Map(SCREEN_DEF_CATALOGUE.map((s) => [s.id, s]));

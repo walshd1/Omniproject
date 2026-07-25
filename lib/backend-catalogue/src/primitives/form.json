@@ -1,0 +1,16 @@
+{
+  "id": "form",
+  "label": "Form",
+  "category": "surface",
+  "extends": "canvas",
+  "description": "A canvas of input FIELDS — the DOM visual behind every form/intake. Inherits the surface; adds the fields, which are composed from `control` atoms (switch, label, …). A submission creates a work item via the broker.",
+  "params": [
+    {
+      "key": "fields",
+      "label": "Fields",
+      "type": "rows",
+      "required": true,
+      "description": "The form's fields, each a control (switch/label/input) + its binding."
+    }
+  ]
+}

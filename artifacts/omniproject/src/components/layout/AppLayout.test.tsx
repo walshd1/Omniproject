@@ -48,6 +48,9 @@ function seed(
 beforeEach(() => {
   // Disable the SSE channel so NotificationsBell doesn't construct an EventSource.
   window.localStorage.setItem("omni.notify.live", "off");
+  // These tests exercise the chrome, not first-run onboarding — dismiss the first-run gate so an unconfigured
+  // fixture doesn't get redirected to /configurator (that gate is unit-tested in lib/first-run.test).
+  window.localStorage.setItem("omni.firstRunDismissed", "1");
   useStore.setState({ activeProjectId: "proj-1", isShortcutsOpen: false, isNewIssueOpen: false });
   globalThis.fetch = vi.fn(async () => new Response("{}", { status: 200 })) as unknown as typeof fetch;
   // Known starting location for the chord-navigation tests below (setLocation goes through

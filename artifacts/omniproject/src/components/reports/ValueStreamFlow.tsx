@@ -1,6 +1,6 @@
 import { ReportEmpty } from "./ReportEmpty";
 import { useMemo } from "react";
-import { num } from "../../lib/num";
+import { num, round1 } from "../../lib/num";
 import { DAY_MS } from "../../lib/date-utils";
 import { useT } from "../../lib/i18n";
 import type { ProjectItems } from "../../lib/portfolio-value";
@@ -104,7 +104,6 @@ export interface FlowConfig {
   throughputWindowDays?: number;
 }
 
-const round1 = (n: number) => Math.round(n * 10) / 10;
 const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "") || "stream";
 
 /** Which value stream an item belongs to: its explicit valueStream, else its first non-empty label, else

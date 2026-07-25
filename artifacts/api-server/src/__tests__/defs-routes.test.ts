@@ -64,7 +64,8 @@ test("validate dry-run reports errors without writing", async () => {
 });
 
 test("user-scope import round-trips and is sealed at rest", async () => {
-  const created = await req("/defs", { method: "POST", body: { kind: "primitive", storage: "user", name: "My chart", payload: PRIMITIVE } });
+  // A forkable recipe (jsonDef) — primitives are vendor-controlled and can't be authored at a customer scope.
+  const created = await req("/defs", { method: "POST", body: { kind: "jsonDef", storage: "user", name: "My def", payload: { id: "grouped-column", label: "Grouped" } } });
   assert.equal(created.status, 201);
   const def = (await created.json()) as { id: string; createdBy: string };
   assert.match(def.id, /^user~/);
@@ -77,7 +78,7 @@ test("user-scope import round-trips and is sealed at rest", async () => {
   assert.match(onDisk, /^c[12]\./, "the collection file is an AES-256-GCM sealed token");
 
   // list omits payload; get returns it.
-  const metas = (await req("/defs?kind=primitive").then((x) => x.json())) as Array<{ id: string; payload?: unknown }>;
+  const metas = (await req("/defs?kind=jsonDef").then((x) => x.json())) as Array<{ id: string; payload?: unknown }>;
   const meta = metas.find((m) => m.id === def.id)!;
   assert.equal((meta as { payload?: unknown }).payload, undefined);
   const full = (await req(`/defs/${encodeURIComponent(def.id)}`).then((x) => x.json())) as { payload: { id: string } };
@@ -104,14 +105,14 @@ test("resolve surfaces the SYSTEM defaults (read-only system~ ids) beneath the c
 test("resolve-by-kind returns full payloads for renderers (X.10 seam), filtered by kind", async () => {
   // Seed a couple of dashboard defs in the caller's own scope.
   const a = await (await req("/defs", { method: "POST", body: { kind: "dashboard", storage: "user", name: "Exec", payload: { id: "exec", name: "Exec", widgets: [{ id: "w1", type: "portfolioHealth" }] } } })).json() as { id: string };
-  await req("/defs", { method: "POST", body: { kind: "primitive", storage: "user", name: "Other", payload: PRIMITIVE } });
+  await req("/defs", { method: "POST", body: { kind: "jsonDef", storage: "user", name: "Other", payload: { id: "other-def" } } });
 
   const resolved = (await req("/defs/resolved/dashboard").then((x) => x.json())) as Array<{ id: string; kind: string; payload: { id: string; widgets: unknown[] } }>;
   const row = resolved.find((r) => r.id === a.id)!;
   assert.equal(row.kind, "dashboard");
   assert.equal(row.payload.id, "exec");                         // full payload, unlike the metadata list
   assert.ok(Array.isArray(row.payload.widgets));
-  assert.ok(resolved.every((r) => r.kind === "dashboard"));     // the primitive def is not included
+  assert.ok(resolved.every((r) => r.kind === "dashboard"));     // the jsonDef is not included
 
   // A viewer can read the seam; an unknown kind is 400.
   assert.equal((await req("/defs/resolved/dashboard", { cookie: VIEWER })).status, 200);
@@ -121,20 +122,21 @@ test("resolve-by-kind returns full payloads for renderers (X.10 seam), filtered 
 });
 
 test("edit in place: PUT re-validates, bumps rowVersion, and keeps the kind", async () => {
-  const created = await (await req("/defs", { method: "POST", body: { kind: "primitive", storage: "user", name: "Editable", payload: PRIMITIVE } })).json() as { id: string; rowVersion: number };
+  const DASH = { id: "editable-dash", name: "Editable", widgets: [{ id: "w1", type: "portfolioHealth" }] };
+  const created = await (await req("/defs", { method: "POST", body: { kind: "dashboard", storage: "user", name: "Editable", payload: DASH } })).json() as { id: string; rowVersion: number };
   const gid = encodeURIComponent(created.id);
-  // A valid edit (rename + new label) succeeds and bumps the version.
-  const edited = await req(`/defs/${gid}`, { method: "PUT", body: { name: "Renamed", payload: { ...PRIMITIVE, label: "Renamed columns" } } });
+  // A valid edit (rename + new name) succeeds and bumps the version.
+  const edited = await req(`/defs/${gid}`, { method: "PUT", body: { name: "Renamed", payload: { ...DASH, name: "Renamed dash" } } });
   assert.equal(edited.status, 200);
-  const row = (await edited.json()) as { name: string; rowVersion: number; kind: string; payload: { label: string } };
+  const row = (await edited.json()) as { name: string; rowVersion: number; kind: string; payload: { name: string } };
   assert.equal(row.name, "Renamed");
-  assert.equal(row.kind, "primitive");
+  assert.equal(row.kind, "dashboard");
   assert.equal(row.rowVersion, created.rowVersion + 1);
-  assert.equal(row.payload.label, "Renamed columns");
-  // An invalid edit is 400 (re-validated by the real schema).
-  assert.equal((await req(`/defs/${gid}`, { method: "PUT", body: { payload: { id: "Bad Id", params: [] } } })).status, 400);
+  assert.equal(row.payload.name, "Renamed dash");
+  // An invalid edit is 400 (re-validated by the real schema — a dashboard needs id + name + widgets[]).
+  assert.equal((await req(`/defs/${gid}`, { method: "PUT", body: { payload: { id: "x" } } })).status, 400);
   // Editing a missing def is 404.
-  assert.equal((await req(`/defs/${encodeURIComponent("user~does-not-exist")}`, { method: "PUT", body: { payload: PRIMITIVE } })).status, 404);
+  assert.equal((await req(`/defs/${encodeURIComponent("user~does-not-exist")}`, { method: "PUT", body: { payload: DASH } })).status, 404);
 });
 
 test("a bad payload is 400; a bad storage target is 400", async () => {
@@ -157,12 +159,13 @@ test("org target: a contributor can't write it, a pmo/admin can (default org gat
   process.env["OIDC_VIEWER_ROLES"] = "omni-viewers";
   process.env["OIDC_ADMIN_ROLES"] = "omni-admins";
   try {
+    const DASH = { id: "org-dash", name: "Org dash", widgets: [{ id: "w1", type: "portfolioHealth" }] };
     // A contributor is blocked at the org target (manager+).
-    assert.equal((await req("/defs", { method: "POST", body: { kind: "primitive", storage: "org", name: "Org chart", payload: PRIMITIVE }, cookie: CONTRIBUTOR })).status, 403);
+    assert.equal((await req("/defs", { method: "POST", body: { kind: "dashboard", storage: "org", name: "Org dash", payload: DASH }, cookie: CONTRIBUTOR })).status, 403);
     // A viewer can't author at all.
-    assert.equal((await req("/defs", { method: "POST", body: { kind: "primitive", storage: "user", name: "x", payload: PRIMITIVE }, cookie: VIEWER })).status, 403);
+    assert.equal((await req("/defs", { method: "POST", body: { kind: "dashboard", storage: "user", name: "x", payload: DASH }, cookie: VIEWER })).status, 403);
     // An admin (manager+) can write the org target.
-    assert.equal((await req("/defs", { method: "POST", body: { kind: "primitive", storage: "org", name: "Org chart", payload: PRIMITIVE }, cookie: ADMIN })).status, 201);
+    assert.equal((await req("/defs", { method: "POST", body: { kind: "dashboard", storage: "org", name: "Org dash", payload: DASH }, cookie: ADMIN })).status, 201);
   } finally {
     for (const [k, val] of [["OIDC_ISSUER_URL", prev.iss], ["OIDC_CONTRIBUTOR_ROLES", prev.c], ["OIDC_VIEWER_ROLES", prev.v]] as const) {
       if (val === undefined) delete process.env[k]; else process.env[k] = val;
@@ -171,21 +174,22 @@ test("org target: a contributor can't write it, a pmo/admin can (default org gat
 });
 
 test("importer REJECTS a def whose extends ancestor is missing (broken ancestor) and ACCEPTS a valid one", async () => {
-  // A thin child extending a SHIPPED root ("table" primitive) is accepted — the ancestor resolves.
-  const okChild = { id: "my-editable-table", label: "My editable table", category: "table", description: "d", extends: "table", params: [] };
-  assert.equal((await req("/defs", { method: "POST", body: { kind: "primitive", storage: "user", name: "Child", payload: okChild } })).status, 201);
+  // A base def then a thin child extending it — the ancestor resolves, so the child is accepted.
+  assert.equal((await req("/defs", { method: "POST", body: { kind: "jsonDef", storage: "user", name: "Base", payload: { id: "anc-base", value: 1 } } })).status, 201);
+  const okChild = { id: "anc-child", extends: "anc-base" };
+  assert.equal((await req("/defs", { method: "POST", body: { kind: "jsonDef", storage: "user", name: "Child", payload: okChild } })).status, 201);
   // Extending a parent that exists in NO scope is rejected 400 (fail-closed).
-  const orphan = { id: "orphan-prim", label: "Orphan", category: "table", description: "d", extends: "ghost-parent", params: [] };
-  const bad = await req("/defs", { method: "POST", body: { kind: "primitive", storage: "user", name: "Orphan", payload: orphan } });
+  const orphan = { id: "orphan-def", extends: "ghost-parent" };
+  const bad = await req("/defs", { method: "POST", body: { kind: "jsonDef", storage: "user", name: "Orphan", payload: orphan } });
   assert.equal(bad.status, 400);
   assert.match(((await bad.json()) as { error: string }).error, /does not exist/);
 });
 
 test("importer REJECTS an edit that would CYCLE the extends chain", async () => {
-  const root = { id: "cyc-a", label: "A", category: "table", description: "d", params: [{ key: "x", label: "X", type: "string", required: true, description: "d" }] };
-  const a = (await (await req("/defs", { method: "POST", body: { kind: "primitive", storage: "user", name: "A", payload: root } })).json()) as { id: string };
-  const child = { id: "cyc-b", label: "B", category: "table", description: "d", extends: "cyc-a", params: [] };
-  assert.equal((await req("/defs", { method: "POST", body: { kind: "primitive", storage: "user", name: "B", payload: child } })).status, 201);
+  const root = { id: "cyc-a", value: 1 };
+  const a = (await (await req("/defs", { method: "POST", body: { kind: "jsonDef", storage: "user", name: "A", payload: root } })).json()) as { id: string };
+  const child = { id: "cyc-b", extends: "cyc-a" };
+  assert.equal((await req("/defs", { method: "POST", body: { kind: "jsonDef", storage: "user", name: "B", payload: child } })).status, 201);
   // Edit A to extend B → A→B→A cycle → 400.
   const put = await req(`/defs/${encodeURIComponent(a.id)}`, { method: "PUT", body: { name: "A", payload: { ...root, extends: "cyc-b" } } });
   assert.equal(put.status, 400);
@@ -193,19 +197,19 @@ test("importer REJECTS an edit that would CYCLE the extends chain", async () => 
 });
 
 test("CASCADE: RENAMING an ancestor's id, which orphans a def built on it, is rejected", async () => {
-  // A root primitive; a thin child extends it by id and is valid.
-  const root = { id: "casc-root", label: "Root", category: "chart", chartType: "bar", description: "d", params: [{ key: "data", label: "Rows", type: "rows", required: true, description: "d" }] };
-  const rootRow = (await (await req("/defs", { method: "POST", body: { kind: "primitive", storage: "user", name: "Root", payload: root } })).json()) as { id: string };
-  const child = { id: "casc-child", label: "Child", category: "chart", chartType: "bar", description: "d", extends: "casc-root", params: [] };
-  assert.equal((await req("/defs", { method: "POST", body: { kind: "primitive", storage: "user", name: "Child", payload: child } })).status, 201);
+  // A root def; a thin child extends it by id and is valid.
+  const root = { id: "casc-root", value: 1 };
+  const rootRow = (await (await req("/defs", { method: "POST", body: { kind: "jsonDef", storage: "user", name: "Root", payload: root } })).json()) as { id: string };
+  const child = { id: "casc-child", extends: "casc-root" };
+  assert.equal((await req("/defs", { method: "POST", body: { kind: "jsonDef", storage: "user", name: "Child", payload: child } })).status, 201);
   // Renaming the root's logical id (valid on its own) would leave the child extending a now-missing parent — a
   // cascade failure down the chain — so the edit is rejected before it can be stored.
   const renamed = { ...root, id: "casc-root-renamed" };
   const put = await req(`/defs/${encodeURIComponent(rootRow.id)}`, { method: "PUT", body: { name: "Root", payload: renamed } });
   assert.equal(put.status, 400);
   assert.match(((await put.json()) as { error: string }).error, /downstream/);
-  // A benign edit to the root (rename its param label, id unchanged) keeps the composed child valid → succeeds.
-  const okRoot = { ...root, params: [{ key: "data", label: "Renamed rows", type: "rows", required: true, description: "d" }] };
+  // A benign edit to the root (change a value, id unchanged) keeps the composed child valid → succeeds.
+  const okRoot = { ...root, value: 2 };
   assert.equal((await req(`/defs/${encodeURIComponent(rootRow.id)}`, { method: "PUT", body: { name: "Root", payload: okRoot } })).status, 200);
 });
 
@@ -300,7 +304,7 @@ test("FORM container floors are engine-enforced: a fork may compose but may NOT 
 
 test("FAST PATH: a standalone (rootless, childless) def is still fully validated, not waved through", async () => {
   // Warm the child index by importing a valid def (the first import builds + persists it via the full path).
-  assert.equal((await req("/defs", { method: "POST", body: { kind: "primitive", storage: "user", name: "Warm", payload: { ...PRIMITIVE, id: "fp-warm" } } })).status, 201);
+  assert.equal((await req("/defs", { method: "POST", body: { kind: "jsonDef", storage: "user", name: "Warm", payload: { id: "fp-warm" } } })).status, 201);
   // A standalone form with NO title field passes the fragment shape but must be rejected by the composed-whole
   // container floor — the fast path (rootless + nothing extends it) must NOT skip that validation.
   const noTitle = { id: "fp-form", label: "No title", target: { kind: "issue" }, fields: [{ key: "d", label: "Details", type: "textarea", mapTo: "description" }] };
@@ -313,10 +317,10 @@ test("FAST PATH: a standalone (rootless, childless) def is still fully validated
 });
 
 test("DELETE is BLOCKED (409) when another def is built on the target, then succeeds once the dependant is gone", async () => {
-  const root = { id: "del-root", label: "DelRoot", category: "chart", chartType: "bar", description: "d", params: [{ key: "data", label: "Rows", type: "rows", required: true, description: "d" }] };
-  const rootRow = (await (await req("/defs", { method: "POST", body: { kind: "primitive", storage: "user", name: "DelRoot", payload: root } })).json()) as { id: string };
-  const child = { id: "del-child", label: "DelChild", category: "chart", chartType: "bar", description: "d", extends: "del-root", params: [] };
-  const childRow = (await (await req("/defs", { method: "POST", body: { kind: "primitive", storage: "user", name: "DelChild", payload: child } })).json()) as { id: string };
+  const root = { id: "del-root", value: 1 };
+  const rootRow = (await (await req("/defs", { method: "POST", body: { kind: "jsonDef", storage: "user", name: "DelRoot", payload: root } })).json()) as { id: string };
+  const child = { id: "del-child", extends: "del-root" };
+  const childRow = (await (await req("/defs", { method: "POST", body: { kind: "jsonDef", storage: "user", name: "DelChild", payload: child } })).json()) as { id: string };
   // Deleting the root while the child still extends it orphans the child → 409.
   const blocked = await req(`/defs/${encodeURIComponent(rootRow.id)}`, { method: "DELETE" });
   assert.equal(blocked.status, 409);

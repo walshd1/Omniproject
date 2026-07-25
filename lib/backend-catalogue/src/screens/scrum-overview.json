@@ -1,0 +1,6 @@
+{ "id": "scrum-overview", "label": "Scrum overview", "methodologies": ["scrum"], "panels": [
+  { "id": "sprint-goal", "kind": "text", "title": "Sprint goal", "config": { "content": "The sprint goal." } },
+  { "id": "burndown", "kind": "chart", "title": "Burndown", "config": { "chart": { "type": "sparkline" } } },
+  { "id": "velocity", "kind": "chart", "title": "Velocity", "config": { "chart": { "type": "column" } } },
+  { "id": "sprint-backlog", "kind": "register", "title": "Sprint backlog", "config": { "slot": "sprints" } }
+] }

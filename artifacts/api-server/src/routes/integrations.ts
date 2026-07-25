@@ -5,6 +5,7 @@ import { getPortfolioHealth } from "./portfolio";
 import { formatPrometheus, type AnyMetric } from "../lib/metrics";
 import { coreMetrics } from "../lib/otlp-metrics";
 import { ragBuckets } from "../broker/vocabulary";
+import { numLoose as num } from "@workspace/backend-catalogue";
 
 /**
  * BI / observability integration endpoints.
@@ -16,11 +17,6 @@ import { ragBuckets } from "../broker/vocabulary";
  */
 
 const router = Router();
-
-function num(v: unknown): number {
-  const n = Number(v);
-  return Number.isFinite(n) ? n : 0;
-}
 
 router.get("/metrics", async (req, res) => {
   // RED metrics (rate/errors/duration) + broker latency + cache hit/miss are pure

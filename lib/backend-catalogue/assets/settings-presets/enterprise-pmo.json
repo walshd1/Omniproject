@@ -1,0 +1,15 @@
+{
+  "id": "enterprise-pmo",
+  "label": "Enterprise PMO",
+  "audience": "Large enterprises with a formal PMO and portfolio governance",
+  "description": "Portfolio-grade rigour: enterprise profile, period-close FX for clean board-pack variance, and a strategy-weighted prioritisation. Governance controls are ready to layer on; AI stays off until you connect a provider.",
+  "order": 10,
+  "settings": {
+    "deploymentProfile": "enterprise",
+    "reportingCurrency": "USD",
+    "fxRatePolicy": "periodClose",
+    "aiProvider": "none",
+    "sttProvider": "browser",
+    "priorityWeights": { "rice": 15, "wsjf": 15, "moscow": 15, "strategic": 35, "benefit": 20 }
+  }
+}

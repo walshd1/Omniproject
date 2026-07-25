@@ -23,8 +23,91 @@ import { buildConfigDiff } from "../../lib/config-diff";
 import { captureVersion } from "../../lib/config-store";
 import { isDevMode } from "../../lib/dev-mode";
 import { buildDebugBundleZip } from "../../lib/debug-bundle";
+import { ensureInstanceKey, rotateInstanceKey, isInstanceKeyRevealed, markInstanceKeyRevealed, instanceKeyFingerprint, instanceKeyEnabled } from "../../lib/instance-key";
+import { buildPortableBackup, openPortableBackup, PortableBackupError } from "../../lib/instance-backup";
+import { decodeKey32 } from "../../lib/crypto-keys";
 
 const router = Router();
+
+// ── INSTANCE RECOVERY KEY (IRK) + portable backup ─────────────────────────────────────────────────────────
+// The portable key an operator SAVES on first setup (offline / printed) and needs to open an encrypted backup
+// on a fresh box. Revealed exactly once; a portable backup is sealed under it (not the config key) so it
+// travels to any instance. Restore pastes the OLD key, then the instance rotates to a fresh key + re-reveals.
+
+/** GET /api/setup/instance-key — status: whether it's available, already revealed, and its non-secret
+ *  fingerprint. Ensures a key exists (mints on first touch) so first-setup always has one to reveal. */
+router.get("/setup/instance-key", requireRole("admin"), (_req, res) => {
+  if (!instanceKeyEnabled()) { res.json({ available: false, revealed: false, fingerprint: null }); return; }
+  ensureInstanceKey(new Date().toISOString());
+  res.json({ available: true, revealed: isInstanceKeyRevealed(), fingerprint: instanceKeyFingerprint() });
+});
+
+/** POST /api/setup/instance-key/reveal — ONE-TIME reveal of the raw key (base64) for the operator to save.
+ *  Refuses once already revealed (409) — rotate to mint + reveal a new one. Admin + fresh step-up, audited. */
+router.post("/setup/instance-key/reveal", requireRole("admin"), requireStepUp, (req, res) => {
+  if (!instanceKeyEnabled()) { res.status(404).json({ error: "No encrypted store is configured on this deployment." }); return; }
+  const raw = ensureInstanceKey(new Date().toISOString());
+  if (!raw) { res.status(404).json({ error: "Instance key is unavailable." }); return; }
+  if (isInstanceKeyRevealed()) { res.status(409).json({ error: "This key was already revealed. If you didn't save it, rotate to mint a new one." }); return; }
+  markInstanceKeyRevealed();
+  recordRequestAudit(req, { category: "admin", action: "instance_key.reveal", write: true, meta: { fingerprint: instanceKeyFingerprint() } });
+  res.json({ key: raw.toString("base64"), fingerprint: instanceKeyFingerprint() });
+});
+
+/** POST /api/setup/instance-key/rotate — mint + reveal a fresh key (invalidates the old for future backups).
+ *  Admin + fresh step-up, audited. */
+router.post("/setup/instance-key/rotate", requireRole("admin"), requireStepUp, (req, res) => {
+  if (!instanceKeyEnabled()) { res.status(404).json({ error: "No encrypted store is configured on this deployment." }); return; }
+  const raw = rotateInstanceKey(new Date().toISOString());
+  markInstanceKeyRevealed();
+  recordRequestAudit(req, { category: "admin", action: "instance_key.rotate", write: true, meta: { fingerprint: instanceKeyFingerprint() } });
+  res.json({ key: raw.toString("base64"), fingerprint: instanceKeyFingerprint() });
+});
+
+/** GET /api/setup/portable-backup — the complete backup sealed under the IRK (ciphertext only). Admin + fresh
+ *  step-up, audited. */
+router.get("/setup/portable-backup", requireRole("admin"), requireStepUp, (req, res) => {
+  const raw = instanceKeyEnabled() ? ensureInstanceKey(new Date().toISOString()) : null;
+  if (!raw) { res.status(404).json({ error: "No encrypted store is configured on this deployment." }); return; }
+  const backup = buildPortableBackup(getSettings(), new Date().toISOString(), raw);
+  recordRequestAudit(req, { category: "admin", action: "portable_backup.export", write: false, meta: { keyFingerprint: backup.keyFingerprint } });
+  res.type("application/json").set("Content-Disposition", `attachment; filename="omniproject-portable-backup.json"`).send(JSON.stringify(backup, null, 2));
+});
+
+/** POST /api/setup/portable-restore — { bundle, key } — decrypt the portable backup with the OLD key the
+ *  operator saved, apply both halves, then ROTATE to a fresh key and return it (the "same reveal screen"). */
+router.post("/setup/portable-restore", requireRole("admin"), requireStepUp, (req, res) => {
+  if (!instanceKeyEnabled()) { res.status(404).json({ restored: false, error: "No encrypted store is configured on this deployment." }); return; }
+  const body = (req.body ?? {}) as { bundle?: unknown; key?: unknown };
+  const key = typeof body.key === "string" ? decodeKey32(body.key.trim()) : null;
+  if (!key) { res.status(400).json({ restored: false, error: "A 32-byte base64 recovery key is required." }); return; }
+  let halves;
+  try { halves = openPortableBackup(body.bundle, key); }
+  catch (err) { res.status(400).json({ restored: false, error: err instanceof PortableBackupError ? err.message : "Invalid backup." }); return; }
+
+  const warnings: string[] = [];
+  let settingsRestored = false;
+  if (halves.settings !== undefined) {
+    try { const { patch, warnings: w } = applySnapshot(halves.settings, { allowSecrets: true }); updateSettings(patch); warnings.push(...w); settingsRestored = true; }
+    catch (err) { warnings.push(`settings not restored: ${err instanceof Error ? err.message : "invalid snapshot"}`); }
+  }
+  let defReport: ReturnType<typeof applyDefStoreExport> | null = null;
+  if (halves.defStore !== undefined) {
+    try { defReport = applyDefStoreExport(halves.defStore); warnings.push(...defReport.warnings); }
+    catch (err) { warnings.push(`defs not restored: ${err instanceof DefStoreImportError ? err.message : (err instanceof Error ? err.message : "invalid export")}`); }
+  }
+  let storesReport: ReturnType<typeof applyExtraStores> | null = null;
+  if (halves.stores !== undefined) {
+    try { storesReport = applyExtraStores(halves.stores); }
+    catch (err) { warnings.push(`extra stores not restored: ${err instanceof Error ? err.message : "invalid stores"}`); }
+  }
+  captureVersion("restored from portable backup");
+  // Rotate to a FRESH instance key + reveal it — the restored instance gets its own key for future backups.
+  const newKey = rotateInstanceKey(new Date().toISOString());
+  markInstanceKeyRevealed();
+  recordRequestAudit(req, { category: "admin", action: "portable_backup.restore", write: true, meta: { settingsRestored, defCollections: defReport?.written.length ?? 0, newKeyFingerprint: instanceKeyFingerprint() } });
+  res.json({ restored: true, settingsRestored, defStore: defReport ?? null, stores: storesReport, warnings, newKey: newKey.toString("base64"), newKeyFingerprint: instanceKeyFingerprint() });
+});
 
 // GET /api/setup/export?format=env|compose|k8s — durable config from current
 // settings, so the operator can persist it in their environment. Admin only.

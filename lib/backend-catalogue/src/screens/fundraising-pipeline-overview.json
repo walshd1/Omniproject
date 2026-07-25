@@ -1,0 +1,5 @@
+{ "id": "fundraising-pipeline-overview", "label": "Fundraising pipeline overview", "methodologies": ["fundraising-pipeline"], "panels": [
+  { "id": "pipeline", "kind": "table", "title": "Pipeline", "config": { "source": "donations" } },
+  { "id": "donations", "kind": "chart", "title": "Donations", "config": { "chart": { "type": "sparkline" } } },
+  { "id": "target", "kind": "metric", "title": "Target", "config": { "label": "Goal", "value": "—" } }
+] }

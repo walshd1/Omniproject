@@ -1,10 +1,13 @@
+import { useState } from "react";
 import { ReportEmpty } from "./ReportEmpty";
 import { useT } from "../../lib/i18n";
 import { DataState } from "../DataState";
 import { StatCard } from "./StatCard";
 import { ReportTable } from "./ReportTable";
 import { SnapshotButton } from "./SnapshotControls";
-import { usePortfolioFinancials } from "./use-portfolio-financials";
+import { useGetPortfolioFinancials, getGetPortfolioFinancialsQueryKey, useGetSettings } from "@workspace/api-client-react";
+import { useFxRates } from "../../lib/currency";
+import { currencyList } from "@workspace/backend-catalogue";
 
 /** Human label for the org's FX as-of-date policy, for the footnote. */
 const FX_POLICY_LABEL: Record<string, string> = {
@@ -15,9 +18,11 @@ const FX_POLICY_LABEL: Record<string, string> = {
 
 /**
  * Portfolio Financials (consolidated) — budget vs actual vs forecast across the whole portfolio, with
- * every project's local-currency figures converted into ONE reporting currency via the broker's FX
- * table. Rolled up by programme. The board-level view a head of projects can't assemble by hand at
- * multi-country scale. STATELESS — financials + FX are read through, nothing is stored.
+ * every project's local-currency figures converted into ONE reporting currency and rolled up by
+ * programme. The consolidation now happens SERVER-SIDE (`GET /api/portfolio/financials?currency=`, the
+ * shared consolidation engine), so this renderer is a thin view over one call — the reporting-currency
+ * select re-requests the endpoint (the query key carries the `currency` param). STATELESS — read-through,
+ * nothing stored.
  */
 
 /** A programme/portfolio row's variance, coloured: projected overspend (negative) is the alarm. */
@@ -28,16 +33,24 @@ function VarianceCell({ v, money }: { v: number; money: (n: number) => string })
 
 export function PortfolioFinancials() {
   const { formatCurrency } = useT();
-  const { consolidated, target, setReporting, options, projLoading, finLoading, isError, error, refetch, settings, fx } = usePortfolioFinancials();
+  const [currency, setCurrency] = useState("");
+  const params = currency ? { currency } : undefined;
+  const { data, isLoading, isError, error, refetch } = useGetPortfolioFinancials(params, {
+    query: { queryKey: getGetPortfolioFinancialsQueryKey(params), retry: false },
+  });
+  // FX rates (for the currency-picker option list) + settings (for the policy footnote) are cheap,
+  // cached, read-through reads; the heavy per-project fan-out + FX consolidation is now the endpoint's.
+  const { data: fx } = useFxRates();
+  const { data: settings } = useGetSettings();
+  const options = currencyList(fx?.rates);
 
-  const loading = projLoading || finLoading;
-
+  const target = data?.reportingCurrency ?? "";
   const money = (n: number) => formatCurrency(n, target);
-  const hasData = consolidated.portfolio.projects > 0;
+  const hasData = !!data && data.portfolio.projects > 0;
 
   return (
-    <DataState isLoading={loading} isError={isError} error={error} onRetry={() => refetch()} className="min-h-40">
-      {!hasData ? (
+    <DataState isLoading={isLoading} isError={isError} error={error} onRetry={() => refetch()} className="min-h-40">
+      {!data || !hasData ? (
         <ReportEmpty testId="portfolio-fin-empty">
           No financials — connect a cost / ERP source so projects report budget, actual and forecast.
         </ReportEmpty>
@@ -45,17 +58,17 @@ export function PortfolioFinancials() {
         <div className="space-y-4" data-testid="portfolio-financials">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3 flex-1">
-              <StatCard label="Budget" value={money(consolidated.portfolio.budget)} hint={`${consolidated.portfolio.projects} project(s)`} />
-              <StatCard label="Actual" value={money(consolidated.portfolio.actual)} />
-              <StatCard label="Forecast (EAC)" value={money(consolidated.portfolio.forecast)} />
-              <StatCard label="Variance" value={money(consolidated.portfolio.variance)} hint={consolidated.portfolio.variance < 0 ? "projected overspend" : "within budget"} />
+              <StatCard label="Budget" value={money(data.portfolio.budget)} hint={`${data.portfolio.projects} project(s)`} />
+              <StatCard label="Actual" value={money(data.portfolio.actual)} />
+              <StatCard label="Forecast (EAC)" value={money(data.portfolio.forecast)} />
+              <StatCard label="Variance" value={money(data.portfolio.variance)} hint={data.portfolio.variance < 0 ? "projected overspend" : "within budget"} />
             </div>
             <div className="flex items-center gap-3">
               {options.length > 0 && (
                 <label className="text-xs flex items-center gap-1">
                   <span className="text-muted-foreground">Reporting currency</span>
                   <select aria-label="Reporting currency" className="rounded-none border-2 border-foreground bg-background px-2 py-1 text-xs font-mono"
-                    value={target} onChange={(e) => setReporting(e.target.value)}>
+                    value={currency || target} onChange={(e) => setCurrency(e.target.value)}>
                     {options.map((c) => <option key={c} value={c}>{c}</option>)}
                   </select>
                 </label>
@@ -66,17 +79,17 @@ export function PortfolioFinancials() {
                 data={{
                   reportingCurrency: target,
                   fxRatePolicy: settings?.fxRatePolicy ?? "spot",
-                  asOf: fx?.asOf ?? null,
-                  fxProvenance: fx?.provenance ?? null,
-                  portfolio: consolidated.portfolio,
-                  programmes: consolidated.programmes,
+                  asOf: data.fx?.asOf ?? null,
+                  fxProvenance: data.fx?.provenance ?? null,
+                  portfolio: data.portfolio,
+                  programmes: data.programmes,
                 }}
               />
             </div>
           </div>
 
           <ReportTable
-            rows={consolidated.programmes}
+            rows={data.programmes}
             rowKey={(r) => r.key}
             rowTestId={(r) => `portfolio-fin-row-${r.key}`}
             size="comfortable"
@@ -110,10 +123,10 @@ export function PortfolioFinancials() {
           />
 
           <p className="text-[11px] text-muted-foreground">
-            Consolidated from {consolidated.currencyMix.length} currenc{consolidated.currencyMix.length === 1 ? "y" : "ies"}
-            {consolidated.currencyMix.length > 1 ? ` (${consolidated.currencyMix.map((c) => `${c.currency}×${c.projects}`).join(", ")})` : ""} into {target}
+            Consolidated from {data.currencyMix.length} currenc{data.currencyMix.length === 1 ? "y" : "ies"}
+            {data.currencyMix.length > 1 ? ` (${data.currencyMix.map((c) => `${c.currency}×${c.projects}`).join(", ")})` : ""} into {target}
             {" "}at {FX_POLICY_LABEL[settings?.fxRatePolicy ?? "spot"] ?? "today's spot rate"}
-            {fx?.provenance ? ` (FX ${fx.provenance}${fx.asOf ? ` as of ${new Date(fx.asOf).toLocaleDateString("en-GB", { timeZone: "UTC" })}` : ""})` : ""}.
+            {data.fx?.provenance ? ` (FX ${data.fx.provenance}${data.fx.asOf ? ` as of ${new Date(data.fx.asOf).toLocaleDateString("en-GB", { timeZone: "UTC" })}` : ""})` : ""}.
             Variance = budget − forecast (EAC); CPI = earned value ÷ actual. Derived live; nothing is stored.
           </p>
         </div>

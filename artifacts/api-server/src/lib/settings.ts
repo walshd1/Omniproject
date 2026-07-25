@@ -14,9 +14,8 @@ import { settingsPreset } from "./settings-presets";
 import type { BackendFieldMap } from "../broker/types";
 import type { GovernanceRule } from "./governance-rules";
 import { validatePredicate } from "./predicate";
-import { isValidCadence, type SnapshotCadence } from "../history/cadence";
 import { logger } from "./logger";
-import { isTruthy, envInt } from "./env-config";
+import { envInt } from "./env-config";
 import { validateFieldRouting, FieldRoutingError, type FieldRoute } from "./field-routing";
 import { validateApprovalChains, ApprovalChainError, type ChainDef } from "./approval-chain";
 import { validateApprovalBindings, ApprovalBindingError, type ApprovalBinding } from "./approval-binding";
@@ -24,14 +23,10 @@ import { validateWorkflows, WorkflowError, type WorkflowDef } from "./workflow";
 import { validateWorkflowAcceptances, ResponsibilityAcceptanceError, type WorkflowAcceptance } from "./responsibility-acceptance";
 import { validateResourceAllocations, ResourceAllocationError, type ResourceAllocation } from "./resource-allocation";
 import { validateBudgetPlans, BudgetPlanError, type BudgetPlan } from "./budget-plan";
-import { validateScreenDefs, ScreenDefError, type OrgScreenDef } from "./screen-def";
-import { validateRaci, RaciError, type RaciEntry } from "./raci";
-import { validateStakeholders, StakeholderError, type Stakeholder } from "./stakeholder";
-import { FormDefError, type FormDef } from "./form-def";
-import { validateAutomations, AutomationError } from "./automation";
-import { validateTemplates, TemplateError } from "./project-template";
-import type { AutomationRecipe, ProjectTemplate } from "@workspace/backend-catalogue";
-import { reportCatalogue, type ReportDefinition } from "@workspace/backend-catalogue";
+import { reportCatalogue, type ReportDefinition, DEFAULT_PRIORITY_WEIGHTS, type PriorityWeights } from "@workspace/backend-catalogue";
+
+// Re-export the shared prioritisation shape + default so existing `./settings` importers are unaffected.
+export { DEFAULT_PRIORITY_WEIGHTS, type PriorityWeights };
 import { validateCustomFields, validateCustomFieldSources, CustomFieldError, type CustomField } from "./custom-fields";
 import { sanitizeUserPrefs } from "./user-prefs";
 import { sanitizeGrant } from "./calendar-push";
@@ -150,32 +145,10 @@ export interface PeerInstance {
  * and is responsible for. Enabling it unlocks historical time-travel. The
  * operator must acknowledge that egressed data is outside OmniProject's warranty.
  */
-export interface LoggingSyncConfig {
-  enabled: boolean;
-  url: string | null;
-  /** The admin acknowledged that egressed data leaves OmniProject's warranty. */
-  acknowledgedWarranty: boolean;
-}
-
-
 /**
- * Self-host DB adoption — the operator's choice to let OmniProject's OWN database become a
- * system-of-record (or an augmenting store) for a slice of the work-item superset. Same "disclose,
- * don't insure" trust class as `loggingSync`: adopting it moves the only copy of some data into
- * infrastructure OmniProject neither operates nor backs up nor warrants, so it can only be turned on
- * with an explicit data-responsibility acknowledgement. `adopted` is the org-level opt-in set of
- * gated `selfhost:<domain>` domains (core domains are implicit). See selfhost/setup-wizard.
- */
-export interface SelfHostConfig {
-  mode: "off" | "augmenting" | "system-of-record";
-  /** Gated domain ids opted into at org level (e.g. "financials", "quality"). Core is implicit. */
-  adopted: string[];
-  /** The admin acknowledged that self-host data is theirs to own, secure and back up. */
-  acknowledgedDataResponsibility: boolean;
-}
-
-const SELF_HOST_MODES = ["off", "augmenting", "system-of-record"] as const;
-const DEFAULT_SELF_HOST: SelfHostConfig = { mode: "off", adopted: [], acknowledgedDataResponsibility: false };
+// (Self-host DB adoption `selfHost` moved to the `self-host` config def — see lib/self-host-config — roadmap
+//  Phase C. It's a CHOICE config: the disclose-don't-insure acknowledgement is its gate, enforced by the setup
+//  route's validator, not a sign-off.)
 
 /** Optional above-the-seam email delivery for the scheduled digests. */
 export interface DigestDeliveryConfig {
@@ -201,32 +174,6 @@ function digestDeliveryFromEnv(): DigestDeliveryConfig {
  * gated by admin (the org default) + PMO (per-programme/project overrides)** — see history/cadence.
  * Config only (cadence policy), never project data; rides the snapshot/export bundle.
  */
-export interface HistoryRetentionSettings {
-  /** Admin: org-wide default cadence. */
-  orgDefault: SnapshotCadence;
-  /** PMO: per-programme cadence overrides, keyed by programmeId. */
-  programme: Record<string, SnapshotCadence>;
-  /** PMO/PM: per-project cadence overrides, keyed by projectId. */
-  project: Record<string, SnapshotCadence>;
-  /**
-   * DISPOSAL window in days: snapshots/journal older than this become prunable by the disposal job
-   * (`POST /history/dispose`). Absent/null ⇒ INFINITE retention — the historical default, so an
-   * existing config is unchanged. Set a positive integer to satisfy a storage-limitation policy.
-   */
-  retentionDays?: number | null;
-  /**
-   * LEGAL-HOLD keys (`"entity#id"`) that are exempt from BOTH disposal and erasure until explicitly
-   * released — a litigation/investigation hold that overrides the retention window and any DSAR delete.
-   */
-  legalHolds?: string[];
-}
-
-const DEFAULT_HISTORY_RETENTION: HistoryRetentionSettings = {
-  orgDefault: { kind: "interval", everyHours: 24 },
-  programme: {},
-  project: {},
-};
-
 /**
  * Skills matrix + demand — PLANNING CONFIG (like rate cards / cost rules / priority weights): the
  * resource→skill proficiencies and the role/skill demand requests the skills-capacity report matches.
@@ -382,17 +329,11 @@ export interface IntegrationConfig {
   digestDelivery: DigestDeliveryConfig;
   /** Per-user calendar-push consent (keyed by `sub`); default not-granted. */
   calendarPush: Record<string, CalendarPushGrant>;
-  /** Opt-in self-host DB adoption (off by default; needs a data-responsibility ack to enable). */
-  selfHost: SelfHostConfig;
 }
 
-/** State-history egress + durable snapshot retention. */
-export interface HistoryConfig {
-  /** Opt-in state-history egress to an operator-owned logging server (off by default). */
-  loggingSync: LoggingSyncConfig;
-  /** Snapshot cadence for durable history retention (admin org default + PMO scope overrides). */
-  historyRetention: HistoryRetentionSettings;
-}
+// (State-history egress `loggingSync` and the snapshot-cadence/retention config `historyRetention` both moved
+//  to the composition model — see lib/logging-sync and lib/history-retention — roadmap Phase C. The former
+//  `HistoryConfig` sub-config is now empty and dropped from the SettingsState composition.)
 
 /** Feature governance: the opt-out/opt-in feature sets and the PMO org/programme/project mandates. */
 export interface GovernanceConfig {
@@ -436,33 +377,10 @@ export interface PresentationConfig {
   //   • company-nomenclature `labelOverrides` (`label-overrides`) → lib/labels
   //   • org accessibility `accessibilityDefaults` (`accessibility-defaults`) → lib/user-prefs + routes/accessibility
   //   • custom `priorityLabels` (`priority-labels`) → routes/priority-labels
-  /**
-   * Per-screen layout overrides (drag-arranged panel order / spans / hidden), keyed
-   * by screen id. Presentation config — part of the snapshot/export so it travels in
-   * the customer's config JSON. Never project data.
-   */
-  screenLayouts: Record<string, ScreenLayout>;
   // NB the view-curation hidden-field list is NOT a settings key — it moved into the composition model as a
   // config-def-backed collection (`hidden-fields`, via settingsCollectionRouter's config mode; see lib/availability).
-  /**
-   * Named saved views (filters + sort + visible columns + grouping) a user can switch between.
-   * Customer-level presentation config — rides the snapshot/export so saved views travel in the
-   * bundle — never project data. See routes/views + the SPA savedViews feature module.
-   */
-  savedViews: SavedView[];
-  /**
-   * Named custom dashboards: an ordered list of widget instances chosen from the widget catalogue.
-   * Customer-level presentation config — rides the snapshot/export so dashboards travel in the
-   * bundle — never project data. See routes/dashboards + the SPA dashboards feature module.
-   */
-  dashboards: Dashboard[];
-  /**
-   * Customer-authored bespoke reports (the report generator): each is a data-driven definition —
-   * source scope, a predicate filter, a group-by field and aggregated metrics + a viz — rendered
-   * through a generic renderer with no code. Presentation config; rides the snapshot/export, never
-   * project data. See routes/custom-reports + the SPA customReports feature module.
-   */
-  customReports: CustomReportDef[];
+  // NB saved views are NOT a settings key — they moved into the composition model as a config-def-backed
+  // collection (`saved-views`, via settingsCollectionRouter's config mode; see routes/views).
   /**
    * Metadata overrides for the BUILT-IN reports (the catalogue). Presentation-only: a per-report-id
    * override of label / order / visibility, merged over the shipped catalogue so a customer can rename,
@@ -484,45 +402,18 @@ export interface PresentationConfig {
   /** Multi-year / period budget PLANS — an editable time-phased budget per project (the planning side of
    *  financials, above actuals + forecast). Stored as JSON. See routes/budget-plans. */
   budgetPlans: BudgetPlan[];
-  /** RACI register — flat (task, role, responsibility) assignments; the RACI screen renders them. */
-  raci: RaciEntry[];
-  /** Stakeholder register — flat (name, role, influence, interest, engagement) rows; the Stakeholders
-   *  screen renders them. */
-  stakeholders: Stakeholder[];
-  /** Intake / request FORMS — admin/PMO-authored forms (typed fields + a target project); the `form` panel
-   *  renders them and each submission becomes a work item through the broker. See routes/forms. */
-  forms: FormDef[];
-  /** Automation RECIPES — user-authored "when X, do Y" rules that compile to the workflow engine. Authoring
-   *  and execution are RBAC-gated to what the author may edit. See routes/automations. */
-  automations: AutomationRecipe[];
-  /** Project TEMPLATES — reusable project blueprints (defaults + seed work items) instantiated via the
-   *  broker. See routes/templates. */
-  templates: ProjectTemplate[];
-  /** Org-authored SCREEN DEFINITIONS — a PMO's built-from-scratch or modified screens, stored in the
-   *  (encrypted) deployment config to OVERRIDE a shipped default (matched by id) or add net-new screens;
-   *  also the delivery vehicle for a new-methodology JSON bundle. The SPA merges these over its built-in
-   *  screen catalogue and renders them through the one generic builder. See routes/screen-defs. */
-  screenDefs: OrgScreenDef[];
-  /** Screen ids an admin/PMO has turned OFF for this deployment — hidden from nav and refused by the
-   *  builder (an off screen shows a "turned off" state, never a crash). Overriding vs disabling are the
-   *  two admin controls on the Screens admin panel. See routes/disabled-screens. */
-  disabledScreens: string[];
-  /** Per-collection EDIT policy for on-screen editable content (collectionKey → a role, or "readonly").
-   *  The default is user-editable; an admin/PMO raises the bar or locks a collection read-only. Enforced
-   *  server-side (lib/collection-edit-policy) and mirrored by the SPA's edit controls. */
-  collectionEditRoles: Record<string, string>;
-  /** Org-saved PANEL VIEWS — a named period/pivot preset (group + aggregation + filters) a user has saved
-   *  off a table/chart panel's control bar, scoped to a `screen`+`panel`, so a filtered view can be recalled
-   *  later. Shared, customer-level presentation config (rides the config-bundle snapshot); never project
-   *  data. Writes follow the collection edit-policy (default user-editable). See routes/panel-views. */
-  panelViews: PanelView[];
-  /**
-   * Methodology composition — the PMO/admin's curated set of visible artifact / output / ruleset ids,
-   * assembled from one-click methodology presets and refined per item (so "some Scrum + some PRINCE2" is
-   * just a curated list). `null` = uncurated: everything the catalogues offer stays visible (the default).
-   * Customer-level presentation config; rides the snapshot/export, never project data.
-   */
-  methodologyComposition: string[] | null;
+  // NB the RACI + stakeholder registers are NOT settings keys — they moved into the composition model as
+  // config-def-backed collections (`raci` / `stakeholders`, via settingsCollectionRouter's config mode; see
+  // routes/raci + routes/stakeholders).
+  // NB automation recipes + project templates are NOT settings keys — they moved into the composition model as
+  // config-def-backed collections (`automations` / `templates`, via settingsCollectionRouter's config mode; see
+  // routes/automations + routes/templates).
+  // NB these are NOT settings keys — each moved into the composition model as a config-def-backed collection
+  // (via settingsCollectionRouter's config mode): `disabled-screens` (routes/disabled-screens),
+  // `collection-edit-roles` (routes/collection-edit-roles; read by lib/collection-edit-policy) and
+  // `panel-views` (routes/panel-views).
+  // NB the methodology composition is NOT a settings key — it moved into the composition model as a nullable
+  // config-def-backed collection (`methodology-composition`; see lib/scoped-config + routes/methodology-composition).
   /**
    * Named content pages: an ordered, flat list of unified-library component ids (reports + widgets,
    * see @workspace/backend-catalogue componentsFor("content")) a customer composes into free-form
@@ -550,13 +441,6 @@ export interface UserConfig {
 export interface PlatformConfig {
   /** Deployment context chosen in the setup wizard (relaxes enterprise couplings by choice). */
   deploymentProfile?: DeploymentProfile;
-  /**
-   * Admin opt-in: when true, the SPA reports uncaught render errors (message + component
-   * stack + page, never user/project data) to `POST /api/client-errors`, which records them
-   * to the INTERNAL audit log. OFF by default — the same deliberate no-external-telemetry
-   * posture as the rest of the app; nothing is auto-reported until an admin turns this on.
-   */
-  errorTelemetry: boolean;
   /** Skills matrix + demand for the skills-capacity report (planning config, admin/PMO edited). */
   skillsPlanning: SkillsPlanningSettings;
 }
@@ -571,24 +455,10 @@ export interface SettingsState
     AiConfig,
     FinancialConfig,
     IntegrationConfig,
-    HistoryConfig,
     GovernanceConfig,
     PresentationConfig,
     UserConfig,
     PlatformConfig {}
-
-/** Relative weights for the five prioritisation dimensions — not required to sum to 100 (the scorer
- *  renormalises over whichever dimensions a project actually reports). Mirrored in the SPA's
- *  lib/portfolio-priority.ts (no shared package between the two apps, same as CustomReportDef). */
-export interface PriorityWeights {
-  rice: number;
-  wsjf: number;
-  moscow: number;
-  strategic: number;
-  benefit: number;
-}
-
-export const DEFAULT_PRIORITY_WEIGHTS: PriorityWeights = { rice: 25, wsjf: 25, moscow: 15, strategic: 15, benefit: 20 };
 
 /** A named saved view: which columns, sort, filters and grouping to apply (all optional, so a view
  *  can capture just a column set or just a sort). `scope` ties it to a surface (e.g. "grid"). */
@@ -641,63 +511,6 @@ export interface ArtifactStyle {
   textColor?: string;
   background?: string;
   align?: "left" | "center";
-}
-
-/** One placed widget on a custom dashboard. `type` keys into the SPA widget catalogue; `span` is
- *  the column width (1–3) on the responsive grid; `title` optionally overrides the widget label. */
-export interface DashboardWidget {
-  id: string;
-  type: string;
-  span?: 1 | 2 | 3;
-  title?: string;
-}
-
-/** A named custom dashboard: an ordered list of widget instances. `refreshMs`, when set, makes the
- *  dashboard auto-refresh its read-model data on that interval (a dashboard is a report that refreshes
- *  in real time) — a client-side poll, never a new write surface. */
-export interface Dashboard {
-  id: string;
-  name: string;
-  widgets: DashboardWidget[];
-  refreshMs?: number;
-}
-
-/** The aggregations a custom-report metric may apply over a field. */
-export type CustomReportAgg = "sum" | "avg" | "count" | "min" | "max";
-
-/** One aggregated column in a bespoke report (e.g. sum of `budget`). */
-export interface CustomReportMetric {
-  id: string;
-  field: string;
-  agg: CustomReportAgg;
-  label?: string;
-}
-
-/**
- * A customer-authored report definition (the report generator). Rendered through a generic renderer:
- * filter the work items, group by a field (optionally a second level for a cross-tab), aggregate the
- * chosen metrics, draw a table, bar chart or month-bucketed trend line. `filter` is a predicate
- * condition set (the same engine the rules use); kept loosely typed here and validated at the route.
- * Never holds project data — only field keys + how to summarise them.
- */
-export interface CustomReportDef {
-  id: string;
-  label: string;
-  /** "project" renders per selected project; "portfolio" rolls up across all projects' issues;
-   *  "tasks" reports over the GTD task entity (portfolio-wide). */
-  scope: "project" | "portfolio" | "tasks";
-  groupBy?: string;
-  /** Second group-by level (pivot columns) — ignored without `groupBy`, and for `viz: "line"`. */
-  groupBy2?: string;
-  metrics: CustomReportMetric[];
-  filter?: { all?: unknown[]; any?: unknown[] };
-  viz: "table" | "bar" | "line" | "area" | "pie";
-  /** Required for `viz: "line" | "area"`: a date field bucketed by month to build a time trend. */
-  dateField?: string;
-  /** Chart options (the chart editor): stacked series and legend visibility. */
-  chart?: { stacked?: boolean; legend?: boolean };
-  /** Optional presentation styling for the rendered report (title/font/colours/background). */
-  style?: ArtifactStyle;
 }
 
 /**
@@ -809,16 +622,6 @@ export interface CapabilitySetting {
   surfaces?: Record<string, DeploymentState>;
 }
 
-/** A saved arrangement for one screen. */
-export interface ScreenLayout {
-  /** Panel ids in display order (panels not listed keep their original order, after). */
-  order?: string[];
-  /** Per-panel grid span override (1–12). */
-  spans?: Record<string, number>;
-  /** Panel ids hidden from this screen. */
-  hidden?: string[];
-}
-
 function webhooksFromEnv(): WebhookSubscription[] {
   const raw = process.env["WEBHOOKS"]?.trim();
   if (!raw) return [];
@@ -867,19 +670,6 @@ function peersFromEnv(): PeerInstance[] {
     logger.warn({ err }, "FEDERATED_PEERS is not valid JSON — ignoring, no federated peers seeded from env");
     return [];
   }
-}
-
-function loggingSyncFromEnv(): LoggingSyncConfig {
-  const url = process.env["LOGGING_SYNC_URL"]?.trim() || null;
-  // Env-provided config is operator-trusted; still drop an unsafe URL and only
-  // enable when the warranty was explicitly acknowledged via env.
-  const ack = process.env["LOGGING_SYNC_ACK_WARRANTY"] === "true";
-  const safe = url ? isSafeOutboundUrl(url) : false;
-  return {
-    enabled: !!url && safe && ack,
-    url: safe ? url : null,
-    acknowledgedWarranty: ack,
-  };
 }
 
 /** Feature-module ids disabled via env (`DISABLED_FEATURES=odata,integrations`). */
@@ -939,7 +729,7 @@ function urlField(field: string) {
 }
 
 /** Validator for a `string[]` field (rejects non-arrays / non-string members). */
-function stringArrayField(field: string) {
+export function stringArrayField(field: string) {
   return (value: unknown): string[] => {
     if (!Array.isArray(value) || value.some((x) => typeof x !== "string")) {
       throw new SettingsValidationError(`${field} must be an array of strings`);
@@ -950,7 +740,7 @@ function stringArrayField(field: string) {
 
 /** Adapt a validator that only THROWS on bad input (no normalisation) into a descriptor validator —
  *  persists the dangerous-key-stripped value verbatim, exactly as the old `if (k in patch) checkX(...)`. */
-function shapeChecked<T>(assert: (value: unknown) => void) {
+export function shapeChecked<T>(assert: (value: unknown) => void) {
   return (value: unknown): T => {
     assert(value);
     return value as T;
@@ -959,7 +749,7 @@ function shapeChecked<T>(assert: (value: unknown) => void) {
 
 /** Adapt a validator that RETURNS a normalised value and throws a typed error, mapping that error to
  *  the standard settings 400 (SettingsValidationError) while letting anything else propagate. */
-function normalisedBy<T>(run: (value: unknown) => T, ErrorClass: new (...args: never[]) => Error) {
+export function normalisedBy<T>(run: (value: unknown) => T, ErrorClass: new (...args: never[]) => Error) {
   return (value: unknown): T => {
     try {
       return run(value);
@@ -1011,14 +801,6 @@ const FIELD_DESCRIPTORS: { [K in keyof SettingsState]: FieldDescriptor<K> } = {
     },
   },
   oidcIssuerUrl: { seed: () => process.env["OIDC_ISSUER_URL"] ?? null, validate: urlField("oidcIssuerUrl") },
-  errorTelemetry: {
-    // Off unless an admin opts in (or the env seeds it for a fresh boot).
-    seed: () => isTruthy(process.env["ERROR_TELEMETRY"]),
-    validate: (value) => {
-      if (typeof value !== "boolean") throw new SettingsValidationError("errorTelemetry must be a boolean");
-      return value;
-    },
-  },
   fieldRouting: {
     // Anti-collision (one source → one UI element, both ways) lives in field-routing; surface its error
     // as the standard settings 400, and persist the normalised (trimmed) map.
@@ -1051,19 +833,9 @@ const FIELD_DESCRIPTORS: { [K in keyof SettingsState]: FieldDescriptor<K> } = {
   },
   webhooks: { seed: () => webhooksFromEnv(), validate: shapeChecked(validateWebhooks) },
   federatedPeers: { seed: () => peersFromEnv(), validate: shapeChecked(validateFederatedPeers) },
-  loggingSync: { seed: () => loggingSyncFromEnv(), validate: shapeChecked(validateLoggingSync) },
-  selfHost: { seed: () => ({ ...DEFAULT_SELF_HOST }), validate: shapeChecked(validateSelfHost) },
-  historyRetention: { seed: () => ({ ...DEFAULT_HISTORY_RETENTION }), validate: shapeChecked(validateHistoryRetention) },
   digestDelivery: { seed: () => digestDeliveryFromEnv(), validate: shapeChecked(validateDigestDelivery) },
   skillsPlanning: { seed: () => ({ matrix: [], demand: [] }), validate: shapeChecked(validateSkillsPlanning) },
   fieldOverrides: { seed: () => ({ fields: {}, entities: {} }), validate: shapeChecked(validateFieldOverrides) },
-  screenLayouts: {
-    seed: () => ({}),
-    validate: (value) => {
-      if (typeof value !== "object" || value == null || Array.isArray(value)) throw new SettingsValidationError("screenLayouts must be an object");
-      return validateScreenLayouts(value as Record<string, unknown>);
-    },
-  },
   userPrefs: {
     // Per-user accessibility prefs are written verbatim + read back raw, so sanitize every entry through
     // the same clamps its dedicated route uses; drop forbidden keys.
@@ -1104,45 +876,11 @@ const FIELD_DESCRIPTORS: { [K in keyof SettingsState]: FieldDescriptor<K> } = {
   programmeFeatures: { seed: () => ({}), validate: shapeChecked((v) => validateScopeFeatureMap(v, "programmeFeatures")) },
   projectFeatures: { seed: () => ({}), validate: shapeChecked((v) => validateScopeFeatureMap(v, "projectFeatures")) },
   governanceRules: { seed: () => [], validate: shapeChecked((v) => validateGovernanceRules(v, "governanceRules")) },
-  savedViews: { seed: () => [], validate: shapeChecked(validateSavedViews) },
-  customReports: { seed: () => [], validate: shapeChecked(validateCustomReports) },
   reportOverrides: { seed: () => [], validate: shapeChecked(validateReportOverrides) },
   // The per-deployment report store — seeded from the built-in catalogue, then deployment-owned JSON.
   reports: { seed: () => reportCatalogue() as unknown as ReportDefinition[], validate: shapeChecked(validateReports) },
   resourceAllocations: { seed: () => [], validate: normalisedBy((v) => validateResourceAllocations(v), ResourceAllocationError) },
-  budgetPlans: { seed: () => [], validate: normalisedBy((v) => validateBudgetPlans(v), BudgetPlanError) },
-  screenDefs: { seed: () => [], validate: normalisedBy((v) => validateScreenDefs(v), ScreenDefError) },
-  disabledScreens: { seed: () => [], validate: stringArrayField("disabledScreens") },
-  collectionEditRoles: {
-    seed: () => ({}),
-    validate: (value) => {
-      if (typeof value !== "object" || value == null || Array.isArray(value)) throw new SettingsValidationError("collectionEditRoles must be an object");
-      const allowed = new Set(["viewer", "contributor", "manager", "pmo", "admin", "readonly"]);
-      const out: Record<string, string> = {};
-      for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
-        if (isForbiddenKey(k)) continue;
-        if (typeof v !== "string" || !allowed.has(v)) throw new SettingsValidationError(`collectionEditRoles["${k}"] must be one of viewer, contributor, manager, pmo, admin, readonly`);
-        out[k] = v;
-      }
-      return out;
-    },
-  },
-  panelViews: { seed: () => [], validate: shapeChecked(validatePanelViews) },
-  forms: { seed: () => [], validate: normalisedBy((v) => { if (!Array.isArray(v)) throw new FormDefError("forms must be an array"); return v as FormDef[]; }, FormDefError) },
-  automations: { seed: () => [], validate: normalisedBy((v) => validateAutomations(v), AutomationError) },
-  templates: { seed: () => [], validate: normalisedBy((v) => validateTemplates(v), TemplateError) },
-  raci: { seed: () => [], validate: normalisedBy((v) => validateRaci(v), RaciError) },
-  stakeholders: { seed: () => [], validate: normalisedBy((v) => validateStakeholders(v), StakeholderError) },
-  methodologyComposition: {
-    seed: () => null,
-    validate: (value) => {
-      if (value !== null && (!Array.isArray(value) || value.some((x) => typeof x !== "string"))) {
-        throw new SettingsValidationError("methodologyComposition must be null or an array of strings");
-      }
-      return value as string[] | null;
-    },
-  },
-  dashboards: { seed: () => [], validate: shapeChecked(validateDashboards) },
+  budgetPlans: { seed: () => [], validate: normalisedBy((v) => validateBudgetPlans(v, getSettings().reportingCurrency ?? undefined), BudgetPlanError) },
   contentPages: { seed: () => [], validate: shapeChecked(validateContentPages) },
   priorityWeights: { seed: () => ({ ...DEFAULT_PRIORITY_WEIGHTS }), validate: shapeChecked(validatePriorityWeights) },
   usagePolicies: { seed: () => ({}), validate: shapeChecked(validateUsagePolicies) },
@@ -1159,11 +897,6 @@ const store: SettingsState = (() => {
   return seeded as unknown as SettingsState;
 })();
 
-/** True when historical time-travel is available (operator opted into egress). */
-export function isTimeTravelEnabled(): boolean {
-  return store.loggingSync.enabled;
-}
-
 // The writable-key allow-list, DERIVED from the field registry so it can never drift from the store
 // seed or the validators (which is what retired the bespoke `_MissingSettingsKeys` compile-time guard
 // this used to need: with one source of truth there are no longer three lists to keep in sync).
@@ -1171,6 +904,15 @@ export function isTimeTravelEnabled(): boolean {
 // EVERY persisted field and prove none is a prototype-pollution / dangerous-key sink on the bulk-PATCH
 // path — a new field is automatically probed, no per-field test to remember.
 export const ALLOWED_KEYS = Object.keys(FIELD_DESCRIPTORS) as (keyof SettingsState)[];
+
+/**
+ * SCOPE-VARIABLE settings — the CONSERVATIVE allow-list of setting keys a programme/project may override for
+ * itself (governed by the delegation policy). These are reporting/prioritisation PRESENTATION choices with no
+ * security or egress implication — safe to differ per scope. Everything else (deployment profile, TLS, AI
+ * provider/egress, security, session, governance, webhooks, …) stays ORG-GLOBAL and is never scope-variable.
+ * Expand this set deliberately; never add a key that carries a secret, an egress target, or a capability grant.
+ */
+export const SCOPE_VARIABLE_SETTINGS: readonly (keyof SettingsState)[] = ["reportingCurrency", "fxRatePolicy", "priorityWeights"];
 
 // A FROZEN read snapshot of the store, rebuilt ONLY on write (updateSettings is the sole mutator).
 // getSettings() returns it directly: reads are hot (100+ call sites, several per request) while writes
@@ -1303,8 +1045,6 @@ function validateGovernanceRules(value: unknown, label: string): void {
   }
 }
 
-const CUSTOM_REPORT_AGGS = new Set(["sum", "avg", "count", "min", "max"]);
-
 /** Shape-validate the bespoke report list: id/label/scope/viz + metric shape (field + known agg). */
 const STYLE_FONTS = new Set(["sans", "serif", "mono"]);
 const STYLE_ALIGNS = new Set(["left", "center"]);
@@ -1331,33 +1071,6 @@ function validateArtifactStyle(value: unknown, context: string): void {
   if (s["align"] != null && !STYLE_ALIGNS.has(s["align"] as string)) throw new SettingsValidationError(`${context} style.align must be left | center`);
 }
 
-function validateCustomReports(value: unknown): void {
-  if (!Array.isArray(value)) throw new SettingsValidationError("customReports must be an array");
-  for (const r of value) {
-    const o = r as Record<string, unknown>;
-    if (!o || typeof o !== "object" || typeof o["id"] !== "string" || !o["id"]) throw new SettingsValidationError("each custom report needs a string id");
-    if (typeof o["label"] !== "string" || !o["label"]) throw new SettingsValidationError(`custom report "${String(o["id"])}" needs a label`);
-    if (o["scope"] !== "project" && o["scope"] !== "portfolio" && o["scope"] !== "tasks") throw new SettingsValidationError(`custom report "${String(o["id"])}" scope must be project | portfolio | tasks`);
-    if (!["table", "bar", "line", "area", "pie"].includes(o["viz"] as string)) throw new SettingsValidationError(`custom report "${String(o["id"])}" viz must be table | bar | line | area | pie`);
-    if (o["chart"] != null) {
-      if (typeof o["chart"] !== "object") throw new SettingsValidationError(`custom report "${String(o["id"])}" chart must be an object`);
-      const c = o["chart"] as Record<string, unknown>;
-      if (c["stacked"] != null && typeof c["stacked"] !== "boolean") throw new SettingsValidationError(`custom report "${String(o["id"])}" chart.stacked must be a boolean`);
-      if (c["legend"] != null && typeof c["legend"] !== "boolean") throw new SettingsValidationError(`custom report "${String(o["id"])}" chart.legend must be a boolean`);
-    }
-    if (o["groupBy"] != null && typeof o["groupBy"] !== "string") throw new SettingsValidationError(`custom report "${String(o["id"])}" groupBy must be a string`);
-    if (o["groupBy2"] != null && typeof o["groupBy2"] !== "string") throw new SettingsValidationError(`custom report "${String(o["id"])}" groupBy2 must be a string`);
-    if (o["dateField"] != null && typeof o["dateField"] !== "string") throw new SettingsValidationError(`custom report "${String(o["id"])}" dateField must be a string`);
-    if (!Array.isArray(o["metrics"]) || o["metrics"].length === 0) throw new SettingsValidationError(`custom report "${String(o["id"])}" needs at least one metric`);
-    for (const m of o["metrics"] as unknown[]) {
-      const mm = m as Record<string, unknown>;
-      if (typeof mm?.["id"] !== "string" || !mm["id"]) throw new SettingsValidationError(`custom report "${String(o["id"])}" metric needs a string id`);
-      if (typeof mm["field"] !== "string" || !mm["field"]) throw new SettingsValidationError(`custom report "${String(o["id"])}" metric needs a field`);
-      if (typeof mm["agg"] !== "string" || !CUSTOM_REPORT_AGGS.has(mm["agg"])) throw new SettingsValidationError(`custom report "${String(o["id"])}" metric agg must be one of ${[...CUSTOM_REPORT_AGGS].join(", ")}`);
-    }
-    validateArtifactStyle(o["style"], `custom report "${String(o["id"])}"`);
-  }
-}
 
 const PRIORITY_WEIGHT_KEYS = ["rice", "wsjf", "moscow", "strategic", "benefit"] as const;
 
@@ -1490,7 +1203,7 @@ function validateFederatedPeers(value: unknown): void {
 }
 
 /** Shape-validate the saved-view list: an array whose every entry is an object with a string id + name. */
-function validateSavedViews(value: unknown): void {
+export function validateSavedViews(value: unknown): void {
   if (!Array.isArray(value)) throw new SettingsValidationError("savedViews must be an array");
   for (const view of value) {
     if (!view || typeof view !== "object") throw new SettingsValidationError("each saved view must be an object");
@@ -1538,7 +1251,7 @@ function validateSavedViews(value: unknown): void {
  * values. Hardened because these are shared, customer-level config that ride the config bundle; a malformed
  * or hostile entry must 400, never persist a shape a renderer could choke on.
  */
-function validatePanelViews(value: unknown): void {
+export function validatePanelViews(value: unknown): void {
   if (!Array.isArray(value)) throw new SettingsValidationError("panelViews must be an array");
   const ids = new Set<string>();
   for (const view of value) {
@@ -1564,69 +1277,7 @@ function validatePanelViews(value: unknown): void {
 
 /** Shape-validate the dashboard list: id/name required, optional non-negative refreshMs, and a
  *  widgets array whose entries each carry a string id + type. */
-function validateDashboards(value: unknown): void {
-  if (!Array.isArray(value)) throw new SettingsValidationError("dashboards must be an array");
-  for (const dash of value) {
-    if (!dash || typeof dash !== "object") throw new SettingsValidationError("each dashboard must be an object");
-    const { id, name, widgets } = dash as Record<string, unknown>;
-    if (typeof id !== "string" || !id) throw new SettingsValidationError("each dashboard needs a string id");
-    if (typeof name !== "string" || !name) throw new SettingsValidationError("each dashboard needs a name");
-    const { refreshMs } = dash as Record<string, unknown>;
-    if (refreshMs != null && (typeof refreshMs !== "number" || refreshMs < 0)) throw new SettingsValidationError("each dashboard refreshMs must be a non-negative number");
-    if (!Array.isArray(widgets)) throw new SettingsValidationError("each dashboard needs a widgets array");
-    for (const w of widgets) {
-      if (!w || typeof w !== "object") throw new SettingsValidationError("each dashboard widget must be an object");
-      const { id: wid, type } = w as Record<string, unknown>;
-      if (typeof wid !== "string" || !wid) throw new SettingsValidationError("each dashboard widget needs a string id");
-      if (typeof type !== "string" || !type) throw new SettingsValidationError("each dashboard widget needs a type");
-    }
-  }
-}
 
-/** Validate the opt-in logging-sync egress config: an object with an optional safe-outbound `url`;
- *  turning it on requires both a url and an explicit warranty acknowledgement. */
-function validateLoggingSync(value: unknown): void {
-  if (!value || typeof value !== "object") throw new SettingsValidationError("loggingSync must be an object");
-  const { enabled, url, acknowledgedWarranty } = value as Record<string, unknown>;
-  if (url != null) {
-    if (typeof url !== "string") throw new SettingsValidationError("loggingSync.url must be a string or null");
-    try {
-      assertSafeOutboundUrl(url, "loggingSync.url");
-    } catch (err) {
-      throw new SettingsValidationError(err instanceof UnsafeUrlError ? err.message : "loggingSync.url is invalid");
-    }
-  }
-  if (enabled === true) {
-    // Egress is the one out-of-warranty relaxation: it can only be turned on
-    // with a destination AND an explicit acknowledgement of the warranty boundary.
-    if (typeof url !== "string" || !url) throw new SettingsValidationError("enable the logging sync requires a url");
-    if (acknowledgedWarranty !== true) {
-      throw new SettingsValidationError("enabling the logging sync requires acknowledging that egressed data is outside OmniProject's warranty");
-    }
-  }
-}
-
-/** Validate the opt-in self-host adoption config: a valid mode, a string[] of adopted domain ids,
- *  and — the "disclose, don't insure" gate — an explicit acknowledgement whenever the mode isn't
- *  `off`. A non-off mode without the acknowledgement is rejected, mirroring `validateLoggingSync`. */
-function validateSelfHost(value: unknown): void {
-  if (!value || typeof value !== "object") throw new SettingsValidationError("selfHost must be an object");
-  const { mode, adopted, acknowledgedDataResponsibility } = value as Record<string, unknown>;
-  if (!(SELF_HOST_MODES as readonly string[]).includes(mode as string)) {
-    throw new SettingsValidationError(`selfHost.mode must be one of: ${SELF_HOST_MODES.join(", ")}`);
-  }
-  if (!Array.isArray(adopted) || adopted.some((x) => typeof x !== "string")) {
-    throw new SettingsValidationError("selfHost.adopted must be an array of strings");
-  }
-  if (typeof acknowledgedDataResponsibility !== "boolean") {
-    throw new SettingsValidationError("selfHost.acknowledgedDataResponsibility must be a boolean");
-  }
-  if (mode !== "off" && acknowledgedDataResponsibility !== true) {
-    throw new SettingsValidationError(
-      "enabling self-host storage requires acknowledging that the data is yours to own, secure and back up (outside OmniProject's warranty)",
-    );
-  }
-}
 
 /** Validate the digest email-delivery config: `emailRecipients` must be a bounded array of non-empty
  *  strings that look like email addresses (a light `x@y` shape check — the SMTP layer is the real
@@ -1643,34 +1294,6 @@ function validateDigestDelivery(value: unknown): void {
   for (const r of emailRecipients as string[]) {
     if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(r.trim())) {
       throw new SettingsValidationError(`digestDelivery.emailRecipients contains an invalid email address: ${r}`);
-    }
-  }
-}
-
-/** Validate the history-retention config: a valid org-default cadence plus per-scope override maps of
- *  valid cadences. Retention is infinite by policy, so there's no window to validate — only cadence. */
-function validateHistoryRetention(value: unknown): void {
-  if (!value || typeof value !== "object") throw new SettingsValidationError("historyRetention must be an object");
-  const { orgDefault, programme, project } = value as Record<string, unknown>;
-  if (!isValidCadence(orgDefault)) {
-    throw new SettingsValidationError("historyRetention.orgDefault must be a valid cadence (onWrite | manual | interval{everyHours})");
-  }
-  for (const [name, map] of [["programme", programme], ["project", project]] as const) {
-    if (map === undefined) continue;
-    if (!map || typeof map !== "object") throw new SettingsValidationError(`historyRetention.${name} must be an object`);
-    for (const [key, cadence] of Object.entries(map as Record<string, unknown>)) {
-      if (!isValidCadence(cadence)) throw new SettingsValidationError(`historyRetention.${name}.${key} must be a valid cadence`);
-    }
-  }
-  const { retentionDays, legalHolds } = value as Record<string, unknown>;
-  if (retentionDays !== undefined && retentionDays !== null) {
-    if (typeof retentionDays !== "number" || !Number.isInteger(retentionDays) || retentionDays < 1) {
-      throw new SettingsValidationError("historyRetention.retentionDays must be a positive integer (or null for infinite retention)");
-    }
-  }
-  if (legalHolds !== undefined) {
-    if (!Array.isArray(legalHolds) || legalHolds.some((k) => typeof k !== "string")) {
-      throw new SettingsValidationError("historyRetention.legalHolds must be an array of \"entity#id\" strings");
     }
   }
 }
@@ -1767,25 +1390,6 @@ export function validatePatch(rawPatch: Record<string, unknown>): Record<string,
 
 /** Validate a screen-layout map: order/hidden = string[], spans = integer 1–12 per panel. Drops any
  *  malformed layout / span so a bulk PATCH or config restore can't persist a structurally-invalid one. */
-function validateScreenLayouts(value: Record<string, unknown>): Record<string, ScreenLayout> {
-  const out: Record<string, ScreenLayout> = {};
-  for (const [id, layout] of Object.entries(value)) {
-    if (isForbiddenKey(id) || !layout || typeof layout !== "object" || Array.isArray(layout)) continue;
-    const l = layout as Record<string, unknown>;
-    const spans: Record<string, number> = {};
-    if (l["spans"] && typeof l["spans"] === "object" && !Array.isArray(l["spans"])) {
-      for (const [k, n] of Object.entries(l["spans"] as Record<string, unknown>)) {
-        if (!isForbiddenKey(k) && typeof n === "number" && Number.isInteger(n) && n >= 1 && n <= 12) spans[k] = n;
-      }
-    }
-    out[id] = {
-      order: isStringArray(l["order"]) ? (l["order"] as string[]) : [],
-      hidden: isStringArray(l["hidden"]) ? (l["hidden"] as string[]) : [],
-      spans,
-    };
-  }
-  return out;
-}
 
 /** Validate + apply a partial settings patch, returning the new settings. Throws
  *  SettingsValidationError on bad input (rejected atomically — nothing persists). */

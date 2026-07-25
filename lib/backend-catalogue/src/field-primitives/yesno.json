@@ -1,0 +1,6 @@
+{
+  "id": "yesno",
+  "extends": "form-field",
+  "label": "Yesno",
+  "params": []
+}

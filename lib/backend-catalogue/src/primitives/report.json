@@ -1,0 +1,16 @@
+{
+  "id": "report",
+  "label": "Report",
+  "category": "surface",
+  "extends": "canvas",
+  "description": "A canvas composed of ordered SECTIONS (metrics, tables, charts, prose) — the DOM visual behind every report. Inherits the surface; adds the sections.",
+  "params": [
+    {
+      "key": "sections",
+      "label": "Sections",
+      "type": "rows",
+      "required": true,
+      "description": "The report's ordered sections (each a kind + its content)."
+    }
+  ]
+}

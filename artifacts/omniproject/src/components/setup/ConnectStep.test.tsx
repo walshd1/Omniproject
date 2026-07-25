@@ -5,6 +5,9 @@ import { waitFor } from "@testing-library/react";
 import { renderWithProviders } from "../../test/utils";
 import { ConnectStep } from "./ConnectStep";
 
+const { toastSpy } = vi.hoisted(() => ({ toastSpy: vi.fn() }));
+vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast: toastSpy }) }));
+
 // A small harness so the controlled `url`/`backendId` props update as the user interacts.
 function Harness({ initial = "", isAdmin = true }: { initial?: string; isAdmin?: boolean }) {
   const [url, setUrl] = useState(initial);
@@ -15,13 +18,22 @@ function Harness({ initial = "", isAdmin = true }: { initial?: string; isAdmin?:
 // The backend/broker pickers fetch /api/setup/backends and /api/setup/brokers
 // independently of the broker test call (/api/setup/test-broker) — branch by URL so
 // each gets its own shaped response.
-function mockFetch(testBrokerPayload: unknown) {
-  const fn = vi.fn(async (input: RequestInfo | URL) => {
+function mockFetch(testBrokerPayload: unknown, opts: { settingsOk?: boolean } = {}) {
+  const fn = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input);
     if (url.includes("/api/setup/backends") || url.includes("/api/setup/brokers")) {
-      return { ok: true, status: 200, json: () => Promise.resolve([]) };
+      return { ok: true, status: 200, headers: new Headers(), json: () => Promise.resolve([]), text: () => Promise.resolve("[]") };
     }
-    return { ok: true, status: 200, json: () => Promise.resolve(testBrokerPayload) };
+    // The "Apply for this session" mutation PATCHes /api/settings.
+    if (url.includes("/api/settings") && (init?.method ?? "").toUpperCase() === "PATCH") {
+      const ok = opts.settingsOk !== false;
+      return {
+        ok, status: ok ? 200 : 500, statusText: ok ? "OK" : "Error", headers: new Headers({ "content-type": "application/json" }),
+        json: () => Promise.resolve(ok ? { brokerUrl: "x" } : { error: "denied" }),
+        text: () => Promise.resolve(ok ? "{}" : '{"error":"denied"}'),
+      };
+    }
+    return { ok: true, status: 200, headers: new Headers(), json: () => Promise.resolve(testBrokerPayload), text: () => Promise.resolve(JSON.stringify(testBrokerPayload)) };
   });
   globalThis.fetch = fn as unknown as typeof fetch;
   return fn;
@@ -30,6 +42,7 @@ function mockFetch(testBrokerPayload: unknown) {
 describe("ConnectStep", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
+    toastSpy.mockClear();
   });
 
   it("renders the step heading and url field", () => {
@@ -93,5 +106,31 @@ describe("ConnectStep", () => {
     await user.click(getByRole("button", { name: /Test/ }));
     await waitFor(() => expect(getByRole("button", { name: /Test/ })).not.toBeDisabled());
     expect(await findByText(/Test request failed/)).toBeInTheDocument();
+  });
+
+  it("applies the connection for the session and toasts on success", async () => {
+    const user = userEvent.setup();
+    mockFetch({ reachable: true, ok: true, implementsCapabilities: true }, { settingsOk: true });
+    const { getByLabelText, getByRole, findByRole } = renderWithProviders(<Harness isAdmin={true} />);
+    await user.type(getByLabelText(/Connection address/), "https://broker.example.com/webhook/op");
+    await user.click(getByRole("button", { name: /Test/ }));
+    const apply = await findByRole("button", { name: /Apply for this session/ });
+    await user.click(apply);
+    await waitFor(() =>
+      expect(toastSpy).toHaveBeenCalledWith(expect.objectContaining({ title: "Connected for this session" })),
+    );
+  });
+
+  it("toasts a destructive error when applying the connection fails", async () => {
+    const user = userEvent.setup();
+    mockFetch({ reachable: true, ok: true, implementsCapabilities: true }, { settingsOk: false });
+    const { getByLabelText, getByRole, findByRole } = renderWithProviders(<Harness isAdmin={true} />);
+    await user.type(getByLabelText(/Connection address/), "https://broker.example.com/webhook/op");
+    await user.click(getByRole("button", { name: /Test/ }));
+    const apply = await findByRole("button", { name: /Apply for this session/ });
+    await user.click(apply);
+    await waitFor(() =>
+      expect(toastSpy).toHaveBeenCalledWith(expect.objectContaining({ title: "Couldn't apply that", variant: "destructive" })),
+    );
   });
 });

@@ -5,7 +5,7 @@ import { getProjects, getIssues } from "../lib/data";
 import { guestPortalEnabled, mintGuestToken, isValidEmail } from "../lib/magic-link";
 import { sendEmail } from "../lib/email";
 import { isDevMode } from "../lib/dev-mode";
-import { isDone } from "../broker/vocabulary";
+import { isDone, classifyRag } from "../broker/vocabulary";
 import { baseUrl } from "./auth";
 import type { GuestTier } from "../lib/oidc";
 
@@ -88,10 +88,10 @@ function curateStatus(project: Record<string, unknown>, issues: readonly Record<
   // Health rollup: count issue RAG statuses (never the internal per-issue detail).
   const health = { red: 0, amber: 0, green: 0 };
   for (const i of issues) {
-    const h = String(i["healthStatus"] ?? "");
-    if (h === "red") health.red++;
-    else if (h === "amber") health.amber++;
-    else if (h === "green") health.green++;
+    const c = classifyRag(i["healthStatus"]);
+    if (c === "RED") health.red++;
+    else if (c === "AMBER") health.amber++;
+    else if (c === "GREEN") health.green++;
   }
 
   // Milestones: dated work items, title + status + dueDate only — no cost/benefit/assignee fields.

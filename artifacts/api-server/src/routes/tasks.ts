@@ -6,11 +6,16 @@ import { Router, type Request, type Response } from "express";
 import { withBrokerErrors } from "../broker";
 import { getTasks, getTask, createTask, updateTask, brokerHasTasks, getTaskComments, addTaskComment, getTaskAttachments, addTaskAttachment, brokerHasTaskAttachments } from "../lib/data";
 import { requireRole } from "../lib/rbac";
+import { mountEntity, type EntityDescriptor } from "../lib/entity-pipeline";
+import { mountCommand, type CommandDescriptor } from "../lib/action-base";
 import { assertTaskScope, filterTasksInScope } from "../lib/project-scope";
 import { auditScopeDenied } from "../lib/audit";
 import { getSession } from "./auth";
 import { parseOr400, v } from "../lib/validate";
-import { CANONICAL_TASK_STATUS, CANONICAL_PRIORITY, CANONICAL_ENERGY, isTaskDone } from "../broker/vocabulary";
+import { CANONICAL_PRIORITY, isTaskDone } from "../broker/vocabulary";
+import { resolveTaskVocabulary } from "../lib/task-vocabulary-config";
+import { resolveEnergyVocabulary } from "../lib/energy-vocabulary-config";
+import type { ConfigScopes } from "../lib/scoped-config";
 import { summariseTasks } from "../lib/task-summary";
 import { nextOccurrence } from "../lib/recurrence";
 import { runReminderSweep } from "../lib/reminder-sweep";
@@ -33,6 +38,10 @@ async function maybeSpawnRecurrence(req: Request, completed: Task, patch: Record
   const ref = completed.dueDate ?? completed.startDate ?? completed.completedAt ?? new Date().toISOString();
   const nextDue = nextOccurrence(rule, ref);
   if (!nextDue) return null; // one-off / unparseable rule → nothing to spawn
+  // Idempotent spawn: a double-clicked "complete", a client retry, or two concurrent PATCH-to-done must not
+  // each create the next occurrence. Only the sweep that wins this atomic claim (keyed by the completed task
+  // + its next due date) spawns; the rest are no-ops.
+  if (!(await sharedKv.cas(`recur:spawned:${completed.id}:${nextDue}`, null, "1", { ttlMs: REMINDER_TTL_MS }))) return null;
   // Carry the defining fields forward; the next instance starts fresh (actionable, not done).
   const nextStart = completed.startDate && completed.dueDate
     ? nextOccurrence(rule, completed.startDate) // keep the same lead time when both dates were set
@@ -66,6 +75,48 @@ function whoami(req: Request): string[] {
   return [s?.sub, s?.email, s?.name].filter((x): x is string => typeof x === "string" && !!x);
 }
 
+/** The scopes for resolving the task vocabulary on a write: programme from the query, project from the write
+ *  body (falling back to the query), user from the auth session — so a scope-added task status is honoured. */
+function taskScopesFromReq(req: Request, body?: { projectId?: string | null | undefined }): ConfigScopes {
+  const q = (req.query ?? {}) as Record<string, unknown>;
+  const scopes: ConfigScopes = {};
+  if (typeof q["programmeId"] === "string" && q["programmeId"]) scopes.programmeId = q["programmeId"];
+  const projectId = body && typeof body.projectId === "string" && body.projectId
+    ? body.projectId
+    : (typeof q["projectId"] === "string" && q["projectId"] ? q["projectId"] : undefined);
+  if (projectId) scopes.projectId = projectId;
+  const s = getSession(req);
+  if (s?.sub) scopes.sub = s.sub;
+  return scopes;
+}
+
+/**
+ * Membership-check a write's `status` against the RESOLVED task vocabulary for the request scope (the relaxed
+ * gate that replaces the frozen `v.enum`). An absent status passes (it's optional); a status present in the
+ * scoped set passes; a truly-unknown id is rejected with 400. Returns false (having sent the 400) on a miss.
+ */
+function checkTaskStatus(req: Request, res: Response, body: { status?: string | undefined; projectId?: string | null | undefined }): boolean {
+  if (body.status === undefined) return true;
+  const { statuses } = resolveTaskVocabulary(taskScopesFromReq(req, body));
+  if (statuses.some((s) => s.id === body.status)) return true;
+  res.status(400).json({ error: "invalid request", issues: [`status "${body.status}" is not a task status in this scope`] });
+  return false;
+}
+
+/**
+ * Membership-check a write's `energy` against the RESOLVED energy vocabulary for the request scope (the relaxed
+ * gate that replaces the frozen `v.enum(CANONICAL_ENERGY)`). An absent or null energy passes (it's optional /
+ * clearable); an energy present in the scoped set passes; a truly-unknown id is rejected with 400. Returns
+ * false (having sent the 400) on a miss.
+ */
+function checkTaskEnergy(req: Request, res: Response, body: { energy?: string | null | undefined; projectId?: string | null | undefined }): boolean {
+  if (body.energy === undefined || body.energy === null) return true;
+  const { levels } = resolveEnergyVocabulary(taskScopesFromReq(req, body));
+  if (levels.some((l) => l.id === body.energy)) return true;
+  res.status(400).json({ error: "invalid request", issues: [`energy "${body.energy}" is not an energy level in this scope`] });
+  return false;
+}
+
 /**
  * Fetch a task by id and enforce the caller's scope on it (IDOR guard — getTask is scope-blind at the
  * broker). Sends 404 if unknown, 403 if out of scope, and returns null in both cases; otherwise the task.
@@ -91,7 +142,11 @@ const router = Router();
 
 const TaskBody = v.object({
   title: v.optional(v.string({ min: 1, max: 500, trim: true })),
-  status: v.optional(v.enum(CANONICAL_TASK_STATUS)),
+  // Status is a GTD state, but the task status axis is now SCOPE-OVERRIDABLE (an org/methodology can add,
+  // relabel or remove statuses — see task-vocabulary-config). The frozen `v.enum(CANONICAL_TASK_STATUS)` gate
+  // is relaxed to a bounded string here; the handler membership-checks it against the RESOLVED task vocabulary
+  // for the request scope (`checkTaskStatus`), so any scope-added status is accepted while garbage is 400.
+  status: v.optional(v.string({ min: 1, max: 100, trim: true })),
   projectId: v.optional(v.nullable(v.string({ max: 200 }))),
   context: v.optional(v.nullable(v.string({ max: 200 }))),
   waitingOn: v.optional(v.nullable(v.string({ max: 500 }))),
@@ -107,7 +162,11 @@ const TaskBody = v.object({
   url: v.optional(v.nullable(v.string({ max: 2000 }))),
   completedAt: v.optional(v.nullable(v.string({ max: 40 }))),
   reminderAt: v.optional(v.nullable(v.string({ max: 40 }))),
-  energy: v.optional(v.nullable(v.enum(CANONICAL_ENERGY))),
+  // Energy is a GTD "in the tank" level, now SCOPE-OVERRIDABLE (an org/methodology can add, relabel or remove
+  // levels — see energy-vocabulary-config). The frozen `v.enum(CANONICAL_ENERGY)` gate is relaxed to a bounded
+  // string here; the handler membership-checks it against the RESOLVED energy vocabulary for the request scope
+  // (`checkTaskEnergy`), so any scope-added level is accepted while garbage is 400.
+  energy: v.optional(v.nullable(v.string({ min: 1, max: 100, trim: true }))),
   section: v.optional(v.nullable(v.string({ max: 200 }))),
   sortOrder: v.optional(v.nullable(v.number())),
   collaborators: v.optional(v.array(v.string({ min: 1, max: 200, trim: true }), { max: 100 })),
@@ -145,30 +204,53 @@ router.get("/tasks/:taskId", (req, res) =>
   }),
 );
 
-// POST /api/tasks — create a next-action (manager+). 501 when the backend has no task model.
-router.post("/tasks", requireRole("manager"), (req, res) => {
-  if (!brokerHasTasks()) { res.status(501).json({ error: "this backend does not support tasks" }); return; }
-  const body = parseOr400(req, res, TaskBody);
-  if (!body) return;
-  if (!body.title) { res.status(400).json({ error: "title is required" }); return; }
-  return withBrokerErrors(req, res, "create_task failed", async () => {
-    res.status(201).json(await createTask(req, body));
-  });
-});
-
-// PATCH /api/tasks/:taskId — update a task (manager+).
-router.patch("/tasks/:taskId", requireRole("manager"), (req, res) => {
-  if (!brokerHasTasks()) { res.status(501).json({ error: "this backend does not support tasks" }); return; }
-  const body = parseOr400(req, res, TaskBody);
-  if (!body) return;
-  return withBrokerErrors(req, res, "update_task failed", async () => {
-    if (!(await guardTaskAccess(req, res, String(req.params["taskId"])))) return;
-    const updated = await updateTask(req, String(req.params["taskId"]), body);
-    // Completing a recurring task spawns its next occurrence (Todoist-style), surfaced on the response.
-    const next = await maybeSpawnRecurrence(req, updated, body as Record<string, unknown>);
-    res.json(next ? { ...updated, nextOccurrence: { id: next.id, dueDate: next.dueDate } } : updated);
-  });
-});
+// Tasks (manager+). LANE 1 (entity pipeline): create + update run the fixed RBAC → validate → ruleset → scope →
+// write sequence via mountEntity. The descriptor SCOPE is the task-access guard (not a project IDOR), through
+// the pipeline's custom-scope variant — but CREATE overrides it to `none` (a new task has no task to guard
+// yet, exactly as the hand-written POST did). Migrating onto the spine also brings the business ruleset to task
+// writes (create_task / update_task) for the first time — a deliberate GAP-CLOSURE so a portfolio read-only
+// freeze / an any-write field rule now covers tasks like every other governed write (previously they bypassed
+// the ruleset). 501 when the backend has no task model.
+export const taskEntity: EntityDescriptor = {
+  entity: "task",
+  basePath: "/tasks",
+  idParam: "taskId",
+  scope: { kind: "custom", guard: async (req, res) => !!(await guardTaskAccess(req, res, String(req.params["taskId"]))) },
+  create: {
+    role: "manager",
+    ruleAction: "create_task",
+    scope: { kind: "none" }, // a new task has no task-access scope yet (the create had no guard)
+    validate: (req, res) => {
+      if (!brokerHasTasks()) { res.status(501).json({ error: "this backend does not support tasks" }); return null; }
+      const body = parseOr400(req, res, TaskBody);
+      if (!body) return null;
+      if (!body.title) { res.status(400).json({ error: "title is required" }); return null; }
+      if (!checkTaskStatus(req, res, body)) return null;
+      if (!checkTaskEnergy(req, res, body)) return null;
+      return body;
+    },
+    run: async (req, _res, body) => createTask(req, body as Parameters<typeof createTask>[1]),
+  },
+  update: {
+    role: "manager",
+    ruleAction: "update_task",
+    validate: (req, res) => {
+      if (!brokerHasTasks()) { res.status(501).json({ error: "this backend does not support tasks" }); return null; }
+      const body = parseOr400(req, res, TaskBody);
+      if (!body) return null;
+      if (!checkTaskStatus(req, res, body)) return null;
+      if (!checkTaskEnergy(req, res, body)) return null;
+      return body;
+    },
+    run: async (req, _res, body) => {
+      const updated = await updateTask(req, String(req.params["taskId"]), body as Parameters<typeof updateTask>[2]);
+      // Completing a recurring task spawns its next occurrence (Todoist-style), surfaced on the response.
+      const next = await maybeSpawnRecurrence(req, updated, body as Record<string, unknown>);
+      return next ? { ...updated, nextOccurrence: { id: next.id, dueDate: next.dueDate } } : updated;
+    },
+  },
+};
+mountEntity(router, taskEntity);
 
 // POST /api/tasks/reminders/sweep — deliver any DUE task reminders in-app (pmo+, cron/routine-driven). Fires
 // each task whose `reminderAt` has passed once (deduped via shared-state), notifying the assignee. Runs in
@@ -182,7 +264,9 @@ router.post("/tasks/reminders/sweep", requireRole("pmo"), (req, res) =>
       tasks,
       nowMs: Date.now(),
       isFired: async (key) => !!(await sharedKv.get(key)),
-      markFired: async (key) => { await sharedKv.set(key, "1", { ttlMs: REMINDER_TTL_MS }); },
+      // Atomic claim (set-if-absent) — only the sweep that wins delivers, so overlapping or multi-replica
+      // sweeps can't double-fire the same reminder.
+      claim: async (key) => sharedKv.cas(key, null, "1", { ttlMs: REMINDER_TTL_MS }),
       notify: (n, target) => void bus.publish({
         notification: { id: `rem-${crypto.randomUUID()}`, kind: n.kind, title: n.title, body: n.body, read: false, timestamp: Date.now() },
         ...(target.sub || target.email ? { target } : {}),
@@ -194,6 +278,10 @@ router.post("/tasks/reminders/sweep", requireRole("pmo"), (req, res) =>
 
 // ── Comments ─────────────────────────────────────────────────────────────────
 const CommentBody = v.object({ body: v.string({ min: 1, max: 10_000, trim: true }) });
+/** The validated bodies the sub-resource writers accept — taken from the writers themselves so the command
+ *  args can't drift from what `addTaskComment` / `addTaskAttachment` expect. */
+type TaskCommentInput = Parameters<typeof addTaskComment>[2];
+type TaskAttachmentInput = Parameters<typeof addTaskAttachment>[2];
 
 router.get("/tasks/:taskId/comments", (req, res) =>
   withBrokerErrors(req, res, "list_task_comments failed", async () => {
@@ -202,14 +290,30 @@ router.get("/tasks/:taskId/comments", (req, res) =>
   }),
 );
 
-router.post("/tasks/:taskId/comments", requireRole("contributor"), (req, res) => {
-  const body = parseOr400(req, res, CommentBody);
-  if (!body) return;
-  return withBrokerErrors(req, res, "add_task_comment failed", async () => {
-    if (!(await guardTaskAccess(req, res, String(req.params["taskId"])))) return;
-    res.status(201).json(await addTaskComment(req, String(req.params["taskId"]), body));
-  });
-});
+// Add a comment to a task (contributor+). On the Lane 2 spine: the task load + scope guard is the async
+// `prepare` (a task's projectId — needed for the ruleset scope — isn't known until the task is fetched), so
+// the write runs RBAC → parse → guard/scope → ruleset → run → audit by construction (it recorded no audit
+// as a hand-written route). Broker-aware: a broker error loading or writing maps to its status, no audit.
+export const addTaskCommentCommand: CommandDescriptor<{ body: TaskCommentInput; task: Task }, { body: TaskCommentInput }> = {
+  name: "add_task_comment",
+  method: "post",
+  path: "/tasks/:taskId/comments",
+  role: "contributor",
+  parse: (req, res) => {
+    const body = parseOr400(req, res, CommentBody);
+    return body ? { body } : null;
+  },
+  prepare: async (req, res, { body }) => {
+    const task = await guardTaskAccess(req, res, String(req.params["taskId"]));
+    return task ? { body, task } : null;
+  },
+  ruleScope: (_req, { body, task }) => ({ projectId: task.projectId ?? null, payload: body as unknown as Record<string, unknown> }),
+  broker: { message: "add_task_comment failed" },
+  run: (req, _res, { body }) => addTaskComment(req, String(req.params["taskId"]), body),
+  audit: "add_task_comment",
+  status: 201,
+};
+mountCommand(router, addTaskCommentCommand);
 
 // ── Attachments (file REFERENCES; only when the backend supports them) ────────
 const AttachmentBody = v.object({
@@ -226,15 +330,30 @@ router.get("/tasks/:taskId/attachments", (req, res) =>
   }),
 );
 
-router.post("/tasks/:taskId/attachments", requireRole("contributor"), (req, res) => {
+// Add a file-reference attachment to a task (contributor+), when the backend supports them. Same Lane 2
+// shape as comments: a capability gate (501) precedes parse, then the async `prepare` loads + scope-guards
+// the task for the ruleset. Broker-aware; audits on success (the hand-written route recorded none).
+export const addTaskAttachmentCommand: CommandDescriptor<{ body: TaskAttachmentInput; task: Task }, { body: TaskAttachmentInput }> = {
+  name: "add_task_attachment",
+  method: "post",
+  path: "/tasks/:taskId/attachments",
+  role: "contributor",
   // "If supported by the backend" — 501 when the active broker can't store attachments.
-  if (!brokerHasTaskAttachments()) { res.status(501).json({ error: "this backend does not support task attachments" }); return; }
-  const body = parseOr400(req, res, AttachmentBody);
-  if (!body) return;
-  return withBrokerErrors(req, res, "add_task_attachment failed", async () => {
-    if (!(await guardTaskAccess(req, res, String(req.params["taskId"])))) return;
-    res.status(201).json(await addTaskAttachment(req, String(req.params["taskId"]), body));
-  });
-});
+  gates: [(_req, res, next) => { if (!brokerHasTaskAttachments()) { res.status(501).json({ error: "this backend does not support task attachments" }); return; } next(); }],
+  parse: (req, res) => {
+    const body = parseOr400(req, res, AttachmentBody);
+    return body ? { body } : null;
+  },
+  prepare: async (req, res, { body }) => {
+    const task = await guardTaskAccess(req, res, String(req.params["taskId"]));
+    return task ? { body, task } : null;
+  },
+  ruleScope: (_req, { body, task }) => ({ projectId: task.projectId ?? null, payload: body as unknown as Record<string, unknown> }),
+  broker: { message: "add_task_attachment failed" },
+  run: (req, _res, { body }) => addTaskAttachment(req, String(req.params["taskId"]), body),
+  audit: "add_task_attachment",
+  status: 201,
+};
+mountCommand(router, addTaskAttachmentCommand);
 
 export default router;

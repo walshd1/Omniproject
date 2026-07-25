@@ -1,6 +1,9 @@
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import crypto from "node:crypto";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import type { AddressInfo } from "node:net";
 import type { Server } from "node:http";
 
@@ -31,6 +34,8 @@ process.env["RATE_LIMIT_DISABLED"] = "true"; // isolate auth behaviour from the 
 // RATE_LIMIT_DISABLED in "production" is a CRITICAL boot-refusing finding by default (env-config),
 // independent of OIDC being configured — opt out for this harness only.
 process.env["SECURITY_STRICT"] = "off";
+// The `logging-sync` egress config (Phase C) is a config def — enable the sealed store so its route can persist.
+process.env["OMNI_CONFIG_DIR"] = fs.mkdtempSync(path.join(os.tmpdir(), "security-test-"));
 
 let server: Server;
 let base: string;
@@ -103,9 +108,10 @@ async function signOffRelaxation(proposalId: string, sub = "admin-1"): Promise<v
 }
 
 /** PATCH /api/settings expecting a HELD relaxation (202), returning the pending proposal id. */
-async function patchHeld(body: unknown, cookie: string): Promise<string> {
-  const res = await req("/api/settings", { method: "PATCH", headers: { cookie, "content-type": "application/json" }, body: JSON.stringify(body) });
-  assert.equal(res.status, 202, "a security-reducing change is held for a signed sign-off");
+/** PUT /api/logging-sync (the `logging-sync` config def), asserting the ENABLE is held for a signed sign-off. */
+async function loggingSyncHeld(loggingSync: unknown, cookie: string): Promise<string> {
+  const res = await req("/api/logging-sync", { method: "PUT", headers: { cookie, "content-type": "application/json" }, body: JSON.stringify({ loggingSync }) });
+  assert.equal(res.status, 202, "enabling egress is held for a signed sign-off");
   const id = ((await res.json()) as { pending?: { proposalId?: string } }).pending?.proposalId;
   assert.ok(id, "held response carries a proposal id");
   return id!;
@@ -502,8 +508,8 @@ test("/fx-rates?asOf= forwards the FX as-of-date policy hint through to the brok
 });
 
 test("logging sync: enabling without a warranty acknowledgement is rejected (400)", async () => {
-  const res = await req("/api/settings", {
-    method: "PATCH",
+  const res = await req("/api/logging-sync", {
+    method: "PUT",
     headers: { cookie: ADMIN, "content-type": "application/json" },
     body: JSON.stringify({ loggingSync: { enabled: true, url: "https://logs.internal:9200/ingest", acknowledgedWarranty: false } }),
   });
@@ -511,8 +517,8 @@ test("logging sync: enabling without a warranty acknowledgement is rejected (400
 });
 
 test("logging sync: enabling with a metadata URL is rejected (400, SSRF)", async () => {
-  const res = await req("/api/settings", {
-    method: "PATCH",
+  const res = await req("/api/logging-sync", {
+    method: "PUT",
     headers: { cookie: ADMIN, "content-type": "application/json" },
     body: JSON.stringify({ loggingSync: { enabled: true, url: "http://169.254.169.254/ingest", acknowledgedWarranty: true } }),
   });
@@ -525,15 +531,15 @@ test("logging sync: enabling with url + acknowledgement unlocks the timeTravel c
   assert.equal(before.timeTravel, false);
 
   // Enabling egress is a security REDUCTION → held for a signed sign-off, then applied by the executor.
-  const proposalId = await patchHeld({ loggingSync: { enabled: true, url: "https://logs.internal:9200/ingest", acknowledgedWarranty: true } }, ADMIN);
+  const proposalId = await loggingSyncHeld({ enabled: true, url: "https://logs.internal:9200/ingest", acknowledgedWarranty: true }, ADMIN);
   await signOffRelaxation(proposalId);
 
   const after = (await (await req("/api/capabilities", { headers: { cookie: ADMIN } })).json()) as { timeTravel?: boolean };
   assert.equal(after.timeTravel, true);
 
   // Restore (off): DISABLING egress strengthens the posture, so it applies immediately (200, not held).
-  const off = await req("/api/settings", {
-    method: "PATCH",
+  const off = await req("/api/logging-sync", {
+    method: "PUT",
     headers: { cookie: ADMIN, "content-type": "application/json" },
     body: JSON.stringify({ loggingSync: { enabled: false, url: null, acknowledgedWarranty: false } }),
   });
@@ -547,7 +553,7 @@ test("time-travel replay is gated 409 until the logging sync is enabled, then 20
   assert.equal(locked.status, 409); // enabled-wall first (scope is fine for PMO_ADMIN)
 
   // Enabling the sync is a held relaxation → sign it off so the executor applies it.
-  const proposalId = await patchHeld({ loggingSync: { enabled: true, url: "https://logs.internal:9200/ingest", acknowledgedWarranty: true } }, ADMIN);
+  const proposalId = await loggingSyncHeld({ enabled: true, url: "https://logs.internal:9200/ingest", acknowledgedWarranty: true }, ADMIN);
   await signOffRelaxation(proposalId);
 
   // With the sync on, a portfolio-scoped principal replays; a user-scoped VIEWER is still refused (403)
@@ -559,8 +565,8 @@ test("time-travel replay is gated 409 until the logging sync is enabled, then 20
   assert.equal(scoped.status, 403, "a user-scoped viewer can't read portfolio-wide history even once enabled");
 
   // Restore (off).
-  await req("/api/settings", {
-    method: "PATCH",
+  await req("/api/logging-sync", {
+    method: "PUT",
     headers: { cookie: ADMIN, "content-type": "application/json" },
     body: JSON.stringify({ loggingSync: { enabled: false, url: null, acknowledgedWarranty: false } }),
   });

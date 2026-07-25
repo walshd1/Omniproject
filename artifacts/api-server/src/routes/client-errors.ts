@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { getSettings } from "../lib/settings";
+import { resolveErrorTelemetry } from "../lib/scoped-config";
 import { recordRequestAudit } from "../lib/audit";
 
 /**
@@ -25,7 +25,7 @@ function clip(value: unknown, max: number): string {
 router.post("/client-errors", (req, res) => {
   // Gate: silently accept-and-drop when the admin hasn't opted in, so a client that reports
   // out of turn (e.g. a stale tab after the setting was turned off) is a harmless no-op.
-  if (!getSettings().errorTelemetry) {
+  if (!resolveErrorTelemetry()) {
     res.json({ recorded: false });
     return;
   }

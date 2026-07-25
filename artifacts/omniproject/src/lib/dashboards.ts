@@ -1,5 +1,3 @@
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { getJson, sendJson } from "./api";
 import {
   WIDGETS,
   widgetDef,
@@ -12,9 +10,9 @@ import {
 
 /**
  * Custom-dashboards client. A dashboard is a named, ordered list of widget instances chosen from
- * the widget catalogue (WIDGET_CATALOGUE). Dashboards are SHARED, customer-level presentation config
- * persisted to the config bundle via /api/dashboards — any authenticated user can build/switch, like
- * a team's shared views. Benign presentation config, never project data.
+ * the widget catalogue (WIDGET_CATALOGUE). Dashboards are DEFINITIONS in the encrypted def store now
+ * (kind `dashboard`, authored through the importer + read via `useResolvedDefs("dashboard")`) — this
+ * module carries the shared types + catalogue helpers the editor builds on. Never project data.
  *
  * The widget catalogue is now DATA: authored as JSON under lib/backend-catalogue/assets/widgets/ and
  * embedded by gen-widgets (drift-guarded), the same principle as reports/views. Each widget `type` binds
@@ -73,25 +71,3 @@ export function clampSpan(span: number | undefined): 1 | 2 | 3 {
   return 1;
 }
 
-export const dashboardsQueryKey = ["dashboards"] as const;
-
-export function useDashboards() {
-  return useQuery({
-    queryKey: dashboardsQueryKey,
-    queryFn: () => getJson<{ dashboards: Dashboard[] }>("/api/dashboards").then((r) => r.dashboards),
-    staleTime: 30_000,
-  });
-}
-
-/** Persist the full dashboards list (CSRF attached by the global fetch patch). */
-export function useSaveDashboards() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: async (dashboards: Dashboard[]) => {
-      return sendJson<unknown>("/api/dashboards", { dashboards }, "PUT", "Failed to save dashboards");
-    },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: dashboardsQueryKey });
-    },
-  });
-}

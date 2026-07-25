@@ -1,7 +1,7 @@
 import { ReportEmpty } from "./ReportEmpty";
 import { useMemo } from "react";
 import { convertAmount, isConvertible } from "../../lib/currency";
-import { num } from "../../lib/num";
+import { num, round2 } from "../../lib/num";
 import { useT } from "../../lib/i18n";
 import type { ProjectItems } from "../../lib/portfolio-value";
 import { DataState } from "../DataState";
@@ -62,7 +62,6 @@ export interface StrategyRollup {
   excludedForFx: number;
 }
 
-const round2 = (n: number) => Math.round(n * 100) / 100;
 const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "") || "theme";
 
 /** Which theme an item belongs to: its explicit strategicTheme, else its first strategic goal, else

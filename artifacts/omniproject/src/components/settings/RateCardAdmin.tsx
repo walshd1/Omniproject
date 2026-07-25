@@ -18,7 +18,7 @@ export function RateCardAdmin() {
   const { data: auth } = useAuth();
   const { data: server } = useRateCard();
   const save = useSaveRateCard();
-  const { draft, setDraft, dirty, reset } = useDraftAdmin<RateCardConfig, RateCardConfig>(server, structuredClone);
+  const { draft, setDraft, dirty, reset } = useDraftAdmin<RateCardConfig, RateCardConfig>(server);
   // Stable keys held ALONGSIDE the draft (never inside it — see use-row-keys): the outer type list,
   // and a per-type list of value-column keys addressed by the type's own stable key.
   const typeKeys = useRowKeys(draft?.projectTypes.length ?? 0);

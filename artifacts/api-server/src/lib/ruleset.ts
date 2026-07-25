@@ -14,6 +14,7 @@
  *    injection), and no rule definition is allowed to return "allow".
  */
 import { logger } from "./logger";
+import { resolveEffectiveRuleset } from "./ruleset-scope";
 
 export type RuleMode = "hard" | "warn" | "off";
 
@@ -22,6 +23,8 @@ export interface RuleContext {
   write: boolean;
   role: string; // already RBAC-passed (hard gate ran first)
   projectId?: string | null;
+  /** The programme the work belongs to, when known — lets a programme-scope ruleset override apply. */
+  programmeId?: string | null;
   payload?: Record<string, unknown> | undefined;
 }
 
@@ -206,18 +209,24 @@ export function rulesetCatalogue() {
  * OR warnings; it never grants. Call this AFTER the hard gates have already passed.
  */
 export function evaluateRuleset(ctx: RuleContext): RuleVerdict {
-  const m = getRuleModes();
+  // Resolve the EFFECTIVE ruleset for this scope: the org baseline, tightened (never loosened) by any
+  // programme/project override. With no overrides this is identical to the org ruleset.
+  const eff = resolveEffectiveRuleset(
+    { modes: getRuleModes(), fieldRules: getFieldRules() },
+    { programmeId: ctx.programmeId, projectId: ctx.projectId },
+  );
+  const m = eff.modes;
   const warnings: { id: string; message: string }[] = [];
   // 1. Built-in rules.
   for (const r of BUSINESS_RULES) {
-    const mode = m[r.id]!;
+    const mode = m[r.id] ?? "off";
     if (mode === "off") continue;
     if (!r.applies(ctx)) continue;
     if (mode === "hard") return { allow: false, blocked: { id: r.id, message: r.message(ctx) }, warnings };
     warnings.push({ id: r.id, message: r.message(ctx) });
   }
-  // 2. Admin field rules ("what must go in fields" + dependencies).
-  for (const fr of fieldRules) {
+  // 2. Admin field rules ("what must go in fields" + dependencies) — the effective (scope-tightened) set.
+  for (const fr of eff.fieldRules) {
     if (fr.mode === "off") continue;
     const actionMatch = fr.action === ctx.action || (fr.action === "any-write" && ctx.write);
     if (!actionMatch) continue;

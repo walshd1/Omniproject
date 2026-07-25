@@ -1,0 +1,12 @@
+{
+  "id": "costs",
+  "measures": [
+    { "key": "budget", "agg": "sum", "field": "budget" },
+    { "key": "actual", "agg": "sum", "field": "actualCost" }
+  ],
+  "derived": [
+    { "key": "variance", "op": "diff", "a": "budget", "b": "actual" },
+    { "key": "pctConsumed", "op": "ratioPct", "a": "actual", "b": "budget" }
+  ],
+  "sort": { "key": "variance", "dir": "asc" }
+}

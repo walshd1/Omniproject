@@ -1,5 +1,6 @@
 import { settingsCollectionRouter } from "../lib/settings-collection-router";
 import { requireAnyRole } from "../lib/rbac";
+import { stringArrayField } from "../lib/settings";
 
 /**
  * The OFF switch for screens. An admin or PMO turns a screen off for the deployment and its id is stored
@@ -9,7 +10,9 @@ import { requireAnyRole } from "../lib/rbac";
  */
 export default settingsCollectionRouter({
   path: "/disabled-screens",
-  settingsKey: "disabledScreens",
+  responseKey: "disabledScreens",
+  configId: "disabled-screens", // config-def-backed (CHOICE) — no longer a settings key
+  validate: stringArrayField("disabledScreens"),
   versionLabel: "disabled screens updated",
   writeGuards: [requireAnyRole("admin", "pmo")],
 });

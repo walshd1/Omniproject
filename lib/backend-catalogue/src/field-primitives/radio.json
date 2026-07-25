@@ -1,0 +1,21 @@
+{
+  "id": "radio",
+  "extends": "form-field",
+  "label": "Radio",
+  "params": [
+    {
+      "key": "options",
+      "required": true
+    }
+  ],
+  "constraints": [
+    {
+      "id": "radio-options",
+      "kind": "floor",
+      "type": "cardinality",
+      "path": "options",
+      "min": 1,
+      "message": "a radio field needs at least one option"
+    }
+  ]
+}

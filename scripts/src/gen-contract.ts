@@ -21,14 +21,13 @@
  *
  * Run: pnpm --filter @workspace/scripts run gen-contract
  */
-import ts from "typescript";
+import * as ts from "./lib/ts-ast";
+import { parseSourceFile } from "./lib/ts-ast";
 import fs from "node:fs";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { REPO_ROOT as ROOT } from "./lib/repo-root";
 import { escapeTableCell } from "./lib/markdown";
 
-const HERE = path.dirname(fileURLToPath(import.meta.url));
-const ROOT = path.resolve(HERE, "../..");
 const SRC_DIR = path.join(ROOT, "artifacts/api-server/src");
 const OUT_SCHEMA = path.join(ROOT, "docs/contract/broker.v1.schema.json");
 const OUT_MD = path.join(ROOT, "docs/CONTRACT.md");
@@ -59,15 +58,15 @@ interface MethodSig {
 const brokerMethods: MethodSig[] = [];
 
 function read(rel: string): ts.SourceFile {
-  const full = path.join(SRC_DIR, rel);
-  return ts.createSourceFile(full, fs.readFileSync(full, "utf8"), ts.ScriptTarget.Latest, true);
+  return parseSourceFile(path.join(SRC_DIR, rel));
 }
 
 function jsdoc(node: ts.Node): string {
-  const ranges = (ts as unknown as { getJSDocCommentsAndTags: (n: ts.Node) => ts.Node[] }).getJSDocCommentsAndTags(node) ?? [];
-  for (const r of ranges) {
-    const comment = (r as ts.JSDoc).comment;
-    if (typeof comment === "string") return comment.replace(/\s+/g, " ").trim();
+  // TS7 exposes the parsed JSDoc blocks directly on the node (`node.jsDoc`); each block's
+  // `comment` is a node array whose text is recovered via `getTextOfJSDocComment`.
+  for (const doc of node.jsDoc ?? []) {
+    const text = ts.getTextOfJSDocComment((doc as ts.JSDoc).comment);
+    if (text) return text.replace(/\s+/g, " ").trim();
   }
   return "";
 }
@@ -178,12 +177,12 @@ function objectFromMembers(members: ts.NodeArray<ts.TypeElement>, ctx: string, a
   const properties: Record<string, JsonSchema> = {};
   const required: string[] = [];
   for (const m of members) {
-    if (!ts.isPropertySignature(m) || !m.type || !m.name) continue;
+    if (!ts.isPropertySignatureDeclaration(m) || !m.type || !m.name) continue;
     const key = m.name.getText().replace(/^["']|["']$/g, "");
     properties[key] = convert(m.type, `${ctx}.${key}`);
     const doc = jsdoc(m);
     if (doc) properties[key]!["description"] = doc;
-    if (!m.questionToken) required.push(key);
+    if (m.postfixToken?.kind !== ts.SyntaxKind.QuestionToken) required.push(key);
   }
   const schema: JsonSchema = { type: "object", properties };
   if (required.length) schema["required"] = required;
@@ -242,10 +241,10 @@ function collectConstArrays(sf: ts.SourceFile): void {
 
 function collectBrokerMethods(node: ts.InterfaceDeclaration): void {
   for (const m of node.members) {
-    if (!ts.isMethodSignature(m) || !m.name) continue;
+    if (!ts.isMethodSignatureDeclaration(m) || !m.name) continue;
     brokerMethods.push({
       name: m.name.getText(),
-      optional: !!m.questionToken,
+      optional: m.postfixToken?.kind === ts.SyntaxKind.QuestionToken,
       params: m.parameters
         .filter((p) => p.name.getText() !== "ctx")
         .map((p) => ({ name: p.name.getText(), type: p.type ? p.type.getText().replace(/\s+/g, " ") : "unknown" })),
@@ -257,18 +256,31 @@ function collectBrokerMethods(node: ts.InterfaceDeclaration): void {
 
 // ── Walk the canonical files ─────────────────────────────────────────────────
 // The broker contract lives in broker/{types,contract}.ts. A few types the contract
-// references are defined among internal lib/ modules; we pull in ONLY those named types
-// so the contract is self-contained (no dangling $refs) without dragging in the rest of
-// those files:
+// references are defined among internal lib/ modules — or in the shared
+// @workspace/backend-catalogue package (canvas / proof / wiki entities that broker/types.ts
+// imports rather than re-declaring, to keep ONE source of truth shared with the SPA). We pull
+// in ONLY those named types so the contract is self-contained (no dangling $refs) without
+// dragging in the rest of those files:
 //   - EnumeratedField — the describeFields() return shape (lib/field-registry.ts).
 //   - Scope + ScopeLevel — the forwarded data-scope on ActorContext (lib/scope.ts).
 //   - SessionBind — the per-session signing binding on ActorContext (lib/session-key.ts).
+//   - CanvasElement (+ its element-type / colour / shape unions) — the whiteboard scene element
+//     (backend-catalogue/canvas-catalogue.ts), referenced by WhiteboardScene.elements.
+//   - Deliverable, Annotation, ProofDecision (+ their kind/type unions) — the proof entities
+//     (backend-catalogue/proof-catalogue.ts), referenced by Proof/ProofWrite/ProofMeta.
+//   - DocBlock (+ DocBlockType / CalloutTone / DocListItem) — the wiki document block
+//     (backend-catalogue/wiki-catalogue.ts), referenced by the doc entities.
+// Each imported name must bring its own referenced sub-types, or those would dangle in turn.
+const BC = "../../../lib/backend-catalogue/src";
 const SOURCES: { file: string; only?: Set<string> }[] = [
   { file: "broker/types.ts" },
   { file: "broker/contract.ts" },
   { file: "lib/field-registry.ts", only: new Set(["EnumeratedField"]) },
   { file: "lib/scope.ts", only: new Set(["Scope", "ScopeLevel"]) },
   { file: "lib/session-key.ts", only: new Set(["SessionBind"]) },
+  { file: `${BC}/canvas-catalogue.ts`, only: new Set(["CanvasElement", "CanvasElementType", "StickyColor", "ShapeKind"]) },
+  { file: `${BC}/proof-catalogue.ts`, only: new Set(["Deliverable", "DeliverableKind", "Annotation", "AnnotationType", "ProofDecision"]) },
+  { file: `${BC}/wiki-catalogue.ts`, only: new Set(["DocBlock", "DocBlockType", "CalloutTone", "DocListItem"]) },
 ];
 
 for (const { file } of SOURCES) collectConstArrays(read(file));

@@ -15,7 +15,8 @@
  *
  * Run: pnpm --filter @workspace/scripts run gen-api-reference
  */
-import ts from "typescript";
+import * as ts from "./lib/ts-ast";
+import { parseSourceFile } from "./lib/ts-ast";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -61,6 +62,20 @@ function leadingComment(fullText: string, node: ts.Node): string {
   return firstLine(fullText.slice(last.pos, last.end));
 }
 
+/**
+ * Like `leadingComment`, but keeps the LAST contiguous run of `//` lines together (a blank line starts a
+ * new block) and takes the first sentence of that run. A descriptor declaration's doc is a multi-line
+ * block, where the useful summary is the first line, not the last — the single-range `leadingComment`
+ * (right for one-line route comments) would otherwise surface a mid-sentence continuation.
+ */
+function leadingCommentBlock(fullText: string, node: ts.Node): string {
+  const ranges = ts.getLeadingCommentRanges(fullText, node.getFullStart()) ?? [];
+  if (!ranges.length) return "";
+  let start = ranges.length - 1;
+  while (start > 0 && (fullText.slice(ranges[start - 1]!.end, ranges[start]!.pos).match(/\n/g) ?? []).length <= 1) start--;
+  return firstLine(fullText.slice(ranges[start]!.pos, ranges[ranges.length - 1]!.end));
+}
+
 /** Collect the gate label for a route from its middleware arguments. */
 function gateFrom(args: readonly ts.Expression[]): string {
   const parts: string[] = [];
@@ -75,15 +90,75 @@ function gateFrom(args: readonly ts.Expression[]): string {
   return parts.join(" + ");
 }
 
+/** A named object-literal assignment (`const X = { … }`) plus the statement carrying its doc comment. */
+interface DeclInfo { obj: ts.ObjectLiteralExpression; stmt: ts.Node }
+
+const stringProp = (obj: ts.ObjectLiteralExpression, name: string): string | undefined => {
+  const p = obj.properties.find((pr): pr is ts.PropertyAssignment => ts.isPropertyAssignment(pr) && ts.isIdentifier(pr.name) && pr.name.text === name);
+  return p && ts.isStringLiteral(p.initializer) ? p.initializer.text : undefined;
+};
+const objProp = (obj: ts.ObjectLiteralExpression, name: string): ts.ObjectLiteralExpression | undefined => {
+  const p = obj.properties.find((pr): pr is ts.PropertyAssignment => ts.isPropertyAssignment(pr) && ts.isIdentifier(pr.name) && pr.name.text === name);
+  return p && ts.isObjectLiteralExpression(p.initializer) ? p.initializer : undefined;
+};
+
+/** Routes an `EntityDescriptor` object-literal contributes: POST base + PATCH/DELETE item path, gated by each op's role. */
+function entityRoutesFromLiteral(obj: ts.ObjectLiteralExpression, base: string, doc: string): RouteEntry[] {
+  const basePath = stringProp(obj, "basePath");
+  if (!basePath) return [];
+  const idParam = stringProp(obj, "idParam");
+  const itemPath = idParam ? `${basePath}/:${idParam}` : basePath;
+  const out: RouteEntry[] = [];
+  const emit = (verb: string, method: string, p: string): void => {
+    const op = objProp(obj, verb);
+    if (!op) return;
+    const role = stringProp(op, "role");
+    out.push({ method, routePath: base + p, gate: role ? `requireRole(${role})` : "", doc });
+  };
+  emit("create", "POST", basePath);
+  emit("update", (stringProp(obj, "updateMethod") ?? "patch").toUpperCase(), itemPath);
+  emit("remove", "DELETE", itemPath);
+  return out;
+}
+
+/** The single route a `CommandDescriptor` object-literal contributes: its method + path, gated by an optional role floor. */
+function commandRoutesFromLiteral(obj: ts.ObjectLiteralExpression, base: string, doc: string): RouteEntry[] {
+  const method = stringProp(obj, "method");
+  const p = stringProp(obj, "path");
+  if (!method || !p) return [];
+  const role = stringProp(obj, "role");
+  // A command may carry extra middleware gates (requireStepUp / requireEntitlement / requireAnyRole) in a
+  // `gates: [...]` array beyond the role floor — surface them exactly as a hand-written route's would read.
+  const gatesProp = obj.properties.find((pr): pr is ts.PropertyAssignment => ts.isPropertyAssignment(pr) && ts.isIdentifier(pr.name) && pr.name.text === "gates");
+  const extraGates = gatesProp && ts.isArrayLiteralExpression(gatesProp.initializer) ? gateFrom(gatesProp.initializer.elements) : "";
+  const gate = [role ? `requireRole(${role})` : "", extraGates].filter(Boolean).join(" + ");
+  return [{ method: method.toUpperCase(), routePath: base + p, gate, doc }];
+}
+
 function readFile(abs: string, rel: string): FileRoutes {
-  const fullText = fs.readFileSync(abs, "utf8");
-  const sf = ts.createSourceFile(abs, fullText, ts.ScriptTarget.Latest, true);
+  const sf = parseSourceFile(abs);
+  const fullText = sf.text;
   const base = APP_ROOT_FILES.has(path.basename(rel)) ? "" : "/api";
   const routes: RouteEntry[] = [];
   let title = "";
   for (const stmt of sf.statements) {
     if (!title) { const r = ts.getLeadingCommentRanges(fullText, stmt.getFullStart()) ?? []; if (r.length) title = firstLine(fullText.slice(r[0]!.pos, r[0]!.end)); }
   }
+
+  // Pre-pass: map every `const X = { … }` to its object-literal + the statement carrying its doc comment, so
+  // that mountEntity(router, X) / mountCommand(router, X) can resolve the descriptor declared elsewhere in the file.
+  const decls = new Map<string, DeclInfo>();
+  const collectDecls = (node: ts.Node): void => {
+    if (ts.isVariableStatement(node)) {
+      for (const d of node.declarationList.declarations) {
+        if (ts.isIdentifier(d.name) && d.initializer && ts.isObjectLiteralExpression(d.initializer)) {
+          decls.set(d.name.text, { obj: d.initializer, stmt: node });
+        }
+      }
+    }
+    node.forEachChild(collectDecls);
+  };
+  collectDecls(sf);
 
   const visit = (node: ts.Node): void => {
     if (ts.isCallExpression(node)) {
@@ -106,8 +181,22 @@ function readFile(abs: string, rel: string): FileRoutes {
           routes.push({ method: "PUT", routePath: p, gate: ["requireAuth", writeGate].filter(Boolean).join(" + "), doc: "Replace the collection (write-guarded)." });
         }
       }
+      // mountEntity(router, issueEntity) / mountCommand(router, decisionCommand) — LANE 1/2 spines. The
+      // descriptor is declared elsewhere as `const X = { … }`; resolve the identifier to its object-literal
+      // and derive the same routes the mounter registers, so generic-spine writes stay documented.
+      else if (ts.isIdentifier(callee) && (callee.text === "mountEntity" || callee.text === "mountCommand")
+        && node.arguments.length >= 2 && ts.isIdentifier(node.arguments[1]!)) {
+        const decl = decls.get((node.arguments[1] as ts.Identifier).text);
+        if (decl) {
+          const doc = leadingCommentBlock(fullText, decl.stmt);
+          const emitted = callee.text === "mountEntity"
+            ? entityRoutesFromLiteral(decl.obj, base, doc)
+            : commandRoutesFromLiteral(decl.obj, base, doc);
+          routes.push(...emitted);
+        }
+      }
     }
-    ts.forEachChild(node, visit);
+    node.forEachChild(visit);
   };
   visit(sf);
   return { rel, title, routes };

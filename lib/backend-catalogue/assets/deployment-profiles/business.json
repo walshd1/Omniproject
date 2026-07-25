@@ -1,0 +1,18 @@
+{
+  "id": "business",
+  "label": "Business / SME",
+  "order": 20,
+  "default": true,
+  "audience": "A company deployment reachable beyond a LAN.",
+  "tls": "required",
+  "demoAuthSeverity": "critical",
+  "summary": "SSO + HTTPS expected; advanced hardening optional.",
+  "relaxes": [],
+  "presetEnv": [
+    { "key": "OIDC_ISSUER_URL", "why": "SSO (Google Workspace / Entra / Authentik…)" },
+    { "key": "PUBLIC_TLS", "value": "1", "why": "serve over HTTPS" },
+    { "key": "SESSION_SECRET", "why": "signs cookies (required in prod)" },
+    { "key": "BROKER_PSK", "why": "authenticate the gateway↔broker hop" }
+  ],
+  "recommend": ["Configure OIDC SSO", "Serve over HTTPS", "Set SESSION_SECRET + BROKER_PSK"]
+}

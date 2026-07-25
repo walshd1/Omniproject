@@ -30,7 +30,25 @@
       "required": ["states", "ceremonies"],
       "properties": {
         "states": { "type": "array", "items": { "type": "string" } },
-        "ceremonies": { "type": "array", "items": { "type": "string" } }
+        "ceremonies": { "type": "array", "items": { "type": "string" } },
+        "taskStatuses": {
+          "type": "array",
+          "description": "The methodology's TASK-status axis (next-actions, distinct from the work-item/issue status axis). Optional and methodology-agnostic — ANY methodology with a next-action workflow may declare it (GTD ships one today). Every status binds to a workflow `class` (the internal invariant the actionable/closed/done maths key off). The canonical task vocabulary is DERIVED from these declarations across the methodology catalogue (see task-vocabulary.ts), so a methodology owns its own task nomenclature as data.",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["id", "label", "order", "class"],
+            "properties": {
+              "id": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$" },
+              "label": { "type": "string" },
+              "order": { "type": "integer", "minimum": 0 },
+              "class": { "enum": ["actionable", "waiting", "deferred", "done", "dropped"] },
+              "color": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$" },
+              "labels": { "type": "object", "additionalProperties": { "type": "string" } },
+              "methodologies": { "type": "array", "items": { "type": "string" } }
+            }
+          }
+        }
       }
     },
     "alsoProvides": {
@@ -44,6 +62,26 @@
           "note": { "type": "string" }
         }
       }
+    },
+    "invariants": {
+      "type": "array",
+      "description": "Declarative cross-entity business rules the methodology asserts (e.g. GTD: every active project has a next action).",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "kind", "message"],
+        "properties": {
+          "id": { "type": "string" },
+          "kind": { "type": "string", "description": "The shipped checker id (see METHODOLOGY_INVARIANT_KINDS)." },
+          "message": { "type": "string" },
+          "severity": { "enum": ["error", "warn"] }
+        }
+      }
+    },
+    "settings": {
+      "type": "object",
+      "description": "Preset settings (first-class fields) this methodology lands on a one-click deploy — validated against the settings field descriptors at apply time. Keys must be writable settings keys (e.g. reportingCurrency, fxRatePolicy, priorityWeights).",
+      "additionalProperties": true
     },
     "notes": { "type": "string" },
     "order": { "type": "integer", "description": "Display order in the methodology picker." }

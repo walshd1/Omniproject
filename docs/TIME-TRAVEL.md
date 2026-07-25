@@ -66,11 +66,16 @@ trust class as the OData / Prometheus / Power BI feeds**: data egresses, by
 explicit admin choice, to a destination the operator controls and is responsible
 for.
 
-Enabling it is gated three ways — all enforced server-side in
-`updateSettings` ([`lib/settings.ts`](../artifacts/api-server/src/lib/settings.ts)):
+`loggingSync` lives as the scope-layered **`logging-sync` config def** in the
+composition model (Phase C) — no longer a `SettingsState` key.
+[`lib/logging-sync.ts`](../artifacts/api-server/src/lib/logging-sync.ts) owns the
+type, default, `sanitizeLoggingSync` (validate + SSRF check), and
+`resolveLoggingSync`; the admin write path runs through
+[`routes/logging-sync.ts`](../artifacts/api-server/src/routes/logging-sync.ts).
+Enabling it is gated three ways, all enforced server-side:
 
 - **Admin-only.** The control (Setup → *Logging server (history & time-travel)*)
-  and the `loggingSync` settings write are admin-scoped.
+  and the `PUT /api/logging-sync` write are admin-scoped.
 - **A destination URL is required.** You cannot enable egress without a
   `loggingSync.url`.
 - **Warranty acknowledgement is required.** The admin must tick
@@ -79,6 +84,13 @@ Enabling it is gated three ways — all enforced server-side in
 
   > enabling the logging sync requires acknowledging that egressed data is
   > outside OmniProject's warranty
+
+> **Turning egress on is floor-gated (Phase C).** `logging-sync` is a
+> **security-classified config**: enabling egress (or re-pointing an enabled sink)
+> **relaxes** the "nothing leaves" posture, so `applyConfigCollectionGuarded`
+> seals that write into a sign-off proposal (`202`, held) rather than applying it
+> immediately; disabling egress tightens and applies straight away. See
+> [FEATURE-ROADMAP.md](FEATURE-ROADMAP.md) Phase C for the mechanism.
 
 Configured via env, the equivalent is `LOGGING_SYNC_URL` plus
 `LOGGING_SYNC_ACK_WARRANTY=true` — egress only switches on when both are present

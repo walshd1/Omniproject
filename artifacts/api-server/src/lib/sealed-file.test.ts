@@ -33,6 +33,14 @@ test("write then read round-trips through the seal", () => {
   assert.deepEqual(JSON.parse(sf.read()!), { hello: "world" });
 });
 
+test("the sealed file lands 0600 (not world-readable) — encrypted, but no needless exposure on a shared host", () => {
+  const p = tmpPath();
+  const sf = new SealedFile(() => p, "test");
+  sf.write(JSON.stringify({ secret: "x" }));
+  const mode = fs.statSync(p).mode & 0o777;
+  assert.equal(mode, 0o600, `expected 0600, got 0${mode.toString(8)}`);
+});
+
 test("write is atomic: leaves no temp file behind and the target is the fully-sealed content", () => {
   const p = tmpPath();
   const dir = path.dirname(p);

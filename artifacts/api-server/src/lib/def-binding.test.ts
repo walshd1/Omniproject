@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { resolveDefBinding, canRebind, type DefBindingConfig } from "./def-binding";
+import { resolveDefBinding, canRebind, primitiveSlot, isPrimitiveSlot, type DefBindingConfig } from "./def-binding";
 
 /**
  * Def selection bindings (roadmap X.12): monotonic narrowing org → project → user, with a LOCKED binding at a
@@ -135,4 +135,46 @@ test("bindings are per-slot — a lock on one slot doesn't touch another", () =>
   const cfg: DefBindingConfig = { org: { methodology: { defId: "org~scrum", locked: true } } };
   assert.equal(resolveDefBinding(cfg, "methodology", {}).locked, true);
   assert.equal(resolveDefBinding(cfg, "projects", {}).source, "default");
+});
+
+test("PRIMITIVE slots are namespaced and never collide with a same-named screen/report slot", () => {
+  assert.equal(primitiveSlot("acme-tile"), "primitive:acme-tile");
+  assert.equal(isPrimitiveSlot(primitiveSlot("acme-tile")), true);
+  assert.equal(isPrimitiveSlot("acme-tile"), false); // a bare screen/report slot is NOT a primitive slot
+  // A screen slot and a primitive slot that share the base id are DISTINCT keys — locking one leaves the other free.
+  const cfg: DefBindingConfig = { org: { "acme-tile": { defId: "org~screen", locked: true } } };
+  assert.equal(resolveDefBinding(cfg, "acme-tile", {}).locked, true);
+  assert.equal(resolveDefBinding(cfg, primitiveSlot("acme-tile"), {}).source, "default");
+});
+
+test("LOCK-FOR-PRIMITIVES: an org locks a primitive family down the whole subtree — no project/user re-fork", () => {
+  // The org mandates its activated primitive for a family and LOCKS it. A project that activated its OWN version
+  // (per-scope activation) is shadowed: the org's locked selection wins, and nothing below the org may rebind it.
+  const slot = primitiveSlot("acme-tile");
+  const cfg: DefBindingConfig = {
+    org: { [slot]: { defId: "org~reg-acme", locked: true } },
+    programme: { prog1: { [slot]: { defId: "programme~reg-acme" } } },
+    project: { p1: { [slot]: { defId: "project~p1~reg-acme" } } },
+    user: { u1: { [slot]: { defId: "user~reg-acme" } } },
+  };
+  const ctx = { projectId: "p1", programmeId: "prog1", sub: "u1" };
+  const r = resolveDefBinding(cfg, slot, ctx);
+  assert.deepEqual(r, { defId: "org~reg-acme", locked: true, lockedBy: "org", source: "org" });
+  // The org lock binds every level below it — a project can't re-fork the primitive, a user can't re-select it.
+  assert.equal(canRebind(cfg, slot, "programme", ctx), false);
+  assert.equal(canRebind(cfg, slot, "project", ctx), false);
+  assert.equal(canRebind(cfg, slot, "user", ctx), false);
+});
+
+test("an UNLOCKED primitive selection still forks per-scope (most-specific wins) — the lock is what pins it", () => {
+  const slot = primitiveSlot("acme-tile");
+  const cfg: DefBindingConfig = {
+    org: { [slot]: { defId: "org~reg-acme" } },          // org picks, but does NOT lock
+    project: { p1: { [slot]: { defId: "project~p1~reg-acme" } } },
+  };
+  // Without a lock, a project's own activated primitive wins for that project (downward fork is allowed) …
+  assert.equal(resolveDefBinding(cfg, slot, { projectId: "p1" }).source, "project");
+  assert.equal(canRebind(cfg, slot, "project", { projectId: "p1" }), true);
+  // … while a project NOT in the map falls back to the org selection.
+  assert.equal(resolveDefBinding(cfg, slot, { projectId: "p2" }).source, "org");
 });

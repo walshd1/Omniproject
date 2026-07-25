@@ -27,6 +27,14 @@ export interface AuthState {
   oauth2Configured?: boolean;
   /** Whether passwordless magic-link sign-in is enabled (no IdP). */
   magicLinkEnabled?: boolean;
+  /** Whether native in-app (username + password) sign-in is available on this deployment. */
+  localSignInEnabled?: boolean;
+  /** Fresh, IdP-less deployment with no users yet → show the "claim first admin" form. */
+  needsFirstAdmin?: boolean;
+  /** Whether this session already holds strong (hardware-MFA / passkey) auth. */
+  strongAuth?: boolean;
+  /** Whether this is a native in-app (local password) session. */
+  local?: boolean;
   /** Present ONLY for a guest principal: the single project it's confined to and its access tier. The SPA
    *  uses this to route a guest to the client portal and nowhere else. */
   guest?: { projectId: string; tier: "read" | "comment" };
@@ -125,6 +133,30 @@ export async function requestMagicLink(email: string, returnTo = "/"): Promise<{
     body: JSON.stringify({ email, returnTo }),
   });
   return (await res.json().catch(() => ({ ok: false }))) as { ok: boolean; devLink?: string };
+}
+
+/** Sign in a native (in-app) user with a username + password. Returns ok + where to go next. */
+export async function localLogin(userName: string, password: string, returnTo = "/"): Promise<{ ok: boolean; error?: string; returnTo?: string }> {
+  const res = await fetch("/api/auth/local", {
+    method: "POST",
+    credentials: "same-origin",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ userName, password, returnTo }),
+  });
+  const body = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string; returnTo?: string };
+  return res.ok ? { ok: true, returnTo: body.returnTo ?? returnTo } : { ok: false, error: body.error ?? "Sign-in failed." };
+}
+
+/** Claim the FIRST admin on a fresh, IdP-less deployment (username + password). One-time; 409 once users exist. */
+export async function bootstrapFirstAdmin(userName: string, password: string): Promise<{ ok: boolean; error?: string }> {
+  const res = await fetch("/api/auth/local/bootstrap", {
+    method: "POST",
+    credentials: "same-origin",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ userName, password }),
+  });
+  const body = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string };
+  return res.ok ? { ok: true } : { ok: false, error: body.error ?? "Could not create the first admin." };
 }
 
 /**

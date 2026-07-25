@@ -34,7 +34,10 @@ export function Prince2View({ projectId }: { projectId: string }) {
         const products = all.filter((i) => prince2Stage(i) === name);
         const overdue = products.filter(isOverdue).length;
         const pct = completion(products);
-        return { name, products, overdue, pct, rag: ragFor(pct, overdue) };
+        // Canonical stage ids are kebab-case (starting-up); render them as words (the heading is
+        // CSS-uppercased) while keeping the raw id as the match key.
+        const label = name.replace(/-/g, " ");
+        return { name, label, products, overdue, pct, rag: ragFor(pct, overdue) };
       })
       .filter((s) => s.products.length > 0);
 
@@ -94,7 +97,7 @@ export function Prince2View({ projectId }: { projectId: string }) {
               <div className="p-4 border-b border-border flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <span className={`w-3 h-3 rounded-full ${RAG_DOT[stage.rag]}`} />
-                  <h4 className="font-black uppercase tracking-wider text-sm">Stage · {stage.name}</h4>
+                  <h4 className="font-black uppercase tracking-wider text-sm">Stage · {stage.label}</h4>
                   <span className="text-xs text-muted-foreground font-mono">{stage.products.length} products · {stage.pct}%</span>
                 </div>
                 {stage.overdue > 0 && <span className="text-xs font-bold text-red-500 uppercase">{stage.overdue} overdue</span>}

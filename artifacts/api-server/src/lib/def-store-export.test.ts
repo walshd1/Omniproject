@@ -15,13 +15,14 @@ const { putArtifact, listArtifacts } = await import("./artifact-store");
 const { setUserPrefs, getUserPrefs } = await import("./user-prefs");
 const { putExtension } = await import("./extension");
 const { putRegistryItem } = await import("./registry");
+const { getCustomRolesConfig } = await import("./custom-roles");
 const { buildDefStoreExport, applyDefStoreExport, DEF_STORE_EXPORT_SCHEMA } = await import("./def-store-export");
 
 const now = "2026-07-17T00:00:00.000Z";
-const PRIMITIVE = { id: "grouped-column", label: "Grouped columns", category: "chart", chartType: "bar",
-  description: "compare series", params: [{ key: "data", label: "Rows", type: "rows", required: true, description: "rows" }] };
-const orgDef = { id: "org~d1", kind: "primitive" as const, name: "Chart", createdBy: "a", createdAt: now, updatedAt: now, rowVersion: 1,
-  payload: PRIMITIVE };
+// A forkable customer-authored def (a dashboard) — primitives are vendor-controlled and never live at a customer scope.
+const DASHBOARD = { id: "exec-dash", name: "Exec", widgets: [{ id: "w1", type: "portfolioHealth" }] };
+const orgDef = { id: "org~d1", kind: "dashboard" as const, name: "Exec", createdBy: "a", createdAt: now, updatedAt: now, rowVersion: 1,
+  payload: DASHBOARD };
 const userDef = { id: "user~d2", kind: "theme" as const, name: "Dark", createdBy: "u", createdAt: now, updatedAt: now, rowVersion: 1,
   payload: { id: "dark", colors: { primary: "#000" } } };
 
@@ -78,15 +79,21 @@ test("import RE-VALIDATES defs: a tampered/invalid payload is dropped, not writt
   const bundle = {
     schema: DEF_STORE_EXPORT_SCHEMA, version: 1, createdAt: now,
     collections: [{ type: "def", scope: { kind: "org" }, items: [
-      { id: "org~good", kind: "primitive", name: "Good", payload: PRIMITIVE },
-      { id: "org~bad", kind: "primitive", name: "Bad", payload: { not: "a valid primitive" } },
+      { id: "org~good", kind: "dashboard", name: "Good", payload: DASHBOARD },
+      { id: "org~bad", kind: "dashboard", name: "Bad", payload: { not: "a valid dashboard" } },
+      // An APPROVED org primitive (extends a system one, safe) round-trips; a ROOTLESS/unsafe one is dropped —
+      // a customer primitive must sit below a system primitive.
+      { id: "org~okprim", kind: "primitive", name: "Acme tile", payload: { id: "acme-tile", label: "Acme tile", category: "tile", description: "d", extends: "tile", params: [] } },
+      { id: "org~prim", kind: "primitive", name: "Forked root", payload: { id: "grouped-column", label: "x", category: "chart", params: [{ key: "data", label: "Rows", type: "rows", required: true, description: "d" }] } },
     ] }],
   };
   const report = applyDefStoreExport(bundle);
   const ids = listArtifacts<{ id: string }>("def", { kind: "org" }).map((d) => d.id);
   assert.ok(ids.includes("org~good"));
+  assert.ok(ids.includes("org~okprim"), "a valid approved org primitive survives migration");
   assert.ok(!ids.includes("org~bad"), "the invalid def must be dropped");
-  assert.ok(report.skipped >= 1);
+  assert.ok(!ids.includes("org~prim"), "a rootless (new-root) primitive must be dropped on migration");
+  assert.ok(report.skipped >= 2);
 });
 
 test("import rejects an unrecognised schema", () => {
@@ -134,6 +141,55 @@ test("config defs (the org-level tree) ride the backup and round-trip into a fre
   applyDefStoreExport(bundle);
   assert.equal(listDefs({ kind: "org" }).find((d) => d.id === "org~config-scheduling")?.kind, "config");
   assert.equal(listDefs({ kind: "project", projectId: "PB" })[0]?.id, "project~PB~cfg");
+});
+
+test("import DROPS a config def smuggling a GOVERNED logical id (security config / def-scope-policy)", () => {
+  // A `config` def resolves by its LOGICAL id via the scope-layered fold, so a governed id smuggled through a
+  // backup bundle would weaken the resolved posture with no sign-off. The reimporter must drop it — while a
+  // benign config (scheduling) still round-trips.
+  const bundle = {
+    schema: DEF_STORE_EXPORT_SCHEMA, version: 1, createdAt: now,
+    collections: [{ type: "def", scope: { kind: "org" }, items: [
+      { id: "org~sched", kind: "config", name: "Sched", payload: { id: "scheduling", values: { hoursPerDay: 7 } } },
+      { id: "org~evil-retention", kind: "config", name: "Evil", payload: { id: "history-retention", values: { retentionDays: 1 } } },
+      { id: "org~evil-policy", kind: "config", name: "Evil2", payload: { id: "def-scope-policy", values: { org: "contributor" } } },
+    ] }],
+  };
+  fs.rmSync(path.join(CONFIG_DIR, "artifacts"), { recursive: true, force: true });
+  const report = applyDefStoreExport(bundle);
+  const ids = listDefs({ kind: "org" }).map((d) => d.id);
+  assert.ok(ids.includes("org~sched"), "a benign scheduling config still round-trips");
+  assert.ok(!ids.includes("org~evil-retention"), "a governed security-config logical id must be dropped");
+  assert.ok(!ids.includes("org~evil-policy"), "the def-scope-policy authoring gate must be dropped");
+  assert.ok(report.skipped >= 2);
+});
+
+test("import RE-SANITISES custom-roles — a role that shadows a built-in is dropped (no base-role escalation)", () => {
+  // The getter (getCustomRolesConfig) trusts the stored row verbatim, so the importer MUST re-run the real
+  // sanitizer: a crafted blob whose custom role id collides with a built-in role (mapping an attacker IdP group
+  // onto elevated capabilities) is exactly what `sanitizeCustomRolesConfig` rejects — so the whole blob is dropped.
+  const evil = {
+    schema: DEF_STORE_EXPORT_SCHEMA, version: 1, createdAt: now,
+    collections: [{ type: "custom-roles", scope: { kind: "org" }, items: [
+      { id: "config", permissionSets: [], customRoles: [{ id: "admin", label: "pwn", baseRole: "admin", groups: ["attacker-idp-group"] }] },
+    ] }],
+  };
+  fs.rmSync(path.join(CONFIG_DIR, "artifacts"), { recursive: true, force: true });
+  const report = applyDefStoreExport(evil);
+  assert.deepEqual(getCustomRolesConfig().customRoles, [], "the malicious custom role must never be persisted/trusted");
+  assert.ok(report.skipped >= 1);
+});
+
+test("import KEEPS a well-formed custom-roles blob (valid roles still round-trip)", () => {
+  const good = {
+    schema: DEF_STORE_EXPORT_SCHEMA, version: 1, createdAt: now,
+    collections: [{ type: "custom-roles", scope: { kind: "org" }, items: [
+      { id: "config", permissionSets: [], customRoles: [{ id: "my-role", label: "My role", baseRole: "contributor", permissionSetIds: [], groups: [] }] },
+    ] }],
+  };
+  fs.rmSync(path.join(CONFIG_DIR, "artifacts"), { recursive: true, force: true });
+  applyDefStoreExport(good);
+  assert.equal(getCustomRolesConfig().customRoles[0]?.id, "my-role", "a valid custom role survives the sanitising import");
 });
 
 test("per-user prefs ride the backup and round-trip into a fresh store (setup follows the person)", () => {

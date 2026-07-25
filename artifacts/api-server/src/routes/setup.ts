@@ -13,13 +13,18 @@
  * admin-gated; this is the operator-facing surface for wiring + lifecycle, not project data.
  */
 import { Router } from "express";
-import { getSettings, updateSettings } from "../lib/settings";
+import { mountCommand, type CommandDescriptor } from "../lib/action-base";
+import { updateSettings } from "../lib/settings";
+import { resolveSelfHost, sanitizeSelfHost, SELF_HOST_CONFIG_ID } from "../lib/self-host-config";
+import { writeOrgConfigCollection } from "../lib/scoped-config";
+import { requireArtifactStore } from "../lib/artifact-store";
 import { requireRole, requireAnyRole, getRoleMap } from "../lib/rbac";
 import { isTruthy } from "../lib/env-config";
 import { selfHostGatingForScope } from "../selfhost";
 import { deploymentProfile, profilePosture, requireTls, acceptDemoAuth, demoAuthSeverity, profileCatalogue, DEPLOYMENT_PROFILES } from "../lib/deployment-profile";
 import { bootRefusalActive } from "../lib/security-check";
 import { brokerMtlsConfigured } from "../lib/broker-transport";
+import { contextFromReq } from "../broker";
 import { applyCharityOnboarding } from "../lib/charity-onboarding";
 import { sharedStateMode } from "../lib/shared-state";
 import { IDP_PRESETS } from "../lib/idp-presets";
@@ -116,24 +121,41 @@ router.get("/setup/idp", requireRole("admin"), (req, res) => {
   res.json({ mode, issuer, issuerOrigin, bundled, callbackUrl, roleGroups, suggestedGroups, presets: IDP_PRESETS, profile: deploymentProfile() });
 });
 
-// POST /api/setup/profile — pick the deployment profile from the wizard (admin). Persists it
-// (overrides the env default) so the TLS posture + the no-IdP severity follow the chosen type.
-// Infra-level env (DEPLOYMENT_PROFILE) remains the source of truth across a fresh boot.
-router.post("/setup/profile", requireRole("admin"), (req, res) => {
-  const profile = typeof req.body?.profile === "string" ? req.body.profile.trim().toLowerCase() : "";
-  if (!(DEPLOYMENT_PROFILES as readonly string[]).includes(profile)) {
-    res.status(400).json({ error: `profile must be one of: ${DEPLOYMENT_PROFILES.join(", ")}` });
-    return;
-  }
-  updateSettings({ deploymentProfile: profile });
-  res.json({ profile: deploymentProfile(), posture: profilePosture(), tls: { servedOverTls: requireTls() } });
-});
+/**
+ * POST /api/setup/profile — pick the deployment profile from the wizard (admin). Persists it (overrides the
+ * env default) so the TLS posture + no-IdP severity follow the chosen type; the infra-level env
+ * (DEPLOYMENT_PROFILE) remains the source of truth across a fresh boot.
+ *
+ * LANE 2: the profile-id validation (400) is the parse gate; run persists it and returns the resolved
+ * profile/posture/tls. Additive success audit.
+ */
+export const setupProfileCommand: CommandDescriptor<{ profile: string }> = {
+  name: "setup.profile",
+  method: "post",
+  path: "/setup/profile",
+  role: "admin",
+  parse: (req, res) => {
+    const profile = typeof req.body?.profile === "string" ? req.body.profile.trim().toLowerCase() : "";
+    if (!(DEPLOYMENT_PROFILES as readonly string[]).includes(profile)) {
+      res.status(400).json({ error: `profile must be one of: ${DEPLOYMENT_PROFILES.join(", ")}` });
+      return null;
+    }
+    return { profile };
+  },
+  run: async (_req, _res, { profile }) => {
+    updateSettings({ deploymentProfile: profile });
+    return { profile: deploymentProfile(), posture: profilePosture(), tls: { servedOverTls: requireTls() } };
+  },
+  audit: "setup.profile",
+  auditCategory: "admin",
+};
+mountCommand(router, setupProfileCommand);
 
 // GET /api/setup/self-host — the current self-host DB adoption + its resolved domain gating for a
 // scope (admin/PMO). Programme/project narrowing reuses the existing governance maps, so the admin
 // screen sees the same resolution the composition tier runs. Read-only; never project data.
 router.get("/setup/self-host", requireAnyRole("admin", "pmo"), (req, res) => {
-  const config = getSettings().selfHost;
+  const config = resolveSelfHost();
   const programmeId = (req.query["programmeId"] as string | undefined)?.trim() || null;
   const projectId = (req.query["projectId"] as string | undefined)?.trim() || null;
   const gating = selfHostGatingForScope({ programmeId, projectId });
@@ -146,33 +168,60 @@ router.get("/setup/self-host", requireAnyRole("admin", "pmo"), (req, res) => {
   });
 });
 
-// POST /api/setup/self-host — adopt (or turn off) the self-host DB from the wizard/admin (admin).
-// The "disclose, don't insure" gate lives in `updateSettings` → `validateSelfHost`: a non-off mode
-// without the data-responsibility acknowledgement is rejected (400), so this can never persist an
-// un-acknowledged adoption. Persisting rides the config bundle like any other setting.
-router.post("/setup/self-host", requireRole("admin"), (req, res) => {
-  const body = (req.body ?? {}) as Record<string, unknown>;
-  const mode = typeof body["mode"] === "string" ? body["mode"] : "off";
-  const adopted = Array.isArray(body["adopted"]) ? body["adopted"].filter((x): x is string => typeof x === "string") : [];
-  const ack = body["acknowledgedDataResponsibility"] === true;
-  try {
-    updateSettings({ selfHost: { mode, adopted, acknowledgedDataResponsibility: ack } });
-  } catch (err) {
-    res.status(400).json({ error: err instanceof Error ? err.message : "invalid self-host config" });
-    return;
-  }
-  const config = getSettings().selfHost;
-  const gating = selfHostGatingForScope();
-  res.json({ config, domains: gating.rows, enabledDomains: [...gating.enabledDomainIds], holdsOnlyCopy: config.mode !== "off" });
-});
+/**
+ * POST /api/setup/self-host — adopt (or turn off) the self-host DB from the wizard/admin (admin). The
+ * "disclose, don't insure" gate lives in `sanitizeSelfHost`: a non-off mode without the data-responsibility
+ * acknowledgement is rejected (400), so this can never persist an un-acknowledged adoption. It's a CHOICE
+ * config def (`self-host`) — the ack is the gate, so this applies immediately (never a sign-off).
+ *
+ * LANE 2: the sealed-store precondition is the parse gate (503); run sanitises + persists the config (a
+ * sanitise/write throw — e.g. the missing ack — maps to 400 via onError, so no success audit fires) and
+ * returns the resolved config + domain gating. Additive success audit on a real save.
+ */
+export const setupSelfHostCommand: CommandDescriptor<{ raw: { mode: string; adopted: string[]; acknowledgedDataResponsibility: boolean } }> = {
+  name: "setup.self-host",
+  method: "post",
+  path: "/setup/self-host",
+  role: "admin",
+  parse: (req, res) => {
+    if (!requireArtifactStore(res)) return null;
+    const body = (req.body ?? {}) as Record<string, unknown>;
+    const mode = typeof body["mode"] === "string" ? body["mode"] : "off";
+    const adopted = Array.isArray(body["adopted"]) ? body["adopted"].filter((x): x is string => typeof x === "string") : [];
+    const ack = body["acknowledgedDataResponsibility"] === true;
+    return { raw: { mode, adopted, acknowledgedDataResponsibility: ack } };
+  },
+  run: async (_req, _res, { raw }) => {
+    writeOrgConfigCollection(SELF_HOST_CONFIG_ID, "Self-host", sanitizeSelfHost(raw));
+    const config = resolveSelfHost();
+    const gating = selfHostGatingForScope();
+    return { config, domains: gating.rows, enabledDomains: [...gating.enabledDomainIds], holdsOnlyCopy: config.mode !== "off" };
+  },
+  audit: "setup.self-host",
+  auditCategory: "admin",
+  onError: (res, err) => { res.status(400).json({ error: err instanceof Error ? err.message : "invalid self-host config" }); },
+};
+mountCommand(router, setupSelfHostCommand);
 
-// POST /api/setup/charity-onboarding — the "We're a charity" one-click preset (admin). Selects
-// the nonprofit deployment profile, mints the trustee-report + funder-report dashboard presets
-// (existing widgets only), and best-effort adopts the active backend's nomenclature preset if
-// one exists and the deployment is entitled to it. Idempotent — see lib/charity-onboarding.ts.
-router.post("/setup/charity-onboarding", requireRole("admin"), (_req, res) => {
-  res.json(applyCharityOnboarding());
-});
+/**
+ * POST /api/setup/charity-onboarding — the "We're a charity" one-click preset (admin). Selects the nonprofit
+ * deployment profile, mints the trustee-report + funder-report dashboard presets (existing widgets only), and
+ * best-effort adopts the active backend's nomenclature preset if one exists and the deployment is entitled to
+ * it. Idempotent — see lib/charity-onboarding.ts.
+ *
+ * LANE 2: no body; run applies the preset and returns its result. Additive success audit.
+ */
+export const setupCharityOnboardingCommand: CommandDescriptor<Record<string, never>> = {
+  name: "setup.charity-onboarding",
+  method: "post",
+  path: "/setup/charity-onboarding",
+  role: "admin",
+  parse: () => ({}),
+  run: async (req) => applyCharityOnboarding(contextFromReq(req), new Date().toISOString()),
+  audit: "setup.charity-onboarding",
+  auditCategory: "admin",
+};
+mountCommand(router, setupCharityOnboardingCommand);
 
 // The cohesive sub-planes (each registers its own `/setup/...` paths). Order is irrelevant — the
 // paths are disjoint — but grouped read → wiring → config-io → lifecycle for readability.

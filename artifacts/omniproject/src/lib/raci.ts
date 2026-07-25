@@ -1,5 +1,4 @@
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { getJson, sendJson } from "./api";
+import { configResource } from "./config-resource";
 
 /**
  * RACI register client. Flat (task, role, responsibility) assignments stored as shared config via /api/raci;
@@ -16,18 +15,13 @@ export interface RaciEntry {
 
 export const raciQueryKey = ["raci"] as const;
 
-export function useRaci() {
-  return useQuery({
-    queryKey: raciQueryKey,
-    queryFn: () => getJson<{ raci: RaciEntry[] }>("/api/raci").then((r) => r.raci ?? []),
-    staleTime: 30_000,
-  });
-}
-
-export function useSaveRaci() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: async (raci: RaciEntry[]) => sendJson<unknown>("/api/raci", { raci }, "PUT", "Failed to save RACI"),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: raciQueryKey }); qc.invalidateQueries({ queryKey: ["panel-data"] }); },
-  });
-}
+const resource = configResource<RaciEntry[]>({
+  queryKey: raciQueryKey,
+  path: "/api/raci",
+  envelopeKey: "raci",
+  empty: [],
+  saveErrorMessage: "Failed to save RACI", // manager-gated server-side
+  alsoInvalidate: [["panel-data"]], // the RACI screen renders the rows generically under panel-data
+});
+export const useRaci = resource.useResource;
+export const useSaveRaci = resource.useSaveResource;

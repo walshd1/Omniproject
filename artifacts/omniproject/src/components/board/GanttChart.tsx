@@ -10,6 +10,7 @@ import {
   type IssueUpdate,
 } from "@workspace/api-client-react";
 import { STATUS_COLORS, STATUS_LABELS } from "../../lib/constants";
+import { isTerminal } from "../../lib/status-vocab";
 import { canStoreField } from "../../lib/capabilities-fields";
 import { rescheduledDates } from "../../lib/reschedule";
 import { DAY_MS, dayToShortDate } from "../../lib/date-utils";
@@ -221,8 +222,7 @@ export function GanttChart({ projectId }: { projectId: string }) {
                 const nudged = drag?.id === issue.id ? drag.deltaDays : 0;
                 const offsetPct = ((startDay - min + nudged) / span) * 100;
                 const widthPct = Math.max(((endDay - startDay + 1) / span) * 100, 2);
-                const overdue =
-                  endDay < today && issue.status !== "done" && issue.status !== "cancelled";
+                const overdue = endDay < today && !isTerminal(issue.status);
                 const moving = updateIssue.isPending;
                 return (
                   <div key={issue.id} className="flex items-center border-b border-border hover:bg-muted/20 group">

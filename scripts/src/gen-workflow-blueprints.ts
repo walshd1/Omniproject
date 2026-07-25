@@ -20,12 +20,10 @@
  */
 import fs from "node:fs";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { REPO_ROOT as ROOT } from "./lib/repo-root";
 import { getBackend } from "../../lib/backend-catalogue/src/backend-catalogue";
 import { generateWorkflow } from "../../lib/backend-catalogue/src/workflow-generator";
 
-const HERE = path.dirname(fileURLToPath(import.meta.url));
-const ROOT = path.resolve(HERE, "../..");
 const GENERATED_DIR = path.join(ROOT, "artifacts/n8n-blueprints/generated");
 
 const FILE_RE = /^omniproject-(.+)\.json$/;

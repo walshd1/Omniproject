@@ -17,7 +17,7 @@ const SECRET = "test-session-secret-do-not-use-in-prod";
 process.env["SESSION_SECRET"] = SECRET;
 process.env["NODE_ENV"] = "production";
 process.env["RATE_LIMIT_DISABLED"] = "true";
-process.env["ENABLED_FEATURES"] = "registry";
+process.env["ENABLED_FEATURES"] = "registry,defImporter";
 process.env["SECURITY_STRICT"] = "off";
 const CONFIG_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "registry-routes-"));
 process.env["OMNI_CONFIG_DIR"] = CONFIG_DIR;
@@ -127,6 +127,73 @@ test("visibility: a viewer sees approved items but not another user's draft", as
       if (val === undefined) delete process.env[k]; else process.env[k] = val;
     }
   }
+});
+
+test("org PRIMITIVE authoring: submit is safety-checked, approve ACTIVATES it as an org def, reject removes it", async () => {
+  // A well-formed org primitive that EXTENDS a shipped one (a scoped tile) — safety-checked at submit.
+  const good = { kind: "primitive", name: "Acme tile", publisher: "Acme", version: "1.0.0",
+    payload: { id: "acme-tile", label: "Acme tile", category: "tile", description: "an org tile", extends: "tile", params: [] } };
+  const draft = await req("/registry", { method: "POST", body: good, cookie: CONTRIBUTOR });
+  assert.equal(draft.status, 201);
+  const item = (await draft.json()) as { id: string };
+
+  // Malformed / unsafe primitive submissions are refused up front (never enter the queue).
+  assert.equal((await req("/registry", { method: "POST", body: { ...good, name: "Bad shape", payload: { id: "Bad Id", category: "nope" } }, cookie: CONTRIBUTOR })).status, 400);
+  assert.equal((await req("/registry", { method: "POST", body: { ...good, name: "Injected", payload: { id: "x-inj", label: "<script>", category: "tile", description: "d", extends: "tile", params: [] } }, cookie: CONTRIBUTOR })).status, 400);
+  // A ROOTLESS primitive (no extends) is refused — a customer primitive must sit BELOW a system primitive.
+  assert.equal((await req("/registry", { method: "POST", body: { ...good, name: "New root", payload: { id: "x-root", label: "X root", category: "chart", description: "d", params: [{ key: "data", label: "Rows", type: "rows", required: true, description: "d" }] } }, cookie: CONTRIBUTOR })).status, 400);
+
+  // Before approval, the primitive does NOT resolve (it's inactive).
+  const before = (await req("/defs/resolved/primitive").then((x) => x.json())) as Array<{ payload: { id: string } }>;
+  assert.ok(!before.some((d) => d.payload.id === "acme-tile"), "an un-approved primitive is not live");
+
+  // A direct import bypass stays blocked — the ONLY activation path is approval.
+  assert.equal((await req("/defs", { method: "POST", body: { kind: "primitive", storage: "org", name: "x", payload: good.payload } })).status, 403);
+
+  // Admin approves → the primitive is ACTIVATED into the org def scope and now resolves.
+  assert.equal((await req(`/registry/${item.id}/review`, { method: "POST", body: { decision: "approved" } })).status, 200);
+  const live = (await req("/defs/resolved/primitive").then((x) => x.json())) as Array<{ id: string; kind: string; createdBy: string | null; payload: { id: string; extends?: string } }>;
+  const activated = live.find((d) => d.payload.id === "acme-tile");
+  assert.ok(activated, "an approved primitive is live in the org scope");
+  assert.equal(activated!.kind, "primitive");
+  assert.equal(activated!.payload.extends, "tile");
+  // DOWNWARD-ONLY: it is activated at the ORG (customer) level, never above — its def id is org-scoped, so the
+  // shadow only flows DOWN (org → programme → project → user); it never mutates the system primitive above it.
+  assert.match(activated!.id, /^org~/, "the org primitive lives at the org scope, not above");
+
+  // Rejecting it removes the activated def again.
+  assert.equal((await req(`/registry/${item.id}/review`, { method: "POST", body: { decision: "rejected" } })).status, 200);
+  const after = (await req("/defs/resolved/primitive").then((x) => x.json())) as Array<{ payload: { id: string } }>;
+  assert.ok(!after.some((d) => d.payload.id === "acme-tile"), "a rejected primitive stops resolving");
+});
+
+test("PER-SCOPE activation: an org primitive can be approved INTO a project (confined, downward-only)", async () => {
+  const good = { kind: "primitive", name: "Proj tile", publisher: "Acme", version: "1.0.0",
+    payload: { id: "proj-tile", label: "Proj tile", category: "tile", description: "a project-scoped tile", extends: "tile", params: [] } };
+  const item = (await (await req("/registry", { method: "POST", body: good, cookie: CONTRIBUTOR })).json()) as { id: string };
+
+  // A malformed target is refused up front (scope=project needs a projectId).
+  assert.equal((await req(`/registry/${item.id}/review`, { method: "POST", body: { decision: "approved", scope: "project" } })).status, 400);
+
+  // Approve INTO one project — the activated def is confined to that project's scope.
+  const approved = await req(`/registry/${item.id}/review`, { method: "POST", body: { decision: "approved", scope: "project", projectId: "proj-x" } });
+  assert.equal(approved.status, 200);
+  assert.deepEqual(((await approved.json()) as { activatedScope: unknown }).activatedScope, { kind: "project", projectId: "proj-x" });
+
+  // It resolves WITHIN that project (id is project-scoped) …
+  const inProject = (await req("/defs/resolved/primitive?projectId=proj-x").then((x) => x.json())) as Array<{ id: string; payload: { id: string } }>;
+  const live = inProject.find((d) => d.payload.id === "proj-tile");
+  assert.ok(live, "the primitive resolves inside the project it was activated into");
+  assert.match(live!.id, /^project~proj-x~reg-/, "the def id is confined to that project's scope");
+
+  // … but it is NOT org-wide (downward-only — a project activation never leaks up to the org layer).
+  const orgWide = (await req("/defs/resolved/primitive").then((x) => x.json())) as Array<{ payload: { id: string } }>;
+  assert.ok(!orgWide.some((d) => d.payload.id === "proj-tile"), "a project-confined primitive is not visible org-wide");
+
+  // Deleting the registry item undoes the activation at the exact scope it landed in.
+  assert.equal((await req(`/registry/${item.id}`, { method: "DELETE" })).status, 204);
+  const gone = (await req("/defs/resolved/primitive?projectId=proj-x").then((x) => x.json())) as Array<{ payload: { id: string } }>;
+  assert.ok(!gone.some((d) => d.payload.id === "proj-tile"), "deleting the item deactivates the project-scoped def");
 });
 
 test("RBAC: a viewer can't submit; a non-admin can't review or release", async () => {

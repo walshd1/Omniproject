@@ -1,6 +1,24 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
+import { cloneElement, isValidElement, type ReactElement } from "react";
 import { QueryClient } from "@tanstack/react-query";
 import { screen, waitFor } from "@testing-library/react";
+
+// jsdom gives recharts' ResponsiveContainer no measured size, so the area chart's axis-tick
+// formatter (the `${v}%` value formatter this trend passes down) never runs. Force a fixed pixel
+// size so the real recharts marks lay out and that formatter actually executes.
+vi.mock("recharts", async (importActual) => {
+  const actual = await importActual<typeof import("recharts")>();
+  return {
+    ...actual,
+    ResponsiveContainer: ({ children, height }: { children: ReactElement; height?: number }) =>
+      isValidElement(children)
+        ? cloneElement(children as ReactElement<{ width?: number; height?: number }>, {
+            width: 600,
+            height: typeof height === "number" ? height : 300,
+          })
+        : children,
+  };
+});
 import {
   getGetProjectHistoryQueryKey,
   getGetProjectBaselineQueryKey,
@@ -72,6 +90,15 @@ describe("ProjectTrend", () => {
     renderWithProviders(<ProjectTrend projectId={PROJECT} />, { client: qc });
 
     expect(screen.getByText("No history available from the backend.")).toBeInTheDocument();
+  });
+
+  it("formats the y-axis ticks as percentages (value formatter runs under forced layout)", () => {
+    const qc = makeClient();
+    qc.setQueryData(getGetProjectHistoryQueryKey(PROJECT), POINTS);
+    const { container } = renderWithProviders(<ProjectTrend projectId={PROJECT} />, { client: qc });
+    // The area chart lays out (recharts mock), so the `${v}%` valueFormatter runs on the Y ticks.
+    const ticks = Array.from(container.querySelectorAll("text")).map((t) => t.textContent ?? "");
+    expect(ticks.some((t) => /^\d+%$/.test(t))).toBe(true);
   });
 
   it("renders an error alert with retry when history fails", async () => {
