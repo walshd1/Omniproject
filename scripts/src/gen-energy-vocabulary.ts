@@ -5,7 +5,7 @@
  * energy-vocabulary.json) — a flat vocabulary, so one array reads better than a file per token. This
  * validates every entry against assets/schema/energy-vocabulary.schema.json and emits the portable
  * lib/backend-catalogue/src/energy-vocabulary.generated.ts via the shared gen-registry engine (its
- * array-source variant) — the same generate-and-drift-guard pattern as gen-task-vocabulary.
+ * array-source variant) — the same generate-and-drift-guard pattern as gen-work-vocabulary.
  *
  * Run: pnpm --filter @workspace/scripts run gen-energy-vocabulary
  */

@@ -120,3 +120,9 @@ export function constantTimeEqual(a: string, b: string): boolean {
   const bb = Buffer.from(b);
   return ab.length === bb.length && crypto.timingSafeEqual(ab, bb);
 }
+
+/** Buffer variant of {@link constantTimeEqual} — the SAME length-check-then-`timingSafeEqual` mechanism for
+ *  raw bytes (e.g. hex-decoded password hashes / MACs), so byte-comparing callers don't re-hand-roll it. */
+export function constantTimeEqualBuf(a: Buffer, b: Buffer): boolean {
+  return a.length === b.length && crypto.timingSafeEqual(a, b);
+}

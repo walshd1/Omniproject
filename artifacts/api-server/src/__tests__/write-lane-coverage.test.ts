@@ -1,0 +1,354 @@
+import { test, before, after } from "node:test";
+import assert from "node:assert/strict";
+import type { IRouter } from "express";
+import { startHarness, type Harness } from "./_harness";
+import { entityRoutes } from "../lib/entity-pipeline";
+import { commandRoutes } from "../lib/action-base";
+import { issueEntity, raidEntity } from "../routes/projects";
+import { taskEntity } from "../routes/tasks";
+import { proofEntity } from "../routes/proofs";
+import { wikiEntity } from "../routes/wiki";
+import {
+  decisionCommand, redirectCommand, bypassCommand, passkeyRevokeCommand, passkeyRevokeAllCommand,
+} from "../routes/approvals";
+import { revokeUserSessionsCommand, auditLogDisposeCommand } from "../routes/security";
+import {
+  aiProviderRollbackCommand, aiProviderUpsertCommand, aiProviderRemoveCommand,
+  aiProviderKeySetCommand, aiProviderKeyClearCommand, aiCapabilityMappingCommand,
+} from "../routes/ai-providers";
+import {
+  rateCardUpdateCommand, rateCardRollbackCommand, rateCardScopeUpliftCommand,
+  rateCardCostRulesCommand, rateCardIdentitiesCommand,
+} from "../routes/rate-card";
+import { approvedUpdateCommand, aiKillCommand, containmentCommand } from "../routes/tools";
+import { roleMapRollbackCommand } from "../routes/role-map";
+import { webhookDeleteCommand, webhookTestCommand } from "../routes/webhooks";
+import { energyVocabularyCommand } from "../routes/energy-vocabulary";
+import { impactVocabularyCommand } from "../routes/impact-vocabulary";
+import { likelihoodVocabularyCommand } from "../routes/likelihood-vocabulary";
+import { severityVocabularyCommand } from "../routes/severity-vocabulary";
+import { workVocabularyCommand } from "../routes/work-vocabulary";
+import { taskVocabularyCommand } from "../routes/task-vocabulary";
+import { ragVocabularyCommand } from "../routes/rag-vocabulary";
+import {
+  userCreateCommand, userUpdateCommand, userPasswordSetCommand, userPasswordClearCommand, userDeleteCommand,
+} from "../routes/users";
+import { brandingSaveCommand, brandingClearCommand } from "../routes/branding";
+import { labelsSaveCommand, labelsApplyPresetCommand } from "../routes/labels";
+import { accessibilityDefaultsSaveCommand } from "../routes/accessibility";
+import { priorityLabelsSaveCommand } from "../routes/priority-labels";
+import { orgIdentitySaveCommand } from "../routes/org-identity";
+import { schedulingSaveCommand } from "../routes/scheduling";
+import { methodologyCompositionSaveCommand, methodologyDeployCommand } from "../routes/methodology-composition";
+import { aiProviderAllowlistCommand, aiModelAllowlistCommand, sttProviderAllowlistCommand } from "../routes/ai-allowlist";
+import { deploymentTypeSetCommand } from "../routes/deployment-types";
+import { calendarPushSaveCommand } from "../routes/calendar";
+import { mePrefsSaveCommand } from "../routes/me";
+import { addTaskCommentCommand, addTaskAttachmentCommand } from "../routes/tasks";
+import { timesheetSaveCommand, timesheetActionCommand } from "../routes/timesheets";
+import { presetApplyCommand } from "../routes/presets";
+import { templateInstantiateCommand } from "../routes/templates";
+import { projectCloseCommand, createProjectCommand, createTaskItemCommand } from "../routes/projects";
+import { setupProfileCommand, setupSelfHostCommand, setupCharityOnboardingCommand } from "../routes/setup";
+import {
+  setupEnvironmentCreateCommand, setupEnvironmentActivateCommand, setupPromoteCommand,
+  setupVersionKnownGoodCommand, setupRollbackCommand,
+} from "../routes/setup/environments";
+import {
+  promoteCommand, backupCaptureCommand, restoreCommand,
+  canaryStartCommand, canaryAcceptCommand, canaryRejectCommand,
+} from "../routes/release";
+import { collectionWriteRoutes } from "../lib/settings-collection-router";
+
+/**
+ * WRITE-LANE COVERAGE RATCHET — the mechanical proof that every user-facing WRITE endpoint is guarded.
+ *
+ * Sibling of route-scope-coverage.test.ts (which ratchets IDOR). This ratchets the "perms + validation +
+ * business rules" guarantee via a THREE-LANE partition:
+ *   - Lane 1 (entity pipeline, lib/entity-pipeline): CRUD by descriptor — mountEntity applies
+ *     RBAC → validate → ruleset → scope → write by construction.
+ *   - Lane 2 (action base, lib/action-base): verb/commands by descriptor — mountCommand applies the shell
+ *     (authorize → validate → ruleset → run → audit) by construction.
+ *   - Lane 3 (BESPOKE_WRITES): hand-written writes not yet migrated to a spine, PLUS the genuinely
+ *     irreducible ones (auth/session redirects, SSE, break-glass, SCIM protocol). Each is on record here.
+ *
+ * The ratchet asserts every live write is in EXACTLY ONE lane. A new POST/PUT/PATCH/DELETE fails the test
+ * until it joins a lane (ideally a spine; Lane 3 only for a genuine oddball). Membership in Lane 1/2 IS the
+ * guarantee — the mounter can't skip a gate — so the ratchet only has to verify the partition. As routes
+ * migrate onto the spines they LEAVE Lane 3, so the bespoke list only shrinks (the stale-entry test forces
+ * a converted route out of it). This is how the step-2 spines get enforced instead of drifting.
+ */
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function collectRoutes(router: IRouter): string[] {
+  const out: string[] = [];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const walk = (stack: any[], prefix: string): void => {
+    for (const layer of stack ?? []) {
+      if (layer.route) {
+        const p = prefix + layer.route.path;
+        const methods = Object.keys(layer.route.methods ?? {}).filter((m) => layer.route.methods[m]);
+        for (const m of methods) out.push(`${m.toUpperCase()} ${p}`);
+      } else if (layer.handle?.stack) {
+        walk(layer.handle.stack, prefix);
+      }
+    }
+  };
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  walk((router as any).stack, "");
+  return out;
+}
+
+const WRITE = /^(POST|PUT|PATCH|DELETE) /;
+
+/** Every live WRITE route on the assembled /api router PLUS the feature-gated modules not mounted in test. */
+async function writeRoutes(): Promise<Set<string>> {
+  const assembled = (await import("../routes/index")).default as IRouter;
+  const featureMods = ["presence", "comments", "collab", "whiteboard", "proofs", "odata", "integrations"];
+  const routes = new Set<string>(collectRoutes(assembled));
+  for (const name of featureMods) {
+    const mod = (await import(`../routes/${name}`)).default as IRouter;
+    for (const r of collectRoutes(mod)) routes.add(r);
+  }
+  return new Set([...routes].filter((r) => WRITE.test(r)));
+}
+
+// Lane 1 + Lane 2 — derived from the registered descriptors (the routes the spines own).
+const LANE1 = new Set<string>([...entityRoutes(issueEntity), ...entityRoutes(taskEntity), ...entityRoutes(proofEntity), ...entityRoutes(wikiEntity), ...entityRoutes(raidEntity)]);
+const LANE2 = new Set<string>([
+  ...commandRoutes(decisionCommand),
+  ...commandRoutes(redirectCommand),
+  ...commandRoutes(bypassCommand),
+  ...commandRoutes(passkeyRevokeCommand),
+  ...commandRoutes(passkeyRevokeAllCommand),
+  ...commandRoutes(revokeUserSessionsCommand),
+  ...commandRoutes(auditLogDisposeCommand),
+  ...commandRoutes(aiProviderRollbackCommand),
+  ...commandRoutes(aiProviderUpsertCommand),
+  ...commandRoutes(aiProviderRemoveCommand),
+  ...commandRoutes(aiProviderKeySetCommand),
+  ...commandRoutes(aiProviderKeyClearCommand),
+  ...commandRoutes(aiCapabilityMappingCommand),
+  ...commandRoutes(rateCardUpdateCommand),
+  ...commandRoutes(rateCardRollbackCommand),
+  ...commandRoutes(rateCardScopeUpliftCommand),
+  ...commandRoutes(rateCardCostRulesCommand),
+  ...commandRoutes(rateCardIdentitiesCommand),
+  ...commandRoutes(approvedUpdateCommand),
+  ...commandRoutes(aiKillCommand),
+  ...commandRoutes(containmentCommand),
+  ...commandRoutes(roleMapRollbackCommand),
+  ...commandRoutes(webhookDeleteCommand),
+  ...commandRoutes(webhookTestCommand),
+  ...commandRoutes(energyVocabularyCommand),
+  ...commandRoutes(impactVocabularyCommand),
+  ...commandRoutes(likelihoodVocabularyCommand),
+  ...commandRoutes(severityVocabularyCommand),
+  ...commandRoutes(workVocabularyCommand),
+  ...commandRoutes(taskVocabularyCommand),
+  ...commandRoutes(ragVocabularyCommand),
+  ...commandRoutes(userCreateCommand),
+  ...commandRoutes(userUpdateCommand),
+  ...commandRoutes(userPasswordSetCommand),
+  ...commandRoutes(userPasswordClearCommand),
+  ...commandRoutes(userDeleteCommand),
+  ...commandRoutes(brandingSaveCommand),
+  ...commandRoutes(brandingClearCommand),
+  ...commandRoutes(labelsSaveCommand),
+  ...commandRoutes(labelsApplyPresetCommand),
+  ...commandRoutes(accessibilityDefaultsSaveCommand),
+  ...commandRoutes(priorityLabelsSaveCommand),
+  ...commandRoutes(orgIdentitySaveCommand),
+  ...commandRoutes(schedulingSaveCommand),
+  ...commandRoutes(methodologyCompositionSaveCommand),
+  ...commandRoutes(methodologyDeployCommand),
+  ...commandRoutes(aiProviderAllowlistCommand),
+  ...commandRoutes(aiModelAllowlistCommand),
+  ...commandRoutes(sttProviderAllowlistCommand),
+  ...commandRoutes(deploymentTypeSetCommand),
+  ...commandRoutes(calendarPushSaveCommand),
+  ...commandRoutes(mePrefsSaveCommand),
+  ...commandRoutes(presetApplyCommand),
+  ...commandRoutes(templateInstantiateCommand),
+  ...commandRoutes(projectCloseCommand),
+  ...commandRoutes(setupProfileCommand),
+  ...commandRoutes(setupSelfHostCommand),
+  ...commandRoutes(setupCharityOnboardingCommand),
+  ...commandRoutes(setupEnvironmentCreateCommand),
+  ...commandRoutes(setupEnvironmentActivateCommand),
+  ...commandRoutes(setupPromoteCommand),
+  ...commandRoutes(setupVersionKnownGoodCommand),
+  ...commandRoutes(setupRollbackCommand),
+  ...commandRoutes(addTaskCommentCommand),
+  ...commandRoutes(addTaskAttachmentCommand),
+  ...commandRoutes(timesheetSaveCommand),
+  ...commandRoutes(timesheetActionCommand),
+  ...commandRoutes(createProjectCommand),
+  ...commandRoutes(createTaskItemCommand),
+  ...commandRoutes(promoteCommand),
+  ...commandRoutes(backupCaptureCommand),
+  ...commandRoutes(restoreCommand),
+  ...commandRoutes(canaryStartCommand),
+  ...commandRoutes(canaryAcceptCommand),
+  ...commandRoutes(canaryRejectCommand),
+]);
+
+// Lane 3 — hand-written writes not (yet) on a spine. SEED — regenerate by running the first test with this
+// empty and pasting its "uncovered" list. New writes must join a lane; this list may only SHRINK.
+const BESPOKE_WRITES = new Set<string>([
+  "DELETE /approvals/workflow-acceptances/:workflowId",
+  "DELETE /comments/:roomId/:commentId",
+  "DELETE /dev-mode/entitlements",
+  "DELETE /dev-mode/impersonate",
+  "DELETE /projects/:projectGuid/links",
+  "DELETE /projects/:projectId/mapping/:slot/:rowId",
+  "DELETE /scim/v2/Groups/:id",
+  "DELETE /scim/v2/Users/:id",
+  "DELETE /whiteboards/:id",
+  "PATCH /projects/:projectId",
+  "PATCH /scim/v2/Groups/:id",
+  "PATCH /scim/v2/Users/:id",
+  "PATCH /settings",
+  "POST /admin/approvals/:id/approve",
+  "POST /admin/approvals/:id/reject",
+  "POST /admin/digest/run",
+  "POST /admin/drift-canary/run",
+  "POST /admin/proactive-digest/run",
+  "POST /admin/raw",
+  "POST /admin/ruleset/apply-reference",
+  "POST /admin/scheduled-export/run",
+  "POST /admin/system-defs/apply",
+  "POST /ai/chat",
+  "POST /ai/copilot",
+  "POST /ai/estimate",
+  "POST /ai/insights",
+  "POST /ai/nl-action",
+  "POST /ai/rebalance",
+  "POST /ai/suggest-backend",
+  "POST /ai/transcribe",
+  "POST /approvals/:id/bypass/challenge",
+  "POST /approvals/:id/challenge",
+  "POST /approvals/passkey",
+  "POST /approvals/workflow-acceptances/:workflowId",
+  "POST /approvals/workflow-acceptances/:workflowId/challenge",
+  "POST /auth/local",
+  "POST /auth/local/bootstrap",
+  "POST /auth/logout",
+  "POST /auth/magic/request",
+  "POST /auth/passkey/step-up",
+  "POST /auth/passkey/step-up/challenge",
+  "POST /auth/saml/callback",
+  "POST /auth/step-up",
+  "POST /automations/:id/run",
+  "POST /automations/preview",
+  "POST /break-glass/lockdown",
+  "POST /break-glass/release",
+  "POST /broker/command",
+  "POST /client-errors",
+  "POST /collab/rooms/:roomId",
+  "POST /comments/:roomId",
+  "POST /deployment-types/:id/resolve",
+  "POST /dev-mode/broker",
+  "POST /dev-mode/entitlements",
+  "POST /dev-mode/impersonate",
+  "POST /dev-mode/messy",
+  "POST /forms/:formId/submit",
+  "POST /governance/:id/test",
+  "POST /health-watch/run",
+  "POST /history/dispose",
+  "POST /history/erase",
+  "POST /import/commit",
+  "POST /import/preview",
+  "POST /mcp",
+  "POST /notifications/ingest",
+  "POST /portal/invites",
+  "POST /presence/rooms/:roomId",
+  "POST /proofs/:id/decision",
+  "POST /provenance/call/:callId/verify",
+  "POST /scim/v2/Groups",
+  "POST /scim/v2/Users",
+  "POST /security/audit/verify",
+  "POST /security/config/export",
+  "POST /security/data-residency/validate",
+  "POST /security/keys/:name/revoke",
+  "POST /setup/config-diff",
+  "POST /setup/config-dir/clear-backup",
+  "POST /setup/config-dir/refresh",
+  "POST /setup/connections/test",
+  "POST /setup/connections/vault",
+  "POST /setup/defs-import",
+  "POST /setup/full-restore",
+  "POST /setup/generate-workflow",
+  "POST /setup/instance-key/reveal",
+  "POST /setup/instance-key/rotate",
+  "POST /setup/portable-restore",
+  "POST /setup/restore",
+  "POST /setup/test-broker",
+  "POST /setup/verify-workflow",
+  "POST /snapshots/capture",
+  "POST /snapshots/verify",
+  "POST /tasks/reminders/sweep",
+  "POST /usage/notify",
+  "POST /webhooks",
+  "POST /whiteboards",
+  "POST /whiteboards/rooms/:roomId",
+  "POST /workflows/:id/run",
+  "PUT /admin/custom-roles",
+  "PUT /admin/delegation-policy",
+  "PUT /admin/maintenance",
+  "PUT /admin/role-map",
+  "PUT /admin/ruleset",
+  "PUT /admin/ruleset/fields",
+  "PUT /admin/ruleset/scope",
+  "PUT /error-telemetry",
+  "PUT /features/governance-rules",
+  "PUT /features/programme/:programmeId",
+  "PUT /features/project/:projectId",
+  "PUT /federated-peers",
+  "PUT /governance/:id",
+  "PUT /history/retention",
+  "PUT /logging-sync",
+  "PUT /projects/:projectId/mapping/:slot/:rowId",
+  "PUT /projects/:projectId/type",
+  "PUT /projects/:projectId/wbs/:wbsId",
+  "PUT /scim/v2/Groups/:id",
+  "PUT /scim/v2/Users/:id",
+  "PUT /settings/scope",
+  "PUT /whiteboards/:id",
+]);
+
+let h: Harness;
+before(async () => { h = await startHarness(); });
+after(() => h?.close());
+
+// Lane 0 — the settings-collection factory (settingsCollectionRouter), a THIRD generic write spine whose
+// writes are guarded by construction. Populated as route modules load, so it's read INSIDE the tests, after
+// writeRoutes() has imported the assembled router + the feature-gated mods.
+const lane0 = (): Set<string> => new Set(collectionWriteRoutes());
+
+test("every live write route is in exactly one lane (a new unguarded write can't ship unnoticed)", async () => {
+  const live = await writeRoutes();
+  const covered = new Set<string>([...lane0(), ...LANE1, ...LANE2, ...BESPOKE_WRITES]);
+  const uncovered = [...live].filter((r) => !covered.has(r)).sort();
+  assert.deepEqual(uncovered, [],
+    `New write route(s) in no lane. Put each in the entity pipeline (Lane 1: mountEntity), the action base ` +
+    `(Lane 2: mountCommand), the settings-collection factory (Lane 0: settingsCollectionRouter), or — only for ` +
+    `a genuinely irreducible one — BESPOKE_WRITES (Lane 3):\n${uncovered.join("\n")}`);
+});
+
+test("no stale lane entries (converting a route to a spine forces it out of Lane 3)", async () => {
+  const live = await writeRoutes();
+  const stale = [...lane0(), ...LANE1, ...LANE2, ...BESPOKE_WRITES].filter((r) => !live.has(r)).sort();
+  assert.deepEqual(stale, [], `Lane entry with no live write route — remove or fix:\n${stale.join("\n")}`);
+});
+
+test("the lanes are disjoint — each write is in exactly one", async () => {
+  await writeRoutes(); // ensure the collection registry is fully populated (incl. feature-gated mods)
+  const LANE0 = lane0();
+  const overlap = [
+    ...[...LANE0].filter((r) => LANE1.has(r) || LANE2.has(r) || BESPOKE_WRITES.has(r)),
+    ...[...LANE1].filter((r) => LANE2.has(r) || BESPOKE_WRITES.has(r)),
+    ...[...LANE2].filter((r) => BESPOKE_WRITES.has(r)),
+  ].sort();
+  assert.deepEqual(overlap, [], `route(s) in more than one lane:\n${overlap.join("\n")}`);
+});

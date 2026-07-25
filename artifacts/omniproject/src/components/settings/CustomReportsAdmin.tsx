@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { useAuth, roleAtLeast } from "../../lib/auth";
 import { useAvailability } from "../../lib/availability";
 import { reportCatalogue, type ReportDefinition } from "@workspace/backend-catalogue";
-import { useLegacyCustomReports, useDrainLegacyCustomReports, customReportsQueryKey } from "../../lib/custom-reports-api";
+import { customReportsQueryKey } from "../../lib/custom-reports-api";
 import { useResolvedDefs, useImportDef, useUpdateDef, useDeleteDef } from "../../lib/defs";
 import { taskDescriptor } from "../../lib/view-engine/task-descriptor";
 import type { CustomReportDef, CustomReportMetric, CustomReportAgg } from "../../lib/custom-report";
@@ -108,9 +108,7 @@ export function CustomReportsAdmin() {
   const updateDef = useUpdateDef();
   const deleteDef = useDeleteDef();
   const qc = useQueryClient();
-  const { data: legacy } = useLegacyCustomReports();
-  const drain = useDrainLegacyCustomReports();
-  const savingReports = importDef.isPending || updateDef.isPending || deleteDef.isPending || drain.isPending;
+  const savingReports = importDef.isPending || updateDef.isPending || deleteDef.isPending;
   const { draft, setDraft, dirty, reset } = useDraftAdmin<CustomReportDef[], CustomReportDef[]>(server);
   const [importError, setImportError] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -149,7 +147,6 @@ export function CustomReportsAdmin() {
 
   // A save is a per-def upsert against the loaded org report defs: PUT an existing report's def in place, POST
   // a new one, DELETE a removed one — all through the importer choke point.
-  const legacyReports = legacy ?? [];
   const invalidate = () => qc.invalidateQueries({ queryKey: customReportsQueryKey });
   const onSaveReports = async () => {
     if (!draft) return;
@@ -165,17 +162,6 @@ export function CustomReportsAdmin() {
       await invalidate();
     } catch (e) {
       setSaveError(e instanceof Error ? e.message : "Could not save reports.");
-    }
-  };
-  // One-shot migration of any pre-convergence `settings.customReports` into the def store, then drain the slice.
-  const migrateLegacy = async () => {
-    setSaveError(null);
-    try {
-      for (const r of legacyReports) if (!scopedIdByReportId.has(r.id)) await importDef.mutateAsync({ kind: "report", storage: "org", name: r.label ?? r.id, payload: r });
-      await drain.mutateAsync();
-      await invalidate();
-    } catch (e) {
-      setSaveError(e instanceof Error ? e.message : "Could not migrate legacy reports.");
     }
   };
 
@@ -327,11 +313,6 @@ export function CustomReportsAdmin() {
           onChange={(e) => { void importFile(e.target.files?.[0]); e.target.value = ""; }} />
         {draft.length > 0 && (
           <Button variant="outline" className="rounded-none border-2 border-foreground font-bold uppercase text-xs" onClick={() => downloadReportDef(draft)}>Export all</Button>
-        )}
-        {legacyReports.length > 0 && (
-          <Button variant="outline" className="rounded-none border-2 border-foreground font-bold uppercase text-xs" onClick={migrateLegacy} disabled={savingReports} data-testid="reports-migrate-legacy">
-            Migrate {legacyReports.length} legacy report{legacyReports.length === 1 ? "" : "s"}
-          </Button>
         )}
         <Button className="rounded-none border-2 border-foreground font-bold uppercase tracking-wider" onClick={onSaveReports} disabled={!dirty || savingReports}>
           {savingReports ? "Saving…" : "Save reports"}

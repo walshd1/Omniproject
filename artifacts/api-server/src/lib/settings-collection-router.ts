@@ -64,8 +64,23 @@ export interface SettingsCollectionOptions {
 /** Build a `Router` exposing the GET + write pair for one settings-collection field. Mountable
  *  standalone (`export default settingsCollectionRouter(...)`) or via `router.use(...)` alongside
  *  other routes on a shared router (the capabilities curation pair). */
+/**
+ * Every write route this factory has mounted, as "METHOD /path". The settings-collection factory is a
+ * THIRD generic write spine (alongside mountEntity/mountCommand): its write is guarded by construction —
+ * the `requireAuth` baseline plus the per-mount `writeGuards`, and a security-classified collection rides
+ * the signed sign-off gate. Recording each mount here lets the write-lane ratchet recognise these routes
+ * as a lane instead of listing every one as a bespoke oddball.
+ */
+const MOUNTED_COLLECTION_WRITES = new Set<string>();
+
+/** The write routes ("METHOD /path") mounted by {@link settingsCollectionRouter} — the ratchet's Lane-0. */
+export function collectionWriteRoutes(): string[] {
+  return [...MOUNTED_COLLECTION_WRITES];
+}
+
 export function settingsCollectionRouter(opts: SettingsCollectionOptions): Router {
   const { path, settingsKey, versionLabel, configId, validate } = opts;
+  MOUNTED_COLLECTION_WRITES.add(`${opts.method === "patch" ? "PATCH" : "PUT"} ${path}`);
   const responseKey = opts.responseKey ?? settingsKey;
   if (!responseKey) throw new Error("settingsCollectionRouter needs settingsKey or responseKey");
   if (!configId && !settingsKey) throw new Error("settingsCollectionRouter needs settingsKey unless configId is set");

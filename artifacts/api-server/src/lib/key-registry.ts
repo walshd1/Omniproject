@@ -111,6 +111,7 @@ export function revokeKey(name: KeyName, opts: { by?: string | null; reason?: st
 
 /** Revoke all of one user's sessions (issued before now). */
 export function revokeUserSessions(sub: string): void {
+  if (isForbiddenKey(sub)) return; // `sub` is request-derived — never key the revocation map by a prototype name
   userRevokedAt[sub] = Date.now();
   void refreshKeyRegistryFromShared(); // fan out fleet-wide (best-effort; local already set)
 }

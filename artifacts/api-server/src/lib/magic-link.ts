@@ -1,4 +1,5 @@
 import { randomBytes } from "node:crypto";
+import { isEmailShape } from "./email-shape";
 import { seal, open } from "./session-crypto";
 import { sharedKv } from "./shared-state";
 import { isTruthy } from "./env-config";
@@ -29,10 +30,11 @@ export function magicLinkEnabled(): boolean {
   return isTruthy(process.env["MAGIC_LINK_ENABLED"]) && !isOidcConfigured && !isSamlConfigured();
 }
 
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-/** A lightweight, dependency-free email shape check (not RFC-exhaustive) bounded to 254 chars. */
+/** A lightweight, dependency-free email shape check (not RFC-exhaustive) bounded to 254 chars. Uses the
+ *  linear {@link isEmailShape} — the old inline regex was polynomial-backtracking (CWE-1333). */
 export function isValidEmail(email: string): boolean {
-  return EMAIL_RE.test(email.trim()) && email.trim().length <= 254;
+  const t = email.trim();
+  return t.length <= 254 && isEmailShape(t);
 }
 
 function ttlMs(): number {

@@ -173,6 +173,24 @@ Format: each principle is a RULE + how to CHECK it + the usual FIX.
 - CHECK: An undocumented file/export; a code change with no test; a red test left for later; a stale
   FUNCTION-MAP (drift guard fails).
 
+## 18. Centralize by mechanism, not by noun (when to merge vs split)
+- RULE: The decision procedure between §15 (DRY: write once) and §13 (split on a second reason to change).
+  Merge two call sites ONLY when they must change TOGETHER — same wire format / security property / validation
+  order / serialization. If a plausible change touches one but not the other, keep them separate and share only
+  the primitive underneath.
+- RULE: No false unification — do NOT collapse look-alikes into one function that switches on a
+  `kind`/`type`/`mode` flag across different purposes; that couples things that change for different reasons
+  (whack-a-mole behind one point of failure). If naming it needs "and", or an internal `switch` on *what it is
+  used for*, it is two functions over one primitive — split it.
+- MODEL (correct): `hmac-chain.chainLinkHash` shared by audit-chain + omnistore, provenance's different MAC
+  left out; `aesGcmSeal` one wire format with per-domain KDF/prefix kept separate; `logger` vs the three
+  ledgers — same word "log", never merged. Non-merge on purpose: `masterSecret`/key-registry's separate ladders
+  (`crypto-keys.ts`).
+- CHECK: A new "shared" helper that switches on a usage discriminator; a util that grows a second reason to
+  change; two byte-identical hand-rolled copies of one formula (those DO merge — §15).
+- FIX: Extract the shared PRIMITIVE; leave the divergent purpose with each caller. Add/extend the primitive's
+  drift guard so it can't un-consolidate.
+
 ---
 
 ## Workflow rules

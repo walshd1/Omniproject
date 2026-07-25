@@ -10,6 +10,12 @@
  */
 const FORBIDDEN_KEYS = new Set(["__proto__", "constructor", "prototype"]);
 
+/** True when `key` is a prototype-pollution-dangerous property name. Use before assigning a
+ *  caller/remote-supplied string as an object KEY (`obj[key] = …`), where the reviver doesn't help. */
+export function isForbiddenKey(key: string): boolean {
+  return FORBIDDEN_KEYS.has(key);
+}
+
 export function safeParseJson<T = unknown>(text: string): T {
   return JSON.parse(text, (key, value) => (FORBIDDEN_KEYS.has(key) ? undefined : value)) as T;
 }

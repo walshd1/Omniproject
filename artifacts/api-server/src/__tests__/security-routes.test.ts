@@ -38,6 +38,17 @@ test("POST /security/keys/:name/revoke rejects an unknown key with 404", async (
   assert.equal(r.status, 404);
 });
 
+test("POST /security/sessions/revoke-user without a fresh step-up is 403 (Lane 2 gates: [requireStepUp])", async () => {
+  const r = await h.req("/security/sessions/revoke-user", { method: "POST", cookie: adminCookie(), body: { sub: "u-x" } });
+  assert.equal(r.status, 403);
+  assert.equal((await r.json() as { code: string }).code, "step_up_required");
+});
+
+test("POST /security/audit/log/dispose without a fresh step-up is 403 (Lane 2 gates: [requireStepUp])", async () => {
+  const r = await h.req("/security/audit/log/dispose", { method: "POST", cookie: adminCookie() });
+  assert.equal(r.status, 403);
+});
+
 test("POST /security/sessions/revoke-user validates the body and revokes on a valid sub", async () => {
   const bad = await h.req("/security/sessions/revoke-user", { method: "POST", cookie: stepUpAdminCookie(), body: {} });
   assert.equal(bad.status, 400);

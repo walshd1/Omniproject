@@ -5,14 +5,11 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { mockFetchRouter, resetFetchMock } from "../test/utils";
 import {
   useOrgScreenDefs,
-  useLegacyOrgScreenDefs,
-  useDrainLegacyScreenDefs,
   useSaveScreenOverride,
   useResolvedScreens,
   useScreenDef,
   useRoutedScreens,
   screenDefsResolvedKey,
-  legacyScreenDefsKey,
   screenDefs,
   type OrgScreenDef,
 } from "./org-screens";
@@ -52,39 +49,6 @@ describe("useOrgScreenDefs", () => {
     const { result } = renderHook(() => useOrgScreenDefs(), { wrapper: wrapper(newClient()) });
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(result.current.data).toEqual([]);
-  });
-});
-
-describe("useLegacyOrgScreenDefs", () => {
-  it("GETs the legacy settings slice and unwraps `screenDefs`", async () => {
-    const calls = mockFetchRouter({ "/api/screen-defs": { ok: true, body: { screenDefs: [screen({ id: "old" })] } } });
-    const { result } = renderHook(() => useLegacyOrgScreenDefs(), { wrapper: wrapper(newClient()) });
-    await waitFor(() => expect(result.current.isSuccess).toBe(true));
-    expect(result.current.data!.map((s) => s.id)).toEqual(["old"]);
-    expect(calls[0]!.url).toContain("/api/screen-defs");
-  });
-
-  it("falls back to [] when the envelope omits `screenDefs`", async () => {
-    mockFetchRouter({ "/api/screen-defs": { ok: true, body: {} } });
-    const { result } = renderHook(() => useLegacyOrgScreenDefs(), { wrapper: wrapper(newClient()) });
-    await waitFor(() => expect(result.current.isSuccess).toBe(true));
-    expect(result.current.data).toEqual([]);
-  });
-});
-
-describe("useDrainLegacyScreenDefs", () => {
-  it("PUTs an empty legacy slice and invalidates the legacy + settings caches", async () => {
-    const calls = mockFetchRouter({ "/api/screen-defs": { ok: true, body: {} } });
-    const client = newClient();
-    const invalidate = vi.spyOn(client, "invalidateQueries");
-    const { result } = renderHook(() => useDrainLegacyScreenDefs(), { wrapper: wrapper(client) });
-    result.current.mutate();
-    await waitFor(() => expect(result.current.isSuccess).toBe(true));
-    const put = calls.find((c) => (c.init?.method ?? "GET") === "PUT")!;
-    expect(put.url).toContain("/api/screen-defs");
-    expect(JSON.parse(String(put.init!.body))).toEqual({ screenDefs: [] });
-    expect(invalidate).toHaveBeenCalledWith({ queryKey: legacyScreenDefsKey });
-    expect(invalidate).toHaveBeenCalledWith({ queryKey: settingsQueryKey });
   });
 });
 

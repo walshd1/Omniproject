@@ -1,4 +1,4 @@
-import { Router } from "express";
+import { Router, type Request } from "express";
 import { contextFromReq, withBrokerErrors } from "../broker";
 import { requireRole, hasRole, scopeForReq } from "../lib/rbac";
 import { assertProjectScope } from "../lib/project-scope";
@@ -7,6 +7,10 @@ import { stepUpFresh } from "../lib/step-up";
 import { getSession } from "./auth";
 import { recordRequestAudit } from "../lib/audit";
 import { artifactStoreEnabled, requireArtifactStore } from "../lib/artifact-store";
+import { getProjects } from "../lib/data";
+import { programmeIdOf } from "../lib/programmes";
+import { qualifiedId } from "../broker/identity";
+import { isForbiddenKey } from "../lib/safe-json";
 import { getScopeBindings, setScopeBinding, loadBindingConfig, canRebind, resolveDefBinding, type DefBinding, type DefBindingConfig, type ResolvedBinding } from "../lib/def-binding";
 
 /**
@@ -19,6 +23,20 @@ import { getScopeBindings, setScopeBinding, loadBindingConfig, canRebind, resolv
  * default-off `defImporter` module.
  */
 const router = Router();
+
+/**
+ * The caller's PROJECT's own programme, derived SERVER-SIDE from the project record — never trusted from a
+ * client `programmeId` param. A programme LOCK is a MANDATE meant to bind every project beneath it, so the tier
+ * that enforces it has to be resolved from the project itself: reading it off a client param would make the
+ * mandate opt-in (omit the param → the lock is silently skipped, both in resolution and in the rebind guard).
+ * Mirrors how rate-card / features derive a project's governance programme (`programmeIdOf`). Returns undefined
+ * for a standalone project (no programme → the tier is correctly absent, per def-binding's optional-tier rule).
+ */
+async function projectProgrammeId(req: Request, projectId: string): Promise<string | undefined> {
+  const projects = await getProjects(req, { includeClosed: true });
+  const project = projects.find((p) => String(p["id"]) === projectId || qualifiedId(p) === projectId);
+  return (project ? programmeIdOf(project) : null) || undefined;
+}
 
 // GET /api/defs/bindings?projectId=&programmeId= — the org + (the caller's) programme + project + user maps.
 router.get("/defs/bindings", requireRole("viewer"), (req, res) =>
@@ -48,28 +66,37 @@ router.get("/defs/active", requireRole("viewer"), (req, res) =>
     if (!artifactStoreEnabled()) { res.json({}); return; }
     const ctx = contextFromReq(req);
     const projectId = typeof req.query["projectId"] === "string" ? req.query["projectId"] : undefined;
-    const programmeId = typeof req.query["programmeId"] === "string" ? req.query["programmeId"] : undefined;
+    const clientProgrammeId = typeof req.query["programmeId"] === "string" ? req.query["programmeId"] : undefined;
     const inProject = !!projectId && (await assertProjectScope(req, projectId)).ok;
-    const inProgramme = !!programmeId && inScope(scopeForReq(req), { programmeIds: [programmeId] });
+    // The programme tier for a PROJECT caller is the project's OWN programme, derived server-side — so a
+    // programme LOCK binds the project even when the client omits ?programmeId (the mandate is not opt-in).
+    // A programme-level caller with no project in view still resolves a client programmeId they own directly.
+    const programmeId = inProject && projectId
+      ? await projectProgrammeId(req, projectId)
+      : (clientProgrammeId && inScope(scopeForReq(req), { programmeIds: [clientProgrammeId] }) ? clientProgrammeId : undefined);
+    const inProgramme = !!programmeId;
 
-    // Assemble ONLY the layers the caller may see; a stray higher/foreign binding never leaks in.
+    // Assemble ONLY the layers that apply to the caller; a stray higher/foreign binding never leaks in.
     const config: DefBindingConfig = { org: getScopeBindings({ kind: "org" }) };
     if (inProgramme && programmeId) config.programme = { [programmeId]: getScopeBindings({ kind: "programme", programmeId }) };
     if (inProject && projectId) config.project = { [projectId]: getScopeBindings({ kind: "project", projectId }) };
     if (ctx.sub) config.user = { [ctx.sub]: getScopeBindings({ kind: "user", sub: ctx.sub }) };
 
-    // The resolution context gates which tiers `resolveDefBinding` consults (programme stays opt-in).
+    // The resolution context gates which tiers `resolveDefBinding` consults; the programme tier is the
+    // project's own (server-derived), so a lock above the project always participates.
     const rctx: { projectId?: string; programmeId?: string; sub?: string } = {};
     if (inProject && projectId) rctx.projectId = projectId;
     if (inProgramme && programmeId) rctx.programmeId = programmeId;
     if (ctx.sub) rctx.sub = ctx.sub;
 
-    // Resolve every slot bound anywhere in the caller's visible config to its winner.
+    // Resolve every slot bound anywhere in the caller's applicable config to its winner.
     const slots = new Set<string>();
     for (const m of [config.org, config.programme?.[programmeId ?? ""], config.project?.[projectId ?? ""], config.user?.[ctx.sub ?? ""]]) {
       if (m) for (const k of Object.keys(m)) slots.add(k);
     }
-    const out: Record<string, ResolvedBinding> = {};
+    // Null-prototype: `slot` keys originate from stored bindings (ultimately a caller-supplied slot), so a
+    // prototype-free result object means a slot can only ever be plain data — never a prototype write.
+    const out: Record<string, ResolvedBinding> = Object.create(null);
     for (const slot of slots) out[slot] = resolveDefBinding(config, slot, rctx);
     res.json(out);
   }),
@@ -84,6 +111,7 @@ router.put("/defs/bindings", requireRole("contributor"), (req, res) =>
     const scope = body.scope;
     const slot = typeof body.slot === "string" ? body.slot.trim() : "";
     if (!slot) { res.status(400).json({ error: "slot is required" }); return; }
+    if (isForbiddenKey(slot)) { res.status(400).json({ error: "slot is not allowed" }); return; } // reserved prototype key
     if (scope !== "user" && scope !== "project" && scope !== "programme" && scope !== "org") { res.status(400).json({ error: "scope must be user, project, programme or org" }); return; }
     const clearing = body.defId === null || body.defId === undefined;
     const defId = typeof body.defId === "string" ? body.defId.trim() : "";
@@ -109,7 +137,11 @@ router.put("/defs/bindings", requireRole("contributor"), (req, res) =>
       if (!projectId) { res.status(400).json({ error: "projectId is required for a project binding" }); return; }
       if (!hasRole(req, "manager")) { res.status(403).json({ error: "a project selection needs manager" }); return; }
       if (!(await assertProjectScope(req, projectId)).ok) { res.status(403).json({ error: "out of scope for that project" }); return; }
-      const cfgCtx = { projectId, ...(ctx.sub ? { sub: ctx.sub } : {}) };
+      // Derive the project's OWN programme server-side so an org OR programme lock above it blocks the rebind.
+      // Without the programme tier, canRebind never saw a programme lock and the 409 was bypassable by simply
+      // not sending a programmeId — a project could shadow a programme-mandated slot.
+      const progId = await projectProgrammeId(req, projectId);
+      const cfgCtx = { projectId, ...(progId ? { programmeId: progId } : {}), ...(ctx.sub ? { sub: ctx.sub } : {}) };
       if (!canRebind(loadBindingConfig(cfgCtx), slot, "project", cfgCtx)) { res.status(409).json({ error: "this selection is locked by a higher scope" }); return; }
       const binding: DefBinding | null = clearing ? null : { defId, ...(wantLock ? { locked: true } : {}) };
       const bindings = setScopeBinding({ kind: "project", projectId }, slot, binding);

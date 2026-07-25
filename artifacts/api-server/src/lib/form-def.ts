@@ -9,6 +9,7 @@
  * the RACI / stakeholder registers.
  */
 import { ISSUE_WRITE_TARGETS, LIKERT_DEFAULT_OPTIONS, ADDRESS_SUBFIELDS, FORM_CONTAINER_CONSTRAINTS, evaluateConstraints, kindElementErrors, type FormDefinition, type FormFieldDef, type FormFieldType, type FormTargetDef } from "@workspace/backend-catalogue";
+import { isEmailShape } from "./email-shape";
 
 export class FormDefError extends Error {
   constructor(message: string) { super(message); this.name = "FormDefError"; }
@@ -19,7 +20,6 @@ export class FormDefError extends Error {
  *  Enforced at SUBMISSION (`capLength`), the point the value actually lands. */
 const ABSOLUTE_MAX_LEN = 10_000;
 const DEFAULT_MAX_LEN = 2_000;
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 // The canonical form shapes live in the shared catalogue (single source of truth for both apps). Alias them
 // to the server's historical names so the rest of the server keeps its imports.
@@ -116,7 +116,7 @@ export function validateSubmission(def: FormDef, values: unknown): Record<string
       case "email": {
         const s = str(v);
         capLength(field, s);
-        if (!EMAIL_RE.test(s)) throw new FormDefError(`"${field.label}" must be a valid email address`);
+        if (!isEmailShape(s)) throw new FormDefError(`"${field.label}" must be a valid email address`);
         clean[field.key] = s;
         break;
       }

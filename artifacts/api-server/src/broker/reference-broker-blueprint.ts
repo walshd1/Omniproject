@@ -230,14 +230,13 @@ export const BROKER_PROTOCOL_SUPPORT = { psk: ["p1", "p2"], sig: ["v2"], resp: [
 /** Route one binding action to the backend via the registry. The backend is
  *  injected so every transport template reuses this unchanged. */
 async function dispatch(action: string, payload: Row, ctx: ActorCtx, be: BrokerBackend): Promise<unknown> {
-  // Resolve the handler as an OWN property only. BINDING_ACTIONS is a plain object literal, so it
-  // inherits Object.prototype — a bare `BINDING_ACTIONS[action]` would let an action of "constructor"
-  // / "toString" / "valueOf" / "hasOwnProperty" resolve to an inherited method, pass the truthy
-  // `if (!handler)` check, and get INVOKED (e.g. "constructor" echoes the {be,ctx,payload} argument
-  // straight back into the response envelope; others throw a 500) instead of the intended clean 400.
-  // Object.hasOwn gates the dynamic call to the registered action vocabulary and nothing else.
+  // Resolve ONLY an OWN registry entry. `action` is caller-supplied (the X-OmniProject-Action header or the
+  // body's `action`), so a bare `BINDING_ACTIONS[action]` would let a reserved name (`constructor`, `toString`,
+  // …) resolve to an inherited Object.prototype member — truthy, so it passes the check below and gets INVOKED
+  // as a handler (CWE-749, unvalidated dynamic method call). Object.hasOwn excludes the prototype chain; the
+  // function-type check is belt-and-suspenders.
   const handler = Object.hasOwn(BINDING_ACTIONS, action) ? BINDING_ACTIONS[action] : undefined;
-  if (!handler) {
+  if (typeof handler !== "function") {
     // Unknown action — a bad request, not a server error.
     throw new BrokerHttpError(400, { success: false, message: `unknown action: ${action}` });
   }

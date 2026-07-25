@@ -23,6 +23,13 @@ test("validateProgrammeRegistry normalises: default name to id, dedupe/trim GUID
   assert.deepEqual(ok["p2"], { name: "p2", instanceIds: ["g3"] }); // name defaults to the id
 });
 
+test("validateProgrammeRegistry rejects a reserved-key programme id (prototype-pollution guard)", () => {
+  // The id keys the returned registry (`out[id] = …`); a reserved name is refused inline.
+  for (const bad of ["__proto__", "constructor", "prototype"]) {
+    assert.throws(() => validateProgrammeRegistry({ [bad]: { instanceIds: ["g1"] } }), /not allowed/);
+  }
+});
+
 test("validateProgrammeRegistry rejects bad shapes", () => {
   assert.throws(() => validateProgrammeRegistry([]), ProgrammeRegistryError);
   assert.throws(() => validateProgrammeRegistry({ "": { instanceIds: [] } }), /non-empty/);

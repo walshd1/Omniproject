@@ -10,17 +10,12 @@ import type { ScreenDef } from "../../lib/screen";
  */
 
 let role = "viewer";
-let savedLayouts: Record<string, unknown> = {}; // legacy `screenLayouts` bridge (pre-fold)
 const saveOverride = vi.fn().mockResolvedValue(undefined);
 
 vi.mock("../../lib/auth", async (importActual) => {
   const actual = await importActual<typeof import("../../lib/auth")>();
   return { ...actual, useAuth: () => ({ data: { role } }) };
 });
-
-vi.mock("../../lib/screen-layouts", () => ({
-  useScreenLayouts: () => ({ data: savedLayouts }),
-}));
 
 vi.mock("../../lib/org-screens", () => ({
   useSaveScreenOverride: () => ({ save: saveOverride, saving: false }),
@@ -39,7 +34,6 @@ const s: ScreenDef = {
 
 beforeEach(() => {
   role = "viewer";
-  savedLayouts = {};
   saveOverride.mockClear();
 });
 
@@ -80,14 +74,13 @@ describe("EditableScreen", () => {
   });
 
   it("applies a methodology fallback layout when the customer has none saved", () => {
-    savedLayouts = {}; // no customer layout for this screen
     renderWithProviders(<EditableScreen screen={s} fallbackLayout={{ order: ["b", "a"] }} />);
     expect(wraps()).toEqual(["panel-wrap-b", "panel-wrap-a"]); // fallback order applied
   });
 
-  it("prefers the customer's saved layout over the methodology fallback", () => {
-    savedLayouts = { rep: { order: ["a", "b"] } }; // customer saved a→b
-    renderWithProviders(<EditableScreen screen={s} fallbackLayout={{ order: ["b", "a"] }} />);
+  it("prefers the def-folded layout (screen.layout) over the methodology fallback", () => {
+    // The customer's saved layout rides on the screen def now.
+    renderWithProviders(<EditableScreen screen={{ ...s, layout: { order: ["a", "b"] } }} fallbackLayout={{ order: ["b", "a"] }} />);
     expect(wraps()).toEqual(["panel-wrap-a", "panel-wrap-b"]); // saved wins over fallback
   });
 
