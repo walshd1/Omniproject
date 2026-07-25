@@ -259,6 +259,9 @@ const BESPOKE_WRITES = new Set<string>([
   "POST /history/erase",
   "POST /import/commit",
   "POST /import/preview",
+  // Session-less Invoice Ninja inbound settlement webhook — mounted outside requireAuth (secret-authed),
+  // so it's a genuinely irreducible bespoke write (drives an invoice's own status; no arbitrary field writes).
+  "POST /invoices/ninja-webhook",
   "POST /mcp",
   "POST /notifications/ingest",
   "POST /portal/invites",
