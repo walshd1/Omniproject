@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import { logger } from "./logger";
+import { isProductionEnv } from "./node-env";
 
 /**
  * Stateful developer mode (opt-in).
@@ -21,7 +22,7 @@ export interface DemoState {
 }
 
 const RAW_FILE = process.env["DEV_PERSIST_FILE"]?.trim() || null;
-const IS_PROD = process.env["NODE_ENV"] === "production";
+const IS_PROD = isProductionEnv(process.env);
 
 /**
  * Stateful mode is a DEBUGGING aid and is **refused in production** — production

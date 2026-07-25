@@ -25,6 +25,21 @@ export const logger = pino({
     "*.accessToken",
     "idToken",
     "*.idToken",
+    // Refresh tokens are longer-lived than access tokens — never surface one.
+    "refreshToken",
+    "*.refreshToken",
+    // PKCE secrets: the code_verifier is the single-flow secret an OAuth2/OIDC login is built on.
+    // Nothing logs these as objects today, but redacting pre-empts any future `logger.x({ verifier })`
+    // from ever writing one in clear text. (These field names are only ever PKCE secrets, so there is
+    // no legitimate-field over-redaction risk — unlike `state`/`nonce`, which are semi-public and left
+    // loggable for debuggability.)
+    "verifier",
+    "*.verifier",
+    "codeVerifier",
+    "*.codeVerifier",
+    // A password should never reach a log line; redact defensively regardless of nesting.
+    "password",
+    "*.password",
   ],
   ...(isProduction
     ? {}
