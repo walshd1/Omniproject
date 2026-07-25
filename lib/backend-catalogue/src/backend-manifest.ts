@@ -89,10 +89,37 @@ export interface KeyFormat {
  * what an operator must configure, and which capability domains it can populate.
  * No transport specifics (no n8n nodes, URLs or auth expressions) live here.
  */
+/**
+ * The PRIMARY record a backend is a system of record FOR. A backend isn't forced to be a project tool — but it
+ * must declare which record it owns, because that decides which contract READ verbs it must implement (see
+ * {@link RECORD_TYPE_REQUIRED_READS}). Today: `issue` (PM/CRM/ITSM/ERP tools, normalised to the issue/project
+ * contract) or `invoice` (a billing system of record like Invoice Ninja / Dolibarr). Extend as new record
+ * domains land.
+ *
+ * NOTE: the field superset is ONE universal registry — the union of `assets/fields.json` and EVERY backend's
+ * contributed `fields[]` — so whatever any backend can provide maps through to the standard surface. It is NOT
+ * scoped per record type; `primaryRecord` governs required actions, not which fields exist.
+ */
+export const BACKEND_RECORD_TYPES = ["issue", "invoice"] as const;
+export type BackendRecordType = (typeof BACKEND_RECORD_TYPES)[number];
+
+/** The contract READ verbs a backend of each primary-record type must implement (the verifier enforces this).
+ *  An `issue` backend must expose projects + issues; an `invoice` backend must expose its invoice list. */
+export const RECORD_TYPE_REQUIRED_READS: Record<BackendRecordType, ContractAction[]> = {
+  issue: ["list_projects", "list_issues"],
+  invoice: ["list_invoices"],
+};
+
 export interface BackendManifest {
   id: string;
   label: string;
   docsUrl: string;
+  /**
+   * The primary record this backend is a system of record for (`issue` | `invoice`). Decides the required
+   * contract read verbs (see {@link RECORD_TYPE_REQUIRED_READS}) and which field superset applies — a backend
+   * need not be a project tool, but it must own a record type.
+   */
+  primaryRecord: BackendRecordType;
   /** How confident we are this manifest matches the real, live vendor API — see {@link VerificationStatus}. */
   verification: VerificationStatus;
   /** How this backend authenticates / is wired — human-readable, for the wizard UI. */

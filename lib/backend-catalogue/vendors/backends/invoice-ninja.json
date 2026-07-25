@@ -35,9 +35,66 @@
   },
   "credentialType": "httpHeaderAuth",
   "docsUrl": "https://api-docs.invoicing.co/",
+  "fieldKeys": [
+    "clientName",
+    "currency",
+    "dueDate",
+    "invoiceBalance",
+    "invoiceNumber",
+    "invoicePaidDate",
+    "invoiceStatus",
+    "invoiceTaxRate",
+    "invoiceTotal",
+    "invoicedAmount"
+  ],
+  "fields": [
+    {
+      "key": "invoiceNumber",
+      "label": "Invoice Number",
+      "type": "string",
+      "group": "financial"
+    },
+    {
+      "key": "invoiceStatus",
+      "label": "Invoice Status",
+      "type": "enum",
+      "group": "financial"
+    },
+    {
+      "key": "invoiceTotal",
+      "label": "Invoice Total",
+      "type": "currency",
+      "group": "financial"
+    },
+    {
+      "key": "invoiceBalance",
+      "label": "Invoice Balance Due",
+      "type": "currency",
+      "group": "financial"
+    },
+    {
+      "key": "invoiceTaxRate",
+      "label": "Invoice Tax Rate",
+      "type": "percent",
+      "group": "financial"
+    },
+    {
+      "key": "invoicePaidDate",
+      "label": "Invoice Paid Date",
+      "type": "date",
+      "group": "financial"
+    },
+    {
+      "key": "clientName",
+      "label": "Client / Bill-To",
+      "type": "string",
+      "group": "crm"
+    }
+  ],
   "id": "invoice-ninja",
   "label": "Invoice Ninja (billing)",
   "notes": "Open-source, self-hostable billing system of record. Implements the invoice contract verbs only (financials capability) — not a project/issue tracker. Auth via the X-API-Token header (configure an n8n Header Auth credential holding INVOICE_NINJA_TOKEN). INVOICE_NINJA_URL e.g. https://invoicing.example.com. The gateway shapes the payload (lib/invoice-ninja.ts toNinjaInvoice) and dispatches the verb through the broker, so the API token never leaves the broker's secret store.",
+  "primaryRecord": "invoice",
   "requiredEnv": [
     "INVOICE_NINJA_URL"
   ],

@@ -40,6 +40,7 @@
     "scheduling": true
   },
   "docsUrl": "https://github.com/walshd1/omniproject/blob/main/docs/ops/DATABASE-BACKENDS.md",
+  "primaryRecord": "issue",
   "id": "sql",
   "kind": "database",
   "label": "Raw SQL (PostgreSQL / MySQL / SQL Server)",

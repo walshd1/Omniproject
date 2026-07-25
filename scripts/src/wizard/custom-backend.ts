@@ -39,6 +39,7 @@ function placeholderManifest(id: string, label: string): BackendDefinition {
     id,
     label,
     docsUrl: "https://your-backend.example.com/api-docs",
+    primaryRecord: "issue", // custom backends default to the issue/project record; change to "invoice" for a billing system
     verification: "experimental",
     via: "Custom HTTP binding (fill in the endpoints + auth in n8n)",
     authHeader: USER_BEARER,

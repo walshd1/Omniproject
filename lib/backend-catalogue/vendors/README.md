@@ -61,13 +61,19 @@ trust boundary and must not become one.
 
 ## Catalogue freeze
 
-The catalogue is frozen at its current **41 backends** — `gen-vendors` (and so
-CI's drift-guard step) refuses to embed a 42nd+ backend until a flagship set
+The catalogue is frozen at its current **42 backends** — `gen-vendors` (and so
+CI's drift-guard step) refuses to embed a 43rd+ backend until a flagship set
 spanning the catalogue's major categories is actually `verified`. This freeze is
 a **build-time contribution policy** on the shipped catalogue only — it does not
 (and is not meant to) constrain a deployment's own `$OMNI_CONFIG_DIR` vendor
 overlay, which is trusted operator config, schema-validated but otherwise
 unbounded.
+
+> **Baseline raised 41 → 42 for `invoice-ninja`.** The billing system-of-record
+> category (the `financials` capability) had no dedicated connector, and Invoice
+> Ninja is open-source + self-hostable — so it can actually be verified without a
+> paid tenant, unlike most SaaS backends. The freeze otherwise holds: no 43rd
+> backend until the flagship set below is `verified`.
 
 | Backend | Category |
 | --- | --- |

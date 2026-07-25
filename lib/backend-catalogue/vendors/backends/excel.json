@@ -13,6 +13,7 @@
     "scheduling": true
   },
   "docsUrl": "https://github.com/walshd1/omniproject/blob/main/docs/ops/IMPORT.md",
+  "primaryRecord": "issue",
   "id": "excel",
   "kind": "import",
   "label": "Excel / CSV import",

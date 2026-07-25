@@ -68,6 +68,7 @@
   },
   "credentialType": "wrikeOAuth2Api",
   "docsUrl": "https://docs.n8n.io/integrations/builtin/app-nodes/n8n-nodes-base.wrike/",
+  "primaryRecord": "issue",
   "fieldKeys": [
     "title",
     "status",

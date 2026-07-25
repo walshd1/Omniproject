@@ -14,6 +14,7 @@ export const VENDOR_SCHEMAS: Record<string, JsonSchema> = {
       "id",
       "label",
       "docsUrl",
+      "primaryRecord",
       "verification",
       "via",
       "requiredEnv",
@@ -31,6 +32,13 @@ export const VENDOR_SCHEMAS: Record<string, JsonSchema> = {
       },
       "docsUrl": {
         "type": "string"
+      },
+      "primaryRecord": {
+        "enum": [
+          "issue",
+          "invoice"
+        ],
+        "description": "The primary record this backend is a system of record for. Decides the required contract read verbs and which field superset applies — a backend need not be a project tool, but it must own a record type. \"issue\": PM/CRM/ITSM/ERP tools (normalised to the issue/project contract). \"invoice\": a billing system of record (Invoice Ninja, Dolibarr, …)."
       },
       "verification": {
         "enum": [

@@ -19,6 +19,7 @@ export const REFERENCE_BACKEND: BackendDefinition = {
   id: "reference-backend",
   label: "Reference backend (TEMPLATE — replace me)",
   docsUrl: "https://your-backend.example.com/api-docs",
+  primaryRecord: "issue", // the record this backend owns; change to "invoice" for a billing system of record
   verification: "experimental",
   via: "Custom HTTP binding — fill in the endpoints + auth",
   authHeader: USER_BEARER, // forwards the signed-in user's token; swap for an n8n credential if needed

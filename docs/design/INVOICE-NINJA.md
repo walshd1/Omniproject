@@ -27,15 +27,14 @@ Because it's a backend:
 - outbound dispatch is `brokerCommand(ctx, "create_invoice", payload, "invoicing")` (the contract verb),
   wrapped by the always-on autonomous-write guard.
 
-### Shipped as an operator overlay (catalogue freeze)
+### Shipped in the catalogue (freeze baseline raised 41 → 42)
 
-The shipped backend catalogue is **frozen at 41** until the flagship set is verified live
-(`scripts/src/lib/backend-freeze.ts`). Invoice Ninja is therefore shipped as an **operator overlay** — the
-sanctioned, freeze-exempt way to add a backend: the operator drops
-[`docs/vendors/overlays/invoice-ninja.json`](../vendors/overlays/invoice-ninja.json) into
-`$OMNI_CONFIG_DIR/vendors/backends/`, where it's schema-validated at boot and merged via the vendor overlay.
-The gateway code (contract verbs + the `toNinjaInvoice` mapping) ships regardless. When the freeze lifts, the
-overlay def can be promoted into the shipped catalogue unchanged.
+Invoice Ninja ships in the core backend catalogue
+(`lib/backend-catalogue/vendors/backends/invoice-ninja.json`). The catalogue-growth freeze
+(`scripts/src/lib/backend-freeze.ts`) baseline was deliberately raised from 41 to 42 to admit it: the billing
+system-of-record category (the `financials` capability) had no dedicated connector, and Invoice Ninja is
+open-source + self-hostable so it can actually be verified without a paid tenant. The freeze otherwise holds —
+no 43rd backend until the flagship set is `verified`.
 
 ## 2. Operations (invoice contract verbs)
 

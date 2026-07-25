@@ -980,5 +980,47 @@ export const FIELDS_DATA: FieldDescriptor[] = [
     "type": "string",
     "group": "task",
     "entity": "task"
+  },
+  {
+    "key": "invoiceNumber",
+    "label": "Invoice Number",
+    "type": "string",
+    "group": "financial"
+  },
+  {
+    "key": "invoiceStatus",
+    "label": "Invoice Status",
+    "type": "enum",
+    "group": "financial"
+  },
+  {
+    "key": "invoiceTotal",
+    "label": "Invoice Total",
+    "type": "currency",
+    "group": "financial"
+  },
+  {
+    "key": "invoiceBalance",
+    "label": "Invoice Balance Due",
+    "type": "currency",
+    "group": "financial"
+  },
+  {
+    "key": "invoiceTaxRate",
+    "label": "Invoice Tax Rate",
+    "type": "percent",
+    "group": "financial"
+  },
+  {
+    "key": "invoicePaidDate",
+    "label": "Invoice Paid Date",
+    "type": "date",
+    "group": "financial"
+  },
+  {
+    "key": "clientName",
+    "label": "Client / Bill-To",
+    "type": "string",
+    "group": "crm"
   }
 ];

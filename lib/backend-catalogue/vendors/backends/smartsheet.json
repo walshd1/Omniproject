@@ -39,6 +39,7 @@
     "scheduling": true
   },
   "docsUrl": "https://smartsheet.redoc.ly/",
+  "primaryRecord": "issue",
   "id": "smartsheet",
   "label": "Smartsheet",
   "notes": "Sheets → projects, rows → issues. issueId = row id; map your title column id after import.",

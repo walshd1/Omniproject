@@ -5,11 +5,15 @@
   "description": "A system-of-record backend: the neutral manifest plus its n8n binding. One file per vendor under vendors/backends/<id>.json.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["id", "label", "docsUrl", "verification", "via", "requiredEnv", "capabilities", "authHeader", "actions"],
+  "required": ["id", "label", "docsUrl", "primaryRecord", "verification", "via", "requiredEnv", "capabilities", "authHeader", "actions"],
   "properties": {
     "id": { "type": "string", "pattern": "^[a-z0-9-]+$" },
     "label": { "type": "string" },
     "docsUrl": { "type": "string" },
+    "primaryRecord": {
+      "enum": ["issue", "invoice"],
+      "description": "The primary record this backend is a system of record for. Decides the required contract read verbs and which field superset applies — a backend need not be a project tool, but it must own a record type. \"issue\": PM/CRM/ITSM/ERP tools (normalised to the issue/project contract). \"invoice\": a billing system of record (Invoice Ninja, Dolibarr, …)."
+    },
     "verification": {
       "enum": ["verified", "catalogued", "experimental"],
       "description": "How confident we are this manifest matches the vendor's real, live API. \"catalogued\": built from public docs, not yet run against a live instance. \"verified\": exercised end-to-end against a live instance. \"experimental\": speculative/partial, or a generic placeholder."

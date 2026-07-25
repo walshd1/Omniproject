@@ -42,6 +42,7 @@
   },
   "credentialType": "oAuth2Api",
   "docsUrl": "https://learn.microsoft.com/en-us/dynamics365/project-operations/prod-pma/overview-project-management-accounting",
+  "primaryRecord": "issue",
   "fieldKeys": [
     "title",
     "status",

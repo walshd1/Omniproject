@@ -11,6 +11,7 @@ import {
   CAPABILITY_DOMAINS,
   KEY_SCHEMES,
   BACKEND_KINDS,
+  BACKEND_RECORD_TYPES,
   VERIFICATION_STATUSES,
   ACTION_KINDS,
   HTTP_METHODS,
@@ -239,6 +240,13 @@ export function CustomBackendAdmin() {
                 value={draft.kind} onChange={(e) => patch({ kind: e.target.value as BackendDraft["kind"] })}>
                 <option value="">live (default)</option>
                 {BACKEND_KINDS.filter((k) => k !== "live").map((k) => <option key={k} value={k}>{k}</option>)}
+              </select>
+            </label>
+            <label className="text-xs flex items-center gap-1">
+              <span className="text-muted-foreground" title="The primary record this backend owns — decides which contract read verbs it must map (issue ⇒ projects+issues, invoice ⇒ invoice list).">Primary record</span>
+              <select aria-label="Primary record" className="rounded-none border border-border bg-background px-2 py-1 text-xs"
+                value={draft.primaryRecord} onChange={(e) => patch({ primaryRecord: e.target.value as BackendDraft["primaryRecord"] })}>
+                {BACKEND_RECORD_TYPES.map((r) => <option key={r} value={r}>{r}</option>)}
               </select>
             </label>
             <label className="text-xs flex items-center gap-1">
