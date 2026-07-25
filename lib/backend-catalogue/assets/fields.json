@@ -1608,5 +1608,65 @@
     "references": "invoice",
     "group": "financial",
     "entity": "rev_rec_schedule"
+  },
+  {
+    "key": "withholdingTaxRate",
+    "label": "Withholding tax rate",
+    "type": "percent",
+    "group": "financial"
+  },
+  {
+    "key": "withholdingAmount",
+    "label": "Withholding amount",
+    "type": "currency",
+    "group": "financial"
+  },
+  {
+    "key": "reverseCharge",
+    "label": "Reverse charge",
+    "type": "boolean",
+    "group": "financial"
+  },
+  {
+    "key": "taxPointDate",
+    "label": "Tax point date",
+    "type": "date",
+    "group": "financial"
+  },
+  {
+    "key": "recoverableTax",
+    "label": "Recoverable tax",
+    "type": "currency",
+    "group": "financial"
+  },
+  {
+    "key": "taxRegistrationNumber",
+    "label": "Tax registration number",
+    "type": "string",
+    "group": "financial"
+  },
+  {
+    "key": "taxCategory1099",
+    "label": "1099 category",
+    "type": "string",
+    "group": "financial"
+  },
+  {
+    "key": "cisCategory",
+    "label": "CIS category",
+    "type": "string",
+    "group": "financial"
+  },
+  {
+    "key": "eInvoicingId",
+    "label": "E-invoicing id",
+    "type": "string",
+    "group": "financial"
+  },
+  {
+    "key": "placeOfSupply",
+    "label": "Place of supply",
+    "type": "string",
+    "group": "financial"
   }
 ]

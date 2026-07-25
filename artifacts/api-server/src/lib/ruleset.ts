@@ -152,6 +152,14 @@ export const BUSINESS_RULES: BusinessRule[] = [
     applies: (c) => c.action === "create_journal_entry" && !has(c.payload, "journalPostingDate"),
     message: () => "A journal entry must carry a posting date (business rule).",
   },
+  {
+    // Finance superset F16 — tax must be accounted for where a jurisdiction applies.
+    id: "finance-tax-required", label: "Tax required where a jurisdiction applies",
+    description: "An invoice or bill in a tax jurisdiction must carry a tax amount (or an explicit reverse-charge / zero-rating).", defaultMode: "off",
+    applies: (c) => (c.action === "create_invoice" || c.action === "update_invoice" || c.action === "create_bill")
+      && has(c.payload, "taxRateJurisdiction") && !has(c.payload, "taxAmount") && c.payload?.["reverseCharge"] !== true,
+    message: () => "A tax amount is required when a tax jurisdiction applies — set the tax, or mark it reverse-charge (business rule).",
+  },
 ];
 
 /**
