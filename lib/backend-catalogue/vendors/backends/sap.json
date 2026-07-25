@@ -38,6 +38,7 @@
   },
   "credentialType": "oAuth2Api",
   "docsUrl": "https://api.sap.com/api/API_ENTERPRISE_PROJECT_SRV/overview",
+  "primaryRecord": "issue",
   "id": "sap",
   "label": "SAP S/4HANA (Enterprise Project / PS)",
   "notes": "S/4HANA Project System / Enterprise Project Management via OData. Auth via n8n's OAuth2 credential (S/4HANA Cloud) or switch to httpBasicAuth on-prem. Writes need the X-CSRF-Token handshake. For classic RFC/BAPI use an SAP community node or route through SAP Integration Suite / PI-PO.",

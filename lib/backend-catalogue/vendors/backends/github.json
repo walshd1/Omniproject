@@ -8,7 +8,7 @@
     "delete_issue": {
       "body": "={{ JSON.stringify({ state: 'closed' }) }}",
       "method": "PATCH",
-      "note": "GitHub issues can't be deleted via REST \u2014 closing is the closest mapping.",
+      "note": "GitHub issues can't be deleted via REST — closing is the closest mapping.",
       "url": "=https://api.github.com/repos/{{ $env.GITHUB_OWNER }}/{{ $json.body.payload.projectId }}/issues/{{ $json.body.payload.issueId }}"
     },
     "list_issues": {
@@ -17,7 +17,7 @@
     },
     "list_projects": {
       "method": "GET",
-      "note": "GitHub has no 'projects' primitive in the issues API \u2014 repos are mapped to projects here.",
+      "note": "GitHub has no 'projects' primitive in the issues API — repos are mapped to projects here.",
       "url": "=https://api.github.com/orgs/{{ $env.GITHUB_OWNER }}/repos"
     },
     "update_issue": {
@@ -39,13 +39,14 @@
     "scheduling": false
   },
   "docsUrl": "https://docs.github.com/en/rest/issues",
+  "primaryRecord": "issue",
   "id": "github",
   "label": "GitHub Issues",
   "nomenclature": {
     "term.project": "Repository",
     "nav.projects": "Repositories"
   },
-  "notes": "projectId = repository name. Map issue.state (open/closed) \u2194 status; GitHub has no native start/due dates (scheduling off).",
+  "notes": "projectId = repository name. Map issue.state (open/closed) ↔ status; GitHub has no native start/due dates (scheduling off).",
   "requiredEnv": [
     "GITHUB_OWNER"
   ],

@@ -14,6 +14,7 @@ const SAMPLE = {
   id: "perf-sample",
   label: "Perf Sample",
   docsUrl: "https://example.test",
+  primaryRecord: "issue",
   verification: "catalogued",
   via: "HTTP",
   requiredEnv: [],

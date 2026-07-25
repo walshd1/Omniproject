@@ -25,6 +25,7 @@
   },
   "credentialType": "oAuth2Api",
   "docsUrl": "https://api.sap.com/api/API_ENTERPRISE_PROJECT_SRV/overview",
+  "primaryRecord": "issue",
   "fieldKeys": [
     "wbsCode",
     "costCenter",

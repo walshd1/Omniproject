@@ -37,6 +37,7 @@
   },
   "credentialType": "oAuth2Api",
   "docsUrl": "https://developer.planview.com/",
+  "primaryRecord": "issue",
   "id": "planview",
   "label": "Planview (Portfolios / AdaptiveWork)",
   "notes": "Enterprise PPM: portfolios → programmes/projects, work items → issues; resource + financial + baseline data are first-class (good fit for the strategy/KPI fields). Planview's REST surface varies by product (Portfolios vs AdaptiveWork/Clarizen) and version — confirm the endpoints + OAuth scopes against your tenant. Workflow generation is premium (enterprise tier).",

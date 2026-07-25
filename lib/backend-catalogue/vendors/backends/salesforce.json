@@ -86,6 +86,7 @@
   },
   "credentialType": "salesforceOAuth2Api",
   "docsUrl": "https://docs.n8n.io/integrations/builtin/app-nodes/n8n-nodes-base.salesforce/",
+  "primaryRecord": "issue",
   "id": "salesforce",
   "label": "Salesforce",
   "notes": "CRM mapping: Account → project, Opportunity → issue. crm + financials capabilities light up deal value / stage / close date. Confirm field + param names against your Salesforce edition after import.",

@@ -37,6 +37,7 @@
   },
   "credentialType": "httpBasicAuth",
   "docsUrl": "https://docs.oracle.com/cd/F25600_01/English/Integration/P6_Integration_API/index.htm",
+  "primaryRecord": "issue",
   "id": "primavera",
   "label": "Oracle Primavera P6 EPPM",
   "notes": "Primavera P6 EPPM REST: projects → projects, activities → issues; baselines + resource assignments are first-class. Endpoint shapes vary by P6 version — confirm against your /p6ws/restapi build.",

@@ -36,6 +36,7 @@
     "scheduling": true
   },
   "docsUrl": "https://docs.plane.so/api-reference/introduction",
+  "primaryRecord": "issue",
   "fieldKeys": [
     "title",
     "status",

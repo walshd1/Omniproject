@@ -35,6 +35,7 @@
   },
   "credentialType": "httpHeaderAuth",
   "docsUrl": "https://api-docs.invoicing.co/",
+  "primaryRecord": "invoice",
   "id": "invoice-ninja",
   "label": "Invoice Ninja (billing)",
   "notes": "Open-source, self-hostable billing system of record. Implements the invoice contract verbs only (financials capability) — not a project/issue tracker. Auth via the X-API-Token header (configure an n8n Header Auth credential holding INVOICE_NINJA_TOKEN). INVOICE_NINJA_URL e.g. https://invoicing.example.com. The gateway shapes the payload (lib/invoice-ninja.ts toNinjaInvoice) and dispatches the verb through the broker, so the API token never leaves the broker's secret store.",

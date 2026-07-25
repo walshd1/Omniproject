@@ -39,6 +39,7 @@
   },
   "credentialType": "httpBasicAuth",
   "docsUrl": "https://docs.oracle.com/en/cloud/saas/project-management/24c/fapap/index.html",
+  "primaryRecord": "issue",
   "fieldKeys": [
     "budget",
     "plannedCost",

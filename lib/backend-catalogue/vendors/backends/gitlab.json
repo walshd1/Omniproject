@@ -36,6 +36,7 @@
     "scheduling": true
   },
   "docsUrl": "https://docs.gitlab.com/ee/api/issues.html",
+  "primaryRecord": "issue",
   "id": "gitlab",
   "label": "GitLab Issues",
   "nomenclature": {

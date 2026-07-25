@@ -1,5 +1,5 @@
 import { PLANES, type PlaneId } from "./planes";
-import { VERIFICATION_STATUSES } from "./backend-manifest";
+import { VERIFICATION_STATUSES, BACKEND_RECORD_TYPES, RECORD_TYPE_REQUIRED_READS, type BackendRecordType } from "./backend-manifest";
 
 /**
  * Plane verifier — validates a developer-written entry for ANY plane against that
@@ -36,25 +36,25 @@ const CHECKS: Record<PlaneId, (e: Rec, errors: string[]) => void> = {
     if (!isStr(e["via"])) errors.push("via: required string");
     if (!isArr(e["requiredEnv"])) errors.push("requiredEnv: required array");
     if (!isObj(e["capabilities"])) errors.push("capabilities: required object");
+    // Every backend must declare its PRIMARY RECORD TYPE (issue | invoice | …) — a backend need not be a
+    // project tool, but it must own a record, since that decides which contract reads it must implement.
+    const record = e["primaryRecord"];
+    const validRecord = (BACKEND_RECORD_TYPES as readonly string[]).includes(record as string);
+    if (!validRecord) errors.push(`primaryRecord: required, one of ${BACKEND_RECORD_TYPES.join("|")}`);
     // An "import" source (Excel/CSV) is fed through the column mapper + /api/import,
     // NOT brokered live — so it carries no auth header and no contract read actions.
     // "live" / "database" backends are brokered and must declare both.
     if (e["kind"] === "import") return;
     if (!isStr(e["authHeader"]) && !isStr(e["credentialType"])) errors.push("authHeader OR credentialType: one is required");
     const a = e["actions"] as Rec | undefined;
-    const caps = isObj(e["capabilities"]) ? (e["capabilities"] as Rec) : {};
     if (!isObj(a)) errors.push("actions: required object");
-    else {
+    else if (validRecord) {
+      // Require the read verbs for the DECLARED record type: an `issue` backend must expose projects+issues;
+      // an `invoice` backend must expose its invoice list. The model no longer assumes every backend is a
+      // project tool — it enforces the reads appropriate to whatever record the backend owns.
       const acts = a as Rec;
-      // The PM core reads are required only of a PROJECT/ISSUE backend (capabilities.issues). A backend in a
-      // different domain — e.g. a billing system of record (capabilities.financials, like invoice-ninja) —
-      // implements its own verbs (create_invoice, …) and must not be forced to expose projects/issues; it
-      // just has to map at least one action.
-      if (caps["issues"] === true) {
-        if (!acts["list_projects"]) errors.push("actions.list_projects: required (core read for an issues backend)");
-        if (!acts["list_issues"]) errors.push("actions.list_issues: required (core read for an issues backend)");
-      } else if (Object.keys(acts).length === 0) {
-        errors.push("actions: at least one action required");
+      for (const read of RECORD_TYPE_REQUIRED_READS[record as BackendRecordType]) {
+        if (!acts[read]) errors.push(`actions.${read}: required (core read for a ${String(record)} backend)`);
       }
     }
   },

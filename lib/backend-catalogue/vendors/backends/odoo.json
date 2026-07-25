@@ -83,6 +83,7 @@
   },
   "credentialType": "odooApi",
   "docsUrl": "https://docs.n8n.io/integrations/builtin/app-nodes/n8n-nodes-base.odoo/",
+  "primaryRecord": "issue",
   "id": "odoo",
   "label": "Odoo",
   "notes": "Odoo via the custom-model resource: project.project → projects, project.task → issues. Auth + URL live in the Odoo credential. Confirm model/field names for your Odoo modules.",

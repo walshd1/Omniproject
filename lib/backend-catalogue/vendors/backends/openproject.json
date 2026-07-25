@@ -37,6 +37,7 @@
     "scheduling": true
   },
   "docsUrl": "https://www.openproject.org/docs/api/",
+  "primaryRecord": "issue",
   "id": "openproject",
   "label": "OpenProject",
   "notes": "OpenProject work packages map to OmniProject issues. lockVersion ↔ version gives real optimistic concurrency. Baselines + journals give history/baseline.",

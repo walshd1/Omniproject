@@ -38,7 +38,7 @@ test("plane-specific invariants are enforced (broker.synchronous, report.require
 });
 
 test("backends.verification is required and must be one of verified|catalogued|experimental", () => {
-  const base = { id: "acme", label: "Acme", via: "HTTP", requiredEnv: [], capabilities: {}, authHeader: "x", actions: { list_projects: {}, list_issues: {} } };
+  const base = { id: "acme", label: "Acme", primaryRecord: "issue", via: "HTTP", requiredEnv: [], capabilities: {}, authHeader: "x", actions: { list_projects: {}, list_issues: {} } };
   assert.ok(verifyPlaneEntry("backends", base).errors.some((e) => e.includes("verification")), "missing verification must error");
   assert.ok(verifyPlaneEntry("backends", { ...base, verification: "bogus" }).errors.some((e) => e.includes("verification")), "an unrecognised value must error");
   assert.equal(verifyPlaneEntry("backends", { ...base, verification: "catalogued" }).ok, true);
@@ -73,34 +73,39 @@ test("alsoProvides, when present, must be an array (a non-array is an error, not
 
 test("backends: every field-level guard fires for a fully-empty live backend", () => {
   const r = verifyPlaneEntry("backends", {});
-  for (const frag of ["verification:", "via:", "requiredEnv:", "capabilities:", "authHeader OR credentialType", "actions:"]) {
+  for (const frag of ["primaryRecord:", "verification:", "via:", "requiredEnv:", "capabilities:", "authHeader OR credentialType", "actions:"]) {
     assert.ok(r.errors.some((e) => e.includes(frag)), `expected error containing "${frag}"`);
   }
 });
 
-test("backends: an import source skips the auth + contract-action requirements", () => {
-  // kind:"import" short-circuits — no authHeader/credentialType, no actions needed.
-  const r = verifyPlaneEntry("backends", { id: "x", label: "X", kind: "import", verification: "catalogued", via: "excel", requiredEnv: [], capabilities: {} });
+test("backends: an import source still declares its record but skips auth + contract-action requirements", () => {
+  // kind:"import" short-circuits after primaryRecord — no authHeader/credentialType, no actions needed.
+  const r = verifyPlaneEntry("backends", { id: "x", label: "X", primaryRecord: "issue", kind: "import", verification: "catalogued", via: "excel", requiredEnv: [], capabilities: {} });
   assert.equal(r.ok, true);
   assert.ok(!r.errors.some((e) => e.includes("authHeader")) && !r.errors.some((e) => e.includes("actions")));
 });
 
-test("backends: an ISSUES backend still needs the two core read actions", () => {
-  const r = verifyPlaneEntry("backends", { id: "x", label: "X", kind: "live", verification: "catalogued", via: "http", requiredEnv: [], capabilities: { issues: true }, authHeader: "x", actions: {} });
-  assert.equal(r.ok, false);
-  assert.ok(r.errors.some((e) => e.includes("list_projects")), "list_projects required");
-  assert.ok(r.errors.some((e) => e.includes("list_issues")), "list_issues required");
+test("backends: primaryRecord is required and drives which reads are enforced", () => {
+  const noRecord = verifyPlaneEntry("backends", { id: "x", label: "X", kind: "live", verification: "catalogued", via: "http", requiredEnv: [], capabilities: {}, authHeader: "x", actions: {} });
+  assert.ok(noRecord.errors.some((e) => e.includes("primaryRecord:")), "missing primaryRecord must error");
+  assert.ok(verifyPlaneEntry("backends", { id: "x", label: "X", primaryRecord: "bogus", kind: "live", verification: "catalogued", via: "http", requiredEnv: [], capabilities: {}, authHeader: "x", actions: {} }).errors.some((e) => e.includes("primaryRecord:")), "unknown primaryRecord must error");
 });
 
-test("backends: a non-issues backend (e.g. financials) is exempt from the PM core reads but needs ≥1 action", () => {
-  // A billing system of record maps its own verbs and must NOT be forced to expose projects/issues.
-  const ok = verifyPlaneEntry("backends", { id: "bill", label: "Bill", kind: "live", verification: "catalogued", via: "http", requiredEnv: [], capabilities: { financials: true, issues: false }, authHeader: "x", actions: { create_invoice: { method: "POST", url: "x" } } });
-  assert.equal(ok.ok, true);
-  assert.ok(!ok.errors.some((e) => e.includes("list_projects")), "no PM core read required for a non-issues backend");
-  // …but an empty actions map is still rejected.
-  const empty = verifyPlaneEntry("backends", { id: "bill", label: "Bill", kind: "live", verification: "catalogued", via: "http", requiredEnv: [], capabilities: { financials: true }, authHeader: "x", actions: {} });
-  assert.equal(empty.ok, false);
-  assert.ok(empty.errors.some((e) => e.includes("at least one action")), "≥1 action required");
+test("backends: an ISSUE backend must expose projects + issues; an INVOICE backend must expose its invoice list", () => {
+  // issue backend, empty actions → both PM core reads required, invoice read NOT required.
+  const issue = verifyPlaneEntry("backends", { id: "x", label: "X", primaryRecord: "issue", kind: "live", verification: "catalogued", via: "http", requiredEnv: [], capabilities: {}, authHeader: "x", actions: {} });
+  assert.equal(issue.ok, false);
+  assert.ok(issue.errors.some((e) => e.includes("list_projects")) && issue.errors.some((e) => e.includes("list_issues")));
+  assert.ok(!issue.errors.some((e) => e.includes("list_invoices")));
+
+  // invoice backend → list_invoices required, NOT list_projects/list_issues.
+  const billMissing = verifyPlaneEntry("backends", { id: "bill", label: "Bill", primaryRecord: "invoice", kind: "live", verification: "catalogued", via: "http", requiredEnv: [], capabilities: { financials: true }, authHeader: "x", actions: { create_invoice: { method: "POST", url: "x" } } });
+  assert.equal(billMissing.ok, false);
+  assert.ok(billMissing.errors.some((e) => e.includes("list_invoices")), "invoice read required");
+  assert.ok(!billMissing.errors.some((e) => e.includes("list_projects")), "an invoice backend is NOT forced to expose projects");
+
+  const billOk = verifyPlaneEntry("backends", { id: "bill", label: "Bill", primaryRecord: "invoice", kind: "live", verification: "catalogued", via: "http", requiredEnv: [], capabilities: { financials: true }, authHeader: "x", actions: { list_invoices: { method: "GET", url: "x" } } });
+  assert.equal(billOk.ok, true);
 });
 
 test("brokers: every field-level guard fires for a fully-empty entry", () => {

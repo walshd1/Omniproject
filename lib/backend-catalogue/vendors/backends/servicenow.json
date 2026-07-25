@@ -93,6 +93,7 @@
   },
   "credentialType": "serviceNowBasicApi",
   "docsUrl": "https://docs.n8n.io/integrations/builtin/app-nodes/n8n-nodes-base.servicenow/",
+  "primaryRecord": "issue",
   "id": "servicenow",
   "label": "ServiceNow (PPM)",
   "nomenclature": {

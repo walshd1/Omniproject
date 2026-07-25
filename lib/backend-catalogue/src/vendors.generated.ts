@@ -85,6 +85,7 @@ export const BACKENDS_DATA: BackendDefinition[] = [
     },
     "credentialType": "asanaApi",
     "docsUrl": "https://docs.n8n.io/integrations/builtin/app-nodes/n8n-nodes-base.asana/",
+    "primaryRecord": "issue",
     "fieldKeys": [
       "title",
       "status",
@@ -156,6 +157,7 @@ export const BACKENDS_DATA: BackendDefinition[] = [
       "scheduling": true
     },
     "docsUrl": "https://learn.microsoft.com/en-us/rest/api/azure/devops/wit/",
+    "primaryRecord": "issue",
     "id": "azure-devops",
     "label": "Azure DevOps (Boards)",
     "notes": "AZDO_BASIC_AUTH = base64(':PAT'). Work-item writes need the json-patch+json content type — set it on the HTTP node after import.",
@@ -204,6 +206,7 @@ export const BACKENDS_DATA: BackendDefinition[] = [
       "scheduling": true
     },
     "docsUrl": "https://www.celoxis.com/cw/api/v3",
+    "primaryRecord": "issue",
     "fieldKeys": [
       "title",
       "status",
@@ -302,6 +305,7 @@ export const BACKENDS_DATA: BackendDefinition[] = [
     },
     "credentialType": "clickUpApi",
     "docsUrl": "https://docs.n8n.io/integrations/builtin/app-nodes/n8n-nodes-base.clickup/",
+    "primaryRecord": "issue",
     "fieldKeys": [
       "title",
       "status",
@@ -373,6 +377,7 @@ export const BACKENDS_DATA: BackendDefinition[] = [
     },
     "credentialType": "httpHeaderAuth",
     "docsUrl": "https://wiki.dolibarr.org/index.php?title=Module_Web_Services_API_REST_(developer)",
+    "primaryRecord": "issue",
     "id": "dolibarr",
     "label": "Dolibarr (SMB ERP)",
     "notes": "Open-source SMB ERP. projects → projects, tasks → issues. Auth via the DOLAPIKEY header (configure an n8n Header Auth credential named DOLAPIKEY). DOLIBARR_URL e.g. https://erp.example.com.",
@@ -421,6 +426,7 @@ export const BACKENDS_DATA: BackendDefinition[] = [
     },
     "credentialType": "microsoftDynamicsOAuth2Api",
     "docsUrl": "https://learn.microsoft.com/en-us/power-apps/developer/data-platform/webapi/overview",
+    "primaryRecord": "issue",
     "id": "dynamics365",
     "label": "Microsoft Dynamics 365 (Project Operations)",
     "notes": "Auth is handled by n8n's Microsoft Dynamics OAuth2 credential (no per-user token). Project Operations runs on Dataverse — msdyn_project / msdyn_projecttask, with finance entities for EVM. DATAVERSE_URL e.g. https://org.crm.dynamics.com.",
@@ -474,6 +480,7 @@ export const BACKENDS_DATA: BackendDefinition[] = [
     },
     "credentialType": "oAuth2Api",
     "docsUrl": "https://learn.microsoft.com/en-us/dynamics365/project-operations/prod-pma/overview-project-management-accounting",
+    "primaryRecord": "issue",
     "fieldKeys": [
       "title",
       "status",
@@ -556,6 +563,7 @@ export const BACKENDS_DATA: BackendDefinition[] = [
     },
     "credentialType": "microsoftDynamicsOAuth2Api",
     "docsUrl": "https://learn.microsoft.com/en-us/power-apps/developer/data-platform/webapi/overview",
+    "primaryRecord": "issue",
     "id": "dynamics365-sales",
     "label": "Microsoft Dynamics 365 Sales",
     "notes": "CRM on Dataverse: Account → project, Opportunity → issue. Auth via n8n's Microsoft Dynamics OAuth2 credential. Sibling to the dynamics365 Project Operations binding.",
@@ -604,6 +612,7 @@ export const BACKENDS_DATA: BackendDefinition[] = [
     },
     "credentialType": "httpHeaderAuth",
     "docsUrl": "https://docs.n8n.io/integrations/builtin/core-nodes/n8n-nodes-base.httprequest/",
+    "primaryRecord": "issue",
     "id": "enterprise",
     "label": "Enterprise backbone (Capita / custom REST / OData / SOAP)",
     "notes": "A starting template for bespoke corporate systems — Capita platforms, ESB/SOA gateways, mainframe-fronting REST. Auth via n8n's generic Header-Auth/OAuth2 credential. For SOAP backbones set the HTTP node to send XML (or use a SOAP community node); for message buses (IBM MQ, Kafka, RabbitMQ) trigger via the matching n8n node and call back through /api/notifications/ingest or a follow-up action.",
@@ -628,6 +637,7 @@ export const BACKENDS_DATA: BackendDefinition[] = [
       "scheduling": true
     },
     "docsUrl": "https://github.com/walshd1/omniproject/blob/main/docs/ops/IMPORT.md",
+    "primaryRecord": "issue",
     "id": "excel",
     "kind": "import",
     "label": "Excel / CSV import",
@@ -707,6 +717,7 @@ export const BACKENDS_DATA: BackendDefinition[] = [
     },
     "credentialType": "freshserviceApi",
     "docsUrl": "https://docs.n8n.io/integrations/builtin/app-nodes/n8n-nodes-base.freshservice/",
+    "primaryRecord": "issue",
     "id": "freshservice",
     "label": "Freshservice (Freshworks ITSM)",
     "notes": "Freshworks ITSM. Departments → projects, Tickets → issues. service capability on.",
@@ -755,6 +766,7 @@ export const BACKENDS_DATA: BackendDefinition[] = [
       "scheduling": false
     },
     "docsUrl": "https://docs.github.com/en/rest/issues",
+    "primaryRecord": "issue",
     "id": "github",
     "label": "GitHub Issues",
     "nomenclature": {
@@ -812,6 +824,7 @@ export const BACKENDS_DATA: BackendDefinition[] = [
       "scheduling": true
     },
     "docsUrl": "https://docs.gitlab.com/ee/api/issues.html",
+    "primaryRecord": "issue",
     "id": "gitlab",
     "label": "GitLab Issues",
     "nomenclature": {
@@ -875,6 +888,7 @@ export const BACKENDS_DATA: BackendDefinition[] = [
     },
     "credentialType": "googleTasksOAuth2Api",
     "docsUrl": "https://developers.google.com/tasks/reference/rest",
+    "primaryRecord": "issue",
     "fieldKeys": [
       "title",
       "status",
@@ -967,6 +981,7 @@ export const BACKENDS_DATA: BackendDefinition[] = [
     },
     "credentialType": "hubspotApi",
     "docsUrl": "https://docs.n8n.io/integrations/builtin/app-nodes/n8n-nodes-base.hubspot/",
+    "primaryRecord": "issue",
     "id": "hubspot",
     "label": "HubSpot",
     "notes": "CRM mapping: Company → project, Deal → issue. crm + financials capabilities light up amount / pipeline / stage. Confirm resource/param names against the installed HubSpot node version after import.",
@@ -1011,6 +1026,7 @@ export const BACKENDS_DATA: BackendDefinition[] = [
     },
     "credentialType": "httpHeaderAuth",
     "docsUrl": "https://api-docs.invoicing.co/",
+    "primaryRecord": "invoice",
     "id": "invoice-ninja",
     "label": "Invoice Ninja (billing)",
     "notes": "Open-source, self-hostable billing system of record. Implements the invoice contract verbs only (financials capability) — not a project/issue tracker. Auth via the X-API-Token header (configure an n8n Header Auth credential holding INVOICE_NINJA_TOKEN). INVOICE_NINJA_URL e.g. https://invoicing.example.com. The gateway shapes the payload (lib/invoice-ninja.ts toNinjaInvoice) and dispatches the verb through the broker, so the API token never leaves the broker's secret store.",
@@ -1058,6 +1074,7 @@ export const BACKENDS_DATA: BackendDefinition[] = [
       "scheduling": true
     },
     "docsUrl": "https://developer.atlassian.com/cloud/jira/platform/rest/v3/",
+    "primaryRecord": "issue",
     "id": "jira",
     "label": "Jira (Cloud)",
     "notes": "JIRA_BASIC_AUTH = base64('email:api_token'). Sprints/story points come from Agile fields (board API + customfield_*); attach sprint:/sp: labels in the Normalize node.",
@@ -1111,6 +1128,7 @@ export const BACKENDS_DATA: BackendDefinition[] = [
     },
     "credentialType": "jiraSoftwareCloudApi",
     "docsUrl": "https://developer.atlassian.com/cloud/jira/service-desk/rest/",
+    "primaryRecord": "issue",
     "id": "jira-service-management",
     "label": "Jira Service Management",
     "notes": "ITSM on Jira: service desks → projects, requests → issues. Reads use servicedeskapi; writes fall back to the Jira core v3 API. JIRA_BASE_URL e.g. https://your-org.atlassian.net.",
@@ -1192,6 +1210,7 @@ export const BACKENDS_DATA: BackendDefinition[] = [
     },
     "credentialType": "linearApi",
     "docsUrl": "https://docs.n8n.io/integrations/builtin/app-nodes/n8n-nodes-base.linear/",
+    "primaryRecord": "issue",
     "fieldKeys": [
       "title",
       "status",
@@ -1259,6 +1278,7 @@ export const BACKENDS_DATA: BackendDefinition[] = [
       "scheduling": true
     },
     "docsUrl": "https://www.liquidplanner.com/support/articles/api-up/",
+    "primaryRecord": "issue",
     "id": "liquidplanner",
     "label": "LiquidPlanner",
     "notes": "Predictive-scheduling PM: workspaces → projects (LP plans/packages), tasks → issues; ranged estimates, workload + time tracking feed the scheduling/resources/history domains. LIQUIDPLANNER_WORKSPACE_URL is the workspace API base (…/api/v1/workspaces/<id>). Confirm the endpoint/field shapes against your workspace — reference mappings.",
@@ -1343,6 +1363,7 @@ export const BACKENDS_DATA: BackendDefinition[] = [
     },
     "credentialType": "microsoftToDoOAuth2Api",
     "docsUrl": "https://docs.n8n.io/integrations/builtin/app-nodes/n8n-nodes-base.microsofttodo/",
+    "primaryRecord": "issue",
     "fieldKeys": [
       "title",
       "status",
@@ -1433,6 +1454,7 @@ export const BACKENDS_DATA: BackendDefinition[] = [
     },
     "credentialType": "mondayComApi",
     "docsUrl": "https://docs.n8n.io/integrations/builtin/app-nodes/n8n-nodes-base.mondaycom/",
+    "primaryRecord": "issue",
     "fieldKeys": [
       "title",
       "status",
@@ -1498,6 +1520,7 @@ export const BACKENDS_DATA: BackendDefinition[] = [
       "scheduling": true
     },
     "docsUrl": "https://github.com/walshd1/omniproject/blob/main/docs/ops/DATABASE-BACKENDS.md",
+    "primaryRecord": "issue",
     "id": "mongodb",
     "kind": "database",
     "label": "MongoDB",
@@ -1548,6 +1571,7 @@ export const BACKENDS_DATA: BackendDefinition[] = [
     },
     "credentialType": "microsoftDynamicsOAuth2Api",
     "docsUrl": "https://learn.microsoft.com/en-us/dynamics365/project-operations/",
+    "primaryRecord": "issue",
     "id": "msproject",
     "label": "Microsoft Project (Project for the web)",
     "notes": "Project for the web stores schedules in Dataverse (msdyn_project / msdyn_projecttask). For classic Project Online, point at the PWA OData (/_api/ProjectData) with a Microsoft OAuth credential instead.",
@@ -1598,6 +1622,7 @@ export const BACKENDS_DATA: BackendDefinition[] = [
     },
     "credentialType": "oAuth1Api",
     "docsUrl": "https://docs.oracle.com/en/cloud/saas/netsuite/ns-online-help/section_1540391670.html",
+    "primaryRecord": "issue",
     "id": "netsuite",
     "label": "Oracle NetSuite",
     "notes": "Auth is NetSuite token-based (OAuth 1.0a TBA) configured as an n8n OAuth1 credential (consumer key/secret + token key/secret + realm/account id). NetSuite also offers OAuth 2.0 client-credentials (M2M) for SuiteTalk REST; TBA is the more common self-service setup for a single-tenant integration like this one and is the default modelled here — an operator on OAuth2 can swap credentialType to an OAuth2 n8n credential without changing the URLs below. NETSUITE_BASE_URL e.g. https://<account>.suitetalk.api.netsuite.com. Real SuiteTalk REST record types: job → project; projectTask → issue (plannedWork/startDate/endDate back the scheduling capability); resourceAllocation (resource assignments against a job/projectTask) backs the resources capability; job costing (job.actualCost / job.estimatedCost, i.e. budget/plannedCost/actualCost) plus the expenseReport and timeBill transaction records that roll up into it back the financials capability. NetSuite's SuiteQL endpoint (/services/rest/query/v1/suiteql, POST with a `q` SQL-like query) is the realistic path for aggregated budget-vs-actual reads across job/projectTask/expenseReport/timeBill; the REST record endpoints above are reference single-record CRUD, not a SuiteQL query. CATALOGUED, NOT LIVE-VERIFIED: this mapping is authored from NetSuite's public SuiteTalk REST record documentation, not tested against a live account in this environment — confirm every record/field name, the SuiteQL shape, and your SuiteTalk API version before relying on it beyond a starting point.",
@@ -1692,6 +1717,7 @@ export const BACKENDS_DATA: BackendDefinition[] = [
     },
     "credentialType": "odooApi",
     "docsUrl": "https://docs.n8n.io/integrations/builtin/app-nodes/n8n-nodes-base.odoo/",
+    "primaryRecord": "issue",
     "id": "odoo",
     "label": "Odoo",
     "notes": "Odoo via the custom-model resource: project.project → projects, project.task → issues. Auth + URL live in the Odoo credential. Confirm model/field names for your Odoo modules.",
@@ -1738,6 +1764,7 @@ export const BACKENDS_DATA: BackendDefinition[] = [
       "scheduling": true
     },
     "docsUrl": "https://www.openproject.org/docs/api/",
+    "primaryRecord": "issue",
     "id": "openproject",
     "label": "OpenProject",
     "notes": "OpenProject work packages map to OmniProject issues. lockVersion ↔ version gives real optimistic concurrency. Baselines + journals give history/baseline.",
@@ -1788,6 +1815,7 @@ export const BACKENDS_DATA: BackendDefinition[] = [
     },
     "credentialType": "httpBasicAuth",
     "docsUrl": "https://docs.oracle.com/en/cloud/saas/project-management/24c/fapap/index.html",
+    "primaryRecord": "issue",
     "fieldKeys": [
       "budget",
       "plannedCost",
@@ -1886,6 +1914,7 @@ export const BACKENDS_DATA: BackendDefinition[] = [
     },
     "credentialType": "pipedriveApi",
     "docsUrl": "https://docs.n8n.io/integrations/builtin/app-nodes/n8n-nodes-base.pipedrive/",
+    "primaryRecord": "issue",
     "id": "pipedrive",
     "label": "Pipedrive",
     "nomenclature": {
@@ -1937,6 +1966,7 @@ export const BACKENDS_DATA: BackendDefinition[] = [
       "scheduling": true
     },
     "docsUrl": "https://docs.plane.so/api-reference/introduction",
+    "primaryRecord": "issue",
     "fieldKeys": [
       "title",
       "status",
@@ -2000,6 +2030,7 @@ export const BACKENDS_DATA: BackendDefinition[] = [
     },
     "credentialType": "oAuth2Api",
     "docsUrl": "https://developer.planview.com/",
+    "primaryRecord": "issue",
     "id": "planview",
     "label": "Planview (Portfolios / AdaptiveWork)",
     "notes": "Enterprise PPM: portfolios → programmes/projects, work items → issues; resource + financial + baseline data are first-class (good fit for the strategy/KPI fields). Planview's REST surface varies by product (Portfolios vs AdaptiveWork/Clarizen) and version — confirm the endpoints + OAuth scopes against your tenant. Workflow generation is premium (enterprise tier).",
@@ -2048,6 +2079,7 @@ export const BACKENDS_DATA: BackendDefinition[] = [
     },
     "credentialType": "httpBasicAuth",
     "docsUrl": "https://docs.oracle.com/cd/F25600_01/English/Integration/P6_Integration_API/index.htm",
+    "primaryRecord": "issue",
     "id": "primavera",
     "label": "Oracle Primavera P6 EPPM",
     "notes": "Primavera P6 EPPM REST: projects → projects, activities → issues; baselines + resource assignments are first-class. Endpoint shapes vary by P6 version — confirm against your /p6ws/restapi build.",
@@ -2145,6 +2177,7 @@ export const BACKENDS_DATA: BackendDefinition[] = [
     },
     "credentialType": "salesforceOAuth2Api",
     "docsUrl": "https://docs.n8n.io/integrations/builtin/app-nodes/n8n-nodes-base.salesforce/",
+    "primaryRecord": "issue",
     "id": "salesforce",
     "label": "Salesforce",
     "notes": "CRM mapping: Account → project, Opportunity → issue. crm + financials capabilities light up deal value / stage / close date. Confirm field + param names against your Salesforce edition after import.",
@@ -2192,6 +2225,7 @@ export const BACKENDS_DATA: BackendDefinition[] = [
     },
     "credentialType": "oAuth2Api",
     "docsUrl": "https://api.sap.com/api/API_ENTERPRISE_PROJECT_SRV/overview",
+    "primaryRecord": "issue",
     "id": "sap",
     "label": "SAP S/4HANA (Enterprise Project / PS)",
     "notes": "S/4HANA Project System / Enterprise Project Management via OData. Auth via n8n's OAuth2 credential (S/4HANA Cloud) or switch to httpBasicAuth on-prem. Writes need the X-CSRF-Token handshake. For classic RFC/BAPI use an SAP community node or route through SAP Integration Suite / PI-PO.",
@@ -2228,6 +2262,7 @@ export const BACKENDS_DATA: BackendDefinition[] = [
     },
     "credentialType": "oAuth2Api",
     "docsUrl": "https://api.sap.com/api/API_ENTERPRISE_PROJECT_SRV/overview",
+    "primaryRecord": "issue",
     "fieldKeys": [
       "wbsCode",
       "costCenter",
@@ -2350,6 +2385,7 @@ export const BACKENDS_DATA: BackendDefinition[] = [
     },
     "credentialType": "serviceNowBasicApi",
     "docsUrl": "https://docs.n8n.io/integrations/builtin/app-nodes/n8n-nodes-base.servicenow/",
+    "primaryRecord": "issue",
     "id": "servicenow",
     "label": "ServiceNow (PPM)",
     "nomenclature": {
@@ -2402,6 +2438,7 @@ export const BACKENDS_DATA: BackendDefinition[] = [
       "scheduling": true
     },
     "docsUrl": "https://smartsheet.redoc.ly/",
+    "primaryRecord": "issue",
     "id": "smartsheet",
     "label": "Smartsheet",
     "notes": "Sheets → projects, rows → issues. issueId = row id; map your title column id after import.",
@@ -2453,6 +2490,7 @@ export const BACKENDS_DATA: BackendDefinition[] = [
       "scheduling": true
     },
     "docsUrl": "https://github.com/walshd1/omniproject/blob/main/docs/ops/DATABASE-BACKENDS.md",
+    "primaryRecord": "issue",
     "id": "sql",
     "kind": "database",
     "label": "Raw SQL (PostgreSQL / MySQL / SQL Server)",
@@ -2503,6 +2541,7 @@ export const BACKENDS_DATA: BackendDefinition[] = [
       "scheduling": true
     },
     "docsUrl": "https://developer.todoist.com/rest/v2/",
+    "primaryRecord": "issue",
     "fieldKeys": [
       "title",
       "status",
@@ -2603,6 +2642,7 @@ export const BACKENDS_DATA: BackendDefinition[] = [
     },
     "credentialType": "trelloApi",
     "docsUrl": "https://docs.n8n.io/integrations/builtin/app-nodes/n8n-nodes-base.trello/",
+    "primaryRecord": "issue",
     "fieldKeys": [
       "title",
       "status",
@@ -2699,6 +2739,7 @@ export const BACKENDS_DATA: BackendDefinition[] = [
     },
     "credentialType": "wrikeOAuth2Api",
     "docsUrl": "https://docs.n8n.io/integrations/builtin/app-nodes/n8n-nodes-base.wrike/",
+    "primaryRecord": "issue",
     "fieldKeys": [
       "title",
       "status",
@@ -2796,6 +2837,7 @@ export const BACKENDS_DATA: BackendDefinition[] = [
     },
     "credentialType": "zendeskApi",
     "docsUrl": "https://docs.n8n.io/integrations/builtin/app-nodes/n8n-nodes-base.zendesk/",
+    "primaryRecord": "issue",
     "id": "zendesk",
     "label": "Zendesk",
     "nomenclature": {
