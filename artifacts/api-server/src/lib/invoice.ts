@@ -67,6 +67,20 @@ export interface InvoiceLine {
   amount: number;
 }
 
+/** A pointer to this invoice's twin in an external billing system of record (Invoice Ninja). Server-set on a
+ *  successful push — never client-writable (not part of `SanitizedInvoiceWrite`). */
+export interface InvoiceExternalRef {
+  /** The backend id the invoice was pushed to (e.g. "invoice-ninja"). */
+  system: string;
+  /** The external record's id (used for a later update / status match). */
+  id: string;
+  /** The external invoice number, if the system assigned its own. */
+  number: string | null;
+  /** A link to the external PDF/portal, if returned. */
+  pdfUrl: string | null;
+  pushedAt: string;
+}
+
 /** A stored invoice row. Amounts + totals are server-derived. */
 export interface Invoice {
   id: string;
@@ -90,6 +104,8 @@ export interface Invoice {
   createdAt: string;
   updatedAt: string;
   updatedBy: string | null;
+  /** Set once the invoice is synced to an external billing system (phase 2). Absent/null until pushed. */
+  externalRef?: InvoiceExternalRef | null;
 }
 
 /** The list projection of an invoice (lines dropped). */
@@ -105,6 +121,8 @@ export interface InvoiceMeta {
   storage?: InvoiceStorage;
   dueAt: string | null;
   updatedAt: string;
+  /** External billing-system sync pointer, if pushed (phase 2). */
+  externalRef?: InvoiceExternalRef | null;
 }
 
 export interface SanitizedInvoiceWrite {
@@ -228,6 +246,19 @@ export function newInvoiceRow(id: string, input: SanitizedInvoiceWrite, ctx: Act
     createdAt: now,
     updatedAt: now,
     updatedBy: actorLabel(ctx),
+    externalRef: null,
+  };
+}
+
+/** Record the external billing-system pointer after a successful push (phase 2). Server-set; bumps version.
+ *  Pure — the caller persists the returned row. */
+export function applyInvoiceExternalRef(existing: Invoice, ref: InvoiceExternalRef, ctx: ActorContext, now: string): Invoice {
+  return {
+    ...existing,
+    externalRef: ref,
+    version: (existing.version ?? 1) + 1,
+    updatedAt: now,
+    updatedBy: actorLabel(ctx),
   };
 }
 
@@ -284,5 +315,6 @@ export function invoiceMeta(inv: Invoice): InvoiceMeta {
   };
   if (inv.projectId !== undefined) meta.projectId = inv.projectId;
   if (inv.storage !== undefined) meta.storage = inv.storage;
+  if (inv.externalRef) meta.externalRef = inv.externalRef;
   return meta;
 }

@@ -1,6 +1,6 @@
 import type { ActorContext } from "../broker/types";
 import { brokerCommand } from "../broker";
-import type { Invoice, InvoiceLine } from "./invoice";
+import type { Invoice, InvoiceLine, InvoiceExternalRef } from "./invoice";
 
 /**
  * Invoice Ninja bridge — phase 1 (docs/design/INVOICE-NINJA.md).
@@ -116,4 +116,41 @@ export function toNinjaInvoice(inv: Invoice): NinjaInvoicePayload {
  *  action to the generated Invoice Ninja workflow; the vendor token lives in the broker, never here. */
 export function ninjaCommand(ctx: ActorContext, op: NinjaOp, payload: Record<string, unknown>): Promise<unknown> {
   return brokerCommand(ctx, op, payload, NINJA_SOURCE);
+}
+
+/**
+ * Parse an Invoice Ninja create/update response into the external ref we store back on the local invoice.
+ * Invoice Ninja v5 wraps the record in `{ data: { id, number, invitations: [{ link }] } }`; we tolerate the
+ * bare record too. Returns null when no usable external id is present (a failed/opaque response). Pure.
+ */
+export function parseNinjaResult(raw: unknown, now: string): InvoiceExternalRef | null {
+  const outer = raw && typeof raw === "object" ? (raw as Record<string, unknown>) : null;
+  const data = outer && outer["data"] && typeof outer["data"] === "object" ? (outer["data"] as Record<string, unknown>) : outer;
+  if (!data) return null;
+  const rawId = data["id"];
+  const id = typeof rawId === "string" ? rawId : typeof rawId === "number" ? String(rawId) : null;
+  if (!id) return null;
+  const number = typeof data["number"] === "string" ? data["number"] : null;
+  let pdfUrl: string | null = null;
+  const invitations = data["invitations"];
+  if (Array.isArray(invitations) && invitations[0] && typeof invitations[0] === "object") {
+    const link = (invitations[0] as Record<string, unknown>)["link"];
+    if (typeof link === "string") pdfUrl = link;
+  }
+  return { system: "invoice-ninja", id, number, pdfUrl, pushedAt: now };
+}
+
+/**
+ * Push a local invoice to the Invoice Ninja backend: create it, or UPDATE it in place when it already carries
+ * an Invoice Ninja external ref (idempotent re-push). Returns the parsed external ref to record on the local
+ * invoice, or null if the backend returned no usable id. Throws only on a broker/transport error (the caller
+ * wraps it via withBrokerErrors).
+ */
+export async function pushInvoice(ctx: ActorContext, invoice: Invoice, now: string): Promise<InvoiceExternalRef | null> {
+  const payload = toNinjaInvoice(invoice) as unknown as Record<string, unknown>;
+  const existingId = invoice.externalRef?.system === "invoice-ninja" ? invoice.externalRef.id : null;
+  const op: NinjaOp = existingId ? "update_invoice" : "create_invoice";
+  if (existingId) payload["invoiceId"] = existingId; // the update route keys off this
+  const result = await ninjaCommand(ctx, op, payload);
+  return parseNinjaResult(result, now);
 }

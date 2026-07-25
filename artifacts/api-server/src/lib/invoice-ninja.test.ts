@@ -3,7 +3,9 @@ import assert from "node:assert/strict";
 import type { Invoice, InvoiceLine } from "./invoice";
 import {
   invoiceNinjaSyncEnabled, toNinjaInvoice, toNinjaLine, ninjaCorrelation, parseNinjaCorrelation,
+  parseNinjaResult,
 } from "./invoice-ninja";
+import { applyInvoiceExternalRef, newInvoiceRow, invoiceMeta, type InvoiceExternalRef } from "./invoice";
 
 /** Phase-1 Invoice Ninja bridge — pure mapping + config gate + correlation (docs/design/INVOICE-NINJA.md). */
 
@@ -64,4 +66,36 @@ test("no tax → empty tax name, zero rate; null due date passes through", () =>
   assert.equal(n.tax_name1, "");
   assert.equal(n.tax_rate1, 0);
   assert.equal(n.due_date, null);
+});
+
+// ── Phase 2: push response parsing + external-ref recording ──
+const NOW = "2026-07-25T02:00:00.000Z";
+
+test("parseNinjaResult reads the wrapped {data} record, number, and portal link", () => {
+  const ref = parseNinjaResult({ data: { id: "IN-9", number: "0001", invitations: [{ link: "https://in.example/x" }] } }, NOW);
+  assert.deepEqual(ref, { system: "invoice-ninja", id: "IN-9", number: "0001", pdfUrl: "https://in.example/x", pushedAt: NOW });
+});
+
+test("parseNinjaResult tolerates a bare record and a numeric id, and defaults optional fields", () => {
+  const ref = parseNinjaResult({ id: 42 }, NOW);
+  assert.deepEqual(ref, { system: "invoice-ninja", id: "42", number: null, pdfUrl: null, pushedAt: NOW });
+});
+
+test("parseNinjaResult returns null when there is no usable id", () => {
+  assert.equal(parseNinjaResult({ data: {} }, NOW), null);
+  assert.equal(parseNinjaResult(null, NOW), null);
+  assert.equal(parseNinjaResult("nope", NOW), null);
+});
+
+test("a new invoice row starts unsynced; applyInvoiceExternalRef records the ref and surfaces in meta", () => {
+  const ctx = { sub: "u1" } as Parameters<typeof newInvoiceRow>[2];
+  const row = newInvoiceRow("inv_abc", { number: "INV-1", clientName: "Acme", currency: "USD", taxRatePct: 0, note: null, dueAt: null, lines: [], storage: {} as never, projectId: null } as Parameters<typeof newInvoiceRow>[1], ctx, NOW);
+  assert.equal(row.externalRef, null);
+  assert.equal(invoiceMeta(row).externalRef, undefined); // no ref → omitted from the list projection
+
+  const ref: InvoiceExternalRef = { system: "invoice-ninja", id: "IN-9", number: "0001", pdfUrl: null, pushedAt: NOW };
+  const synced = applyInvoiceExternalRef(row, ref, ctx, "2026-07-25T03:00:00.000Z");
+  assert.deepEqual(synced.externalRef, ref);
+  assert.equal(synced.version, row.version + 1);
+  assert.deepEqual(invoiceMeta(synced).externalRef, ref);
 });
