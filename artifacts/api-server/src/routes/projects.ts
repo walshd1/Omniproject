@@ -63,6 +63,8 @@ import { requireRole, requireAnyRole, roleForReq } from "../lib/rbac";
 import { forgetProjectGuid, collectProjectReferences } from "../lib/project-forget";
 import { getFxRates } from "../lib/currency";
 import { evaluateRuleset } from "../lib/ruleset";
+import { mountEntity, type EntityDescriptor } from "../lib/entity-pipeline";
+import { mountCommand, type CommandDescriptor } from "../lib/action-base";
 import { recordAudit } from "../lib/audit";
 import { CreateRaidEntryBody } from "@workspace/api-zod";
 import { resolveSeverityVocabulary } from "../lib/severity-vocabulary-config";
@@ -70,6 +72,7 @@ import { resolveImpactVocabulary } from "../lib/impact-vocabulary-config";
 import { resolveLikelihoodVocabulary } from "../lib/likelihood-vocabulary-config";
 import type { ConfigScopes } from "../lib/scoped-config";
 import type { Request, Response } from "express";
+import { zodParseOr400, type SafeParseSchema } from "../lib/validate";
 
 const router = Router();
 
@@ -97,27 +100,14 @@ function passesBusinessRules(req: Request, res: Response, action: string, projec
   return true;
 }
 
-/** Minimal structural view of a zod schema's `safeParse` — lets the path-param
- *  helper stay generic without a direct zod dependency (api-server gets zod only
- *  transitively via @workspace/api-zod). */
-interface ParamSchema<T> {
-  safeParse(input: unknown): { success: true; data: T } | { success: false };
-}
-
 /**
- * Parse the route's path params (`:projectId`, and any sibling like `:issueId`)
- * through its zod contract. On the failure path — unreachable in practice, since
- * the params coerce to strings — it sends the same `400 { error: message }` the
- * handlers used to inline and returns null so the caller early-returns. On success
- * it returns the parsed params.
+ * Parse the route's path params (`:projectId`, and any sibling like `:issueId`) through its zod
+ * contract → `400 { error: message }` on failure (unreachable in practice, since the params coerce to
+ * strings), else the parsed params. A thin wrapper over the shared {@link zodParseOr400} so the ~20
+ * param-parsing routes here share the one parse-then-400 mechanism.
  */
-function parseRouteParams<T>(schema: ParamSchema<T>, req: Request, res: Response, message: string): T | null {
-  const parse = schema.safeParse(req.params);
-  if (!parse.success) {
-    res.status(400).json({ error: message });
-    return null;
-  }
-  return parse.data;
+function parseRouteParams<T>(schema: SafeParseSchema<T>, req: Request, res: Response, message: string): T | null {
+  return zodParseOr400(res, schema, req.params, message);
 }
 
 // ── Reads (served by the active broker — live backend or demo) ────────────────
@@ -181,34 +171,49 @@ function fieldRuleErrors(data: Record<string, unknown>): string[] {
   return checkFieldValues(rules, data, (f) => resolveFieldType(f, settings.customFields));
 }
 
-router.post("/projects", requireRole("manager"), async (req, res) => {
-  const bodyParse = CreateProjectBody.safeParse(req.body);
-  if (!bodyParse.success) {
-    res.status(400).json({ error: "Invalid request" });
-    return;
-  }
-  const caps = await resolveCapabilities(req);
-  if (!caps.entities["project"]?.store) {
-    res.status(403).json({ error: "This backend can't create projects" });
-    return;
-  }
-  const errors = validateEntityInput(bodyParse.data as Record<string, unknown>, PROJECT_DESCRIPTORS);
-  if (errors.length) {
-    res.status(400).json({ error: errors[0]!.message, errors }); // errors.length checked above
-    return;
-  }
-  const ruleErrors = fieldRuleErrors(bodyParse.data as Record<string, unknown>);
-  if (ruleErrors.length) {
-    res.status(400).json({ error: ruleErrors[0], errors: ruleErrors });
-    return;
-  }
-  await withBrokerErrors(req, res, "create_project failed", async () => {
-    // Mint the backend-independent correlation GUID here (once, in the gateway) and pass it to the
-    // backend to store + echo. It's server-minted, never from the client body — see Project.omniInstanceId.
-    const project = await getBroker().createProject(contextFromReq(req), { ...bodyParse.data, omniInstanceId: randomUUID() });
-    res.status(201).json(project);
-  });
-});
+/** The validated payload T behind a SafeParseSchema — lets a command's args reuse the zod-inferred shape. */
+type Parsed<S> = S extends SafeParseSchema<infer T> ? T : never;
+
+// POST /projects — mint a project (manager+). On the Lane 2 spine: parse validates the body shape; the async
+// `prepare` resolves the backend capabilities to enforce "this backend can create projects" (403) — a check
+// that needs the resolved backend, so it can't live in the sync parse — then runs the field-descriptor and
+// field-rule validations (400) in the same order as before. A new project has no project scope yet, but a
+// programme-scope ruleset override still applies (ruleScope). Broker-aware; audits on success (the
+// hand-written route recorded none). The correlation GUID is server-minted in `run`, never from the client.
+export const createProjectCommand: CommandDescriptor<{ body: Parsed<typeof CreateProjectBody> }> = {
+  name: "create_project",
+  method: "post",
+  path: "/projects",
+  role: "manager",
+  parse: (req, res) => {
+    const body = zodParseOr400(res, CreateProjectBody, req.body);
+    return body ? { body } : null;
+  },
+  prepare: async (req, res, { body }) => {
+    const caps = await resolveCapabilities(req);
+    if (!caps.entities["project"]?.store) {
+      res.status(403).json({ error: "This backend can't create projects" });
+      return null;
+    }
+    const errors = validateEntityInput(body as Record<string, unknown>, PROJECT_DESCRIPTORS);
+    if (errors.length) {
+      res.status(400).json({ error: errors[0]!.message, errors }); // errors.length checked above
+      return null;
+    }
+    const ruleErrors = fieldRuleErrors(body as Record<string, unknown>);
+    if (ruleErrors.length) {
+      res.status(400).json({ error: ruleErrors[0], errors: ruleErrors });
+      return null;
+    }
+    return { body };
+  },
+  ruleScope: (_req, { body }) => ({ programmeId: (body as { programmeId?: string }).programmeId ?? null, payload: body as Record<string, unknown> }),
+  broker: { message: "create_project failed" },
+  run: (req, _res, { body }) => getBroker().createProject(contextFromReq(req), { ...body, omniInstanceId: randomUUID() }),
+  audit: "create_project",
+  status: 201,
+};
+mountCommand(router, createProjectCommand);
 
 // GET /projects/:projectGuid/references — export everything OmniProject holds about a project GUID
 // (closed record, programme memberships, relinks, retired status) so an admin can save it BEFORE
@@ -232,64 +237,81 @@ router.delete("/projects/:projectGuid/links", requireAnyRole("pmo", "admin"), (r
 // the current SOR, or migrate to the self-managed archive). Writes the closed-project index entry;
 // closing STICKILY retires the GUID (the settings cross-rule) so it drops out of live reads and can't
 // be silently reactivated. Admin/PMO only — the governance decision the summary calls for.
-router.post("/projects/:projectGuid/close", requireAnyRole("pmo", "admin"), (req, res) => {
-  const guid = String(req.params["projectGuid"]).trim();
-  if (!guid) { res.status(400).json({ error: "project GUID required" }); return; }
-  const body = (req.body ?? {}) as { disposition?: unknown; source?: unknown; note?: unknown };
-  const disposition = String(body.disposition ?? "") as ProjectDisposition;
-  if (!(PROJECT_DISPOSITIONS as readonly string[]).includes(disposition)) {
-    res.status(400).json({ error: `disposition must be one of: ${PROJECT_DISPOSITIONS.join(", ")}` });
-    return;
-  }
-  const note = typeof body.note === "string" && body.note.trim() ? body.note.trim() : undefined;
-  const record = {
-    disposition,
-    ...(typeof body.source === "string" && body.source.trim() ? { source: body.source.trim() } : {}),
-    closedAt: new Date().toISOString(),
-    ...(note ? { note } : {}),
-  };
-  void withBrokerErrors(req, res, "project_close failed", async () => {
+type CloseRecord = { disposition: ProjectDisposition; source?: string; closedAt: string; note?: string };
+
+/**
+ * POST /api/projects/:projectGuid/close — record a project closure (pmo/admin). Body: { disposition, source?, note? }.
+ *
+ * LANE 2 (broker-aware): parse validates the GUID (400) and the disposition against PROJECT_DISPOSITIONS (400)
+ * and stamps the closure record (closedAt). The effect is `run`, marked broker:true — for the `archive`
+ * disposition it MIGRATES the data first (snapshot the still-live project + its issues/tasks + settings into
+ * the self-managed archive); a broker read failure there propagates to withBrokerErrors, so the closure is
+ * NEITHER recorded NOR audited (never claim a project is archived when its data wasn't captured). On success
+ * it merges the record into the registry (retiring the GUID) and returns it. Audit action is dynamic
+ * (project_close:<disposition>). The action base stamps write:true, as the migrated command should.
+ */
+export const projectCloseCommand: CommandDescriptor<{ guid: string; disposition: ProjectDisposition; record: CloseRecord; note: string | undefined }> = {
+  name: "project_close",
+  method: "post",
+  path: "/projects/:projectGuid/close",
+  gates: [requireAnyRole("pmo", "admin")],
+  parse: (req, res) => {
+    const guid = String(req.params["projectGuid"]).trim();
+    if (!guid) { res.status(400).json({ error: "project GUID required" }); return null; }
+    const body = (req.body ?? {}) as { disposition?: unknown; source?: unknown; note?: unknown };
+    const disposition = String(body.disposition ?? "") as ProjectDisposition;
+    if (!(PROJECT_DISPOSITIONS as readonly string[]).includes(disposition)) {
+      res.status(400).json({ error: `disposition must be one of: ${PROJECT_DISPOSITIONS.join(", ")}` });
+      return null;
+    }
+    const note = typeof body.note === "string" && body.note.trim() ? body.note.trim() : undefined;
+    const record: CloseRecord = {
+      disposition,
+      ...(typeof body.source === "string" && body.source.trim() ? { source: body.source.trim() } : {}),
+      closedAt: new Date().toISOString(),
+      ...(note ? { note } : {}),
+    };
+    return { guid, disposition, record, note };
+  },
+  broker: { message: "project_close failed" },
+  run: async (req, _res, { guid, disposition, record, note }) => {
     // For the `archive` disposition, MIGRATE the data first — capture a snapshot (the project row +
     // its issues, while still live) into the self-managed archive. If that fails, DON'T record the
     // closure: never claim a project is archived when its data wasn't actually captured.
     if (disposition === "archive") {
       const project = (await getProjects(req)).find((p) => String((p as Row)["omniInstanceId"] ?? "") === guid);
-      // A project still present in the backend is snapshotted before the closure is recorded. If it's
-      // no longer in the backend there is nothing to capture, so the closure is recorded as a
-      // bookkeeping entry with no snapshot (unchanged behaviour) — that's distinct from a capture that
-      // FAILED, which must not be silently treated as "no data".
+      // A project still present in the backend is snapshotted before the closure is recorded. If it's no
+      // longer in the backend there is nothing to capture, so the closure is recorded as a bookkeeping entry
+      // with no snapshot — distinct from a capture that FAILED, which must not be treated as "no data".
       if (project) {
         const projectId = String((project as Row)["id"]);
-        // NO `.catch(() => [])` here: a transient broker read error must ABORT the archive — the error
-        // propagates to withBrokerErrors → failure response, and the recordAudit/res.json below never
-        // run — instead of being swallowed into an EMPTY snapshot that we persist and then report as a
-        // success (the contract above: never claim a project is archived when its data wasn't actually
-        // captured). A genuinely empty project still archives fine: the reads succeed and return [].
+        // NO `.catch(() => [])`: a transient broker read error must ABORT the archive — it propagates to the
+        // broker-aware wrapper → failure response, and the registry write + audit below never run — instead
+        // of being swallowed into an EMPTY snapshot we persist and then report as a success.
         const [issues, tasks] = await Promise.all([
           getIssues(req, projectId),
           getTasks(req, { projectId }).then((t) => t as unknown as Row[]),
         ]);
-        // Also archive OmniProject's own settings for the project (programme memberships, relinks, …),
-        // so its configuration is preserved alongside its data.
+        // Also archive OmniProject's own settings for the project (programme memberships, relinks, …).
         const settings = collectProjectReferences(guid);
         await getArchiveStore().save({ guid, archivedAt: record.closedAt, project: project as Row, issues, tasks, settings, note });
       }
     }
     // Merge into the registry; validatePatch's cross-rule retires the GUID on write.
     updateSettings({ closedProjects: { ...getSettings().closedProjects, [guid]: record } });
-    recordAudit({ ts: new Date().toISOString(), category: "admin", action: `project_close:${disposition}`, result: "success", status: 200 });
-    res.json({ guid, ...record });
-  });
-});
+    return { guid, ...record };
+  },
+  audit: (args) => `project_close:${args.disposition}`,
+  auditCategory: "admin",
+  auditStatus: 200,
+};
+mountCommand(router, projectCloseCommand);
 
 router.patch("/projects/:projectId", requireRole("manager"), async (req, res) => {
-  const paramsParse = UpdateProjectParams.safeParse(req.params);
-  const bodyParse = UpdateProjectBody.safeParse(req.body);
-  if (!paramsParse.success || !bodyParse.success) {
-    res.status(400).json({ error: "Invalid request" });
-    return;
-  }
-  const data = bodyParse.data;
+  const params = zodParseOr400(res, UpdateProjectParams, req.params);
+  if (!params) return;
+  const data = zodParseOr400(res, UpdateProjectBody, req.body);
+  if (!data) return;
   const caps = await resolveCapabilities(req);
   const settingProgramme = data.programmeId !== undefined;
   // Joining/leaving a programme is gated on the programme entity; other edits on project.
@@ -307,8 +329,9 @@ router.patch("/projects/:projectId", requireRole("manager"), async (req, res) =>
     return;
   }
   await withBrokerErrors(req, res, "update_project failed", async () => {
-    if (!(await guardProjectScope(req, res, paramsParse.data.projectId))) return;
-    const updated = await getBroker().updateProject(contextFromReq(req), paramsParse.data.projectId, data);
+    if (!(await guardProjectScope(req, res, params.projectId))) return;
+    if (!passesBusinessRules(req, res, "update_project", params.projectId, data as Record<string, unknown>)) return;
+    const updated = await getBroker().updateProject(contextFromReq(req), params.projectId, data);
     res.json(updated);
   });
 });
@@ -358,88 +381,85 @@ router.get("/projects/:projectId/issues/:issueId/items", async (req, res) => {
   });
 });
 
-router.post("/projects/:projectId/issues/:issueId/items", requireRole("contributor"), async (req, res) => {
-  const paramsParse = CreateTaskItemParams.safeParse(req.params);
-  const bodyParse = CreateTaskItemBody.safeParse(req.body);
-  if (!paramsParse.success || !bodyParse.success) {
-    res.status(400).json({ error: "Invalid request" });
-    return;
-  }
-  const { kind } = bodyParse.data;
-  const caps = await resolveCapabilities(req);
-  if (!caps.entities[kind]?.store) {
-    res.status(403).json({ error: `This backend can't store ${kind}s against a task` });
-    return;
-  }
-  await withBrokerErrors(req, res, "create_task_item failed", async () => {
-    if (!(await guardProjectScope(req, res, paramsParse.data.projectId))) return;
-    const item = await getBroker().createTaskItem(
-      contextFromReq(req),
-      paramsParse.data.projectId,
-      paramsParse.data.issueId,
-      bodyParse.data,
-    );
-    res.status(201).json(item);
-  });
-});
-
-router.post("/projects/:projectId/issues", requireRole("contributor"), async (req, res) => {
-  const paramsParse = CreateIssueParams.safeParse(req.params);
-  const bodyParse = CreateIssueBody.safeParse(req.body);
-  if (!paramsParse.success || !bodyParse.success) {
-    res.status(400).json({ error: "Invalid request" });
-    return;
-  }
-  const { projectId } = paramsParse.data;
-  const body = bodyParse.data;
-  if (!passesBusinessRules(req, res, "create_issue", projectId, body)) return;
-
-  await withBrokerErrors(req, res, "create_issue failed", async () => {
-    if (!(await guardProjectScope(req, res, projectId))) return;
-    const issue = await getBroker().writeIssue(contextFromReq(req), "create", { projectId, ...body });
-    res.status(201).json(issue);
-  }, { projectId });
-});
-
-router.patch("/projects/:projectId/issues/:issueId", requireRole("contributor"), async (req, res) => {
-  const paramsParse = UpdateIssueParams.safeParse(req.params);
-  const bodyParse = UpdateIssueBody.safeParse(req.body);
-  if (!paramsParse.success || !bodyParse.success) {
-    res.status(400).json({ error: "Invalid request" });
-    return;
-  }
-  const { projectId, issueId } = paramsParse.data;
-  if (!passesBusinessRules(req, res, "update_issue", projectId, bodyParse.data)) return;
-
-  // expectedVersion drives optimistic concurrency: the broker rejects a stale
-  // edit as a `conflict` (409) — the demo adapter checks locally, a live
-  // adapter forwards it so the backend (e.g. OpenProject lockVersion) enforces it.
-  await withBrokerErrors(req, res, "update_issue failed", async () => {
-    if (!(await guardProjectScope(req, res, projectId))) return;
-    const updated = await getBroker().writeIssue(contextFromReq(req), "update", { projectId, issueId, ...bodyParse.data });
-    // A null result means the backend had no such issue to update. Emitting
-    // `200 null` would violate the Issue response schema the client expects, so
-    // surface it as a 404 instead.
-    if (updated == null) {
-      res.status(404).json({ error: "Issue not found" });
-      return;
+// POST /projects/:projectId/issues/:issueId/items — attach a sub-item (a nested entity) to an issue
+// (contributor+). On the Lane 2 spine: parse validates the params + body; the async `prepare` resolves the
+// backend capabilities (403 when it can't store this item kind) and scope-guards the project (403) — both
+// need I/O, so they can't live in the sync parse — then RBAC → ruleset (project-scoped) → run. Broker-aware;
+// audits on success (the hand-written route recorded none).
+export const createTaskItemCommand: CommandDescriptor<{ params: Parsed<typeof CreateTaskItemParams>; body: Parsed<typeof CreateTaskItemBody> }> = {
+  name: "create_issue_item",
+  method: "post",
+  path: "/projects/:projectId/issues/:issueId/items",
+  role: "contributor",
+  parse: (req, res) => {
+    const params = zodParseOr400(res, CreateTaskItemParams, req.params);
+    if (!params) return null;
+    const body = zodParseOr400(res, CreateTaskItemBody, req.body);
+    if (!body) return null;
+    return { params, body };
+  },
+  prepare: async (req, res, { params, body }) => {
+    const caps = await resolveCapabilities(req);
+    if (!caps.entities[body.kind]?.store) {
+      res.status(403).json({ error: `This backend can't store ${body.kind}s against a task` });
+      return null;
     }
-    res.json(updated);
-  }, { projectId, issueId });
-});
+    if (!(await guardProjectScope(req, res, params.projectId))) return null;
+    return { params, body };
+  },
+  ruleScope: (_req, { params, body }) => ({ projectId: params.projectId, payload: body as Record<string, unknown> }),
+  broker: { message: "create_task_item failed" },
+  run: (req, _res, { params, body }) => getBroker().createTaskItem(contextFromReq(req), params.projectId, params.issueId, body),
+  audit: "create_issue_item",
+  status: 201,
+};
+mountCommand(router, createTaskItemCommand);
 
-router.delete("/projects/:projectId/issues/:issueId", requireRole("contributor"), async (req, res) => {
-  const params = parseRouteParams(DeleteIssueParams, req, res, "Invalid params");
-  if (!params) return;
-  const { projectId, issueId } = params;
-  if (!passesBusinessRules(req, res, "delete_issue", projectId)) return;
-
-  await withBrokerErrors(req, res, "delete_issue failed", async () => {
-    if (!(await guardProjectScope(req, res, projectId))) return;
-    await getBroker().writeIssue(contextFromReq(req), "delete", { projectId, issueId });
-    res.status(204).send();
-  }, { projectId, issueId });
-});
+// Issues — the canonical LANE 1 entity. Create/update/delete run the fixed
+// RBAC → validate → ruleset → scope → writeIssue pipeline (lib/entity-pipeline), so the three gates can
+// never drift apart. This replaces three near-identical hand-written handlers with one descriptor; a
+// null update result still surfaces as 404, delete still 204s (the op writes those itself).
+export const issueEntity: EntityDescriptor = {
+  entity: "issue",
+  basePath: "/projects/:projectId/issues",
+  idParam: "issueId",
+  scope: { kind: "project", param: "projectId" },
+  create: {
+    role: "contributor",
+    ruleAction: "create_issue",
+    validate: (req, res) => {
+      if (!zodParseOr400(res, CreateIssueParams, req.params)) return null;
+      return zodParseOr400(res, CreateIssueBody, req.body);
+    },
+    run: (req, _res, body) => getBroker().writeIssue(contextFromReq(req), "create", { projectId: String(req.params["projectId"]), ...(body as Record<string, unknown>) }),
+  },
+  update: {
+    role: "contributor",
+    ruleAction: "update_issue",
+    validate: (req, res) => {
+      if (!zodParseOr400(res, UpdateIssueParams, req.params)) return null;
+      return zodParseOr400(res, UpdateIssueBody, req.body);
+    },
+    // expectedVersion drives optimistic concurrency: the broker rejects a stale edit as a `conflict` (409).
+    // A null result means no such issue — surface it as 404 (200 null would violate the Issue schema).
+    run: async (req, res, body) => {
+      const updated = await getBroker().writeIssue(contextFromReq(req), "update", { projectId: String(req.params["projectId"]), issueId: String(req.params["issueId"]), ...(body as Record<string, unknown>) });
+      if (updated == null) { res.status(404).json({ error: "Issue not found" }); return undefined; }
+      return updated;
+    },
+  },
+  remove: {
+    role: "contributor",
+    ruleAction: "delete_issue",
+    validate: (req, res) => (parseRouteParams(DeleteIssueParams, req, res, "Invalid params") ? {} : null),
+    run: async (req, res) => {
+      await getBroker().writeIssue(contextFromReq(req), "delete", { projectId: String(req.params["projectId"]), issueId: String(req.params["issueId"]) });
+      res.status(204).send();
+      return undefined;
+    },
+  },
+};
+mountEntity(router, issueEntity);
 
 // ── Analytics: capacity + financials (strict rate limit) ──────────────────────
 
@@ -745,43 +765,57 @@ function checkRaidGrade(res: Response, field: string, value: unknown, ids: Set<s
   return undefined;
 }
 
-// RAID is a manager capability per the RBAC model (rbac.ts: "manager — contributor + RAID,
-// baselines, portfolio actions"), and this route has no compensating ruleset gate — so gate at manager.
-router.post("/projects/:projectId/raid", requireRole("manager"), async (req, res) => {
-  const paramsParse = GetProjectSummaryParams.safeParse(req.params);
-  const bodyParse = RaidBodyStructure.safeParse(req.body);
-  if (!paramsParse.success || !bodyParse.success) {
-    res.status(400).json({ error: "Invalid request" });
-    return;
-  }
-  const { projectId } = paramsParse.data;
-  const scopes = raidScopesFromReq(req, projectId);
-  const raw = (req.body ?? {}) as Record<string, unknown>;
-
-  // Relaxed, scope-resolved gate for the three graded fields (severity required; likelihood/impact optional).
-  const severityIds = new Set(resolveSeverityVocabulary(scopes).levels.map((l) => l.id));
-  const impactIds = new Set(resolveImpactVocabulary(scopes).levels.map((l) => l.id));
-  const likelihoodIds = new Set(resolveLikelihoodVocabulary(scopes).levels.map((l) => l.id));
-  const severity = checkRaidGrade(res, "severity", raw["severity"], severityIds, true);
-  if (severity === undefined) return;
-  const likelihood = checkRaidGrade(res, "likelihood", raw["likelihood"], likelihoodIds, false);
-  if (likelihood === undefined) return;
-  const impact = checkRaidGrade(res, "impact", raw["impact"], impactIds, false);
-  if (impact === undefined) return;
-
-  const body: Record<string, unknown> = {
-    ...(bodyParse.data as Record<string, unknown>),
-    severity,
-    ...(likelihood !== null ? { likelihood } : {}),
-    ...(impact !== null ? { impact } : {}),
-  };
-
-  await withBrokerErrors(req, res, "create_raid_entry failed", async () => {
-    if (!(await guardProjectScope(req, res, projectId))) return;
-    const entry = await getBroker().addRaid(contextFromReq(req), projectId, body);
-    res.status(201).json(entry);
-  }, { projectId });
-});
+/**
+ * RAID entries — create a Risk/Assumption/Issue/Dependency entry against a project (manager+). RAID is a
+ * manager capability per the RBAC model (rbac.ts: "manager — contributor + RAID, baselines, portfolio
+ * actions"), so the create op gates at manager.
+ *
+ * LANE 1: a create-only, project-scoped entity — RBAC → validate → ruleset → scope → broker write by
+ * construction (the same guarantee as issueEntity). The graded fields (severity required; likelihood/impact
+ * optional) are checked in `validate` against the scope-resolved vocabularies; `broker.addRaid` is the effect,
+ * wrapped by the pipeline's withBrokerErrors. Vs the hand-written route this adopts the pipeline convention of
+ * running the ruleset before the scope guard (both were present; the ruleset does no data access, and the
+ * write still fail-closes on scope) — observable only under an active rule AND a cross-scope attempt.
+ */
+export const raidEntity: EntityDescriptor = {
+  entity: "raid_entry",
+  basePath: "/projects/:projectId/raid",
+  scope: { kind: "project", param: "projectId" },
+  create: {
+    role: "manager",
+    ruleAction: "create_raid",
+    validate: (req, res) => {
+      const params = zodParseOr400(res, GetProjectSummaryParams, req.params);
+      if (!params) return null;
+      const raidBody = zodParseOr400(res, RaidBodyStructure, req.body);
+      if (!raidBody) return null;
+      const scopes = raidScopesFromReq(req, params.projectId);
+      const raw = (req.body ?? {}) as Record<string, unknown>;
+      // Relaxed, scope-resolved gate for the three graded fields (severity required; likelihood/impact optional).
+      const severityIds = new Set(resolveSeverityVocabulary(scopes).levels.map((l) => l.id));
+      const impactIds = new Set(resolveImpactVocabulary(scopes).levels.map((l) => l.id));
+      const likelihoodIds = new Set(resolveLikelihoodVocabulary(scopes).levels.map((l) => l.id));
+      const severity = checkRaidGrade(res, "severity", raw["severity"], severityIds, true);
+      if (severity === undefined) return null;
+      const likelihood = checkRaidGrade(res, "likelihood", raw["likelihood"], likelihoodIds, false);
+      if (likelihood === undefined) return null;
+      const impact = checkRaidGrade(res, "impact", raw["impact"], impactIds, false);
+      if (impact === undefined) return null;
+      return {
+        ...(raidBody as Record<string, unknown>),
+        severity,
+        ...(likelihood !== null ? { likelihood } : {}),
+        ...(impact !== null ? { impact } : {}),
+      } as Record<string, unknown>;
+    },
+    run: async (req, res, body) => {
+      const entry = await getBroker().addRaid(contextFromReq(req), String(req.params["projectId"]), body as Record<string, unknown>);
+      res.status(201).json(entry);
+      return undefined;
+    },
+  },
+};
+mountEntity(router, raidEntity);
 
 // ── Multi-currency FX rates (read-through; demo fallback) ─────────────────────
 

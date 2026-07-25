@@ -158,6 +158,13 @@ config:
   GENERIC_TIMEZONE: "UTC"
   # Shared real-time bus. REQUIRED before running >1 replica (else SSE notifications drop).
   # REDIS_URL: "redis://redis:6379"
+  # ── Release provenance / promote-by-digest admission (docs/UPDATE-MECHANISM.md §4) ──
+  # OFF by default. "strict" makes the verify-release init container (release.preflight) + the app boot
+  # refuse an unsigned/tampered/wrong-digest image. RELEASE_PUBLIC_KEY is the trust root (not a secret).
+  RELEASE_VERIFY: "off"                 # off | warn | strict
+  RELEASE_PUBLIC_KEY: ""                # SPKI PEM / base64 DER — REPLACE for strict mode
+  RELEASE_MANIFEST: ""                  # the signed manifest baked at release time (or RELEASE_MANIFEST_FILE)
+  RELEASE_EXPECTED_DIGEST: ""           # sha256:… the approved production digest; REPLACE on promote
 
 # ── Observability / OTLP telemetry — OFF by default, additive ─────────────────────────────────
 # W3C trace context + the /api/metrics Prometheus scrape are always on. Set an OTLP endpoint to
@@ -187,6 +194,20 @@ secret:
 
 # Extra env vars appended verbatim to the container (list of {name, value|valueFrom}).
 extraEnv: []
+
+# ── Release-admission preflight (docs/UPDATE-MECHANISM.md §4) ──────────────────────────────────
+# When enabled, an init container runs the SAME image with `--verify-release` before the app starts,
+# so with config.RELEASE_VERIFY=strict an unsigned/wrong-digest image fails closed at pod start. Turn
+# this on together with RELEASE_VERIFY=strict + RELEASE_PUBLIC_KEY (+ RELEASE_EXPECTED_DIGEST) above.
+release:
+  preflight: false
+  preflightResources:
+    requests:
+      memory: "128Mi"
+      cpu: "50m"
+    limits:
+      memory: "256Mi"
+      cpu: "250m"
 
 # Persist the config directory (vault + settings) if you use the local vault store. Off by default
 # (the overlay is stateless / config-only; back it up rather than depend on a PVC — see OPERATIONS.md).

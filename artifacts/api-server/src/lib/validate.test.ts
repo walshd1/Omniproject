@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { v, parseOr400, ValidationError } from "./validate";
+import { v, parseOr400, zodParseOr400, ValidationError, type SafeParseSchema } from "./validate";
 
 test("string validator enforces type, trim, length and pattern", () => {
   assert.equal(v.string({ trim: true })("  hi  "), "hi");
@@ -48,4 +48,28 @@ test("parseOr400 returns the value on success and 400s on failure", () => {
   assert.equal(parseOr400(badReq, badRes, schema), null);
   assert.equal(code, 400);
   assert.match(JSON.stringify(payload), /invalid request/);
+});
+
+test("zodParseOr400 returns parsed data on success and 400s (with the given message) on failure", () => {
+  // A structural zod-schema stand-in (api-server sees zod only transitively via @workspace/api-zod).
+  const schema: SafeParseSchema<{ id: string }> = {
+    safeParse: (input) =>
+      typeof (input as { id?: unknown })?.id === "string"
+        ? { success: true, data: input as { id: string } }
+        : { success: false },
+  };
+  // success → returns the typed data, never touches res
+  const okRes = { status() { throw new Error("should not 400"); } } as never;
+  assert.deepEqual(zodParseOr400(okRes, schema, { id: "p1" }), { id: "p1" });
+  // failure → default "Invalid request" message, 400, returns null
+  let code = 0; let payload: unknown;
+  const badRes = { status(c: number) { code = c; return { json(p: unknown) { payload = p; } }; } } as never;
+  assert.equal(zodParseOr400(badRes, schema, { id: 42 }), null);
+  assert.equal(code, 400);
+  assert.deepEqual(payload, { error: "Invalid request" });
+  // custom message is honoured
+  let msg: unknown;
+  const msgRes = { status() { return { json(p: { error?: unknown }) { msg = p.error; } }; } } as never;
+  zodParseOr400(msgRes, schema, {}, "Invalid request body");
+  assert.equal(msg, "Invalid request body");
 });

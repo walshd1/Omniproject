@@ -1,8 +1,7 @@
-import { createHmac } from "node:crypto";
 import { constantTimeEqual } from "./crypto-keys";
 import { derivedKey, currentVersion } from "./key-registry";
 import { canonical } from "./provenance";
-import { signMessage, publicKeyId, verifySignature } from "./signing";
+import { chainLinkHash, attachAnchorSignature, verifyAnchorSignature } from "./hmac-chain";
 import { logger } from "./logger";
 import { SealedFile, resolveConfigFile } from "./sealed-file";
 import { sharedKv, sharedStateMode } from "./shared-state";
@@ -44,9 +43,7 @@ const GENESIS = "0".repeat(64);
 function linkHash(seq: number, prevHash: string, ev: AuditEvent, version: number): string {
   // The event is canonicalised WITHOUT any existing seal so the MAC is stable + reproducible.
   const { seal: _omit, ...bare } = ev as SealedAuditEvent;
-  return createHmac("sha256", derivedKey("audit", version))
-    .update(`${seq}|${prevHash}|${canonical(bare)}`)
-    .digest("hex");
+  return chainLinkHash(derivedKey("audit", version), seq, prevHash, canonical(bare));
 }
 
 // ── Chain head (in-memory; optionally persisted sealed) ─────────────────────────
@@ -210,10 +207,7 @@ export function auditAnchorMessage(a: { seq: number; lastHash: string; algorithm
 /** Wrap a chain tip in an anchor, adding the Ed25519 signature when asymmetric signing is on. */
 function signAnchor(seq: number, lastHash: string): AuditAnchor {
   const base = { seq, lastHash, algorithm: "HMAC-SHA256/chain", keyVersion: currentVersion("audit") };
-  const signature = signMessage(auditAnchorMessage(base));
-  if (!signature) return base;
-  const kid = publicKeyId();
-  return { ...base, signatureAlgorithm: "Ed25519", signature, ...(kid ? { publicKeyId: kid } : {}) };
+  return attachAnchorSignature(base, auditAnchorMessage(base));
 }
 
 /** The current chain anchor — what an external verifier checks the tip against. When
@@ -235,7 +229,7 @@ export async function auditAnchorShared(): Promise<AuditAnchor> {
 /** Verify an anchor's Ed25519 signature against a published public key (PEM). False when the
  *  anchor is unsigned or the signature doesn't match — pure, for an offline auditor. */
 export function verifyAuditAnchor(anchor: AuditAnchor, publicKeyPemStr: string): boolean {
-  return anchor.signature ? verifySignature(auditAnchorMessage(anchor), anchor.signature, publicKeyPemStr) : false;
+  return verifyAnchorSignature(anchor.signature, auditAnchorMessage(anchor), publicKeyPemStr);
 }
 
 export interface ChainVerdict { ok: boolean; count: number; brokenAt: number | null; reason?: string }

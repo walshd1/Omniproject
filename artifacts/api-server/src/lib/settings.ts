@@ -23,8 +23,6 @@ import { validateWorkflows, WorkflowError, type WorkflowDef } from "./workflow";
 import { validateWorkflowAcceptances, ResponsibilityAcceptanceError, type WorkflowAcceptance } from "./responsibility-acceptance";
 import { validateResourceAllocations, ResourceAllocationError, type ResourceAllocation } from "./resource-allocation";
 import { validateBudgetPlans, BudgetPlanError, type BudgetPlan } from "./budget-plan";
-import { validateScreenDefs, ScreenDefError, type OrgScreenDef } from "./screen-def";
-import { FormDefError, type FormDef } from "./form-def";
 import { reportCatalogue, type ReportDefinition, DEFAULT_PRIORITY_WEIGHTS, type PriorityWeights } from "@workspace/backend-catalogue";
 
 // Re-export the shared prioritisation shape + default so existing `./settings` importers are unaffected.
@@ -379,29 +377,10 @@ export interface PresentationConfig {
   //   • company-nomenclature `labelOverrides` (`label-overrides`) → lib/labels
   //   • org accessibility `accessibilityDefaults` (`accessibility-defaults`) → lib/user-prefs + routes/accessibility
   //   • custom `priorityLabels` (`priority-labels`) → routes/priority-labels
-  /**
-   * Per-screen layout overrides (drag-arranged panel order / spans / hidden), keyed
-   * by screen id. Presentation config — part of the snapshot/export so it travels in
-   * the customer's config JSON. Never project data.
-   */
-  screenLayouts: Record<string, ScreenLayout>;
   // NB the view-curation hidden-field list is NOT a settings key — it moved into the composition model as a
   // config-def-backed collection (`hidden-fields`, via settingsCollectionRouter's config mode; see lib/availability).
   // NB saved views are NOT a settings key — they moved into the composition model as a config-def-backed
   // collection (`saved-views`, via settingsCollectionRouter's config mode; see routes/views).
-  /**
-   * Named custom dashboards: an ordered list of widget instances chosen from the widget catalogue.
-   * Customer-level presentation config — rides the snapshot/export so dashboards travel in the
-   * bundle — never project data. See routes/dashboards + the SPA dashboards feature module.
-   */
-  dashboards: Dashboard[];
-  /**
-   * Customer-authored bespoke reports (the report generator): each is a data-driven definition —
-   * source scope, a predicate filter, a group-by field and aggregated metrics + a viz — rendered
-   * through a generic renderer with no code. Presentation config; rides the snapshot/export, never
-   * project data. See routes/custom-reports + the SPA customReports feature module.
-   */
-  customReports: CustomReportDef[];
   /**
    * Metadata overrides for the BUILT-IN reports (the catalogue). Presentation-only: a per-report-id
    * override of label / order / visibility, merged over the shipped catalogue so a customer can rename,
@@ -426,17 +405,9 @@ export interface PresentationConfig {
   // NB the RACI + stakeholder registers are NOT settings keys — they moved into the composition model as
   // config-def-backed collections (`raci` / `stakeholders`, via settingsCollectionRouter's config mode; see
   // routes/raci + routes/stakeholders).
-  /** Intake / request FORMS — admin/PMO-authored forms (typed fields + a target project); the `form` panel
-   *  renders them and each submission becomes a work item through the broker. See routes/forms. */
-  forms: FormDef[];
   // NB automation recipes + project templates are NOT settings keys — they moved into the composition model as
   // config-def-backed collections (`automations` / `templates`, via settingsCollectionRouter's config mode; see
   // routes/automations + routes/templates).
-  /** Org-authored SCREEN DEFINITIONS — a PMO's built-from-scratch or modified screens, stored in the
-   *  (encrypted) deployment config to OVERRIDE a shipped default (matched by id) or add net-new screens;
-   *  also the delivery vehicle for a new-methodology JSON bundle. The SPA merges these over its built-in
-   *  screen catalogue and renders them through the one generic builder. See routes/screen-defs. */
-  screenDefs: OrgScreenDef[];
   // NB these are NOT settings keys — each moved into the composition model as a config-def-backed collection
   // (via settingsCollectionRouter's config mode): `disabled-screens` (routes/disabled-screens),
   // `collection-edit-roles` (routes/collection-edit-roles; read by lib/collection-edit-policy) and
@@ -540,63 +511,6 @@ export interface ArtifactStyle {
   textColor?: string;
   background?: string;
   align?: "left" | "center";
-}
-
-/** One placed widget on a custom dashboard. `type` keys into the SPA widget catalogue; `span` is
- *  the column width (1–3) on the responsive grid; `title` optionally overrides the widget label. */
-export interface DashboardWidget {
-  id: string;
-  type: string;
-  span?: 1 | 2 | 3;
-  title?: string;
-}
-
-/** A named custom dashboard: an ordered list of widget instances. `refreshMs`, when set, makes the
- *  dashboard auto-refresh its read-model data on that interval (a dashboard is a report that refreshes
- *  in real time) — a client-side poll, never a new write surface. */
-export interface Dashboard {
-  id: string;
-  name: string;
-  widgets: DashboardWidget[];
-  refreshMs?: number;
-}
-
-/** The aggregations a custom-report metric may apply over a field. */
-export type CustomReportAgg = "sum" | "avg" | "count" | "min" | "max";
-
-/** One aggregated column in a bespoke report (e.g. sum of `budget`). */
-export interface CustomReportMetric {
-  id: string;
-  field: string;
-  agg: CustomReportAgg;
-  label?: string;
-}
-
-/**
- * A customer-authored report definition (the report generator). Rendered through a generic renderer:
- * filter the work items, group by a field (optionally a second level for a cross-tab), aggregate the
- * chosen metrics, draw a table, bar chart or month-bucketed trend line. `filter` is a predicate
- * condition set (the same engine the rules use); kept loosely typed here and validated at the route.
- * Never holds project data — only field keys + how to summarise them.
- */
-export interface CustomReportDef {
-  id: string;
-  label: string;
-  /** "project" renders per selected project; "portfolio" rolls up across all projects' issues;
-   *  "tasks" reports over the GTD task entity (portfolio-wide). */
-  scope: "project" | "portfolio" | "tasks";
-  groupBy?: string;
-  /** Second group-by level (pivot columns) — ignored without `groupBy`, and for `viz: "line"`. */
-  groupBy2?: string;
-  metrics: CustomReportMetric[];
-  filter?: { all?: unknown[]; any?: unknown[] };
-  viz: "table" | "bar" | "line" | "area" | "pie";
-  /** Required for `viz: "line" | "area"`: a date field bucketed by month to build a time trend. */
-  dateField?: string;
-  /** Chart options (the chart editor): stacked series and legend visibility. */
-  chart?: { stacked?: boolean; legend?: boolean };
-  /** Optional presentation styling for the rendered report (title/font/colours/background). */
-  style?: ArtifactStyle;
 }
 
 /**
@@ -706,16 +620,6 @@ export interface CapabilitySetting {
    * or "off" on the finance screen). Only honoured for surface-aware capabilities.
    */
   surfaces?: Record<string, DeploymentState>;
-}
-
-/** A saved arrangement for one screen. */
-export interface ScreenLayout {
-  /** Panel ids in display order (panels not listed keep their original order, after). */
-  order?: string[];
-  /** Per-panel grid span override (1–12). */
-  spans?: Record<string, number>;
-  /** Panel ids hidden from this screen. */
-  hidden?: string[];
 }
 
 function webhooksFromEnv(): WebhookSubscription[] {
@@ -932,13 +836,6 @@ const FIELD_DESCRIPTORS: { [K in keyof SettingsState]: FieldDescriptor<K> } = {
   digestDelivery: { seed: () => digestDeliveryFromEnv(), validate: shapeChecked(validateDigestDelivery) },
   skillsPlanning: { seed: () => ({ matrix: [], demand: [] }), validate: shapeChecked(validateSkillsPlanning) },
   fieldOverrides: { seed: () => ({ fields: {}, entities: {} }), validate: shapeChecked(validateFieldOverrides) },
-  screenLayouts: {
-    seed: () => ({}),
-    validate: (value) => {
-      if (typeof value !== "object" || value == null || Array.isArray(value)) throw new SettingsValidationError("screenLayouts must be an object");
-      return validateScreenLayouts(value as Record<string, unknown>);
-    },
-  },
   userPrefs: {
     // Per-user accessibility prefs are written verbatim + read back raw, so sanitize every entry through
     // the same clamps its dedicated route uses; drop forbidden keys.
@@ -979,15 +876,11 @@ const FIELD_DESCRIPTORS: { [K in keyof SettingsState]: FieldDescriptor<K> } = {
   programmeFeatures: { seed: () => ({}), validate: shapeChecked((v) => validateScopeFeatureMap(v, "programmeFeatures")) },
   projectFeatures: { seed: () => ({}), validate: shapeChecked((v) => validateScopeFeatureMap(v, "projectFeatures")) },
   governanceRules: { seed: () => [], validate: shapeChecked((v) => validateGovernanceRules(v, "governanceRules")) },
-  customReports: { seed: () => [], validate: shapeChecked(validateCustomReports) },
   reportOverrides: { seed: () => [], validate: shapeChecked(validateReportOverrides) },
   // The per-deployment report store — seeded from the built-in catalogue, then deployment-owned JSON.
   reports: { seed: () => reportCatalogue() as unknown as ReportDefinition[], validate: shapeChecked(validateReports) },
   resourceAllocations: { seed: () => [], validate: normalisedBy((v) => validateResourceAllocations(v), ResourceAllocationError) },
   budgetPlans: { seed: () => [], validate: normalisedBy((v) => validateBudgetPlans(v, getSettings().reportingCurrency ?? undefined), BudgetPlanError) },
-  screenDefs: { seed: () => [], validate: normalisedBy((v) => validateScreenDefs(v), ScreenDefError) },
-  forms: { seed: () => [], validate: normalisedBy((v) => { if (!Array.isArray(v)) throw new FormDefError("forms must be an array"); return v as FormDef[]; }, FormDefError) },
-  dashboards: { seed: () => [], validate: shapeChecked(validateDashboards) },
   contentPages: { seed: () => [], validate: shapeChecked(validateContentPages) },
   priorityWeights: { seed: () => ({ ...DEFAULT_PRIORITY_WEIGHTS }), validate: shapeChecked(validatePriorityWeights) },
   usagePolicies: { seed: () => ({}), validate: shapeChecked(validateUsagePolicies) },
@@ -1152,8 +1045,6 @@ function validateGovernanceRules(value: unknown, label: string): void {
   }
 }
 
-const CUSTOM_REPORT_AGGS = new Set(["sum", "avg", "count", "min", "max"]);
-
 /** Shape-validate the bespoke report list: id/label/scope/viz + metric shape (field + known agg). */
 const STYLE_FONTS = new Set(["sans", "serif", "mono"]);
 const STYLE_ALIGNS = new Set(["left", "center"]);
@@ -1180,33 +1071,6 @@ function validateArtifactStyle(value: unknown, context: string): void {
   if (s["align"] != null && !STYLE_ALIGNS.has(s["align"] as string)) throw new SettingsValidationError(`${context} style.align must be left | center`);
 }
 
-function validateCustomReports(value: unknown): void {
-  if (!Array.isArray(value)) throw new SettingsValidationError("customReports must be an array");
-  for (const r of value) {
-    const o = r as Record<string, unknown>;
-    if (!o || typeof o !== "object" || typeof o["id"] !== "string" || !o["id"]) throw new SettingsValidationError("each custom report needs a string id");
-    if (typeof o["label"] !== "string" || !o["label"]) throw new SettingsValidationError(`custom report "${String(o["id"])}" needs a label`);
-    if (o["scope"] !== "project" && o["scope"] !== "portfolio" && o["scope"] !== "tasks") throw new SettingsValidationError(`custom report "${String(o["id"])}" scope must be project | portfolio | tasks`);
-    if (!["table", "bar", "line", "area", "pie"].includes(o["viz"] as string)) throw new SettingsValidationError(`custom report "${String(o["id"])}" viz must be table | bar | line | area | pie`);
-    if (o["chart"] != null) {
-      if (typeof o["chart"] !== "object") throw new SettingsValidationError(`custom report "${String(o["id"])}" chart must be an object`);
-      const c = o["chart"] as Record<string, unknown>;
-      if (c["stacked"] != null && typeof c["stacked"] !== "boolean") throw new SettingsValidationError(`custom report "${String(o["id"])}" chart.stacked must be a boolean`);
-      if (c["legend"] != null && typeof c["legend"] !== "boolean") throw new SettingsValidationError(`custom report "${String(o["id"])}" chart.legend must be a boolean`);
-    }
-    if (o["groupBy"] != null && typeof o["groupBy"] !== "string") throw new SettingsValidationError(`custom report "${String(o["id"])}" groupBy must be a string`);
-    if (o["groupBy2"] != null && typeof o["groupBy2"] !== "string") throw new SettingsValidationError(`custom report "${String(o["id"])}" groupBy2 must be a string`);
-    if (o["dateField"] != null && typeof o["dateField"] !== "string") throw new SettingsValidationError(`custom report "${String(o["id"])}" dateField must be a string`);
-    if (!Array.isArray(o["metrics"]) || o["metrics"].length === 0) throw new SettingsValidationError(`custom report "${String(o["id"])}" needs at least one metric`);
-    for (const m of o["metrics"] as unknown[]) {
-      const mm = m as Record<string, unknown>;
-      if (typeof mm?.["id"] !== "string" || !mm["id"]) throw new SettingsValidationError(`custom report "${String(o["id"])}" metric needs a string id`);
-      if (typeof mm["field"] !== "string" || !mm["field"]) throw new SettingsValidationError(`custom report "${String(o["id"])}" metric needs a field`);
-      if (typeof mm["agg"] !== "string" || !CUSTOM_REPORT_AGGS.has(mm["agg"])) throw new SettingsValidationError(`custom report "${String(o["id"])}" metric agg must be one of ${[...CUSTOM_REPORT_AGGS].join(", ")}`);
-    }
-    validateArtifactStyle(o["style"], `custom report "${String(o["id"])}"`);
-  }
-}
 
 const PRIORITY_WEIGHT_KEYS = ["rice", "wsjf", "moscow", "strategic", "benefit"] as const;
 
@@ -1413,24 +1277,6 @@ export function validatePanelViews(value: unknown): void {
 
 /** Shape-validate the dashboard list: id/name required, optional non-negative refreshMs, and a
  *  widgets array whose entries each carry a string id + type. */
-function validateDashboards(value: unknown): void {
-  if (!Array.isArray(value)) throw new SettingsValidationError("dashboards must be an array");
-  for (const dash of value) {
-    if (!dash || typeof dash !== "object") throw new SettingsValidationError("each dashboard must be an object");
-    const { id, name, widgets } = dash as Record<string, unknown>;
-    if (typeof id !== "string" || !id) throw new SettingsValidationError("each dashboard needs a string id");
-    if (typeof name !== "string" || !name) throw new SettingsValidationError("each dashboard needs a name");
-    const { refreshMs } = dash as Record<string, unknown>;
-    if (refreshMs != null && (typeof refreshMs !== "number" || refreshMs < 0)) throw new SettingsValidationError("each dashboard refreshMs must be a non-negative number");
-    if (!Array.isArray(widgets)) throw new SettingsValidationError("each dashboard needs a widgets array");
-    for (const w of widgets) {
-      if (!w || typeof w !== "object") throw new SettingsValidationError("each dashboard widget must be an object");
-      const { id: wid, type } = w as Record<string, unknown>;
-      if (typeof wid !== "string" || !wid) throw new SettingsValidationError("each dashboard widget needs a string id");
-      if (typeof type !== "string" || !type) throw new SettingsValidationError("each dashboard widget needs a type");
-    }
-  }
-}
 
 
 /** Validate the digest email-delivery config: `emailRecipients` must be a bounded array of non-empty
@@ -1544,25 +1390,6 @@ export function validatePatch(rawPatch: Record<string, unknown>): Record<string,
 
 /** Validate a screen-layout map: order/hidden = string[], spans = integer 1–12 per panel. Drops any
  *  malformed layout / span so a bulk PATCH or config restore can't persist a structurally-invalid one. */
-function validateScreenLayouts(value: Record<string, unknown>): Record<string, ScreenLayout> {
-  const out: Record<string, ScreenLayout> = {};
-  for (const [id, layout] of Object.entries(value)) {
-    if (isForbiddenKey(id) || !layout || typeof layout !== "object" || Array.isArray(layout)) continue;
-    const l = layout as Record<string, unknown>;
-    const spans: Record<string, number> = {};
-    if (l["spans"] && typeof l["spans"] === "object" && !Array.isArray(l["spans"])) {
-      for (const [k, n] of Object.entries(l["spans"] as Record<string, unknown>)) {
-        if (!isForbiddenKey(k) && typeof n === "number" && Number.isInteger(n) && n >= 1 && n <= 12) spans[k] = n;
-      }
-    }
-    out[id] = {
-      order: isStringArray(l["order"]) ? (l["order"] as string[]) : [],
-      hidden: isStringArray(l["hidden"]) ? (l["hidden"] as string[]) : [],
-      spans,
-    };
-  }
-  return out;
-}
 
 /** Validate + apply a partial settings patch, returning the new settings. Throws
  *  SettingsValidationError on bad input (rejected atomically — nothing persists). */

@@ -23,7 +23,7 @@ before(async () => { h = await startHarness(); });
 after(() => h.close());
 afterEach(async () => {
   const { updateSettings } = await import("../lib/settings");
-  updateSettings({ screenLayouts: {}, deploymentProfile: null });
+  updateSettings({ deploymentProfile: null });
   const { writeOrgConfigCollection } = await import("../lib/scoped-config");
   writeOrgConfigCollection("self-host", "Self-host", { mode: "off", adopted: [], acknowledgedDataResponsibility: false });
 });
@@ -145,15 +145,6 @@ test("reports + screens honour the ?available=1 backend filter", async () => {
   }
 });
 
-test("screen layout: open GET, manager PUT round-trips", async () => {
-  assert.equal((await h.req("/setup/screens/board/layout", { cookie: admin() })).status, 200);
-  const put = await h.req("/setup/screens/board/layout", { method: "PUT", cookie: admin(), body: { order: ["a", "b"], spans: { a: 6, bad: 99 }, hidden: ["c"] } });
-  assert.equal(put.status, 200);
-  const body = await put.json() as { layout: { order: string[]; spans: Record<string, number> } };
-  assert.deepEqual(body.layout.order, ["a", "b"]);
-  assert.equal(body.layout.spans.a, 6);
-  assert.ok(!("bad" in body.layout.spans)); // out-of-range span dropped
-});
 
 test("GET /setup/connections returns credential names + templates", async () => {
   const r = await h.req("/setup/connections?backends=jira,asana", { cookie: admin() });

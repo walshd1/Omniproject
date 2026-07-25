@@ -29,6 +29,9 @@ export interface MethodologyNomenclature {
   ceremonies: string[];
   statuses: Array<{ id: string; label: string }>;
   priorities: Array<{ id: string; label: string }>;
+  /** The methodology's OWN task-status axis (next-actions), from its `tools.taskStatuses` — the point a
+   *  deploy lands the methodology's task nomenclature. Empty for a methodology with no next-action axis. */
+  taskStatuses: Array<{ id: string; label: string }>;
 }
 
 export interface MethodologyDeployment {
@@ -81,6 +84,9 @@ export function resolveMethodologyDeployment(methodologyId: string): Methodology
     // inherits), as { id, label }. This is the "words" the deploy also lands.
     statuses: statusesForMethodology(methodologyId).map((s) => ({ id: s.id, label: s.label })),
     priorities: prioritiesForMethodology(methodologyId).map((p) => ({ id: p.id, label: p.label })),
+    // The methodology's OWN task-status axis (next-actions), read straight from its definition — the point
+    // the methodology's task nomenclature is applied. Empty when the methodology declares none.
+    taskStatuses: (methodology.tools.taskStatuses ?? []).map((s) => ({ id: s.id, label: s.label })),
   };
 
   return {

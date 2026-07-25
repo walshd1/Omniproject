@@ -51,9 +51,10 @@ export function buildSystemDefaultRows(): StoredDef[] {
   // Sourced from the SAME catalogue accessor the build-time consumers export, so the base can't drift.
   rows.push(buildSystemDefRow("config", "Work vocabulary", { id: WORK_VOCABULARY_CONFIG_ID, values: workVocabularyValues() }, SEED_AT));
   // The canonical GTD TASK-status vocabulary (next-actions axis, distinct from the work-item/issue axis) —
-  // authored as JSON (assets/task-vocabulary.json), seeded here as the SYSTEM-scope `task-vocabulary` config
-  // def: the base layer the scope resolver folds org/programme/project/user overrides onto (see
-  // task-vocabulary-config). Sourced from the SAME catalogue accessor the write-path uses, so it can't drift.
+  // DERIVED from the methodology definitions (assets/methodologies/gtd.json → tools.taskStatuses; GTD owns the
+  // task axis), seeded here as the SYSTEM-scope `task-vocabulary` config def: the base layer the scope resolver
+  // folds org/programme/project/user overrides onto (see task-vocabulary-config). Sourced from the SAME
+  // catalogue accessor the write-path uses, so it can't drift.
   rows.push(buildSystemDefRow("config", "Task vocabulary", { id: TASK_VOCABULARY_CONFIG_ID, values: taskVocabularyValues() }, SEED_AT));
   // The canonical GTD ENERGY-level vocabulary (the "how much have I got in the tank" axis, orthogonal to an
   // hour estimate) — authored as JSON (assets/energy-vocabulary.json), seeded here as the SYSTEM-scope

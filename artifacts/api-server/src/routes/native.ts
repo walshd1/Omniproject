@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { getBroker, contextFromReq, withBrokerErrors } from "../broker";
 import { requireRole } from "../lib/rbac";
+import { enforceBusinessRules } from "../lib/ruleset-guard";
 import { recordRequestAudit } from "../lib/audit";
 import { sanitizeHandoffRequest, sanitizeImportRequest, NativeHandoffError } from "../lib/native-handoff";
 
@@ -44,6 +45,7 @@ router.post("/native/import", requireRole("contributor"), (req, res) => {
   return withBrokerErrors(req, res, "native_import failed", async () => {
     const broker = getBroker();
     if (!broker.nativeImport) { res.status(501).json({ error: "this backend does not support native import" }); return; }
+    if (!enforceBusinessRules(req, res, "native_import", { projectId: input.target.projectId ?? null, payload: input as unknown as Record<string, unknown> })) return;
     const attachment = await broker.nativeImport(contextFromReq(req), input);
     recordRequestAudit(req, { category: "request", action: "native.import", write: true, meta: { vendor: input.vendor, kind: input.kind, projectId: input.target.projectId } });
     res.status(201).json(attachment);

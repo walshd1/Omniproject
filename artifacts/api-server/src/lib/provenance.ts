@@ -1,9 +1,9 @@
 import { createHmac } from "node:crypto";
 import { currentVersion, derivedKey, isActive } from "./key-registry";
-import { signMessage, publicKeyId, verifySignature } from "./signing";
 import type { SessionBind } from "./session-key";
 import { constantTimeEqual } from "./crypto-keys";
 import { canonicalJson } from "./canonical-json";
+import { attachAnchorSignature, verifyAnchorSignature } from "./hmac-chain";
 
 /**
  * Provenance chain — a keyed-MAC, hash-chained record of every broker call, holding
@@ -202,16 +202,13 @@ export function provenanceAnchorMessage(a: { seq: number; lastMac: string | null
  *  attesting to the tip) when asymmetric signing is configured, else unsigned. */
 export function provenanceAnchor(): ProvenanceAnchor {
   const base = { seq: seqCounter - 1, lastMac, algorithm: "HMAC-SHA256/chain", keyVersion: currentVersion("provenance") };
-  const signature = signMessage(provenanceAnchorMessage(base));
-  if (!signature) return base;
-  const kid = publicKeyId();
-  return { ...base, signatureAlgorithm: "Ed25519", signature, ...(kid ? { publicKeyId: kid } : {}) };
+  return attachAnchorSignature(base, provenanceAnchorMessage(base));
 }
 
 /** Verify a provenance anchor's Ed25519 signature against a published public key (PEM).
  *  False when the anchor is unsigned or the signature doesn't match — pure. */
 export function verifyProvenanceAnchor(anchor: ProvenanceAnchor, publicKeyPemStr: string): boolean {
-  return anchor.signature ? verifySignature(provenanceAnchorMessage(anchor), anchor.signature, publicKeyPemStr) : false;
+  return verifyAnchorSignature(anchor.signature, provenanceAnchorMessage(anchor), publicKeyPemStr);
 }
 
 /** Test-only: reset the in-memory chain. */
