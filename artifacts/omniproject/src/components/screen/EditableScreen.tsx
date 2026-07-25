@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { ScreenRenderer } from "./ScreenRenderer";
 import { type ScreenDef, type ScreenLayout } from "../../lib/screen";
-import { useScreenLayouts } from "../../lib/screen-layouts";
 import { useSaveScreenOverride } from "../../lib/org-screens";
 import { useAuth, isPmoOrAdmin } from "../../lib/auth";
 import { useToast } from "@/hooks/use-toast";
@@ -36,13 +35,12 @@ export function EditableScreen({
   // Only offer layout editing when there's actually something to arrange (2+ panels). A single-panel
   // screen (e.g. a full-page component host) gains nothing from reorder/span/hide, so it stays clean.
   const canEdit = isPmoOrAdmin(auth?.role) && screen.panels.length >= 2;
-  const { data: legacyLayouts } = useScreenLayouts(); // migration bridge — a not-yet-folded settings layout
   const { save: saveOverride, saving } = useSaveScreenOverride();
   const { toast } = useToast();
 
-  // The layout is FOLDED INTO the screen def now: `screen.layout` wins. Beneath it, a not-yet-migrated legacy
-  // settings layout (bridge), then a methodology's canonical layout (fallback).
-  const saved = screen.layout ?? legacyLayouts?.[screen.id] ?? fallbackLayout ?? null;
+  // The layout is FOLDED INTO the screen def: `screen.layout` wins, else a methodology's canonical layout
+  // (fallback).
+  const saved = screen.layout ?? fallbackLayout ?? null;
   const [editing, setEditing] = useState(false);
   // The working copy while editing (committed to the server on Save).
   const [draft, setDraft] = useState<ScreenLayout | null>(null);

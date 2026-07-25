@@ -137,8 +137,6 @@ const CLASSIFICATION: Record<string, ScopeClass> = {
 
   // ── Global UI/catalogue config: a fixed global id set, not tenant data ──
   "GET /setup/methodology-preset/:id": "global-config",
-  "GET /setup/screens/:id/layout": "global-config",
-  "PUT /setup/screens/:id/layout": "global-config",
   // Automation recipe id names an org-global config object (the `automations` collection), NOT tenant data;
   // running it re-checks the caller's RBAC (authorDenial) + evaluates conditions + runs caller-scoped, and a
   // mutating recipe is refused (202) pending a grant — so the id is not a lateral-movement vector.

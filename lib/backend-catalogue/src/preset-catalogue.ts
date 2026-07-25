@@ -1,4 +1,5 @@
 import { PRESETS_DATA } from "./presets.generated";
+import { defineCatalogue } from "./catalogue-base";
 import { getMethodology } from "./methodology-catalogue";
 import { getReferenceRuleset } from "./methodology-rulesets";
 import { getProjectTemplate } from "./template-catalogue";
@@ -40,17 +41,19 @@ export interface Preset {
   order: number;
 }
 
+const catalogue = defineCatalogue(PRESETS_DATA, { sortByOrder: true });
+
 /** Every shipped preset, ordered. */
-export const PRESETS: Preset[] = [...PRESETS_DATA].sort((a, b) => a.order - b.order);
+export const PRESETS: Preset[] = catalogue.all;
 
 /** One preset by id. */
 export function getPreset(id: string): Preset | undefined {
-  return PRESETS.find((p) => p.id === id);
+  return catalogue.get(id);
 }
 
 /** All presets (a defensive copy). */
 export function presetCatalogue(): Preset[] {
-  return PRESETS.map((p) => ({ ...p }));
+  return catalogue.list();
 }
 
 /**

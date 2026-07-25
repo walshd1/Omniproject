@@ -10,30 +10,27 @@ import { getSettings, updateSettings } from "./settings";
  * saved views, so "keep your bespoke config backed up" actually captures them. The shipped baseline defs
  * live in code, never in settings, so they are structurally absent from the snapshot.
  */
-test("snapshot captures + restores bespoke reports, overrides and content pages", () => {
+test("snapshot captures + restores report overrides and content pages", () => {
   updateSettings({
-    customReports: [{ id: "r1", label: "By status", scope: "tasks", viz: "bar", groupBy: "status", metrics: [{ id: "m", field: "id", agg: "count" }] }],
     reportOverrides: [{ id: "evm", label: "Earned Value", hidden: false }],
     contentPages: [{ id: "p1", name: "Exec", componentIds: ["report:evm"] }],
   });
 
   const snap = buildSnapshot(getSettings());
-  assert.equal(snap.settings.customReports!.length, 1);
-  assert.equal(snap.settings.customReports![0]!.id, "r1");
   assert.equal(snap.settings.reportOverrides!.length, 1);
   assert.equal(snap.settings.contentPages![0]!.name, "Exec");
 
   // Wipe, then restore from the snapshot — the bespoke defs come back.
-  updateSettings({ customReports: [], reportOverrides: [], contentPages: [] });
-  assert.equal(getSettings().customReports.length, 0);
+  updateSettings({ reportOverrides: [], contentPages: [] });
+  assert.equal(getSettings().reportOverrides.length, 0);
 
   const { patch, warnings } = applySnapshot(snap);
   updateSettings(patch);
-  assert.equal(getSettings().customReports[0]!.id, "r1");
+  assert.equal(getSettings().reportOverrides[0]!.id, "evm");
   assert.equal(getSettings().contentPages[0]!.componentIds[0], "report:evm");
-  assert.equal(warnings.filter((w) => /customReports|reportOverrides|contentPages/.test(w)).length, 0);
+  assert.equal(warnings.filter((w) => /reportOverrides|contentPages/.test(w)).length, 0);
 
-  updateSettings({ customReports: [], reportOverrides: [], contentPages: [] });
+  updateSettings({ reportOverrides: [], contentPages: [] });
 });
 
 test("drift guard: the backup captures EVERY settings key except the secret-bearing deny-list", () => {

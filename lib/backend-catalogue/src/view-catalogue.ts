@@ -12,6 +12,7 @@
  */
 import { matchesMethodology } from "./methodology-match";
 import { VIEWS_DATA } from "./views.generated";
+import { defineCatalogue } from "./catalogue-base";
 
 export type ViewKind = "board" | "timeline" | "stages" | "register" | "table";
 
@@ -34,13 +35,12 @@ export interface ViewDefinition {
 }
 
 /** Every shipped view definition, in display order. */
-export const VIEWS: ViewDefinition[] = [...VIEWS_DATA].sort((a, b) => a.order - b.order);
-
-const byId = new Map(VIEWS.map((v) => [v.id, v]));
+const catalogue = defineCatalogue(VIEWS_DATA, { sortByOrder: true });
+export const VIEWS: ViewDefinition[] = catalogue.all;
 
 /** One view by id, or undefined. */
 export function getView(id: string): ViewDefinition | undefined {
-  return byId.get(id);
+  return catalogue.get(id);
 }
 
 /** Views that apply to a methodology — those tagged with it, plus the neutral ("*") ones. */

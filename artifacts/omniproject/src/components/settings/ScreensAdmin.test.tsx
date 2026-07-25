@@ -10,21 +10,19 @@ const toastMock = vi.fn();
 vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast: toastMock }) }));
 
 type SeedOpts = {
-  legacy?: Array<{ id: string; label?: string }>;
-  layouts?: Record<string, unknown>;
-  /** Override the scoped def-store rows independently of the resolved override set (for legacy-only cases). */
+  /** Override the scoped def-store rows independently of the resolved override set (e.g. a built-in shown as a
+   *  resolved entry with no org override def, so Reset has nothing to delete). */
   scopedDefs?: Array<{ id: string; label?: string }> | null;
 };
 
 function seed(role: string | undefined, org: Array<{ id: string; label?: string }> = [], disabled: string[] = [], opts: SeedOpts = {}): QueryClient {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity }, mutations: { retry: false } } });
   if (role) qc.setQueryData(["auth", "me"], { authenticated: true, role, user: { sub: "u1" } });
-  // disabledScreens + collectionEditRoles + screenLayouts are slices of the shared /api/settings read.
-  qc.setQueryData(settingsQueryKey, { disabledScreens: disabled, screenLayouts: opts.layouts ?? {} });
-  // Screen OVERRIDES are def-store artifacts now: the resolved override set (useOrgScreenDefs), the legacy
-  // bridge (useLegacyOrgScreenDefs), and the org `screen` defs with their scoped ids (useResolvedDefs).
+  // disabledScreens + collectionEditRoles are slices of the shared /api/settings read.
+  qc.setQueryData(settingsQueryKey, { disabledScreens: disabled });
+  // Screen OVERRIDES are def-store artifacts: the resolved override set (useOrgScreenDefs) + the org `screen`
+  // defs with their scoped ids (useResolvedDefs).
   qc.setQueryData(["screen-defs", "resolved"], org);
-  qc.setQueryData(["screen-defs", "legacy"], opts.legacy ?? []);
   const scoped = opts.scopedDefs === undefined ? org : opts.scopedDefs;
   qc.setQueryData(["defs", "resolved", "screen", null, null], (scoped ?? []).map((s, i) => ({
     id: `org~s${i}`, kind: "screen", name: s.label ?? s.id, payload: s, createdBy: null, createdAt: "", updatedAt: "", rowVersion: 1,
@@ -187,11 +185,11 @@ describe("ScreensAdmin", () => {
     await waitFor(() => expect(toastMock).toHaveBeenCalledWith(expect.objectContaining({ title: "RESET TO DEFAULT" })));
   });
 
-  it("prompts to migrate first when resetting a legacy-only override (no scoped def)", () => {
-    const org = [{ id: "kanban", label: "Legacy", panels: [] as unknown[] }];
+  it("says there is nothing to reset for a screen with no org override def", () => {
+    const org = [{ id: "kanban", label: "Built-in", panels: [] as unknown[] }];
     renderWithProviders(<ScreensAdmin />, { client: seed("admin", org, [], { scopedDefs: [] }) });
     fireEvent.click(screen.getByTestId("screen-reset-kanban"));
-    expect(toastMock).toHaveBeenCalledWith(expect.objectContaining({ title: "MIGRATE FIRST" }));
+    expect(toastMock).toHaveBeenCalledWith(expect.objectContaining({ title: "NOTHING TO RESET" }));
   });
 
   it("toasts a failure when a reset cannot be saved", async () => {
@@ -200,48 +198,6 @@ describe("ScreensAdmin", () => {
     renderWithProviders(<ScreensAdmin />, { client: seed("admin", org) });
     fireEvent.click(screen.getByTestId("screen-reset-kanban"));
     await waitFor(() => expect(toastMock).toHaveBeenCalledWith(expect.objectContaining({ title: "COULD NOT RESET", variant: "destructive" })));
-  });
-
-  it("migrates legacy screen overrides into the def store", async () => {
-    const legacy = [{ id: "legacy-screen", label: "Legacy Screen" }];
-    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("{}", { status: 200 }));
-    renderWithProviders(<ScreensAdmin />, { client: seed("pmo", [], [], { legacy }) });
-    fireEvent.click(screen.getByTestId("screens-migrate-legacy"));
-    await waitFor(() => {
-      expect(fetchMock.mock.calls.some(([u, i]) => String(u) === "/api/defs" && (i as RequestInit)?.method === "POST")).toBe(true);
-      expect(fetchMock.mock.calls.some(([u, i]) => String(u) === "/api/screen-defs" && (i as RequestInit)?.method === "PUT")).toBe(true);
-    });
-    await waitFor(() => expect(toastMock).toHaveBeenCalledWith(expect.objectContaining({ title: "MIGRATED" })));
-  });
-
-  it("toasts when a legacy migration fails", async () => {
-    const legacy = [{ id: "legacy-screen", label: "Legacy Screen" }];
-    vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("{}", { status: 500 }));
-    renderWithProviders(<ScreensAdmin />, { client: seed("pmo", [], [], { legacy }) });
-    fireEvent.click(screen.getByTestId("screens-migrate-legacy"));
-    await waitFor(() => expect(toastMock).toHaveBeenCalledWith(expect.objectContaining({ title: "MIGRATION FAILED", variant: "destructive" })));
-  });
-
-  it("folds legacy screen layouts into the def store (updating an existing scoped def, skipping unknown screens)", async () => {
-    // kanban is a real catalogue screen with a scoped def → update path; "ghost" isn't → skipped.
-    const org = [{ id: "kanban", label: "K", panels: [] as unknown[] }];
-    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("{}", { status: 200 }));
-    renderWithProviders(<ScreensAdmin />, { client: seed("pmo", org, [], { layouts: { kanban: { cols: 2 }, ghost: { cols: 1 } } }) });
-    fireEvent.click(screen.getByTestId("screens-migrate-layouts"));
-    await waitFor(() => {
-      expect(fetchMock.mock.calls.some(([u, i]) => String(u) === "/api/defs/org~s0" && (i as RequestInit)?.method === "PUT")).toBe(true);
-      expect(fetchMock.mock.calls.some(([u, i]) => String(u) === "/api/screen-layouts" && (i as RequestInit)?.method === "PUT")).toBe(true);
-    });
-    await waitFor(() => expect(toastMock).toHaveBeenCalledWith(expect.objectContaining({ title: "MIGRATED" })));
-  });
-
-  it("folds a legacy layout for a not-yet-overridden screen via a new def (import path)", async () => {
-    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("{}", { status: 200 }));
-    renderWithProviders(<ScreensAdmin />, { client: seed("pmo", [], [], { layouts: { kanban: { cols: 2 } } }) });
-    fireEvent.click(screen.getByTestId("screens-migrate-layouts"));
-    await waitFor(() => {
-      expect(fetchMock.mock.calls.some(([u, i]) => String(u) === "/api/defs" && (i as RequestInit)?.method === "POST")).toBe(true);
-    });
   });
 
   it("falls back to a generic message when a non-Error is thrown (toggle off)", async () => {
@@ -285,12 +241,6 @@ describe("ScreensAdmin", () => {
     expect(screen.getByTestId("screen-row-kanban").textContent).toContain("Off");
   });
 
-  it("pluralises the legacy-migration button label for multiple overrides", () => {
-    const legacy = [{ id: "a" }, { id: "b" }];
-    renderWithProviders(<ScreensAdmin />, { client: seed("pmo", [], [], { legacy }) });
-    expect(screen.getByTestId("screens-migrate-legacy").textContent).toContain("overrides");
-  });
-
   it("toggles the Customise button open and closed", () => {
     renderWithProviders(<ScreensAdmin />, { client: seed("pmo") });
     const btn = screen.getByTestId("screen-edit-kanban");
@@ -298,12 +248,5 @@ describe("ScreensAdmin", () => {
     expect(btn.textContent).toBe("Close");
     fireEvent.click(btn); // close via the same button (editing ? null branch)
     expect(screen.queryByTestId("screen-editor")).toBeNull();
-  });
-
-  it("toasts when folding legacy layouts fails", async () => {
-    vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("{}", { status: 500 }));
-    renderWithProviders(<ScreensAdmin />, { client: seed("pmo", [], [], { layouts: { kanban: { cols: 2 } } }) });
-    fireEvent.click(screen.getByTestId("screens-migrate-layouts"));
-    await waitFor(() => expect(toastMock).toHaveBeenCalledWith(expect.objectContaining({ title: "MIGRATION FAILED", variant: "destructive" })));
   });
 });
