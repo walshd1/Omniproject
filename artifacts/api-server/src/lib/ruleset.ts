@@ -56,6 +56,29 @@ function asTime(v: unknown): number | null {
   return Number.isNaN(t) ? null : t;
 }
 
+/** Coerce a payload value to a finite number, else 0 (for money/quantity summing). */
+function num(v: unknown): number {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : 0;
+}
+
+/** Sum debit + credit across a journal-entry payload's `lines[]` (tolerating `journalDebit`/`debit` and
+ *  `journalCredit`/`credit` member names), or null when the payload carries no assessable lines. */
+function journalTotals(payload: Record<string, unknown> | undefined): { debit: number; credit: number } | null {
+  const lines = Array.isArray(payload?.["lines"]) ? (payload!["lines"] as unknown[]) : null;
+  if (!lines || lines.length === 0) return null;
+  let debit = 0, credit = 0;
+  for (const ln of lines) {
+    const r = (ln ?? {}) as Record<string, unknown>;
+    debit += num(r["journalDebit"] ?? r["debit"]);
+    credit += num(r["journalCredit"] ?? r["credit"]);
+  }
+  return { debit, credit };
+}
+
+/** Lower-cased string of a payload field, or "" — for reading a resolved status stamped on the write. */
+const lower = (v: unknown): string => (typeof v === "string" ? v.trim().toLowerCase() : "");
+
 /** Built-in rules. Operators toggle each rule's MODE; the predicates are fixed. */
 export const BUSINESS_RULES: BusinessRule[] = [
   {
@@ -85,6 +108,49 @@ export const BUSINESS_RULES: BusinessRule[] = [
       return start !== null && due !== null && due < start;
     },
     message: () => "The due date cannot be earlier than the start date (business rule).",
+  },
+  // ── Finance controls (finance superset F14) — the accounting invariants a finance system enforces. All
+  //    default OFF (opt-in like every rule); a finance deployment turns them `hard` via the org ruleset. ──
+  {
+    id: "finance-journal-balanced", label: "Journal entries must balance",
+    description: "A journal entry's total debits must equal its total credits (double-entry).", defaultMode: "off",
+    applies: (c) => {
+      if (c.action !== "create_journal_entry" && c.action !== "update_journal_entry") return false;
+      const t = journalTotals(c.payload);
+      return t !== null && Math.round((t.debit - t.credit) * 100) !== 0; // unbalanced → applies
+    },
+    message: (c) => {
+      const t = journalTotals(c.payload)!;
+      return `A journal entry must balance: total debits (${t.debit}) must equal total credits (${t.credit}).`;
+    },
+  },
+  {
+    id: "finance-no-post-closed-period", label: "No posting to a closed period",
+    description: "A journal entry cannot post into a closed or locked accounting period.", defaultMode: "off",
+    applies: (c) => {
+      if (c.action !== "create_journal_entry" && c.action !== "update_journal_entry") return false;
+      const st = lower(c.payload?.["journalPeriodStatus"] ?? c.payload?.["periodStatus"]);
+      return st === "closed" || st === "locked"; // the write resolves + stamps the period's status
+    },
+    message: () => "Cannot post to a closed or locked accounting period (business rule).",
+  },
+  {
+    id: "finance-posted-immutable", label: "Posted entries are immutable",
+    description: "A posted journal entry cannot be edited — reverse it with a new entry instead.", defaultMode: "off",
+    applies: (c) => c.action === "update_journal_entry" && lower(c.payload?.["journalPostingStatus"]) === "posted",
+    message: () => "A posted journal entry is immutable — post a reversing entry instead of editing it (business rule).",
+  },
+  {
+    id: "finance-journal-period", label: "Journal entry needs a period",
+    description: "A new journal entry must be posted into a fiscal period.", defaultMode: "off",
+    applies: (c) => c.action === "create_journal_entry" && !has(c.payload, "journalFiscalPeriod"),
+    message: () => "A journal entry must be posted into a fiscal period (business rule).",
+  },
+  {
+    id: "finance-journal-posting-date", label: "Journal entry needs a posting date",
+    description: "A new journal entry must carry a posting date.", defaultMode: "off",
+    applies: (c) => c.action === "create_journal_entry" && !has(c.payload, "journalPostingDate"),
+    message: () => "A journal entry must carry a posting date (business rule).",
   },
 ];
 
