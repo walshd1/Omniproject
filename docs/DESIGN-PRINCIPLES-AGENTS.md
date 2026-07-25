@@ -111,8 +111,11 @@ Format: each principle is a RULE + how to CHECK it + the usual FIX.
   Split a function that grows a second reason to change. Names state intent + guarantee; code reads without
   opening the body.
 - RULE: Extend by composition (`extends`, §5), don't fork/modify (open/closed).
+- RULE: Functional core, imperative shell — computation is a PURE function (ruleset fold, consolidation,
+  depreciation planner, cron matcher: data→data) with IO (broker / shared KV / clock) INJECTED, so it
+  unit-tests without a broker or request. Lift `getBroker()` / `Date.now()` out of a compute body into the caller.
 - CHECK: A core module importing an adapter; a second writer for an existing boundary; a function needing a
-  comment because its name misleads.
+  comment because its name misleads; a pure engine that reaches for `getBroker()`/`Date.now()` internally.
 
 ## 14. Kaizen — security is maintained, not achieved
 - RULE: Ship small, reversible slices; prefer a diff you can roll back. Leave touched files better (boy-scout
@@ -190,6 +193,35 @@ Format: each principle is a RULE + how to CHECK it + the usual FIX.
   change; two byte-identical hand-rolled copies of one formula (those DO merge — §15).
 - FIX: Extract the shared PRIMITIVE; leave the divergent purpose with each caller. Add/extend the primitive's
   drift guard so it can't un-consolidate.
+
+## 19. Every mutation is guarded by construction (write-lane coverage)
+- RULE: Every live POST/PUT/PATCH/DELETE is in EXACTLY ONE lane — Lane 1 entity pipeline (`mountEntity`), Lane 2
+  action base (`mountCommand`), or Lane 3 `BESPOKE_WRITES` (irreducible: auth/session, SSE, break-glass, SCIM).
+  Lane 1/2 apply RBAC → validate → ruleset → scope → write BY CONSTRUCTION; you cannot add a write that skips a gate.
+- RULE: A new write route joins a spine (prefer Lane 1/2). If it's a true oddball, add it to `BESPOKE_WRITES`
+  with a reason — that list may only SHRINK.
+- CHECK: `write-lane-coverage.test.ts` fails ⇒ your new write is in no lane. Register it; never suppress the test.
+
+## 20. Autonomous writes are default-deny under an explicit grant
+- RULE: Any write with NO live human request (rule dispatch, scheduled job, AI/agent) runs as a named autonomous
+  principal (`automation:rule_<id>` / `agent:<id>:<onBehalfOf>`) through the autonomous-guarded broker — REFUSED
+  unless an admin granted that EXACT action (default-deny). `allowWrites` opens the EFFECT, never the authorization.
+- RULE: A mutating effect is reachable ONLY on the autonomous, grant-gated path (`effectsForAutonomousContext`);
+  the human/direct surface stays read+notify. Add a mutating effect as an allowlisted `case` gated by `opts.allowWrites`.
+- RULE: Autonomous runs are attributable (audit + causation), kill-switchable, and cascade-bounded (depth +
+  fan-out). Mint least privilege (≤ `contributor`); never widen the actor.
+- CHECK: A workflow/rule that mutates on the direct path; an effect that writes without `allowWrites`; an
+  autonomous actor minted above `contributor`; automating something the author couldn't do by hand.
+
+## 21. Background work is idempotent and fleet-safe
+- RULE: A scheduled/dispatched job must be safe to run twice AND on every replica. The "already done" marker
+  lives in the SYSTEM OF RECORD (a field write-back, e.g. `depreciationThroughDate`), never an in-memory flag a
+  restart forgets — a re-run posts nothing new.
+- RULE: Exactly-once across a fleet — claim each unit (`sharedKv.cas`) BEFORE acting; a lost claim means another
+  tick/replica owns it, so skip. A claim outage fails CLOSED (don't act), never double-fires.
+- RULE: The in-process interval timer (`createIntervalScheduler`, env-hours, `0` = off) is an opt-out
+  single-instance convenience; a fleet sets it to 0 and drives the `…/run` endpoint from external cron.
+- CHECK: A job keyed on module/in-memory state; acting before the claim; a "run twice" path that re-posts.
 
 ---
 
