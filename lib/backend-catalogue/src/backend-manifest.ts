@@ -30,6 +30,11 @@ export type ContractAction =
   | "update_invoice"
   | "get_invoice"
   | "list_invoices"
+  // ── Client / customer master (finance superset F1) — the bill-to party a finance backend owns ──
+  | "list_clients"
+  | "get_client"
+  | "create_client"
+  | "update_client"
   | "get_capabilities";
 
 /** Catalogue tier — enterprise backends gate the premium workflow generation. */
@@ -93,21 +98,23 @@ export interface KeyFormat {
  * The PRIMARY record a backend is a system of record FOR. A backend isn't forced to be a project tool — but it
  * must declare which record it owns, because that decides which contract READ verbs it must implement (see
  * {@link RECORD_TYPE_REQUIRED_READS}). Today: `issue` (PM/CRM/ITSM/ERP tools, normalised to the issue/project
- * contract) or `invoice` (a billing system of record like Invoice Ninja / Dolibarr). Extend as new record
- * domains land.
+ * contract) or `invoice` (a billing system of record like Invoice Ninja / Dolibarr) or `client` (a customer
+ * master — a CRM/billing system whose primary record is the bill-to party). Extend as new record domains land.
  *
  * NOTE: the field superset is ONE universal registry — the union of `assets/fields.json` and EVERY backend's
  * contributed `fields[]` — so whatever any backend can provide maps through to the standard surface. It is NOT
  * scoped per record type; `primaryRecord` governs required actions, not which fields exist.
  */
-export const BACKEND_RECORD_TYPES = ["issue", "invoice"] as const;
+export const BACKEND_RECORD_TYPES = ["issue", "invoice", "client"] as const;
 export type BackendRecordType = (typeof BACKEND_RECORD_TYPES)[number];
 
 /** The contract READ verbs a backend of each primary-record type must implement (the verifier enforces this).
- *  An `issue` backend must expose projects + issues; an `invoice` backend must expose its invoice list. */
+ *  An `issue` backend must expose projects + issues; an `invoice` backend must expose its invoice list; a
+ *  `client` (customer-master) backend must expose its client list. */
 export const RECORD_TYPE_REQUIRED_READS: Record<BackendRecordType, ContractAction[]> = {
   issue: ["list_projects", "list_issues"],
   invoice: ["list_invoices"],
+  client: ["list_clients"],
 };
 
 export interface BackendManifest {

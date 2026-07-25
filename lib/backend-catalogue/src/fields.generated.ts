@@ -982,6 +982,48 @@ export const FIELDS_DATA: FieldDescriptor[] = [
     "entity": "task"
   },
   {
+    "key": "clientName",
+    "label": "Client / Bill-To",
+    "type": "string",
+    "group": "crm",
+    "entity": "client"
+  },
+  {
+    "key": "clientEmail",
+    "label": "Client email",
+    "type": "string",
+    "group": "crm",
+    "entity": "client"
+  },
+  {
+    "key": "clientBillingAddress",
+    "label": "Billing address",
+    "type": "text",
+    "group": "crm",
+    "entity": "client"
+  },
+  {
+    "key": "clientTaxId",
+    "label": "Client tax ID",
+    "type": "string",
+    "group": "financial",
+    "entity": "client"
+  },
+  {
+    "key": "clientPaymentTerms",
+    "label": "Payment terms",
+    "type": "string",
+    "group": "financial",
+    "entity": "client"
+  },
+  {
+    "key": "clientCreditLimit",
+    "label": "Credit limit",
+    "type": "currency",
+    "group": "financial",
+    "entity": "client"
+  },
+  {
     "key": "invoiceNumber",
     "label": "Invoice Number",
     "type": "string",
@@ -1016,11 +1058,5 @@ export const FIELDS_DATA: FieldDescriptor[] = [
     "label": "Invoice Paid Date",
     "type": "date",
     "group": "financial"
-  },
-  {
-    "key": "clientName",
-    "label": "Client / Bill-To",
-    "type": "string",
-    "group": "crm"
   }
 ];
