@@ -160,6 +160,14 @@ export const BUSINESS_RULES: BusinessRule[] = [
       && has(c.payload, "taxRateJurisdiction") && !has(c.payload, "taxAmount") && c.payload?.["reverseCharge"] !== true,
     message: () => "A tax amount is required when a tax jurisdiction applies — set the tax, or mark it reverse-charge (business rule).",
   },
+  {
+    // Finance superset F17 — a bill cannot be approved until it is matched to its PO + goods receipt.
+    id: "finance-3way-match", label: "Bill approval requires a 3-way match",
+    description: "A bill cannot be approved unless its match status is `matched` (invoice ↔ PO ↔ goods receipt).", defaultMode: "off",
+    applies: (c) => (c.action === "update_bill" || c.action === "approve_bill")
+      && lower(c.payload?.["approvalState"]) === "approved" && lower(c.payload?.["matchStatus"]) !== "matched",
+    message: () => "A bill cannot be approved until it is matched to its purchase order and goods receipt (business rule).",
+  },
 ];
 
 /**

@@ -1668,5 +1668,83 @@
     "label": "Place of supply",
     "type": "string",
     "group": "financial"
+  },
+  {
+    "key": "grnNumber",
+    "label": "Goods receipt number",
+    "type": "string",
+    "group": "financial",
+    "entity": "goods_receipt"
+  },
+  {
+    "key": "grnDate",
+    "label": "Goods receipt date",
+    "type": "date",
+    "group": "financial",
+    "entity": "goods_receipt"
+  },
+  {
+    "key": "grnQuantity",
+    "label": "Goods received quantity",
+    "type": "number",
+    "group": "financial",
+    "entity": "goods_receipt"
+  },
+  {
+    "key": "matchStatus",
+    "label": "Match status",
+    "type": "enum",
+    "group": "financial"
+  },
+  {
+    "key": "matchVariance",
+    "label": "Match variance",
+    "type": "currency",
+    "group": "financial"
+  },
+  {
+    "key": "earlyPaymentDiscountPercent",
+    "label": "Early-payment discount %",
+    "type": "percent",
+    "group": "financial"
+  },
+  {
+    "key": "earlyPaymentDiscountDays",
+    "label": "Early-payment discount days",
+    "type": "number",
+    "group": "financial"
+  },
+  {
+    "key": "approvalState",
+    "label": "Approval state",
+    "type": "enum",
+    "group": "financial"
+  },
+  {
+    "key": "holdReason",
+    "label": "Hold reason",
+    "type": "string",
+    "group": "financial"
+  },
+  {
+    "key": "vendorBankIban",
+    "label": "Vendor bank IBAN",
+    "type": "string",
+    "group": "financial",
+    "entity": "vendor"
+  },
+  {
+    "key": "vendorBankSwift",
+    "label": "Vendor bank SWIFT/BIC",
+    "type": "string",
+    "group": "financial",
+    "entity": "vendor"
+  },
+  {
+    "key": "vendorBankRouting",
+    "label": "Vendor bank routing",
+    "type": "string",
+    "group": "financial",
+    "entity": "vendor"
   }
 ]
