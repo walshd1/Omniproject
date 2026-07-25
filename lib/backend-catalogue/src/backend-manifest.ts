@@ -100,6 +100,11 @@ export type ContractAction =
   | "get_dimension"
   | "create_dimension"
   | "update_dimension"
+  // ── Revenue recognition (finance superset F15) — ASC 606 / IFRS 15 recognition schedules ──
+  | "list_rev_rec_schedules"
+  | "get_rev_rec_schedule"
+  | "create_rev_rec_schedule"
+  | "update_rev_rec_schedule"
   | "get_capabilities";
 
 /** Catalogue tier — enterprise backends gate the premium workflow generation. */
@@ -177,7 +182,7 @@ export interface KeyFormat {
  * contributed `fields[]` — so whatever any backend can provide maps through to the standard surface. It is NOT
  * scoped per record type; `primaryRecord` governs required actions, not which fields exist.
  */
-export const BACKEND_RECORD_TYPES = ["issue", "invoice", "client", "product", "payment", "credit_note", "quote", "tax_rate", "vendor", "expense", "bill", "purchase_order", "gl_account", "journal_entry", "bank_account", "bank_transaction", "fx_rate", "fiscal_period", "dimension"] as const;
+export const BACKEND_RECORD_TYPES = ["issue", "invoice", "client", "product", "payment", "credit_note", "quote", "tax_rate", "vendor", "expense", "bill", "purchase_order", "gl_account", "journal_entry", "bank_account", "bank_transaction", "fx_rate", "fiscal_period", "dimension", "rev_rec_schedule"] as const;
 export type BackendRecordType = (typeof BACKEND_RECORD_TYPES)[number];
 
 /** The contract READ verbs a backend of each primary-record type must implement (the verifier enforces this).
@@ -205,6 +210,7 @@ export const RECORD_TYPE_REQUIRED_READS: Record<BackendRecordType, ContractActio
   fx_rate: ["list_fx_rates"],
   fiscal_period: ["list_fiscal_periods"],
   dimension: ["list_dimensions"],
+  rev_rec_schedule: ["list_rev_rec_schedules"],
 };
 
 export interface BackendManifest {

@@ -1525,5 +1525,88 @@
     "type": "reference",
     "references": "dimension",
     "group": "financial"
+  },
+  {
+    "key": "deferredRevenue",
+    "label": "Deferred revenue",
+    "type": "currency",
+    "group": "financial"
+  },
+  {
+    "key": "recognizedRevenue",
+    "label": "Recognised revenue",
+    "type": "currency",
+    "group": "financial"
+  },
+  {
+    "key": "revRecMethod",
+    "label": "Revenue recognition method",
+    "type": "enum",
+    "group": "financial"
+  },
+  {
+    "key": "revRecStartDate",
+    "label": "Recognition start",
+    "type": "date",
+    "group": "financial"
+  },
+  {
+    "key": "revRecEndDate",
+    "label": "Recognition end",
+    "type": "date",
+    "group": "financial"
+  },
+  {
+    "key": "performanceObligation",
+    "label": "Performance obligation",
+    "type": "string",
+    "group": "financial"
+  },
+  {
+    "key": "standaloneSellingPrice",
+    "label": "Standalone selling price",
+    "type": "currency",
+    "group": "financial"
+  },
+  {
+    "key": "contractAsset",
+    "label": "Contract asset",
+    "type": "currency",
+    "group": "financial"
+  },
+  {
+    "key": "contractLiability",
+    "label": "Contract liability",
+    "type": "currency",
+    "group": "financial"
+  },
+  {
+    "key": "revRecScheduleAmount",
+    "label": "Scheduled amount",
+    "type": "currency",
+    "group": "financial",
+    "entity": "rev_rec_schedule"
+  },
+  {
+    "key": "revRecScheduleDate",
+    "label": "Recognition date",
+    "type": "date",
+    "group": "financial",
+    "entity": "rev_rec_schedule"
+  },
+  {
+    "key": "revRecScheduleStatus",
+    "label": "Recognition status",
+    "type": "enum",
+    "group": "financial",
+    "entity": "rev_rec_schedule"
+  },
+  {
+    "key": "revRecScheduleInvoice",
+    "label": "Invoice",
+    "type": "reference",
+    "references": "invoice",
+    "group": "financial",
+    "entity": "rev_rec_schedule"
   }
 ]
