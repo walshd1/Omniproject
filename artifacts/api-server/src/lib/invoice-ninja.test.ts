@@ -17,6 +17,7 @@ function invoice(over: Partial<Invoice> = {}): Invoice {
   return {
     id: "inv_abc", number: "INV-001", clientName: "Acme Ltd", projectId: "p1", currency: "USD",
     status: "issued", lines: [line()], subtotal: 1000, taxRatePct: 20, taxAmount: 200, total: 1200,
+    amountPaid: 0, balance: 1200,
     note: "Thanks", dueAt: "2026-08-01T00:00:00.000Z", issuedAt: "2026-07-25T00:00:00.000Z", paidAt: null,
     ownerSub: "u1", storage: {} as Invoice["storage"], version: 1,
     createdAt: "2026-07-25T00:00:00.000Z", updatedAt: "2026-07-25T00:00:00.000Z", updatedBy: "u1", ...over,
@@ -103,21 +104,27 @@ test("a new invoice row starts unsynced; applyInvoiceExternalRef records the ref
 
 // ── Phase 4: inbound payment webhook ─────────────────────────────────────────────────────────────────
 
-test("parseNinjaWebhook pulls the omni id from custom_value1 at the top level", () => {
-  assert.deepEqual(parseNinjaWebhook({ custom_value1: ninjaCorrelation("proj~p1~inv9"), status_id: "4" }), { invoiceId: "proj~p1~inv9" });
+test("parseNinjaWebhook pulls the omni id from custom_value1 at the top level (amount null when absent)", () => {
+  assert.deepEqual(parseNinjaWebhook({ custom_value1: ninjaCorrelation("proj~p1~inv9"), status_id: "4" }), { invoiceId: "proj~p1~inv9", amount: null });
 });
 
 test("parseNinjaWebhook tolerates data/invoice/payload wrappers and an invoices[] array", () => {
-  assert.deepEqual(parseNinjaWebhook({ data: { custom_value1: "omni:org~inv1" } }), { invoiceId: "org~inv1" });
-  assert.deepEqual(parseNinjaWebhook({ invoice: { custom_value1: "omni:org~inv2" } }), { invoiceId: "org~inv2" });
-  assert.deepEqual(parseNinjaWebhook({ payload: { custom_value1: "omni:org~inv3" } }), { invoiceId: "org~inv3" });
+  assert.deepEqual(parseNinjaWebhook({ data: { custom_value1: "omni:org~inv1" } }), { invoiceId: "org~inv1", amount: null });
+  assert.deepEqual(parseNinjaWebhook({ invoice: { custom_value1: "omni:org~inv2" } }), { invoiceId: "org~inv2", amount: null });
+  assert.deepEqual(parseNinjaWebhook({ payload: { custom_value1: "omni:org~inv3" } }), { invoiceId: "org~inv3", amount: null });
   // A payment event references its invoices — correlation sits on the first invoice.
-  assert.deepEqual(parseNinjaWebhook({ event_type: "payment", invoices: [{ id: "IN-1", custom_value1: "omni:org~inv4" }] }), { invoiceId: "org~inv4" });
-  assert.deepEqual(parseNinjaWebhook({ data: { invoices: [{ custom_value1: "omni:org~inv5" }] } }), { invoiceId: "org~inv5" });
+  assert.deepEqual(parseNinjaWebhook({ event_type: "payment", invoices: [{ id: "IN-1", custom_value1: "omni:org~inv4" }] }), { invoiceId: "org~inv4", amount: null });
+  assert.deepEqual(parseNinjaWebhook({ data: { invoices: [{ custom_value1: "omni:org~inv5" }] } }), { invoiceId: "org~inv5", amount: null });
 });
 
 test("parseNinjaWebhook accepts an explicit `correlation` field too", () => {
-  assert.deepEqual(parseNinjaWebhook({ correlation: "omni:org~inv6" }), { invoiceId: "org~inv6" });
+  assert.deepEqual(parseNinjaWebhook({ correlation: "omni:org~inv6" }), { invoiceId: "org~inv6", amount: null });
+});
+
+test("parseNinjaWebhook surfaces a settlement amount when present (finance F3, partial payments)", () => {
+  assert.deepEqual(parseNinjaWebhook({ custom_value1: "omni:org~inv7", amount: 250 }), { invoiceId: "org~inv7", amount: 250 });
+  assert.deepEqual(parseNinjaWebhook({ data: { custom_value1: "omni:org~inv8", amount: "99.50" } }), { invoiceId: "org~inv8", amount: 99.5 });
+  assert.deepEqual(parseNinjaWebhook({ custom_value1: "omni:org~inv9", amount: 0 }), { invoiceId: "org~inv9", amount: null }); // non-positive → ignored
 });
 
 test("parseNinjaWebhook returns null when no omni correlation is present", () => {

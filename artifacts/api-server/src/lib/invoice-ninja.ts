@@ -217,11 +217,21 @@ export function ninjaSystemContext(): ActorContext {
  * `invoices[]` array (a payment event references its invoices). Returns null when no correlation of ours
  * is present. Pure — the route resolves + transitions the invoice.
  */
-export function parseNinjaWebhook(raw: unknown): { invoiceId: string } | null {
+export function parseNinjaWebhook(raw: unknown): { invoiceId: string; amount: number | null } | null {
   if (!raw || typeof raw !== "object") return null;
   const obj = raw as Record<string, unknown>;
   const asRec = (v: unknown): Record<string, unknown> | null =>
     v && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : null;
+
+  // An optional settlement amount, read from the payment envelope (finance superset F3) — top level or a
+  // data/payload wrapper. Absent ⇒ the caller settles in full (backward-compatible phase-4 behaviour).
+  const amountFrom = (): number | null => {
+    for (const w of [obj, asRec(obj["data"]), asRec(obj["payload"])]) {
+      const a = Number(w?.["amount"]);
+      if (Number.isFinite(a) && a > 0) return a;
+    }
+    return null;
+  };
 
   const candidates: Array<Record<string, unknown> | null> = [obj, asRec(obj["data"]), asRec(obj["invoice"]), asRec(obj["payload"])];
   for (const wrapper of [obj, asRec(obj["data"]), asRec(obj["payload"])]) {
@@ -231,7 +241,7 @@ export function parseNinjaWebhook(raw: unknown): { invoiceId: string } | null {
   for (const c of candidates) {
     if (!c) continue;
     const id = parseNinjaCorrelation(c["custom_value1"] ?? c["correlation"]);
-    if (id) return { invoiceId: id };
+    if (id) return { invoiceId: id, amount: amountFrom() };
   }
   return null;
 }

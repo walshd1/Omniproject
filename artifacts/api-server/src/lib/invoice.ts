@@ -94,6 +94,10 @@ export interface Invoice {
   taxRatePct: number;
   taxAmount: number;
   total: number;
+  /** Cumulative amount settled against this invoice (finance superset F3). 0 until a payment is applied. */
+  amountPaid: number;
+  /** Outstanding balance = total − amountPaid (server-derived; never below 0). */
+  balance: number;
   note: string | null;
   dueAt: string | null;
   issuedAt: string | null;
@@ -116,6 +120,8 @@ export interface InvoiceMeta {
   currency: string;
   status: InvoiceStatus;
   total: number;
+  /** Outstanding balance (finance superset F3) — for AR aging on the list projection. */
+  balance: number;
   lineCount: number;
   projectId?: string | null;
   storage?: InvoiceStorage;
@@ -236,6 +242,8 @@ export function newInvoiceRow(id: string, input: SanitizedInvoiceWrite, ctx: Act
     taxRatePct: input.taxRatePct,
     taxAmount: totals.taxAmount,
     total: totals.total,
+    amountPaid: 0,
+    balance: totals.total,
     note: input.note,
     dueAt: input.dueAt,
     issuedAt: null,
@@ -276,6 +284,8 @@ export function mergeInvoiceRow(existing: Invoice, input: SanitizedInvoiceWrite,
     taxRatePct: input.taxRatePct,
     taxAmount: totals.taxAmount,
     total: totals.total,
+    // Preserve any payments already applied; re-derive the balance against the new total.
+    balance: round2(totals.total - (existing.amountPaid ?? 0)),
     note: input.note,
     dueAt: input.dueAt,
     version: (existing.version ?? 1) + 1,
@@ -286,14 +296,45 @@ export function mergeInvoiceRow(existing: Invoice, input: SanitizedInvoiceWrite,
 
 /**
  * Move an invoice to `next` status (assumes the transition was validated by {@link canTransitionInvoice}).
- * Stamps `issuedAt` on issue and `paidAt` on pay; bumps the version. Pure.
+ * Stamps `issuedAt` on issue and `paidAt` on pay; bumps the version. Marking `paid` settles it in full
+ * (amountPaid = total, balance = 0); other transitions keep the running balance. Pure.
  */
 export function applyInvoiceStatus(existing: Invoice, next: InvoiceStatus, ctx: ActorContext, now: string): Invoice {
+  const amountPaid = next === "paid" ? existing.total : (existing.amountPaid ?? 0);
   return {
     ...existing,
     status: next,
+    amountPaid,
+    balance: round2(existing.total - amountPaid),
     issuedAt: next === "issued" ? now : existing.issuedAt,
     paidAt: next === "paid" ? now : existing.paidAt,
+    version: (existing.version ?? 1) + 1,
+    updatedAt: now,
+    updatedBy: actorLabel(ctx),
+  };
+}
+
+/**
+ * Apply a PAYMENT of `amount` against an invoice (finance superset F3). Accumulates `amountPaid` (clamped
+ * to [0, total]), re-derives `balance`, and advances status: a payment implies external issuance, so a
+ * draft is issued; once the balance reaches zero the invoice is marked `paid` (stamping `paidAt`), else it
+ * stays `issued` (partially paid). A void invoice can't take payment (returns unchanged). Bumps version.
+ * Pure — the caller persists the returned row.
+ */
+export function applyInvoicePayment(existing: Invoice, amount: number, ctx: ActorContext, now: string): Invoice {
+  if (existing.status === "void") return existing;
+  const add = Math.max(0, num(amount));
+  const amountPaid = Math.min(existing.total, round2((existing.amountPaid ?? 0) + add));
+  const balance = round2(existing.total - amountPaid);
+  const fullySettled = balance <= 0;
+  const status: InvoiceStatus = fullySettled ? "paid" : "issued";
+  return {
+    ...existing,
+    status,
+    amountPaid,
+    balance,
+    issuedAt: existing.issuedAt ?? now, // a payment implies the invoice was issued
+    paidAt: fullySettled ? (existing.paidAt ?? now) : existing.paidAt,
     version: (existing.version ?? 1) + 1,
     updatedAt: now,
     updatedBy: actorLabel(ctx),
@@ -324,6 +365,7 @@ export function invoiceMeta(inv: Invoice): InvoiceMeta {
     currency: inv.currency,
     status: inv.status ?? "draft",
     total: inv.total ?? 0,
+    balance: inv.balance ?? round2((inv.total ?? 0) - (inv.amountPaid ?? 0)),
     lineCount: inv.lines?.length ?? 0,
     dueAt: inv.dueAt ?? null,
     updatedAt: inv.updatedAt,
