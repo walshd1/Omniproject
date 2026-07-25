@@ -70,7 +70,7 @@ export interface InvoiceLine {
 /** A pointer to this invoice's twin in an external billing system of record (Invoice Ninja). Server-set on a
  *  successful push — never client-writable (not part of `SanitizedInvoiceWrite`). */
 export interface InvoiceExternalRef {
-  /** The backend id the invoice was pushed to (e.g. "invoice-ninja"). */
+  /** The backend id the invoice was pushed to (the connected billing backend's catalogue id). */
   system: string;
   /** The external record's id (used for a later update / status match). */
   id: string;

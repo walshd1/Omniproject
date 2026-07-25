@@ -75,33 +75,28 @@ ALWAYS-ON autonomous-write guard around the broker seam.
 
 ### `artifacts/api-server/src/broker/backends/index.ts`
 
-Backend billing-adapter SEAM — the neutral boundary between the gateway's invoice routes and a concrete backend's outbound billing sync (push / pull-back / inbound settlement webhook).
+Backend billing-adapter SEAM — the neutral boundary between the gateway's invoice routes and a backend's outbound billing sync (push / pull-back / inbound settlement webhook).
 
 | Function | What it does |
 | --- | --- |
 | `resolveBillingAdapter` | The billing adapter for the connected backend, or null when none applies. |
-| `allLegacyWebhookPaths` | All back-compat vendor-named webhook paths across every registered adapter (data). |
-| `allLegacyWebhookHeaders` | All back-compat vendor-named webhook header names across every registered adapter (data). |
+| `allLegacyWebhookPaths` | All back-compat vendor-named webhook paths advertised across every billing backend (data). |
+| `allLegacyWebhookHeaders` | All back-compat vendor-named webhook header names advertised across every billing backend (data). |
 
-### `artifacts/api-server/src/broker/backends/invoice-ninja.ts`
+### `artifacts/api-server/src/broker/backends/invoice-mapping.ts`
 
-Invoice Ninja bridge — phase 1 (docs/design/INVOICE-NINJA.md).
+Generic invoice-sync PROJECTOR — the backend-vendor-NEUTRAL engine that maps OmniProject's agnostic invoice surface onto whatever a backend ADVERTISES, and back, driven entirely by an {@link InvoiceSyncSpec} the backend carries in its catalogue manifest.
 
 | Function | What it does |
 | --- | --- |
-| `invoiceNinjaSyncEnabled` | The bridge is opt-in: it needs both the `invoicing` feature (checked at the route) AND this deploy flag, since it emits outbound commands the operator must have wired an n8n workflow for. |
-| `ninjaCorrelation` | The correlation value stored on the Invoice Ninja invoice (and matched on the inbound webhook). |
-| `parseNinjaCorrelation` | Parse the OmniProject invoice id back out of a correlation value, or null if it isn't one of ours. |
-| `toNinjaLine` | Map one OmniProject line to an Invoice Ninja line item. |
-| `toNinjaInvoice` | Map a local {@link Invoice} to the Invoice Ninja invoice payload. |
-| `ninjaCommand` | Dispatch an invoice contract verb through the broker to the Invoice Ninja backend. |
-| `parseNinjaResult` | Parse an Invoice Ninja create/update response into the external ref we store back on the local invoice. |
-| `pushInvoice` | Push a local invoice to the Invoice Ninja backend: create it, or UPDATE it in place when it already carries an Invoice Ninja external ref (idempotent re-push). |
-| `parseNinjaStatus` | Read the settlement signal out of an Invoice Ninja invoice record: `"paid"` when Invoice Ninja marks it settled (v5 `status_id` 4 = paid), or when the balance has reached zero against a positive paid amount; otherwise null (we only ever reconcile the PAID signal on pull — other statuses aren't force-synced from the external system). |
-| `pullInvoice` | Pull the current Invoice Ninja record for a pushed invoice (`get_invoice`) and return the refreshed external ref (its assigned number + portal/PDF link) plus whether Invoice Ninja now reports it PAID — so the caller can update the local `externalRef` and reconcile status (a manual fallback for a missed webhook). |
-| `invoiceNinjaWebhookSecret` | The shared secret the inbound Invoice Ninja payment webhook must present (via n8n). |
-| `ninjaSystemContext` | The session-less actor context for a webhook-driven state change — invoices are org/project scoped (never personal), so no `sub` is needed to resolve their store; this only labels the audit trail (`updatedBy`) and marks the change as automation-initiated. |
-| `parseNinjaWebhook` | Pull the local invoice id out of an inbound Invoice Ninja webhook by its `omni:<id>` correlation (the `custom_value1` we stamped on push). |
+| `correlationValue` | ── Correlation (OmniProject's namespace) ──────────────────────────────────────────────────────────────── |
+| `parseCorrelation` | — |
+| `projectOutbound` | Project the agnostic invoice to the vendor payload the broker will send. |
+| `parseExternalRef` | Normalise a create/update response into the external ref, or null when no usable id is present. |
+| `parsePaid` | Read the settlement signal ("paid" \| null) from a vendor invoice record via the advertised predicate. |
+| `parseWebhook` | Resolve the local invoice id + optional settlement amount from an inbound webhook, or null when not ours. |
+| `syncEnabled` | True when any of the advertised enable-env vars is truthy (`1`/`true`/`on`). |
+| `webhookSecret` | The first non-blank advertised webhook-secret env var, or undefined ⇒ webhook disabled. |
 
 ### `artifacts/api-server/src/broker/builtin/builtin-broker.ts`
 

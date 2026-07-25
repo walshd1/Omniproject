@@ -13,20 +13,21 @@
  * `resolveBillingAdapter()`, and no route, type or user-facing copy names a concrete backend.
  *
  * The naming contract is PRECISE, and only applies where it can leak: a backend earns a name-scan token
- * exactly when it has a gateway-side ADAPTER FILE (`broker/backends/<id>.ts`) — i.e. it needs sync glue in
- * the gateway. A backend reached purely through the broker + generated workflow (Jira, GitHub, OpenProject,
+ * exactly when it ADVERTISES invoice sync (carries an `invoiceSync` block in its manifest) — the only backends
+ * with any gateway-side sync surface. That surface is now fully DATA-DRIVEN: the advertised spec is applied by
+ * the generic projector (`broker/backends/invoice-mapping`), so even the billing backend's name must not appear
+ * in gateway code. A backend reached purely through the broker + generated workflow (Jira, GitHub, OpenProject,
  * SAP, …) has NO gateway code to leak, and its name legitimately appears in demo fixtures, OAuth IdP presets,
- * self-host export notes and connector copy — so it is NOT name-scanned. The token set therefore tracks the
- * adapter folder automatically: add `broker/backends/<vendor>.ts` and that vendor's neutrality is enforced;
- * add a plain catalogue backend and nothing changes here.
+ * self-host export notes and connector copy — so it is NOT name-scanned. The token set tracks the data: add an
+ * `invoiceSync` block and that vendor's neutrality is enforced; add a plain catalogue backend and nothing changes.
  *
  * Two checks, both fail CI:
- *   1. IMPORT REACH — nothing may import a CONCRETE backend adapter (`broker/backends/<vendor>`) except the
- *      seam factory (`broker/backends/index.ts`) and the adapter folder itself. Importing the neutral seam
- *      (`broker/backends`) is always fine. This applies to EVERY adapter file, present or future.
- *   2. NAMING (code) — an ADAPTER-BACKED backend's vendor token may not appear in CODE (comments excluded)
- *      anywhere in the gateway, the SPA, or the backend-catalogue package, except the adapter home itself
- *      and generated (`*.generated.ts`) vendor data.
+ *   1. IMPORT REACH — nothing may import a concrete file under `broker/backends/` (other than the neutral seam
+ *      `index`) from outside that folder: the routes must go through the seam. Importing the seam
+ *      (`broker/backends`) is always fine.
+ *   2. NAMING (code) — an advertised billing backend's vendor token may not appear in CODE (comments excluded)
+ *      anywhere in the gateway, the SPA, or the backend-catalogue package, except generated (`*.generated.ts`)
+ *      vendor data and the neutral catalogue enumerators.
  *
  * Run: `pnpm --filter @workspace/scripts run guard-backend-isolation`
  */
@@ -53,30 +54,38 @@ function tokenFragment(s: string): string {
   return s.split(/[-_\s]+/).map((p) => p.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("[-_\\s]?");
 }
 
-/** The backend ids that have a gateway-side ADAPTER FILE — the only backends whose name must not leak. Derived
- *  from the adapter home: every `<id>.ts` under broker/backends/ except the seam factory (`index`) and tests. */
-function adapterBackedIds(): string[] {
-  const dir = path.join(ROOT, GATEWAY_SRC, ADAPTER_DIR);
+/** The backend catalogue dir (one `<id>.json` per backend). */
+const BACKENDS_DIR = "lib/backend-catalogue/vendors/backends";
+
+/** The backend ids that ADVERTISE invoice sync (carry an `invoiceSync` block) — the only backends with any
+ *  gateway-side sync surface, hence the only ones whose name must not appear in code. A backend reached purely
+ *  through the broker + generated workflow has no gateway code to leak and is not name-scanned. Deriving from
+ *  the manifest means the token set tracks the data: add an `invoiceSync` block and that vendor's neutrality is
+ *  enforced automatically. */
+function billingBackendIds(): string[] {
+  const dir = path.join(ROOT, BACKENDS_DIR);
   if (!fs.existsSync(dir)) return [];
-  return fs.readdirSync(dir)
-    .filter((f) => f.endsWith(".ts") && !f.endsWith(".test.ts") && f !== "index.ts")
-    .map((f) => f.replace(/\.ts$/, ""))
-    .sort();
+  const ids: string[] = [];
+  for (const f of fs.readdirSync(dir).filter((x) => x.endsWith(".json"))) {
+    const j = JSON.parse(fs.readFileSync(path.join(dir, f), "utf8")) as { id: string; invoiceSync?: unknown };
+    if (j.invoiceSync) ids.push(j.id);
+  }
+  return ids.sort();
 }
 
-/** Name-scan fragments for exactly the adapter-backed backends. */
-const VENDOR_FRAGMENTS = adapterBackedIds().map(tokenFragment);
+/** Name-scan fragments for exactly the advertised billing backends. */
+const VENDOR_FRAGMENTS = billingBackendIds().map(tokenFragment);
 /** Any concrete backend's name, for the CODE naming scan. */
 const VENDOR_TOKEN = new RegExp(`(${VENDOR_FRAGMENTS.join("|")})`, "i");
 
 /** Source trees scanned for vendor NAMING in code (relative to ROOT). */
 const NAMING_DIRS = [GATEWAY_SRC, "artifacts/omniproject/src", CATALOGUE_SRC];
-/** Paths (relative to ROOT) where a backend token may appear as code: the backend-adapter home (the sanctioned
- *  "this file IS about that vendor" exception, same shape as the broker reference-adapter folder), and the
- *  neutral catalogue files whose job is literally to enumerate vendor ids / document example vendors — the
- *  same sanctioned pattern guard-broker-isolation allows for the broker axis. */
+/** Paths (relative to ROOT) where a backend token may legitimately appear as code: the neutral catalogue files
+ *  whose job is literally to enumerate vendor ids / document example vendors — the same sanctioned pattern
+ *  guard-broker-isolation allows for the broker axis. NOTE the backend-adapter home (broker/backends/) is NOT
+ *  allowlisted: with sync fully data-driven it holds only the neutral seam + projector, so it is held to the
+ *  same zero-vendor-name bar as everything else. */
 const NAMING_ALLOW = [
-  `${GATEWAY_SRC}/${ADAPTER_DIR}`,
   `${CATALOGUE_SRC}/backend-catalogue.ts`,
   `${CATALOGUE_SRC}/backend-manifest.ts`,
   `${CATALOGUE_SRC}/planes.ts`,

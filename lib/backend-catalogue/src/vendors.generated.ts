@@ -1253,13 +1253,157 @@ export const BACKENDS_DATA: BackendDefinition[] = [
     ],
     "id": "invoice-ninja",
     "label": "Invoice Ninja (billing)",
-    "notes": "Open-source, self-hostable billing system of record. Implements the invoice contract verbs plus the client (customer-master), product (item-catalogue), payment (AR-receipt), credit-note, quote, tax-rate, vendor and expense verbs (financials capability) — not a project/issue tracker. Auth via the X-API-Token header (configure an n8n Header Auth credential holding INVOICE_NINJA_TOKEN). INVOICE_NINJA_URL e.g. https://invoicing.example.com. The gateway shapes the payload (lib/invoice-ninja.ts toNinjaInvoice) and dispatches the verb through the broker, so the API token never leaves the broker's secret store.",
+    "notes": "Open-source, self-hostable billing system of record. Implements the invoice contract verbs plus the client (customer-master), product (item-catalogue), payment (AR-receipt), credit-note, quote, tax-rate, vendor and expense verbs (financials capability) — not a project/issue tracker. Auth via the X-API-Token header (configure an n8n Header Auth credential holding INVOICE_NINJA_TOKEN). INVOICE_NINJA_URL e.g. https://invoicing.example.com. Invoice sync is fully data-driven: the advertised invoiceSync mapping (below) is applied by the gateway's generic projector, so no vendor-shaped billing code lives in the gateway and the API token never leaves the broker's secret store.",
     "primaryRecord": "invoice",
     "requiredEnv": [
       "INVOICE_NINJA_URL"
     ],
     "verification": "catalogued",
-    "via": "HTTP (Invoice Ninja v5 REST) + n8n Header-Auth credential (X-API-Token)"
+    "via": "HTTP (Invoice Ninja v5 REST) + n8n Header-Auth credential (X-API-Token)",
+    "invoiceSync": {
+      "correlation": {
+        "field": "custom_value1",
+        "altFields": [
+          "correlation"
+        ]
+      },
+      "env": {
+        "enable": [
+          "INVOICE_NINJA_SYNC"
+        ],
+        "webhookSecret": [
+          "INVOICE_NINJA_WEBHOOK_SECRET"
+        ]
+      },
+      "outbound": {
+        "fields": [
+          {
+            "to": "number",
+            "from": "number"
+          },
+          {
+            "to": "client_name",
+            "from": "clientName"
+          },
+          {
+            "to": "currency_code",
+            "from": "currency"
+          },
+          {
+            "to": "tax_rate1",
+            "from": "taxRatePct"
+          },
+          {
+            "to": "tax_name1",
+            "from": "taxRatePct",
+            "transform": "const-when-gt",
+            "gt": 0,
+            "then": "Tax",
+            "else": ""
+          },
+          {
+            "to": "due_date",
+            "from": "dueAt",
+            "transform": "date-only"
+          },
+          {
+            "to": "public_notes",
+            "from": "note"
+          }
+        ],
+        "lines": {
+          "to": "line_items",
+          "from": "lines",
+          "fields": [
+            {
+              "to": "type_id",
+              "from": "kind",
+              "transform": "map",
+              "map": {
+                "labour": "2"
+              },
+              "default": "1"
+            },
+            {
+              "to": "product_key",
+              "from": "kind"
+            },
+            {
+              "to": "notes",
+              "from": "description"
+            },
+            {
+              "to": "cost",
+              "from": "unitPrice",
+              "transform": "sign-when",
+              "whenField": "kind",
+              "equals": "discount"
+            },
+            {
+              "to": "quantity",
+              "from": "quantity"
+            }
+          ]
+        },
+        "correlationTo": "custom_value1"
+      },
+      "inbound": {
+        "unwrap": [
+          "data"
+        ],
+        "id": "id",
+        "number": "number",
+        "pdf": "invitations.0.link",
+        "paid": {
+          "anyOf": [
+            {
+              "field": "status_id",
+              "equalsAny": [
+                4,
+                "4"
+              ]
+            },
+            {
+              "allOf": [
+                {
+                  "field": "balance",
+                  "finite": true,
+                  "lte": 0
+                },
+                {
+                  "field": "paid_to_date",
+                  "finite": true,
+                  "gt": 0
+                }
+              ]
+            }
+          ]
+        }
+      },
+      "webhook": {
+        "wrappers": [
+          "data",
+          "invoice",
+          "payload"
+        ],
+        "arrayWrappers": [
+          "data",
+          "payload"
+        ],
+        "invoicesKey": "invoices",
+        "amountWrappers": [
+          "data",
+          "payload"
+        ],
+        "amountField": "amount",
+        "legacyPaths": [
+          "/invoices/ninja-webhook"
+        ],
+        "legacyHeaders": [
+          "x-invoice-ninja-secret"
+        ]
+      }
+    }
   },
   {
     "actions": {
