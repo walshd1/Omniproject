@@ -1080,5 +1080,61 @@
     "type": "string",
     "group": "financial",
     "entity": "payment"
+  },
+  {
+    "key": "creditNoteNumber",
+    "label": "Credit note number",
+    "type": "string",
+    "group": "financial",
+    "entity": "credit_note"
+  },
+  {
+    "key": "creditNoteAmount",
+    "label": "Credit note amount",
+    "type": "currency",
+    "group": "financial",
+    "entity": "credit_note"
+  },
+  {
+    "key": "creditNoteStatus",
+    "label": "Credit note status",
+    "type": "enum",
+    "group": "financial",
+    "entity": "credit_note"
+  },
+  {
+    "key": "quoteNumber",
+    "label": "Quote number",
+    "type": "string",
+    "group": "financial",
+    "entity": "quote"
+  },
+  {
+    "key": "quoteAmount",
+    "label": "Quote amount",
+    "type": "currency",
+    "group": "financial",
+    "entity": "quote"
+  },
+  {
+    "key": "quoteStatus",
+    "label": "Quote status",
+    "type": "enum",
+    "group": "financial",
+    "entity": "quote"
+  },
+  {
+    "key": "quoteExpiryDate",
+    "label": "Quote expiry date",
+    "type": "date",
+    "group": "financial",
+    "entity": "quote"
+  },
+  {
+    "key": "recurringFrequency",
+    "label": "Recurring frequency",
+    "type": "enum",
+    "group": "financial",
+    "entity": "invoice"
   }
 ]
