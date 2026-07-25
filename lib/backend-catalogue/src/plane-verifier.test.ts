@@ -85,11 +85,22 @@ test("backends: an import source skips the auth + contract-action requirements",
   assert.ok(!r.errors.some((e) => e.includes("authHeader")) && !r.errors.some((e) => e.includes("actions")));
 });
 
-test("backends: a live backend with an actions object still needs the two core read actions", () => {
-  const r = verifyPlaneEntry("backends", { id: "x", label: "X", kind: "live", verification: "catalogued", via: "http", requiredEnv: [], capabilities: {}, authHeader: "x", actions: {} });
+test("backends: an ISSUES backend still needs the two core read actions", () => {
+  const r = verifyPlaneEntry("backends", { id: "x", label: "X", kind: "live", verification: "catalogued", via: "http", requiredEnv: [], capabilities: { issues: true }, authHeader: "x", actions: {} });
   assert.equal(r.ok, false);
   assert.ok(r.errors.some((e) => e.includes("list_projects")), "list_projects required");
   assert.ok(r.errors.some((e) => e.includes("list_issues")), "list_issues required");
+});
+
+test("backends: a non-issues backend (e.g. financials) is exempt from the PM core reads but needs ≥1 action", () => {
+  // A billing system of record maps its own verbs and must NOT be forced to expose projects/issues.
+  const ok = verifyPlaneEntry("backends", { id: "bill", label: "Bill", kind: "live", verification: "catalogued", via: "http", requiredEnv: [], capabilities: { financials: true, issues: false }, authHeader: "x", actions: { create_invoice: { method: "POST", url: "x" } } });
+  assert.equal(ok.ok, true);
+  assert.ok(!ok.errors.some((e) => e.includes("list_projects")), "no PM core read required for a non-issues backend");
+  // …but an empty actions map is still rejected.
+  const empty = verifyPlaneEntry("backends", { id: "bill", label: "Bill", kind: "live", verification: "catalogued", via: "http", requiredEnv: [], capabilities: { financials: true }, authHeader: "x", actions: {} });
+  assert.equal(empty.ok, false);
+  assert.ok(empty.errors.some((e) => e.includes("at least one action")), "≥1 action required");
 });
 
 test("brokers: every field-level guard fires for a fully-empty entry", () => {

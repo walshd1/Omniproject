@@ -42,8 +42,21 @@ const CHECKS: Record<PlaneId, (e: Rec, errors: string[]) => void> = {
     if (e["kind"] === "import") return;
     if (!isStr(e["authHeader"]) && !isStr(e["credentialType"])) errors.push("authHeader OR credentialType: one is required");
     const a = e["actions"] as Rec | undefined;
+    const caps = isObj(e["capabilities"]) ? (e["capabilities"] as Rec) : {};
     if (!isObj(a)) errors.push("actions: required object");
-    else { if (!a?.["list_projects"]) errors.push("actions.list_projects: required (core read)"); if (!a?.["list_issues"]) errors.push("actions.list_issues: required (core read)"); }
+    else {
+      const acts = a as Rec;
+      // The PM core reads are required only of a PROJECT/ISSUE backend (capabilities.issues). A backend in a
+      // different domain — e.g. a billing system of record (capabilities.financials, like invoice-ninja) —
+      // implements its own verbs (create_invoice, …) and must not be forced to expose projects/issues; it
+      // just has to map at least one action.
+      if (caps["issues"] === true) {
+        if (!acts["list_projects"]) errors.push("actions.list_projects: required (core read for an issues backend)");
+        if (!acts["list_issues"]) errors.push("actions.list_issues: required (core read for an issues backend)");
+      } else if (Object.keys(acts).length === 0) {
+        errors.push("actions: at least one action required");
+      }
+    }
   },
   brokers: (e, errors) => {
     if (!isStr(e["kind"])) errors.push("kind: required");

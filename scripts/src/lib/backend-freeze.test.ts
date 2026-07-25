@@ -22,7 +22,7 @@ test("does not throw at or under the baseline count, regardless of verification"
 test("throws once the catalogue grows past baseline with an unverified flagship", () => {
   assert.throws(
     () => checkCatalogueFreeze(backendsAt(CATALOGUE_BASELINE_COUNT + 1)),
-    /frozen at 41 backends/,
+    new RegExp(`frozen at ${CATALOGUE_BASELINE_COUNT} backends`),
   );
 });
 

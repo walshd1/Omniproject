@@ -1,7 +1,7 @@
 /**
  * Backend-catalogue growth freeze.
  *
- * The catalogue's 41 backends are all "catalogued" — declarative JSON built from
+ * The catalogue's backends are all "catalogued" — declarative JSON built from
  * public API docs, never exercised against a real live instance (see
  * `VerificationStatus` in `lib/backend-catalogue/src/backend-manifest.ts`). Rather
  * than keep adding breadth on an unverified foundation, the catalogue is frozen at
@@ -10,6 +10,12 @@
  * `lib/backend-catalogue/vendors/README.md#catalogue-freeze` for the policy this
  * backs and how to lift it.
  *
+ * The baseline was raised from 41 to 42 to admit `invoice-ninja` — the billing
+ * system-of-record category (the `financials` capability) had no dedicated
+ * connector, and Invoice Ninja is open-source + self-hostable so it can actually
+ * be verified without a paid tenant. The freeze otherwise holds: no 43rd backend
+ * until the flagship set below is verified.
+ *
  * SCOPE: this is a build-time contribution policy (called from `gen-vendors.ts`,
  * which embeds the SHIPPED catalogue), not a runtime security control. A
  * deployment's own `$OMNI_CONFIG_DIR/vendors/backends/*.json` overlay is schema
@@ -17,7 +23,7 @@
  * operator config, not catalogue growth this policy is meant to gate.
  */
 
-export const CATALOGUE_BASELINE_COUNT = 41;
+export const CATALOGUE_BASELINE_COUNT = 42;
 
 export const FLAGSHIP_BACKEND_IDS = ["jira", "asana", "salesforce", "servicenow", "sap"] as const;
 
