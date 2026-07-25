@@ -1,6 +1,7 @@
 import crypto, { type KeyObject } from "node:crypto";
 import fs from "node:fs";
 import { verifySignature, parsePrivateKey } from "./signing";
+import { safeParseJson } from "./safe-json";
 import { logger } from "./logger";
 
 /**
@@ -111,11 +112,11 @@ export function parseSignedRelease(value: unknown): SignedRelease | null {
  *  (default `./release.json`). Returns null when none is present or it's malformed. */
 export function loadSignedRelease(env: NodeJS.ProcessEnv = process.env): SignedRelease | null {
   const inline = (env["RELEASE_MANIFEST"] ?? "").trim();
-  if (inline) { try { return parseSignedRelease(JSON.parse(inline)); } catch { return null; } }
+  if (inline) { try { return parseSignedRelease(safeParseJson(inline)); } catch { return null; } }
   const file = (env["RELEASE_MANIFEST_FILE"] ?? "release.json").trim();
   try {
     if (!fs.existsSync(file)) return null;
-    return parseSignedRelease(JSON.parse(fs.readFileSync(file, "utf8")));
+    return parseSignedRelease(safeParseJson(fs.readFileSync(file, "utf8")));
   } catch { return null; }
 }
 

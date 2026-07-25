@@ -160,6 +160,13 @@ overrides:
   # All install paths are dev/build tooling — never the production runtime — and 3.1.4 is a patch, so
   # forcing the vulnerable range up to the patched line is low-risk.
   "fast-uri@>=3.0.0 <3.1.4": ">=3.1.4 <4.0.0"
+  # brace-expansion <=5.0.7 (via minimatch, pulled transitively by eslint + c8's test-exclude) carries a
+  # HIGH advisory (GHSA-mh99-v99m-4gvg: DoS via unbounded expansion → OOM). The audit DB collapses the
+  # affected set to a single `<=5.0.7` range, so EVERY resolved copy — including the 1.x one under eslint's
+  # minimatch@3 — trips it; only `>=5.0.8` clears the scan. Both consumers are dev/test tooling (this repo
+  # runs no active ESLint) and brace-expansion keeps a stable default-function export across majors, so
+  # forcing the whole dep to the patched line is low-risk.
+  brace-expansion: ">=5.0.8"
 
 allowBuilds:
   esbuild: true
