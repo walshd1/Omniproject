@@ -3213,6 +3213,26 @@ Per-org test canary (docs/UPDATE-MECHANISM.md §5, phase 5).
 | `acceptCanary` | Accept the canary → promote its digest to production. |
 | `rejectCanary` | Reject the canary → discard it. |
 
+### `artifacts/api-server/src/lib/release-migration.ts`
+
+Signed migration runner (docs/UPDATE-MECHANISM.md §8, phase 6).
+
+| Function | What it does |
+| --- | --- |
+| `registerMigration` | Register a migration (at module load). |
+| `__clearMigrations` | Test seam: drop all registered migrations. |
+| `appliedMigrationIds` | The ids of migrations already applied on this deployment. |
+| `__resetMigrationLedger` | Test seam: clear the in-memory ledger + the loaded-once guard. |
+| `pendingMigrations` | Registered migrations not yet applied, in registration order. |
+| `pendingIrreversibleMigrations` | Pending migrations that are NOT reversible — these block promotion (§8). |
+| `migrationBlockReason` | Why a promotion must be blocked, or null when safe. |
+| `canonicalMigrationManifest` | The canonical message a signature covers: the SORTED, de-duplicated id list as compact JSON — so signing and verifying are byte-identical regardless of source ordering. |
+| `buildSignedMigrationManifest` | Release-side: sign an approved id list with the RELEASE PRIVATE key, producing the manifest the runtime verifies. |
+| `parseMigrationManifest` | Parse an untrusted value into a SignedMigrationManifest, or null when structurally invalid. |
+| `loadMigrationManifest` | Load the signed manifest: inline JSON in `RELEASE_MIGRATIONS`, else the file at `RELEASE_MIGRATIONS_FILE`. |
+| `approvedMigrationIds` | The set of migration ids approved by a VERIFIED signed manifest, or null when unsigned / unverifiable. |
+| `runSignedMigrations` | Run the pending migrations at boot — each ONLY if it's named in a verified signed manifest. |
+
 ### `artifacts/api-server/src/lib/release-promotion.ts`
 
 Approval-gated promotion (docs/UPDATE-MECHANISM.md §7, phase 3).
@@ -4854,6 +4874,10 @@ Timesheet STORE seam — where timesheets live is BELOW the seam (the operator's
 | `resetTimesheetStore` | Reset to no store — used by tests to isolate. |
 | `timesheetStoreFor` | The store for a scope, or null. |
 | `describeTimesheetSources` | Report which timesheet sources a deployment COULD use, for the UI to explain availability: - self-host: adoption is on (settings.selfHost.mode !== "off"); - backend: a backend-source provider is registered. |
+
+### `artifacts/api-server/src/tools/sign-migrations.ts`
+
+Migration-manifest signing CLI (docs/UPDATE-MECHANISM.md §8, phase 6) — approves which migrations may run.
 
 ### `artifacts/api-server/src/tools/sign-promotion.ts`
 

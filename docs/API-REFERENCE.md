@@ -917,6 +917,7 @@ Release promotion (docs/UPDATE-MECHANISM.md §7, phase 3).
 | GET | `/api/admin/release/promotion` | requireRole(admin) | — |
 | GET | `/api/admin/release/backup` | requireRole(admin) | GET /api/admin/release/backup — non-secret metadata of the stored pre-adopt backup (digest + when). |
 | GET | `/api/admin/release/canary` | requireRole(admin) | GET /api/admin/release/canary — the current canary's state (digest under test + accept/reject state). |
+| GET | `/api/admin/release/migrations` | requireRole(admin) | GET /api/admin/release/migrations — pending vs applied migrations + whether any pending one blocks promotion. |
 | POST | `/api/admin/release/promote` | requireRole(admin) | POST /api/admin/release/promote — approve a digest for production. |
 | POST | `/api/admin/release/backup` | requireRole(admin) | POST /api/admin/release/backup — capture a pre-adopt backup NOW, tagged with the running digest. |
 | POST | `/api/admin/release/restore` | requireRole(admin) | POST /api/admin/release/restore — restore the pre-adopt backup, BOUND to a rollback digest. |

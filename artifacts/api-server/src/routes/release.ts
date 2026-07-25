@@ -9,6 +9,7 @@ import {
   ensureRestoreExecutor, ensurePreAdoptBackupHook,
 } from "../lib/release-backup";
 import { startCanary, acceptCanary, rejectCanary, canaryView } from "../lib/release-canary";
+import { migrationBlockReason, pendingMigrations, appliedMigrationIds } from "../lib/release-migration";
 
 /**
  * Release promotion (docs/UPDATE-MECHANISM.md §7, phase 3). `POST /api/admin/release/promote` approves a
@@ -38,6 +39,15 @@ router.get("/admin/release/canary", requireRole("admin"), (_req, res) => {
   res.json({ canary: canaryView() });
 });
 
+// GET /api/admin/release/migrations — pending vs applied migrations + whether any pending one blocks promotion.
+router.get("/admin/release/migrations", requireRole("admin"), (_req, res) => {
+  res.json({
+    pending: pendingMigrations().map((m) => ({ id: m.id, description: m.description, reversible: m.reversible })),
+    applied: [...appliedMigrationIds()],
+    blockReason: migrationBlockReason(),
+  });
+});
+
 // POST /api/admin/release/promote — approve a digest for production. LANE 2 (mountCommand).
 export const promoteCommand: CommandDescriptor<{ digest: string; note?: string }> = {
   name: "release.promote",
@@ -49,6 +59,10 @@ export const promoteCommand: CommandDescriptor<{ digest: string; note?: string }
     if (isAutonomous(contextFromReq(req))) { res.status(403).json({ error: "promotion is a human-only action" }); return null; }
     const body = (req.body ?? {}) as { digest?: unknown; note?: unknown };
     if (!isDigest(body.digest)) { res.status(400).json({ error: "digest must be a content digest (sha256:…)" }); return null; }
+    // A pending irreversible migration blocks promotion (§8) — a data-reshape with no safe rollback must be a
+    // deliberate stop, not a silent side effect of shipping code.
+    const blocked = migrationBlockReason();
+    if (blocked) { res.status(409).json({ error: blocked }); return null; }
     return { digest: body.digest, ...(typeof body.note === "string" ? { note: body.note } : {}) };
   },
   run: async (req, res, args) => {
@@ -148,6 +162,9 @@ export const canaryAcceptCommand: CommandDescriptor<Record<string, never>> = {
   role: "admin",
   parse: (req, res) => {
     if (isAutonomous(contextFromReq(req))) { res.status(403).json({ error: "accepting a canary is a human-only action" }); return null; }
+    // Accepting a canary promotes its digest, so it inherits the same migration gate as a direct promotion.
+    const blocked = migrationBlockReason();
+    if (blocked) { res.status(409).json({ error: blocked }); return null; }
     return {};
   },
   run: async (req, res) => {
