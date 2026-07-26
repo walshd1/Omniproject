@@ -102,3 +102,4 @@ export * from "./prioritise";
 export * from "./scenario";
 export * from "./benefit-monte-carlo";
 export * from "./reassignment";
+export * from "./multi-currency-evm";

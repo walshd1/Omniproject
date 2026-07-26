@@ -5544,6 +5544,14 @@ Monte Carlo schedule/effort-risk simulation — a STATELESS quantitative-risk en
 | `simulate` | Run the simulation over the tasks. |
 | `mulberry32` | A small seeded PRNG (mulberry32) — for deterministic tests and reproducible report runs. |
 
+### `lib/backend-catalogue/src/multi-currency-evm.ts`
+
+MULTI-CURRENCY EAC / ETC — the plan-layer cost forecast when a programme's cost lines land in more than one currency (roadmap §4.1, "multi-currency EAC/ETC").
+
+| Function | What it does |
+| --- | --- |
+| `computeMultiCurrencyEvm` | Convert mixed-currency EVM measures to a single base currency and compute EAC/ETC/VAC on the totals. |
+
 ### `lib/backend-catalogue/src/notification-catalogue.ts`
 
 NOTIFICATION registry — the channels OmniProject can deliver alerts/events TO (Slack, Teams, …).
