@@ -5790,6 +5790,15 @@ RUN-RATE / BURN PROJECTION ENGINE — the lightweight cost forecast that needs n
 | --- | --- |
 | `computeRunRate` | Project spend-at-completion and variance from budget + actuals + elapsed fraction. |
 
+### `lib/backend-catalogue/src/scenario.ts`
+
+SCENARIO / WHAT-IF COMPARISON ENGINE — rank N candidate investment scenarios on their financial return so a fund/defer/cut decision can be made against the same yardstick (roadmap §4.3, "scenario / what-if portfolio planning").
+
+| Function | What it does |
+| --- | --- |
+| `scoreScenario` | Score one scenario. |
+| `compareScenarios` | Score and rank a set of scenarios by NPV (the primary fund/defer/cut yardstick). |
+
 ### `lib/backend-catalogue/src/screen-catalogue.ts`
 
 SCREEN registry — the SPA views OmniProject ships.
