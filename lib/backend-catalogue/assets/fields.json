@@ -687,6 +687,52 @@
     "group": "relationship"
   },
   {
+    "key": "dependencyType",
+    "label": "Dependency type",
+    "type": "enum",
+    "options": ["fs", "ss", "ff", "sf"],
+    "group": "schedule",
+    "entity": "dependency"
+  },
+  {
+    "key": "lagDays",
+    "label": "Lag (working days)",
+    "type": "number",
+    "group": "schedule",
+    "entity": "dependency"
+  },
+  {
+    "key": "leadDays",
+    "label": "Lead (working days)",
+    "type": "number",
+    "group": "schedule",
+    "entity": "dependency"
+  },
+  {
+    "key": "dependencySourceRef",
+    "label": "Predecessor work item",
+    "type": "reference",
+    "references": "task",
+    "group": "schedule",
+    "entity": "dependency"
+  },
+  {
+    "key": "dependencyTargetRef",
+    "label": "Successor work item",
+    "type": "reference",
+    "references": "task",
+    "group": "schedule",
+    "entity": "dependency"
+  },
+  {
+    "key": "dependencyStatus",
+    "label": "Dependency status",
+    "type": "enum",
+    "options": ["proposed", "active", "resolved", "rejected"],
+    "group": "schedule",
+    "entity": "dependency"
+  },
+  {
     "key": "completionPct",
     "label": "Completion %",
     "type": "number",
