@@ -5636,6 +5636,15 @@ The PLANES meta-registry — the seven integration planes OmniProject models, al
 | `getPlane` | Look up a single plane descriptor by its id. |
 | `planeCatalogue` | All plane descriptors (a defensive copy). |
 
+### `lib/backend-catalogue/src/portfolio-select.ts`
+
+PORTFOLIO SELECTION / EFFICIENT-FRONTIER ENGINE — pick the highest-value subset of candidate initiatives that fits a budget (and an optional capacity) cap.
+
+| Function | What it does |
+| --- | --- |
+| `selectByRatio` | Greedy value/cost selection — a deterministic heuristic, not guaranteed optimal. |
+| `selectOptimal` | Exact optimum via 0/1-knapsack integer DP over the budget axis — used ONLY when it is provably bounded: non-negative INTEGER costs, an integer budget ≤ {@link EXACT_MAX_BUDGET}, no capacity cap, and a table of ≤ {@link EXACT_MAX_CELLS} cells. |
+
 ### `lib/backend-catalogue/src/predicate.ts`
 
 Conditional predicate engine — the shared "when" language of every OmniProject rule plane.
