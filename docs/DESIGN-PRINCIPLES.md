@@ -451,6 +451,12 @@ wrong — hence one.
 
 ## Operational implications (read this if you run OmniProject)
 
+- **Temporary CI shim — dependency audit.** `dependency-scan` runs `scripts/ci/audit-advisories.mjs` instead of
+  `pnpm audit`, because npm's bulk advisory endpoint currently returns a gzip body **without** a
+  `Content-Encoding` header, which breaks `pnpm audit` (and any auto-decompressing client) on every version.
+  The shim decodes it itself and keeps the strict high/critical gate (fail-closed). It's a **temporary
+  workaround** with a documented revert test — see [docs/DEPENDENCY-AUDIT-SHIM.md](DEPENDENCY-AUDIT-SHIM.md).
+
 - **Save your recovery key on first setup, and keep it offline.** A fresh instance mints an **Instance Recovery
   Key** (IRK) — a portable secret shown to the admin **once** (Settings → Recovery key), stored *wrapped* on
   the box (never plaintext, never a bare env var). When a cloud KMS is configured the IRK is wrapped **directly

@@ -233,6 +233,10 @@ Format: each principle is a RULE + how to CHECK it + the usual FIX.
 ---
 
 ## Workflow rules
+- TEMPORARY SHIM: `dependency-scan` uses `scripts/ci/audit-advisories.mjs`, not `pnpm audit` (npm's advisory
+  endpoint returns gzip without a `Content-Encoding` header → `pnpm audit` can't decode it on any version).
+  Do NOT "simplify" it back to `pnpm audit` or make it non-blocking. Revert only when the documented test in
+  `docs/DEPENDENCY-AUDIT-SHIM.md` passes (plain client decodes the endpoint again).
 - Match surrounding code: comment density, naming, idioms. Reference `file:line`.
 - After editing JSON assets, run the matching `gen-<kind>` and commit the generated file.
 - Typecheck each package you touch (`npx tsc --noEmit`) and run the affected tests before claiming done.
