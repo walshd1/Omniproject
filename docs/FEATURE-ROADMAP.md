@@ -1646,12 +1646,15 @@ explicit, not forgotten. Every item is ⬜ Todo unless noted.
 > fields-as-primitives, functional-core compute with tests, ruleset governance, write-lane coverage). It is the
 > vehicle that completes many of the 4.x items below — cross-references noted per wave.
 > - **Wave 0 — compute quick win.** ✅ **EVM engine** (`lib/backend-catalogue/src/evm.ts`, PR #874) — see 4.7.
-> - **Wave 1 — foundational primitives.** typed cross-project **`dependency`** (FS/SS/FF/SF + lag → 4.10, 4.3) ·
->   cost+schedule **`baseline`** snapshot (→ 4.7) · **`resource`/`assignment`/`timesheet`** record types + a
->   `resource` field cluster (→ 4.2).
-> - **Wave 2 — compute engines.** promote **Monte-Carlo + critical-path** into the catalogue, server-usable
->   (→ 4.3) · **run-rate / trend-to-complete** projector · **capacity-vs-demand** engine (→ 4.2) · wire EVM into
->   the live financials read (→ 4.7).
+> - **Wave 1 — foundational primitives.** ✅ typed cross-project **`dependency`** (FS/SS/FF/SF + lag → 4.10, 4.3, #876) ·
+>   cost+schedule **`baseline`** snapshot (→ 4.7, #877) · **`resource`/`assignment`/`timesheet`** record types + a
+>   `resource` field cluster (→ 4.2, #878).
+> - **Wave 2 — compute engines.** ✅ promoted **critical-path** (#879) + **Monte-Carlo** (#880) into the catalogue
+>   as vendor-neutral pure modules, server-usable (→ 4.3) · **run-rate / burn** projector (#881) ·
+>   **capacity-vs-demand** engine (#882, → 4.2) · wired **EVM** (CPI/SPI/EAC) into the portfolio-financials
+>   roll-up (#883, → 4.7). The analytics engines — critical-path, monte-carlo, run-rate, capacity, evm,
+>   depreciation, consolidation — are now one **vendor-neutral functional core** in `lib/backend-catalogue`,
+>   shared by every surface below the broker seam.
 > - **Wave 3+ — domain build-out + governance.** **`benefit`** primitive + realisation curve (→ 4.1) ·
 >   skills/competency + %FTE / soft-vs-hard bookings + leave/absence (→ 4.2) · change-control / stage-gate /
 >   milestone records (→ 4.8) · **`portfolio`** scope tier + scenario selection / investment-funding (→ 4.3) ·
@@ -2182,6 +2185,19 @@ catalogued Salesforce backend). Its still-open residue, carried so nothing is lo
   suite (CV/SV/CPI/SPI, four EAC methods, ETC, VAC, TCPI) from PV/EV/AC/BAC + the missing VAC/TCPI fields
   (updates §4.7). Next: Wave 1 foundational primitives — typed cross-project `dependency`, cost+schedule
   `baseline`, `resource`/`assignment`/`timesheet` (§4.10 / §4.7 / §4.2).
+- _2026-07-26_ — **Domain primitive-spine: Waves 1–2 complete.** **Wave 1 ✅** foundational primitives —
+  typed cross-project `dependency` (FS/SS/FF/SF + lag, #876), cost+schedule `baseline` snapshot (#877),
+  and `resource`/`assignment`/`timesheet` record types + a `resource` field cluster (#878), each a governed
+  record type on the finance slice pattern (manifest verbs + required-reads + write-lane + primaryRecord +
+  field cluster). **Wave 2 ✅** compute engines — promoted `critical-path` (#879) and `monte-carlo` (#880)
+  from the SPA into the catalogue as vendor-neutral pure modules (SPA keeps stable re-export paths), added a
+  net-new `run-rate`/burn projector (#881) and `capacity-vs-demand` engine (#882) over the Wave-1 resource
+  primitives, and wired the shared `computeEvm` into the portfolio-financials roll-up so CPI/SPI/EAC surface
+  per programme + portfolio (#883). The analytics engines — critical-path, monte-carlo, run-rate, capacity,
+  evm, depreciation, consolidation — are now one **vendor-neutral functional core** in `lib/backend-catalogue`,
+  shared below the broker seam; every compute divide is null-guarded and every module has deterministic tests.
+  Next: Wave 3 — `benefit` realisation primitive, change-control/stage-gate/milestone records, skills/leave,
+  portfolio scope tier, per-domain ruleset governance (§4.1 / §4.8 / §4.2 / §4.3).
 
 ---
 
