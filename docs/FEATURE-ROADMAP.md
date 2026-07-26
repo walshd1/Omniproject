@@ -1655,10 +1655,20 @@ explicit, not forgotten. Every item is ⬜ Todo unless noted.
 >   roll-up (#883, → 4.7). The analytics engines — critical-path, monte-carlo, run-rate, capacity, evm,
 >   depreciation, consolidation — are now one **vendor-neutral functional core** in `lib/backend-catalogue`,
 >   shared by every surface below the broker seam.
-> - **Wave 3+ — domain build-out + governance.** **`benefit`** primitive + realisation curve (→ 4.1) ·
->   skills/competency + %FTE / soft-vs-hard bookings + leave/absence (→ 4.2) · change-control / stage-gate /
->   milestone records (→ 4.8) · **`portfolio`** scope tier + scenario selection / investment-funding (→ 4.3) ·
->   three-point / PERT estimating · per-domain **ruleset** governance families.
+> - **Wave 3 — domain build-out + governance.** ✅ **`benefit`** realisation record + curve (→ 4.1, #885) ·
+>   **`milestone`** record (→ 4.8, 4.10, #886) · **`change_request`** + **`stage_gate`** delivery-governance
+>   records (→ 4.8, #887) · **`skill`** / **`resource_skill`** / **`leave`** people-depth records (→ 4.2, #888) ·
+>   **`portfolio`** scope tier completing portfolio→programme→project (→ 4.3, #889) · **PERT** three-point
+>   estimating engine as a pure catalogue module (→ 4.3, #890) · **per-domain `ruleset` governance** — every
+>   business rule tagged by domain, a per-domain mode floor that tightens a whole domain at once, folded
+>   through the existing tighten-only scope resolution (→ 4.8, #891). The governed record spine now spans
+>   benefit / milestone / change-control / stage-gate / portfolio alongside the Wave-1 resource/assignment/
+>   timesheet and skills/leave records, with PERT joining the vendor-neutral functional core.
+> - **Wave 4 — decisioning + scenarios (next).** Scenario / what-if portfolio planning against capacity +
+>   investment-funding envelopes (→ 4.3) · efficient-frontier / value-under-constraint optimisation (→ 4.3) ·
+>   %FTE soft-vs-hard resource bookings + what-if reassignment scenarios (→ 4.2) · multi-currency EAC/ETC +
+>   funding sources at the plan layer (→ 4.1). Same one-PR-per-slice discipline; pure functional-core engines
+>   with deterministic tests where the work is compute.
 
 ### 4.1 Financial / ERP-native depth (SAP's moat)
 - 🔌 **Project→GL cost brokering** — surface actual cost postings, commitments, and WIP by WBS/cost-object, read live from SAP/Oracle/NetSuite; never posted or stored here.
@@ -1666,15 +1676,16 @@ explicit, not forgotten. Every item is ⬜ Todo unless noted.
 - 🔌 **Capitalization / CapEx-OpEx split, cost-center + procurement + HR-cost roll-ups** — brokered read models per scope.
 - ❄ **Be the ledger** — own postings, settlement, actuals, revenue recognition at rest. Directly contradicts zero-at-rest; SAP's job, not ours.
 - ✳ **Deeper cost engine at the plan layer** — multi-currency EAC/ETC, funding sources, chargeback/showback, rate-card versioning over time (extends existing rate-card + budget-plan).
-- ✳ **Benefits realization tracking** — planned vs actual benefit by initiative, tied to Goals/OKRs.
+- ✳ **Benefits realization tracking** — planned vs actual benefit by initiative, tied to Goals/OKRs. **Record ✅ (P3M Wave 3, PR #885):** a governed **`benefit`** record type + realisation curve in the catalogue; the planned-vs-actual roll-up + Goals/OKR linkage remain.
 
 ### 4.2 Resource management & capacity planning
 - ✳ **Capacity vs demand at portfolio scale** — role/skill supply modelling, allocation heatmaps, over/under-utilisation (extends resource-allocations + skills-planning).
-- ✳ **Skills/competency matrix + gap analysis**, **named + generic (role-based) resourcing**, **soft vs hard booking / reservations**.
+- ✳ **Skills/competency matrix + gap analysis**, **named + generic (role-based) resourcing**, **soft vs hard booking / reservations**. **Records ✅ (P3M Wave 3, PR #888):** governed **`skill`** / **`resource_skill`** (proficiency link) / **`leave`** record types; the gap-analysis roll-up + soft/hard booking model remain.
 - 🔌 **Timesheet actuals reconciliation** — brokered from the timesheet SoR; drive utilisation + burn.
 - ✳ **What-if resource scenarios** — model reassignments before committing (client-side projection, same posture as the scheduler).
 
 ### 4.3 Portfolio analytics & decisioning
+- ✅ **Portfolio scope tier + three-point estimating (P3M Wave 3).** A governed **`portfolio`** record type above programme completes the **portfolio → programme → project** scope hierarchy (PR #889), and a pure-functional **PERT** three-point estimating engine (mean, standard deviation, variance-summing roll-up, confidence band; deterministic tests) joins the catalogue's vendor-neutral compute core (PR #890) — the estimating substrate the scenario/optimisation work below builds on.
 - ✳ **Scenario / what-if portfolio planning** — fund/defer/cut simulations against capacity + budget envelopes.
 - ✳ **Efficient-frontier / optimisation** — pick the highest-value portfolio under constraints (value vs cost vs risk).
 - ✳ **Monte Carlo** on schedule + cost + benefit (client-side compute; no data retained).
@@ -1743,9 +1754,9 @@ explicit, not forgotten. Every item is ⬜ Todo unless noted.
 
 ### 4.8 Governance, risk, compliance
 - ✳ **Risk + issue register with scoring/heatmaps** (RAID exists in registers — deepen to scored matrices + mitigation workflow).
-- ✳ **Change-control board / change requests**, **decision log**, **assumption + dependency registers** (some exist — formalise).
+- ✳ **Change-control board / change requests**, **decision log**, **assumption + dependency registers** (some exist — formalise). **Records ✅ (P3M Wave 3):** governed **`change_request`** + **`stage_gate`** records (PR #887) and a **`milestone`** record (PR #886); the board UI + decision log remain.
 - ✳ **Audit-ready compliance packs** (SOC2/ISO evidence export) — leans on the tamper-evident audit chain we just shipped.
-- ✳ **Policy-as-config guardrails** (mandatory fields/gates per methodology — composition gate exists, extend).
+- ✳ **Policy-as-config guardrails** (mandatory fields/gates per methodology — composition gate exists, extend). **Slice ✅ (P3M Wave 3, PR #891):** **per-domain ruleset governance** — every business rule is tagged by domain (general/delivery/finance/people) and a per-domain mode floor tightens a whole domain at once, folded tighten-only through the existing system<org<programme<project scope resolution; the per-methodology mandatory-gate extension remains.
 
 ### 4.9 Config lifecycle & portability *(our wedge — sharpen vs SAP CTS/CTS+)*
 - ✅ **Config diff / drift report between instances** — `lib/config-diff` (`buildConfigDiff(from, to, now)`)
