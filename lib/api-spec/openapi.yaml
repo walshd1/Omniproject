@@ -1816,16 +1816,74 @@ components:
         actual: { type: number }
         forecast: { type: number }
         earnedValue: { type: number }
+        plannedValue: { type: number }
         variance: { type: number }
         cpi:
           type: ["number", "null"]
+        evm:
+          nullable: true
+          allOf: [{ $ref: "#/components/schemas/Evm" }]
         localCurrency:
           type: ["string", "null"]
         local:
           nullable: true
           allOf: [{ $ref: "#/components/schemas/FinanceLocalTotals" }]
         excludedForFx: { type: integer }
-      required: [key, label, projects, budget, actual, forecast, earnedValue, variance, cpi, localCurrency, local, excludedForFx]
+      required: [key, label, projects, budget, actual, forecast, earnedValue, plannedValue, variance, cpi, evm, localCurrency, local, excludedForFx]
+
+    Evm:
+      type: object
+      description: >-
+        The Earned Value Management picture derived from the four primitives (PV/EV/AC/BAC) by the shared
+        computeEvm engine. Ratios whose denominator is zero are null (rendered as "—"), never NaN/Infinity.
+        SPI and schedule variance are null until a backend supplies plannedValue.
+      properties:
+        plannedValue: { type: number }
+        earnedValue: { type: number }
+        actualCost: { type: number }
+        budgetAtCompletion: { type: number }
+        costVariance: { type: number }
+        scheduleVariance: { type: number }
+        costVariancePct: { type: ["number", "null"] }
+        scheduleVariancePct: { type: ["number", "null"] }
+        costPerformanceIndex: { type: ["number", "null"] }
+        schedulePerformanceIndex: { type: ["number", "null"] }
+        percentComplete: { type: ["number", "null"] }
+        percentSpent: { type: ["number", "null"] }
+        eacMethod: { type: string, enum: [cpi, budget_rate, cpi_spi, etc] }
+        estimateAtCompletion: { type: ["number", "null"] }
+        estimateToComplete: { type: ["number", "null"] }
+        varianceAtCompletion: { type: ["number", "null"] }
+        toCompletePerformanceIndex: { type: ["number", "null"] }
+        toCompletePerformanceIndexToEac: { type: ["number", "null"] }
+        eacVariants:
+          type: object
+          properties:
+            cpi: { type: ["number", "null"] }
+            budgetRate: { type: ["number", "null"] }
+            cpiSpi: { type: ["number", "null"] }
+            etc: { type: ["number", "null"] }
+          required: [cpi, budgetRate, cpiSpi, etc]
+      required:
+        - plannedValue
+        - earnedValue
+        - actualCost
+        - budgetAtCompletion
+        - costVariance
+        - scheduleVariance
+        - costVariancePct
+        - scheduleVariancePct
+        - costPerformanceIndex
+        - schedulePerformanceIndex
+        - percentComplete
+        - percentSpent
+        - eacMethod
+        - estimateAtCompletion
+        - estimateToComplete
+        - varianceAtCompletion
+        - toCompletePerformanceIndex
+        - toCompletePerformanceIndexToEac
+        - eacVariants
 
     CurrencyMix:
       type: object

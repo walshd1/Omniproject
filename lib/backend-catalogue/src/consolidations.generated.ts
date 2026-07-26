@@ -133,6 +133,11 @@ export const CONSOLIDATIONS_DATA: ConsolidationSpec[] = [
         "key": "earnedValue",
         "agg": "sum",
         "field": "earnedValue"
+      },
+      {
+        "key": "plannedValue",
+        "agg": "sum",
+        "field": "plannedValue"
       }
     ],
     "derived": [

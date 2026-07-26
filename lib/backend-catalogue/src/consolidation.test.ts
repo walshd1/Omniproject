@@ -29,7 +29,7 @@ test("consolidationFields returns the union of measure field/weightField across 
   // financials fields + costs fields, deduped; the `count` measure (no field) contributes nothing.
   assert.deepEqual(
     [...consolidationFields(["financials", "costs"])].sort(),
-    ["actualBurn", "actualCost", "budget", "budgetAllocated", "earnedValue", "forecastCostAtCompletion"],
+    ["actualBurn", "actualCost", "budget", "budgetAllocated", "earnedValue", "forecastCostAtCompletion", "plannedValue"],
   );
   // benefits' weightField (benefitConfidence) is included alongside the summed fields.
   assert.ok(consolidationFields(["benefits"]).includes("benefitConfidence"));

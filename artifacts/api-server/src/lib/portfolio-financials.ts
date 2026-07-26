@@ -16,7 +16,7 @@ import { poolMap } from "./concurrency-pool";
 import { resolveCapabilities } from "./capabilities";
 import {
   consolidateByGroup, consolidationSpec, flattenRow, currencyMix, DEFAULT_CURRENCY,
-  type ConsolidationInput,
+  computeEvm, type ConsolidationInput, type EvmResult,
 } from "@workspace/backend-catalogue";
 
 /** Bound the per-project financials fan-out (see portfolio-summary.ts for the same rationale). */
@@ -33,11 +33,32 @@ export interface FinanceRollup {
   actual: number;
   forecast: number;
   earnedValue: number;
+  /** Planned value (PV / BCWS) — folded from the source financials; 0 when no backend supplies it. */
+  plannedValue: number;
   variance: number;
   cpi: number | null;
+  /** The full EVM picture (CPI/SPI/EAC/ETC/VAC/TCPI) for this roll-up, or null when there are no
+   *  financials to compute from. SPI/schedule variance are null until a backend supplies plannedValue. */
+  evm: EvmResult | null;
   localCurrency: string | null;
   local: { budget: number; actual: number; forecast: number; earnedValue: number } | null;
   excludedForFx: number;
+}
+
+/**
+ * Derive the full EVM picture for one consolidated roll-up (pure; no I/O — unit-testable directly).
+ * Maps the roll-up's folded measures to the four EVM primitives (BAC = budget, EV = earned value,
+ * AC = actual, PV = planned value) and delegates to the shared `computeEvm`. Returns null when the
+ * roll-up carries no financials at all (nothing to forecast), so a caller renders "—" rather than zeros.
+ */
+export function evmForRollup(r: Pick<FinanceRollup, "budget" | "actual" | "earnedValue" | "plannedValue">): EvmResult | null {
+  if (r.budget === 0 && r.actual === 0 && r.earnedValue === 0 && r.plannedValue === 0) return null;
+  return computeEvm({
+    budgetAtCompletion: r.budget,
+    earnedValue: r.earnedValue,
+    actualCost: r.actual,
+    plannedValue: r.plannedValue,
+  });
 }
 
 /** The consolidated portfolio-financials payload `GET /api/portfolio/financials` returns. */
@@ -102,10 +123,17 @@ export async function computePortfolioFinancials(req: Request, currencyRaw?: unk
     }));
 
   const { groups, total } = consolidateByGroup(inputs, consolidationSpec("financials"), target, fx?.rates);
+  // Hoist each consolidated row to the named wire shape, then attach the computed EVM picture. The
+  // fold (data) produces the primitives; the shared evm.ts engine (below the seam) derives the indices —
+  // no EVM formula lives in this route.
+  const withEvm = (row: ReturnType<typeof flattenRow>): FinanceRollup => {
+    const r = row as unknown as FinanceRollup;
+    return { ...r, evm: evmForRollup(r) };
+  };
   return {
     reportingCurrency: target,
-    programmes: groups.map(flattenRow) as unknown as FinanceRollup[],
-    portfolio: flattenRow(total) as unknown as FinanceRollup,
+    programmes: groups.map(flattenRow).map(withEvm),
+    portfolio: withEvm(flattenRow(total)),
     currencyMix: currencyMix(inputs.map((i) => i.currency)),
     fx: fx ? { base: fx.base, provenance: fx.provenance, asOf: fx.asOf } : null,
   };
