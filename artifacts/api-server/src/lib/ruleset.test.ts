@@ -1,6 +1,6 @@
 import { test, afterEach } from "node:test";
 import assert from "node:assert/strict";
-import { evaluateRuleset, setRuleModes, getRuleModes, rulesetCatalogue, resetRuleModes, BUSINESS_RULES, setFieldRules, getFieldRules, applyRuleset, getAccounting, setAccounting, resolveScopedAccounting, accountingCatalogue } from "./ruleset";
+import { evaluateRuleset, setRuleModes, getRuleModes, rulesetCatalogue, resetRuleModes, BUSINESS_RULES, setFieldRules, getFieldRules, applyRuleset, getAccounting, setAccounting, resolveScopedAccounting, accountingCatalogue, setDomainModes, getDomainModes, RULE_DOMAINS } from "./ruleset";
 import { getReferenceRuleset, referenceRulesetCatalogue } from "@workspace/backend-catalogue";
 
 afterEach(() => resetRuleModes());
@@ -212,4 +212,49 @@ test("accounting policy is part of the governance baseline — default, override
   // A bad value is rejected, not silently applied.
   assert.throws(() => setAccounting({ decliningBalanceFactor: 9 }), /decliningBalanceFactor/);
   assert.equal(getAccounting().decliningBalanceFactor, 1.5); // unchanged after the rejected write
+});
+
+// ── Per-domain mode floors — raise every rule in a domain at once, tighten-only, composing with per-rule modes ──
+
+test("a domain floor raises EVERY rule in that domain without naming each rule", () => {
+  // The two finance journal rules are off; a `finance` floor of "hard" enforces both at once.
+  setDomainModes({ finance: "hard" });
+  const unbalanced = { lines: [{ debit: 100, credit: 90 }], journalFiscalPeriod: "2026-01", journalPostingDate: "2026-01-31" };
+  assert.equal(evaluateRuleset({ action: "create_journal_entry", write: true, role: "manager", payload: unbalanced }).allow, false);
+  // …and a delivery action is untouched by a finance floor.
+  assert.equal(evaluateRuleset({ action: "delete_issue", write: true, role: "admin" }).allow, true);
+});
+
+test("a domain floor is a FLOOR — the stricter of (rule mode, domain floor) wins, and it only tightens", () => {
+  // Floor delivery at "warn"; require-assignee (delivery, off) is lifted to warn, not blocked.
+  setDomainModes({ delivery: "warn" });
+  const warned = evaluateRuleset({ action: "create_issue", write: true, role: "contributor", payload: { title: "x" } });
+  assert.equal(warned.allow, true);
+  assert.ok(warned.warnings.some((w) => w.id === "require-assignee"));
+  // A per-rule "hard" is stricter than the "warn" floor and still wins.
+  setRuleModes({ "require-assignee": "hard" });
+  assert.equal(evaluateRuleset({ action: "create_issue", write: true, role: "contributor", payload: { title: "x" } }).allow, false);
+});
+
+test("an empty floor set is exactly today's behaviour; an unknown domain / bad mode is ignored", () => {
+  assert.deepEqual(getDomainModes(), { general: "off", delivery: "off", finance: "off", people: "off" });
+  // Unknown domain and invalid mode are both dropped (no grant, no new domain).
+  setDomainModes({ marketing: "hard", finance: "sideways" } as Record<string, unknown>);
+  assert.deepEqual(getDomainModes(), { general: "off", delivery: "off", finance: "off", people: "off" });
+  // With no floor and no rule mode, the engine stays inert.
+  assert.equal(evaluateRuleset({ action: "create_journal_entry", write: true, role: "manager", payload: { lines: [{ debit: 1, credit: 2 }] } }).allow, true);
+});
+
+test("the rule catalogue exposes each rule's domain, and every domain is a known one", () => {
+  const known = new Set<string>(RULE_DOMAINS);
+  for (const entry of rulesetCatalogue()) assert.ok(known.has(entry.domain), `rule ${entry.id} has domain ${entry.domain}`);
+  // Every built-in rule carries a domain tag.
+  for (const r of BUSINESS_RULES) assert.ok(known.has(r.domain));
+});
+
+test("applyRuleset resets domain floors deterministically alongside modes", () => {
+  setDomainModes({ finance: "hard" });
+  const applied = applyRuleset({ modes: {}, fieldRules: [], domainModes: { delivery: "warn" } });
+  assert.equal(applied.domainModes.finance, "off"); // prior floor cleared
+  assert.equal(applied.domainModes.delivery, "warn"); // bundle floor applied
 });

@@ -40,10 +40,20 @@ test("a raise of a shared field rule wins", () => {
   assert.equal(out[0]!.mode, "hard");
 });
 
-test("resolveEffectiveRuleset with no scopes returns the baseline unchanged (modes, fields, accounting)", () => {
-  const base = { modes: { a: "warn" as RuleMode }, fieldRules: [{ id: "r1", action: "any-write", field: "owner", mode: "warn" as RuleMode }], accounting: DEFAULT_ACCOUNTING };
+test("resolveEffectiveRuleset with no scopes returns the baseline unchanged (modes, fields, accounting, domainModes)", () => {
+  const base = { modes: { a: "warn" as RuleMode }, fieldRules: [{ id: "r1", action: "any-write", field: "owner", mode: "warn" as RuleMode }], accounting: DEFAULT_ACCOUNTING, domainModes: { finance: "warn" as RuleMode } };
   const eff = resolveEffectiveRuleset(base, {});
   assert.deepEqual(eff.modes, base.modes);
   assert.deepEqual(eff.fieldRules, base.fieldRules);
   assert.deepEqual(eff.accounting, DEFAULT_ACCOUNTING);
+  assert.deepEqual(eff.domainModes, base.domainModes);
+});
+
+test("domain floors fold tighten-only through tightenModes (raise, never lower, add new)", () => {
+  const base: Record<string, RuleMode> = { finance: "warn", delivery: "hard", people: "off" };
+  const out = tightenModes(base, { finance: "hard", delivery: "off", people: "warn", general: "hard" });
+  assert.equal(out["finance"], "hard"); // raised warn → hard
+  assert.equal(out["delivery"], "hard"); // override off ignored (can't loosen)
+  assert.equal(out["people"], "warn"); // raised off → warn
+  assert.equal(out["general"], "hard"); // a domain the scope newly floors
 });

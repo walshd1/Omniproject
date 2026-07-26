@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { requireRole } from "../lib/rbac";
-import { rulesetCatalogue, setRuleModes, getFieldRules, setFieldRules, applyRuleset, setAccounting, accountingCatalogue } from "../lib/ruleset";
+import { rulesetCatalogue, setRuleModes, getFieldRules, setFieldRules, applyRuleset, setAccounting, accountingCatalogue, getDomainModes, setDomainModes, RULE_DOMAINS } from "../lib/ruleset";
 import { sanitizeAccountingValues, type AccountingConfig } from "../lib/accounting-policy";
 import { referenceRulesetCatalogue, getReferenceRuleset } from "@workspace/backend-catalogue";
 import { recordRequestAudit } from "../lib/audit";
@@ -45,6 +45,21 @@ router.put("/admin/ruleset", requireRole("pmo"), (req, res) => {
     meta: { modes },
   });
   res.json(rulesetCatalogue());
+});
+
+// ── Per-domain mode floors — raise EVERY rule in a domain at once (e.g. harden all finance controls). A
+//    floor only tightens (off < warn < hard), never grants. GET lists the domains + current floor; PUT sets them.
+router.get("/admin/ruleset/domains", requireRole("pmo"), (_req, res) => {
+  const floors = getDomainModes();
+  res.json(RULE_DOMAINS.map((domain) => ({ domain, mode: floors[domain]! })));
+});
+router.put("/admin/ruleset/domains", requireRole("pmo"), (req, res) => {
+  const floors = setDomainModes((req.body ?? {}) as Record<string, unknown>);
+  recordRequestAudit(req, {
+    category: "admin", action: "ruleset_domains_update", result: "success", status: 200,
+    meta: { domainModes: floors },
+  });
+  res.json(RULE_DOMAINS.map((domain) => ({ domain, mode: floors[domain]! })));
 });
 
 // Admin field rules — "what must go in fields" + dependencies. PUT replaces the
@@ -135,7 +150,7 @@ router.get("/admin/ruleset/scope", requireRole("pmo"), (req, res) => {
   let scope: ConfigWriteScope;
   try { scope = rulesetScope(req.query as { programmeId?: unknown; projectId?: unknown }); }
   catch (e) { res.status(400).json({ error: e instanceof Error ? e.message : "invalid scope" }); return; }
-  res.json({ scope: scope.kind, override: getRulesetOverride(scope) ?? { modes: {}, fieldRules: [] } });
+  res.json({ scope: scope.kind, override: getRulesetOverride(scope) ?? { modes: {}, fieldRules: [], domainModes: {} } });
 });
 
 // PUT a scope's ruleset override — TIGHTEN-ONLY (raise a mode, require more fields). Gated by the delegation
@@ -150,19 +165,21 @@ router.put("/admin/ruleset/scope", requireRole("pmo"), (req, res) => {
     if (e instanceof DelegationDeniedError) { res.status(403).json({ error: e.message, code: "delegation_denied", area: e.area, allowed: e.allowed, attempted: e.attempted }); return; }
     throw e;
   }
-  const o = (body.override ?? {}) as { modes?: Record<string, unknown>; fieldRules?: unknown; accounting?: unknown };
+  const o = (body.override ?? {}) as { modes?: Record<string, unknown>; fieldRules?: unknown; accounting?: unknown; domainModes?: Record<string, unknown> };
   let saved;
   try {
     saved = setRulesetOverride(scope, {
       modes: (o.modes ?? {}) as Record<string, import("../lib/ruleset").RuleMode>,
       fieldRules: Array.isArray(o.fieldRules) ? (o.fieldRules as import("../lib/ruleset").FieldRule[]) : [],
+      // Per-domain floors are optional; sanitised to known domains + valid modes (tighten-only) before storing.
+      domainModes: (o.domainModes ?? {}) as Record<string, import("../lib/ruleset").RuleMode>,
       // Accounting override is optional; validated (id-safe codes, bounded factor) before it is stored.
       ...(o.accounting !== undefined ? { accounting: sanitizeAccountingValues(o.accounting) } : {}),
     });
   } catch (e) { res.status(400).json({ error: e instanceof Error ? e.message : "invalid override" }); return; }
   recordRequestAudit(req, {
     category: "admin", action: "ruleset_scope_override", result: "success", status: 200,
-    meta: { scope: scope.kind, modes: Object.keys(saved.modes ?? {}).length, fieldRules: saved.fieldRules?.length ?? 0, accounting: saved.accounting ? Object.keys(saved.accounting).length : 0 },
+    meta: { scope: scope.kind, modes: Object.keys(saved.modes ?? {}).length, fieldRules: saved.fieldRules?.length ?? 0, accounting: saved.accounting ? Object.keys(saved.accounting).length : 0, domainModes: Object.keys(saved.domainModes ?? {}).length },
   });
   res.json({ scope: scope.kind, override: saved });
 });

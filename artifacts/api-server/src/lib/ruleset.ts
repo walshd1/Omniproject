@@ -14,10 +14,19 @@
  *    injection), and no rule definition is allowed to return "allow".
  */
 import { logger } from "./logger";
-import { resolveEffectiveRuleset } from "./ruleset-scope";
+import { resolveEffectiveRuleset, stricterMode } from "./ruleset-scope";
 import { DEFAULT_ACCOUNTING, foldAccounting, sanitizeAccountingValues, missingAccountingAccounts, type AccountingConfig } from "./accounting-policy";
 
 export type RuleMode = "hard" | "warn" | "off";
+
+/**
+ * The governance DOMAIN a rule belongs to — the axis a per-domain floor tightens as a group. A domain
+ * floor raises the effective mode of EVERY rule in its domain at once ("harden all finance controls"),
+ * while a per-rule mode can still raise an individual rule higher; the two compose tighten-only. `people`
+ * carries no built-in rule yet — a floor on it is inert today but scopes cleanly for future people rules.
+ */
+export const RULE_DOMAINS = ["general", "delivery", "finance", "people"] as const;
+export type RuleDomain = (typeof RULE_DOMAINS)[number];
 
 export interface RuleContext {
   action: string; // "create_issue" | "update_issue" | "delete_issue" | …
@@ -33,6 +42,8 @@ export interface BusinessRule {
   id: string;
   label: string;
   description: string;
+  /** The governance domain this rule belongs to — the group a per-domain floor tightens together. */
+  domain: RuleDomain;
   defaultMode: RuleMode;
   /** Pure predicate: does this rule APPLY to the action? (never grants) */
   applies: (ctx: RuleContext) => boolean;
@@ -83,25 +94,25 @@ const lower = (v: unknown): string => (typeof v === "string" ? v.trim().toLowerC
 /** Built-in rules. Operators toggle each rule's MODE; the predicates are fixed. */
 export const BUSINESS_RULES: BusinessRule[] = [
   {
-    id: "read-only", label: "Global read-only", description: "Block ALL writes — a portfolio freeze.", defaultMode: "off",
+    id: "read-only", label: "Global read-only", description: "Block ALL writes — a portfolio freeze.", domain: "general", defaultMode: "off",
     applies: (c) => c.write, message: () => "Writes are frozen by the read-only business rule.",
   },
   {
-    id: "no-deletes", label: "No deletions", description: "Block delete actions.", defaultMode: "off",
+    id: "no-deletes", label: "No deletions", description: "Block delete actions.", domain: "general", defaultMode: "off",
     applies: (c) => /^delete_/.test(c.action), message: () => "Deletions are disabled by business rule.",
   },
   {
-    id: "require-assignee", label: "Require an assignee", description: "New/updated issues must carry an assignee.", defaultMode: "off",
+    id: "require-assignee", label: "Require an assignee", description: "New/updated issues must carry an assignee.", domain: "delivery", defaultMode: "off",
     applies: (c) => (c.action === "create_issue" || c.action === "update_issue") && !has(c.payload, "assignee"), message: () => "An assignee is required (business rule).",
   },
   {
-    id: "require-description", label: "Require a description", description: "New issues must have a description.", defaultMode: "off",
+    id: "require-description", label: "Require a description", description: "New issues must have a description.", domain: "delivery", defaultMode: "off",
     applies: (c) => c.action === "create_issue" && !has(c.payload, "description"), message: () => "A description is required on new issues (business rule).",
   },
   {
     // A cross-field comparison — something the field-rule mechanism (presence only)
     // cannot express, so it lives here as a fixed predicate. Off by default.
-    id: "due-after-start", label: "Due date not before start", description: "An issue's due date must not fall before its start date.", defaultMode: "off",
+    id: "due-after-start", label: "Due date not before start", description: "An issue's due date must not fall before its start date.", domain: "delivery", defaultMode: "off",
     applies: (c) => {
       if (c.action !== "create_issue" && c.action !== "update_issue") return false;
       const start = asTime(c.payload?.["startDate"]);
@@ -113,7 +124,7 @@ export const BUSINESS_RULES: BusinessRule[] = [
   // ── Finance controls (finance superset F14) — the accounting invariants a finance system enforces. All
   //    default OFF (opt-in like every rule); a finance deployment turns them `hard` via the org ruleset. ──
   {
-    id: "finance-journal-balanced", label: "Journal entries must balance",
+    id: "finance-journal-balanced", domain: "finance", label: "Journal entries must balance",
     description: "A journal entry's total debits must equal its total credits (double-entry).", defaultMode: "off",
     applies: (c) => {
       if (c.action !== "create_journal_entry" && c.action !== "update_journal_entry") return false;
@@ -126,7 +137,7 @@ export const BUSINESS_RULES: BusinessRule[] = [
     },
   },
   {
-    id: "finance-no-post-closed-period", label: "No posting to a closed period",
+    id: "finance-no-post-closed-period", domain: "finance", label: "No posting to a closed period",
     description: "A journal entry cannot post into a closed or locked accounting period.", defaultMode: "off",
     applies: (c) => {
       if (c.action !== "create_journal_entry" && c.action !== "update_journal_entry") return false;
@@ -136,26 +147,26 @@ export const BUSINESS_RULES: BusinessRule[] = [
     message: () => "Cannot post to a closed or locked accounting period (business rule).",
   },
   {
-    id: "finance-posted-immutable", label: "Posted entries are immutable",
+    id: "finance-posted-immutable", domain: "finance", label: "Posted entries are immutable",
     description: "A posted journal entry cannot be edited — reverse it with a new entry instead.", defaultMode: "off",
     applies: (c) => c.action === "update_journal_entry" && lower(c.payload?.["journalPostingStatus"]) === "posted",
     message: () => "A posted journal entry is immutable — post a reversing entry instead of editing it (business rule).",
   },
   {
-    id: "finance-journal-period", label: "Journal entry needs a period",
+    id: "finance-journal-period", domain: "finance", label: "Journal entry needs a period",
     description: "A new journal entry must be posted into a fiscal period.", defaultMode: "off",
     applies: (c) => c.action === "create_journal_entry" && !has(c.payload, "journalFiscalPeriod"),
     message: () => "A journal entry must be posted into a fiscal period (business rule).",
   },
   {
-    id: "finance-journal-posting-date", label: "Journal entry needs a posting date",
+    id: "finance-journal-posting-date", domain: "finance", label: "Journal entry needs a posting date",
     description: "A new journal entry must carry a posting date.", defaultMode: "off",
     applies: (c) => c.action === "create_journal_entry" && !has(c.payload, "journalPostingDate"),
     message: () => "A journal entry must carry a posting date (business rule).",
   },
   {
     // Finance superset F16 — tax must be accounted for where a jurisdiction applies.
-    id: "finance-tax-required", label: "Tax required where a jurisdiction applies",
+    id: "finance-tax-required", domain: "finance", label: "Tax required where a jurisdiction applies",
     description: "An invoice or bill in a tax jurisdiction must carry a tax amount (or an explicit reverse-charge / zero-rating).", defaultMode: "off",
     applies: (c) => (c.action === "create_invoice" || c.action === "update_invoice" || c.action === "create_bill")
       && has(c.payload, "taxRateJurisdiction") && !has(c.payload, "taxAmount") && c.payload?.["reverseCharge"] !== true,
@@ -163,7 +174,7 @@ export const BUSINESS_RULES: BusinessRule[] = [
   },
   {
     // Finance superset F17 — a bill cannot be approved until it is matched to its PO + goods receipt.
-    id: "finance-3way-match", label: "Bill approval requires a 3-way match",
+    id: "finance-3way-match", domain: "finance", label: "Bill approval requires a 3-way match",
     description: "A bill cannot be approved unless its match status is `matched` (invoice ↔ PO ↔ goods receipt).", defaultMode: "off",
     applies: (c) => (c.action === "update_bill" || c.action === "approve_bill")
       && lower(c.payload?.["approvalState"]) === "approved" && lower(c.payload?.["matchStatus"]) !== "matched",
@@ -171,7 +182,7 @@ export const BUSINESS_RULES: BusinessRule[] = [
   },
   {
     // Finance superset F18 — no new AR to a customer on credit hold.
-    id: "finance-credit-hold", label: "No new billing to a customer on credit hold",
+    id: "finance-credit-hold", domain: "finance", label: "No new billing to a customer on credit hold",
     description: "Block a new invoice or quote when the customer is on credit hold.", defaultMode: "off",
     applies: (c) => (c.action === "create_invoice" || c.action === "create_quote") && c.payload?.["creditHold"] === true,
     message: () => "The customer is on credit hold — new invoices/quotes are blocked until the hold is cleared (business rule).",
@@ -216,6 +227,23 @@ function seedModes(): Record<string, RuleMode> {
   return out;
 }
 let modes: Record<string, RuleMode> = seedModes();
+
+// ── Per-domain mode floors — a group-level tighten (raise EVERY rule in a domain at once). Seeded from
+//    BUSINESS_DOMAIN_MODES JSON ({ "finance": "hard" }); like a rule mode it can only tighten, never grant. ──
+function seedDomainModes(): Record<string, RuleMode> {
+  const out: Record<string, RuleMode> = {};
+  const raw = process.env["BUSINESS_DOMAIN_MODES"]?.trim();
+  if (raw) {
+    try {
+      const parsed = JSON.parse(raw) as Record<string, unknown>;
+      for (const d of RULE_DOMAINS) if (typeof parsed[d] === "string" && (VALID as string[]).includes(parsed[d] as string)) out[d] = parsed[d] as RuleMode;
+    } catch {
+      logger.warn("BUSINESS_DOMAIN_MODES is not valid JSON — ignoring");
+    }
+  }
+  return out;
+}
+let domainModes: Record<string, RuleMode> = seedDomainModes();
 
 function isFieldRule(x: unknown): x is FieldRule {
   const r = x as FieldRule;
@@ -265,7 +293,7 @@ export function setAccounting(next: unknown): AccountingConfig {
 /** The EFFECTIVE accounting policy for a scope — the org baseline folded with any programme/project override
  *  (nearest wins), resolved through the same governance path as the rule modes. */
 export function resolveScopedAccounting(scopes: { programmeId?: string | null; projectId?: string | null } = {}): AccountingConfig {
-  return resolveEffectiveRuleset({ modes: getRuleModes(), fieldRules: getFieldRules(), accounting: getAccounting() }, scopes).accounting;
+  return resolveEffectiveRuleset({ modes: getRuleModes(), fieldRules: getFieldRules(), accounting: getAccounting(), domainModes: getDomainModes() }, scopes).accounting;
 }
 
 /** The org baseline accounting policy + which GL codes are still unset — for the ruleset admin surface. */
@@ -309,6 +337,23 @@ export function setRuleModes(next: Record<string, unknown>): Record<string, Rule
   return getRuleModes();
 }
 
+/** The org baseline mode floor for every domain (configured, else "off" — no floor). */
+export function getDomainModes(): Record<string, RuleMode> {
+  const full: Record<string, RuleMode> = {};
+  for (const d of RULE_DOMAINS) full[d] = domainModes[d] ?? "off";
+  return full;
+}
+
+/** Admin sets the per-domain floors. ONLY known domains + valid modes are accepted; like a rule mode a
+ *  floor only tightens (it raises every rule in the domain), so it can never grant or loosen a gate. */
+export function setDomainModes(next: Record<string, unknown>): Record<string, RuleMode> {
+  for (const d of RULE_DOMAINS) {
+    const m = next[d];
+    if (typeof m === "string" && (VALID as string[]).includes(m)) domainModes[d] = m as RuleMode;
+  }
+  return getDomainModes();
+}
+
 /**
  * Apply a named reference ruleset bundle (modes + field rules) atomically and
  * DETERMINISTICALLY: every built-in resets to "off" first, then the bundle's modes
@@ -316,21 +361,26 @@ export function setRuleModes(next: Record<string, unknown>): Record<string, Rule
  * this routes through setRuleModes/setFieldRules, which only accept known ids, valid
  * modes and well-formed field rules, so a bundle can never grant or loosen a gate.
  */
-export function applyRuleset(bundle: { modes: Record<string, RuleMode>; fieldRules: unknown }): {
+export function applyRuleset(bundle: { modes: Record<string, RuleMode>; fieldRules: unknown; domainModes?: Record<string, RuleMode> }): {
   modes: Record<string, RuleMode>;
   fieldRules: FieldRule[];
+  domainModes: Record<string, RuleMode>;
 } {
   const full: Record<string, RuleMode> = {};
   for (const r of BUSINESS_RULES) full[r.id] = bundle.modes[r.id] ?? "off";
   setRuleModes(full);
   setFieldRules(bundle.fieldRules);
-  return { modes: getRuleModes(), fieldRules: getFieldRules() };
+  // Reset every domain floor to "off" first, then apply the bundle's — same deterministic reset the modes get.
+  const floors: Record<string, RuleMode> = {};
+  for (const d of RULE_DOMAINS) floors[d] = bundle.domainModes?.[d] ?? "off";
+  setDomainModes(floors);
+  return { modes: getRuleModes(), fieldRules: getFieldRules(), domainModes: getDomainModes() };
 }
 
 /** The catalogue for an admin UI (rule + current mode). */
 export function rulesetCatalogue() {
   const m = getRuleModes();
-  return BUSINESS_RULES.map((r) => ({ id: r.id, label: r.label, description: r.description, mode: m[r.id]!, defaultMode: r.defaultMode }));
+  return BUSINESS_RULES.map((r) => ({ id: r.id, label: r.label, description: r.description, domain: r.domain, mode: m[r.id]!, defaultMode: r.defaultMode }));
 }
 
 /**
@@ -341,14 +391,17 @@ export function evaluateRuleset(ctx: RuleContext): RuleVerdict {
   // Resolve the EFFECTIVE ruleset for this scope: the org baseline, tightened (never loosened) by any
   // programme/project override. With no overrides this is identical to the org ruleset.
   const eff = resolveEffectiveRuleset(
-    { modes: getRuleModes(), fieldRules: getFieldRules(), accounting: getAccounting() },
+    { modes: getRuleModes(), fieldRules: getFieldRules(), accounting: getAccounting(), domainModes: getDomainModes() },
     { programmeId: ctx.programmeId, projectId: ctx.projectId },
   );
   const m = eff.modes;
+  const dm = eff.domainModes;
   const warnings: { id: string; message: string }[] = [];
-  // 1. Built-in rules.
+  // 1. Built-in rules. Each rule's effective mode is the STRICTER of its own mode and its domain's floor —
+  //    a "harden all finance controls" floor raises every finance rule, while a per-rule mode can raise one
+  //    higher. Both only tighten, so the restrict-only guarantee is preserved.
   for (const r of BUSINESS_RULES) {
-    const mode = m[r.id] ?? "off";
+    const mode = stricterMode(m[r.id] ?? "off", dm[r.domain] ?? "off");
     if (mode === "off") continue;
     if (!r.applies(ctx)) continue;
     if (mode === "hard") return { allow: false, blocked: { id: r.id, message: r.message(ctx) }, warnings };
@@ -373,4 +426,5 @@ export function resetRuleModes(): void {
   modes = seedModes();
   fieldRules = seedFieldRules();
   accounting = seedAccounting();
+  domainModes = seedDomainModes();
 }
