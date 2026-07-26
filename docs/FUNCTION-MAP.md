@@ -5507,6 +5507,15 @@ REFERENCE RULESETS — a curated, named business-ruleset bundle per methodology,
 | `getReferenceRuleset` | The reference ruleset bundle for a methodology (a deep copy), or undefined. |
 | `referenceRulesetCatalogue` | All reference ruleset bundles, ordered to match the methodology catalogue (so the planes line up). |
 
+### `lib/backend-catalogue/src/monte-carlo.ts`
+
+Monte Carlo schedule/effort-risk simulation — a STATELESS quantitative-risk engine.
+
+| Function | What it does |
+| --- | --- |
+| `simulate` | Run the simulation over the tasks. |
+| `mulberry32` | A small seeded PRNG (mulberry32) — for deterministic tests and reproducible report runs. |
+
 ### `lib/backend-catalogue/src/notification-catalogue.ts`
 
 NOTIFICATION registry — the channels OmniProject can deliver alerts/events TO (Slack, Teams, …).
