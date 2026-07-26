@@ -52,6 +52,7 @@ export * from "./monte-carlo";
 export * from "./run-rate";
 export * from "./pert";
 export * from "./funding";
+export * from "./portfolio-select";
 export * from "./capacity";
 export * from "./sort-filter";
 export * from "./priority-weights";
