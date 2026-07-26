@@ -100,3 +100,4 @@ export * from "./methodology-group";
 export * from "./composition";
 export * from "./prioritise";
 export * from "./scenario";
+export * from "./benefit-monte-carlo";
