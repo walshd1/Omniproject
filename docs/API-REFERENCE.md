@@ -992,6 +992,8 @@ Whether a methodology's reference ruleset is enabled by the methodology composit
 | --- | --- | --- | --- |
 | GET | `/api/admin/ruleset` | requireRole(pmo) | — |
 | PUT | `/api/admin/ruleset` | requireRole(pmo) | — |
+| GET | `/api/admin/ruleset/domains` | requireRole(pmo) | floor only tightens (off < warn < hard), never grants. |
+| PUT | `/api/admin/ruleset/domains` | requireRole(pmo) | — |
 | GET | `/api/admin/ruleset/fields` | requireRole(pmo) | whole set. |
 | PUT | `/api/admin/ruleset/fields` | requireRole(pmo) | — |
 | GET | `/api/admin/ruleset/accounting` | requireRole(pmo) | scope-overridden through the /admin/ruleset/scope override below. |

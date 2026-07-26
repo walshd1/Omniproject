@@ -27,6 +27,8 @@ export interface RulesetOverride {
   modes?: Record<string, RuleMode>;
   fieldRules?: FieldRule[];
   accounting?: AccountingOverride;
+  /** Per-domain mode floors this scope wants to raise (tighten-only), keyed by domain. */
+  domainModes?: Record<string, RuleMode>;
 }
 
 /** The effective finance governance at a scope — the block/warn gates AND the accounting policy, resolved as one. */
@@ -34,6 +36,8 @@ export interface EffectiveRuleset {
   modes: Record<string, RuleMode>;
   fieldRules: FieldRule[];
   accounting: AccountingConfig;
+  /** Per-domain mode floors, resolved tighten-only across scopes (the caller maps rule→domain). */
+  domainModes: Record<string, RuleMode>;
 }
 
 /** Fold an override's MODES onto a base, keeping only the stricter mode per rule (tighten-only). */
@@ -69,6 +73,8 @@ function tighten(base: EffectiveRuleset, override: RulesetOverride | undefined):
     modes: tightenModes(base.modes, override.modes),
     fieldRules: tightenFieldRules(base.fieldRules, override.fieldRules),
     accounting: foldAccounting(base.accounting, override.accounting),
+    // Domain floors tighten by the same rule as per-rule modes — reuse tightenModes over the domain keys.
+    domainModes: tightenModes(base.domainModes, override.domainModes),
   };
 }
 
@@ -82,7 +88,7 @@ export function resolveEffectiveRuleset(
   base: EffectiveRuleset,
   scopes: { programmeId?: string | null | undefined; projectId?: string | null | undefined },
 ): EffectiveRuleset {
-  let eff: EffectiveRuleset = { modes: { ...base.modes }, fieldRules: base.fieldRules.map((r) => ({ ...r })), accounting: { ...base.accounting, accounts: { ...base.accounting.accounts } } };
+  let eff: EffectiveRuleset = { modes: { ...base.modes }, fieldRules: base.fieldRules.map((r) => ({ ...r })), accounting: { ...base.accounting, accounts: { ...base.accounting.accounts } }, domainModes: { ...base.domainModes } };
   if (scopes.programmeId) eff = tighten(eff, readScopedConfigValue<RulesetOverride>(RULESET_OVERRIDE_ID, { kind: "programme", programmeId: scopes.programmeId }));
   if (scopes.projectId) eff = tighten(eff, readScopedConfigValue<RulesetOverride>(RULESET_OVERRIDE_ID, { kind: "project", projectId: scopes.projectId }));
   return eff;
@@ -101,8 +107,13 @@ export function setRulesetOverride(scope: ConfigWriteScope, override: RulesetOve
     if (id === "__proto__" || id === "constructor" || id === "prototype") continue; // standalone proto-key barrier
     if (typeof mode === "string" && mode in MODE_RANK) modes[id] = mode as RuleMode;
   }
+  const domainModes: Record<string, RuleMode> = {};
+  for (const [domain, mode] of Object.entries(override.domainModes ?? {})) {
+    if (domain === "__proto__" || domain === "constructor" || domain === "prototype") continue; // proto-key barrier
+    if (typeof mode === "string" && mode in MODE_RANK) domainModes[domain] = mode as RuleMode;
+  }
   const fieldRules = (Array.isArray(override.fieldRules) ? override.fieldRules : []).filter(isFieldRule);
-  const clean: RulesetOverride = { modes, fieldRules };
+  const clean: RulesetOverride = { modes, fieldRules, domainModes };
   // Accounting overrides are validated to the same partial shape as the org baseline (id-safe codes, bounded
   // factor, valid method); an invalid override is rejected rather than silently dropped.
   if (override.accounting !== undefined) clean.accounting = sanitizeAccountingValues(override.accounting);

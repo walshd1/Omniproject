@@ -3544,6 +3544,8 @@ Business ruleset engine — EXTRA, admin-configurable rules layered ON TOP of th
 | `setFieldRules` | Admin replaces the field-rule set. |
 | `getRuleModes` | The effective mode of every rule (configured, else its default). |
 | `setRuleModes` | Admin sets modes. |
+| `getDomainModes` | The org baseline mode floor for every domain (configured, else "off" — no floor). |
+| `setDomainModes` | Admin sets the per-domain floors. |
 | `applyRuleset` | Apply a named reference ruleset bundle (modes + field rules) atomically and DETERMINISTICALLY: every built-in resets to "off" first, then the bundle's modes apply, and the field-rule set is replaced wholesale. |
 | `rulesetCatalogue` | The catalogue for an admin UI (rule + current mode). |
 | `evaluateRuleset` | Evaluate the business ruleset for an action. |
