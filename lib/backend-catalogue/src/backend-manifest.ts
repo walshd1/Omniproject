@@ -126,6 +126,19 @@ export type ContractAction =
   | "get_baseline"
   | "create_baseline"
   | "update_baseline"
+  // ── Resource management (people/resource domain, Wave 1) — the resource pool, its bookings, and timesheets ──
+  | "list_resources"
+  | "get_resource"
+  | "create_resource"
+  | "update_resource"
+  | "list_assignments"
+  | "get_assignment"
+  | "create_assignment"
+  | "update_assignment"
+  | "list_timesheets"
+  | "get_timesheet"
+  | "create_timesheet"
+  | "update_timesheet"
   | "get_capabilities";
 
 /** Catalogue tier — enterprise backends gate the premium workflow generation. */
@@ -203,7 +216,7 @@ export interface KeyFormat {
  * contributed `fields[]` — so whatever any backend can provide maps through to the standard surface. It is NOT
  * scoped per record type; `primaryRecord` governs required actions, not which fields exist.
  */
-export const BACKEND_RECORD_TYPES = ["issue", "invoice", "client", "product", "payment", "credit_note", "quote", "tax_rate", "vendor", "expense", "bill", "purchase_order", "gl_account", "journal_entry", "bank_account", "bank_transaction", "fx_rate", "fiscal_period", "dimension", "rev_rec_schedule", "goods_receipt", "fixed_asset", "dependency", "baseline"] as const;
+export const BACKEND_RECORD_TYPES = ["issue", "invoice", "client", "product", "payment", "credit_note", "quote", "tax_rate", "vendor", "expense", "bill", "purchase_order", "gl_account", "journal_entry", "bank_account", "bank_transaction", "fx_rate", "fiscal_period", "dimension", "rev_rec_schedule", "goods_receipt", "fixed_asset", "dependency", "baseline", "resource", "assignment", "timesheet"] as const;
 export type BackendRecordType = (typeof BACKEND_RECORD_TYPES)[number];
 
 /** The contract READ verbs a backend of each primary-record type must implement (the verifier enforces this).
@@ -236,6 +249,9 @@ export const RECORD_TYPE_REQUIRED_READS: Record<BackendRecordType, ContractActio
   fixed_asset: ["list_fixed_assets"],
   dependency: ["list_dependencies"],
   baseline: ["list_baselines"],
+  resource: ["list_resources"],
+  assignment: ["list_assignments"],
+  timesheet: ["list_timesheets"],
 };
 
 export interface BackendManifest {

@@ -808,6 +808,161 @@ export const FIELDS_DATA: FieldDescriptor[] = [
     "entity": "baseline"
   },
   {
+    "key": "resourceName",
+    "label": "Resource name",
+    "type": "text",
+    "group": "effort",
+    "entity": "resource"
+  },
+  {
+    "key": "jobTitle",
+    "label": "Job title",
+    "type": "text",
+    "group": "effort",
+    "entity": "resource"
+  },
+  {
+    "key": "grade",
+    "label": "Grade",
+    "type": "text",
+    "group": "effort",
+    "entity": "resource"
+  },
+  {
+    "key": "resourceType",
+    "label": "Resource type",
+    "type": "enum",
+    "group": "effort",
+    "entity": "resource",
+    "options": [
+      "employee",
+      "contractor",
+      "vendor",
+      "generic"
+    ]
+  },
+  {
+    "key": "fte",
+    "label": "FTE",
+    "type": "number",
+    "group": "effort",
+    "entity": "resource",
+    "precision": 2
+  },
+  {
+    "key": "managerId",
+    "label": "Manager",
+    "type": "user",
+    "group": "effort",
+    "entity": "resource"
+  },
+  {
+    "key": "teamId",
+    "label": "Team",
+    "type": "text",
+    "group": "effort",
+    "entity": "resource"
+  },
+  {
+    "key": "resourceSkills",
+    "label": "Skills",
+    "type": "labels",
+    "group": "effort",
+    "entity": "resource"
+  },
+  {
+    "key": "assignmentResource",
+    "label": "Assigned resource",
+    "type": "user",
+    "group": "effort",
+    "entity": "assignment"
+  },
+  {
+    "key": "assignmentProject",
+    "label": "Assignment project",
+    "type": "reference",
+    "group": "effort",
+    "entity": "assignment",
+    "references": "project"
+  },
+  {
+    "key": "assignmentEffortPct",
+    "label": "Assignment effort %",
+    "type": "percent",
+    "group": "effort",
+    "entity": "assignment",
+    "precision": 2
+  },
+  {
+    "key": "assignmentStartDate",
+    "label": "Assignment start date",
+    "type": "date",
+    "group": "effort",
+    "entity": "assignment"
+  },
+  {
+    "key": "assignmentEndDate",
+    "label": "Assignment end date",
+    "type": "date",
+    "group": "effort",
+    "entity": "assignment"
+  },
+  {
+    "key": "assignmentBookingStatus",
+    "label": "Booking status",
+    "type": "enum",
+    "group": "effort",
+    "entity": "assignment",
+    "options": [
+      "tentative",
+      "soft",
+      "hard",
+      "confirmed"
+    ]
+  },
+  {
+    "key": "timesheetPeriodStart",
+    "label": "Timesheet period start",
+    "type": "date",
+    "group": "effort",
+    "entity": "timesheet"
+  },
+  {
+    "key": "timesheetPeriodEnd",
+    "label": "Timesheet period end",
+    "type": "date",
+    "group": "effort",
+    "entity": "timesheet"
+  },
+  {
+    "key": "timesheetHours",
+    "label": "Timesheet hours",
+    "type": "number",
+    "group": "effort",
+    "entity": "timesheet",
+    "precision": 2
+  },
+  {
+    "key": "timesheetStatus",
+    "label": "Timesheet status",
+    "type": "enum",
+    "group": "effort",
+    "entity": "timesheet",
+    "options": [
+      "draft",
+      "submitted",
+      "approved",
+      "rejected"
+    ]
+  },
+  {
+    "key": "timesheetBillable",
+    "label": "Timesheet billable",
+    "type": "boolean",
+    "group": "effort",
+    "entity": "timesheet"
+  },
+  {
     "key": "completionPct",
     "label": "Completion %",
     "type": "number",
