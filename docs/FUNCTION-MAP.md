@@ -5732,6 +5732,14 @@ The ONE generic, artifact-agnostic roll-up — SHARED by the backend (rollup end
 | `rollup` | Roll `rows` up per the spec into generic output rows: one per distinct `groupBy` value, carrying that value under the `groupBy` field plus each metric's aggregate (and a `count`). |
 | `parseRollupQuery` | Parse a compact query spec — `groupBy=programme&metric=sum:hours,avg:cost` — into a {@link RollupSpec}, or null when no `groupBy` is given (caller returns the raw rows). |
 
+### `lib/backend-catalogue/src/run-rate.ts`
+
+RUN-RATE / BURN PROJECTION ENGINE — the lightweight cost forecast that needs no EVM baseline.
+
+| Function | What it does |
+| --- | --- |
+| `computeRunRate` | Project spend-at-completion and variance from budget + actuals + elapsed fraction. |
+
 ### `lib/backend-catalogue/src/screen-catalogue.ts`
 
 SCREEN registry — the SPA views OmniProject ships.
