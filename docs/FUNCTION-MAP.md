@@ -5060,6 +5060,14 @@ BACKEND catalogue — the systems-of-record plane (Jira, OpenProject, SAP, …).
 
 Broker-NEUTRAL backend catalogue types.
 
+### `lib/backend-catalogue/src/benefit-monte-carlo.ts`
+
+BENEFIT / VALUE MONTE-CARLO — a STATELESS quantitative-risk engine for the VALUE side of the portfolio (roadmap §4.3, "Monte Carlo on schedule + cost + benefit").
+
+| Function | What it does |
+| --- | --- |
+| `simulateBenefit` | Simulate the portfolio's net-value distribution. |
+
 ### `lib/backend-catalogue/src/broker-catalogue.ts`
 
 BROKER registry — the automation/translation layer that sits between the gateway and a backend.
