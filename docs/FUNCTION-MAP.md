@@ -5292,6 +5292,14 @@ ENTITY RESOLUTION — stateless helpers for reconciling the SAME real-world enti
 | `matchCandidates` | Surface likely-same entities WITHOUT merging them: for each matcher, group records by its derived key and report every group of ≥2. |
 | `normaliseKey` | A handy normaliser for building soft match keys (lowercased, trimmed, collapsed). |
 
+### `lib/backend-catalogue/src/evm.ts`
+
+EARNED VALUE MANAGEMENT (EVM) ENGINE — the pure computation the EVM field vocabulary earns.
+
+| Function | What it does |
+| --- | --- |
+| `computeEvm` | Compute the full EVM picture from the four primitives (PURE). |
+
 ### `lib/backend-catalogue/src/field-primitive-catalogue.ts`
 
 DERIVED field primitives — everything that COMPOSES from the `field` root (`extends`) is DATA, authored as JSON recipes under field-primitives/ (the same rule the visual primitives, screens, reports and mappings follow).
