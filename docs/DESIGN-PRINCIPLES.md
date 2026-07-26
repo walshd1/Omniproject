@@ -437,7 +437,8 @@ forgets — so a re-run recomputes the same slice and posts nothing new. **Exact
 each unit of work once (a compare-and-set on the shared KV) *before* acting, so overlapping ticks or N replicas
 do the work once, not N times; a claim outage fails **closed** (skip), never double-fires. There is **one
 scheduler** (`artifacts/api-server/src/lib/job-scheduler.ts`): every recurring unit — the infra jobs (exec /
-proactive digests, scheduled export, drift canary) and the user's schedule-triggered automation recipes alike —
+proactive digests, the portfolio health watch, scheduled export, drift canary) and the user's schedule-triggered
+automation recipes alike —
 is a `ScheduledJob` declaring an interval **or** a cron, and a single heartbeat computes each job's due
 *occurrences* (epoch-anchored interval boundaries, or absolute UTC cron minutes — deterministic, so every
 replica agrees) and claims each before running. Because occurrences are claim-once, the in-process timer is
