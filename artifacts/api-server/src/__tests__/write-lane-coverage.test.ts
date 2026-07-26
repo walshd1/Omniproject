@@ -304,6 +304,7 @@ const BESPOKE_WRITES = new Set<string>([
   "PUT /admin/role-map",
   "PUT /admin/ruleset",
   "PUT /admin/ruleset/accounting",
+  "PUT /admin/ruleset/domains",
   "PUT /admin/ruleset/fields",
   "PUT /admin/ruleset/scope",
   "PUT /error-telemetry",
