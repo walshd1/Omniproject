@@ -5073,6 +5073,14 @@ BROKER registry — the automation/translation layer that sits between the gatew
 
 WHITEBOARD / canvas content model — the neutral, primitive-built shape for OmniProject's visual canvas (roadmap 2.3).
 
+### `lib/backend-catalogue/src/capacity.ts`
+
+CAPACITY-VS-DEMAND ENGINE — the resource-planning compute the Wave-1 resource/assignment/timesheet primitives earn.
+
+| Function | What it does |
+| --- | --- |
+| `computeCapacity` | Cross the resource supply against the booked demand into a utilisation grid plus per-resource, per-period, and total roll-ups. |
+
 ### `lib/backend-catalogue/src/catalogue-base.ts`
 
 defineCatalogue — the read-side twin of the write-lane spines.
