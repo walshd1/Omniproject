@@ -5892,6 +5892,14 @@ SORT + FILTER — the ONE shared, pure "view controls" engine a screen table or 
 | `filterRowsBoolean` | Keep rows matching the boolean filter tree. |
 | `applyView` | The common "view" application: filter THEN sort, in one pure pass. |
 
+### `lib/backend-catalogue/src/stage-gate.ts`
+
+STAGE-GATE CRITERIA EVALUATION — decide whether a delivery gate should PASS, deterministically, from its criteria + approvals (roadmap §4.3, "stage-gate governance with gate criteria + approvals").
+
+| Function | What it does |
+| --- | --- |
+| `evaluateGate` | Evaluate a gate. |
+
 ### `lib/backend-catalogue/src/task-vocabulary.ts`
 
 Canonical TASK-STATUS vocabulary — the single source of truth for the next-action statuses OmniProject knows about, their workflow class and their display order.
