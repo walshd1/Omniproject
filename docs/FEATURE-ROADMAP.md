@@ -1638,6 +1638,25 @@ explicit, not forgotten. Every item is ⬜ Todo unless noted.
 - ⚠ **Tension** — pulls against a core rule (zero-at-rest, no data cached in config, stateless); needs an explicit exception or a sidecar SoR.
 - ❄ **Likely won't build** — contradicts the architecture or the positioning; logged for completeness, not planned.
 
+> **PROGRAM IN FLIGHT — domain primitive spine (the finance pattern, applied to PM / programme / resource / forecasting).** 🚧
+> A 2026-07 four-domain survey found the same shape everywhere: a rich SURFACE (fields, reports, consolidations,
+> methodologies) on a THIN primitive spine — the opposite of finance, which was built out to 22 governed record
+> types + pure compute engines + ruleset governance. This program applies that finance playbook to the four PPM
+> domains, **foundations-first, one PR per slice**, following the golden rules (agnostic broker seam,
+> fields-as-primitives, functional-core compute with tests, ruleset governance, write-lane coverage). It is the
+> vehicle that completes many of the 4.x items below — cross-references noted per wave.
+> - **Wave 0 — compute quick win.** ✅ **EVM engine** (`lib/backend-catalogue/src/evm.ts`, PR #874) — see 4.7.
+> - **Wave 1 — foundational primitives.** typed cross-project **`dependency`** (FS/SS/FF/SF + lag → 4.10, 4.3) ·
+>   cost+schedule **`baseline`** snapshot (→ 4.7) · **`resource`/`assignment`/`timesheet`** record types + a
+>   `resource` field cluster (→ 4.2).
+> - **Wave 2 — compute engines.** promote **Monte-Carlo + critical-path** into the catalogue, server-usable
+>   (→ 4.3) · **run-rate / trend-to-complete** projector · **capacity-vs-demand** engine (→ 4.2) · wire EVM into
+>   the live financials read (→ 4.7).
+> - **Wave 3+ — domain build-out + governance.** **`benefit`** primitive + realisation curve (→ 4.1) ·
+>   skills/competency + %FTE / soft-vs-hard bookings + leave/absence (→ 4.2) · change-control / stage-gate /
+>   milestone records (→ 4.8) · **`portfolio`** scope tier + scenario selection / investment-funding (→ 4.3) ·
+>   three-point / PERT estimating · per-domain **ruleset** governance families.
+
 ### 4.1 Financial / ERP-native depth (SAP's moat)
 - 🔌 **Project→GL cost brokering** — surface actual cost postings, commitments, and WIP by WBS/cost-object, read live from SAP/Oracle/NetSuite; never posted or stored here.
 - 🔌 **Event-based revenue recognition mirror** — display SAP EBRR results (fixed-price / T&M / periodic) as a read model; recognition stays in the ERP.
@@ -1711,7 +1730,12 @@ explicit, not forgotten. Every item is ⬜ Todo unless noted.
 
 ### 4.7 Reporting, BI & dashboards
 - ✳ **Cross-project/portfolio pivot + drill-through**, **scheduled report delivery / subscriptions**, **export to PPTX/XLSX/PDF**.
-- ✳ **Baseline vs actual variance + EVM suite** (SPI/CPI/EAC — partially present, complete it), **burn-up/down + cumulative flow**.
+- 🚧 **Baseline vs actual variance + EVM suite** (SPI/CPI/EAC). **Slice ✅ (EVM engine, PR #874):** the pure
+  `lib/backend-catalogue/src/evm.ts` now DERIVES the full suite from the PV/EV/AC/BAC primitives — CV/SV/CPI/SPI,
+  all four EAC methods (cpi / budget-rate / cpi·spi / bottom-up-etc), ETC, **VAC**, and **TCPI** (to BAC and to
+  EAC) — instead of reading them blind off the source; adds the missing `varianceAtCompletion` + `toCompletePerformanceIndex`
+  fields. **Remaining:** a cost+schedule **`baseline`** snapshot record for true baseline-vs-actual variance
+  (Wave 1), wiring the engine into the live financials read (Wave 2), and **burn-up/down + cumulative flow**.
 - 🔌 **Embedded external BI** (SAC / Power BI / Tableau) via broker seam rather than re-implementing a BI engine.
 
 ### 4.8 Governance, risk, compliance
@@ -2150,6 +2174,14 @@ catalogued Salesforce backend). Its still-open residue, carried so nothing is lo
   no-SSO-but-real-local-accounts profile, so such a deployment boots on the public default `SESSION_SECRET`
   (forgeable admin cookie) and seals data under a public dev master key. Logged with corroborating findings in
   `TECH-DEBT-AND-ROADMAP.md §1`.
+- _2026-07-26_ — **Domain primitive-spine program kicked off** (Phase 4 "PROGRAM IN FLIGHT" callout). A
+  four-domain survey (project · programme/portfolio · people/resource · forecasting) found the finance pattern
+  inverted everywhere — rich surface, thin primitive spine — so the finance playbook (governed record types +
+  pure compute engines + ruleset governance) is being applied to all four, foundations-first, one PR per slice.
+  **Wave 0 ✅ — EVM engine** (`lib/backend-catalogue/src/evm.ts`, PR #874): pure derivation of the full EVM
+  suite (CV/SV/CPI/SPI, four EAC methods, ETC, VAC, TCPI) from PV/EV/AC/BAC + the missing VAC/TCPI fields
+  (updates §4.7). Next: Wave 1 foundational primitives — typed cross-project `dependency`, cost+schedule
+  `baseline`, `resource`/`assignment`/`timesheet` (§4.10 / §4.7 / §4.2).
 
 ---
 
