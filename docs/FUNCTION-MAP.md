@@ -5756,6 +5756,14 @@ Canonical RAG/health BAND vocabulary — the single source of truth for the heal
 | `ragVocabularyValues` | Build the shipped-default {@link RagVocabularyValues} from the canonical entries. |
 | `ragBandsForMethodology` | The RAG bands that apply to `methodologyId` — its tagged ones plus the neutral ("*") ones. |
 
+### `lib/backend-catalogue/src/reassignment.ts`
+
+WHAT-IF RESOURCE REASSIGNMENT ENGINE — model moving booked effort between resources BEFORE committing (roadmap §4.2, "what-if resource scenarios").
+
+| Function | What it does |
+| --- | --- |
+| `simulateReassignment` | Apply `moves` to the baseline's demand and compare the resulting capacity grid against the baseline. |
+
 ### `lib/backend-catalogue/src/registry-catalogue.ts`
 
 ORG REGISTRY model — the neutral, primitive-built shape for OmniProject's org-wide store of APPROVED bespoke items (templates, reports, plugins, primitives, JSON defs …).
