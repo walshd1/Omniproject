@@ -110,6 +110,54 @@ export const FIELDS_DATA: FieldDescriptor[] = [
     "group": "schedule"
   },
   {
+    "key": "milestoneName",
+    "label": "Milestone name",
+    "type": "text",
+    "group": "schedule",
+    "entity": "milestone"
+  },
+  {
+    "key": "milestoneDate",
+    "label": "Milestone date",
+    "type": "date",
+    "group": "schedule",
+    "entity": "milestone"
+  },
+  {
+    "key": "milestoneStatus",
+    "label": "Milestone status",
+    "type": "enum",
+    "group": "schedule",
+    "entity": "milestone",
+    "options": [
+      "planned",
+      "at_risk",
+      "met",
+      "missed"
+    ]
+  },
+  {
+    "key": "milestoneType",
+    "label": "Milestone type",
+    "type": "enum",
+    "group": "schedule",
+    "entity": "milestone",
+    "options": [
+      "delivery",
+      "gate",
+      "payment",
+      "external"
+    ]
+  },
+  {
+    "key": "milestoneProjectRef",
+    "label": "Milestone project",
+    "type": "reference",
+    "group": "schedule",
+    "entity": "milestone",
+    "references": "project"
+  },
+  {
     "key": "baselineStart",
     "label": "Baseline start",
     "type": "date",

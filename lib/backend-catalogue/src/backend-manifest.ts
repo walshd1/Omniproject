@@ -144,6 +144,11 @@ export type ContractAction =
   | "get_benefit"
   | "create_benefit"
   | "update_benefit"
+  // ── Milestones (delivery-governance, Wave 3) — the governed milestone/gate schedule marker ──
+  | "list_milestones"
+  | "get_milestone"
+  | "create_milestone"
+  | "update_milestone"
   | "get_capabilities";
 
 /** Catalogue tier — enterprise backends gate the premium workflow generation. */
@@ -221,7 +226,7 @@ export interface KeyFormat {
  * contributed `fields[]` — so whatever any backend can provide maps through to the standard surface. It is NOT
  * scoped per record type; `primaryRecord` governs required actions, not which fields exist.
  */
-export const BACKEND_RECORD_TYPES = ["issue", "invoice", "client", "product", "payment", "credit_note", "quote", "tax_rate", "vendor", "expense", "bill", "purchase_order", "gl_account", "journal_entry", "bank_account", "bank_transaction", "fx_rate", "fiscal_period", "dimension", "rev_rec_schedule", "goods_receipt", "fixed_asset", "dependency", "baseline", "resource", "assignment", "timesheet", "benefit"] as const;
+export const BACKEND_RECORD_TYPES = ["issue", "invoice", "client", "product", "payment", "credit_note", "quote", "tax_rate", "vendor", "expense", "bill", "purchase_order", "gl_account", "journal_entry", "bank_account", "bank_transaction", "fx_rate", "fiscal_period", "dimension", "rev_rec_schedule", "goods_receipt", "fixed_asset", "dependency", "baseline", "resource", "assignment", "timesheet", "benefit", "milestone"] as const;
 export type BackendRecordType = (typeof BACKEND_RECORD_TYPES)[number];
 
 /** The contract READ verbs a backend of each primary-record type must implement (the verifier enforces this).
@@ -258,6 +263,7 @@ export const RECORD_TYPE_REQUIRED_READS: Record<BackendRecordType, ContractActio
   assignment: ["list_assignments"],
   timesheet: ["list_timesheets"],
   benefit: ["list_benefits"],
+  milestone: ["list_milestones"],
 };
 
 export interface BackendManifest {
