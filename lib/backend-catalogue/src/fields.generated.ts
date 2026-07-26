@@ -1053,6 +1053,55 @@ export const FIELDS_DATA: FieldDescriptor[] = [
     "group": "benefits"
   },
   {
+    "key": "benefitName",
+    "label": "Benefit name",
+    "type": "text",
+    "group": "benefits",
+    "entity": "benefit"
+  },
+  {
+    "key": "benefitCategory",
+    "label": "Benefit category",
+    "type": "enum",
+    "group": "benefits",
+    "entity": "benefit",
+    "options": [
+      "financial",
+      "non_financial",
+      "cost_avoidance",
+      "revenue"
+    ]
+  },
+  {
+    "key": "benefitLifecycleStatus",
+    "label": "Benefit lifecycle status",
+    "type": "enum",
+    "group": "benefits",
+    "entity": "benefit",
+    "options": [
+      "identified",
+      "planned",
+      "realising",
+      "realised",
+      "abandoned"
+    ]
+  },
+  {
+    "key": "benefitRealisationDate",
+    "label": "Benefit realisation date",
+    "type": "date",
+    "group": "benefits",
+    "entity": "benefit"
+  },
+  {
+    "key": "benefitProjectRef",
+    "label": "Benefit project",
+    "type": "reference",
+    "group": "benefits",
+    "entity": "benefit",
+    "references": "project"
+  },
+  {
     "key": "expenditureType",
     "label": "Expenditure type (CapEx/OpEx)",
     "type": "enum",
