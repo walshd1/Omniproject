@@ -693,42 +693,8 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile --ignore-scripts
 
-      - name: Audit (block on high/critical; tolerate an advisory-service outage)
-        shell: bash
-        run: |
-          set -uo pipefail
-          # A high/critical advisory MUST block the build. But `pnpm audit` exits non-zero for two very
-          # different reasons: a real finding, OR a transport/parse failure talking to npm's advisory
-          # endpoint (registry.npmjs.org/-/npm/v1/security/advisories/bulk), which intermittently returns a
-          # malformed/gzip body → ERR_PNPM_AUDIT_BAD_RESPONSE ("... is not valid JSON"). That second case is
-          # a REGISTRY OUTAGE, not a vulnerability, and must not wedge every merge. So: retry, and only a
-          # genuine advisory result gates — a transport error becomes a warning. Real high/critical
-          # advisories still block whenever the service is healthy (semantics of `--audit-level high` intact).
-          attempt=0; max=3
-          while :; do
-            attempt=$((attempt + 1))
-            set +e
-            out="$(pnpm audit --audit-level high 2>&1)"; rc=$?
-            set -e
-            printf '%s\n' "$out"
-            if [ "$rc" -eq 0 ]; then
-              echo "audit clean — no advisories at/above high."
-              exit 0
-            fi
-            # Transport/parse failures (not a finding): the npm advisory service is unreachable or returned junk.
-            if printf '%s' "$out" | grep -qiE 'ERR_PNPM_AUDIT_BAD_RESPONSE|is not valid JSON|ERR_PNPM_META_FETCH_FAIL|ERR_PNPM_FETCH_[0-9]{3}|request to .* failed|ENOTFOUND|EAI_AGAIN|ETIMEDOUT|ECONNRESET|socket hang up|50[0-9] (Bad Gateway|Service|Gateway)'; then
-              if [ "$attempt" -lt "$max" ]; then
-                echo "::notice::pnpm audit hit an advisory-service transport error (attempt ${attempt}/${max}); retrying…"
-                sleep $((attempt * 5))
-                continue
-              fi
-              echo "::warning::pnpm audit could not reach/parse the npm advisory service after ${max} attempts — treating as NON-BLOCKING (registry outage, not a vulnerability finding). High/critical advisories still block when the service is healthy."
-              exit 0
-            fi
-            # Anything else that is non-zero is a genuine finding (or a real audit error) — fail closed.
-            echo "::error::pnpm audit reported high/critical advisories (see output above)."
-            exit "$rc"
-          done
+      - name: Audit (block on high or critical)
+        run: pnpm audit --audit-level high
 
       - name: Report all advisories (non-blocking)
         if: always()
