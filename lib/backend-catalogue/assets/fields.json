@@ -733,6 +733,57 @@
     "entity": "dependency"
   },
   {
+    "key": "baselineName",
+    "label": "Baseline name",
+    "type": "text",
+    "group": "schedule",
+    "entity": "baseline"
+  },
+  {
+    "key": "baselineType",
+    "label": "Baseline type",
+    "type": "enum",
+    "options": ["schedule", "cost", "scope", "combined"],
+    "group": "schedule",
+    "entity": "baseline"
+  },
+  {
+    "key": "baselineStatus",
+    "label": "Baseline status",
+    "type": "enum",
+    "options": ["draft", "active", "superseded"],
+    "group": "schedule",
+    "entity": "baseline"
+  },
+  {
+    "key": "baselineApprovedBy",
+    "label": "Baseline approved by",
+    "type": "user",
+    "group": "schedule",
+    "entity": "baseline"
+  },
+  {
+    "key": "baselineApprovedDate",
+    "label": "Baseline approved date",
+    "type": "date",
+    "group": "schedule",
+    "entity": "baseline"
+  },
+  {
+    "key": "baselineFinishDate",
+    "label": "Baseline finish date",
+    "type": "date",
+    "group": "schedule",
+    "entity": "baseline"
+  },
+  {
+    "key": "baselineBudget",
+    "label": "Baseline budget",
+    "type": "currency",
+    "group": "financial",
+    "entity": "baseline"
+  },
+  {
     "key": "completionPct",
     "label": "Completion %",
     "type": "number",
