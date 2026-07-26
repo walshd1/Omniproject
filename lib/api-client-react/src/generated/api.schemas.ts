@@ -837,6 +837,63 @@ export interface FinanceLocalTotals {
   earnedValue: number;
 }
 
+export type EvmEacMethod = typeof EvmEacMethod[keyof typeof EvmEacMethod];
+
+
+export const EvmEacMethod = {
+  cpi: 'cpi',
+  budget_rate: 'budget_rate',
+  cpi_spi: 'cpi_spi',
+  etc: 'etc',
+} as const;
+
+export type EvmEacVariants = {
+  /** @nullable */
+  cpi: number | null;
+  /** @nullable */
+  budgetRate: number | null;
+  /** @nullable */
+  cpiSpi: number | null;
+  /** @nullable */
+  etc: number | null;
+};
+
+/**
+ * The Earned Value Management picture derived from the four primitives (PV/EV/AC/BAC) by the shared computeEvm engine. Ratios whose denominator is zero are null (rendered as "—"), never NaN/Infinity. SPI and schedule variance are null until a backend supplies plannedValue.
+ */
+export interface Evm {
+  plannedValue: number;
+  earnedValue: number;
+  actualCost: number;
+  budgetAtCompletion: number;
+  costVariance: number;
+  scheduleVariance: number;
+  /** @nullable */
+  costVariancePct: number | null;
+  /** @nullable */
+  scheduleVariancePct: number | null;
+  /** @nullable */
+  costPerformanceIndex: number | null;
+  /** @nullable */
+  schedulePerformanceIndex: number | null;
+  /** @nullable */
+  percentComplete: number | null;
+  /** @nullable */
+  percentSpent: number | null;
+  eacMethod: EvmEacMethod;
+  /** @nullable */
+  estimateAtCompletion: number | null;
+  /** @nullable */
+  estimateToComplete: number | null;
+  /** @nullable */
+  varianceAtCompletion: number | null;
+  /** @nullable */
+  toCompletePerformanceIndex: number | null;
+  /** @nullable */
+  toCompletePerformanceIndexToEac: number | null;
+  eacVariants: EvmEacVariants;
+}
+
 /**
  * A consolidated financial row (a programme, or the whole portfolio) in the reporting currency.
  */
@@ -848,9 +905,11 @@ export interface FinanceRollup {
   actual: number;
   forecast: number;
   earnedValue: number;
+  plannedValue: number;
   variance: number;
   /** @nullable */
   cpi: number | null;
+  evm: Evm | null;
   /** @nullable */
   localCurrency: string | null;
   local: FinanceLocalTotals | null;

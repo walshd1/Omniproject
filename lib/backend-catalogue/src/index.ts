@@ -46,6 +46,7 @@ export * from "./def-refs";
 export * from "./report-catalogue";
 export * from "./num";
 export * from "./depreciation";
+export * from "./evm";
 export * from "./critical-path";
 export * from "./monte-carlo";
 export * from "./run-rate";

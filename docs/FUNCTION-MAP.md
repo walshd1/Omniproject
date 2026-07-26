@@ -2890,6 +2890,7 @@ Portfolio financials fan-out — the server-side half of the Portfolio Financial
 
 | Function | What it does |
 | --- | --- |
+| `evmForRollup` | Derive the full EVM picture for one consolidated roll-up (pure; no I/O — unit-testable directly). |
 | `computePortfolioFinancials` | Compute the consolidated portfolio financials for one reporting currency (a `?currency=` override, else the org default → FX base → GBP). |
 
 ### `artifacts/api-server/src/lib/portfolio-reads.ts`
