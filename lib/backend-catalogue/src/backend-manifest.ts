@@ -171,6 +171,11 @@ export type ContractAction =
   | "get_leave"
   | "create_leave"
   | "update_leave"
+  // ── Portfolio (scope hierarchy, Wave 3) — the governed investment tier above programme ──
+  | "list_portfolios"
+  | "get_portfolio"
+  | "create_portfolio"
+  | "update_portfolio"
   | "get_capabilities";
 
 /** Catalogue tier — enterprise backends gate the premium workflow generation. */
@@ -248,7 +253,7 @@ export interface KeyFormat {
  * contributed `fields[]` — so whatever any backend can provide maps through to the standard surface. It is NOT
  * scoped per record type; `primaryRecord` governs required actions, not which fields exist.
  */
-export const BACKEND_RECORD_TYPES = ["issue", "invoice", "client", "product", "payment", "credit_note", "quote", "tax_rate", "vendor", "expense", "bill", "purchase_order", "gl_account", "journal_entry", "bank_account", "bank_transaction", "fx_rate", "fiscal_period", "dimension", "rev_rec_schedule", "goods_receipt", "fixed_asset", "dependency", "baseline", "resource", "assignment", "timesheet", "benefit", "milestone", "change_request", "stage_gate", "skill", "resource_skill", "leave"] as const;
+export const BACKEND_RECORD_TYPES = ["issue", "invoice", "client", "product", "payment", "credit_note", "quote", "tax_rate", "vendor", "expense", "bill", "purchase_order", "gl_account", "journal_entry", "bank_account", "bank_transaction", "fx_rate", "fiscal_period", "dimension", "rev_rec_schedule", "goods_receipt", "fixed_asset", "dependency", "baseline", "resource", "assignment", "timesheet", "benefit", "milestone", "change_request", "stage_gate", "skill", "resource_skill", "leave", "portfolio"] as const;
 export type BackendRecordType = (typeof BACKEND_RECORD_TYPES)[number];
 
 /** The contract READ verbs a backend of each primary-record type must implement (the verifier enforces this).
@@ -291,6 +296,7 @@ export const RECORD_TYPE_REQUIRED_READS: Record<BackendRecordType, ContractActio
   skill: ["list_skills"],
   resource_skill: ["list_resource_skills"],
   leave: ["list_leaves"],
+  portfolio: ["list_portfolios"],
 };
 
 export interface BackendManifest {
