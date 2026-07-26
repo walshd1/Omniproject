@@ -383,6 +383,47 @@ export const FIELDS_DATA: FieldDescriptor[] = [
     ]
   },
   {
+    "key": "portfolioName",
+    "label": "Portfolio name",
+    "type": "text",
+    "group": "classification",
+    "entity": "portfolio"
+  },
+  {
+    "key": "portfolioOwner",
+    "label": "Portfolio owner",
+    "type": "user",
+    "group": "classification",
+    "entity": "portfolio"
+  },
+  {
+    "key": "portfolioType",
+    "label": "Portfolio type",
+    "type": "enum",
+    "group": "classification",
+    "entity": "portfolio",
+    "options": [
+      "strategic",
+      "operational",
+      "mixed"
+    ]
+  },
+  {
+    "key": "investmentBudget",
+    "label": "Investment budget",
+    "type": "currency",
+    "group": "classification",
+    "entity": "portfolio"
+  },
+  {
+    "key": "portfolioProgrammeRef",
+    "label": "Portfolio programme",
+    "type": "reference",
+    "group": "classification",
+    "entity": "portfolio",
+    "references": "programme"
+  },
+  {
     "key": "baselineStart",
     "label": "Baseline start",
     "type": "date",
