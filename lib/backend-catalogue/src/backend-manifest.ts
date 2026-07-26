@@ -158,6 +158,19 @@ export type ContractAction =
   | "get_stage_gate"
   | "create_stage_gate"
   | "update_stage_gate"
+  // ── Skills + leave (people/resource depth, Wave 3) — the governed competency register + absence records ──
+  | "list_skills"
+  | "get_skill"
+  | "create_skill"
+  | "update_skill"
+  | "list_resource_skills"
+  | "get_resource_skill"
+  | "create_resource_skill"
+  | "update_resource_skill"
+  | "list_leaves"
+  | "get_leave"
+  | "create_leave"
+  | "update_leave"
   | "get_capabilities";
 
 /** Catalogue tier — enterprise backends gate the premium workflow generation. */
@@ -235,7 +248,7 @@ export interface KeyFormat {
  * contributed `fields[]` — so whatever any backend can provide maps through to the standard surface. It is NOT
  * scoped per record type; `primaryRecord` governs required actions, not which fields exist.
  */
-export const BACKEND_RECORD_TYPES = ["issue", "invoice", "client", "product", "payment", "credit_note", "quote", "tax_rate", "vendor", "expense", "bill", "purchase_order", "gl_account", "journal_entry", "bank_account", "bank_transaction", "fx_rate", "fiscal_period", "dimension", "rev_rec_schedule", "goods_receipt", "fixed_asset", "dependency", "baseline", "resource", "assignment", "timesheet", "benefit", "milestone", "change_request", "stage_gate"] as const;
+export const BACKEND_RECORD_TYPES = ["issue", "invoice", "client", "product", "payment", "credit_note", "quote", "tax_rate", "vendor", "expense", "bill", "purchase_order", "gl_account", "journal_entry", "bank_account", "bank_transaction", "fx_rate", "fiscal_period", "dimension", "rev_rec_schedule", "goods_receipt", "fixed_asset", "dependency", "baseline", "resource", "assignment", "timesheet", "benefit", "milestone", "change_request", "stage_gate", "skill", "resource_skill", "leave"] as const;
 export type BackendRecordType = (typeof BACKEND_RECORD_TYPES)[number];
 
 /** The contract READ verbs a backend of each primary-record type must implement (the verifier enforces this).
@@ -275,6 +288,9 @@ export const RECORD_TYPE_REQUIRED_READS: Record<BackendRecordType, ContractActio
   milestone: ["list_milestones"],
   change_request: ["list_change_requests"],
   stage_gate: ["list_stage_gates"],
+  skill: ["list_skills"],
+  resource_skill: ["list_resource_skills"],
+  leave: ["list_leaves"],
 };
 
 export interface BackendManifest {
