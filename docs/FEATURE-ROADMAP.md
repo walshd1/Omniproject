@@ -1672,32 +1672,38 @@ explicit, not forgotten. Every item is ⬜ Todo unless noted.
 >   (→ 4.3, #896) · **scenario / what-if** comparison engine — NPV / ROI / benefit-cost ratio / payback over a
 >   discounted cash-flow series, NPV-ranked (→ 4.3, #897) · **benefit / value Monte-Carlo** — the value half of
 >   §4.3's Monte-Carlo, sampling benefit+cost to a net-value distribution with break-even / target probability,
->   P10 value-at-risk and a driver tornado (→ 4.3, #898). All pure functional-core with deterministic tests.
->   The decisioning core (funding · selection · prioritisation · scenario NPV · benefit Monte-Carlo, atop the
->   Wave-2 critical-path / schedule-cost Monte-Carlo / PERT engines) is now in place. **Remaining:** what-if
->   resource **reassignment** scenarios (→ 4.2) · multi-currency **EAC/ETC** + funding sources at the plan layer
->   (→ 4.1) · roadmap / investment-themes / strategic buckets + stage-gate-with-criteria governance (→ 4.3).
+>   P10 value-at-risk and a driver tornado (→ 4.3, #898) · what-if resource **reassignment** engine — reuses the
+>   capacity engine to project the over-allocation delta of proposed moves before committing (→ 4.2, #900) ·
+>   **multi-currency EAC/ETC** engine — converts mixed-currency cost lines to a base currency (gating each on
+>   convertibility) then runs the EVM math (→ 4.1, #901) · **stage-gate criteria** evaluation engine — decides a
+>   gate's pass/fail/pending/waived from its criteria (via the shared predicate engine) + approvals (→ 4.3, #902).
+>   All pure functional-core with deterministic tests. The Wave-4 decisioning set is now **substantially
+>   complete** — funding · selection · prioritisation · scenario NPV · benefit Monte-Carlo · resource
+>   reassignment · multi-currency EAC/ETC · stage-gate criteria, atop the Wave-2 critical-path / schedule-cost
+>   Monte-Carlo / PERT engines. **Remaining (surfaces + refinements, not core compute):** funding-source tranches
+>   at the plan layer (→ 4.1) · the theme/bucket grouping is already served by the generic `rollup.ts` engine, so
+>   only its portfolio-Kanban / roadmap surface remains (→ 4.3) · the gap-analysis roll-up surface (→ 4.2).
 
 ### 4.1 Financial / ERP-native depth (SAP's moat)
 - 🔌 **Project→GL cost brokering** — surface actual cost postings, commitments, and WIP by WBS/cost-object, read live from SAP/Oracle/NetSuite; never posted or stored here.
 - 🔌 **Event-based revenue recognition mirror** — display SAP EBRR results (fixed-price / T&M / periodic) as a read model; recognition stays in the ERP.
 - 🔌 **Capitalization / CapEx-OpEx split, cost-center + procurement + HR-cost roll-ups** — brokered read models per scope.
 - ❄ **Be the ledger** — own postings, settlement, actuals, revenue recognition at rest. Directly contradicts zero-at-rest; SAP's job, not ours.
-- ✳ **Deeper cost engine at the plan layer** — multi-currency EAC/ETC, funding sources, chargeback/showback, rate-card versioning over time (extends existing rate-card + budget-plan). **Funding envelope ✅ (P3M Wave 4, PR #893):** a pure **funding-envelope** engine (envelope vs committed+forecast → headroom / over-commit / burn-through, with portfolio roll-up); multi-currency EAC/ETC + funding-source modelling remain.
+- ✳ **Deeper cost engine at the plan layer** — multi-currency EAC/ETC, funding sources, chargeback/showback, rate-card versioning over time (extends existing rate-card + budget-plan). **Funding envelope ✅ (P3M Wave 4, PR #893)** — a pure **funding-envelope** engine (envelope vs committed+forecast → headroom / over-commit / burn-through, with portfolio roll-up). **Multi-currency EAC/ETC ✅ (P3M Wave 4, PR #901)** — a pure engine that converts mixed-currency PV/EV/AC/BAC cost lines to a base currency (gating each line on convertibility, surfacing the rest) then runs the existing EVM math on the totals. Funding-source tranches + chargeback/showback + rate-card versioning remain.
 - ✳ **Benefits realization tracking** — planned vs actual benefit by initiative, tied to Goals/OKRs. **Record ✅ (P3M Wave 3, PR #885):** a governed **`benefit`** record type + realisation curve in the catalogue; the planned-vs-actual roll-up + Goals/OKR linkage remain.
 
 ### 4.2 Resource management & capacity planning
 - ✳ **Capacity vs demand at portfolio scale** — role/skill supply modelling, allocation heatmaps, over/under-utilisation (extends resource-allocations + skills-planning).
 - ✳ **Skills/competency matrix + gap analysis**, **named + generic (role-based) resourcing**, **soft vs hard booking / reservations**. **Records ✅ (P3M Wave 3, PR #888; P3M Wave 4, PR #895):** governed **`skill`** / **`resource_skill`** (proficiency link) / **`leave`** record types (#888) plus the **`booking`** soft-vs-hard resource-reservation record (#895, %FTE allocation with a soft/hard type + date window); the gap-analysis roll-up remains.
 - 🔌 **Timesheet actuals reconciliation** — brokered from the timesheet SoR; drive utilisation + burn.
-- ✳ **What-if resource scenarios** — model reassignments before committing (client-side projection, same posture as the scheduler).
+- ✅ **What-if resource scenarios (P3M Wave 4, PR #900).** A pure **reassignment** engine — applies proposed effort-shifts between resources to the baseline and reuses the capacity engine to project the per-resource + total over-allocation delta (with an `improved` verdict + rejected/clamped moves) before committing; same posture as the scheduler, nothing stored.
 
 ### 4.3 Portfolio analytics & decisioning
 - ✅ **Portfolio scope tier + three-point estimating (P3M Wave 3).** A governed **`portfolio`** record type above programme completes the **portfolio → programme → project** scope hierarchy (PR #889), and a pure-functional **PERT** three-point estimating engine (mean, standard deviation, variance-summing roll-up, confidence band; deterministic tests) joins the catalogue's vendor-neutral compute core (PR #890) — the estimating substrate the scenario/optimisation work below builds on.
 - ✅ **Scenario / what-if portfolio planning (P3M Wave 4, PR #897).** A pure **scenario** engine — per candidate: NPV (discounted), ROI, benefit-cost ratio and payback period over a net cash-flow series; scenarios NPV-ranked so a fund/defer/cut decision is made against one yardstick. (Capacity-envelope coupling to the funding engine remains a future refinement.)
 - ✅ **Efficient-frontier / optimisation (P3M Wave 4, PR #894).** A pure **portfolio-selection** engine — highest-value subset under a budget (and optional capacity) cap: a deterministic greedy value/cost heuristic plus an exact bounded 0/1-knapsack DP, honestly flagging which ran.
 - ✅ **Monte Carlo on schedule + cost + benefit (client-side compute; no data retained).** Schedule/effort via `monte-carlo.ts` (P3M Wave 2, PR #880) and the **benefit / value** half (PR #898) — sampling benefit+cost to a net-value distribution with break-even / target probability, a P10 value-at-risk and a driver tornado.
-- ✳ **Roadmap / investment themes / strategic buckets**, **stage-gate governance with gate criteria + approvals** (extends composition + approval chains). *(`change_request`/`stage_gate` records landed in Wave 3 #887; the theme/bucket grouping + gate-criteria surface remain.)*
+- ✅ **Stage-gate governance with gate criteria + approvals (P3M Wave 4, PR #902).** A pure **stage-gate** evaluation engine — decides a gate's `pending`/`passed`/`failed`/`waived` from its criteria (each a `ConditionSet` over the item context, evaluated by the shared `predicate.ts` engine) + approvals, with a weighted readiness score and ordered blockers, atop the Wave-3 `change_request`/`stage_gate` records (#887). **Roadmap / investment themes / strategic buckets:** the grouping/roll-up is already served by the generic `rollup.ts` engine (`groupBy` theme + `sum` metrics); only the portfolio-Kanban / roadmap **surface** remains.
 - ✅ **Portfolio Kanban + WSJF/RICE/weighted-shortest-job (P3M Wave 4, PR #896).** A pure **prioritisation** engine computing the per-item WSJF (cost-of-delay / job-size) and RICE (reach·impact·confidence / effort) scores the existing priority-weights engine blends; deterministic ranking, guarded divides. (The Kanban board surface remains.)
 
 ### 4.4 Embedded AI / copilot grounded in the live portfolio *(where ServiceNow/MS are pulling ahead)*
