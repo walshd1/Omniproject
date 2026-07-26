@@ -46,6 +46,19 @@ permissions:
 # Still runs on main: typecheck, guards, smoke (build + n8n + e2e-smoke/stress), e2e (sharded),
 # docker-image, accessibility, deploy-lint, dependency-scan, secret-scan, taint-scan.
 # ─────────────────────────────────────────────────────────────────────────────────────────────
+#
+# PNPM VERSION POLICY (float on next, pin on main)
+#   Every `pnpm/action-setup` below resolves its version from the branch (any event on `main`, or a PR
+#   whose base is `main`):
+#     main line  → PINNED '11.8.0' — reproducible releases.
+#     everything else (next + feature-branch PRs) → 'latest'  — next continuously exercises the
+#                                                                          newest pnpm, so a breaking pnpm
+#                                                                          release is caught on next, never
+#                                                                          on a release. The Dockerfile (the
+#                                                                          shipped image = the main line) stays
+#                                                                          pinned to the same '11.8.0'.
+#   Bump the pinned version in ONE place — the literal in the expression below — and mirror it in the
+#   Dockerfile. (A float-only failure on next means "latest pnpm broke us"; investigate before bumping main.)
 
 jobs:
   # HARD-RULE guard that makes the lighter `main` gate safe: main must only ever be a promotion of
@@ -72,13 +85,13 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
-      # Keep this pnpm/Node pair in sync with the Dockerfile's builder stage — it deliberately
-      # mirrors these exact versions, and bumping one without the other risks a silent drift
-      # between what CI verifies and what actually ships.
+      # pnpm version follows the branch (see PNPM VERSION POLICY above): PINNED on the main line
+      # (mirrors the Dockerfile's builder stage — what actually ships), FLOATING 'latest' on next +
+      # PRs so the newest pnpm is exercised before it can reach a release. Node stays pinned on both.
       - name: Install pnpm
         uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6
         with:
-          version: 11.8.0
+          version: "${{ (github.ref_name == 'main' || github.base_ref == 'main') && '11.8.0' || 'latest' }}"
 
       - name: Setup Node
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v6
@@ -116,7 +129,7 @@ jobs:
       - name: Install pnpm
         uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6
         with:
-          version: 11.8.0
+          version: "${{ (github.ref_name == 'main' || github.base_ref == 'main') && '11.8.0' || 'latest' }}"
       - name: Setup Node
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v6
         with:
@@ -161,7 +174,7 @@ jobs:
       - name: Install pnpm
         uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6
         with:
-          version: 11.8.0
+          version: "${{ (github.ref_name == 'main' || github.base_ref == 'main') && '11.8.0' || 'latest' }}"
       - name: Setup Node
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v6
         with:
@@ -209,7 +222,7 @@ jobs:
       - name: Install pnpm
         uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6
         with:
-          version: 11.8.0
+          version: "${{ (github.ref_name == 'main' || github.base_ref == 'main') && '11.8.0' || 'latest' }}"
       - name: Setup Node
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v6
         with:
@@ -246,7 +259,7 @@ jobs:
       - name: Install pnpm
         uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6
         with:
-          version: 11.8.0
+          version: "${{ (github.ref_name == 'main' || github.base_ref == 'main') && '11.8.0' || 'latest' }}"
       - name: Setup Node
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v6
         with:
@@ -274,7 +287,7 @@ jobs:
       - name: Install pnpm
         uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6
         with:
-          version: 11.8.0
+          version: "${{ (github.ref_name == 'main' || github.base_ref == 'main') && '11.8.0' || 'latest' }}"
       - name: Setup Node
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v6
         with:
@@ -479,7 +492,7 @@ jobs:
       - name: Install pnpm
         uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6
         with:
-          version: 11.8.0
+          version: "${{ (github.ref_name == 'main' || github.base_ref == 'main') && '11.8.0' || 'latest' }}"
       - name: Setup Node
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v6
         with:
@@ -607,7 +620,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6
         with:
-          version: 11.8.0
+          version: "${{ (github.ref_name == 'main' || github.base_ref == 'main') && '11.8.0' || 'latest' }}"
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v6
         with:
           node-version: 26
@@ -686,7 +699,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6
         with:
-          version: 11.8.0
+          version: "${{ (github.ref_name == 'main' || github.base_ref == 'main') && '11.8.0' || 'latest' }}"
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v6
         with:
           node-version: 26
@@ -796,7 +809,7 @@ jobs:
       - name: Install pnpm
         uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6
         with:
-          version: 11.8.0
+          version: "${{ (github.ref_name == 'main' || github.base_ref == 'main') && '11.8.0' || 'latest' }}"
       - name: Setup Node
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v6
         with:
