@@ -694,11 +694,18 @@ jobs:
       - run: pnpm install --frozen-lockfile --ignore-scripts
 
       - name: Audit (block on high or critical)
-        run: pnpm audit --audit-level high
-
-      - name: Report all advisories (non-blocking)
-        if: always()
-        run: pnpm audit || true
+        shell: bash
+        # `pnpm audit` is unusable: npm's bulk advisory endpoint returns a gzip body WITHOUT a
+        # `Content-Encoding` header, so pnpm/undici never decompress it and die with
+        # ERR_PNPM_AUDIT_BAD_RESPONSE on every pnpm version (verified 11.8.0 → 11.17.0). The endpoint is
+        # healthy (curl --compressed decodes it fine). scripts/ci/audit-advisories.mjs fetches + gunzips
+        # correctly and blocks on any HIGH/CRITICAL advisory affecting an installed version — FAIL CLOSED on
+        # any error, so an outage can never masquerade as "no vulnerabilities". semver is installed into a
+        # throwaway NODE_PATH so the workspace tree + lockfile are untouched.
+        run: |
+          tmp="$(mktemp -d)"
+          ( cd "$tmp" && npm init -y >/dev/null 2>&1 && npm install --no-audit --no-fund --no-package-lock semver@7 >/dev/null 2>&1 )
+          NODE_PATH="$tmp/node_modules" node scripts/ci/audit-advisories.mjs
 
       - name: Generate dependency + licence SBOM inventory
         if: always()
