@@ -233,6 +233,97 @@
     "references": "project"
   },
   {
+    "key": "skillName",
+    "label": "Skill name",
+    "type": "text",
+    "group": "effort",
+    "entity": "skill"
+  },
+  {
+    "key": "skillCategory",
+    "label": "Skill category",
+    "type": "enum",
+    "group": "effort",
+    "entity": "skill",
+    "options": ["technical", "domain", "leadership", "certification"]
+  },
+  {
+    "key": "skillDescription",
+    "label": "Skill description",
+    "type": "text",
+    "group": "effort",
+    "entity": "skill"
+  },
+  {
+    "key": "rsResourceRef",
+    "label": "Resource skill resource",
+    "type": "reference",
+    "group": "effort",
+    "entity": "resource_skill",
+    "references": "resource"
+  },
+  {
+    "key": "rsSkillRef",
+    "label": "Resource skill skill",
+    "type": "reference",
+    "group": "effort",
+    "entity": "resource_skill",
+    "references": "skill"
+  },
+  {
+    "key": "rsProficiency",
+    "label": "Resource skill proficiency",
+    "type": "enum",
+    "group": "effort",
+    "entity": "resource_skill",
+    "options": ["novice", "intermediate", "advanced", "expert"]
+  },
+  {
+    "key": "rsLastUsedDate",
+    "label": "Resource skill last used",
+    "type": "date",
+    "group": "effort",
+    "entity": "resource_skill"
+  },
+  {
+    "key": "leaveResourceRef",
+    "label": "Leave resource",
+    "type": "reference",
+    "group": "effort",
+    "entity": "leave",
+    "references": "resource"
+  },
+  {
+    "key": "leaveType",
+    "label": "Leave type",
+    "type": "enum",
+    "group": "effort",
+    "entity": "leave",
+    "options": ["annual", "sick", "parental", "unpaid", "other"]
+  },
+  {
+    "key": "leaveStartDate",
+    "label": "Leave start date",
+    "type": "date",
+    "group": "effort",
+    "entity": "leave"
+  },
+  {
+    "key": "leaveEndDate",
+    "label": "Leave end date",
+    "type": "date",
+    "group": "effort",
+    "entity": "leave"
+  },
+  {
+    "key": "leaveStatus",
+    "label": "Leave status",
+    "type": "enum",
+    "group": "effort",
+    "entity": "leave",
+    "options": ["requested", "approved", "rejected", "taken"]
+  },
+  {
     "key": "baselineStart",
     "label": "Baseline start",
     "type": "date",
