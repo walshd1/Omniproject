@@ -339,6 +339,18 @@ export const FIELDS_DATA: FieldDescriptor[] = [
     "group": "financial"
   },
   {
+    "key": "varianceAtCompletion",
+    "label": "Variance at completion (VAC)",
+    "type": "currency",
+    "group": "financial"
+  },
+  {
+    "key": "toCompletePerformanceIndex",
+    "label": "TCPI",
+    "type": "number",
+    "group": "financial"
+  },
+  {
     "key": "billRate",
     "label": "Bill rate",
     "type": "currency",
