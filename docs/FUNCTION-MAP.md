@@ -5136,6 +5136,14 @@ KIND-ROOT CONSTRAINTS — the container-primitive floors that bind a WHOLE kind,
 | `kindRootConstraints` | The implicit root constraints every def of `kind` inherits (empty for kinds with no container floors). |
 | `kindElementErrors` | The PER-ELEMENT validation for a kind whose children are primitive instances — beyond the container floors, each child is validated against its own primitive. |
 
+### `lib/backend-catalogue/src/critical-path.ts`
+
+Critical Path Method (CPM) — a pure, STATELESS solver.
+
+| Function | What it does |
+| --- | --- |
+| `criticalPath` | Solve the CPM schedule. |
+
 ### `lib/backend-catalogue/src/currency.ts`
 
 Currency conversion — the pure, dependency-free FX primitives every money roll-up and report shares: convert an amount between currencies via a base-anchored rate table, decide whether a conversion is even possible, list the convertible codes, and the default display currency.
