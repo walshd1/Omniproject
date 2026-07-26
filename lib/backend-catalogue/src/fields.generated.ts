@@ -424,6 +424,54 @@ export const FIELDS_DATA: FieldDescriptor[] = [
     "references": "programme"
   },
   {
+    "key": "bookingResourceRef",
+    "label": "Booking resource",
+    "type": "reference",
+    "group": "effort",
+    "entity": "booking",
+    "references": "resource"
+  },
+  {
+    "key": "bookingType",
+    "label": "Booking type",
+    "type": "enum",
+    "group": "effort",
+    "entity": "booking",
+    "options": [
+      "soft",
+      "hard"
+    ]
+  },
+  {
+    "key": "bookingStartDate",
+    "label": "Booking start date",
+    "type": "date",
+    "group": "effort",
+    "entity": "booking"
+  },
+  {
+    "key": "bookingEndDate",
+    "label": "Booking end date",
+    "type": "date",
+    "group": "effort",
+    "entity": "booking"
+  },
+  {
+    "key": "bookingAllocationPct",
+    "label": "Booking allocation",
+    "type": "percent",
+    "group": "effort",
+    "entity": "booking"
+  },
+  {
+    "key": "bookingProjectRef",
+    "label": "Booking project",
+    "type": "reference",
+    "group": "effort",
+    "entity": "booking",
+    "references": "project"
+  },
+  {
     "key": "baselineStart",
     "label": "Baseline start",
     "type": "date",
