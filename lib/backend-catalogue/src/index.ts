@@ -101,3 +101,4 @@ export * from "./composition";
 export * from "./prioritise";
 export * from "./scenario";
 export * from "./benefit-monte-carlo";
+export * from "./reassignment";
