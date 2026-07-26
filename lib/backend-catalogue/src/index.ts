@@ -98,3 +98,4 @@ export * from "./dashboard-preset-catalogue";
 export * from "./rollup";
 export * from "./methodology-group";
 export * from "./composition";
+export * from "./prioritise";
