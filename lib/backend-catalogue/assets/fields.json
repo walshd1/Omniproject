@@ -143,6 +143,96 @@
     "references": "project"
   },
   {
+    "key": "crTitle",
+    "label": "Change request title",
+    "type": "text",
+    "group": "classification",
+    "entity": "change_request"
+  },
+  {
+    "key": "crStatus",
+    "label": "Change request status",
+    "type": "enum",
+    "group": "classification",
+    "entity": "change_request",
+    "options": ["raised", "assessing", "approved", "rejected", "implemented"]
+  },
+  {
+    "key": "crImpact",
+    "label": "Change request impact",
+    "type": "enum",
+    "group": "classification",
+    "entity": "change_request",
+    "options": ["scope", "cost", "schedule", "quality"]
+  },
+  {
+    "key": "crRequestedBy",
+    "label": "Change requested by",
+    "type": "user",
+    "group": "classification",
+    "entity": "change_request"
+  },
+  {
+    "key": "crDecisionDate",
+    "label": "Change decision date",
+    "type": "date",
+    "group": "classification",
+    "entity": "change_request"
+  },
+  {
+    "key": "crProjectRef",
+    "label": "Change request project",
+    "type": "reference",
+    "group": "classification",
+    "entity": "change_request",
+    "references": "project"
+  },
+  {
+    "key": "gateName",
+    "label": "Stage gate name",
+    "type": "text",
+    "group": "schedule",
+    "entity": "stage_gate"
+  },
+  {
+    "key": "gateStatus",
+    "label": "Stage gate status",
+    "type": "enum",
+    "group": "schedule",
+    "entity": "stage_gate",
+    "options": ["pending", "passed", "failed", "waived"]
+  },
+  {
+    "key": "gateDecisionDate",
+    "label": "Stage gate decision date",
+    "type": "date",
+    "group": "schedule",
+    "entity": "stage_gate"
+  },
+  {
+    "key": "gateApprover",
+    "label": "Stage gate approver",
+    "type": "user",
+    "group": "schedule",
+    "entity": "stage_gate"
+  },
+  {
+    "key": "gateType",
+    "label": "Stage gate type",
+    "type": "enum",
+    "group": "schedule",
+    "entity": "stage_gate",
+    "options": ["g0", "g1", "g2", "g3", "g4", "g5"]
+  },
+  {
+    "key": "gateProjectRef",
+    "label": "Stage gate project",
+    "type": "reference",
+    "group": "schedule",
+    "entity": "stage_gate",
+    "references": "project"
+  },
+  {
     "key": "baselineStart",
     "label": "Baseline start",
     "type": "date",
