@@ -126,3 +126,4 @@ export * from "./velocity";
 export * from "./skills-gap";
 export * from "./benefit-realisation";
 export * from "./sprint-metrics";
+export * from "./cycle-time";

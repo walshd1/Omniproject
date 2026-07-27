@@ -5233,6 +5233,14 @@ Currency conversion — the pure, dependency-free FX primitives every money roll
 | `currencyList` | The sorted list of currency codes a rate table can convert between. |
 | `currencyMix` | Tally the distinct source currencies across a set of rows (so a UI can say "consolidated from N currencies"), most-common first. |
 
+### `lib/backend-catalogue/src/cycle-time.ts`
+
+CYCLE-TIME / LEAD-TIME DISTRIBUTION ENGINE — the flow-time half of agile reporting: how long work actually takes, as a DISTRIBUTION not a single average (roadmap §4.3 / §5.5).
+
+| Function | What it does |
+| --- | --- |
+| `computeCycleTime` | Compute cycle-time + lead-time distributions over a set of work items. |
+
 ### `lib/backend-catalogue/src/dashboard-preset-catalogue.ts`
 
 DASHBOARD-PRESET registry — ready-made, role-tailored "what needs me today" dashboards.
