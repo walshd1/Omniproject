@@ -233,6 +233,104 @@
     "references": "project"
   },
   {
+    "key": "decisionTitle",
+    "label": "Decision title",
+    "type": "text",
+    "group": "classification",
+    "entity": "decision",
+    "required": true
+  },
+  {
+    "key": "decisionStatus",
+    "label": "Decision status",
+    "type": "enum",
+    "group": "classification",
+    "entity": "decision",
+    "options": ["proposed", "accepted", "rejected", "superseded"]
+  },
+  {
+    "key": "decisionRationale",
+    "label": "Decision rationale",
+    "type": "text",
+    "group": "classification",
+    "entity": "decision"
+  },
+  {
+    "key": "decisionMaker",
+    "label": "Decision maker",
+    "type": "user",
+    "group": "classification",
+    "entity": "decision"
+  },
+  {
+    "key": "decisionDate",
+    "label": "Decision date",
+    "type": "date",
+    "group": "classification",
+    "entity": "decision"
+  },
+  {
+    "key": "decisionProjectRef",
+    "label": "Decision project",
+    "type": "reference",
+    "group": "classification",
+    "entity": "decision",
+    "references": "project"
+  },
+  {
+    "key": "decisionSupersedes",
+    "label": "Supersedes decision",
+    "type": "reference",
+    "group": "classification",
+    "entity": "decision",
+    "references": "decision"
+  },
+  {
+    "key": "lessonTitle",
+    "label": "Lesson title",
+    "type": "text",
+    "group": "quality",
+    "entity": "lessons_learned",
+    "required": true
+  },
+  {
+    "key": "lessonCategory",
+    "label": "Lesson category",
+    "type": "enum",
+    "group": "quality",
+    "entity": "lessons_learned",
+    "options": ["what_went_well", "what_to_improve", "risk", "process"]
+  },
+  {
+    "key": "lessonDescription",
+    "label": "Lesson description",
+    "type": "text",
+    "group": "quality",
+    "entity": "lessons_learned"
+  },
+  {
+    "key": "lessonCapturedBy",
+    "label": "Lesson captured by",
+    "type": "user",
+    "group": "quality",
+    "entity": "lessons_learned"
+  },
+  {
+    "key": "lessonDate",
+    "label": "Lesson date",
+    "type": "date",
+    "group": "quality",
+    "entity": "lessons_learned"
+  },
+  {
+    "key": "lessonProjectRef",
+    "label": "Lesson project",
+    "type": "reference",
+    "group": "quality",
+    "entity": "lessons_learned",
+    "references": "project"
+  },
+  {
     "key": "skillName",
     "label": "Skill name",
     "type": "text",
