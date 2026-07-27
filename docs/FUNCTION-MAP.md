@@ -5033,6 +5033,14 @@ Release-signing CLI (docs/UPDATE-MECHANISM.md §4, phase 1) — the release/CI s
 
 The seven vendor-neutral integration-plane registries (backends, brokers, outputs, notifications, methodologies, reports, screens) shared across the workspace.
 
+### `lib/backend-catalogue/src/access-review.ts`
+
+ACCESS-REVIEW / RECERTIFICATION ENGINE — the periodic "does this person still need this access?" campaign that SOC 2 / ISO 27001 auditors expect and that the platform did not yet compute (IAM assessment gap S2).
+
+| Function | What it does |
+| --- | --- |
+| `reviewAccess` | Classify every grant against its review cadence and assemble the recertification campaign. |
+
 ### `lib/backend-catalogue/src/authz-policy.ts`
 
 AUTHORIZATION-POLICY (ABAC) ENGINE — a deny-by-default attribute-based access evaluator (IAM assessment gap S1).
