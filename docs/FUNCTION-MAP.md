@@ -5740,6 +5740,14 @@ CAPACITY-BASED SPRINT / PI FORECASTING — "when will this backlog be done?" ans
 | --- | --- |
 | `forecastPi` | Forecast how many sprints and PIs a backlog needs at optimistic / likely / pessimistic velocities. |
 
+### `lib/backend-catalogue/src/plan-my-day.ts`
+
+PLAN-MY-DAY SELECTOR — a pure, STATELESS "what should I actually do today" chooser for GTD next-actions (task-management assessment gap T6).
+
+| Function | What it does |
+| --- | --- |
+| `planMyDay` | Rank today's open tasks and cap them by item / hours / energy budgets. |
+
 ### `lib/backend-catalogue/src/plane-verifier.ts`
 
 Plane verifier — validates a developer-written entry for ANY plane against that plane's manifest contract (shape + capabilities/tools linkage + plane-specific invariants).
