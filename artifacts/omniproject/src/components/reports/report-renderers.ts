@@ -21,6 +21,7 @@ import { RaidRegister } from "./RaidRegister";
 import { RiskRegister } from "./RiskRegister";
 import { CycleTimeReport } from "./CycleTimeReport";
 import { HierarchyProgress } from "./HierarchyProgress";
+import { SprintReview } from "./SprintReview";
 import { CrossProgrammeDependencies } from "./CrossProgrammeDependencies";
 import { FederatedPortfolio } from "./FederatedPortfolio";
 import { StrategyAlignment } from "./StrategyAlignment";
@@ -84,6 +85,7 @@ export const REPORT_RENDERERS: Record<string, ReportRendererComponent> = {
   RiskRegister: RiskRegister as ReportRendererComponent,
   CycleTimeReport,
   HierarchyProgress,
+  SprintReview,
   CrossProgrammeDependencies,
   FederatedPortfolio,
   StrategyAlignment,
