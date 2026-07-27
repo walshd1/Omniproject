@@ -757,6 +757,18 @@
             "null"
           ]
         },
+        "epic": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "sprint": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "healthStatus": {
           "type": [
             "string",
