@@ -5163,6 +5163,14 @@ Critical Path Method (CPM) — a pure, STATELESS solver.
 | --- | --- |
 | `criticalPath` | Solve the CPM schedule. |
 
+### `lib/backend-catalogue/src/cross-team-critical-path.ts`
+
+CROSS-TEAM CRITICAL PATH — the scaled-agile lens on the critical path (roadmap §4.5, "dependency graph + critical-path across teams").
+
+| Function | What it does |
+| --- | --- |
+| `analyzeCrossTeamCriticalPath` | Solve the critical path, then analyse its cross-team structure. |
+
 ### `lib/backend-catalogue/src/currency.ts`
 
 Currency conversion — the pure, dependency-free FX primitives every money roll-up and report shares: convert an amount between currencies via a base-anchored rate table, decide whether a conversion is even possible, list the convertible codes, and the default display currency.
