@@ -6039,6 +6039,14 @@ Canonical TASK-STATUS vocabulary — the single source of truth for the next-act
 | `taskVocabularyValues` | Build the shipped-default {@link TaskVocabularyValues} from the canonical entries. |
 | `taskStatusesForMethodology` | The task statuses that apply to `methodologyId` — its tagged ones plus the neutral ("*") ones — a methodology's normal GTD nomenclature. |
 
+### `lib/backend-catalogue/src/task-workload.ts`
+
+TASK WORKLOAD / WIP / AGING ENGINE — a pure, STATELESS analyser for GTD next-action load (task-management assessment gap T2).
+
+| Function | What it does |
+| --- | --- |
+| `analyzeTaskWorkload` | Analyse the open tasks: per-assignee WIP load + age buckets. |
+
 ### `lib/backend-catalogue/src/template-catalogue.ts`
 
 PROJECT TEMPLATE catalogue — reusable project blueprints for the "spin up a project from a template" gallery.

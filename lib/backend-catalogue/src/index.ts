@@ -116,3 +116,4 @@ export * from "./access-review";
 export * from "./separation-of-duties";
 export * from "./human-delegation";
 export * from "./task-dependencies";
+export * from "./task-workload";
