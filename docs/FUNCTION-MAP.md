@@ -5033,6 +5033,15 @@ Release-signing CLI (docs/UPDATE-MECHANISM.md §4, phase 1) — the release/CI s
 
 The seven vendor-neutral integration-plane registries (backends, brokers, outputs, notifications, methodologies, reports, screens) shared across the workspace.
 
+### `lib/backend-catalogue/src/authz-policy.ts`
+
+AUTHORIZATION-POLICY (ABAC) ENGINE — a deny-by-default attribute-based access evaluator (IAM assessment gap S1).
+
+| Function | What it does |
+| --- | --- |
+| `evaluateAccess` | Evaluate one access request against an ordered policy set. |
+| `evaluateAccessBatch` | Evaluate many requests against the same policy set, preserving request order. |
+
 ### `lib/backend-catalogue/src/automation-catalogue.ts`
 
 AUTOMATION catalogue — the primitives of the user-facing "when X, do Y" recipe builder (Phase 1.2).
