@@ -107,3 +107,4 @@ export * from "./stage-gate";
 export * from "./health-score";
 export * from "./okr-linkage";
 export * from "./demand-dedup";
+export * from "./exec-digest";
