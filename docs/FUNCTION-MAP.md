@@ -6054,6 +6054,14 @@ SORT + FILTER — the ONE shared, pure "view controls" engine a screen table or 
 | `filterRowsBoolean` | Keep rows matching the boolean filter tree. |
 | `applyView` | The common "view" application: filter THEN sort, in one pure pass. |
 
+### `lib/backend-catalogue/src/sprint-metrics.ts`
+
+SPRINT AGGREGATION ENGINE — the sprint-review numbers every agile tool shows: per iteration, how much was COMMITTED vs COMPLETED, how much scope was ADDED mid-sprint (churn), what CARRIED OVER, and the resulting per-sprint VELOCITY series (roadmap §5.5 sprints/iterations + §4.3 agile reporting).
+
+| Function | What it does |
+| --- | --- |
+| `computeSprintMetrics` | Aggregate work items into per-sprint commit-vs-complete metrics + a velocity series. |
+
 ### `lib/backend-catalogue/src/stage-gate.ts`
 
 STAGE-GATE CRITERIA EVALUATION — decide whether a delivery gate should PASS, deterministically, from its criteria + approvals (roadmap §4.3, "stage-gate governance with gate criteria + approvals").
