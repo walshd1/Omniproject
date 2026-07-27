@@ -5574,6 +5574,15 @@ METHODOLOGY DEPLOY — the pure resolver behind "one-click deploy this methodolo
 | --- | --- |
 | `resolveMethodologyDeployment` | Resolve the one-click deploy plan for a methodology, or null when the id is unknown. |
 
+### `lib/backend-catalogue/src/methodology-gates.ts`
+
+PER-METHODOLOGY MANDATORY-GATE POLICY — a pure evaluator for "does this project clear the gates its methodology REQUIRES?" (roadmap §4.8, "Policy-as-config guardrails — the per-methodology mandatory-gate extension remains").
+
+| Function | What it does |
+| --- | --- |
+| `resolveMethodologyGatePolicy` | Resolve the required-gate policy for a methodology — a caller override wins, else the shipped default, else an empty policy (the methodology mandates no gates). |
+| `evaluateMethodologyGates` | Evaluate a project's gates against a methodology's required-gate policy. |
+
 ### `lib/backend-catalogue/src/methodology-group.ts`
 
 GROUP any methodology-tagged definitions by methodology — generic over EVERY catalogue plane (reports, views, screens, personas, …), since they all carry the same optional `methodologies` tag and share one matcher.
