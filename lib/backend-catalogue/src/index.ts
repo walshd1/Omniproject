@@ -123,3 +123,4 @@ export * from "./risk-register";
 export * from "./methodology-gates";
 export * from "./flow-metrics";
 export * from "./velocity";
+export * from "./skills-gap";
