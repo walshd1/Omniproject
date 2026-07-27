@@ -6020,6 +6020,14 @@ Canonical RAID/risk SEVERITY vocabulary — the single source of truth for the s
 | `severityVocabularyValues` | Build the shipped-default {@link SeverityVocabularyValues} from the canonical entries. |
 | `severityLevelsForMethodology` | The severity grades that apply to `methodologyId` — its tagged ones plus the neutral ("*") ones. |
 
+### `lib/backend-catalogue/src/skills-gap.ts`
+
+SKILLS GAP-ANALYSIS ENGINE — a pure, STATELESS competency-coverage analyser over the resource-skill holdings a portfolio already records (roadmap §4.2, "Skills/competency matrix + gap analysis — records ✅, the gap-analysis roll-up remains").
+
+| Function | What it does |
+| --- | --- |
+| `analyzeSkillsGap` | Cross resource-skill holdings against per-skill demand into a gap analysis. |
+
 ### `lib/backend-catalogue/src/sort-filter.ts`
 
 SORT + FILTER — the ONE shared, pure "view controls" engine a screen table or a report row-set runs so a user can sort by ANY column (or row) and filter, with the SAME comparators everywhere.
