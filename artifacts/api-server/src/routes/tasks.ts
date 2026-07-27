@@ -5,11 +5,14 @@
 import { Router, type Request, type Response } from "express";
 import { withBrokerErrors } from "../broker";
 import { getTasks, getTask, createTask, updateTask, brokerHasTasks, getTaskComments, addTaskComment, getTaskAttachments, addTaskAttachment, brokerHasTaskAttachments } from "../lib/data";
-import { requireRole } from "../lib/rbac";
+import { requireRole, roleForReq } from "../lib/rbac";
+import { requireStepUp } from "../lib/step-up";
+import { runTaskBulk, taskBulkFingerprint, MAX_TASK_BULK_ITEMS } from "../lib/task-bulk-actions";
+import { planTaskBulk } from "@workspace/backend-catalogue";
 import { mountEntity, type EntityDescriptor } from "../lib/entity-pipeline";
 import { mountCommand, type CommandDescriptor } from "../lib/action-base";
 import { assertTaskScope, filterTasksInScope } from "../lib/project-scope";
-import { auditScopeDenied } from "../lib/audit";
+import { auditScopeDenied, recordRequestAudit } from "../lib/audit";
 import { getSession } from "./auth";
 import { parseOr400, v } from "../lib/validate";
 import { CANONICAL_PRIORITY, isTaskDone } from "../broker/vocabulary";
@@ -355,5 +358,81 @@ export const addTaskAttachmentCommand: CommandDescriptor<{ body: TaskAttachmentI
   status: 201,
 };
 mountCommand(router, addTaskAttachmentCommand);
+
+/**
+ * POST /api/tasks/bulk — apply ONE canonical change to many GTD tasks at once (task-management gap T5).
+ * Mirrors the project bulk runner (/admin/bulk): manager+ RBAC, a fresh step-up re-auth (a batch is
+ * high-blast-radius), a dry-run preview + a secondary confirmation token, and per-item partial success.
+ * The pure `planTaskBulk` validates + resolves each change and skips no-ops; each planned item then runs
+ * through the same gated write path a single PATCH does (task scope → ruleset("update_task") → broker
+ * updateTask). Only tasks the caller can already see (scope-filtered) are eligible; requested ids that
+ * aren't found/in-scope are reported as `missing`, never leaked.
+ */
+const TASK_BULK_BODY = v.object({
+  op: v.enum(["complete", "reopen", "reassign", "set_priority", "set_context", "move_section"] as const),
+  ids: v.array(v.string({ trim: true, min: 1, max: 200 })),
+  assignee: v.optional(v.string({ trim: true, max: 200 })),
+  priority: v.optional(v.string({ trim: true, max: 40 })),
+  context: v.optional(v.string({ trim: true, max: 100 })),
+  section: v.optional(v.string({ trim: true, max: 200 })),
+  dryRun: v.optional(v.boolean()),
+  confirm: v.optional(v.string({ max: 128 })),
+});
+
+router.post("/tasks/bulk", requireRole("manager"), requireStepUp, async (req, res) => {
+  const body = parseOr400(req, res, TASK_BULK_BODY);
+  if (!body) return;
+  const ids = body.ids ?? [];
+  if (ids.length === 0) { res.status(400).json({ error: "tasks/bulk requires a non-empty ids[]" }); return; }
+  if (ids.length > MAX_TASK_BULK_ITEMS) { res.status(413).json({ error: `Too many items: ${ids.length} exceeds the ${MAX_TASK_BULK_ITEMS}-task bulk cap. Split the batch.` }); return; }
+
+  const dryRun = body.dryRun === true;
+  // Resolve only the requested tasks the caller may actually see (scope-filtered), keyed by id.
+  const visible = await filterTasksInScope(req, await getTasks(req, {}), whoami(req));
+  const wanted = new Set(ids.map(String));
+  const selected = visible.filter((t) => wanted.has(String(t.id)));
+  const projectById = new Map(selected.map((t) => [String(t.id), t.projectId ?? null]));
+  const tasksForPlan = selected.map((t) => ({ id: String(t.id), status: t.status ?? null, assignee: t.assignee ?? null, priority: t.priority ?? null, context: t.context ?? null, section: t.section ?? null }));
+
+  const spec = {
+    op: body.op,
+    ...(body.assignee !== undefined ? { assignee: body.assignee } : {}),
+    ...(body.priority !== undefined ? { priority: body.priority } : {}),
+    ...(body.context !== undefined ? { context: body.context } : {}),
+    ...(body.section !== undefined ? { section: body.section } : {}),
+  };
+  const options = { validPriorities: [...CANONICAL_PRIORITY] };
+
+  // Secondary confirmation: a real (non-dry-run) execute must echo the fingerprint of THIS exact plan.
+  const confirmToken = taskBulkFingerprint(planTaskBulk(tasksForPlan, spec, options).fingerprintInput);
+  if (!dryRun && body.confirm !== confirmToken) {
+    res.status(428).json({ error: "This bulk action needs a secondary confirmation. Preview it, then resend with the confirm token.", code: "confirmation_required", confirmToken });
+    return;
+  }
+
+  const outcome = await runTaskBulk({
+    tasks: tasksForPlan,
+    spec,
+    options,
+    role: roleForReq(req),
+    dryRun,
+    apply: async (id, changes) => updateTask(req, id, changes as Parameters<typeof updateTask>[2]),
+    projectIdOf: (id) => projectById.get(id) ?? null,
+    onItemError: (id, err) => req.log.error({ err, id }, "task bulk item failed"),
+  });
+
+  const missing = ids.length - tasksForPlan.length; // requested but not found / out of scope
+  recordRequestAudit(req, {
+    category: "admin",
+    action: dryRun ? "task_bulk_preview" : "task_bulk_execute",
+    write: !dryRun,
+    result: dryRun || outcome.applied > 0 ? "success" : "error",
+    status: 200,
+    meta: { op: body.op, dryRun, requested: ids.length, resolved: tasksForPlan.length, missing, applied: outcome.applied, skipped: outcome.skipped, errored: outcome.errored },
+  });
+
+  const status = dryRun || outcome.applied === outcome.total ? 200 : outcome.applied === 0 ? 422 : 207;
+  res.status(status).json({ ...outcome, missing, ...(dryRun ? { confirmToken } : {}) });
+});
 
 export default router;

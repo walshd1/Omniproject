@@ -4036,6 +4036,15 @@ THE SHIPPED-DEFAULTS INSTALLER for the read-only system store (roadmap X.11).
 | `applySystemDefaults` | One-shot (re)apply of the bundled defaults into the system store — decrypt→replace→re-encrypt in ONE write. |
 | `seedSystemDefaultsIfEmpty` | Auto-install on first boot only (empty system store). |
 
+### `artifacts/api-server/src/lib/task-bulk-actions.ts`
+
+Task BULK-ACTION runner — the admin "apply one canonical change to many GTD tasks" JOB, separated from the HTTP shell (the /api/tasks/bulk route).
+
+| Function | What it does |
+| --- | --- |
+| `taskBulkFingerprint` | A stateless confirmation fingerprint over the plan's canonical (order-independent) input. |
+| `runTaskBulk` | Plan + run a task bulk operation, at most {@link TASK_BULK_FANOUT} writes in flight, resolving in plan order. |
+
 ### `artifacts/api-server/src/lib/task-context-vocabulary-config.ts`
 
 SCOPE-OVERRIDABLE GTD task-context vocabulary — the resolver + write sanitiser behind `GET`/`PUT /api/task-context-vocabulary`.
@@ -6003,6 +6012,14 @@ STAGE-GATE CRITERIA EVALUATION — decide whether a delivery gate should PASS, d
 | Function | What it does |
 | --- | --- |
 | `evaluateGate` | Evaluate a gate. |
+
+### `lib/backend-catalogue/src/task-bulk.ts`
+
+TASK BULK-OPERATION PLANNER — the pure validation core behind the admin "apply one change to many GTD tasks" endpoint (task-management assessment gap T5).
+
+| Function | What it does |
+| --- | --- |
+| `planTaskBulk` | Plan a bulk operation over the selected tasks. |
 
 ### `lib/backend-catalogue/src/task-context-vocabulary.generated.ts`
 

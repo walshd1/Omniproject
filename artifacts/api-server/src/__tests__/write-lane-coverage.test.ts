@@ -294,6 +294,7 @@ const BESPOKE_WRITES = new Set<string>([
   "POST /setup/verify-workflow",
   "POST /snapshots/capture",
   "POST /snapshots/verify",
+  "POST /tasks/bulk",
   "POST /tasks/reminders/sweep",
   "POST /usage/notify",
   "POST /webhooks",

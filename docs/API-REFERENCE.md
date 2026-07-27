@@ -1250,6 +1250,7 @@ Task routes — GTD actionable next-actions (distinct from issues): list/create/
 | POST | `/api/tasks/:taskId/comments` | requireRole(contributor) | Add a comment to a task (contributor+). |
 | GET | `/api/tasks/:taskId/attachments` | — | — |
 | POST | `/api/tasks/:taskId/attachments` | requireRole(contributor) | Add a file-reference attachment to a task (contributor+), when the backend supports them. |
+| POST | `/api/tasks/bulk` | requireRole(manager) + requireStepUp | — |
 
 ### `artifacts/api-server/src/routes/templates.ts`
 
