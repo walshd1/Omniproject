@@ -108,4 +108,14 @@ T11 tasks-in-contract (contract-gen work). Full RRULE remains a **deliberate non
 
 ## Status
 
-Assessment authored; **awaiting greenlight**. Slices marked ✅ with their PR numbers here as they land.
+**Wave complete.** Assessment authored (#918), greenlit, and all five build slices delivered on `next`:
+
+- ✅ **Slice 1 — Task dependency graph engine (T1)** — #919 (`task-dependencies.ts`: blockedBy edges → cycle/ready-now/critical-order).
+- ✅ **Slice 2 — GTD context vocabulary (T3)** — #920 (`task-context-vocabulary` + `GET/PUT /api/task-context-vocabulary`, mirroring energy/status).
+- ✅ **Slice 3 — Task workload / WIP / aging engine (T2)** — #921 (`task-workload.ts`: per-assignee WIP load + age buckets).
+- ✅ **Slice 4 — Task bulk-operation planner + route (T5)** — #922 (`task-bulk.ts` + `POST /api/tasks/bulk`: dry-run preview + confirm token, manager+ step-up, partial success).
+- ✅ **Slice 5 — "Plan my day" selector (T6, pure half)** — #923 (`plan-my-day.ts`: overdue + due-today + flagged/high-priority, worst-first ranking, item/hours/energy budget caps). The SPA "My Day" surface remains the out-of-lane follow-on.
+
+**Deferred (optional, not built):** Slice 6 — scope-configurable task priority (**T4**) + upcoming-occurrence projection (**T7**). Judged lower-leverage than the five delivered slices and not clearly worth its own PR right now: T4 is a small membership-relaxation that can ride a future task-config change, and T7's bounded `upcomingOccurrences` has no consuming surface yet. Tracked here; revisit on a concrete ask.
+
+**Out-of-lane / deferred (unchanged):** **T8** AI/NL task creation (needs a task MCP-tool surface + time-of-day parsing), **T9** checklists-as-first-class (modeled as subtasks today), **T10** time-tracking↔task linkage (timer/timesheet routes + SPA), **T11** tasks-in-contract (contract-gen work). Full RRULE remains a **deliberate non-goal** per the roadmap.
