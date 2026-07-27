@@ -760,6 +760,18 @@ export const BROKER_CONTRACT_SCHEMA = {
             "null"
           ]
         },
+        "epic": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "sprint": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "healthStatus": {
           "type": [
             "string",

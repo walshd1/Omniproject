@@ -332,6 +332,16 @@ export interface Issue {
      */
   storyPoints?: number | null;
   /**
+     * Parent epic / work-item id — the epic → story → task hierarchy (agile field group; surfaced only when the backend tracks a parent link).
+     * @nullable
+     */
+  epic?: string | null;
+  /**
+     * Sprint / iteration the work item belongs to (agile field group).
+     * @nullable
+     */
+  sprint?: string | null;
+  /**
      * Delivery health / RAG (quality field group). Free-form to preserve the backend's vocabulary.
      * @nullable
      */
@@ -515,6 +525,10 @@ export interface IssueInput {
   /** @nullable */
   storyPoints?: number | null;
   /** @nullable */
+  epic?: string | null;
+  /** @nullable */
+  sprint?: string | null;
+  /** @nullable */
   healthStatus?: string | null;
   /** @nullable */
   riskLevel?: string | null;
@@ -657,6 +671,10 @@ export interface IssueUpdate {
   remainingHours?: number | null;
   /** @nullable */
   storyPoints?: number | null;
+  /** @nullable */
+  epic?: string | null;
+  /** @nullable */
+  sprint?: string | null;
   /** @nullable */
   healthStatus?: string | null;
   /** @nullable */
