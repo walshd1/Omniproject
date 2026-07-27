@@ -1689,10 +1689,22 @@ explicit, not forgotten. Every item is ⬜ Todo unless noted.
 >   delivery items and auto-rolls-up progress from BOTH key results and linked items with a `deliveryGap`
 >   divergence signal (→ 4.5, #905) · **duplicate-demand detection** — Jaccard token-overlap over intake items →
 >   ranked candidate pairs + union-find clusters (→ 4.4, #906) · **structured exec-digest / status-report**
->   generator — assembles the above engines' results into one deterministic digest an LLM narrates (→ 4.4, #907).
->   All pure functional-core with deterministic tests — the deterministic scoring/assembly cores the copilot
->   narrates, with **no LLM in-core**. **Remaining:** the portfolio-grounded copilot Q&A surface (→ 4.4, the
->   LLM-facing layer atop these cores) · SAFe / cross-team critical-path + capacity-based PI forecasting (→ 4.5).
+>   generator — assembles the above engines' results into one deterministic digest an LLM narrates (→ 4.4, #907) ·
+>   **capacity-based sprint/PI forecasting** — backlog + velocity → sprints/PIs with an optimistic/likely/
+>   pessimistic band (→ 4.5, #909) · **cross-team critical-path** — reuses the CPM solver, annotates the path
+>   with teams + surfaces the cross-team hand-off edges (→ 4.5, #910). All pure functional-core with deterministic
+>   tests — the deterministic scoring/assembly cores the copilot narrates, with **no LLM in-core**. **Remaining
+>   (out of this lane):** the portfolio-grounded copilot Q&A surface + NL→artifact (→ 4.4, the LLM-facing layer
+>   atop these cores) · SAFe / Jira-Align + first-class SAP connector (→ 4.5/4.6, brokered integration).
+>
+> **P3M catalogue-engine programme status (Waves 0–5): pure-functional-core COMPLETE.** The programme has
+> delivered its vendor-neutral deterministic compute core — 20+ engines/records in `lib/backend-catalogue`
+> (EVM, critical-path, Monte-Carlo, run-rate, capacity, PERT, funding, portfolio-select, prioritise, scenario,
+> benefit Monte-Carlo, reassignment, multi-currency EVM, stage-gate, health-score, OKR-linkage, demand-dedup,
+> exec-digest, PI-forecast, cross-team critical-path, + the Wave-1/3 record types) with guarded divides and
+> deterministic (no `Math.random`/`Date`) tests. The remaining 4.x competitive-parity work — portfolio-grounded
+> copilot, NL→artifact, first-class SAP / Jira-Align connectors, brokered read models — is LLM-surface +
+> broker-integration territory that belongs to a different lane, not the functional-core catalogue.
 
 ### 4.1 Financial / ERP-native depth (SAP's moat)
 - 🔌 **Project→GL cost brokering** — surface actual cost postings, commitments, and WIP by WBS/cost-object, read live from SAP/Oracle/NetSuite; never posted or stored here.
@@ -1727,7 +1739,8 @@ explicit, not forgotten. Every item is ⬜ Todo unless noted.
 ### 4.5 Agile / adaptive planning at scale
 - 🔌 **SAFe / scaled-agile constructs** (ARTs, PI planning, program board, dependency mapping) — orchestrate over the brokered agile SoR (Jira etc.), Jira Align / Atlassian Align territory.
 - ✅ **OKR ↔ delivery linkage (P3M Wave 5, PR #905).** A pure roll-up engine — wires objectives to their key results AND linked delivery items, auto-computes progress from both sides (milestone-binary or start→target ramp key results; weighted delivery completion), and surfaces a `deliveryGap` so a divergence (KRs claim 80%, delivery 30%) is visible; portfolio mean + status counts. The Goals/OKR cadence records already exist (Phase 3.2).
-- ✳ **Dependency graph + critical-path across teams**, **capacity-based sprint/PI forecasting**.
+- ✅ **Capacity-based sprint/PI forecasting (P3M Wave 5, PR #909).** A pure engine — remaining backlog + per-sprint velocity → sprints and Program Increments to clear it, with an optimistic / likely / pessimistic band and a `feasible` flag; guarded (velocity ≤ 0 ⇒ null, never Infinity). Velocity is an input (derive from `capacity.ts` supply or historical throughput).
+- ✅ **Dependency graph + critical-path across teams (P3M Wave 5, PR #910).** A pure engine — reuses the CPM solver (`critical-path.ts`), annotates the critical path with each activity's team, and surfaces the cross-team **hand-off edges** (where PI plans break) + per-team duration share. The SAFe/Jira-Align **orchestration** over a brokered agile SoR remains (integration territory, above).
 
 ### 4.6 Enterprise integration & data
 - 🚧 **First-class SAP connector** (S/4HANA / PS / PPM read models) — the credibility connector; brokered, not
