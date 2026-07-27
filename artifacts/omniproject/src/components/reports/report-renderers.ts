@@ -18,6 +18,7 @@ import { Burnup } from "./Burnup";
 import { CumulativeFlow } from "./CumulativeFlow";
 import { Velocity } from "./Velocity";
 import { RaidRegister } from "./RaidRegister";
+import { RiskRegister } from "./RiskRegister";
 import { CrossProgrammeDependencies } from "./CrossProgrammeDependencies";
 import { FederatedPortfolio } from "./FederatedPortfolio";
 import { StrategyAlignment } from "./StrategyAlignment";
@@ -77,6 +78,8 @@ export const REPORT_RENDERERS: Record<string, ReportRendererComponent> = {
   CumulativeFlow,
   Velocity,
   RaidRegister,
+  // RiskRegister takes an optional `now` (test seam) alongside projectId; adapt it to the shared prop shape.
+  RiskRegister: RiskRegister as ReportRendererComponent,
   CrossProgrammeDependencies,
   FederatedPortfolio,
   StrategyAlignment,

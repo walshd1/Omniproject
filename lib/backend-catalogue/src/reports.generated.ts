@@ -946,6 +946,32 @@ export const REPORTS_DATA: ReportDefinition[] = [
     "order": 37
   },
   {
+    "id": "risk-register",
+    "label": "Risk exposure heatmap",
+    "docsUrl": "",
+    "kind": "quality",
+    "renderer": {
+      "engine": "builtin",
+      "component": "RiskRegister"
+    },
+    "capabilities": {
+      "requiresCapability": "raid",
+      "timeSeries": false,
+      "exports": [
+        "csv",
+        "pdf",
+        "png"
+      ]
+    },
+    "tools": [
+      "exposure",
+      "heatmap",
+      "top-risks"
+    ],
+    "notes": "Likelihood x impact exposure heatmap + top risks, scored from the RAID log.",
+    "order": 101
+  },
+  {
     "id": "scenario-sandbox",
     "label": "Scenario What-if",
     "docsUrl": "",

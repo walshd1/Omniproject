@@ -308,6 +308,12 @@ export function Reports() {
           </Gated>
         )}
 
+        {projectId && (
+          <Gated caps={caps} domain="raid" title="Risk Exposure Heatmap" reportId="risk-register" requires="a RAID log (get_project_raid)" section>
+            <CatalogueReport id="risk-register" projectId={projectId} />
+          </Gated>
+        )}
+
         {/* Customer-built project reports (the report generator). Render nothing unless any are defined. */}
         {projectId && <CustomReportsProject projectId={projectId} />}
 
