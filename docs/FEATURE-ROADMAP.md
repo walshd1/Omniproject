@@ -1683,6 +1683,16 @@ explicit, not forgotten. Every item is ⬜ Todo unless noted.
 >   Monte-Carlo / PERT engines. **Remaining (surfaces + refinements, not core compute):** funding-source tranches
 >   at the plan layer (→ 4.1) · the theme/bucket grouping is already served by the generic `rollup.ts` engine, so
 >   only its portfolio-Kanban / roadmap surface remains (→ 4.3) · the gap-analysis roll-up surface (→ 4.2).
+> - **Wave 5 — embedded AI + agile linkage.** ✅ **epic/initiative health-scoring** engine — weighted R/A/G bands
+>   over risk dimensions (dependencies / blocked-work / timeline / ownership) with plain-English reasons, outputs
+>   the canonical rag-vocabulary bands (→ 4.4, #904) · **OKR ↔ delivery linkage** roll-up — wires objectives to
+>   delivery items and auto-rolls-up progress from BOTH key results and linked items with a `deliveryGap`
+>   divergence signal (→ 4.5, #905) · **duplicate-demand detection** — Jaccard token-overlap over intake items →
+>   ranked candidate pairs + union-find clusters (→ 4.4, #906) · **structured exec-digest / status-report**
+>   generator — assembles the above engines' results into one deterministic digest an LLM narrates (→ 4.4, #907).
+>   All pure functional-core with deterministic tests — the deterministic scoring/assembly cores the copilot
+>   narrates, with **no LLM in-core**. **Remaining:** the portfolio-grounded copilot Q&A surface (→ 4.4, the
+>   LLM-facing layer atop these cores) · SAFe / cross-team critical-path + capacity-based PI forecasting (→ 4.5).
 
 ### 4.1 Financial / ERP-native depth (SAP's moat)
 - 🔌 **Project→GL cost brokering** — surface actual cost postings, commitments, and WIP by WBS/cost-object, read live from SAP/Oracle/NetSuite; never posted or stored here.
@@ -1708,15 +1718,15 @@ explicit, not forgotten. Every item is ⬜ Todo unless noted.
 
 ### 4.4 Embedded AI / copilot grounded in the live portfolio *(where ServiceNow/MS are pulling ahead)*
 - ✳ **Portfolio-grounded copilot** — Q&A + roll-ups over the *brokered* live portfolio (status, risk, "what slipped and why"), grounded at query time, nothing cached. The single highest-leverage AI item.
-- ✳ **Epic/initiative health scoring** — R/Y/G across risk dimensions (dependencies, blocked work, timeline, ownership) with plain-English reasoning (ServiceNow Now Assist parity).
+- ✅ **Epic/initiative health scoring (P3M Wave 5, PR #904).** A pure **health-score** engine — weight-averages per-dimension risk severities (dependencies / blocked-work / timeline / ownership) into a composite, classifies it into the canonical rag-vocabulary R/A/G band, and emits plain-English reasons worst-first; a portfolio roll-up ranks worst-health-first with per-band counts. Deterministic, no LLM in-core (ServiceNow Now Assist parity for the scoring core; the LLM narrates on top).
 - ✳ **NL → artifact** already exists for primitives; extend to **NL → report / dashboard / screen / automation**.
-- ✳ **AI status-report + exec-digest generation** from brokered state (builds on exec-digest).
-- ✳ **Agentic task monitoring / next-best-action**, **duplicate-demand detection**, **auto-summarise threads/wiki/proofs**.
+- ✅ **AI status-report + exec-digest generation (P3M Wave 5, PR #907).** A pure **exec-digest** assembly engine — composes the health-score / okr-linkage / evm / demand-dedup RESULT objects into one structured digest (worst-band headline, top-N risks with reasons, OKR worst-objectives + delivery gaps, EVM cost/schedule status, duplicate counts) that an LLM narrates; no LLM and no recompute in-core, so the narration stays grounded in what the engine selected.
+- ✳ **Agentic task monitoring / next-best-action**, **auto-summarise threads/wiki/proofs**. **Duplicate-demand detection ✅ (P3M Wave 5, PR #906):** a pure Jaccard token-overlap engine over intake items → ranked candidate duplicate pairs (with shared tokens) + union-find clusters; distinct from entity-resolution's identity-key matching.
 - ⚠ **AI over historical trend data** — needs a retained corpus; only over the opt-in sidecar/history store, never core.
 
 ### 4.5 Agile / adaptive planning at scale
 - 🔌 **SAFe / scaled-agile constructs** (ARTs, PI planning, program board, dependency mapping) — orchestrate over the brokered agile SoR (Jira etc.), Jira Align / Atlassian Align territory.
-- ✳ **OKR ↔ delivery linkage** (Goals exist; wire objectives to brokered epics/initiatives + auto-roll-up progress).
+- ✅ **OKR ↔ delivery linkage (P3M Wave 5, PR #905).** A pure roll-up engine — wires objectives to their key results AND linked delivery items, auto-computes progress from both sides (milestone-binary or start→target ramp key results; weighted delivery completion), and surfaces a `deliveryGap` so a divergence (KRs claim 80%, delivery 30%) is visible; portfolio mean + status counts. The Goals/OKR cadence records already exist (Phase 3.2).
 - ✳ **Dependency graph + critical-path across teams**, **capacity-based sprint/PI forecasting**.
 
 ### 4.6 Enterprise integration & data
