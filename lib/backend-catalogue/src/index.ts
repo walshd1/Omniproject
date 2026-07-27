@@ -122,3 +122,4 @@ export * from "./plan-my-day";
 export * from "./risk-register";
 export * from "./methodology-gates";
 export * from "./flow-metrics";
+export * from "./velocity";
