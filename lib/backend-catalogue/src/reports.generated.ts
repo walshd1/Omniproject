@@ -1080,6 +1080,32 @@ export const REPORTS_DATA: ReportDefinition[] = [
     ]
   },
   {
+    "id": "sprint-review",
+    "label": "Sprint review",
+    "docsUrl": "",
+    "kind": "progress",
+    "renderer": {
+      "engine": "builtin",
+      "component": "SprintReview"
+    },
+    "capabilities": {
+      "requiresCapability": "scheduling",
+      "timeSeries": false,
+      "exports": [
+        "csv",
+        "pdf",
+        "png"
+      ]
+    },
+    "tools": [
+      "sprint",
+      "velocity",
+      "carryover"
+    ],
+    "notes": "Per-sprint committed vs completed vs added/carryover, completion rate, and the per-sprint velocity series.",
+    "order": 48
+  },
+  {
     "id": "staff-cost",
     "label": "Staff Time & Cost",
     "docsUrl": "",

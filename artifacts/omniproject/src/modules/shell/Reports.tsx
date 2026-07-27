@@ -261,6 +261,12 @@ export function Reports() {
         )}
 
         {projectId && (
+          <Gated caps={caps} domain="scheduling" title="Sprint Review" reportId="sprint-review" requires="work items carrying a sprint field" section>
+            <CatalogueReport id="sprint-review" projectId={projectId} />
+          </Gated>
+        )}
+
+        {projectId && (
           <Gated caps={caps} domain="benefits" title="Benefits Realisation" requires="benefit value/status fields on work items" section>
             <CatalogueReport id="benefits-realisation" projectId={projectId} />
           </Gated>
