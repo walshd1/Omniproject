@@ -255,6 +255,12 @@ export function Reports() {
         )}
 
         {projectId && (
+          <Gated caps={caps} domain="scheduling" title="Epic Progress Tree" reportId="hierarchy-progress" requires="work items with epic parent links" section>
+            <CatalogueReport id="hierarchy-progress" projectId={projectId} />
+          </Gated>
+        )}
+
+        {projectId && (
           <Gated caps={caps} domain="benefits" title="Benefits Realisation" requires="benefit value/status fields on work items" section>
             <CatalogueReport id="benefits-realisation" projectId={projectId} />
           </Gated>

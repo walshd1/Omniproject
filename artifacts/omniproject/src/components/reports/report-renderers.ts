@@ -20,6 +20,7 @@ import { Velocity } from "./Velocity";
 import { RaidRegister } from "./RaidRegister";
 import { RiskRegister } from "./RiskRegister";
 import { CycleTimeReport } from "./CycleTimeReport";
+import { HierarchyProgress } from "./HierarchyProgress";
 import { CrossProgrammeDependencies } from "./CrossProgrammeDependencies";
 import { FederatedPortfolio } from "./FederatedPortfolio";
 import { StrategyAlignment } from "./StrategyAlignment";
@@ -82,6 +83,7 @@ export const REPORT_RENDERERS: Record<string, ReportRendererComponent> = {
   // RiskRegister takes an optional `now` (test seam) alongside projectId; adapt it to the shared prop shape.
   RiskRegister: RiskRegister as ReportRendererComponent,
   CycleTimeReport,
+  HierarchyProgress,
   CrossProgrammeDependencies,
   FederatedPortfolio,
   StrategyAlignment,

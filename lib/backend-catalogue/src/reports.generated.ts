@@ -584,6 +584,32 @@ export const REPORTS_DATA: ReportDefinition[] = [
     ]
   },
   {
+    "id": "hierarchy-progress",
+    "label": "Epic progress tree",
+    "docsUrl": "",
+    "kind": "progress",
+    "renderer": {
+      "engine": "builtin",
+      "component": "HierarchyProgress"
+    },
+    "capabilities": {
+      "requiresCapability": "scheduling",
+      "timeSeries": false,
+      "exports": [
+        "csv",
+        "pdf",
+        "png"
+      ]
+    },
+    "tools": [
+      "epic-rollup",
+      "progress",
+      "weighted"
+    ],
+    "notes": "Epic -> story -> task progress, rolled up as a weighted tree from each item's children.",
+    "order": 47
+  },
+  {
     "id": "income-invoicing",
     "label": "Income & Invoicing",
     "docsUrl": "",
