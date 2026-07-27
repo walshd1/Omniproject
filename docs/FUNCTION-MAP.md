@@ -5494,6 +5494,14 @@ EPIC / INITIATIVE HEALTH SCORING — a deterministic R/A/G health engine over th
 | `scoreHealth` | Score one initiative: weight-average its dimension severities into a composite, band it, and list the amber/red dimensions as plain-English reasons (worst first). |
 | `scoreHealthPortfolio` | Score a set of initiatives and rank them worst-health first. |
 
+### `lib/backend-catalogue/src/hierarchy-rollup.ts`
+
+WORK-ITEM HIERARCHY PROGRESS ROLL-UP — the epic → story → task progress fold every portfolio tool shows: a parent's completion is the WEIGHTED progress of its children, recursively, so an epic reads 62% because its stories do — not because someone typed 62% (roadmap §5.5, "Epics/work-item hierarchy — parentId field/relationship").
+
+| Function | What it does |
+| --- | --- |
+| `rollUpHierarchy` | Roll a work-item hierarchy up: each parent's progress becomes the weighted mean of its children's rolled progress. |
+
 ### `lib/backend-catalogue/src/human-delegation.ts`
 
 HUMAN DELEGATION GRANT — the "Alice hands Bob the approve-payment capability for two weeks, capped and revocable, and every use is on the record" control that IAM assessment gap S5 calls for.
