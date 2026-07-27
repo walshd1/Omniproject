@@ -112,3 +112,4 @@ export * from "./pi-forecast";
 export * from "./cross-team-critical-path";
 export * from "./authz-policy";
 export * from "./access-review";
+export * from "./separation-of-duties";
