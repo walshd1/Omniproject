@@ -1780,13 +1780,21 @@ explicit, not forgotten. Every item is ⬜ Todo unless noted.
 - ⚠ **Data warehouse / lakehouse export** — legitimate, but any retained extract needs the sidecar SoR + explicit retention, not core.
 
 ### 4.7 Reporting, BI & dashboards
-- ✳ **Cross-project/portfolio pivot + drill-through**, **scheduled report delivery / subscriptions**, **export to PPTX/XLSX/PDF**.
+
+> **Reporting/BI wave ✅ (pure-core lane).** The below-seam analytics engines for this section were delivered as a dedicated wave (one PR per slice, pure functional-core, deterministic tests, reuse-over-duplicate): the **burn-up / burn-down / cumulative-flow engine (PR #927)** and the **velocity engine (PR #928)**. The **cross-project pivot** was found to already exist — `rollup.ts` groups any rows by any field and aggregates sum/avg/count/min/max with an optional pivot dimension — so no new engine was built for it. What remains in §4.7 is surface work (scheduled delivery/subscriptions, PPTX/XLSX/PDF export, embedded external BI) — outside the pure-core lane.
+
+- ✳ **Cross-project/portfolio pivot + drill-through** *(already served by the generic `rollup.ts` group-by/pivot engine)*, **scheduled report delivery / subscriptions**, **export to PPTX/XLSX/PDF**. *(The last two are out of the pure-core lane — delivery + export surfaces.)*
 - 🚧 **Baseline vs actual variance + EVM suite** (SPI/CPI/EAC). **Slice ✅ (EVM engine, PR #874):** the pure
   `lib/backend-catalogue/src/evm.ts` now DERIVES the full suite from the PV/EV/AC/BAC primitives — CV/SV/CPI/SPI,
   all four EAC methods (cpi / budget-rate / cpi·spi / bottom-up-etc), ETC, **VAC**, and **TCPI** (to BAC and to
   EAC) — instead of reading them blind off the source; adds the missing `varianceAtCompletion` + `toCompletePerformanceIndex`
-  fields. **Remaining:** a cost+schedule **`baseline`** snapshot record for true baseline-vs-actual variance
-  (Wave 1), wiring the engine into the live financials read (Wave 2), and **burn-up/down + cumulative flow**.
+  fields. **Burn-up/down + cumulative flow ✅ (Reporting/BI wave, PR #927):** `flow-metrics.ts` — a pure
+  `computeFlowMetrics` reconstructing per-period burn-down (vs a guarded ideal line), burn-up (with scope-change),
+  a per-status-class cumulative-flow (backlog/active/done lanes) and throughput, over caller-supplied epoch-ms
+  periods, measured by count or points; **velocity ✅ (Reporting/BI wave, PR #928):** `velocity.ts` derives
+  mean/median/rolling/spread + a predictability score and optimistic/likely/pessimistic anchors from a throughput
+  history, feeding `pi-forecast`. **Remaining:** a cost+schedule **`baseline`** snapshot record for true
+  baseline-vs-actual variance (Wave 1) and wiring the engine into the live financials read (Wave 2).
 - 🔌 **Embedded external BI** (SAC / Power BI / Tableau) via broker seam rather than re-implementing a BI engine.
 
 ### 4.8 Governance, risk, compliance
