@@ -5230,6 +5230,14 @@ DELEGATION POLICY — the admin-set governance dial for how far DOWN the scope h
 | `isDelegationAllowed` | May a write at `target` scope proceed under a policy that allows variation down to `allowed`? True when the target is no deeper than the allowed level. |
 | `cleanDelegationPolicy` | Coerce untrusted input (imported/stored) into a valid policy, filling unknowns from the default. |
 
+### `lib/backend-catalogue/src/demand-dedup.ts`
+
+DUPLICATE-DEMAND DETECTION — surface intake/demand items that are probably the SAME request worded differently (roadmap §4.4, "duplicate-demand detection"), so a PMO isn't triaging the same need three times.
+
+| Function | What it does |
+| --- | --- |
+| `detectDuplicateDemand` | Detect probable duplicate demand items by pairwise token-overlap similarity. |
+
 ### `lib/backend-catalogue/src/deployment-profile-catalogue.ts`
 
 DEPLOYMENT-PROFILE catalogue — a deployment's CONTEXT posture.
