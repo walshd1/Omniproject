@@ -86,3 +86,69 @@ export function defineGradedVocabulary<E extends GradedVocabEntry>(data: readonl
     forMethodology: (methodologyId, tokens = resolved()) => tokensForMethodology(methodologyId, tokens),
   };
 }
+
+/** One FLAT vocabulary token — the graded shape minus the ordinal `level`. For axes that are an unordered
+ *  SET with only a display `order` and no internal ordinal the maths key off (e.g. GTD @contexts, tags). */
+export interface FlatVocabEntry {
+  id: string;
+  /** The base/default label (the authoring language). */
+  label: string;
+  /** Optional per-locale translations (BCP-47 key → text). */
+  labels?: Record<string, string>;
+  order: number;
+  /** Swatch colour as a 6-digit hex (absent ⇒ a neutral swatch). */
+  color?: string;
+  /** Methodology tags this token belongs to ("*" = neutral / all). Absent ⇒ neutral. */
+  methodologies?: string[];
+}
+
+/** The scope-layerable shape of a flat token (methodologies defaulted to neutral "*"). */
+export interface ResolvedFlat {
+  id: string;
+  label: string;
+  labels?: Record<string, string>;
+  order: number;
+  methodologies: string[];
+  color?: string;
+}
+
+/** The derived read-side surface of a flat vocabulary (see {@link defineFlatVocabulary}). */
+export interface FlatVocabulary<E extends FlatVocabEntry> {
+  entries: E[];
+  /** The token ids in display order (the CANONICAL_* list). */
+  ids: string[];
+  /** id → display label (the *_LABEL record). */
+  labelById: Record<string, string>;
+  /** The full vocabulary (a defensive copy). */
+  vocabulary(): E[];
+  /** The scope-layerable resolved tokens (methodologies defaulted to neutral). */
+  resolved(): ResolvedFlat[];
+  /** The tokens that apply to `methodologyId` — its tagged ones plus the neutral ("*") ones. */
+  forMethodology(methodologyId: string, tokens?: readonly ResolvedFlat[]): ResolvedFlat[];
+}
+
+/**
+ * Build a FLAT vocabulary from a JSON-authored token list — the graded builder minus `level`/`levelById`,
+ * for a set whose only ordinal is display `order`. Same order-sort, canonical id list, label record,
+ * defensive copy, resolved-values builder and methodology filter as {@link defineGradedVocabulary}.
+ */
+export function defineFlatVocabulary<E extends FlatVocabEntry>(data: readonly E[]): FlatVocabulary<E> {
+  const entries = [...data].sort((a, b) => a.order - b.order);
+  const resolved = (): ResolvedFlat[] =>
+    entries.map((e) => ({
+      id: e.id,
+      label: e.label,
+      order: e.order,
+      methodologies: vocabMethodologies(e),
+      ...(e.labels ? { labels: e.labels } : {}),
+      ...(e.color ? { color: e.color } : {}),
+    }));
+  return {
+    entries,
+    ids: entries.map((e) => e.id),
+    labelById: Object.fromEntries(entries.map((e) => [e.id, e.label])),
+    vocabulary: () => entries.map((e) => ({ ...e })),
+    resolved,
+    forMethodology: (methodologyId, tokens = resolved()) => tokensForMethodology(methodologyId, tokens),
+  };
+}

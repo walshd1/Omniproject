@@ -24,6 +24,7 @@ import { approvedUpdateCommand, aiKillCommand, containmentCommand } from "../rou
 import { roleMapRollbackCommand } from "../routes/role-map";
 import { webhookDeleteCommand, webhookTestCommand } from "../routes/webhooks";
 import { energyVocabularyCommand } from "../routes/energy-vocabulary";
+import { taskContextVocabularyCommand } from "../routes/task-context-vocabulary";
 import { impactVocabularyCommand } from "../routes/impact-vocabulary";
 import { likelihoodVocabularyCommand } from "../routes/likelihood-vocabulary";
 import { severityVocabularyCommand } from "../routes/severity-vocabulary";
@@ -141,6 +142,7 @@ const LANE2 = new Set<string>([
   ...commandRoutes(webhookDeleteCommand),
   ...commandRoutes(webhookTestCommand),
   ...commandRoutes(energyVocabularyCommand),
+  ...commandRoutes(taskContextVocabularyCommand),
   ...commandRoutes(impactVocabularyCommand),
   ...commandRoutes(likelihoodVocabularyCommand),
   ...commandRoutes(severityVocabularyCommand),

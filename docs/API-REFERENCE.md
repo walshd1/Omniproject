@@ -1216,6 +1216,15 @@ The SYSTEM DEFAULTS update mechanism (roadmap X.11).
 | GET | `/api/admin/system-defs` | requireRole(admin) | GET /api/admin/system-defs — a read-only summary of the installed shipped defaults (count per kind). |
 | POST | `/api/admin/system-defs/apply` | requireRole(admin) + requireStepUp | the content is always the approved-from-us catalogue, so this can't be used to inject custom system defs. |
 
+### `artifacts/api-server/src/routes/task-context-vocabulary.ts`
+
+Scope-overridable GTD task-context vocabulary.
+
+| Method | Path | Gate | Description |
+| --- | --- | --- | --- |
+| GET | `/api/task-context-vocabulary` | — | — |
+| PUT | `/api/task-context-vocabulary` | requireAnyRole(pmo, admin) | PUT /api/task-context-vocabulary — set the org-scope context vocabulary override (pmo/admin). |
+
 ### `artifacts/api-server/src/routes/task-vocabulary.ts`
 
 Scope-overridable Task vocabulary.

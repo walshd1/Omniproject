@@ -1,7 +1,8 @@
-import { reportCatalogue, formCatalogue, dashboardDefCatalogue, referenceRulesetCatalogue, methodologyCatalogue, screenDefCatalogue, primitiveCatalogue, mappingCatalogue, workVocabularyValues, taskVocabularyValues, energyVocabularyValues, severityVocabularyValues, impactVocabularyValues, likelihoodVocabularyValues, ragVocabularyValues } from "@workspace/backend-catalogue";
+import { reportCatalogue, formCatalogue, dashboardDefCatalogue, referenceRulesetCatalogue, methodologyCatalogue, screenDefCatalogue, primitiveCatalogue, mappingCatalogue, workVocabularyValues, taskVocabularyValues, energyVocabularyValues, taskContextVocabularyValues, severityVocabularyValues, impactVocabularyValues, likelihoodVocabularyValues, ragVocabularyValues } from "@workspace/backend-catalogue";
 import { WORK_VOCABULARY_CONFIG_ID } from "./work-vocabulary-config";
 import { TASK_VOCABULARY_CONFIG_ID } from "./task-vocabulary-config";
 import { ENERGY_VOCABULARY_CONFIG_ID } from "./energy-vocabulary-config";
+import { TASK_CONTEXT_VOCABULARY_CONFIG_ID } from "./task-context-vocabulary-config";
 import { SEVERITY_VOCABULARY_CONFIG_ID } from "./severity-vocabulary-config";
 import { IMPACT_VOCABULARY_CONFIG_ID } from "./impact-vocabulary-config";
 import { LIKELIHOOD_VOCABULARY_CONFIG_ID } from "./likelihood-vocabulary-config";
@@ -62,6 +63,12 @@ export function buildSystemDefaultRows(): StoredDef[] {
   // overrides onto (see energy-vocabulary-config). Sourced from the SAME catalogue accessor the write-path
   // uses, so it can't drift.
   rows.push(buildSystemDefRow("config", "Energy vocabulary", { id: ENERGY_VOCABULARY_CONFIG_ID, values: energyVocabularyValues() }, SEED_AT));
+  // The canonical GTD task-CONTEXT vocabulary (the "where / with what tool" axis) — authored as JSON
+  // (assets/task-context-vocabulary.json), seeded here as the SYSTEM-scope `task-context-vocabulary` config
+  // def: the base layer the scope resolver folds org/programme/project/user overrides onto (see
+  // task-context-vocabulary-config). A FLAT set (display order, no ordinal level). Sourced from the SAME
+  // catalogue accessor the write-path uses, so it can't drift.
+  rows.push(buildSystemDefRow("config", "Task context vocabulary", { id: TASK_CONTEXT_VOCABULARY_CONFIG_ID, values: taskContextVocabularyValues() }, SEED_AT));
   // The canonical RAID/risk GRADED vocabularies (severity / impact / likelihood) — authored as JSON
   // (assets/severity-vocabulary.json, …), seeded here as the SYSTEM-scope `<kind>-vocabulary` config defs:
   // the base layer the scope resolver folds org/programme/project/user overrides onto (see the
