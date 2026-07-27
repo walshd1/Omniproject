@@ -38,6 +38,7 @@ const GUARDS = [
   "src/guard-i18n-coverage.ts",
   "src/guard-broker-isolation.ts",
   "src/guard-backend-isolation.ts",
+  "src/guard-route-grants.ts",
 ];
 
 for (const script of GUARDS) {

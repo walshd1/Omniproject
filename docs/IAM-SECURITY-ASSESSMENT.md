@@ -98,5 +98,23 @@ SAML lib). These are tracked here but are not part of the pure-functional-core w
 
 ## Status
 
-Assessment authored; the "Security & IAM" wave begins with **Slice 1 — the ABAC authorization-policy
-engine** reusing `predicate.ts`. Slices marked ✅ with their PR numbers here as they land.
+**Wave complete — all in-lane slices delivered and merged.**
+
+| Slice | Gap | Deliverable | PR |
+| --- | --- | --- | --- |
+| **1 ✅** | S1 | ABAC authorization-policy engine (`authz-policy.ts`, reuses `predicate.ts`) | #913 |
+| **2 ✅** | S2 | Access-review / recertification engine (`access-review.ts`) | #914 |
+| **3 ✅** | S3 | Separation-of-duties conflict engine (`separation-of-duties.ts`, reuses the severity vocabulary) | #915 |
+| **4 ✅** | S5 | Human delegation grant (`human-delegation.ts`, the human analogue of `autonomous-grant.ts`) | #916 |
+| **5 ✅** | S6 | Declarative route→grant manifest (`route-auth-manifest.ts`) + fail-closed verifier guard (`guard-route-grants.ts`, wired into CI) | #917 |
+
+**S4 (fine-grained per-action × per-resource human permission matrix) — deferred (optional).** It is
+already partly mitigated by per-collection edit floors + capability governance, and the ABAC engine (S1)
+now covers the high-value "allow if resource/scope/time predicate" cases declaratively. A full grantable
+`verb:resource` matrix is a larger surface (schema + admin UI + migration) whose buyer value did not clear
+the bar for this pure-core wave; revisit only if a concrete buyer requirement lands.
+
+**Out-of-lane (S7–S10) — NOT part of this lane.** S7 (app-native TOTP/SMS second factor), S8 (device/
+session inventory SPA surface), S9 (in-CI Trivy/Grype CVE scan + gitleaks pin + mutation scope), S10 (install
+the SAML runtime library) require CI/infra, SPA, or packaging changes outside this backend pure-core lane
+and are handed off with the assessment above as their brief.

@@ -10,6 +10,7 @@
     "verify-plane": "tsx ./src/verify-plane.ts",
     "guard-broker-isolation": "tsx ./src/guard-broker-isolation.ts",
     "guard-backend-isolation": "tsx ./src/guard-backend-isolation.ts",
+    "guard-route-grants": "tsx ./src/guard-route-grants.ts",
     "guard-superset": "tsx ./src/guard-superset.ts",
     "gen-contract": "tsx ./src/gen-contract.ts",
     "gen-openapi": "tsx ./src/gen-openapi-bundle.ts",
