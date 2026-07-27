@@ -5335,6 +5335,14 @@ EARNED VALUE MANAGEMENT (EVM) ENGINE — the pure computation the EVM field voca
 | --- | --- |
 | `computeEvm` | Compute the full EVM picture from the four primitives (PURE). |
 
+### `lib/backend-catalogue/src/exec-digest.ts`
+
+EXEC DIGEST / STATUS-REPORT ASSEMBLY — the capstone that turns Wave-5's analytic engines into ONE structured portfolio digest an LLM (or a report surface) narrates (roadmap §4.4, "AI status-report + exec-digest generation from brokered state").
+
+| Function | What it does |
+| --- | --- |
+| `assembleExecDigest` | Assemble a structured exec digest from whatever engine results are supplied. |
+
 ### `lib/backend-catalogue/src/field-primitive-catalogue.ts`
 
 DERIVED field primitives — everything that COMPOSES from the `field` root (`extends`) is DATA, authored as JSON recipes under field-primitives/ (the same rule the visual primitives, screens, reports and mappings follow).
