@@ -663,6 +663,32 @@ export const REPORTS_DATA: ReportDefinition[] = [
     "order": 105
   },
   {
+    "id": "plan-my-day",
+    "label": "My Day",
+    "docsUrl": "",
+    "kind": "quality",
+    "renderer": {
+      "engine": "builtin",
+      "component": "PlanMyDay"
+    },
+    "capabilities": {
+      "requiresCapability": "scheduling",
+      "timeSeries": false,
+      "exports": [
+        "csv",
+        "pdf",
+        "png"
+      ]
+    },
+    "tools": [
+      "gtd",
+      "today",
+      "prioritise"
+    ],
+    "notes": "The ranked 'do these today' list — overdue / due-today / high-priority / flagged tasks, worst-first.",
+    "order": 49
+  },
+  {
     "id": "portfolio-benefits",
     "label": "Portfolio Benefits",
     "docsUrl": "",
