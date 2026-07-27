@@ -5671,6 +5671,14 @@ PERT THREE-POINT ESTIMATING ENGINE — the beta-distribution estimate that turns
 | `rollupPert` | Roll a set of independent three-point estimates into a chain estimate: mean = Σ task means, variance = Σ task variances, stdDev = sqrt(that summed variance). |
 | `pertInterval` | A symmetric confidence band around a mean, mean ± z·stdDev, for a z-score (≈1.645 for 90%, ≈1.96 for 95%). |
 
+### `lib/backend-catalogue/src/pi-forecast.ts`
+
+CAPACITY-BASED SPRINT / PI FORECASTING — "when will this backlog be done?" answered from throughput, not a hand-drawn plan (roadmap §4.5, "capacity-based sprint/PI forecasting").
+
+| Function | What it does |
+| --- | --- |
+| `forecastPi` | Forecast how many sprints and PIs a backlog needs at optimistic / likely / pessimistic velocities. |
+
 ### `lib/backend-catalogue/src/plane-verifier.ts`
 
 Plane verifier — validates a developer-written entry for ANY plane against that plane's manifest contract (shape + capabilities/tools linkage + plane-specific invariants).
