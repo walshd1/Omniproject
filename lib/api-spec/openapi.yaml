@@ -588,6 +588,28 @@ paths:
                   - $ref: "#/components/schemas/ProjectBaseline"
                   - type: "null"
 
+  /tasks:
+    get:
+      operationId: getTasks
+      tags: [tasks]
+      summary: GTD next-action tasks (optionally scoped to a project)
+      description: "Routed to the broker with X-OmniProject-Action: list_tasks. Tasks are an optional broker capability; a backend that does not model them returns an empty list. Out-of-scope tasks are filtered at the gateway."
+      parameters:
+        - name: projectId
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Tasks
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Task"
+
   /projects/{projectId}/raid:
     get:
       operationId: getProjectRaid
@@ -1475,6 +1497,68 @@ components:
         - allocatedHours
         - projectIds
 
+    Task:
+      type: object
+      description: >-
+        A GTD next-action — an actionable to-do, distinct from an Issue. Tasks are an optional broker
+        capability surfaced via GET /tasks; every field beyond id/title/status is optional and populated
+        only when the backend models it (the field superset — admins wire up what their backend carries).
+      properties:
+        id:
+          type: string
+        title:
+          type: string
+        status:
+          type: string
+          description: GTD next-action status (e.g. next / waiting / scheduled / someday / done / dropped).
+        projectId:
+          type: ["string", "null"]
+        context:
+          type: ["string", "null"]
+          description: GTD @context (where/with-what the action can be done).
+        waitingOn:
+          type: ["string", "null"]
+        assignee:
+          type: ["string", "null"]
+        description:
+          type: ["string", "null"]
+        priority:
+          type: ["string", "null"]
+        tags:
+          type: array
+          items:
+            type: string
+        startDate:
+          type: ["string", "null"]
+        dueDate:
+          type: ["string", "null"]
+        recurrence:
+          type: ["string", "null"]
+        estimateHours:
+          type: ["number", "null"]
+        parentTaskId:
+          type: ["string", "null"]
+        url:
+          type: ["string", "null"]
+        completedAt:
+          type: ["string", "null"]
+        reminderAt:
+          type: ["string", "null"]
+        energy:
+          type: ["string", "null"]
+          description: GTD energy level the action needs (low / medium / high).
+        section:
+          type: ["string", "null"]
+        sortOrder:
+          type: ["number", "null"]
+        collaborators:
+          type: array
+          items:
+            type: string
+      required:
+        - id
+        - title
+        - status
     TaskItem:
       type: object
       description: A child issue or note raised against a task.
