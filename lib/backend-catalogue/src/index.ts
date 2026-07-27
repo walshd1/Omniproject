@@ -105,3 +105,4 @@ export * from "./reassignment";
 export * from "./multi-currency-evm";
 export * from "./stage-gate";
 export * from "./health-score";
+export * from "./okr-linkage";

@@ -5612,6 +5612,16 @@ Numeric coercion + rounding — the ONE shared home for the "read a possibly-dir
 | `finiteValues` | The finite values from a list (drops null/undefined/NaN/±Infinity) — the input to a safe mean. |
 | `finiteAvg` | Mean of the finite values, or 0 when there are none — the divide-by-zero-safe average. |
 
+### `lib/backend-catalogue/src/okr-linkage.ts`
+
+OKR ↔ DELIVERY LINKAGE — roll a set of objectives up from BOTH their key results and the delivery items (epics/initiatives) wired to them (roadmap §4.5, "OKR ↔ delivery linkage — Goals exist; wire objectives to brokered epics/initiatives + auto-roll-up progress").
+
+| Function | What it does |
+| --- | --- |
+| `keyResultProgress` | Progress of one key result: binary for milestones, a clamped start→target ramp otherwise (guarded divide). |
+| `rollUpObjective` | Roll one objective up from its key results + linked delivery items. |
+| `rollUpObjectives` | Roll up a set of objectives, preserving order, with a portfolio mean + status counts. |
+
 ### `lib/backend-catalogue/src/output-catalogue.ts`
 
 OUTPUT registry — the outward interfaces that expose portfolio data/events to the outside world (BI tools, agents, scrapers, webhooks).
