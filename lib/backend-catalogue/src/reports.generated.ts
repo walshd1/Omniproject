@@ -1106,6 +1106,32 @@ export const REPORTS_DATA: ReportDefinition[] = [
     ]
   },
   {
+    "id": "skills-gap",
+    "label": "Skills coverage",
+    "docsUrl": "",
+    "kind": "resource",
+    "renderer": {
+      "engine": "builtin",
+      "component": "SkillsGap"
+    },
+    "capabilities": {
+      "requiresCapability": "resources",
+      "timeSeries": false,
+      "exports": [
+        "csv",
+        "pdf",
+        "png"
+      ]
+    },
+    "tools": [
+      "skills",
+      "coverage",
+      "bench"
+    ],
+    "notes": "Per-skill supply/coverage across the resource pool, with the unrequired bench. Baseline demand is one qualified holder per held skill.",
+    "order": 51
+  },
+  {
     "id": "sprint-review",
     "label": "Sprint review",
     "docsUrl": "",
