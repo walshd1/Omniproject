@@ -120,3 +120,4 @@ export * from "./task-workload";
 export * from "./task-bulk";
 export * from "./plan-my-day";
 export * from "./risk-register";
+export * from "./methodology-gates";
