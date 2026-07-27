@@ -119,3 +119,4 @@ export * from "./task-dependencies";
 export * from "./task-workload";
 export * from "./task-bulk";
 export * from "./plan-my-day";
+export * from "./risk-register";
