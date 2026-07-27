@@ -5111,6 +5111,14 @@ BENEFIT / VALUE MONTE-CARLO — a STATELESS quantitative-risk engine for the VAL
 | --- | --- |
 | `simulateBenefit` | Simulate the portfolio's net-value distribution. |
 
+### `lib/backend-catalogue/src/benefit-realisation.ts`
+
+BENEFIT REALISATION ROLL-UP — a pure, STATELESS planned-vs-actual analyser over the benefit register a portfolio already records (roadmap §4.1, "Benefits realization — record ✅, but the planned-vs-actual roll-up + Goals/OKR linkage remain").
+
+| Function | What it does |
+| --- | --- |
+| `analyzeBenefitRealisation` | Roll a benefit register up planned-vs-actual. |
+
 ### `lib/backend-catalogue/src/broker-catalogue.ts`
 
 BROKER registry — the automation/translation layer that sits between the gateway and a backend.
