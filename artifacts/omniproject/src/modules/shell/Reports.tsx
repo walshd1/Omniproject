@@ -179,6 +179,10 @@ export function Reports() {
           <CatalogueReport id="utilisation" />
         </Gated>
 
+        <Gated caps={caps} domain="resources" title="Skills Coverage" reportId="skills-gap" requires="skills declared on resource-pool members" section>
+          <CatalogueReport id="skills-gap" />
+        </Gated>
+
         <Gated caps={caps} domain="scheduling" title="Portfolio Roadmap" reportId="gantt" requires="start / due dates on work items" section>
           <CatalogueReport id="portfolio-roadmap" />
         </Gated>

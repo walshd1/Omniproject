@@ -23,6 +23,7 @@ import { CycleTimeReport } from "./CycleTimeReport";
 import { HierarchyProgress } from "./HierarchyProgress";
 import { SprintReview } from "./SprintReview";
 import { PlanMyDay } from "./PlanMyDay";
+import { SkillsGap } from "./SkillsGap";
 import { CrossProgrammeDependencies } from "./CrossProgrammeDependencies";
 import { FederatedPortfolio } from "./FederatedPortfolio";
 import { StrategyAlignment } from "./StrategyAlignment";
@@ -89,6 +90,8 @@ export const REPORT_RENDERERS: Record<string, ReportRendererComponent> = {
   SprintReview,
   // PlanMyDay takes an optional `now` (test seam) alongside projectId; adapt it to the shared prop shape.
   PlanMyDay: PlanMyDay as ReportRendererComponent,
+  // SkillsGap is portfolio-wide (reads the resource pool, takes no props); adapt it to the shared prop shape.
+  SkillsGap: SkillsGap as ReportRendererComponent,
   CrossProgrammeDependencies,
   FederatedPortfolio,
   StrategyAlignment,
