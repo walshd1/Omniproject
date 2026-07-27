@@ -5991,6 +5991,14 @@ STAGE-GATE CRITERIA EVALUATION — decide whether a delivery gate should PASS, d
 | --- | --- |
 | `evaluateGate` | Evaluate a gate. |
 
+### `lib/backend-catalogue/src/task-dependencies.ts`
+
+TASK DEPENDENCY GRAPH — a pure, STATELESS solver for GTD next-action blocking dependencies (task-management assessment gap T1).
+
+| Function | What it does |
+| --- | --- |
+| `resolveTaskDependencies` | Solve the task blocking graph. |
+
 ### `lib/backend-catalogue/src/task-vocabulary.ts`
 
 Canonical TASK-STATUS vocabulary — the single source of truth for the next-action statuses OmniProject knows about, their workflow class and their display order.
