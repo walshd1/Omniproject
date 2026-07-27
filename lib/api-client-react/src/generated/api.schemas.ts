@@ -589,6 +589,58 @@ export interface ResourceMember {
   projectIds: string[];
 }
 
+/**
+ * A GTD next-action — an actionable to-do, distinct from an Issue. Tasks are an optional broker capability surfaced via GET /tasks; every field beyond id/title/status is optional and populated only when the backend models it (the field superset — admins wire up what their backend carries).
+ */
+export interface Task {
+  id: string;
+  title: string;
+  /** GTD next-action status (e.g. next / waiting / scheduled / someday / done / dropped). */
+  status: string;
+  /** @nullable */
+  projectId?: string | null;
+  /**
+     * GTD @context (where/with-what the action can be done).
+     * @nullable
+     */
+  context?: string | null;
+  /** @nullable */
+  waitingOn?: string | null;
+  /** @nullable */
+  assignee?: string | null;
+  /** @nullable */
+  description?: string | null;
+  /** @nullable */
+  priority?: string | null;
+  tags?: string[];
+  /** @nullable */
+  startDate?: string | null;
+  /** @nullable */
+  dueDate?: string | null;
+  /** @nullable */
+  recurrence?: string | null;
+  /** @nullable */
+  estimateHours?: number | null;
+  /** @nullable */
+  parentTaskId?: string | null;
+  /** @nullable */
+  url?: string | null;
+  /** @nullable */
+  completedAt?: string | null;
+  /** @nullable */
+  reminderAt?: string | null;
+  /**
+     * GTD energy level the action needs (low / medium / high).
+     * @nullable
+     */
+  energy?: string | null;
+  /** @nullable */
+  section?: string | null;
+  /** @nullable */
+  sortOrder?: number | null;
+  collaborators?: string[];
+}
+
 export type TaskItemKind = typeof TaskItemKind[keyof typeof TaskItemKind];
 
 
@@ -1559,6 +1611,10 @@ from?: string;
  * ISO 8601 upper bound (inclusive).
  */
 to?: string;
+};
+
+export type GetTasksParams = {
+projectId?: string;
 };
 
 export type GetPortfolioFinancialsParams = {

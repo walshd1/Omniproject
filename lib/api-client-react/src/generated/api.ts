@@ -32,6 +32,7 @@ import type {
   FxRates,
   GetFxRatesParams,
   GetPortfolioFinancialsParams,
+  GetTasksParams,
   HealthStatus,
   HistoryState,
   Issue,
@@ -58,6 +59,7 @@ import type {
   ResourceMember,
   Settings,
   SettingsUpdate,
+  Task,
   TaskItem,
   TaskItemInput
 } from './api.schemas';
@@ -1774,6 +1776,91 @@ export function useGetProjectBaseline<TData = Awaited<ReturnType<typeof getProje
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getGetProjectBaselineQueryOptions(projectId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetTasksUrl = (params?: GetTasksParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/tasks?${stringifiedParams}` : `/api/tasks`
+}
+
+/**
+ * Routed to the broker with X-OmniProject-Action: list_tasks. Tasks are an optional broker capability; a backend that does not model them returns an empty list. Out-of-scope tasks are filtered at the gateway.
+ * @summary GTD next-action tasks (optionally scoped to a project)
+ */
+export const getTasks = async (params?: GetTasksParams, options?: RequestInit): Promise<Task[]> => {
+
+  return customFetch<Task[]>(getGetTasksUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetTasksQueryKey = (params?: GetTasksParams,) => {
+    return [
+    `/api/tasks`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetTasksQueryOptions = <TData = Awaited<ReturnType<typeof getTasks>>, TError = ErrorType<unknown>>(params?: GetTasksParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getTasks>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetTasksQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getTasks>>> = ({ signal }) => getTasks(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getTasks>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetTasksQueryResult = NonNullable<Awaited<ReturnType<typeof getTasks>>>
+export type GetTasksQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary GTD next-action tasks (optionally scoped to a project)
+ */
+
+export function useGetTasks<TData = Awaited<ReturnType<typeof getTasks>>, TError = ErrorType<unknown>>(
+ params?: GetTasksParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getTasks>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetTasksQueryOptions(params,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

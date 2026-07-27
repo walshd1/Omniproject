@@ -716,6 +716,41 @@ export const GetProjectBaselineResponse = zod.union([zod.object({
 
 
 /**
+ * Routed to the broker with X-OmniProject-Action: list_tasks. Tasks are an optional broker capability; a backend that does not model them returns an empty list. Out-of-scope tasks are filtered at the gateway.
+ * @summary GTD next-action tasks (optionally scoped to a project)
+ */
+export const GetTasksQueryParams = zod.object({
+  "projectId": zod.coerce.string().optional()
+})
+
+export const GetTasksResponseItem = zod.object({
+  "id": zod.string(),
+  "title": zod.string(),
+  "status": zod.string().describe('GTD next-action status (e.g. next \/ waiting \/ scheduled \/ someday \/ done \/ dropped).'),
+  "projectId": zod.string().nullish(),
+  "context": zod.string().nullish().describe('GTD @context (where\/with-what the action can be done).'),
+  "waitingOn": zod.string().nullish(),
+  "assignee": zod.string().nullish(),
+  "description": zod.string().nullish(),
+  "priority": zod.string().nullish(),
+  "tags": zod.array(zod.string()).optional(),
+  "startDate": zod.string().nullish(),
+  "dueDate": zod.string().nullish(),
+  "recurrence": zod.string().nullish(),
+  "estimateHours": zod.number().nullish(),
+  "parentTaskId": zod.string().nullish(),
+  "url": zod.string().nullish(),
+  "completedAt": zod.string().nullish(),
+  "reminderAt": zod.string().nullish(),
+  "energy": zod.string().nullish().describe('GTD energy level the action needs (low \/ medium \/ high).'),
+  "section": zod.string().nullish(),
+  "sortOrder": zod.number().nullish(),
+  "collaborators": zod.array(zod.string()).optional()
+}).describe('A GTD next-action — an actionable to-do, distinct from an Issue. Tasks are an optional broker capability surfaced via GET \/tasks; every field beyond id\/title\/status is optional and populated only when the backend models it (the field superset — admins wire up what their backend carries).')
+export const GetTasksResponse = zod.array(GetTasksResponseItem)
+
+
+/**
  * Routed to the broker with X-OmniProject-Action: get_raid, X-OmniProject-Source: raid_register
  * @summary RAID log (Risks, Assumptions, Issues, Dependencies) for a project
  */
