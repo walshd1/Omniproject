@@ -59,6 +59,7 @@ export * from "./priority-weights";
 export * from "./work-vocabulary";
 export * from "./task-vocabulary";
 export * from "./energy-vocabulary";
+export * from "./task-context-vocabulary";
 export * from "./severity-vocabulary";
 export * from "./impact-vocabulary";
 export * from "./likelihood-vocabulary";

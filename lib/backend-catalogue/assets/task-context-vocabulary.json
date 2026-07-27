@@ -1,0 +1,8 @@
+[
+  { "id": "anywhere", "label": "Anywhere", "order": 0, "color": "#64748b" },
+  { "id": "calls", "label": "Calls", "order": 1, "color": "#06b6d4" },
+  { "id": "computer", "label": "Computer", "order": 2, "color": "#6366f1" },
+  { "id": "errands", "label": "Errands", "order": 3, "color": "#f59e0b" },
+  { "id": "home", "label": "Home", "order": 4, "color": "#22c55e" },
+  { "id": "office", "label": "Office", "order": 5, "color": "#a855f7" }
+]
