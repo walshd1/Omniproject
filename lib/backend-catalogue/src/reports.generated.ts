@@ -296,6 +296,32 @@ export const REPORTS_DATA: ReportDefinition[] = [
     ]
   },
   {
+    "id": "cycle-time",
+    "label": "Cycle & lead time",
+    "docsUrl": "",
+    "kind": "progress",
+    "renderer": {
+      "engine": "builtin",
+      "component": "CycleTimeReport"
+    },
+    "capabilities": {
+      "requiresCapability": "scheduling",
+      "timeSeries": false,
+      "exports": [
+        "csv",
+        "pdf",
+        "png"
+      ]
+    },
+    "tools": [
+      "lead-time",
+      "cycle-time",
+      "percentiles"
+    ],
+    "notes": "Lead-time and cycle-time distribution (p50 / p85 / p95) over completed work items.",
+    "order": 46
+  },
+  {
     "id": "demand-intake",
     "label": "Demand Intake",
     "docsUrl": "",
