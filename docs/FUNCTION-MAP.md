@@ -4800,6 +4800,10 @@ Resource allocation / booking store (the write side of resource management).
 
 Role-mapping editor — ADMIN-only, audited.
 
+### `artifacts/api-server/src/routes/route-auth-manifest.ts`
+
+ROUTE-AUTH MANIFEST — the declarative record of how every MUTATING route (POST/PUT/PATCH/DELETE) that does NOT carry a per-route authorization middleware is nonetheless gated.
+
 ### `artifacts/api-server/src/routes/routing.ts`
 
 The field-routing matrix: which source (vendor·broker·sourceField) feeds which UI element.
@@ -6293,6 +6297,15 @@ Interactive-parity guard — enforces the product rule that every UI affordance 
 ### `scripts/src/guard-report-coverage.ts`
 
 Coverage guard — "every declared report is built".
+
+### `scripts/src/guard-route-grants.ts`
+
+ROUTE-GRANT guard (IAM assessment gap S6) — every MUTATING route (POST/PUT/PATCH/DELETE) on the api-server must have its authorization posture DECLARED and checkable, so none silently escapes the auth net.
+
+| Function | What it does |
+| --- | --- |
+| `discoverMutatingRoutes` | Scan every route file for mutating router calls and whether each declares a per-route auth gate. |
+| `computeRouteGrantViolations` | The bidirectional invariant, as a pure function over discovered routes + the manifest (so it is testable without touching the process): unclassified unguarded routes AND stale manifest entries are both failures. |
 
 ### `scripts/src/guard-superset.ts`
 
