@@ -157,6 +157,18 @@ export const FEATURE_MODULES: readonly FeatureModule[] = [
     reason: "storage", // holds comment state in the shared-state seam (soft, opt-in write-through)
   },
   {
+    // File attachments on a work item. The gateway holds only a byte-free POINTER (shared-state seam); the
+    // bytes live in the attachments-broker sidecar (below the seam), so zero-at-rest holds. Needs
+    // ATTACHMENTS_SIDECAR_URL to actually store bytes (routes answer "not configured" otherwise). Has a
+    // backend route, so it loads lazily; OFF until opted in.
+    id: "attachments",
+    label: "File attachments",
+    description: "Attach files to a work item; bytes live in a separate hardened sidecar (zero-at-rest gateway).",
+    load: () => import("../routes/attachments"),
+    defaultOff: true,
+    reason: "storage", // pointer state in the shared-state seam; bytes in the sidecar volume
+  },
+  {
     // Real-time collaborative EDITING of wiki documents (Yjs CRDT over an SSE relay). The server is a dumb
     // fan-out — the durable doc still saves through the broker seam; the CRDT stream is transient. Has a
     // backend route (the relay), so it loads lazily; OFF until opted in (holds an SSE stream per editor).
