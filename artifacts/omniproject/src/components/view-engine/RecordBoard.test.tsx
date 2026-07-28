@@ -288,12 +288,16 @@ describe("RecordBoard", () => {
   });
 
   it("renders horizontal swimlanes when swimlaneBy is set, splitting cards by that field", () => {
-    const fields: EntityField<{ id: string; owner?: string }>[] = [{ key: "owner", label: "Owner", get: (r) => r.owner }];
+    type Owned = { id: string; owner?: string };
+    const fields: EntityField<Owned>[] = [{ key: "owner", label: "Owner", get: (r) => r.owner }];
+    const owned = (id: string, title: string, status: string, owner: string): ViewRecord<Owned> => ({
+      id, title, status, priority: null, chips: [], raw: { id, owner },
+    });
     render(
       <RecordBoard
         records={[
-          rec({ id: "a", title: "Alpha", status: "todo", raw: { id: "a", owner: "ada" } }) as ViewRecord<{ id: string; owner?: string }>,
-          rec({ id: "b", title: "Bravo", status: "done", raw: { id: "b", owner: "bob" } }) as ViewRecord<{ id: string; owner?: string }>,
+          owned("a", "Alpha", "todo", "ada"),
+          owned("b", "Bravo", "done", "bob"),
         ]}
         columns={COLUMNS}
         noun="task"
