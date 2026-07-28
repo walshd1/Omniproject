@@ -90,7 +90,7 @@ file on a control's status or location, **this file wins and should be updated f
 | Secret scanning (gitleaks) | `.github/workflows/ci.yml` (`secret-scan` job), `.gitleaks.toml` | CI `secret-scan` job logs |
 | SAST (CodeQL) | `.github/workflows/codeql.yml` (`security-extended` pack) | CI `codeql` job logs / code-scanning alerts |
 | Static taint scan (semgrep) | `.github/workflows/ci.yml` (`taint-scan` job), `.semgrep/omniproject.yml` | CI `taint-scan` job logs |
-| Release build-provenance + SBOM attestation (SLSA, keyless) | `.github/workflows/release.yml` (`attest-build-provenance@v1`, `attest-sbom@v1`) | `gh attestation verify` against a release tag |
+| Published image + build-provenance + SBOM attestation (SLSA, keyless) | `.github/workflows/release.yml` pushes `omni-shell` to GHCR and attests the **pushed digest** (`attest-build-provenance@v4`, `attest-sbom@v4`, `push-to-registry`) | `gh attestation verify oci://ghcr.io/<owner>/<repo>:<tag> --owner <owner>` |
 | Mutation testing (money/FX core) | `.github/workflows/mutation.yml`, `artifacts/omniproject/stryker.conf.json` | CI `mutation` job logs (break threshold enforced) |
 
 ## 8. Data governance & seam integrity
