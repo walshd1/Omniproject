@@ -111,9 +111,10 @@ references shown with their repo-root path (e.g. `lib/api-spec/`, `lib/backend-c
   came from, so two federated backends never collide. The broker returns a
   `source` on each row (see the data schemas in [TECHNICAL.md](TECHNICAL.md#6-data-schemas));
   cross-system links are stored as SHA-256 fingerprints only (Exploration mode).
-- **Capability domain** — one of the 14 coarse data domains
+- **Capability domain** — one of the 15 coarse data domains
   (`issues, scheduling, resources, financials, portfolio, baseline, blockers,
-  history, raid, quality, crm, service, benefits`) a backend may populate. The UI
+  history, raid, quality, crm, service, benefits, stakeholders, raci`) a backend
+  may populate (`CAPABILITY_DOMAINS` in `artifacts/api-server/src/lib/capabilities.ts`). The UI
   gates reports/fields on the resolved set. See
   [`lib/capabilities.ts`](../artifacts/api-server/src/lib/capabilities.ts).
 - **Superset ∩ manifest** — the field-resolution model: the canonical field

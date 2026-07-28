@@ -121,7 +121,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    image: omniproject-shell:0.2.0
+    image: omniproject-shell:0.6.0
     container_name: omni-shell
     # Stateless gateway — lock it down: no privilege escalation, no caps, read-only
     # root fs (it writes nothing; /tmp is a tmpfs for any scratch).

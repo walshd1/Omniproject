@@ -157,15 +157,13 @@ overlay's edits — see the limitation below).
 metrics; the workbench component itself is tested but newer than the other four
 tools.
 
-> **Limitation (known bug, not yet fixed):** the page's shared "dirty" flag is a
-> single unscoped boolean across all exploration sources, so entering replica
-> mode with no staged snapshots/edges, then clicking the page's **"Download
-> exploration"** button, can export nothing (there's nothing to export) but
-> still clear dirty — silently disarming the "unsaved exploration" banner and
-> the `beforeunload` warning while the replica overlay's own edits are still
-> headed for loss. See `docs/TECH-DEBT-AND-ROADMAP.md` §5 for the full trace.
-> Use the workbench's own "Export" control to download the replica, not the
-> page-level download button, until this is fixed.
+> **Note (resolved):** the "dirty" flag is now tracked **per source**
+> (`snapshots` / `edges` / `replica`) in `lib/exploration.ts` — `dirtySources`
+> is a `Set`, and `markExplorationClean(source)` clears only that one source.
+> An earlier build used a single unscoped boolean, so downloading an empty
+> snapshot export could silently clear dirty while replica edits were still
+> unsaved; that data-loss path is fixed and regression-tested. See
+> `docs/TECH-DEBT-AND-ROADMAP.md` §5 (marked **[RESOLVED]**) for the trace.
 
 ---
 

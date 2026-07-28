@@ -68,7 +68,7 @@ two env vars it needs (instance URL, credential) — the workflow tells you whic
 ## 10–12 min — wire it up and verify
 
 ```bash
-export BROKER_URL=https://your-n8n.example.com/webhook/omni
+export BROKER_URL=https://your-n8n.example.com/webhook/omniproject
 ```
 
 (Or set it in **Configurator → Configuration** instead of an env var.) Then

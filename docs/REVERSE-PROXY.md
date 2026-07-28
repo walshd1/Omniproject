@@ -20,7 +20,7 @@ Everything below is just the wiring, with the sharp edges called out.
 ```yaml
 services:
   omni-shell:
-    image: omniproject-shell:latest
+    image: omniproject-shell:0.6.0   # pin a tag or digest — never :latest
     environment:
       # Required — the gateway refuses to boot on an empty/default value.
       SESSION_SECRET: "${SESSION_SECRET:?openssl rand -hex 32}"

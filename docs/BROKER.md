@@ -76,8 +76,12 @@ canonical surface is:
 - `BROKER_URL` env;
 - `GET /api/setup/status` → `broker: { configured, urlSet }`.
 
-The v0.1-era deprecated aliases (`/n8n-proxy`, `n8nWebhookUrl`,
-`N8N_WEBHOOK_URL`, the `status.n8n` object) have been **removed**.
+The v0.1-era deprecated aliases `/n8n-proxy`, `n8nWebhookUrl` and the `status.n8n`
+object have been **removed**. The one exception is the **`N8N_WEBHOOK_URL` env var**,
+still honoured as a **deprecated alias** for `BROKER_URL` — `lib/broker-url.ts`
+resolves the URL from `Settings.brokerUrl` → `BROKER_URL` → `N8N_WEBHOOK_URL` in
+that precedence order. Prefer `BROKER_URL`; `N8N_WEBHOOK_URL` remains only for
+backward compatibility.
 
 **Zero exceptions above the seam.** No file above the seam imports the adapter at
 all — the command edges (`/broker/command` and the raw escape hatch) go through the

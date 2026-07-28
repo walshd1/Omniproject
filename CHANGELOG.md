@@ -6,6 +6,25 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ## [Unreleased]
 
+### Added
+
+- **Analytics & agile-reporting engines + surfaces (#927–#941).** A wave of read-only reporting engines
+  (pure catalogue modules) with matching SPA report surfaces: burn-up / burn-down / cumulative-flow
+  (#927), velocity (#928), skills-gap analysis (#929), benefit realisation roll-up (#930), sprint
+  aggregation (#931), cycle-time / lead-time distribution (#932, surface #935), epic / work-item
+  hierarchy progress roll-up (#933, tree surface #938), risk-exposure heatmap (#934), sprint-review
+  (#939), plan-my-day (#940) and skills-coverage (#941). All gated by capability domains — a Jira-only
+  backend lights up the issue/scheduling reports and leaves finance/RAID/resource reports off. The
+  catalogue now ships **46 report definitions** across **42 backends**.
+- **Interactive-UX wave (#942–#950).** Grid per-column quick filters (#942); spreadsheet-style keyboard
+  navigation + fill-down + copy on the grid (#943); recents surfaced in the command palette (#944);
+  per-column WIP limits on the kanban board with an over-limit cue (#945); accessible form validation
+  with `aria-invalid`/`aria-describedby` and focus-to-first-error (#946); a comment thread in the issue
+  side-panel with server-parsed @mentions (#947); an app-wide undo/redo stack over field edits via
+  `Cmd/Ctrl+Z` and palette actions (#948); an empty-state audit + removal of the dead `sonner`
+  dependency (#949); and **board swimlanes** that render a view's optional `groupBy` field as horizontal
+  lanes (#950).
+
 ### Changed
 
 - **Uniform boolean-env vocabulary (`isTruthy`).** ~8 modules hand-rolled their own truthy check for

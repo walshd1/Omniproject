@@ -16,7 +16,7 @@ and tick items as they land.
 ## Where OmniProject already leads (context)
 
 OmniProject is a **stateless governance + portfolio overlay** on top of systems of record
-(41 connectors), not a Jira/Asana clone. It already meets or beats the field on:
+(42 connectors), not a Jira/Asana clone. It already meets or beats the field on:
 
 - **PPM depth** — EVM, Monte-Carlo schedule risk, critical path, capacity levelling,
   scenario/what-if, benefits realisation, stage gates, multi-currency + rate cards
@@ -642,7 +642,7 @@ authoring, and the drift guards — no feature bypasses the golden rules.
   invoice lines from billable timesheet actuals × the rate-card engine is a natural follow-up.**
 
 ### 3.4 Third-party app / plugin marketplace  ✅ Done (slices 1–2)
-- **Competitors.** Jira/Monday/Asana marketplaces. **Have.** 41 connectors + MCP + broker
+- **Competitors.** Jira/Monday/Asana marketplaces. **Have.** 42 connectors + MCP + broker
   seam. **Missing.** UI-extension ecosystem (installable panels/screens/reports).
 - **Leverage.** Panel registry, screen-def bundles, MCP, config-bundle delivery.
 - **Design.** An installed EXTENSION is a JSON manifest of typed **contribution primitives** — all pure-JSON
@@ -1878,12 +1878,16 @@ multi-tenancy → managed offering (§5.4).
   critical-path overlay ON the timeline. *Note: cascade-reschedule (move a bar + every dependent it pushes)
   already ships (`lib/cascade-reschedule`, `gantt-cascade-toggle`); the four named interactions are the gap.*
   Now unblocked by the durable `dependencies` slot (§5.5) — the create/edit/delete hooks exist. Extends §4.10.
-- ✳ **Kanban swimlanes + WIP-limit enforcement** — swimlane grouping (assignee/epic/priority) + board-level
-  `wipLimit` enforcement (the methodology packs already declare the concept).
+- ✅ **Kanban swimlanes + WIP-limit enforcement — BUILT.** Board swimlanes render the view's optional
+  `groupBy` Def field as horizontal lanes (`lib/view-engine/swimlane.ts`, `components/view-engine/RecordBoard.tsx`,
+  PR #950) — the board counterpart to the list view's group-by, so a board and a list grouped by X partition
+  identically. Per-column WIP limits ring the column and flag the count red when over (`BoardColumn.wip`, PR #945).
 - ⚠ **Binary attachments** — filename+URL references only today (zero-at-rest by design). State-respecting path:
   **streaming pass-through upload to the backend's own blob store** through the broker (gateway as courier,
   never buffered at rest) — an attachment is a superset field whose home is the backend's blob store.
-- ✳ **Global undo** — app-wide undo stack / `Cmd+Z` across recent mutations (per-action toast undo exists).
+- ✅ **Global undo — BUILT.** App-wide undo/redo stack over recent field mutations via `Cmd/Ctrl+Z` /
+  `Cmd/Ctrl+Shift+Z` and palette Undo/Redo actions (`lib/edit-history.ts`, `lib/use-undo-redo.ts`,
+  `components/UndoRedoHotkeys.tsx`; PR #948), layered on top of the existing per-action toast undo.
 - ✳ **Per-user notification preferences** — per-event/per-channel subscription, quiet hours, digest opt-in
   (small per-user state; today one localStorage on/off + role/list digests). Extends §4.10.
 - ✅ **Bounded encrypted offline read cache — BUILT (flagged).** The AES-256-GCM, session-scoped (key bound to

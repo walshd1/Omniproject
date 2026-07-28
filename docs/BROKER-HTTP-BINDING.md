@@ -278,8 +278,9 @@ fields (+ `origin`/`userContext`); response = the named schema type.
 `get_notifications`). A broker MUST treat these as side-effect-free.
 
 **Capabilities drive everything else.** `get_capabilities` returns the domain
-flags (`issues, scheduling, resources, financials, portfolio, baseline, blockers,
-history, raid`) the store supports; the gateway derives the per-field/entity
+flags (the 15 `CAPABILITY_DOMAINS`: `issues, scheduling, resources, financials,
+portfolio, baseline, blockers, history, raid, quality, crm, service, benefits,
+stakeholders, raci`) the store supports; the gateway derives the per-field/entity
 surface/store map from them. A store-of-record broker (which owns its schema) can
 return all domains `true` and surface the full field registry. (The optional
 `fieldMap`/`describeFields` contract methods are not part of this HTTP binding —
