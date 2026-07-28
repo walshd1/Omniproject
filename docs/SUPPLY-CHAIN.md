@@ -13,6 +13,13 @@ and [`SECURITY-AUDIT.md`](./SECURITY-AUDIT.md).
   reviewer can confirm there are no incompatible/against-policy licences.
 - **Dependency advisories.** `pnpm audit` **blocks on high or critical** (`--audit-level high`) and
   reports all lower severities.
+- **Container-image CVE scan.** The `docker-image` CI job scans the built `omni-shell` image with
+  **Trivy** and **blocks on fixable HIGH/CRITICAL** vulnerabilities (`--severity HIGH,CRITICAL
+  --ignore-unfixed --exit-code 1`) — so a base-image or OS-package CVE with an available fix fails the
+  build, while unfixable base noise is reported but non-blocking. Trivy is installed **checksum-verified**
+  via `scripts/ci/fetch-verified.sh` (no unpinned third-party action, no `curl|sh`), and pulls its vuln
+  DB from ghcr.io. This complements the dependency (`pnpm audit`) and SBOM steps by covering the OS layer
+  the lockfile can't see.
 - **Static analysis (SAST).** **CodeQL** (`security-extended` query pack) runs in
   `.github/workflows/codeql.yml`, and a repo-local **semgrep taint-scan** (`taint-scan` job in
   `.github/workflows/ci.yml` + `.semgrep/omniproject.yml`) gives an advisory second opinion.

@@ -68,7 +68,7 @@ testing). Documented in `SECURITY.md`, `docs/THREAT-MODEL.md`, `docs/SUPPLY-CHAI
 | **S6** | **Authz is imperative per-route** (coverage by test, not by construction) — no declarative route→required-grant manifest + verifier. | Medium | **In-lane (guard)** |
 | **S7** | **No app-native TOTP / SMS second factor** — MFA is IdP-`amr`/passkey only (fine for strong-IdP orgs; a gap for local-auth deployments). | Medium | Out-of-lane (IdP) |
 | **S8** | **No device/session inventory surface** ("manage my devices" + revoke). Sessions are tracked by salt but not surfaced. | Medium | Out-of-lane (SPA + route) |
-| **S9** | **No in-CI container-image CVE scan** (Trivy/Grype); gitleaks binary unpinned; mutation testing not extended to crypto/auth. SBOM is generated but not scanned in-pipeline. | Medium | Out-of-lane (CI) |
+| **S9** | **In-CI container-image OS-layer CVE scan — SHIPPED** (Trivy `--pkg-types os` in the `docker-image` CI job, blocks on fixable HIGH/CRITICAL, `--ignore-unfixed`; checksum-verified install via `fetch-verified.sh`). App JS deps stay gated by `pnpm audit`. Remaining: gitleaks binary pin + extending mutation testing to crypto/auth. | Medium | Partially closed (CI) |
 | **S10** | **SAML coded but the runtime library is not installed** (inert by default) — a packaging/docs decision, not a design gap. | Low | Out-of-lane (packaging) |
 
 ## Proposed programme — "Security & IAM" wave

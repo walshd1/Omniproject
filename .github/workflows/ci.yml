@@ -661,12 +661,52 @@ jobs:
   # the image can't build, can't boot, or doesn't serve both the API and the SPA.
   docker-image:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Build the omni-shell image
         run: docker build -t omni-shell:ci .
+
+      # Container-image OS-layer CVE scan (IAM assessment gap S9): scan the image we just built and BLOCK
+      # on fixable HIGH/CRITICAL in the OS/distro layer — the layer the pnpm lockfile can't see (the
+      # `dependency-scan` job already gates the app's JS dependencies via `pnpm audit`). Scoped to
+      # `--pkg-types os` on purpose: the app's own Node deps are covered elsewhere, and language findings
+      # in the base image's OWN bundled tooling (e.g. the `npm` that ships inside node:*-slim) are upstream
+      # base-image concerns with no fixed base image yet — out of this repo's control, so they don't gate.
+      # Trivy is installed via the repo's checksum-verified downloader (no unpinned third-party action, no
+      # curl|sh) — same discipline as the kubeconform lint. `--ignore-unfixed`: a blocking gate must be
+      # actionable, so a CVE with no upstream fix is reported, not a build-blocker. Trivy pulls its vuln DB
+      # from ghcr.io (not Docker Hub) so this adds no Docker-Hub-pull flakiness, and it fails closed on a
+      # scan error, consistent with the dependency-scan gate.
+      - name: Install Trivy (checksum-verified)
+        env:
+          # Pin the immutable SHA-256 (from the release CHECKSUMS) for full supply-chain protection.
+          # Empty ⇒ fetch-verified falls back to the release-published checksums file and warns; fill this
+          # to upgrade to a hard pin — see scripts/ci/fetch-verified.sh.
+          TRIVY_SHA256: ""
+        run: |
+          ver="0.72.0"
+          bash scripts/ci/fetch-verified.sh \
+            --url "https://github.com/aquasecurity/trivy/releases/download/v${ver}/trivy_${ver}_Linux-64bit.tar.gz" \
+            --out trivy.tar.gz \
+            --sha256 "$TRIVY_SHA256" \
+            --checksums-url "https://github.com/aquasecurity/trivy/releases/download/v${ver}/trivy_${ver}_checksums.txt" \
+            --checksums-name "trivy_${ver}_Linux-64bit.tar.gz"
+          tar -xzf trivy.tar.gz trivy
+          ./trivy --version
+
+      - name: Scan the image for HIGH/CRITICAL CVEs (Trivy)
+        run: |
+          ./trivy image \
+            --scanners vuln \
+            --pkg-types os \
+            --severity HIGH,CRITICAL \
+            --ignore-unfixed \
+            --exit-code 1 \
+            --no-progress \
+            --format table \
+            omni-shell:ci
 
       - name: Smoke-boot in demo mode (API health + served SPA root)
         run: |
