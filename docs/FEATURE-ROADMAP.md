@@ -1907,8 +1907,14 @@ multi-tenancy → managed offering (§5.4).
 - ✅ **Global undo — BUILT.** App-wide undo/redo stack over recent field mutations via `Cmd/Ctrl+Z` /
   `Cmd/Ctrl+Shift+Z` and palette Undo/Redo actions (`lib/edit-history.ts`, `lib/use-undo-redo.ts`,
   `components/UndoRedoHotkeys.tsx`; PR #948), layered on top of the existing per-action toast undo.
-- ✳ **Per-user notification preferences** — per-event/per-channel subscription, quiet hours, digest opt-in
-  (small per-user state; today one localStorage on/off + role/list digests). Extends §4.10.
+- ✅ **Per-user notification preferences — BUILT.** Each user chooses their delivery channels (in-app / email
+  / push), silences individual event kinds, and sets a daily quiet-hours window — stored on their own
+  per-user prefs blob (rides the `/me/prefs` vault + the `A11yProvider` sync, no new route) and enforced at
+  the in-app SSE plane. A pure evaluator (`@workspace/backend-catalogue` `notification-prefs.ts`) is the one
+  source both the gateway (`notify-hub` snapshot-at-connect filter) and the SPA settings panel
+  (`NotificationPreferences`) read; a `critical` kind (blocker/incident) can never be muted — the bell is a
+  guaranteed floor. Extends §4.10. **Remaining (deferred):** per-user opt-out on the role-broadcast digests
+  (they'd need to enumerate recipients) and a per-user timezone for quiet hours (evaluated server-local today).
 - ✅ **Bounded encrypted offline read cache — BUILT (flagged).** The AES-256-GCM, session-scoped (key bound to
   `sub`, wiped on logout), 24h-TTL, allow-listed (tasks + my-work) on-device read cache ships (`lib/offline-cache`,
   `use-offline-cache`, default-off `offlineCache` flag; Phase 2.5). The parity review's "none" is wrong.

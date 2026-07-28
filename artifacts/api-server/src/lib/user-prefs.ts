@@ -1,4 +1,5 @@
 import { getSettings, updateSettings, type UserPrefs, type ScopedThemeOverride } from "./settings";
+import { DEFAULT_NOTIFICATION_PREFS, sanitizeNotificationPrefs } from "@workspace/backend-catalogue";
 import { artifactStoreEnabled, getArtifact, putArtifact, makeScopedId } from "./artifact-store";
 import { configDefLayers, resolveScopedConfig, type ConfigScopes } from "./scoped-config";
 import { getDef, putDef, type StoredDef } from "./def-import";
@@ -48,6 +49,7 @@ export const DEFAULT_USER_PREFS: UserPrefs = {
   speechInput: false,
   mobileMode: "auto",
   density: "comfortable",
+  notifications: DEFAULT_NOTIFICATION_PREFS,
   scopedOverrides: {},
 };
 
@@ -114,6 +116,7 @@ export function sanitizeUserPrefs(input: unknown): UserPrefs {
     speechInput: !!o["speechInput"],
     mobileMode: (MOBILE_MODES as readonly string[]).includes(o["mobileMode"] as string) ? (o["mobileMode"] as UserPrefs["mobileMode"]) : "auto",
     density: (DENSITIES as readonly string[]).includes(o["density"] as string) ? (o["density"] as UserPrefs["density"]) : "comfortable",
+    notifications: sanitizeNotificationPrefs(o["notifications"]),
     scopedOverrides: sanitizeScopedOverrides(o["scopedOverrides"]),
   };
 }

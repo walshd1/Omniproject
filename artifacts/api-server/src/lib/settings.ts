@@ -23,7 +23,7 @@ import { validateWorkflows, WorkflowError, type WorkflowDef } from "./workflow";
 import { validateWorkflowAcceptances, ResponsibilityAcceptanceError, type WorkflowAcceptance } from "./responsibility-acceptance";
 import { validateResourceAllocations, ResourceAllocationError, type ResourceAllocation } from "./resource-allocation";
 import { validateBudgetPlans, BudgetPlanError, type BudgetPlan } from "./budget-plan";
-import { reportCatalogue, type ReportDefinition, DEFAULT_PRIORITY_WEIGHTS, type PriorityWeights } from "@workspace/backend-catalogue";
+import { reportCatalogue, type ReportDefinition, DEFAULT_PRIORITY_WEIGHTS, type PriorityWeights, type NotificationPrefs } from "@workspace/backend-catalogue";
 
 // Re-export the shared prioritisation shape + default so existing `./settings` importers are unaffected.
 export { DEFAULT_PRIORITY_WEIGHTS, type PriorityWeights };
@@ -565,6 +565,8 @@ export interface UserPrefs {
   mobileMode: "auto" | "on" | "off";
   /** UI spacing density: comfortable (default) or compact. */
   density: "comfortable" | "compact";
+  /** Per-user notification preferences — per-channel switches, muted event kinds, and quiet hours. */
+  notifications: NotificationPrefs;
   /**
    * SAVED per-screen / per-artifact theme overrides, keyed by scope id (e.g. "screen:reports"
    * or "artifact:report:<id>"). Each is a partial theme that overrides the user's GLOBAL override

@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { mockBlobDownload } from "../../test/utils";
 import type { A11yPrefs } from "../../lib/a11y-prefs";
+import { DEFAULT_NOTIFICATION_PREFS } from "@workspace/backend-catalogue";
 
 /**
  * A11yControls is the per-user accessibility overlay panel. It's a thin, stateless renderer over the
@@ -35,7 +36,8 @@ function makePrefs(over: Partial<A11yPrefs> = {}): A11yPrefs {
   return {
     fontScale: 1, fontFamily: null, accentColor: null, backgroundColor: null, highContrast: false,
     tint: false, tintColor: "#f5e9c8", reduceMotion: false, switchScan: "off", scanRateMs: 1500,
-    screenReader: false, speechInput: false, mobileMode: "auto", density: "comfortable", scopedOverrides: {},
+    screenReader: false, speechInput: false, mobileMode: "auto", density: "comfortable",
+    notifications: DEFAULT_NOTIFICATION_PREFS, scopedOverrides: {},
     ...over,
   };
 }

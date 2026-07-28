@@ -3,6 +3,7 @@ import { safeParseJson } from "./safe-json";
 import { setAnnounceVerbose } from "./announce";
 import { brandTokensFromHex } from "./color";
 import { FONT_CHOICES, FONT_STACKS, type FontChoice } from "./artifact-style";
+import { DEFAULT_NOTIFICATION_PREFS, sanitizeNotificationPrefs, type NotificationPrefs } from "@workspace/backend-catalogue";
 
 /**
  * Per-user accessibility preferences — a CLIENT-SIDE layer that an individual user
@@ -49,6 +50,9 @@ export interface A11yPrefs {
   mobileMode: MobileMode;
   /** UI spacing density (comfortable = company default, compact = tighter). */
   density: Density;
+  /** Per-user notification preferences — per-channel switches, muted event kinds, quiet hours. Rides the
+   *  same /me/prefs round-trip as the accessibility fields (one per-user prefs blob). */
+  notifications: NotificationPrefs;
   /**
    * SAVED per-screen / per-artifact theme overrides, keyed by scope id (e.g. "screen:reports").
    * Each overrides the user's GLOBAL settings for that one surface. Session-only scoped tweaks are
@@ -71,7 +75,7 @@ export const DEFAULT_A11Y: A11yPrefs = {
   fontScale: 1, fontFamily: null, accentColor: null, backgroundColor: null, highContrast: false,
   tint: false, tintColor: DEFAULT_TINT, reduceMotion: false,
   switchScan: "off", scanRateMs: 1500, screenReader: false, speechInput: false, mobileMode: "auto",
-  density: "comfortable", scopedOverrides: {},
+  density: "comfortable", notifications: DEFAULT_NOTIFICATION_PREFS, scopedOverrides: {},
 };
 
 const FORBIDDEN_KEYS = new Set(["__proto__", "constructor", "prototype"]);
@@ -137,6 +141,7 @@ export function coerceA11yPrefs(input: unknown): A11yPrefs {
     speechInput: !!p.speechInput,
     mobileMode: cleanMobileMode(p.mobileMode),
     density: cleanDensity(p.density),
+    notifications: sanitizeNotificationPrefs(p.notifications),
     scopedOverrides: cleanScopedOverrides(p.scopedOverrides),
   };
 }
@@ -205,6 +210,8 @@ interface A11yContextValue {
   setDensity: (d: Density) => void;
   /** Persist (or clear, with null) a SAVED per-scope theme override to the user's profile. */
   setSavedScope: (scopeId: string, override: ScopedOverride | null) => void;
+  /** Replace the user's notification preferences (per-channel switches, muted kinds, quiet hours). */
+  setNotifications: (next: NotificationPrefs) => void;
   /** Replace ALL prefs from an imported profile object (validated), then persist + sync. */
   importProfile: (raw: unknown) => void;
   reset: () => void;
@@ -283,6 +290,7 @@ export function A11yProvider({ children }: { children: ReactNode }) {
     else next[scopeId] = clean;
     change({ ...prefs, scopedOverrides: next });
   }, [change, prefs]);
+  const setNotifications = useCallback((next: NotificationPrefs) => change({ ...prefs, notifications: sanitizeNotificationPrefs(next) }), [change, prefs]);
   const importProfile = useCallback((raw: unknown) => change(coerceA11yPrefs(raw)), [change]);
   const reset = useCallback(() => change(DEFAULT_A11Y), [change]);
 
@@ -291,13 +299,13 @@ export function A11yProvider({ children }: { children: ReactNode }) {
     setFontScale, setFontFamily, setAccentColor, setBackgroundColor,
     toggleHighContrast, toggleTint, setTintColor, toggleReduceMotion,
     setSwitchScan, setScanRate, toggleScreenReader, toggleSpeechInput,
-    setMobileMode, setDensity, setSavedScope, importProfile, reset,
+    setMobileMode, setDensity, setSavedScope, setNotifications, importProfile, reset,
   }), [
     prefs,
     setFontScale, setFontFamily, setAccentColor, setBackgroundColor,
     toggleHighContrast, toggleTint, setTintColor, toggleReduceMotion,
     setSwitchScan, setScanRate, toggleScreenReader, toggleSpeechInput,
-    setMobileMode, setDensity, setSavedScope, importProfile, reset,
+    setMobileMode, setDensity, setSavedScope, setNotifications, importProfile, reset,
   ]);
   return <A11yContext.Provider value={value}>{children}</A11yContext.Provider>;
 }
