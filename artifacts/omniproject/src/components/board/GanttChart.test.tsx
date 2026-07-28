@@ -11,6 +11,7 @@ import {
 import { renderWithProviders, mockFetchRouter, resetFetchMock } from "../../test/utils";
 import { Toaster } from "../ui/toaster";
 import { saveEdges, type DependencyEdge } from "../../lib/dependencies";
+import { projectDependenciesQueryKey, type DependencyRow } from "../../lib/project-dependencies";
 import { GanttChart } from "./GanttChart";
 
 const PROJECT_ID = "proj-1";
@@ -336,6 +337,82 @@ describe("GanttChart", () => {
       pointer(bar, "pointerup", 140);
       // The cascade path fires and reports how many items moved.
       expect(await screen.findByText(/cascaded/)).toBeInTheDocument();
+    });
+  });
+
+  describe("dependency links (B1 — interactive editing)", () => {
+    afterEach(() => resetFetchMock());
+
+    function twoScheduled(): QueryClient {
+      return seeded([
+        issue({ id: "a", title: "Design API", startDate: isoDaysFromNow(1), dueDate: isoDaysFromNow(5), version: 1 }),
+        issue({ id: "b", title: "Build UI", startDate: isoDaysFromNow(6), dueDate: isoDaysFromNow(10), version: 1 }),
+      ]);
+    }
+
+    function withDeps(qc: QueryClient, rows: DependencyRow[]): QueryClient {
+      qc.setQueryData(projectDependenciesQueryKey(PROJECT_ID), { rows });
+      return qc;
+    }
+
+    it("draws a dependency arrow between two linked, scheduled bars", () => {
+      const qc = withDeps(twoScheduled(), [{ fromId: "a", toId: "b", kind: "blocks" }]);
+      renderWithProviders(<GanttChart projectId={PROJECT_ID} />, { client: qc });
+      expect(screen.getByTestId("gantt-link-a-b")).toBeInTheDocument();
+    });
+
+    it("does not draw an arrow when an endpoint has no bar (unscheduled)", () => {
+      const qc = seeded([
+        issue({ id: "a", title: "Design API", startDate: isoDaysFromNow(1), dueDate: isoDaysFromNow(5) }),
+        issue({ id: "b", title: "Build UI", startDate: null, dueDate: null }), // no dates → no lane
+      ]);
+      withDeps(qc, [{ fromId: "a", toId: "b", kind: "blocks" }]);
+      renderWithProviders(<GanttChart projectId={PROJECT_ID} />, { client: qc });
+      expect(screen.queryByTestId("gantt-link-a-b")).toBeNull();
+    });
+
+    it("shows a link-start handle per lane, and switches to cancel/target handles while linking", async () => {
+      const user = userEvent.setup();
+      renderWithProviders(<GanttChart projectId={PROJECT_ID} />, { client: twoScheduled() });
+      expect(screen.getByTestId("gantt-link-start-a")).toBeInTheDocument();
+      expect(screen.getByTestId("gantt-link-start-b")).toBeInTheDocument();
+      await user.click(screen.getByTestId("gantt-link-start-a"));
+      // Source becomes a cancel affordance; every other lane becomes a target.
+      expect(screen.getByTestId("gantt-link-cancel-a")).toBeInTheDocument();
+      expect(screen.getByTestId("gantt-link-end-b")).toBeInTheDocument();
+    });
+
+    it("creates a dependency via the link handles (start on A, finish on B)", async () => {
+      const user = userEvent.setup();
+      mockFetchRouter({
+        [`PUT /api/projects/${PROJECT_ID}/mapping/dependencies/a__blocks__b`]: { ok: true, body: {} },
+      });
+      renderWithProviders(<><GanttChart projectId={PROJECT_ID} /><Toaster /></>, { client: twoScheduled() });
+      await user.click(screen.getByTestId("gantt-link-start-a"));
+      await user.click(screen.getByTestId("gantt-link-end-b"));
+      expect(await screen.findByText("LINKED")).toBeInTheDocument();
+    });
+
+    it("removes a dependency when its arrow is clicked", async () => {
+      const qc = withDeps(twoScheduled(), [{ fromId: "a", toId: "b", kind: "blocks" }]);
+      mockFetchRouter({
+        [`DELETE /api/projects/${PROJECT_ID}/mapping/dependencies/a__blocks__b`]: { ok: true, body: {} },
+      });
+      renderWithProviders(<><GanttChart projectId={PROJECT_ID} /><Toaster /></>, { client: qc });
+      fireEvent.click(screen.getByTestId("gantt-link-a-b"));
+      expect(await screen.findByText("UNLINKED")).toBeInTheDocument();
+    });
+
+    it("reverts and shows an ERROR toast when removing a link fails", async () => {
+      const qc = withDeps(twoScheduled(), [{ fromId: "a", toId: "b", kind: "blocks" }]);
+      mockFetchRouter({
+        [`DELETE /api/projects/${PROJECT_ID}/mapping/dependencies/a__blocks__b`]: { ok: false, status: 500 },
+        // the post-error invalidation re-reads the rows; keep the edge present
+        [`/api/projects/${PROJECT_ID}/mapping/dependencies/rows`]: { ok: true, body: { rows: [{ fromId: "a", toId: "b", kind: "blocks" }] } },
+      });
+      renderWithProviders(<><GanttChart projectId={PROJECT_ID} /><Toaster /></>, { client: qc });
+      fireEvent.click(screen.getByTestId("gantt-link-a-b"));
+      expect(await screen.findByText("ERROR")).toBeInTheDocument();
     });
   });
 });

@@ -1874,10 +1874,14 @@ multi-tenancy → managed offering (§5.4).
   wiki block model (`lib/collab`, `lib/collab-doc`, `routes/collab`, default-off `wikiCoEdit` flag) and live
   cursors ship on whiteboards (`CanvasEditor.tsx`, `presence` toggle). The parity review listed this as a gap —
   it is wrong. **Remaining:** extend CRDT co-edit to issue comments/descriptions (still plain today).
-- ✳ **Interactive Gantt dependency editing** — dependency arrows, link create/edit, bar-resize handles,
-  critical-path overlay ON the timeline. *Note: cascade-reschedule (move a bar + every dependent it pushes)
-  already ships (`lib/cascade-reschedule`, `gantt-cascade-toggle`); the four named interactions are the gap.*
-  Now unblocked by the durable `dependencies` slot (§5.5) — the create/edit/delete hooks exist. Extends §4.10.
+- 🚧 **Interactive Gantt dependency editing** — *dependency arrows + link create/delete now SHIP* on the board
+  Gantt (`components/board/GanttChart.tsx`): durable edges render as clickable SVG arrows (finish-to-start solid,
+  `relates_to` dashed); a click-source-then-click-target handle pair creates an edge and clicking an arrow removes
+  it, both through the existing durable `dependencies` slot hooks (`useWriteProjectDependency` /
+  `useRemoveProjectDependency`) with the optimistic-write-then-revert pattern and contributor+ enforced
+  server-side. *Note: cascade-reschedule already ships (`lib/cascade-reschedule`, `gantt-cascade-toggle`).*
+  **Remaining:** bar-resize handles, a critical-path overlay on the timeline, and richer link types
+  (FS/SS/FF/SF + lag — the durable edge is coarse `blocks/depends_on/relates_to` today, see §5.5). Extends §4.10.
 - ✅ **Kanban swimlanes + WIP-limit enforcement — BUILT.** Board swimlanes render the view's optional
   `groupBy` Def field as horizontal lanes (`lib/view-engine/swimlane.ts`, `components/view-engine/RecordBoard.tsx`,
   PR #950) — the board counterpart to the list view's group-by, so a board and a list grouped by X partition
@@ -1974,8 +1978,9 @@ drift bug).
     and adapts each row into the `DependencyEdge` shape the schedulers already consume. Critical Path, the
     auto-schedule forecast, and the Gantt drag-cascade MERGE the durable slot rows with the browser-volatile
     overlay — live CPM + cascade run on real precedence. Write/remove hooks PUT/DELETE through the generic slot.
-  - **Next:** an in-project link editor (create/delete edges from the Gantt/board — the hooks exist) + the
-    network-diagram view.
+  - **✅ In-project link editor.** The board Gantt now renders durable edges as clickable arrows and
+    creates/deletes them in place (`components/board/GanttChart.tsx`, source→target link handles + click-an-arrow
+    to remove). **Next:** the network-diagram view + richer link types (FS/SS/FF/SF + lag) on the durable edge.
 - ✳ **Sprints / iterations** — a `sprints` mapping slot (`{id, name, goal, startDate, endDate, state, itemIds}`)
   + a sprint-board screen def + a velocity/burndown report def, all authored through the importer (agile-only,
   loosely coupled). No engine entity. (A bespoke `Sprint` broker entity was prototyped, then reverted in favour

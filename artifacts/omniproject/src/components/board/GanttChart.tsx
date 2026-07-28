@@ -14,8 +14,15 @@ import { isTerminal } from "../../lib/status-vocab";
 import { canStoreField } from "../../lib/capabilities-fields";
 import { rescheduledDates } from "../../lib/reschedule";
 import { DAY_MS, dayToShortDate } from "../../lib/date-utils";
-import { loadEdges } from "../../lib/dependencies";
-import { useProjectDependencies } from "../../lib/project-dependencies";
+import { loadEdges, type DependencyType } from "../../lib/dependencies";
+import {
+  useProjectDependencies,
+  useWriteProjectDependency,
+  useRemoveProjectDependency,
+  projectDependenciesQueryKey,
+  dependencyRowId,
+  type DependencyRow,
+} from "../../lib/project-dependencies";
 import { useSchedulingSettings } from "../../lib/scheduling-settings";
 import { computeCascade } from "../../lib/cascade-reschedule";
 import { useToast } from "@/hooks/use-toast";
@@ -43,7 +50,12 @@ export function GanttChart({ projectId }: { projectId: string }) {
   // Durable brokered edges (SoR-provided or sidecar, §5.5) merged with the volatile overlay so a cascade
   // honours the real dependency graph, not just this session's ad-hoc links.
   const { data: brokeredEdges } = useProjectDependencies(projectId);
+  const writeDependency = useWriteProjectDependency(projectId);
+  const removeDependency = useRemoveProjectDependency(projectId);
   const [editing, setEditing] = useState<Issue | null>(null);
+  // Link-editing mode: which issue we're drawing a dependency FROM (null = not linking).
+  // Click a source's "→" handle to start, then a target's "＋" handle to finish.
+  const [linkingFrom, setLinkingFrom] = useState<string | null>(null);
   // Opt-in: when on, dragging a bar cascades its dependents (via the scheduling
   // engine) and writes each moved item back too. Off = the default single-bar move.
   const [cascade, setCascade] = useState(false);
@@ -131,6 +143,63 @@ export function GanttChart({ projectId }: { projectId: string }) {
     }
   };
 
+  const titleOf = (id: string) => (issues ?? []).find((i) => i.id === id)?.title ?? id;
+
+  /** Optimistically mutate the durable-dependency cache (raw `{rows}` shape the read query holds), returning the
+   *  prior snapshot so a failed write can revert — same discipline as commitReschedule. */
+  const patchDepCache = (fn: (rows: DependencyRow[]) => DependencyRow[]): { rows: DependencyRow[] } | undefined => {
+    const key = projectDependenciesQueryKey(projectId);
+    const prev = queryClient.getQueryData<{ rows: DependencyRow[] }>(key);
+    queryClient.setQueryData<{ rows: DependencyRow[] }>(key, (old) => ({ rows: fn(old?.rows ?? []) }));
+    return prev;
+  };
+
+  const rowKey = (r: DependencyRow) => r.id ?? dependencyRowId(r.fromId, r.kind, r.toId);
+
+  /** Create a finish-to-start precedence edge (from precedes to). Durable via the generic `dependencies` slot;
+   *  contributor+ is enforced server-side, so a 403/500 reverts the optimistic add and refreshes. */
+  const createLink = (fromId: string, toId: string) => {
+    if (!fromId || !toId || fromId === toId) return;
+    const kind: DependencyType = "blocks";
+    const id = dependencyRowId(fromId, kind, toId);
+    const prev = patchDepCache((rows) =>
+      rows.some((r) => rowKey(r) === id) ? rows : [...rows, { id, fromId, toId, kind }],
+    );
+    writeDependency.mutate(
+      { fromId, toId, kind },
+      {
+        onSuccess: () => toast({ title: "LINKED", description: `${titleOf(fromId)} → ${titleOf(toId)}` }),
+        onError: (err) => {
+          if (prev) queryClient.setQueryData(projectDependenciesQueryKey(projectId), prev);
+          queryClient.invalidateQueries({ queryKey: projectDependenciesQueryKey(projectId) });
+          const conflict = (err as { status?: number }).status === 409;
+          toast({
+            title: conflict ? "EDIT CONFLICT" : "ERROR",
+            description: "Couldn't add the dependency. The graph has been refreshed.",
+            variant: "destructive",
+          });
+        },
+      },
+    );
+  };
+
+  /** Remove a durable edge (click on its arrow). Optimistic drop + revert-on-error. */
+  const removeLink = (fromId: string, toId: string, kind: DependencyType) => {
+    const id = dependencyRowId(fromId, kind, toId);
+    const prev = patchDepCache((rows) => rows.filter((r) => rowKey(r) !== id));
+    removeDependency.mutate(
+      { fromId, toId, kind },
+      {
+        onSuccess: () => toast({ title: "UNLINKED", description: `${titleOf(fromId)} → ${titleOf(toId)}` }),
+        onError: () => {
+          if (prev) queryClient.setQueryData(projectDependenciesQueryKey(projectId), prev);
+          queryClient.invalidateQueries({ queryKey: projectDependenciesQueryKey(projectId) });
+          toast({ title: "ERROR", description: "Couldn't remove the dependency. The graph has been refreshed.", variant: "destructive" });
+        },
+      },
+    );
+  };
+
   const model = useMemo(() => {
     const scheduled = (issues ?? []).filter((i) => i.startDate || i.dueDate);
     if (scheduled.length === 0) return null;
@@ -179,6 +248,16 @@ export function GanttChart({ projectId }: { projectId: string }) {
   const fmt = dayToShortDate;
   const todayPct = today >= min && today <= min + span ? ((today - min) / span) * 100 : null;
 
+  // Dependency arrows. Both endpoints of a durable edge live in THIS project, so an edge is drawable only when
+  // both are scheduled lanes (an unscheduled endpoint has no bar to point at). Row height matches the bar cell
+  // (h-12 = 48px) plus the 1px bottom border; x is a percentage of the track (the SVG overlays the track region,
+  // so a line's x% matches a bar's left%), y is the pixel centre of each row.
+  const ROW_H = 49;
+  const laneIndexById = new Map(lanes.map((l, i) => [l.issue.id, i]));
+  const links = (brokeredEdges ?? [])
+    .map((e) => ({ fromId: e.from.itemRef, toId: e.to.itemRef, kind: e.type }))
+    .filter((l) => l.fromId !== l.toId && laneIndexById.has(l.fromId) && laneIndexById.has(l.toId));
+
   return (
     <>
       <div className="h-full overflow-auto bg-card border border-border">
@@ -218,6 +297,52 @@ export function GanttChart({ projectId }: { projectId: string }) {
                 title="Today"
               />
             )}
+            {/* Dependency arrows overlay — spans the track (offset past the 16rem label column). The container is
+                pointer-events-none so it never blocks bar drags; only each arrow's transparent hit-line is clickable
+                (to remove that edge). x uses viewport-%, y uses px, so nothing is distorted. */}
+            {links.length > 0 && (
+              <div className="pointer-events-none absolute top-0 bottom-0 z-[5]" style={{ left: "16rem", right: 0 }}>
+                <svg width="100%" height="100%" aria-hidden="false">
+                  <defs>
+                    <marker id="gantt-dep-arrow" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto" markerUnits="userSpaceOnUse">
+                      <path d="M0,0 L6,3 L0,6 Z" fill="currentColor" />
+                    </marker>
+                  </defs>
+                  {links.map(({ fromId, toId, kind }) => {
+                    const si = laneIndexById.get(fromId)!;
+                    const ti = laneIndexById.get(toId)!;
+                    const s = lanes[si]!;
+                    const t = lanes[ti]!;
+                    const rel = kind === "relates_to";
+                    // Precedence (blocks/depends_on) draws source-END → target-START (finish-to-start); a loose
+                    // relates_to draws centre → centre so it reads differently.
+                    const x1 = rel ? ((s.startDay + s.endDay) / 2 - min + 0.5) / span * 100 : (s.endDay - min + 1) / span * 100;
+                    const x2 = rel ? ((t.startDay + t.endDay) / 2 - min + 0.5) / span * 100 : (t.startDay - min) / span * 100;
+                    const y1 = si * ROW_H + ROW_H / 2;
+                    const y2 = ti * ROW_H + ROW_H / 2;
+                    return (
+                      <g key={`${fromId}__${kind}__${toId}`} className="text-primary/70">
+                        <line
+                          x1={`${x1}%`} y1={y1} x2={`${x2}%`} y2={y2}
+                          stroke="currentColor" strokeWidth={1.5}
+                          markerEnd="url(#gantt-dep-arrow)"
+                          {...(rel ? { strokeDasharray: "4 3" } : {})}
+                        />
+                        <line
+                          x1={`${x1}%`} y1={y1} x2={`${x2}%`} y2={y2}
+                          stroke="transparent" strokeWidth={12}
+                          className="pointer-events-auto cursor-pointer"
+                          data-testid={`gantt-link-${fromId}-${toId}`}
+                          role="button"
+                          aria-label={`Remove dependency ${titleOf(fromId)} → ${titleOf(toId)}`}
+                          onClick={() => removeLink(fromId, toId, kind)}
+                        />
+                      </g>
+                    );
+                  })}
+                </svg>
+              </div>
+            )}
             {lanes.map(({ issue, startDay, endDay }) => {
                 const nudged = drag?.id === issue.id ? drag.deltaDays : 0;
                 const offsetPct = ((startDay - min + nudged) / span) * 100;
@@ -226,13 +351,46 @@ export function GanttChart({ projectId }: { projectId: string }) {
                 const moving = updateIssue.isPending;
                 return (
                   <div key={issue.id} className="flex items-center border-b border-border hover:bg-muted/20 group">
-                    <button
-                      onClick={() => setEditing(issue)}
-                      className="w-64 shrink-0 px-4 py-3 text-left border-r border-border truncate text-sm font-semibold group-hover:text-primary"
-                      title={issue.title}
-                    >
-                      {issue.title}
-                    </button>
+                    <div className="w-64 shrink-0 flex items-center border-r border-border">
+                      <button
+                        onClick={() => setEditing(issue)}
+                        className="flex-1 min-w-0 px-4 py-3 text-left truncate text-sm font-semibold group-hover:text-primary"
+                        title={issue.title}
+                      >
+                        {issue.title}
+                      </button>
+                      {linkingFrom == null ? (
+                        <button
+                          data-testid={`gantt-link-start-${issue.id}`}
+                          aria-label={`Start a dependency from ${issue.title}`}
+                          title="Draw a dependency from this issue, then click a target"
+                          onClick={() => setLinkingFrom(issue.id)}
+                          className="shrink-0 px-2 py-3 text-muted-foreground hover:text-primary font-bold"
+                        >
+                          →
+                        </button>
+                      ) : linkingFrom === issue.id ? (
+                        <button
+                          data-testid={`gantt-link-cancel-${issue.id}`}
+                          aria-label="Cancel linking"
+                          title="Cancel — pick nothing"
+                          onClick={() => setLinkingFrom(null)}
+                          className="shrink-0 px-2 py-3 text-primary font-bold"
+                        >
+                          ×
+                        </button>
+                      ) : (
+                        <button
+                          data-testid={`gantt-link-end-${issue.id}`}
+                          aria-label={`Finish the dependency at ${issue.title}`}
+                          title={`Depend ${issue.title} on the issue you started from`}
+                          onClick={() => { createLink(linkingFrom, issue.id); setLinkingFrom(null); }}
+                          className="shrink-0 px-2 py-3 text-primary hover:brightness-125 font-bold"
+                        >
+                          ＋
+                        </button>
+                      )}
+                    </div>
                     <div className="flex-1 px-4 py-3 relative h-12">
                       <button
                         data-testid={`gantt-bar-${issue.id}`}
