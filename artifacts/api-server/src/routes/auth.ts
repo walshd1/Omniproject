@@ -36,7 +36,7 @@ import { getActiveUserByUserName, createUser, anyUserExists, userDirectoryEnable
 import { credentialsFor, getCredential, issueChallenge, consumeChallenge, verifyWebAuthnAssertion, AssertionError } from "../lib/passkey";
 import { verifyPassword, setPassword, credentialsEnabled, assertPasswordPolicy } from "../lib/user-credentials";
 import { generateTotpSecret, otpauthUrl, generateRecoveryCodes, verifyTotpStep } from "../lib/totp";
-import { totpStoreEnabled, totpStatus, getTotp, beginEnrolment, confirmEnrolment, recordStep, consumeRecovery, disableTotp } from "../lib/totp-store";
+import { totpStoreEnabled, totpStatus, getTotp, beginEnrolment, confirmEnrolment, recordStep, consumeRecovery, disableTotp, type TotpRecord } from "../lib/totp-store";
 import { getRoleMap, setRoleMap } from "../lib/rbac";
 import { effectiveSession } from "../lib/impersonation";
 import { seal, open } from "../lib/session-crypto";
@@ -916,6 +916,21 @@ router.get("/auth/step-up", async (req, res) => {
 const totpIssuer = (): string => process.env["BRAND_APP_NAME"]?.trim() || "OmniProject";
 const strField = (v: unknown): string => (typeof v === "string" ? v : "");
 
+/**
+ * Verify a presented TOTP code (replay-locked) OR a single-use recovery code against an enrolled record.
+ * Returns true iff valid, consuming the recovery code / advancing the replay lock as a side effect. The
+ * user-supplied credential is CONFINED here so the route handlers gate their sensitive action (session
+ * step-up / disabling 2FA) on this boolean RESULT — never directly on raw request input.
+ */
+function passesTotpChallenge(sub: string, rec: TotpRecord, body: { code?: unknown; recoveryCode?: unknown }, nowSec: number): boolean {
+  const recoveryCode = strField(body.recoveryCode);
+  if (recoveryCode) return consumeRecovery(sub, recoveryCode);
+  const step = verifyTotpStep(rec.secret, strField(body.code), nowSec);
+  if (step === null || step <= rec.lastStep) return false; // wrong/expired code, or a replay inside the window
+  recordStep(sub, step);
+  return true;
+}
+
 // GET /auth/totp/status — is 2FA available on this instance, and is this user enrolled / mid-enrolment?
 router.get("/auth/totp/status", (req, res) => {
   const s = readSession(req);
@@ -964,16 +979,7 @@ router.post("/auth/totp/step-up", (req, res) => {
   if (!s) { res.status(401).json({ error: "Not signed in." }); return; }
   const rec = getTotp(s.sub);
   if (!rec?.confirmed) { res.status(409).json({ error: "No authenticator is enrolled for this account.", needsEnrolment: true }); return; }
-  const body = (req.body ?? {}) as { code?: unknown; recoveryCode?: unknown };
-  const recoveryCode = strField(body.recoveryCode);
-  let ok = false;
-  if (recoveryCode) {
-    ok = consumeRecovery(s.sub, recoveryCode);
-  } else {
-    const step = verifyTotpStep(rec.secret, strField(body.code), Math.floor(Date.now() / 1000));
-    if (step !== null && step > rec.lastStep) { recordStep(s.sub, step); ok = true; }
-  }
-  if (!ok) {
+  if (!passesTotpChallenge(s.sub, rec, (req.body ?? {}) as { code?: unknown; recoveryCode?: unknown }, Math.floor(Date.now() / 1000))) {
     recordRequestAudit(req, { category: "request", action: "auth.totp.stepup", write: true, result: "error", status: 401 });
     res.status(401).json({ error: "That code is incorrect, expired, or already used." }); return;
   }
@@ -990,10 +996,7 @@ router.post("/auth/totp/disable", (req, res) => {
   if (!s) { res.status(401).json({ error: "Not signed in." }); return; }
   const rec = getTotp(s.sub);
   if (!rec?.confirmed) { res.status(409).json({ error: "Two-factor isn't enabled for this account." }); return; }
-  const body = (req.body ?? {}) as { code?: unknown; recoveryCode?: unknown };
-  const recoveryCode = strField(body.recoveryCode);
-  const proven = recoveryCode ? consumeRecovery(s.sub, recoveryCode) : verifyTotpStep(rec.secret, strField(body.code), Math.floor(Date.now() / 1000)) !== null;
-  if (!proven) {
+  if (!passesTotpChallenge(s.sub, rec, (req.body ?? {}) as { code?: unknown; recoveryCode?: unknown }, Math.floor(Date.now() / 1000))) {
     recordRequestAudit(req, { category: "request", action: "auth.totp.disable", write: true, result: "error", status: 401 });
     res.status(401).json({ error: "Confirm a current authenticator code to disable two-factor." }); return;
   }
