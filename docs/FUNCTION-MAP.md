@@ -4132,6 +4132,21 @@ LIVE TIME TRACKING — a running "clock" (roadmap 3.3).
 | `elapsedHours` | Elapsed hours between `startedAt` and `nowMs`, rounded to 2 dp; never negative (clock skew ⇒ 0). |
 | `timerToEntry` | Build the timesheet entry a stopped timer produces (dated to the stop day). |
 
+### `artifacts/api-server/src/lib/totp.ts`
+
+TOTP (RFC 6238) — the pure, dependency-free crypto core for app-native two-factor auth.
+
+| Function | What it does |
+| --- | --- |
+| `base32Encode` | Encode bytes as unpadded RFC 4648 base32 (the form authenticator apps expect for the shared secret). |
+| `base32Decode` | Decode an (optionally spaced/padded, any-case) base32 string to bytes. |
+| `totpCode` | The TOTP code for a base32 secret at a given unix time (seconds). |
+| `verifyTotp` | Verify a presented code against the secret at `timeSec`, accepting ±`window` steps (default 1 → tolerates ~30s of clock skew each way). |
+| `generateTotpSecret` | A fresh random base32 TOTP secret (default 160 bits, per RFC 6238's recommendation). |
+| `otpauthUrl` | The `otpauth://` provisioning URI an authenticator app scans as a QR code. |
+| `generateRecoveryCodes` | N single-use recovery codes (grouped, lower-case base32) that bypass TOTP when a device is lost. |
+| `normalizeRecoveryCode` | Normalise a recovery code for comparison (strip spacing/dashes, lower-case) so display grouping is ignored. |
+
 ### `artifacts/api-server/src/lib/tracing.ts`
 
 Distributed tracing via W3C Trace Context — no OTel SDK, just the wire format + a minimal OTLP/HTTP exporter.
