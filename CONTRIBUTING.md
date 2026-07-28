@@ -82,7 +82,10 @@ CI fails on codegen drift, so commit the regenerated output.
 
 ## Pull requests
 
-1. Branch off `main` (e.g. `feature/…`, `fix/…`).
+1. Branch off `next` (e.g. `feature/…`, `fix/…`) — `next` is the integration
+   branch; see [docs/BRANCHING.md](docs/BRANCHING.md). Nothing merges straight to
+   `main` except a promotion of `next` or a genuine hotfix, and CI
+   (`guard-main-source`) rejects any PR into `main` whose head branch isn't `next`.
 2. Keep changes focused; match the surrounding code style (the codebase favours
    small, well-commented, dependency-light modules).
 3. Make sure **typecheck, unit tests, builds and `verify-broker` all pass** — these
@@ -96,7 +99,7 @@ CI fails on codegen drift, so commit the regenerated output.
    code that drops global coverage, and never lower a threshold to green a red gate —
    the fix is always the missing tests. (A per-change floor is what stops an untested
    phase from silently becoming an audit backlog.)
-5. Open the PR against `main` and fill in the template.
+5. Open the PR against `next` and fill in the template.
 
 ## Adding a backend
 

@@ -32,9 +32,14 @@ no n8n, no SSO, nothing touched.
 
 ```bash
 pnpm install
-PORT=8080 node artifacts/api-server/dist/index.mjs    # open the SPA
+
+# Terminal 1 — gateway (the `dev` script builds first, then serves the API)
+PORT=8080 pnpm --filter @workspace/api-server run dev
+# Terminal 2 — SPA
+PORT=5173 BASE_PATH=/ pnpm --filter @workspace/omniproject run dev
 ```
 
+Open **http://localhost:5173** and click **ENTER (DEMO MODE)**.
 Click around: dashboard, programmes, reports. Numbers are badged **SAMPLE/DERIVED**
 so you always know what's real vs. illustrative.
 
