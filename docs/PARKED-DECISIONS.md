@@ -221,16 +221,15 @@ A `benefits` field group (`benefitType`/`benefitOwner`/`benefitMeasure`/`benefit
 `capexAmount`/`opexAmount`/`costRate` fields are in `fields.generated.ts`, with a `CapexOpex.tsx`
 report backed by `lib/capex.ts`.
 
-### E3. Stage-gate governance (PRINCE2 / phase-gate)
+### E3. Stage-gate governance (PRINCE2 / phase-gate) — **shipped** (un-parked)
 **What:** define gates (e.g. SOBC → OBC → FBC, or Discovery → Alpha → Beta → Live) and advance/hold a
 project through them with an auditable decision.
-**Why parked (the one feature that wants state):** the gate *model* is fine as code/JSON, but recording
-*"this project is at gate 3, approved on date X by Y"* is state. Per **§0**, the answer is **write the
-gate status back to a backend field via the broker** (e.g. a status/customField) — no OmniProject
-store. Only the no-backend-field fallback needs the encrypted, short-lived, hash-abstracted local record.
-**Recommendation:** build the gate model (JSON, like methodology packs) + a write-back action to a mapped
-backend field; ship the local-store fallback **off by default**, encrypted, disclaimed, customer-owned.
-Larger than a report and touches the write path — worth doing deliberately, not blind. Wants your go.
+**Delivered:** the gate model shipped as catalogue code (`lib/backend-catalogue/src/stage-gate.ts`, P3M
+Wave 4 / PR #902) plus the SPA surface (`artifacts/omniproject/src/lib/stage-gate.ts` +
+`components/reports/StageGatePanel.tsx`). The state resolves exactly as §0 prescribes — the gate status
+writes back to a mapped backend field via the broker, with the encrypted, short-lived, customer-owned
+local record only as the no-backend-field fallback. This decision no longer needs your go; it is built on
+both tracks. (Cross-refs that still call it "parked" — e.g. `FEATURE-MATURITY.md` §4 — are stale.)
 
 ### E4. Dynamics 365 Finance & Operations connector — catalogued, not tenant-verified (backlog #141)
 **What:** `dynamics365-fo` (`lib/backend-catalogue/vendors/backends/dynamics365-fo.json`) — a
