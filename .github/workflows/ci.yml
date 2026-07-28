@@ -682,7 +682,7 @@ jobs:
           # to upgrade to a hard pin — see scripts/ci/fetch-verified.sh.
           TRIVY_SHA256: ""
         run: |
-          ver="0.58.0"
+          ver="0.72.0"
           bash scripts/ci/fetch-verified.sh \
             --url "https://github.com/aquasecurity/trivy/releases/download/v${ver}/trivy_${ver}_Linux-64bit.tar.gz" \
             --out trivy.tar.gz \
