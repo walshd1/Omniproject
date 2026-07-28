@@ -1,12 +1,16 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { getJson, sendJson, uploadFile } from "./api";
+import { getJson, sendJson } from "./api";
 import { triggerBlobDownload } from "./setup";
 
 /**
  * Attachment-thread hooks over the (non-generated) `/api/attachments/:roomId` feature-module endpoint —
  * the file-bytes sibling of lib/comments. A "room" is the shared-surface id (`issue:<projectId>:<issueId>`).
- * The gateway holds only a byte-free POINTER; the bytes live in the attachments-broker sidecar. Uploads POST
- * the raw file (via `uploadFile`); downloads fetch the `/blob` route and hand the bytes to a browser download.
+ *
+ * The gateway NEVER handles a file's bytes: it holds only a byte-free POINTER and mints short-lived,
+ * signed tickets. The BYTES travel browser↔sidecar DIRECTLY — on upload the browser mints a ticket, PUTs
+ * the file straight to the attachments-broker's portal, then records the returned metadata; on download it
+ * mints a link and fetches the bytes straight from the sidecar. So a (possibly malicious) upload only ever
+ * exists inside the hardened, isolated sidecar container — never in the gateway.
  */
 
 export interface AttachmentAuthor {
@@ -26,6 +30,14 @@ export interface Attachment {
   createdAt: string;
 }
 
+/** The gateway's reply to a mint-upload-ticket request — a one-shot, direct-to-sidecar upload URL. */
+interface UploadTicket {
+  storageKey: string;
+  uploadUrl: string;
+  expiresAt: number;
+  maxBytes: number;
+}
+
 export const attachmentsQueryKey = (roomId: string) => ["attachments", roomId] as const;
 const roomUrl = (roomId: string) => `/api/attachments/${encodeURIComponent(roomId)}`;
 
@@ -39,11 +51,45 @@ export function useAttachments(roomId: string, enabled = true) {
   });
 }
 
-/** Upload a file to a room (contributor+). The raw bytes stream through the gateway to the sidecar. */
+/**
+ * Upload a file to a room (contributor+) WITHOUT the bytes ever touching the gateway:
+ *   1. mint an upload ticket from the gateway (metadata only → a direct-to-sidecar URL);
+ *   2. PUT the file straight to the sidecar's portal (cross-origin, ticket-authorised, no cookies/CSRF —
+ *      the ticket IS the capability), which returns the sidecar-computed size + sha256;
+ *   3. record the pointer on the gateway, which HEAD-verifies the blob landed.
+ */
+export async function uploadViaSidecar(roomId: string, file: File): Promise<Attachment> {
+  const contentType = file.type || "application/octet-stream";
+  const ticket = await sendJson<UploadTicket>(
+    `${roomUrl(roomId)}/upload-ticket`,
+    { filename: file.name, size: file.size },
+    "POST",
+    "Failed to start the upload",
+  );
+  // Direct, cross-origin PUT to the sidecar portal — deliberately a bare fetch with no credentials, so no
+  // cookie or CSRF header is ever sent off-origin; the signed ticket in the URL is the sole authorisation.
+  const put = await fetch(ticket.uploadUrl, {
+    method: "PUT",
+    body: file,
+    headers: { "content-type": contentType },
+  });
+  if (!put.ok) throw new Error("Failed to upload the file to the attachments service");
+  const stored = (await put.json().catch(() => ({}))) as { sha256?: string };
+  if (!stored.sha256) throw new Error("The attachments service did not confirm the upload");
+  const res = await sendJson<{ attachment: Attachment }>(
+    roomUrl(roomId),
+    { storageKey: ticket.storageKey, filename: file.name, contentType, sha256: stored.sha256 },
+    "POST",
+    "Failed to record the file",
+  );
+  return res.attachment;
+}
+
+/** Upload a file to a room (contributor+). Bytes go browser↔sidecar directly; see `uploadViaSidecar`. */
 export function useUploadAttachment(roomId: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (file: File) => uploadFile<{ attachment: Attachment }>(roomUrl(roomId), file, "Failed to upload the file"),
+    mutationFn: (file: File) => uploadViaSidecar(roomId, file),
     onSuccess: () => qc.invalidateQueries({ queryKey: attachmentsQueryKey(roomId) }),
   });
 }
@@ -58,9 +104,15 @@ export function useDeleteAttachment(roomId: string) {
   });
 }
 
-/** Fetch an attachment's bytes from the sidecar (via the gateway) and hand them to a browser download. */
+/**
+ * Download an attachment's bytes DIRECTLY from the sidecar (never via the gateway): mint a one-shot link
+ * from the gateway, then fetch the bytes straight from the sidecar's CORS-enabled portal and hand them to a
+ * browser download.
+ */
 export async function downloadAttachment(roomId: string, att: Pick<Attachment, "id" | "filename">): Promise<void> {
-  const res = await fetch(`${roomUrl(roomId)}/${encodeURIComponent(att.id)}/blob`, { credentials: "same-origin" });
+  const { url } = await getJson<{ url: string }>(`${roomUrl(roomId)}/${encodeURIComponent(att.id)}/link`);
+  // Cross-origin to the sidecar portal — a bare fetch (no credentials); the ticket in the URL authorises it.
+  const res = await fetch(url);
   if (!res.ok) throw new Error("Could not download the file");
   triggerBlobDownload(await res.blob(), att.filename);
 }

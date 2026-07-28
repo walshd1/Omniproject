@@ -58,21 +58,38 @@ describe("AttachmentsPanel", () => {
     expect(screen.getByText(/No attachments yet/)).toBeInTheDocument();
   });
 
-  it("uploads a chosen file as a raw body with an x-filename header", async () => {
-    const calls = stubFetch((url) =>
-      url.includes("/api/attachments") ? { ok: true, body: { attachment: ATT } } : { ok: true, body: { attachments: [] } },
-    );
+  it("uploads by minting a ticket, PUTting bytes DIRECTLY to the sidecar, then recording the pointer", async () => {
+    const SIDECAR = "https://sidecar.test/portal/key123?ticket=abc";
+    const calls = stubFetch((url) => {
+      if (url.endsWith("/upload-ticket")) return { ok: true, body: { storageKey: "key123", uploadUrl: SIDECAR, expiresAt: 9e12, maxBytes: 1e9 } };
+      if (url === SIDECAR) return { ok: true, body: { ok: true, key: "key123", size: 5, sha256: "d".repeat(64) } };
+      if (url.includes("/api/attachments")) return { ok: true, body: { attachment: ATT } };
+      return { ok: true, body: { attachments: [] } };
+    });
     renderWithProviders(<AttachmentsPanel roomId="issue:p1:i1" />, { client: seed("issue:p1:i1", []) });
     const input = screen.getByLabelText("Upload attachment") as HTMLInputElement;
     const file = new File(["hello"], "notes.txt", { type: "text/plain" });
     fireEvent.change(input, { target: { files: [file] } });
 
     await waitFor(() => {
-      const post = calls.find((c) => (c.init?.method ?? "GET") === "POST");
-      expect(post).toBeTruthy();
-      const headers = new Headers(post!.init!.headers);
-      expect(headers.get("x-filename")).toBe("notes.txt");
-      expect(post!.init!.body).toBe(file); // raw file body, not JSON
+      // The bytes went DIRECTLY to the sidecar (a non-/api origin) via PUT — never to the gateway.
+      const put = calls.find((c) => (c.init?.method ?? "GET") === "PUT");
+      expect(put).toBeTruthy();
+      expect(put!.url).toBe(SIDECAR);
+      expect(put!.url).not.toContain("/api/");
+      expect(put!.init!.body).toBe(file); // the raw file, straight to the sidecar
+      expect(put!.init!.credentials).toBeUndefined(); // no cookies sent off-origin
+
+      // The gateway only saw metadata: a mint-ticket POST and a record POST — never the file body.
+      const gatewayPosts = calls.filter((c) => (c.init?.method ?? "GET") === "POST" && c.url.includes("/api/attachments"));
+      expect(gatewayPosts.some((c) => c.url.endsWith("/upload-ticket"))).toBe(true);
+      const record = gatewayPosts.find((c) => !c.url.endsWith("/upload-ticket"));
+      expect(record).toBeTruthy();
+      const recordBody = JSON.parse(String(record!.init!.body));
+      expect(recordBody.storageKey).toBe("key123");
+      expect(recordBody.sha256).toBe("d".repeat(64));
+      // No gateway call ever carried the file bytes.
+      expect(gatewayPosts.every((c) => c.init!.body !== file)).toBe(true);
     });
   });
 
@@ -87,13 +104,19 @@ describe("AttachmentsPanel", () => {
     });
   });
 
-  it("downloads the bytes when the filename is clicked", async () => {
+  it("downloads by minting a link then fetching bytes DIRECTLY from the sidecar", async () => {
     const dl = mockBlobDownload();
+    const SIDECAR = "https://sidecar.test/portal/dl?ticket=xyz";
     try {
-      stubFetch(() => ({ ok: true, blob: new Blob(["PDF"]) }));
+      const calls = stubFetch((url) =>
+        url.endsWith("/link") ? { ok: true, body: { url: SIDECAR } } : { ok: true, blob: new Blob(["PDF"]) },
+      );
       renderWithProviders(<AttachmentsPanel roomId="issue:p1:i1" />, { client: seed("issue:p1:i1", [ATT]) });
       fireEvent.click(screen.getByRole("button", { name: /spec\.pdf/ }));
       await waitFor(() => expect(dl.click).toHaveBeenCalled());
+      // The bytes were fetched straight from the sidecar, not proxied through the gateway.
+      expect(calls.some((c) => c.url === SIDECAR)).toBe(true);
+      expect(calls.some((c) => c.url.endsWith("/link"))).toBe(true);
     } finally {
       dl.restore();
     }

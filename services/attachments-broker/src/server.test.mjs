@@ -6,28 +6,31 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createFsStore } from "./store.mjs";
 import { createHandler } from "./server.mjs";
+import { signTicket } from "./ticket.mjs";
 
-const TOKEN = "test-token-abc";
+const TOKEN = "server-plane-token";
+const SECRET = "ticket-secret";
 
-/** Boot the handler on an ephemeral port, run `fn(baseUrl)`, then tear everything down. */
-async function withServer(fn, { token = TOKEN, maxBytes } = {}) {
+/** Boot the handler on an ephemeral port, run fn(ctx), then tear down. */
+async function withServer(fn, over = {}) {
   const dir = await mkdtemp(join(tmpdir(), "attach-srv-"));
   const store = createFsStore(dir);
-  const handler = createHandler(store, token, maxBytes ? { maxBytes } : {});
+  const handler = createHandler({ store, token: TOKEN, ticketSecret: SECRET, allowedOrigin: "*", ...over });
   const server = createServer((req, res) => void handler(req, res));
-  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
-  const { port } = server.address();
-  const base = `http://127.0.0.1:${port}`;
-  const auth = token ? { authorization: `Bearer ${token}` } : {};
+  await new Promise((r) => server.listen(0, "127.0.0.1", r));
+  const base = `http://127.0.0.1:${server.address().port}`;
+  const bearer = { authorization: `Bearer ${TOKEN}` };
+  const putTicket = (key) => signTicket({ op: "put", key, exp: Date.now() + 60_000 }, SECRET);
+  const getTicket = (key, name) => signTicket({ op: "get", key, exp: Date.now() + 60_000, ...(name ? { name } : {}) }, SECRET);
   try {
-    await fn({ base, auth });
+    await fn({ base, bearer, putTicket, getTicket });
   } finally {
-    await new Promise((resolve) => server.close(resolve));
+    await new Promise((r) => server.close(r));
     await rm(dir, { recursive: true, force: true });
   }
 }
 
-test("GET /healthz is open (no auth) and reports ok", async () => {
+test("GET /healthz is open", async () => {
   await withServer(async ({ base }) => {
     const r = await fetch(`${base}/healthz`);
     assert.equal(r.status, 200);
@@ -35,50 +38,58 @@ test("GET /healthz is open (no auth) and reports ok", async () => {
   });
 });
 
-test("/blob/* requires the bearer token", async () => {
-  await withServer(async ({ base }) => {
-    const r = await fetch(`${base}/blob/k1`, { method: "PUT", body: "x" });
-    assert.equal(r.status, 401);
-  });
-});
-
-test("PUT then GET round-trips the bytes with a content fingerprint", async () => {
-  await withServer(async ({ base, auth }) => {
-    const bytes = new Uint8Array([1, 2, 3, 4, 5, 254, 255]);
-    const put = await fetch(`${base}/blob/blob-1`, { method: "PUT", headers: auth, body: bytes });
+test("portal: PUT with a valid ticket stores bytes; GET with a valid ticket returns them", async () => {
+  await withServer(async ({ base, putTicket, getTicket }) => {
+    const bytes = new Uint8Array([1, 2, 3, 250, 255]);
+    const put = await fetch(`${base}/portal/k1?ticket=${putTicket("k1")}`, { method: "PUT", body: bytes });
     assert.equal(put.status, 200);
     const meta = await put.json();
-    assert.equal(meta.ok, true);
     assert.equal(meta.size, bytes.length);
     assert.match(meta.sha256, /^[0-9a-f]{64}$/);
+    assert.equal(put.headers.get("access-control-allow-origin"), "*"); // CORS present
 
-    const get = await fetch(`${base}/blob/blob-1`, { headers: auth });
+    const get = await fetch(`${base}/portal/k1?ticket=${getTicket("k1", "report.bin")}`);
     assert.equal(get.status, 200);
-    assert.equal(get.headers.get("content-type"), "application/octet-stream");
-    const back = new Uint8Array(await get.arrayBuffer());
-    assert.deepEqual([...back], [...bytes]);
+    assert.match(get.headers.get("content-disposition") ?? "", /report\.bin/);
+    assert.deepEqual([...new Uint8Array(await get.arrayBuffer())], [...bytes]);
   });
 });
 
-test("GET a missing blob is 404; DELETE removes it", async () => {
-  await withServer(async ({ base, auth }) => {
-    assert.equal((await fetch(`${base}/blob/ghost`, { headers: auth })).status, 404);
-    await fetch(`${base}/blob/d1`, { method: "PUT", headers: auth, body: "hi" });
-    assert.equal((await fetch(`${base}/blob/d1`, { method: "DELETE", headers: auth })).status, 200);
-    assert.equal((await fetch(`${base}/blob/d1`, { headers: auth })).status, 404);
+test("portal: a missing/invalid/expired/wrong-op ticket is 401", async () => {
+  await withServer(async ({ base, putTicket, getTicket }) => {
+    assert.equal((await fetch(`${base}/portal/k1`, { method: "PUT", body: "x" })).status, 401); // no ticket
+    assert.equal((await fetch(`${base}/portal/k1?ticket=garbage`, { method: "PUT", body: "x" })).status, 401);
+    // a get-ticket can't be used for a PUT (op mismatch)
+    assert.equal((await fetch(`${base}/portal/k1?ticket=${getTicket("k1")}`, { method: "PUT", body: "x" })).status, 401);
+    const expired = signTicket({ op: "get", key: "k1", exp: Date.now() - 1 }, SECRET);
+    assert.equal((await fetch(`${base}/portal/k1?ticket=${expired}`)).status, 401);
+    // fetching an unwritten key with a valid ticket is 404
+    assert.equal((await fetch(`${base}/portal/ghost?ticket=${getTicket("ghost")}`)).status, 404);
   });
 });
 
-test("an over-limit upload is rejected 413", async () => {
-  await withServer(async ({ base, auth }) => {
-    const r = await fetch(`${base}/blob/big`, { method: "PUT", headers: auth, body: new Uint8Array(64) });
-    assert.equal(r.status, 413);
-  }, { maxBytes: 16 });
+test("portal: OPTIONS preflight returns 204 with CORS", async () => {
+  await withServer(async ({ base }) => {
+    const r = await fetch(`${base}/portal/k1`, { method: "OPTIONS" });
+    assert.equal(r.status, 204);
+    assert.equal(r.headers.get("access-control-allow-methods"), "PUT, GET, OPTIONS");
+  });
 });
 
-test("an invalid key is 400; an unknown path is 404", async () => {
-  await withServer(async ({ base, auth }) => {
-    assert.equal((await fetch(`${base}/blob/${encodeURIComponent("a/b")}`, { headers: auth })).status, 400);
-    assert.equal((await fetch(`${base}/nope`, { headers: auth })).status, 404);
+test("portal is disabled (503) when no ticket secret is configured", async () => {
+  await withServer(async ({ base, putTicket }) => {
+    assert.equal((await fetch(`${base}/portal/k1?ticket=${putTicket("k1")}`, { method: "PUT", body: "x" })).status, 503);
+  }, { ticketSecret: undefined });
+});
+
+test("server plane: HEAD returns size + DELETE removes, both bearer-gated", async () => {
+  await withServer(async ({ base, bearer, putTicket }) => {
+    await fetch(`${base}/portal/d1?ticket=${putTicket("d1")}`, { method: "PUT", body: new Uint8Array(7) });
+    assert.equal((await fetch(`${base}/blob/d1`, { method: "HEAD" })).status, 401); // no bearer
+    const head = await fetch(`${base}/blob/d1`, { method: "HEAD", headers: bearer });
+    assert.equal(head.status, 200);
+    assert.equal(head.headers.get("x-attachment-size"), "7");
+    assert.equal((await fetch(`${base}/blob/d1`, { method: "DELETE", headers: bearer })).status, 200);
+    assert.equal((await fetch(`${base}/blob/d1`, { method: "HEAD", headers: bearer })).status, 404);
   });
 });

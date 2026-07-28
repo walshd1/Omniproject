@@ -33,20 +33,6 @@ export async function sendJson<T = void>(
   return (await res.json().catch(() => undefined)) as T;
 }
 
-/** Upload a raw file body to a mutation endpoint (POST). Unlike `sendJson`, the body is the file bytes
- *  themselves (not JSON) — the server reads the filename from the `x-filename` header and the MIME from
- *  `Content-Type`. CSRF is attached by the global fetch patch (lib/csrf), same step-up-aware errors. */
-export async function uploadFile<T>(url: string, file: File, fallback?: string): Promise<T> {
-  const res = await fetch(url, {
-    method: "POST",
-    credentials: "same-origin",
-    headers: { "Content-Type": file.type || "application/octet-stream", "x-filename": file.name },
-    body: file,
-  });
-  if (!res.ok) throw responseError(res, await safeJson(res), fallback);
-  return res.json();
-}
-
 /** Best-effort parse of a (possibly empty/non-JSON) response body — never throws, so it's
  *  safe on an error response. The one place the `res.json().catch(() => ({}))` idiom lives. */
 export async function safeJson<T = Record<string, never>>(res: Response): Promise<T> {
