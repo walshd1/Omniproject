@@ -6,6 +6,7 @@ import { getListProjectsQueryKey, type Project } from "@workspace/api-client-rea
 import { renderWithProviders } from "../test/utils";
 import { CommandPalette } from "./CommandPalette";
 import { useStore } from "../store/useStore";
+import { useRecentItems } from "../lib/recent-items";
 
 function project(over: Partial<Project> = {}): Project {
   return {
@@ -36,6 +37,7 @@ beforeEach(() => {
     isShortcutsOpen: false,
     isNewIssueOpen: false,
   });
+  useRecentItems.setState({ items: [] });
 });
 
 describe("CommandPalette", () => {
@@ -160,6 +162,23 @@ describe("CommandPalette", () => {
     renderWithProviders(<CommandPalette />, { client: seeded([]) });
     const item = screen.getByText("New Task").closest("[role='option']");
     expect(item).not.toHaveAttribute("aria-disabled", "true");
+  });
+
+  it("surfaces a Recent group and routes a recent project on select", async () => {
+    const user = userEvent.setup();
+    useStore.setState({ isCommandOpen: true });
+    useRecentItems.setState({ items: [{ type: "project", id: "proj-recent", label: "Last Visited Project" }] });
+    renderWithProviders(<CommandPalette />, { client: seeded([]) });
+    expect(screen.getByText("Recent")).toBeInTheDocument();
+    await user.click(screen.getByText("Last Visited Project"));
+    expect(useStore.getState().activeProjectId).toBe("proj-recent");
+    expect(useStore.getState().isCommandOpen).toBe(false);
+  });
+
+  it("omits the Recent group when there are no recents", () => {
+    useStore.setState({ isCommandOpen: true });
+    renderWithProviders(<CommandPalette />, { client: seeded([]) });
+    expect(screen.queryByText("Recent")).not.toBeInTheDocument();
   });
 
   it("selecting a view updates the store and closes the palette", async () => {
