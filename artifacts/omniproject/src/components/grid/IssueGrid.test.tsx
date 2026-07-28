@@ -238,6 +238,47 @@ describe("IssueGrid component", () => {
   });
 });
 
+describe("IssueGrid per-column quick filters", () => {
+  beforeEach(() => {
+    vi.stubGlobal("fetch", vi.fn(async (_url: string, opts?: RequestInit) => {
+      const method = opts?.method ?? "GET";
+      const body = method === "GET" ? JSON.stringify(SEEDED) : "{}";
+      return new Response(body, { status: 200, headers: { "Content-Type": "application/json" } });
+    }));
+  });
+
+  it("hides the filter row by default and reveals it on toggle", () => {
+    renderWithProviders(<IssueGrid projectId="p1" />, { client: seed([issue()]) });
+    expect(screen.queryByTestId("grid-filter-row")).toBeNull();
+    fireEvent.click(screen.getByTestId("grid-filter-toggle"));
+    expect(screen.getByTestId("grid-filter-row")).toBeInTheDocument();
+  });
+
+  it("narrows rows by a column filter (contains over the displayed text) and shows the count", () => {
+    renderWithProviders(<IssueGrid projectId="p1" />, {
+      client: seed([issue({ id: "i1", title: "Alpha task" }), issue({ id: "i2", title: "Beta task" })]),
+    });
+    fireEvent.click(screen.getByTestId("grid-filter-toggle"));
+    fireEvent.change(screen.getByLabelText("Filter Title"), { target: { value: "alpha" } });
+    expect(screen.getByText("Alpha task")).toBeInTheDocument();
+    expect(screen.queryByText("Beta task")).toBeNull();
+    expect(screen.getByTestId("grid-filter-count")).toHaveTextContent("1 of 2");
+  });
+
+  it("clears the filters when the row is toggled off", () => {
+    renderWithProviders(<IssueGrid projectId="p1" />, {
+      client: seed([issue({ id: "i1", title: "Alpha task" }), issue({ id: "i2", title: "Beta task" })]),
+    });
+    fireEvent.click(screen.getByTestId("grid-filter-toggle"));
+    fireEvent.change(screen.getByLabelText("Filter Title"), { target: { value: "alpha" } });
+    expect(screen.queryByText("Beta task")).toBeNull();
+    fireEvent.click(screen.getByTestId("grid-filter-toggle")); // hide → clears
+    expect(screen.getByText("Alpha task")).toBeInTheDocument();
+    expect(screen.getByText("Beta task")).toBeInTheDocument();
+    expect(screen.queryByTestId("grid-filter-count")).toBeNull();
+  });
+});
+
 describe("IssueGrid drill-through filter (backlog #122)", () => {
   beforeEach(() => {
     vi.stubGlobal("fetch", vi.fn(async (_url: string, opts?: RequestInit) => {

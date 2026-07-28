@@ -92,6 +92,16 @@ export function IssueGrid({ projectId }: { projectId: string }) {
   // A saved view can restrict/order columns and set a sort; null = backend default.
   const [viewColumns, setViewColumns] = useState<string[] | null>(null);
   const [sort, setSort] = useState<{ field: string; dir: "asc" | "desc" } | null>(null);
+  // Per-column quick filters (field → contains-query over the displayed cell text). The filter row is
+  // opt-in (toggled) so the default grid stays clean; hiding it clears the filters so nothing filters
+  // invisibly. Purely client-side, composes with the drill-through predicate and the sort.
+  const [showFilters, setShowFilters] = useState(false);
+  const [colFilters, setColFilters] = useState<Record<string, string>>({});
+  const toggleFilters = () =>
+    setShowFilters((s) => {
+      if (s) setColFilters({});
+      return !s;
+    });
 
   // Available editable columns, optionally narrowed + ordered by the active saved view.
   const columns = useMemo(() => {
@@ -117,8 +127,18 @@ export function IssueGrid({ projectId }: { projectId: string }) {
     });
   };
 
+  // Narrow further by the per-column quick filters (contains over the displayed cell text — so a
+  // "done" filter on Status matches the label, not the raw code). Composes after the drill filter.
+  const searchedRows = useMemo(() => {
+    const active = columns
+      .map((c) => [c, (colFilters[c.field] ?? "").trim().toLowerCase()] as const)
+      .filter(([, q]) => q !== "");
+    if (active.length === 0) return filteredRows;
+    return filteredRows.filter((issue) => active.every(([col, q]) => cellText(issue, col).toLowerCase().includes(q)));
+  }, [filteredRows, colFilters, columns]);
+
   const rows = useMemo(() => {
-    const list = [...filteredRows];
+    const list = [...searchedRows];
     if (sort) {
       const { field, dir } = sort;
       list.sort((a, b) => {
@@ -130,7 +150,9 @@ export function IssueGrid({ projectId }: { projectId: string }) {
       });
     }
     return list;
-  }, [filteredRows, sort]);
+  }, [searchedRows, sort]);
+
+  const activeFilterCount = columns.filter((c) => (colFilters[c.field] ?? "").trim() !== "").length;
 
   const toggleSort = (field: string) =>
     setSort((s) => (s?.field === field ? { field, dir: s.dir === "asc" ? "desc" : "asc" } : { field, dir: "asc" }));
@@ -192,6 +214,22 @@ export function IssueGrid({ projectId }: { projectId: string }) {
           </button>
         </div>
       )}
+      <div className="mb-2 flex items-center gap-2">
+        <button
+          type="button"
+          onClick={toggleFilters}
+          aria-pressed={showFilters}
+          data-testid="grid-filter-toggle"
+          className="border-2 border-foreground px-2 py-0.5 text-xs font-black uppercase tracking-widest hover:bg-foreground hover:text-background"
+        >
+          Filter{activeFilterCount > 0 ? ` · ${activeFilterCount}` : ""}
+        </button>
+        {activeFilterCount > 0 && (
+          <span className="text-xs text-muted-foreground" data-testid="grid-filter-count">
+            {rows.length} of {filteredRows.length}
+          </span>
+        )}
+      </div>
       {savedViewsOn && (
         <SavedViewsBar
           scope="grid"
@@ -229,6 +267,23 @@ export function IssueGrid({ projectId }: { projectId: string }) {
               </th>
             ))}
           </tr>
+          {showFilters && (
+            <tr className="sticky top-7 z-10 bg-background" data-testid="grid-filter-row">
+              <th className="py-1" />
+              {columns.map((c) => (
+                <th key={c.field} className="py-1 pr-4">
+                  <input
+                    type="text"
+                    value={colFilters[c.field] ?? ""}
+                    onChange={(e) => setColFilters((f) => ({ ...f, [c.field]: e.target.value }))}
+                    placeholder={`Filter ${c.label}`}
+                    aria-label={`Filter ${c.label}`}
+                    className="w-full border border-border bg-background px-1 py-0.5 text-xs font-normal normal-case"
+                  />
+                </th>
+              ))}
+            </tr>
+          )}
         </thead>
         <tbody>
           {padTop > 0 && <tr aria-hidden="true" style={{ height: padTop }}><td colSpan={colSpan} /></tr>}
