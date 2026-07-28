@@ -2,6 +2,10 @@
 
 **Status:** design / proposal · **Author:** (AI-assisted) · **Audience:** maintainers + implementers
 
+> **Partial realization — attachments.** The attachments piece of this design (bytes below the seam,
+> gateway holds only a pointer) is being built standalone as a hardened sidecar; the byte-holding service
+> ships now. See [`../ATTACHMENTS.md`](../ATTACHMENTS.md) and `services/attachments-broker/`.
+
 ## 1. Goal & positioning
 
 Today OmniProject is a **stateless overlay**: it brokers over an external system of record (Jira,
