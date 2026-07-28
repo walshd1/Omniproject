@@ -160,9 +160,10 @@ evidence pack for auditors; data-residency; a defensible record of who changed w
   in the enterprise/hardened profile; unsigned snapshots are still content-hashed).
 - **Data residency** — fail-closed region routing at the single outbound hop:
   undeclared-region or out-of-region endpoints refused with HTTP 451 and an audit event.
-  **Opt-in and off by default** — inert until a `DATA_RESIDENCY_*` policy is configured,
-  and enforces a single region today (per-country/multi-region is roadmap #2):
-  `docs/DATA-RESIDENCY.md`.
+  **Opt-in and off by default** — inert until a `DATA_RESIDENCY_*` policy is configured. A full
+  **per-country / per-region policy** (`region → {backends, egress}`) ships with two fail-closed seams
+  (broker hop + egress hop) — `artifacts/api-server/src/lib/residency-policy.ts`; only *per-request*
+  country/tenant selection remains roadmap (#2). See `docs/DATA-RESIDENCY.md`.
 - **Control mapping** — SOC 2 / ISO 27001:2022 / NIST CSF 2.0 self-assessment
   matrix: `docs/COMPLIANCE.md`. DSAR support: `artifacts/api-server/src/lib/dsar.ts`.
 
@@ -197,7 +198,7 @@ supply-chain integrity; SSO/lifecycle integration; observability of security eve
   KMS + cloud vault integration (`kms.ts`, `vault-aws.ts`, `vault-azure.ts`).
 - **SSO / lifecycle** — SAML 2.0 SP (`artifacts/api-server/src/lib/saml.ts`) and
   SCIM 2.0 provisioning/deprovisioning (`artifacts/api-server/src/lib/scim.ts`).
-- **Supply chain** — CycloneDX + licence SBOM in CI, `pnpm audit` gate on CRITICAL,
+- **Supply chain** — CycloneDX + licence SBOM in CI, `pnpm audit` gate on **high or critical**,
   Dependabot, pinned base image, `--frozen-lockfile`; plus a `minimumReleaseAge`
   quarantine in `pnpm-workspace.yaml` (`docs/SUPPLY-CHAIN.md`).
 - **Distributed tracing** — W3C Trace Context + a minimal OTLP/HTTP exporter that
@@ -216,7 +217,10 @@ supply-chain integrity; SSO/lifecycle integration; observability of security eve
 **Honesty notes:** SAML is a **runtime-optional** dependency (not installed by a
 default `pnpm install`; enabled by adding `@node-saml/node-saml` when `SAML_*` is
 configured). Tracing is trace-context + span export, not a full metrics/logs OTel
-SDK. Image signing / SLSA provenance is **parked** in `docs/SUPPLY-CHAIN.md`.
+SDK. **SLSA build-provenance + CycloneDX SBOM attestation ship on release** (keyless Sigstore via
+`actions/attest-build-provenance@v4` + `attest-sbom@v4`, `.github/workflows/release.yml`); the one
+remaining gap is that the built image isn't yet **pushed to a registry**, so there's no published digest
+for a consumer to `gh attestation verify` against (see `docs/SUPPLY-CHAIN.md`).
 
 **Gaps to add:**
 - **SSO/SAML + SCIM as first-class, always-present** (bundle SAML by default; publish
@@ -372,10 +376,10 @@ whether the item already appears in the code, `[Unreleased]` CHANGELOG, or
 | # | Gap | Owning seat | Effort | Already in backlog? |
 | --- | --- | --- | --- | --- |
 | 1 | Multi-currency consolidation from a live/audited FX source (replace indicative table) | Finance | M | Partial — conversion + broker FX read exist; live feed does not |
-| 2 | Per-country / multi-region data-residency consolidation (beyond single fail-closed region) | Compliance / IT | M | Partial — single-region enforcement shipped |
+| 2 | Per-*request* country/tenant residency routing (beyond the shipped per-country/per-region policy) | Compliance / IT | M | Mostly done — per-country/per-region policy + dual fail-closed seams ship (`residency-policy.ts`); only per-request selection remains |
 | 3 | Scale validation at ~60 programmes / 200 projects (published result) | IT | M | Partial — load-test harness exists, no published result |
 | 4 | SSO/SAML bundled by default + SCIM setup runbook + IdP presets | CISO / IT | S–M | Partial — SAML/SCIM implemented; SAML runtime-optional |
-| 5 | SBOM + SLSA provenance + signed images + pen-test summary | CISO | M | Partial — SBOM in CI; SLSA/signing parked |
+| 5 | Published, verifiable signed image + independent pen-test summary | CISO | M | Mostly done — SLSA build-provenance + SBOM attestation ship on release (`release.yml`); gap is pushing the image to a registry so the attestation is consumer-verifiable, plus an external pen-test |
 | 6 | SOC 2 / ISO 27001 independent attestation (mapping → certified) | Compliance / CISO | L | Partial — control mapping exists (`docs/COMPLIANCE.md`) |
 | 7 | One-click compliance/evidence pack (audit-chain + snapshots + governance) | Compliance | M | No — primitives exist, bundling does not |
 | 8 | Segregation-of-duties / approvals coverage widened to more sensitive actions | Compliance | S | Partial — maker-checker engine (`dual-control.ts`) shipped |

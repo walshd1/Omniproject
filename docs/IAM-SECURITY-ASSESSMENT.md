@@ -98,15 +98,25 @@ SAML lib). These are tracked here but are not part of the pure-functional-core w
 
 ## Status
 
-**Wave complete — all in-lane slices delivered and merged.**
+**Wave complete — all in-lane engines delivered and merged as pure functional cores.**
 
-| Slice | Gap | Deliverable | PR |
-| --- | --- | --- | --- |
-| **1 ✅** | S1 | ABAC authorization-policy engine (`authz-policy.ts`, reuses `predicate.ts`) | #913 |
-| **2 ✅** | S2 | Access-review / recertification engine (`access-review.ts`) | #914 |
-| **3 ✅** | S3 | Separation-of-duties conflict engine (`separation-of-duties.ts`, reuses the severity vocabulary) | #915 |
-| **4 ✅** | S5 | Human delegation grant (`human-delegation.ts`, the human analogue of `autonomous-grant.ts`) | #916 |
-| **5 ✅** | S6 | Declarative route→grant manifest (`route-auth-manifest.ts`) + fail-closed verifier guard (`guard-route-grants.ts`, wired into CI) | #917 |
+> **Enforcement status — read this before citing the table as "controls in force."** Slices 1–4 shipped
+> as **pure catalogue engines with unit tests but no runtime consumer**: `authz-policy.ts`,
+> `access-review.ts`, `separation-of-duties.ts` and `human-delegation.ts` are **not imported by any route
+> or `app.ts`** (verified: zero non-test importers outside the catalogue). Runtime authorization is still
+> the imperative `requireRole` / `requireAnyRole` ladder (`lib/rbac.ts`, used across ~90 route files), and
+> no request-time decision consults the ABAC/SoD/access-review/delegation engines yet. **Only Slice 5**
+> (the route→grant manifest + fail-closed CI guard) is a **live, enforced** control. So these engines are
+> "built and ready to wire," not "in force" — a SoD conflict or a failed recertification detects/decides
+> nothing at request time today. Wiring each engine to an enforcement path is the follow-on work.
+
+| Slice | Gap | Deliverable | Wiring | PR |
+| --- | --- | --- | --- | --- |
+| **1 ✅** | S1 | ABAC authorization-policy engine (`authz-policy.ts`, reuses `predicate.ts`) | engine only — no runtime consumer | #913 |
+| **2 ✅** | S2 | Access-review / recertification engine (`access-review.ts`) | engine only — no runtime consumer | #914 |
+| **3 ✅** | S3 | Separation-of-duties conflict engine (`separation-of-duties.ts`, reuses the severity vocabulary) | engine only — no runtime consumer | #915 |
+| **4 ✅** | S5 | Human delegation grant (`human-delegation.ts`, the human analogue of `autonomous-grant.ts`) | engine only — no runtime consumer | #916 |
+| **5 ✅** | S6 | Declarative route→grant manifest (`route-auth-manifest.ts`) + fail-closed verifier guard (`guard-route-grants.ts`, wired into CI) | **live / enforced in CI** | #917 |
 
 **S4 (fine-grained per-action × per-resource human permission matrix) — deferred (optional).** It is
 already partly mitigated by per-collection edit floors + capability governance, and the ABAC engine (S1)
