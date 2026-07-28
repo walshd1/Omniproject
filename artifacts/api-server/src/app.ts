@@ -37,6 +37,7 @@ import { stripDangerousKeys } from "./lib/safe-json";
 import { resolveTrustProxy } from "./lib/trust-proxy";
 import { configuredCorsOrigins } from "./lib/origin-allowlist";
 import { registerBrokerRetentionFromEnv } from "./history/broker-source";
+import { registerAttachmentsFromEnv } from "./attachments/sidecar-client";
 import { brokerKind } from "./broker";
 import { getSettings, updateSettings } from "./lib/settings";
 import { restoreActiveEnvironment } from "./lib/config-store";
@@ -112,6 +113,10 @@ export async function bootstrap(): Promise<void> {
   // Point durable history at the retention-broker when RETENTION_BROKER_URL is set (no-op otherwise);
   // the gateway stays SDK-free — the broker process holds the cloud SDK. See history/broker-source.
   registerBrokerRetentionFromEnv();
+  // Point file attachments at the attachments-broker sidecar when ATTACHMENTS_SIDECAR_URL is set (no-op
+  // otherwise; the routes answer "not configured"). The gateway holds only the pointer — bytes live in the
+  // sidecar. See attachments/sidecar-client.
+  registerAttachmentsFromEnv();
   seedDemoProgrammeRegistry();
   // First-boot install of OUR shipped defaults (reports/forms/business-rules/dashboards) into the read-only
   // system def store, sourced from the bundled catalogues. One-shot; no-op when already installed or the store

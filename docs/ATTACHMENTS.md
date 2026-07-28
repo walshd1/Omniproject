@@ -7,8 +7,8 @@ sidecar** — [`services/attachments-broker`](../services/attachments-broker/REA
 keeps only a small **pointer** record (never bytes). This mirrors the [retention-broker](./RETENTION.md)
 pattern exactly.
 
-> **Status:** the sidecar **service** ships now (this doc). The gateway pointer-record seam, the SPA
-> attach/list/remove UI, and the compose/Helm wiring land as follow-on slices; the design is
+> **Status:** the sidecar **service** and the **gateway pointer seam** ship now. The SPA attach/list/remove
+> UI and the compose/Helm wiring land as follow-on slices; the design is
 > [`docs/design/STATEFUL-SIDECAR.md`](./design/STATEFUL-SIDECAR.md).
 
 ## Why a sidecar (not the gateway)
@@ -68,15 +68,30 @@ being force-added to a production compose file until the gateway seam lands:
 # volumes: { attachments_data: {} }
 ```
 
-The gateway will point at it with `ATTACHMENTS_SIDECAR_URL=http://attachments-broker:8091` +
-`ATTACHMENTS_SIDECAR_TOKEN=<same>` (added in the gateway-seam slice), reached through the SSRF/egress
-guard like every other outbound hop.
+The gateway points at it with `ATTACHMENTS_SIDECAR_URL=http://attachments-broker:8091` +
+`ATTACHMENTS_SIDECAR_TOKEN=<same>`, reached through the SSRF/egress guard like every other outbound hop.
+
+## Gateway seam (shipped)
+
+The `attachments` feature module (default-off; enable with `ENABLED_FEATURES=attachments`) exposes:
+
+| Method | Route | Who | What |
+| --- | --- | --- | --- |
+| `GET` | `/api/attachments/:roomId` | any authed user (project-scoped) | list the room's pointers |
+| `POST` | `/api/attachments/:roomId` | contributor+ | upload (raw body = bytes, `x-filename` header) |
+| `GET` | `/api/attachments/:roomId/:id/blob` | any authed user (project-scoped) | download the bytes |
+| `DELETE` | `/api/attachments/:roomId/:id` | the uploader, or pmo/admin | drop pointer + bytes |
+
+On upload the gateway streams the bytes **straight through** to the sidecar (never persisting them),
+computes the size + sha256, mints a storage key, and records a **byte-free pointer** on the ephemeral
+`sharedKv` seam (`lib/attachments-meta.ts`): `{ id, filename, contentType, size, sha256, storageKey,
+author, createdAt }`. The client is off-by-default — `attachmentsSidecar()` returns null when
+`ATTACHMENTS_SIDECAR_URL` is unset and the routes answer `503 not configured`, mirroring
+`retentionSourceFor`. The project-scoped room id (`issue:<projectId>:<issueId>`) is IDOR-guarded exactly
+like comments.
 
 ## Later slices (deferred, additive)
 
-- Gateway pointer store (`lib/attachments-meta.ts` on `sharedKv`) + routes + an off-by-default env gate
-  (`attachmentsSidecarFor()` returns null when `ATTACHMENTS_SIDECAR_URL` is unset — feature reports "not
-  configured", mirroring `retentionSourceFor`).
 - Cloud object-store backends in the sidecar (S3/GCS/Azure), layered behind the same `/blob` interface.
 - SPA attach/list/remove UI.
 - Helm PVC + NetworkPolicy + `values.yaml`.

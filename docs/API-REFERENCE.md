@@ -124,6 +124,17 @@ Read the self-managed ARCHIVE — the closed projects whose data was migrated ou
 | GET | `/api/archive/projects` | requireAnyRole(pmo, admin) | GET /api/archive/projects — the index of archived projects (guid + archivedAt). |
 | GET | `/api/archive/projects/:guid` | requireAnyRole(pmo, admin) | GET /api/archive/projects/:guid — one archived project's snapshot (project + issues), relink-aware. |
 
+### `artifacts/api-server/src/routes/attachments.ts`
+
+File attachments (the "attachments" feature module) — attach a file to a work item.
+
+| Method | Path | Gate | Description |
+| --- | --- | --- | --- |
+| GET | `/api/attachments/:roomId` | — | GET /api/attachments/:roomId — list the room's attachment pointers. |
+| POST | `/api/attachments/:roomId` | requireRole(contributor) | comes from the `x-filename` header (or ?filename=), the content-type from the request's Content-Type. |
+| GET | `/api/attachments/:roomId/:id/blob` | — | GET /api/attachments/:roomId/:id/blob — download the bytes (streamed from the sidecar). |
+| DELETE | `/api/attachments/:roomId/:id` | — | DELETE /api/attachments/:roomId/:id — the uploader, or a pmo/admin (moderation). |
+
 ### `artifacts/api-server/src/routes/auth.ts`
 
 Authentication routes + the session helpers the rest of the gateway reads from.

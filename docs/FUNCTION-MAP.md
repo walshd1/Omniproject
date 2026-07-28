@@ -24,6 +24,17 @@ Express application assembly — wires the middleware chain (security headers, b
 | `bootstrap` | Async boot side-effects that must run BEFORE the server serves AND before any sealed config/state is read. |
 | `seedDemoProgrammeRegistry` | Make demo mode internally consistent: programme membership is registry-driven (by project correlation GUID), so the sample projects only roll up into programmes once the registry names them. |
 
+### `artifacts/api-server/src/attachments/sidecar-client.ts`
+
+The gateway's no-SDK bridge to the attachments-broker service.
+
+| Function | What it does |
+| --- | --- |
+| `makeAttachmentsClient` | Build a client over a base URL + optional token. |
+| `registerAttachmentsFromEnv` | Register the attachments sidecar from the environment. |
+| `attachmentsSidecar` | The registered sidecar client, or null when attachments aren't configured. |
+| `_setAttachmentsSidecarForTest` | Test-only: set the active client directly (bypasses env). |
+
 ### `artifacts/api-server/src/bench/fixtures.ts`
 
 Deterministic fixtures for the portfolio-fold compute benchmark (run.ts).
@@ -961,6 +972,18 @@ SCOPED ENCRYPTED-JSON ARTIFACT STORE — the canonical home for user-authored ar
 | `replaceArtifacts` | Replace an ENTIRE (type, scope) collection in a SINGLE sealed write — one decrypt-free re-encrypt, no per-item read-modify-write. |
 | `deleteArtifact` | Remove an item from a scope; returns whether it was present. |
 | `listAllArtifactCollections` | Every collection of a type across ALL scopes — for portfolio-wide sweeps (e.g. the goal check-in cadence). |
+
+### `artifacts/api-server/src/lib/attachments-meta.ts`
+
+Attachment POINTERS — the byte-free metadata plane for file attachments, stored in the EPHEMERAL shared-state seam (in-process by default, fleet-wide when Redis is configured), keyed by the same room-id convention comments/presence use (`issue:<projectId>:<issueId>` / `project:<projectId>`).
+
+| Function | What it does |
+| --- | --- |
+| `newStorageKey` | A fresh, unique storage key for a new attachment's bytes (used as the sidecar `/blob/<key>`). |
+| `addAttachment` | Record a pointer to already-stored bytes. |
+| `listAttachments` | The room's attachments, newest first (stable — ties broken by id). |
+| `getAttachment` | Read a single pointer (for the download + the delete-authorization check). |
+| `deleteAttachment` | Delete a pointer. |
 
 ### `artifacts/api-server/src/lib/audit-chain.ts`
 
@@ -4478,6 +4501,10 @@ Approval-chain endpoints — the human, passkey-signed approver surface (design 
 ### `artifacts/api-server/src/routes/archive.ts`
 
 Read the self-managed ARCHIVE — the closed projects whose data was migrated out of the SOR (the `archive` disposition).
+
+### `artifacts/api-server/src/routes/attachments.ts`
+
+File attachments (the "attachments" feature module) — attach a file to a work item.
 
 ### `artifacts/api-server/src/routes/audit-middleware.ts`
 
