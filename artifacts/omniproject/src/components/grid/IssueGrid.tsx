@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "wouter";
 import {
   useGetProjectIssues,
@@ -102,6 +102,10 @@ export function IssueGrid({ projectId }: { projectId: string }) {
       if (s) setColFilters({});
       return !s;
     });
+  // Active cell for spreadsheet keyboard navigation (row index into `rows`, column index into `columns`).
+  // null until the user focuses/arrows into the grid, so nothing steals focus on mount. Roving tabindex:
+  // exactly one cell is tabbable (the active one, or 0,0 before any interaction).
+  const [activeCell, setActiveCell] = useState<{ r: number; c: number } | null>(null);
 
   // Available editable columns, optionally narrowed + ordered by the active saved view.
   const columns = useMemo(() => {
@@ -192,6 +196,70 @@ export function IssueGrid({ projectId }: { projectId: string }) {
       return next;
     });
 
+  /** Fill the active column DOWN — its raw value into every selected row (or, with no selection, the row
+   *  directly below). Uses the RAW field value (not the displayed label) so status/priority write codes. */
+  function fillDown() {
+    if (!activeCell) return;
+    const col = columns[activeCell.c];
+    const src = rows[activeCell.r];
+    if (!col || !src) return;
+    const raw = String((src as unknown as Record<string, unknown>)[col.field] ?? "");
+    const below = rows[activeCell.r + 1];
+    const targets =
+      selected.size > 0 ? rows.filter((r) => selected.has(r.id) && r.id !== src.id) : below ? [below] : [];
+    if (targets.length === 0) return;
+    targets.forEach((issue) => commit(issue, col, raw));
+    toast({ title: "FILL DOWN", description: `${col.label} → ${targets.length} row(s)` });
+  }
+
+  /** Copy the active cell's displayed text to the clipboard (no-op where the API is unavailable, e.g. jsdom). */
+  function copyActiveCell() {
+    if (!activeCell) return;
+    const col = columns[activeCell.c];
+    const src = rows[activeCell.r];
+    if (!col || !src) return;
+    void navigator.clipboard?.writeText?.(cellText(src, col))?.catch?.(() => {});
+  }
+
+  /** Spreadsheet keyboard nav on the grid body: arrows move the active cell, Enter opens the editor,
+   *  Ctrl/Cmd+D fills down, Ctrl/Cmd+C copies. No-op while a cell editor is open (it owns its keys). */
+  function onGridKeyDown(e: React.KeyboardEvent) {
+    if (editing) return;
+    const maxR = rows.length - 1;
+    const maxC = columns.length - 1;
+    if (maxR < 0 || maxC < 0) return;
+    const cur = activeCell ?? { r: 0, c: 0 };
+    switch (e.key) {
+      case "ArrowDown": e.preventDefault(); setActiveCell({ r: Math.min(maxR, cur.r + 1), c: cur.c }); break;
+      case "ArrowUp": e.preventDefault(); setActiveCell({ r: Math.max(0, cur.r - 1), c: cur.c }); break;
+      case "ArrowRight": e.preventDefault(); setActiveCell({ r: cur.r, c: Math.min(maxC, cur.c + 1) }); break;
+      case "ArrowLeft": e.preventDefault(); setActiveCell({ r: cur.r, c: Math.max(0, cur.c - 1) }); break;
+      case "Enter": {
+        const row = rows[cur.r];
+        const col = columns[cur.c];
+        if (row && col) { e.preventDefault(); setActiveCell(cur); setEditing({ id: row.id, field: col.field }); }
+        break;
+      }
+      default:
+        if ((e.ctrlKey || e.metaKey) && (e.key === "d" || e.key === "D")) { e.preventDefault(); fillDown(); }
+        else if ((e.ctrlKey || e.metaKey) && (e.key === "c" || e.key === "C")) { e.preventDefault(); copyActiveCell(); }
+    }
+  }
+
+  // Move DOM focus to the active cell. If the target row is outside the virtualization window, scroll it
+  // in first — the re-render (new start/end) re-runs this effect and the focus then lands.
+  useEffect(() => {
+    if (!activeCell || editing) return;
+    const el = scrollRef.current;
+    const target = (el ?? document).querySelector<HTMLElement>(`[data-cell="${activeCell.r}-${activeCell.c}"]`);
+    if (target) {
+      if (document.activeElement !== target) target.focus();
+      target.scrollIntoView?.({ block: "nearest" });
+    } else if (el) {
+      el.scrollTop = activeCell.r * 33;
+    }
+  }, [activeCell, editing, start, end]);
+
   return (
     <DataState isLoading={isLoading} isError={isError} error={error} onRetry={refetch} skeleton={<SkeletonRows rows={6} className="p-2" />}>
     <div data-testid="issue-grid">
@@ -250,7 +318,7 @@ export function IssueGrid({ projectId }: { projectId: string }) {
           <button onClick={bulkApply} className="border-2 border-foreground px-2 py-0.5 font-bold uppercase">Apply</button>
         </div>
       )}
-      <div ref={scrollRef} className="max-h-[70vh] overflow-auto">
+      <div ref={scrollRef} className="max-h-[70vh] overflow-auto" onKeyDown={onGridKeyDown}>
       <table className="w-full text-left text-sm" data-testid="grid-table">
         <thead className="sticky top-0 z-10 bg-background">
           <tr className="border-b-2 border-foreground text-xs uppercase tracking-wider">
@@ -287,7 +355,9 @@ export function IssueGrid({ projectId }: { projectId: string }) {
         </thead>
         <tbody>
           {padTop > 0 && <tr aria-hidden="true" style={{ height: padTop }}><td colSpan={colSpan} /></tr>}
-          {visibleRows.map((issue) => (
+          {visibleRows.map((issue, i) => {
+            const rIdx = start + i;
+            return (
             <tr key={issue.id} data-vrow className="border-b border-border/50">
               <td className="py-1">
                 <div className="flex items-center gap-1">
@@ -307,10 +377,13 @@ export function IssueGrid({ projectId }: { projectId: string }) {
                   )}
                 </div>
               </td>
-              {columns.map((col) => {
+              {columns.map((col, cIdx) => {
                 const isEditing = editing?.id === issue.id && editing.field === col.field;
+                const isActive = activeCell?.r === rIdx && activeCell?.c === cIdx;
+                // Roving tabindex: the active cell (or 0,0 before any interaction) is the single tab stop.
+                const tabbable = isActive || (activeCell === null && rIdx === 0 && cIdx === 0);
                 return (
-                  <td key={col.field} className="py-1 pr-4">
+                  <td key={col.field} className={`py-1 pr-4${isActive ? " ring-1 ring-inset ring-primary" : ""}`}>
                     {isEditing ? (
                       <CellInput
                         type={col.type}
@@ -323,6 +396,9 @@ export function IssueGrid({ projectId }: { projectId: string }) {
                     ) : (
                       <button
                         type="button"
+                        data-cell={`${rIdx}-${cIdx}`}
+                        tabIndex={tabbable ? 0 : -1}
+                        onFocus={() => setActiveCell({ r: rIdx, c: cIdx })}
                         className="w-full text-left hover:underline"
                         onClick={() => setEditing({ id: issue.id, field: col.field })}
                         aria-label={`Edit ${col.label} for ${issue.title}`}
@@ -334,7 +410,8 @@ export function IssueGrid({ projectId }: { projectId: string }) {
                 );
               })}
             </tr>
-          ))}
+            );
+          })}
           {padBottom > 0 && <tr aria-hidden="true" style={{ height: padBottom }}><td colSpan={colSpan} /></tr>}
         </tbody>
       </table>

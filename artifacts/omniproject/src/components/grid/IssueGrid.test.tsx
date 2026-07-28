@@ -279,6 +279,53 @@ describe("IssueGrid per-column quick filters", () => {
   });
 });
 
+describe("IssueGrid keyboard navigation + fill-down", () => {
+  beforeEach(() => {
+    vi.stubGlobal("fetch", vi.fn(async (_url: string, opts?: RequestInit) => {
+      const method = opts?.method ?? "GET";
+      const body = method === "GET" ? JSON.stringify(SEEDED) : "{}";
+      return new Response(body, { status: 200, headers: { "Content-Type": "application/json" } });
+    }));
+  });
+
+  const mutatingCalls = () =>
+    (fetch as unknown as ReturnType<typeof vi.fn>).mock.calls.filter(
+      ([, o]) => o && /PATCH|PUT|POST/.test((o as RequestInit).method ?? ""),
+    );
+
+  it("moves the active cell with the arrow keys (roving focus)", async () => {
+    renderWithProviders(<IssueGrid projectId="p1" />, {
+      client: seed([issue({ id: "i1", title: "Alpha task" }), issue({ id: "i2", title: "Beta task" })]),
+    });
+    const first = screen.getByRole("button", { name: "Edit Title for Alpha task" });
+    fireEvent.focus(first); // enter the grid at 0,0
+    fireEvent.keyDown(first, { key: "ArrowDown" });
+    await waitFor(() => expect(screen.getByRole("button", { name: "Edit Title for Beta task" })).toHaveFocus());
+  });
+
+  it("opens the editor on Enter at the active cell", () => {
+    renderWithProviders(<IssueGrid projectId="p1" />, { client: seed([issue({ title: "Alpha task" })]) });
+    const cell = screen.getByRole("button", { name: "Edit Title for Alpha task" });
+    fireEvent.focus(cell);
+    fireEvent.keyDown(cell, { key: "Enter" });
+    expect(screen.getByLabelText("Title for Alpha task")).toBeInTheDocument();
+  });
+
+  it("fills the active column down into the selected rows on Ctrl+D (write-through)", async () => {
+    const client = seed([issue({ id: "i1", title: "Alpha task" }), issue({ id: "i2", title: "Beta task" })]);
+    renderWithProviders(<IssueGrid projectId="p1" />, { client });
+    fireEvent.click(screen.getByLabelText("Select Alpha task"));
+    fireEvent.click(screen.getByLabelText("Select Beta task"));
+    const src = screen.getByRole("button", { name: "Edit Title for Alpha task" });
+    fireEvent.focus(src); // active cell = Alpha/Title
+    fireEvent.keyDown(src, { key: "d", ctrlKey: true });
+    await waitFor(() => expect(mutatingCalls().length).toBeGreaterThan(0));
+    // Beta's title is overwritten with Alpha's raw value.
+    expect(String((mutatingCalls().at(-1)![1] as RequestInit).body)).toContain("Alpha task");
+    await waitFor(() => expect(client.isMutating() + client.isFetching()).toBe(0));
+  });
+});
+
 describe("IssueGrid drill-through filter (backlog #122)", () => {
   beforeEach(() => {
     vi.stubGlobal("fetch", vi.fn(async (_url: string, opts?: RequestInit) => {
