@@ -36,6 +36,7 @@ How the system is put together, the broker seam, and the extensibility model.
 - **[PPM-DEPTH.md](PPM-DEPTH.md)** — the depth modules closing the gap to best-in-class PPM (portfolio optimiser, OKR cascade, skills demand/capacity, timesheets + staff-cost, stage-gate, SAFe PI board).
 - **[SELF-HOST-DB.md](SELF-HOST-DB.md)** — the optional, customer-owned stateful database for greenfield teams with nothing to connect.
 - **[RETENTION.md](RETENTION.md)** — durable time-series history (journal → snapshot → trend) and its cloud connectors (S3/DynamoDB/BigQuery via the retention-broker).
+- **[ATTACHMENTS.md](ATTACHMENTS.md)** — file attachments held below the seam by the hardened `attachments-broker` sidecar; the gateway keeps only a byte-free pointer record.
 - **[N8N-WORKFLOWS.md](N8N-WORKFLOWS.md)** — generate, wire & verify n8n workflows; open vs. licensed prebuilt integrations.
 - **[MCP.md](MCP.md)** — the read-only (write opt-in) MCP server so an AI agent can read through the broker seam.
 - **[adr/0001-broker-boundary.md](adr/0001-broker-boundary.md)** — ADR: the broker boundary decision.

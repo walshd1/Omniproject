@@ -900,3 +900,21 @@ jobs:
         run: npm run typecheck
       - name: Test (offline; SDK clients faked)
         run: npm test
+
+  # Standalone attachments-broker service (services/attachments-broker) — NOT part of the pnpm workspace,
+  # holds file bytes below the seam so the gateway stays zero-at-rest. Zero runtime dependencies (node
+  # built-ins only), so there is nothing to install — just node:test.
+  attachments-broker:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    defaults:
+      run:
+        working-directory: services/attachments-broker
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - name: Setup Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v6
+        with:
+          node-version: 26
+      - name: Test (offline; node:test, no dependencies)
+        run: npm test
