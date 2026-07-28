@@ -35,6 +35,8 @@ import { isDemoAuth } from "../lib/auth-runtime";
 import { getActiveUserByUserName, createUser, anyUserExists, userDirectoryEnabled, localAdminRequiresPasskey } from "../lib/user-directory";
 import { credentialsFor, getCredential, issueChallenge, consumeChallenge, verifyWebAuthnAssertion, AssertionError } from "../lib/passkey";
 import { verifyPassword, setPassword, credentialsEnabled, assertPasswordPolicy } from "../lib/user-credentials";
+import { generateTotpSecret, otpauthUrl, generateRecoveryCodes, verifyTotpStep } from "../lib/totp";
+import { totpStoreEnabled, totpStatus, getTotp, beginEnrolment, confirmEnrolment, recordStep, consumeRecovery, disableTotp } from "../lib/totp-store";
 import { getRoleMap, setRoleMap } from "../lib/rbac";
 import { effectiveSession } from "../lib/impersonation";
 import { seal, open } from "../lib/session-crypto";
@@ -903,6 +905,101 @@ router.get("/auth/step-up", async (req, res) => {
     req.log.error({ err }, "step-up initiation failed");
     res.status(502).send("Re-authentication is temporarily unavailable.");
   }
+});
+
+// ── App-native TOTP two-factor (authenticator app), alongside passkeys ───────────────────────────────────
+// Same shape as the passkey step-up: any signed-in session (local or IdP) can enrol an authenticator, and a
+// verified code re-issues the session with an `otp` amr + a fresh `stepUpAt`, so `requireStepUp` passes. The
+// crypto is the audited `otpauth` library (lib/totp); the secret + recovery-code hashes live in a
+// separately-keyed sealed store (lib/totp-store). A code is single-use inside its window (the store's
+// `lastStep` replay lock). These verify paths are covered by the strict `loginLimiter` (index.ts).
+const totpIssuer = (): string => process.env["BRAND_APP_NAME"]?.trim() || "OmniProject";
+const strField = (v: unknown): string => (typeof v === "string" ? v : "");
+
+// GET /auth/totp/status — is 2FA available on this instance, and is this user enrolled / mid-enrolment?
+router.get("/auth/totp/status", (req, res) => {
+  const s = readSession(req);
+  if (!s) { res.status(401).json({ error: "Not signed in." }); return; }
+  res.json({ available: totpStoreEnabled(), ...totpStatus(s.sub) });
+});
+
+// POST /auth/totp/enrol — start enrolment: mint a secret, return it + the otpauth:// URI for the QR code.
+// The enrolment isn't active until /auth/totp/confirm proves a code, so a half-finished enrol can't lock a user out.
+router.post("/auth/totp/enrol", (req, res) => {
+  const s = readSession(req);
+  if (!s) { res.status(401).json({ error: "Not signed in." }); return; }
+  if (!totpStoreEnabled()) { res.status(503).json({ error: "Two-factor is not configured on this instance (set OMNI_CONFIG_DIR or TOTP_FILE)." }); return; }
+  if (getTotp(s.sub)?.confirmed) { res.status(409).json({ error: "Two-factor is already enabled. Disable it first to re-enrol." }); return; }
+  const secret = generateTotpSecret();
+  beginEnrolment(s.sub, secret, Date.now());
+  const account = s.email || s.sub;
+  recordRequestAudit(req, { category: "request", action: "auth.totp.enrol", write: true, result: "success" });
+  res.json({ secret, otpauthUrl: otpauthUrl({ secret, account, issuer: totpIssuer() }) });
+});
+
+// POST /auth/totp/confirm — finish enrolment: verify a code against the pending secret, then activate 2FA,
+// hand back the one-time recovery codes (shown once), and step the session up.
+router.post("/auth/totp/confirm", (req, res) => {
+  const s = readSession(req);
+  if (!s) { res.status(401).json({ error: "Not signed in." }); return; }
+  const rec = getTotp(s.sub);
+  if (!rec || rec.confirmed) { res.status(409).json({ error: "No pending 2FA enrolment. Start with /auth/totp/enrol." }); return; }
+  const step = verifyTotpStep(rec.secret, strField((req.body as { code?: unknown })?.code), Math.floor(Date.now() / 1000));
+  if (step === null) {
+    recordRequestAudit(req, { category: "request", action: "auth.totp.confirm", write: true, result: "error", status: 400 });
+    res.status(400).json({ error: "That code is incorrect or expired. Check your authenticator and try again." }); return;
+  }
+  const recoveryCodes = generateRecoveryCodes();
+  confirmEnrolment(s.sub, recoveryCodes, step, Date.now());
+  const amr = Array.from(new Set([...(s.amr ?? []), "otp"]));
+  setSession(res, { ...s, amr, stepUpAt: Date.now() });
+  recordRequestAudit(req, { category: "request", action: "auth.totp.confirm", write: true, result: "success" });
+  res.json({ ok: true, recoveryCodes });
+});
+
+// POST /auth/totp/step-up — prove a code (or a recovery code) to strengthen the session. Replay-protected:
+// a TOTP code's step must exceed the last consumed one, so it can't be re-used inside its ~90s window.
+router.post("/auth/totp/step-up", (req, res) => {
+  const s = readSession(req);
+  if (!s) { res.status(401).json({ error: "Not signed in." }); return; }
+  const rec = getTotp(s.sub);
+  if (!rec?.confirmed) { res.status(409).json({ error: "No authenticator is enrolled for this account.", needsEnrolment: true }); return; }
+  const body = (req.body ?? {}) as { code?: unknown; recoveryCode?: unknown };
+  const recoveryCode = strField(body.recoveryCode);
+  let ok = false;
+  if (recoveryCode) {
+    ok = consumeRecovery(s.sub, recoveryCode);
+  } else {
+    const step = verifyTotpStep(rec.secret, strField(body.code), Math.floor(Date.now() / 1000));
+    if (step !== null && step > rec.lastStep) { recordStep(s.sub, step); ok = true; }
+  }
+  if (!ok) {
+    recordRequestAudit(req, { category: "request", action: "auth.totp.stepup", write: true, result: "error", status: 401 });
+    res.status(401).json({ error: "That code is incorrect, expired, or already used." }); return;
+  }
+  const amr = Array.from(new Set([...(s.amr ?? []), "otp"]));
+  setSession(res, { ...s, amr, stepUpAt: Date.now() });
+  recordRequestAudit(req, { category: "request", action: "auth.totp.stepup", write: true, result: "success" });
+  res.json({ ok: true });
+});
+
+// POST /auth/totp/disable — turn 2FA off. Requires proving a current code (or recovery code) so a hijacked
+// live session can't silently strip the second factor.
+router.post("/auth/totp/disable", (req, res) => {
+  const s = readSession(req);
+  if (!s) { res.status(401).json({ error: "Not signed in." }); return; }
+  const rec = getTotp(s.sub);
+  if (!rec?.confirmed) { res.status(409).json({ error: "Two-factor isn't enabled for this account." }); return; }
+  const body = (req.body ?? {}) as { code?: unknown; recoveryCode?: unknown };
+  const recoveryCode = strField(body.recoveryCode);
+  const proven = recoveryCode ? consumeRecovery(s.sub, recoveryCode) : verifyTotpStep(rec.secret, strField(body.code), Math.floor(Date.now() / 1000)) !== null;
+  if (!proven) {
+    recordRequestAudit(req, { category: "request", action: "auth.totp.disable", write: true, result: "error", status: 401 });
+    res.status(401).json({ error: "Confirm a current authenticator code to disable two-factor." }); return;
+  }
+  disableTotp(s.sub);
+  recordRequestAudit(req, { category: "request", action: "auth.totp.disable", write: true, result: "success" });
+  res.json({ ok: true });
 });
 
 export default router;

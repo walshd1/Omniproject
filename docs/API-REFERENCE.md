@@ -160,6 +160,11 @@ Authentication routes + the session helpers the rest of the gateway reads from.
 | POST | `/api/auth/step-up` | — | — |
 | GET | `/api/auth/providers` | — | branded "Sign in with <label>" button per provider. |
 | GET | `/api/auth/step-up` | — | cookie). |
+| GET | `/api/auth/totp/status` | — | GET /auth/totp/status — is 2FA available on this instance, and is this user enrolled / mid-enrolment? |
+| POST | `/api/auth/totp/enrol` | — | The enrolment isn't active until /auth/totp/confirm proves a code, so a half-finished enrol can't lock a user out. |
+| POST | `/api/auth/totp/confirm` | — | hand back the one-time recovery codes (shown once), and step the session up. |
+| POST | `/api/auth/totp/step-up` | — | a TOTP code's step must exceed the last consumed one, so it can't be re-used inside its ~90s window. |
+| POST | `/api/auth/totp/disable` | — | live session can't silently strip the second factor. |
 
 ### `artifacts/api-server/src/routes/automations.ts`
 
