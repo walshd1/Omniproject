@@ -7,9 +7,9 @@ sidecar** — [`services/attachments-broker`](../services/attachments-broker/REA
 keeps only a small **pointer** record (never bytes). This mirrors the [retention-broker](./RETENTION.md)
 pattern exactly.
 
-> **Status:** the sidecar **service** and the **gateway pointer seam** ship now. The SPA attach/list/remove
-> UI and the compose/Helm wiring land as follow-on slices; the design is
-> [`docs/design/STATEFUL-SIDECAR.md`](./design/STATEFUL-SIDECAR.md).
+> **Status:** the sidecar **service**, the **gateway pointer seam**, and the **SPA attach/list/download/remove
+> UI** ship now. The compose/Helm wiring and cloud object-store backends land as follow-on slices; the design
+> is [`docs/design/STATEFUL-SIDECAR.md`](./design/STATEFUL-SIDECAR.md).
 
 ## Why a sidecar (not the gateway)
 
@@ -93,6 +93,5 @@ like comments.
 ## Later slices (deferred, additive)
 
 - Cloud object-store backends in the sidecar (S3/GCS/Azure), layered behind the same `/blob` interface.
-- SPA attach/list/remove UI.
-- Helm PVC + NetworkPolicy + `values.yaml`.
+- Helm PVC + NetworkPolicy + `values.yaml`; adding the sidecar to a production compose profile.
 - Content scanning, dedup/GC of orphaned blobs, per-capability gating (`cap: attachments`).

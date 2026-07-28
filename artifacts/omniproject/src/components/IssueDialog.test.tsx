@@ -352,9 +352,9 @@ describe("IssueDialog mutations", () => {
     qc.setQueryData(getGetCapabilitiesQueryKey(), {} as unknown as Capabilities);
     qc.setQueryData(["branding"], {});
     qc.setQueryData(["labels"], {});
-    // Seed features with the (default-off) comments module disabled, so the comments panel doesn't
-    // render + fetch and land an extra call in the mutation-focused `calls`.
-    qc.setQueryData(featuresQueryKey(), [{ id: "comments", enabled: false }]);
+    // Seed features with the (default-off) comments + attachments modules disabled, so neither room panel
+    // renders + fetches and lands an extra call in the mutation-focused `calls`.
+    qc.setQueryData(featuresQueryKey(), [{ id: "comments", enabled: false }, { id: "attachments", enabled: false }]);
     return qc;
   }
 
