@@ -16,7 +16,7 @@ and tick items as they land.
 ## Where OmniProject already leads (context)
 
 OmniProject is a **stateless governance + portfolio overlay** on top of systems of record
-(41 connectors), not a Jira/Asana clone. It already meets or beats the field on:
+(42 connectors), not a Jira/Asana clone. It already meets or beats the field on:
 
 - **PPM depth** — EVM, Monte-Carlo schedule risk, critical path, capacity levelling,
   scenario/what-if, benefits realisation, stage gates, multi-currency + rate cards
@@ -642,7 +642,7 @@ authoring, and the drift guards — no feature bypasses the golden rules.
   invoice lines from billable timesheet actuals × the rate-card engine is a natural follow-up.**
 
 ### 3.4 Third-party app / plugin marketplace  ✅ Done (slices 1–2)
-- **Competitors.** Jira/Monday/Asana marketplaces. **Have.** 41 connectors + MCP + broker
+- **Competitors.** Jira/Monday/Asana marketplaces. **Have.** 42 connectors + MCP + broker
   seam. **Missing.** UI-extension ecosystem (installable panels/screens/reports).
 - **Leverage.** Panel registry, screen-def bundles, MCP, config-bundle delivery.
 - **Design.** An installed EXTENSION is a JSON manifest of typed **contribution primitives** — all pure-JSON

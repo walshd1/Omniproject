@@ -1,6 +1,6 @@
 # PPM depth — gap closure against best-in-class
 
-OmniProject is already enterprise-competitive in **breadth** (44 report surfaces, 41 backend
+OmniProject is already enterprise-competitive in **breadth** (46 report surfaces, 42 backend
 integrations, full EVM/benefits/resource/agile analytics, org→programme→project governance). A depth
 review against the top-tier suites (Planview, Broadcom Clarity, Planisware, Sciforma, Jira Align)
 found **six** modules where the leaders still go deeper. This initiative closes all six; each is a

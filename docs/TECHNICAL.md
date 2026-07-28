@@ -80,7 +80,7 @@ the reference pass, the live n8n run the real-world pass.
 | Gateway | Express 5, pino (structured logs + redaction), express-rate-limit |
 | Contracts | OpenAPI 3.1 → Orval → React Query hooks + Zod schemas |
 | Build | Vite (SPA), esbuild (gateway → self-contained bundle) |
-| Tooling | pnpm workspaces, Node.js 26, TypeScript 6.0 |
+| Tooling | pnpm workspaces, Node.js 26, TypeScript 7.0 |
 
 ### Workspace layout
 
