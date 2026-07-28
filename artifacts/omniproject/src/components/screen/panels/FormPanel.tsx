@@ -61,7 +61,7 @@ export function FormPanel({ panel }: { panel: Panel }) {
     return v === undefined || v === null || (typeof v === "string" && v.trim() === "");
   };
 
-  const validate = (): boolean => {
+  const computeErrors = (): Record<string, string> => {
     const next: Record<string, string> = {};
     for (const f of def.fields) {
       const v = get(f);
@@ -73,12 +73,26 @@ export function FormPanel({ panel }: { panel: Panel }) {
       else if (f.type === "url" && !/^https?:\/\/.+/i.test(s)) next[f.key] = `${f.label} must be a valid http(s) URL`;
       else if (f.maxLength && s.length > f.maxLength) next[f.key] = `${f.label} must be at most ${f.maxLength} characters`;
     }
-    setErrors(next);
-    return Object.keys(next).length === 0;
+    return next;
+  };
+
+  /** Move focus to a field's control by testid (the control itself when focusable, else the first input within
+   *  a group). Lets a failed submit land the user on the first thing to fix — a keyboard/screen-reader courtesy. */
+  const focusField = (key: string): void => {
+    const el = document.querySelector<HTMLElement>(`[data-testid="form-field-${key}"]`);
+    if (!el) return;
+    if (["INPUT", "SELECT", "TEXTAREA"].includes(el.tagName)) el.focus();
+    else el.querySelector<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>("input,select,textarea")?.focus();
   };
 
   const onSubmit = async () => {
-    if (!validate()) return;
+    const found = computeErrors();
+    setErrors(found);
+    if (Object.keys(found).length > 0) {
+      const firstKey = def.fields.find((f) => found[f.key])?.key;
+      if (firstKey) focusField(firstKey);
+      return;
+    }
     setBusy(true);
     try {
       await submitForm(def.id, values);
@@ -113,13 +127,19 @@ export function FormPanel({ panel }: { panel: Panel }) {
             onSubmit={(e) => { e.preventDefault(); void onSubmit(); }}
             className="flex flex-col gap-3"
           >
-            {def.fields.map((f) => (
+            {def.fields.map((f) => {
+              const err = errors[f.key];
+              const errId = `form-error-${f.key}`;
+              // Associate the inline error with the control for screen readers, and mark it invalid.
+              const errBind = err ? { "aria-invalid": true as const, "aria-describedby": errId } : {};
+              return (
               <label key={f.key} className="flex flex-col gap-1 text-sm">
                 <span className="font-bold">{f.label}{f.required ? " *" : ""}</span>
                 {f.help && <span className="text-xs text-muted-foreground">{f.help}</span>}
                 {f.type === "textarea" ? (
                   <textarea
                     data-testid={`form-field-${f.key}`}
+                    {...errBind}
                     value={String(get(f) ?? "")}
                     placeholder={f.placeholder ?? ""}
                     onChange={(e) => set(f.key, e.target.value)}
@@ -128,6 +148,7 @@ export function FormPanel({ panel }: { panel: Panel }) {
                 ) : f.type === "select" ? (
                   <select
                     data-testid={`form-field-${f.key}`}
+                    {...errBind}
                     value={String(get(f) ?? "")}
                     onChange={(e) => set(f.key, e.target.value)}
                     className="h-9 rounded border border-border bg-background px-2"
@@ -139,12 +160,13 @@ export function FormPanel({ panel }: { panel: Panel }) {
                   <input
                     type="checkbox"
                     data-testid={`form-field-${f.key}`}
+                    {...errBind}
                     checked={get(f) === true}
                     onChange={(e) => set(f.key, e.target.checked)}
                     className="h-4 w-4 self-start"
                   />
                 ) : f.type === "yesno" ? (
-                  <div data-testid={`form-field-${f.key}`} className="flex gap-3">
+                  <div data-testid={`form-field-${f.key}`} {...errBind} className="flex gap-3">
                     {[["Yes", true], ["No", false]].map(([lbl, val]) => (
                       <label key={lbl as string} className="flex items-center gap-1 font-normal">
                         <input type="radio" name={f.key} checked={get(f) === val} onChange={() => set(f.key, val)} /> {lbl}
@@ -152,7 +174,7 @@ export function FormPanel({ panel }: { panel: Panel }) {
                     ))}
                   </div>
                 ) : f.type === "radio" || f.type === "likert" ? (
-                  <div data-testid={`form-field-${f.key}`} className={f.type === "likert" ? "flex flex-wrap gap-3" : "flex flex-col gap-1"}>
+                  <div data-testid={`form-field-${f.key}`} {...errBind} className={f.type === "likert" ? "flex flex-wrap gap-3" : "flex flex-col gap-1"}>
                     {(f.options ?? []).map((o) => (
                       <label key={o} className="flex items-center gap-1 font-normal">
                         <input type="radio" name={f.key} value={o} checked={String(get(f) ?? "") === o} onChange={() => set(f.key, o)} /> {o}
@@ -160,7 +182,7 @@ export function FormPanel({ panel }: { panel: Panel }) {
                     ))}
                   </div>
                 ) : f.type === "multiselect" ? (
-                  <div data-testid={`form-field-${f.key}`} className="flex flex-col gap-1">
+                  <div data-testid={`form-field-${f.key}`} {...errBind} className="flex flex-col gap-1">
                     {(f.options ?? []).map((o) => {
                       const arr = Array.isArray(get(f)) ? (get(f) as string[]) : [];
                       return (
@@ -171,7 +193,7 @@ export function FormPanel({ panel }: { panel: Panel }) {
                     })}
                   </div>
                 ) : f.type === "address" ? (
-                  <div data-testid={`form-field-${f.key}`} className="flex flex-col gap-1">
+                  <div data-testid={`form-field-${f.key}`} {...errBind} className="flex flex-col gap-1">
                     {ADDRESS_PARTS.map((part) => {
                       const addr = (get(f) && typeof get(f) === "object" ? get(f) : {}) as Record<string, string>;
                       return (
@@ -184,15 +206,17 @@ export function FormPanel({ panel }: { panel: Panel }) {
                   <Input
                     type={f.type === "number" ? "number" : f.type === "date" ? "date" : f.type === "email" ? "email" : f.type === "url" ? "url" : "text"}
                     data-testid={`form-field-${f.key}`}
+                    {...errBind}
                     value={String(get(f) ?? "")}
                     placeholder={f.placeholder ?? ""}
                     {...(f.maxLength ? { maxLength: f.maxLength } : {})}
                     onChange={(e) => set(f.key, e.target.value)}
                   />
                 )}
-                {errors[f.key] && <span className="text-xs text-destructive" data-testid={`form-error-${f.key}`}>{errors[f.key]}</span>}
+                {err && <span id={errId} className="text-xs text-destructive" data-testid={`form-error-${f.key}`}>{err}</span>}
               </label>
-            ))}
+              );
+            })}
             <div>
               <Button type="submit" disabled={busy} data-testid="form-submit">{def.submitLabel ?? "Submit"}</Button>
             </div>
