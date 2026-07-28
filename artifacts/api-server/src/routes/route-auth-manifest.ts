@@ -80,6 +80,10 @@ export const ROUTE_AUTH_EXCEPTIONS: readonly RouteAuthException[] = [
   { file: "auth.ts", method: "post", path: "/auth/local/bootstrap", posture: "public", reason: "first-run admin bootstrap — gated by the no-users-yet precondition, pre-session" },
   { file: "auth.ts", method: "post", path: "/auth/passkey/step-up/challenge", posture: "in-handler", reason: "readSession → 401; steps up an EXISTING session" },
   { file: "auth.ts", method: "post", path: "/auth/passkey/step-up", posture: "in-handler", reason: "readSession → 401; steps up an EXISTING session" },
+  { file: "auth.ts", method: "post", path: "/auth/totp/enrol", posture: "in-handler", reason: "readSession → 401; starts app-native 2FA enrolment for the session subject" },
+  { file: "auth.ts", method: "post", path: "/auth/totp/confirm", posture: "in-handler", reason: "readSession → 401; activates 2FA for the session subject after proving a code" },
+  { file: "auth.ts", method: "post", path: "/auth/totp/step-up", posture: "in-handler", reason: "readSession → 401; steps up an EXISTING session with a TOTP/recovery code" },
+  { file: "auth.ts", method: "post", path: "/auth/totp/disable", posture: "in-handler", reason: "readSession → 401; disables 2FA for the session subject after proving a code" },
   { file: "auth.ts", method: "post", path: "/auth/logout", posture: "public", reason: "clears the session cookie — safe and idempotent with or without a session" },
   { file: "auth.ts", method: "post", path: "/auth/step-up", posture: "in-handler", reason: "readSession → 401; elevates an EXISTING session" },
 

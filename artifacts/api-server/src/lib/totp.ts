@@ -65,6 +65,20 @@ export function verifyTotp(secretB32: string, code: string, timeSec: number, p: 
   return delta !== null;
 }
 
+/**
+ * Verify like `verifyTotp` but return the ABSOLUTE time-step the code matched (or null on failure). The
+ * caller persists the highest consumed step and rejects any step ≤ it, so a code can't be replayed inside its
+ * validity window — a code is single-use even though it stays numerically valid for ~90s.
+ */
+export function verifyTotpStep(secretB32: string, code: string, timeSec: number, p: TotpParams & { window?: number } = {}): number | null {
+  const digits = p.digits ?? 6;
+  const period = p.period ?? 30;
+  const presented = (code ?? "").replace(/\s+/g, "");
+  if (presented.length !== digits || !/^\d+$/.test(presented)) return null;
+  const delta = totp(secretB32, p).validate({ token: presented, timestamp: timeSec * 1000, window: p.window ?? 1 });
+  return delta === null ? null : Math.floor(timeSec / period) + delta;
+}
+
 /** A fresh random base32 TOTP secret (default 160 bits, per RFC 6238's recommendation). */
 export function generateTotpSecret(bytes = 20): string {
   return new OTPAuth.Secret({ size: bytes }).base32;

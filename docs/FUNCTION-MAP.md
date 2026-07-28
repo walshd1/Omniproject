@@ -4132,6 +4132,23 @@ LIVE TIME TRACKING — a running "clock" (roadmap 3.3).
 | `elapsedHours` | Elapsed hours between `startedAt` and `nowMs`, rounded to 2 dp; never negative (clock skew ⇒ 0). |
 | `timerToEntry` | Build the timesheet entry a stopped timer produces (dated to the stop day). |
 
+### `artifacts/api-server/src/lib/totp-store.ts`
+
+PER-USER TOTP 2FA STORE — the enrolled authenticator secret + recovery-code hashes, in a SEPARATELY-KEYED sealed store, isolated from the config store, the AI vault, and the password store.
+
+| Function | What it does |
+| --- | --- |
+| `totpStoreEnabled` | Whether the TOTP store can persist (a path resolves). |
+| `_resetTotpCache` | Reset the in-memory cache — test-only. |
+| `getTotp` | This user's record, or null. |
+| `hasTotp` | True iff the user has a CONFIRMED (active) TOTP enrolment. |
+| `totpStatus` | A client-safe status summary. |
+| `beginEnrolment` | Start (or restart) enrolment with a fresh secret. |
+| `confirmEnrolment` | Confirm a pending enrolment: mark it active and store the recovery-code hashes. |
+| `recordStep` | Record the highest consumed step (the replay lock) after a successful verification. |
+| `consumeRecovery` | Consume a recovery code (constant-time over the stored hashes). |
+| `disableTotp` | Disable 2FA for a user (remove the record). |
+
 ### `artifacts/api-server/src/lib/totp.ts`
 
 TOTP (RFC 6238) for app-native two-factor auth — a thin wrapper over the audited, widely-used `otpauth` library (itself backed by `@noble/hashes`).
@@ -4142,6 +4159,7 @@ TOTP (RFC 6238) for app-native two-factor auth — a thin wrapper over the audit
 | `base32Decode` | Decode an (optionally spaced/padded, any-case) base32 string to bytes via the library. |
 | `totpCode` | The TOTP code for a base32 secret at a given unix time (seconds). |
 | `verifyTotp` | Verify a presented code against the secret at `timeSec`, accepting ±`window` steps (default 1 → tolerates ~30s of clock skew each way). |
+| `verifyTotpStep` | Verify like `verifyTotp` but return the ABSOLUTE time-step the code matched (or null on failure). |
 | `generateTotpSecret` | A fresh random base32 TOTP secret (default 160 bits, per RFC 6238's recommendation). |
 | `otpauthUrl` | The `otpauth://` provisioning URI an authenticator app scans as a QR code. |
 | `generateRecoveryCodes` | N single-use recovery codes (grouped, lower-case) that bypass TOTP when a device is lost. |
