@@ -112,7 +112,7 @@ services:
   gateway:
     build:
       context: .
-    image: omniproject-shell:0.2.0
+    image: omniproject-shell:0.6.0
     depends_on:
       n8n: { condition: service_healthy }
     environment:

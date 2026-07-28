@@ -29,7 +29,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    image: omniproject-shell:0.2.0
+    image: omniproject-shell:0.6.0
     container_name: omni-shell
     ports:
       # Published on all interfaces by default — reachable on your LAN with no
