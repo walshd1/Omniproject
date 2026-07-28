@@ -50,6 +50,7 @@ workflow populates the optional labels below.
 | **Agile (umbrella)** | ✅ | Covered by the Kanban + Scrum views (grouped under "Agile"). |
 | **Kanban / Lean** | ✅ | Kanban view with WIP limits. |
 | **Scrum** | ✅ | Sprint board, backlog, burndown, velocity. |
+| **Scrumban** | ✅ | Selectable pack (`assets/methodologies/scrumban.json`) — Kanban flow with sprint cadence. |
 | **Waterfall** | ✅ | The Gantt view is a time-phased waterfall schedule. |
 | **Critical Path (CPM)** | ✅ | Critical-path engine (`lib/backend-catalogue/src/critical-path.ts`) + the Critical Path report (`components/reports/CriticalPath.tsx`) compute the critical path from the durable `dependencies` slot; the Gantt shows the schedule. |
 | **PRINCE2** | ✅ | Management stages + highlight report (RAG, exceptions, tolerance breach). |
