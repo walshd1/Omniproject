@@ -661,12 +661,47 @@ jobs:
   # the image can't build, can't boot, or doesn't serve both the API and the SPA.
   docker-image:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Build the omni-shell image
         run: docker build -t omni-shell:ci .
+
+      # Container-image CVE scan (IAM assessment gap S9): scan the image we just built for known
+      # vulnerabilities and BLOCK on HIGH/CRITICAL. Trivy is installed via the repo's checksum-verified
+      # downloader (no unpinned third-party action, no curl|sh) — same discipline as the kubeconform lint.
+      # `--ignore-unfixed`: a blocking gate must be actionable, so CVEs with no upstream fix yet (base-image
+      # noise you can't remediate) are reported but don't fail the build; a fixable HIGH/CRITICAL does.
+      # Trivy pulls its vuln DB from ghcr.io (not Docker Hub), so this doesn't add Docker-Hub-pull flakiness;
+      # it fails closed on a scan error, consistent with the dependency-scan gate.
+      - name: Install Trivy (checksum-verified)
+        env:
+          # Pin the immutable SHA-256 (from the release CHECKSUMS) for full supply-chain protection.
+          # Empty ⇒ fetch-verified falls back to the release-published checksums file and warns; fill this
+          # to upgrade to a hard pin — see scripts/ci/fetch-verified.sh.
+          TRIVY_SHA256: ""
+        run: |
+          ver="0.58.0"
+          bash scripts/ci/fetch-verified.sh \
+            --url "https://github.com/aquasecurity/trivy/releases/download/v${ver}/trivy_${ver}_Linux-64bit.tar.gz" \
+            --out trivy.tar.gz \
+            --sha256 "$TRIVY_SHA256" \
+            --checksums-url "https://github.com/aquasecurity/trivy/releases/download/v${ver}/trivy_${ver}_checksums.txt" \
+            --checksums-name "trivy_${ver}_Linux-64bit.tar.gz"
+          tar -xzf trivy.tar.gz trivy
+          ./trivy --version
+
+      - name: Scan the image for HIGH/CRITICAL CVEs (Trivy)
+        run: |
+          ./trivy image \
+            --scanners vuln \
+            --severity HIGH,CRITICAL \
+            --ignore-unfixed \
+            --exit-code 1 \
+            --no-progress \
+            --format table \
+            omni-shell:ci
 
       - name: Smoke-boot in demo mode (API health + served SPA root)
         run: |

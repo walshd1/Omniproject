@@ -86,6 +86,7 @@ file on a control's status or location, **this file wins and should be updated f
 | Digest-pinned base + `--ignore-scripts` | `Dockerfile` | grep the `@sha256:` pin; CI `ci.yml` install steps |
 | Non-root / read-only / dropped-caps | `deploy/helm/omniproject/values.yaml`; `k8s-enterprise-manifest.yaml` | `__tests__/helm-guard.test.ts` (asserts the posture) |
 | SBOM + dependency scan | `.github/workflows/ci.yml` (`dependency-scan`: pnpm audit `--audit-level high`, CycloneDX) | CI job logs; [SUPPLY-CHAIN.md](SUPPLY-CHAIN.md) |
+| Container-image CVE scan (blocks on fixable HIGH/CRITICAL) | `.github/workflows/ci.yml` (`docker-image` job → Trivy `image --severity HIGH,CRITICAL --ignore-unfixed --exit-code 1`; Trivy installed checksum-verified via `scripts/ci/fetch-verified.sh`) | CI `docker-image` job logs |
 | Secret scanning (gitleaks) | `.github/workflows/ci.yml` (`secret-scan` job), `.gitleaks.toml` | CI `secret-scan` job logs |
 | SAST (CodeQL) | `.github/workflows/codeql.yml` (`security-extended` pack) | CI `codeql` job logs / code-scanning alerts |
 | Static taint scan (semgrep) | `.github/workflows/ci.yml` (`taint-scan` job), `.semgrep/omniproject.yml` | CI `taint-scan` job logs |
