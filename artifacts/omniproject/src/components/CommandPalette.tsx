@@ -11,6 +11,7 @@ import { reportCatalogue } from "@workspace/backend-catalogue";
 import { useRecentItems } from "../lib/recent-items";
 import { useSidePanel } from "../lib/side-panel";
 import { useFeatures, featureEnabled } from "../lib/features";
+import { useUndoRedo } from "../lib/use-undo-redo";
 
 // The full report catalogue is static data — compute the palette's jump targets once. Each id has a
 // matching scroll-anchor on the Reports page (see pages/Reports.tsx), so ⌘K → report = exactly 2 actions.
@@ -35,6 +36,7 @@ export function CommandPalette() {
   const [, setLocation] = useLocation();
   const { data: projects } = useListProjects();
   const navItems = useVisibleNavItems();
+  const { undo, redo, canUndo, canRedo } = useUndoRedo();
   // Recently-visited entities (projects / programmes / issues) — the same personal recents the global
   // search shows, surfaced at the top of the palette so ⌘K jumps straight back. Routes exactly as the
   // search overlay does; the issue side-panel opens only where that module is enabled.
@@ -140,6 +142,22 @@ export function CommandPalette() {
             >
               Keyboard shortcuts
             </Command.Item>
+            {canUndo && (
+              <Command.Item
+                onSelect={() => { undo(); setCommandOpen(false); }}
+                className="px-2 py-2 text-sm text-foreground hover:bg-accent cursor-pointer flex items-center gap-2"
+              >
+                Undo last edit <span className="text-muted-foreground text-xs">· ⌘Z</span>
+              </Command.Item>
+            )}
+            {canRedo && (
+              <Command.Item
+                onSelect={() => { redo(); setCommandOpen(false); }}
+                className="px-2 py-2 text-sm text-foreground hover:bg-accent cursor-pointer flex items-center gap-2"
+              >
+                Redo edit <span className="text-muted-foreground text-xs">· ⇧⌘Z</span>
+              </Command.Item>
+            )}
           </Command.Group>
 
           {projects && projects.length > 0 && (

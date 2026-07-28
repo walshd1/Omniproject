@@ -8,6 +8,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { ToastAction } from "@/components/ui/toast";
 import { useInvalidateIssueQueries } from "../hooks/use-invalidate-issue-queries";
+import { useEditHistory } from "./edit-history";
 
 /**
  * One place to write a single field on one issue — optimistic, concurrency-safe, with optional
@@ -66,9 +67,24 @@ export function useIssueFieldWrite() {
     );
   }
 
+  /** Re-apply a field value WITHOUT recording it in the undo history — the inverse/forward step for
+   *  undo & redo. Reads the freshest cached issue (so the write stays concurrency-safe) and skips a
+   *  no-op when the field already holds the target value. */
+  function apply(projectId: string, issueId: string, field: keyof IssueUpdate & string, value: unknown) {
+    const cur = current(projectId, issueId);
+    if (!cur) return;
+    if (((cur as unknown as Record<string, unknown>)[field] ?? null) === (value ?? null)) return;
+    run(projectId, cur, field, value);
+  }
+
   /** Write `field = value` on `issue`; with `undoable`, offer a one-click revert. */
   function write(projectId: string, issue: Issue, field: keyof IssueUpdate & string, value: unknown, opts: FieldWriteOptions = {}) {
     const previous = (issue as unknown as Record<string, unknown>)[field] ?? null;
+    // Record every value-changing edit on the shared undo/redo stack (the multi-step counterpart to the
+    // one-shot toast). Guarded on a real change so no-op commits don't clutter history.
+    if ((previous ?? null) !== (value ?? null)) {
+      useEditHistory.getState().record({ projectId, issueId: issue.id, field, from: previous, to: value ?? null, label: opts.label ?? field });
+    }
     run(projectId, issue, field, value, () => {
       if (!opts.undoable || previous === value) return;
       toast({
@@ -86,5 +102,5 @@ export function useIssueFieldWrite() {
     });
   }
 
-  return { write };
+  return { write, apply };
 }
