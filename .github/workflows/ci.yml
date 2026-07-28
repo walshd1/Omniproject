@@ -668,13 +668,17 @@ jobs:
       - name: Build the omni-shell image
         run: docker build -t omni-shell:ci .
 
-      # Container-image CVE scan (IAM assessment gap S9): scan the image we just built for known
-      # vulnerabilities and BLOCK on HIGH/CRITICAL. Trivy is installed via the repo's checksum-verified
-      # downloader (no unpinned third-party action, no curl|sh) — same discipline as the kubeconform lint.
-      # `--ignore-unfixed`: a blocking gate must be actionable, so CVEs with no upstream fix yet (base-image
-      # noise you can't remediate) are reported but don't fail the build; a fixable HIGH/CRITICAL does.
-      # Trivy pulls its vuln DB from ghcr.io (not Docker Hub), so this doesn't add Docker-Hub-pull flakiness;
-      # it fails closed on a scan error, consistent with the dependency-scan gate.
+      # Container-image OS-layer CVE scan (IAM assessment gap S9): scan the image we just built and BLOCK
+      # on fixable HIGH/CRITICAL in the OS/distro layer — the layer the pnpm lockfile can't see (the
+      # `dependency-scan` job already gates the app's JS dependencies via `pnpm audit`). Scoped to
+      # `--pkg-types os` on purpose: the app's own Node deps are covered elsewhere, and language findings
+      # in the base image's OWN bundled tooling (e.g. the `npm` that ships inside node:*-slim) are upstream
+      # base-image concerns with no fixed base image yet — out of this repo's control, so they don't gate.
+      # Trivy is installed via the repo's checksum-verified downloader (no unpinned third-party action, no
+      # curl|sh) — same discipline as the kubeconform lint. `--ignore-unfixed`: a blocking gate must be
+      # actionable, so a CVE with no upstream fix is reported, not a build-blocker. Trivy pulls its vuln DB
+      # from ghcr.io (not Docker Hub) so this adds no Docker-Hub-pull flakiness, and it fails closed on a
+      # scan error, consistent with the dependency-scan gate.
       - name: Install Trivy (checksum-verified)
         env:
           # Pin the immutable SHA-256 (from the release CHECKSUMS) for full supply-chain protection.
@@ -696,6 +700,7 @@ jobs:
         run: |
           ./trivy image \
             --scanners vuln \
+            --pkg-types os \
             --severity HIGH,CRITICAL \
             --ignore-unfixed \
             --exit-code 1 \
