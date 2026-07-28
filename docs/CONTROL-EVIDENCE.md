@@ -101,7 +101,7 @@ file on a control's status or location, **this file wins and should be updated f
 | Broker↔gateway signed envelope (HMAC+PSK) | `lib/broker-hmac.ts` (+ Redis-gated fleet replay) | `lib/broker-hmac.test.ts` |
 | Read-seam data sanitizer + data-quality signal | `broker/sanitizer.ts` (`wrapWithSanitizer`, wired `broker/index.ts`; strips `__proto__`/`constructor`/`prototype`), `lib/data-quality.ts` | `broker/sanitizer.test.ts`; runtime `X-OmniProject-Data-Repaired` response header |
 | DSAR report (content-free) | `lib/dsar.ts` (`buildDsarReport`) | `lib/dsar.test.ts`; runtime `GET /api/security/dsar` |
-| Retention / history | `history/retention.ts` (`recordWrite`, `buildTrend`) | `history/*.test.ts` |
+| Retention / history (auto-captured at the broker seam, off-by-default) | `history/retention.ts` (`recordWrite`, `buildTrend`) + `broker/retention-capture.ts` (`wrapWithRetentionCapture`, gated on `retentionSourceFor`) | `history/*.test.ts`, `broker/retention-capture.test.ts` |
 
 ## Whole-suite verification (one command each)
 
