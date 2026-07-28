@@ -126,7 +126,6 @@ Fit, maturity, and evaluation.
 - **[ENTERPRISE-GA-CHECKLIST.md](ENTERPRISE-GA-CHECKLIST.md)** — the enterprise go/no-go tracker: the deciding artifacts (verified connector, SOC 2, published scale run, lighthouse pilot) that flip "impressive" to "yes", with acceptance evidence.
 - **[POV-SUCCESS-CRITERIA.md](POV-SUCCESS-CRITERIA.md)** — the time-boxed Proof-of-Value plan: entry gates, measurable success criteria, and the five go/no-go gates.
 - **[PILOT-RUNBOOK.md](PILOT-RUNBOOK.md)** — the internal-dogfood pilot runbook: a read-only-first, two-sprint pilot against a live Jira via the standalone stack.
-- **[TASK-MANAGEMENT-ASSESSMENT.md](TASK-MANAGEMENT-ASSESSMENT.md)** — the task-management best-in-class assessment and the delivered task-plane wave.
 - **[SMALL-ORG-GUIDE.md](SMALL-ORG-GUIDE.md)** — the non-technical walkthrough for small teams, charities and self-hosters.
 - **[SAFE-FIRST-RUN.md](SAFE-FIRST-RUN.md)** — the step-by-step path to evaluating against real data safely (dry-run, read-only first).
 - **[FEATURE-MATURITY.md](FEATURE-MATURITY.md)** — a feature-by-feature maturity read: stable / beta / prototype / nominal, plus the buried debt.

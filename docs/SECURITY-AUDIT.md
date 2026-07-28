@@ -25,6 +25,11 @@ are therefore **defence-in-depth and UX**, layered on top of — not a replaceme
 
 ## Control summary
 
+> The **canonical** control → file → *how-to-verify* mapping lives in
+> [CONTROL-EVIDENCE.md](CONTROL-EVIDENCE.md); this table is the posture-level summary. When the two
+> disagree, CONTROL-EVIDENCE (which is code-anchored) wins — update it first. The framework mapping
+> (SOC 2 / ISO / NIST) lives in [COMPLIANCE.md](COMPLIANCE.md).
+
 | Domain | Control | Module(s) | Default |
 | --- | --- | --- | --- |
 | Authentication | OIDC + OAuth2/PKCE + SAML + magic-link; read-only API tokens | `routes/auth`, `lib/api-token` | OIDC |

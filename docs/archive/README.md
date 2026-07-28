@@ -37,6 +37,15 @@ explicitly *not implemented* and parked. Kept for the reasoning, not as a descri
 - `broker-protocol-v2.md` — the broker wire-protocol v2 rollout RFC (implemented; the maintained
   reference is `docs/BROKER-HTTP-BINDING.md`).
 
+## Competitive-gap assessments (wave delivered)
+
+Point-in-time "confirm-the-moat, then a focused gap wave" assessments whose gap wave has since shipped.
+Kept for the reasoning; the delivered features are described in the current docs.
+
+- `TASK-MANAGEMENT-ASSESSMENT.md` — the GTD task / next-action capability assessment; its wave
+  (task dependencies, GTD contexts, workload/WIP, bulk planner, plan-my-day) is delivered. Current
+  status lives in [../FEATURE-ROADMAP.md](../FEATURE-ROADMAP.md) and [../FEATURE-MATURITY.md](../FEATURE-MATURITY.md).
+
 ## `releases/` — superseded release notes
 
 Per-release notes now subsumed by the top-level [CHANGELOG](../../CHANGELOG.md).

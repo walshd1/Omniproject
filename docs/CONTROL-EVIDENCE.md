@@ -6,6 +6,11 @@ that implements it** and the **command, test or endpoint that proves it** — so
 verified from a clean checkout without taking the claim on trust. Paths are relative to the repo root;
 line numbers drift, so the named function/env is the durable anchor.
 
+**This file is the single source of truth for "which control, in which file, proven how."** SECURITY-AUDIT,
+THREAT-MODEL, SECURITY-QUESTIONNAIRE, COMPLIANCE and ENTERPRISE-READINESS restate controls through their own
+lens (posture, attacker, buyer Q&A, framework map, gap analysis) — but when any of them disagrees with this
+file on a control's status or location, **this file wins and should be updated first.**
+
 > **How to use.** `pnpm install` then run the per-row verification. Unit/integration proof runs offline
 > (`node:test`/`vitest`); CI guards are in `.github/workflows/ci.yml`; runtime proof needs a running
 > instance (`curl` the endpoint). "Test" columns point at the sibling `*.test.ts` that exercises the control.
