@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, afterEach, vi } from "vitest";
-import { screen, fireEvent } from "@testing-library/react";
+import { screen, fireEvent, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient } from "@tanstack/react-query";
 import {
@@ -401,6 +401,19 @@ describe("GanttChart", () => {
       renderWithProviders(<><GanttChart projectId={PROJECT_ID} /><Toaster /></>, { client: qc });
       fireEvent.click(screen.getByTestId("gantt-link-a-b"));
       expect(await screen.findByText("UNLINKED")).toBeInTheDocument();
+    });
+
+    it("removes a dependency via the keyboard (Enter on the arrow)", async () => {
+      const qc = withDeps(twoScheduled(), [{ fromId: "a", toId: "b", kind: "blocks" }]);
+      mockFetchRouter({
+        [`DELETE /api/projects/${PROJECT_ID}/mapping/dependencies/a__blocks__b`]: { ok: true, body: {} },
+        [`/api/projects/${PROJECT_ID}/mapping/dependencies/rows`]: { ok: true, body: { rows: [] } },
+      });
+      renderWithProviders(<GanttChart projectId={PROJECT_ID} />, { client: qc });
+      expect(screen.getByTestId("gantt-link-a-b")).toBeInTheDocument();
+      // Enter on the focused arrow triggers the same removeLink as a click — the edge drops optimistically.
+      fireEvent.keyDown(screen.getByTestId("gantt-link-a-b"), { key: "Enter" });
+      await waitFor(() => expect(screen.queryByTestId("gantt-link-a-b")).toBeNull());
     });
 
     it("reverts and shows an ERROR toast when removing a link fails", async () => {

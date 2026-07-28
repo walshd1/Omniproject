@@ -334,8 +334,12 @@ export function GanttChart({ projectId }: { projectId: string }) {
                           className="pointer-events-auto cursor-pointer"
                           data-testid={`gantt-link-${fromId}-${toId}`}
                           role="button"
+                          tabIndex={0}
                           aria-label={`Remove dependency ${titleOf(fromId)} → ${titleOf(toId)}`}
                           onClick={() => removeLink(fromId, toId, kind)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" || e.key === " ") { e.preventDefault(); removeLink(fromId, toId, kind); }
+                          }}
                         />
                       </g>
                     );
