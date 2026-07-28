@@ -1,6 +1,7 @@
 import { ReactNode, useEffect, useRef, useState } from "react";
 import { Link, useLocation } from "wouter";
 import { CommandPalette } from "../CommandPalette";
+import { UndoRedoHotkeys } from "../UndoRedoHotkeys";
 import { NewTaskDialog } from "../NewTaskDialog";
 import { NewProjectDialog } from "../NewProjectDialog";
 import { ShortcutsDialog } from "../ShortcutsDialog";
@@ -396,6 +397,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
       </main>
 
       <CommandPalette />
+      <UndoRedoHotkeys />
       <ShortcutsDialog open={isShortcutsOpen} onOpenChange={setShortcutsOpen} />
       <ReportProblemDialog open={reportOpen} onOpenChange={setReportOpen} />
       {/* Global "new task" — requires an explicit project (a task always belongs
