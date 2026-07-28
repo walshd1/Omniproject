@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from "vitest";
 import { screen, fireEvent, within } from "@testing-library/react";
 import { render } from "@testing-library/react";
 import { RecordBoard } from "./RecordBoard";
-import type { BoardColumn, ViewRecord } from "../../lib/view-engine/types";
+import type { BoardColumn, EntityField, ViewRecord } from "../../lib/view-engine/types";
 
 /**
  * The generic kanban engine behind both the issue Kanban and the task GTD board. These tests drive
@@ -285,6 +285,39 @@ describe("RecordBoard", () => {
     expect(screen.getByText("2 / 1")).toBeInTheDocument();
     expect(screen.getByTestId("board-col-over-wip-wip")).toBeInTheDocument();
     expect(screen.queryByTestId("board-col-over-wip-todo")).not.toBeInTheDocument();
+  });
+
+  it("renders horizontal swimlanes when swimlaneBy is set, splitting cards by that field", () => {
+    const fields: EntityField<{ id: string; owner?: string }>[] = [{ key: "owner", label: "Owner", get: (r) => r.owner }];
+    render(
+      <RecordBoard
+        records={[
+          rec({ id: "a", title: "Alpha", status: "todo", raw: { id: "a", owner: "ada" } }) as ViewRecord<{ id: string; owner?: string }>,
+          rec({ id: "b", title: "Bravo", status: "done", raw: { id: "b", owner: "bob" } }) as ViewRecord<{ id: string; owner?: string }>,
+        ]}
+        columns={COLUMNS}
+        noun="task"
+        labelForPriority={labelForPriority}
+        swimlaneBy="owner"
+        fields={fields}
+        onMove={vi.fn()}
+        onOpen={vi.fn()}
+      />,
+    );
+    // One lane per owner; each card lands in its owner's lane.
+    const adaLane = screen.getByTestId("swimlane-ada");
+    const bobLane = screen.getByTestId("swimlane-bob");
+    expect(within(adaLane).getByText("Alpha")).toBeInTheDocument();
+    expect(within(adaLane).queryByText("Bravo")).toBeNull();
+    expect(within(bobLane).getByText("Bravo")).toBeInTheDocument();
+  });
+
+  it("stays flat (no swimlane rows) when swimlaneBy is omitted", () => {
+    render(
+      <RecordBoard records={[rec({ id: "a", title: "Alpha" })]} columns={COLUMNS} noun="task" labelForPriority={labelForPriority} onMove={vi.fn()} onOpen={vi.fn()} />,
+    );
+    expect(screen.getByTestId("record-board")).toBeInTheDocument();
+    expect(screen.queryByTestId(/^swimlane-/)).toBeNull();
   });
 
   it("does not flag a column at or under its WIP limit", () => {
