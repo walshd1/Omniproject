@@ -4134,17 +4134,17 @@ LIVE TIME TRACKING — a running "clock" (roadmap 3.3).
 
 ### `artifacts/api-server/src/lib/totp.ts`
 
-TOTP (RFC 6238) — the pure, dependency-free crypto core for app-native two-factor auth.
+TOTP (RFC 6238) for app-native two-factor auth — a thin wrapper over the audited, widely-used `otpauth` library (itself backed by `@noble/hashes`).
 
 | Function | What it does |
 | --- | --- |
-| `base32Encode` | Encode bytes as unpadded RFC 4648 base32 (the form authenticator apps expect for the shared secret). |
-| `base32Decode` | Decode an (optionally spaced/padded, any-case) base32 string to bytes. |
+| `base32Encode` | Encode bytes as unpadded RFC 4648 base32 (the authenticator secret form) via the library. |
+| `base32Decode` | Decode an (optionally spaced/padded, any-case) base32 string to bytes via the library. |
 | `totpCode` | The TOTP code for a base32 secret at a given unix time (seconds). |
 | `verifyTotp` | Verify a presented code against the secret at `timeSec`, accepting ±`window` steps (default 1 → tolerates ~30s of clock skew each way). |
 | `generateTotpSecret` | A fresh random base32 TOTP secret (default 160 bits, per RFC 6238's recommendation). |
 | `otpauthUrl` | The `otpauth://` provisioning URI an authenticator app scans as a QR code. |
-| `generateRecoveryCodes` | N single-use recovery codes (grouped, lower-case base32) that bypass TOTP when a device is lost. |
+| `generateRecoveryCodes` | N single-use recovery codes (grouped, lower-case) that bypass TOTP when a device is lost. |
 | `normalizeRecoveryCode` | Normalise a recovery code for comparison (strip spacing/dashes, lower-case) so display grouping is ignored. |
 
 ### `artifacts/api-server/src/lib/tracing.ts`
