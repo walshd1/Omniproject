@@ -69,6 +69,22 @@ this service; the gateway handles metadata and links, nothing else.
 A `<key>` is a flat, path-traversal-safe token (`[A-Za-z0-9._-]{1,200}`, no `/`, no `..`). Uploads past
 `ATTACHMENTS_MAX_BYTES` (default 25 MB) are rejected `413`.
 
+## Malware / AV scanning
+
+Every upload is scanned **before it is stored** (`src/scan.mjs`); a file that fails is rejected `422` and
+never written — so a malicious upload is caught here, in the one container it ever touches, and never becomes
+downloadable. Two layers:
+
+- **Always-on heuristics** (zero-dependency): the **EICAR** test signature and raw executable / script magic
+  bytes (PE `MZ`, ELF, Mach-O, Java class, `#!` shebang). Content-based — a renamed executable is still caught.
+  Executables are refused by default (`ATTACHMENTS_SCAN_ALLOW_EXECUTABLES=1` to allow).
+- **Optional ClamAV**: set `ATTACHMENTS_CLAMAV_ADDRESS=host:3310` and the bytes are streamed to a `clamd`
+  (INSTREAM, over `node:net`, no npm dependency) for full signature detection. **Fail-closed** by default (a
+  scanner outage rejects the upload); `ATTACHMENTS_SCAN_FAIL_OPEN=1` allows through in a degraded mode. A real
+  detection is always fatal.
+
+Run `clamd` as its own service (same separate-VM logic as the sidecar), never in the gateway.
+
 ## Run
 
 ```bash
@@ -95,6 +111,10 @@ Then point the gateway at it (a later slice wires this):
 | `ATTACHMENTS_BROKER_ALLOW_ANON` | — | Set `1` to accept **unauthenticated** server-plane requests (loopback-only dev; never production — logs a warning). |
 | `ATTACHMENTS_BROKER_DIR` | `/data` | The writable volume the bytes live in. Mount it; the container root FS can stay read-only. |
 | `ATTACHMENTS_MAX_BYTES` | `26214400` | Max upload size (bytes). |
+| `ATTACHMENTS_CLAMAV_ADDRESS` | — | `host:port` of a ClamAV `clamd` for signature-based AV. Unset ⇒ heuristics only. |
+| `ATTACHMENTS_CLAMAV_TIMEOUT_MS` | `30000` | Per-scan ClamAV timeout. |
+| `ATTACHMENTS_SCAN_FAIL_OPEN` | — | Set `1` to allow an upload through (degraded) when ClamAV is unreachable/errors. Default fails closed. |
+| `ATTACHMENTS_SCAN_ALLOW_EXECUTABLES` | — | Set `1` to permit executable/script uploads (default refuses them by magic bytes). |
 | `HOST` | `0.0.0.0` | Set `127.0.0.1` to bind loopback only. |
 | `PORT` | `8091` | Listen port. |
 

@@ -19,6 +19,7 @@ import { createServer } from "node:http";
 import { timingSafeEqual } from "node:crypto";
 import { createFsStore, isValidKey } from "./store.mjs";
 import { verifyTicket } from "./ticket.mjs";
+import { scanBlob } from "./scan.mjs";
 
 const DEFAULT_MAX_BODY_BYTES = 25 * 1024 * 1024;
 
@@ -66,13 +67,14 @@ function corsHeaders(origin) {
   };
 }
 
-/** Build the request handler. `opts`: { store, token, ticketSecret, allowedOrigin, maxBytes }. */
+/** Build the request handler. `opts`: { store, token, ticketSecret, allowedOrigin, maxBytes, scan }. */
 export function createHandler(opts) {
   const store = opts.store;
   const token = opts.token;
   const ticketSecret = opts.ticketSecret;
   const origin = opts.allowedOrigin || "*";
   const limit = opts.maxBytes ?? DEFAULT_MAX_BODY_BYTES;
+  const scanOpts = opts.scan ?? {};
   const cors = corsHeaders(origin);
 
   return async (req, res) => {
@@ -96,7 +98,17 @@ export function createHandler(opts) {
       try {
         if (op === "put") {
           const buf = await readBody(req, limit);
-          return send(res, 200, { ok: true, ...(await store.put(key, buf)) }, cors);
+          // Scan the bytes BEFORE storing them. A malicious upload is refused here — never written, so it
+          // never becomes downloadable and the gateway never records a pointer for it (its record-step HEAD
+          // will 404). This is the one place the bytes exist, so it's the only place scanning can happen.
+          const verdict = await scanBlob(buf, scanOpts);
+          if (!verdict.ok) {
+            // eslint-disable-next-line no-console
+            console.warn("attachments-broker: upload rejected by scan", { key, reason: verdict.reason });
+            return send(res, 422, { error: "rejected by malware scan", reason: verdict.reason }, cors);
+          }
+          const stored = await store.put(key, buf);
+          return send(res, 200, { ok: true, ...stored, ...(verdict.degraded ? { scan: "degraded", degraded: verdict.degraded } : {}) }, cors);
         }
         const bytes = await store.get(key);
         if (!bytes) return send(res, 404, { error: "not found" }, cors);
@@ -156,6 +168,13 @@ export function main() {
   const ticketSecret = process.env["ATTACHMENTS_TICKET_SECRET"]?.trim();
   const allowedOrigin = process.env["ATTACHMENTS_ALLOWED_ORIGIN"]?.trim() || "*";
   const allowAnon = process.env["ATTACHMENTS_BROKER_ALLOW_ANON"] === "1";
+  // Malware/AV scan config. Heuristics (EICAR + executable magic) are ALWAYS on; ClamAV is optional.
+  const scan = {
+    clamavAddress: process.env["ATTACHMENTS_CLAMAV_ADDRESS"]?.trim() || undefined,
+    clamavTimeoutMs: Number(process.env["ATTACHMENTS_CLAMAV_TIMEOUT_MS"]) || 30_000,
+    failOpen: process.env["ATTACHMENTS_SCAN_FAIL_OPEN"] === "1",
+    allowExecutables: process.env["ATTACHMENTS_SCAN_ALLOW_EXECUTABLES"] === "1",
+  };
   // Fail closed: the server plane reads/deletes user file bytes, so refuse to serve it unauthenticated
   // unless the operator explicitly opts in (loopback-only dev).
   if (!token && !allowAnon) {
@@ -175,10 +194,11 @@ export function main() {
     console.warn(`attachments-broker: WARNING — server plane UNAUTHENTICATED (ATTACHMENTS_BROKER_ALLOW_ANON=1) on ${host}:${port}`);
   }
   const store = createFsStore(dir);
-  const handler = createHandler({ store, token: token || undefined, ticketSecret: ticketSecret || undefined, allowedOrigin });
+  const handler = createHandler({ store, token: token || undefined, ticketSecret: ticketSecret || undefined, allowedOrigin, scan });
   createServer((req, res) => void handler(req, res)).listen(port, host, () => {
+    const av = scan.clamavAddress ? `clamav=${scan.clamavAddress}${scan.failOpen ? " (fail-open)" : ""}` : "clamav=off";
     // eslint-disable-next-line no-console
-    console.log(`attachments-broker listening on ${host}:${port} (dir=${dir}, portal=${ticketSecret ? "on" : "off"}, cors=${allowedOrigin})`);
+    console.log(`attachments-broker listening on ${host}:${port} (dir=${dir}, portal=${ticketSecret ? "on" : "off"}, cors=${allowedOrigin}, scan=heuristic+${av})`);
   });
 }
 

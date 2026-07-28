@@ -55,6 +55,23 @@ test("portal: PUT with a valid ticket stores bytes; GET with a valid ticket retu
   });
 });
 
+test("portal: an upload that fails the malware scan is 422 and is NOT stored", async () => {
+  await withServer(async ({ base, putTicket, getTicket }) => {
+    // The EICAR test signature (assembled from fragments) must be rejected by the always-on heuristic scan.
+    const eicar = ["X5O!P%@AP[4\\PZX54(P^)7CC)7}", "$EICAR-STANDARD-", "ANTIVIRUS-TEST-FILE!", "$H+H*"].join("");
+    const put = await fetch(`${base}/portal/mal?ticket=${putTicket("mal")}`, { method: "PUT", body: eicar });
+    assert.equal(put.status, 422);
+    assert.equal((await put.json()).reason, "eicar-test-signature");
+    // Nothing was written, so a later fetch with a valid ticket 404s.
+    assert.equal((await fetch(`${base}/portal/mal?ticket=${getTicket("mal")}`)).status, 404);
+
+    // A raw executable (PE "MZ" magic) is refused by content, regardless of name.
+    const exe = await fetch(`${base}/portal/exe?ticket=${putTicket("exe")}`, { method: "PUT", body: new Uint8Array([0x4d, 0x5a, 0x90, 0x0]) });
+    assert.equal(exe.status, 422);
+    assert.match((await exe.json()).reason, /executable/);
+  });
+});
+
 test("portal: a missing/invalid/expired/wrong-op ticket is 401", async () => {
   await withServer(async ({ base, putTicket, getTicket }) => {
     assert.equal((await fetch(`${base}/portal/k1`, { method: "PUT", body: "x" })).status, 401); // no ticket

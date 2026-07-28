@@ -61,6 +61,25 @@ The sidecar verifies the signature, the op, the key, and the expiry before servi
 transfer. A leaked ticket can't be replayed against another blob or after its short window, and the browser
 never needs the admin bearer token.
 
+## Malware / AV scanning
+
+Because the sidecar is the ONE place a file's bytes ever exist, it is the only correct place to scan them —
+and it does, **on upload, before the blob is stored**. A file that fails is rejected (`422`) and never
+written, so it never becomes downloadable and the gateway never records a pointer for it (the record step's
+server-plane `HEAD` then `404`s). Two layers, "as much as we can" without bloating the zero-dependency image:
+
+1. **Always-on heuristic scan** (`services/attachments-broker/src/scan.mjs`, node built-ins only) — the
+   **EICAR** antivirus test signature and raw **executable / script magic bytes** (PE `MZ`, ELF, Mach-O, Java
+   class, `#!` shebang scripts). Content-based, so a renamed `.exe` is still caught. Attachments are documents,
+   not runnables, so executables are refused by default (`ATTACHMENTS_SCAN_ALLOW_EXECUTABLES=1` opts in).
+2. **Optional real AV — ClamAV.** When `ATTACHMENTS_CLAMAV_ADDRESS` points at a `clamd`, the bytes are streamed
+   to it (INSTREAM protocol over a socket, still no npm dependency) for full signature-based detection. It is
+   **fail-closed** by default — if the scanner is unreachable or errors, the upload is rejected;
+   `ATTACHMENTS_SCAN_FAIL_OPEN=1` allows it through in a flagged, degraded mode instead. `clamd` is best run as
+   its own service alongside the sidecar (same separate-VM logic), never in the gateway.
+
+A real detection is always fatal; only a scanner *failure* is subject to the fail-open switch.
+
 ## The sidecar contract
 
 **Browser plane** — the browser reaches these directly via a gateway-minted ticket URL (CORS-enabled):
@@ -68,7 +87,7 @@ never needs the admin bearer token.
 | Method | Path | Auth | Result |
 | --- | --- | --- | --- |
 | `OPTIONS` | `/portal/<key>` | none (preflight) | `204` + CORS |
-| `PUT` | `/portal/<key>?ticket=…` | put-ticket | `{ ok, key, size, sha256 }` |
+| `PUT` | `/portal/<key>?ticket=…` | put-ticket | `{ ok, key, size, sha256 }` — or `422` `{ reason }` if the scan rejects it |
 | `GET` | `/portal/<key>?ticket=…` | get-ticket | `application/octet-stream` (`content-disposition` from the ticket's filename) |
 
 **Server plane** — the gateway reaches these server-to-server (bearer), metadata only, no bytes:
@@ -98,6 +117,7 @@ user's browser — ideally on a separate VM per the note above:
       ATTACHMENTS_BROKER_TOKEN: ${ATTACHMENTS_BROKER_TOKEN:?set a token}   # server plane (gateway↔sidecar)
       ATTACHMENTS_TICKET_SECRET: ${ATTACHMENTS_TICKET_SECRET:?set a secret} # browser upload/download portal
       ATTACHMENTS_ALLOWED_ORIGIN: ${PUBLIC_URL:-*}                         # CORS: the SPA's origin
+      ATTACHMENTS_CLAMAV_ADDRESS: clamav:3310                              # optional: real AV (heuristics are always on)
     volumes:
       - attachments_data:/data
     read_only: true
@@ -110,6 +130,12 @@ user's browser — ideally on a separate VM per the note above:
       timeout: 3s
       retries: 3
 # volumes: { attachments_data: {} }
+#
+#  clamav:                       # optional companion for signature-based AV (the heuristic scan is always on)
+#    image: clamav/clamav:1.4@sha256:<pin>
+#    healthcheck:
+#      test: ["CMD", "clamdcheck.sh"]
+#      interval: 60s
 ```
 
 The gateway is wired with:
