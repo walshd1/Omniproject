@@ -121,4 +121,46 @@ describe("CommentsPanel", () => {
     });
   });
 
+  it("renders a comment body as markdown-lite (bold + code)", () => {
+    const qc = seed("issue:p1:i1", [{ ...COMMENT, body: "**bold** and `code`", mentions: [] }]);
+    renderWithProviders(<CommentsPanel roomId="issue:p1:i1" />, { client: qc });
+    expect(screen.getByText("bold").tagName).toBe("STRONG");
+    expect(screen.getByText("code").tagName).toBe("CODE");
+  });
+
+  it("opens the @mention menu while typing and inserts a thread-participant token", () => {
+    const qc = seed("issue:p1:i1", [{ ...COMMENT, author: { sub: "b", label: "Bob" }, body: "hi", mentions: [] }]);
+    renderWithProviders(<CommentsPanel roomId="issue:p1:i1" />, { client: qc });
+    const ta = screen.getByLabelText("New comment") as HTMLTextAreaElement;
+    // Type an @partial; the caret sits right after it.
+    fireEvent.change(ta, { target: { value: "hey @bo", selectionStart: 7 } });
+    const option = screen.getByTestId("mention-option-Bob");
+    expect(option).toBeInTheDocument();
+    fireEvent.click(option);
+    expect(ta.value).toBe("hey @Bob ");
+  });
+
+  it("does not show the mention menu when not typing an @token", () => {
+    const qc = seed("issue:p1:i1", [{ ...COMMENT, author: { sub: "b", label: "Bob" } }]);
+    renderWithProviders(<CommentsPanel roomId="issue:p1:i1" />, { client: qc });
+    fireEvent.change(screen.getByLabelText("New comment"), { target: { value: "no mention here", selectionStart: 15 } });
+    expect(screen.queryByTestId("mention-menu")).toBeNull();
+  });
+
+  it("submits on ⌘/Ctrl+Enter", async () => {
+    const qc = seed("issue:p1:i1", []);
+    const calls = stubFetch((url) =>
+      url.includes("/api/comments") ? { ok: true, body: { comment: COMMENT } } : { ok: true, body: { comments: [] } },
+    );
+    renderWithProviders(<CommentsPanel roomId="issue:p1:i1" />, { client: qc });
+    const ta = screen.getByLabelText("New comment");
+    fireEvent.change(ta, { target: { value: "ship it", selectionStart: 7 } });
+    fireEvent.keyDown(ta, { key: "Enter", ctrlKey: true });
+    await waitFor(() => {
+      const post = calls.find((c) => (c.init?.method ?? "GET") === "POST");
+      expect(post).toBeTruthy();
+      expect(JSON.parse(String(post!.init!.body)).body).toBe("ship it");
+    });
+  });
+
 });
