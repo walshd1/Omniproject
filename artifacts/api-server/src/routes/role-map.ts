@@ -5,6 +5,8 @@ import { mountCommand, type CommandDescriptor } from "../lib/action-base";
 import { recordRequestAudit } from "../lib/audit";
 import { persistSecurityState } from "../lib/security-state";
 import { heldForDualControl } from "./security";
+import { findSeparationOfDutiesConflicts } from "@workspace/backend-catalogue";
+import { sodPolicyState, prospectiveRoleMap, roleMapToSoDAssignments } from "../lib/sod-policy";
 
 /**
  * Role-mapping editor — ADMIN-only, audited. Lets an admin decide which IdP
@@ -44,6 +46,32 @@ export const roleMapRollbackCommand: CommandDescriptor<Record<string, never>> = 
 mountCommand(router, roleMapRollbackCommand);
 
 router.put("/admin/role-map", requireRole("admin"), requireStepUp, async (req, res) => {
+  // SEPARATION OF DUTIES (IAM S3): reject a mapping that would grant one IdP group a toxic combination
+  // of authorities (e.g. both `admin` and `pmo`) BEFORE it is proposed — so the control holds whether or
+  // not dual-control is on (a held proposal applies later via the executor, bypassing a post-hold check).
+  // Inert unless SOD_POLICIES is set; fail-closed if SOD_POLICIES is present but unparseable (an
+  // unprovable policy set can't attest the edit is SoD-clean, so refuse rather than silently skip).
+  const sod = sodPolicyState();
+  if (sod.error) {
+    recordRequestAudit(req, { category: "admin", action: "role_map_update", result: "error", status: 500, meta: { sodPolicyError: sod.error } });
+    res.status(500).json({ error: "Separation-of-duties policy is misconfigured", detail: sod.error });
+    return;
+  }
+  if (sod.policies.length > 0) {
+    const assignments = roleMapToSoDAssignments(prospectiveRoleMap(getRoleMap(), req.body));
+    const { conflicts } = findSeparationOfDutiesConflicts(assignments, sod.policies);
+    if (conflicts.length > 0) {
+      recordRequestAudit(req, {
+        category: "admin",
+        action: "role_map_update",
+        result: "error",
+        status: 409,
+        meta: { sodConflicts: conflicts.map((c) => ({ subject: c.subjectId, policy: c.policyId, severity: c.severity })) },
+      });
+      res.status(409).json({ error: "Separation-of-duties conflict", conflicts });
+      return;
+    }
+  }
   // Four-eyes: mapping an IdP group to admin/pmo authority is an elevation, so when configured it
   // requires a SECOND admin's approval (held as a proposal) before it takes effect. No-op when
   // role_map.update isn't in DUAL_CONTROL_ACTIONS (single-admin deployments unaffected).

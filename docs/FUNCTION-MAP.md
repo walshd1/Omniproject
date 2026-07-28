@@ -3968,6 +3968,16 @@ Provably-immutable snapshots.
 | `buildSnapshot` | Build a signed snapshot bundle over `data`. |
 | `verifySnapshot` | Verify a bundle: recompute the content hash and (if present) check the Ed25519 signature against the supplied public key (defaults to this deployment's). |
 
+### `artifacts/api-server/src/lib/sod-policy.ts`
+
+SEPARATION-OF-DUTIES (SoD) POLICY SEAM — the runtime glue that makes the pure `separation-of-duties` catalogue engine actually enforce something (IAM assessment gap S3).
+
+| Function | What it does |
+| --- | --- |
+| `sodPolicyState` | Load + validate the SoD policies from `SOD_POLICIES` (a JSON array), memoised by raw text. |
+| `prospectiveRoleMap` | Fold a proposed role-map edit (`body`, `{ role: string[] }`) onto the current effective map WITHOUT mutating any global state, so SoD can be evaluated against the map the edit WOULD produce. |
+| `roleMapToSoDAssignments` | Invert a role→group map into SoD assignments: one subject per IdP group, its grants = the roles that group is mapped into. |
+
 ### `artifacts/api-server/src/lib/sse.ts`
 
 Server-Sent Events framing — ONE place that gets the SSE wire format right, shared by every SSE endpoint (notifications, presence, the admin broker log).
