@@ -46,6 +46,8 @@ export interface BoardColumn {
   label: string;
   /** Optional accent colour (hex) for the column header — the status's resolved swatch. */
   color?: string;
+  /** Optional WIP limit — when the column holds more cards than this, the count + column flag as over-limit. */
+  wip?: number;
 }
 
 /** A named set of board columns. GTD, kanban-flow, etc. are all just presets. */

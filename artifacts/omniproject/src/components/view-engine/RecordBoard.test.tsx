@@ -262,4 +262,43 @@ describe("RecordBoard", () => {
     );
     expect(screen.getByText("No tasks to show.")).toBeInTheDocument();
   });
+
+  it("renders a WIP limit as count / limit and flags a column that is over it", () => {
+    render(
+      <RecordBoard
+        records={[
+          rec({ id: "a", title: "Alpha", status: "wip" }),
+          rec({ id: "b", title: "Bravo", status: "wip" }),
+          rec({ id: "c", title: "Charlie", status: "todo" }),
+        ]}
+        columns={[
+          { status: "todo", label: "To Do" },
+          { status: "wip", label: "In Progress", wip: 1 },
+        ]}
+        noun="task"
+        labelForPriority={labelForPriority}
+        onMove={vi.fn()}
+        onOpen={vi.fn()}
+      />,
+    );
+    // The limited column shows "2 / 1" and is flagged over-limit; the plain column shows a bare count.
+    expect(screen.getByText("2 / 1")).toBeInTheDocument();
+    expect(screen.getByTestId("board-col-over-wip-wip")).toBeInTheDocument();
+    expect(screen.queryByTestId("board-col-over-wip-todo")).not.toBeInTheDocument();
+  });
+
+  it("does not flag a column at or under its WIP limit", () => {
+    render(
+      <RecordBoard
+        records={[rec({ id: "a", title: "Alpha", status: "wip" })]}
+        columns={[{ status: "wip", label: "In Progress", wip: 2 }]}
+        noun="task"
+        labelForPriority={labelForPriority}
+        onMove={vi.fn()}
+        onOpen={vi.fn()}
+      />,
+    );
+    expect(screen.getByText("1 / 2")).toBeInTheDocument();
+    expect(screen.queryByTestId("board-col-over-wip-wip")).not.toBeInTheDocument();
+  });
 });

@@ -47,10 +47,13 @@ export function RecordBoard<T>({
     <div className="flex gap-4 h-full min-w-max pb-4" data-testid="record-board">
       {cols.map((col) => {
         const cards = records.filter((r) => r.status === col.status);
+        // WIP limit: a column over its limit flags the count red and rings the column (a standard kanban cue).
+        const overWip = col.wip != null && cards.length > col.wip;
         return (
           <div
             key={col.status}
-            className="w-72 flex flex-col bg-card border border-border"
+            className={`w-72 flex flex-col bg-card border border-border${overWip ? " ring-1 ring-inset ring-red-500/60" : ""}`}
+            data-testid={overWip ? `board-col-over-wip-${col.status}` : undefined}
             onDragOver={(e) => e.preventDefault()}
             onDrop={() => { const r = records.find((x) => x.id === dragId); if (r) move(r, col.status); setDragId(null); }}
           >
@@ -63,7 +66,14 @@ export function RecordBoard<T>({
                 {col.label}
               </span>
               <span className="flex items-center gap-2">
-                <span className="text-[10px] tabular-nums text-muted-foreground">{cards.length}</span>
+                <span
+                  className={`text-[10px] tabular-nums ${overWip ? "text-red-600 font-black" : "text-muted-foreground"}`}
+                  {...(col.wip != null
+                    ? { title: `${cards.length} of ${col.wip} WIP limit`, "aria-label": `${col.label}: ${cards.length} of ${col.wip}${overWip ? ", over WIP limit" : ""}` }
+                    : {})}
+                >
+                  {cards.length}{col.wip != null ? ` / ${col.wip}` : ""}
+                </span>
                 {onCreate && (
                   <button
                     type="button"
