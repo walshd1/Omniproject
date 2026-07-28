@@ -12,6 +12,7 @@ import { useRecentItems } from "../../lib/recent-items";
 import { useSwipe } from "../../lib/use-swipe";
 import { usePresence } from "../../lib/presence";
 import { PresenceAvatars } from "../presence/PresenceAvatars";
+import { CommentsPanel } from "../issue-dialog/CommentsPanel";
 import { useFeatures, featureEnabled } from "../../lib/features";
 import { useAvailability, fieldVisible } from "../../lib/availability";
 import { useIssueFieldWrite } from "../../lib/use-issue-field-write";
@@ -101,6 +102,7 @@ export function IssueSidePanel() {
   // Live collaboration: join a presence room scoped to this work item so collaborators see each
   // other and (advisorily) which field is being edited. Gated by the "presence" feature module.
   const presenceOn = featureEnabled(features, "presence");
+  const commentsEnabled = featureEnabled(features, "comments");
   const room = open && projectId && issueId ? `issue:${projectId}:${issueId}` : null;
   const { peers, setEditing } = usePresence(room, presenceOn && open);
   // Map a field → the first collaborator advertising they're editing it (advisory hint only).
@@ -185,6 +187,8 @@ export function IssueSidePanel() {
                 </ul>
               )}
             </div>
+
+            {commentsEnabled && room && <CommentsPanel roomId={room} />}
           </>
         )}
       </SheetContent>
