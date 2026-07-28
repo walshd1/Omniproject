@@ -131,8 +131,9 @@ File attachments (the "attachments" feature module) — attach a file to a work 
 | Method | Path | Gate | Description |
 | --- | --- | --- | --- |
 | GET | `/api/attachments/:roomId` | — | GET /api/attachments/:roomId — list the room's attachment pointers. |
-| POST | `/api/attachments/:roomId` | requireRole(contributor) | comes from the `x-filename` header (or ?filename=), the content-type from the request's Content-Type. |
-| GET | `/api/attachments/:roomId/:id/blob` | — | GET /api/attachments/:roomId/:id/blob — download the bytes (streamed from the sidecar). |
+| POST | `/api/attachments/:roomId/upload-ticket` | requireRole(contributor) | No bytes here: the browser PUTs to `uploadUrl` itself, then calls POST /attachments/:roomId to record it. |
+| POST | `/api/attachments/:roomId` | requireRole(contributor) | sidecar's size, not the client's claim. |
+| GET | `/api/attachments/:roomId/:id/link` | — | transit the gateway). |
 | DELETE | `/api/attachments/:roomId/:id` | — | DELETE /api/attachments/:roomId/:id — the uploader, or a pmo/admin (moderation). |
 
 ### `artifacts/api-server/src/routes/auth.ts`

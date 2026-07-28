@@ -30,7 +30,7 @@ The gateway's no-SDK bridge to the attachments-broker service.
 
 | Function | What it does |
 | --- | --- |
-| `makeAttachmentsClient` | Build a client over a base URL + optional token. |
+| `makeAttachmentsClient` | Build a client over a base URL + optional token/public-url/ticket-secret. |
 | `registerAttachmentsFromEnv` | Register the attachments sidecar from the environment. |
 | `attachmentsSidecar` | The registered sidecar client, or null when attachments aren't configured. |
 | `_setAttachmentsSidecarForTest` | Test-only: set the active client directly (bypasses env). |

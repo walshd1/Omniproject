@@ -61,6 +61,16 @@ export function createFsStore(rootDir) {
         return false;
       }
     },
+    /** Size in bytes of the blob at `key`, or null if it doesn't exist. */
+    async size(key) {
+      const p = pathOf(key);
+      try {
+        const s = await stat(p);
+        return s.isFile() ? s.size : null;
+      } catch {
+        return null;
+      }
+    },
     /** Delete the blob at `key`; returns true iff one was removed. */
     async del(key) {
       const p = pathOf(key);

@@ -12,9 +12,10 @@ import {
 /**
  * Attachment list on any shared surface (the "attachments" feature module). Reads/writes the
  * `/api/attachments/:roomId` endpoint keyed by the caller-supplied room id (`issue:<projectId>:<issueId>`).
- * The gateway holds only a byte-free pointer; the bytes live in the attachments-broker sidecar. Upload posts
- * the raw file; download fetches the bytes and hands them to a browser download. Delete is offered on every
- * row; the server enforces "uploader or pmo/admin". Room-agnostic — the same server RBAC applies.
+ * The gateway holds only a byte-free pointer; the bytes live in the attachments-broker sidecar. Upload and
+ * download move the bytes browser↔sidecar DIRECTLY (via gateway-minted tickets) — the gateway never sees
+ * them. Delete is offered on every row; the server enforces "uploader or pmo/admin". Room-agnostic — the
+ * same server RBAC applies.
  */
 export function AttachmentsPanel({ roomId }: { roomId: string }) {
   const { toast } = useToast();

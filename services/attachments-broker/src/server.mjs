@@ -1,42 +1,39 @@
 /**
- * The attachments-broker HTTP service. A tiny node:http server (no framework, no dependencies) exposing
- * a blob store over a small contract the gateway's attachments client will speak:
- *   PUT    /blob/<key>   store bytes         → { ok, key, size, sha256 }
- *   GET    /blob/<key>   fetch bytes         → application/octet-stream (404 if absent)
- *   HEAD   /blob/<key>   existence probe     → 200 / 404
- *   DELETE /blob/<key>   remove bytes        → { ok } / 404
- *   GET    /healthz      liveness (open)     → { ok: true }
+ * The attachments-broker HTTP service. A tiny node:http server (no framework, no dependencies) that is the
+ * ONE place a file's bytes ever live — so a (possibly malicious) upload is confined to this hardened,
+ * isolated container and never reaches the gateway/main app.
  *
- * Bearer-token auth via ATTACHMENTS_BROKER_TOKEN gates every /blob/* op (never /healthz). It holds the
- * bytes itself (below the seam) so the gateway stays zero-at-rest and SDK-free.
+ * Two auth planes:
+ *  - BROWSER plane (`/portal/<key>`): the browser uploads/downloads bytes DIRECTLY here, authorised by a
+ *    short-lived, gateway-minted TICKET (HMAC, scoped to one op + key, quickly-expiring). CORS-enabled so
+ *    the SPA can reach it cross-origin. The bytes never transit the gateway.
+ *      PUT  /portal/<key>?ticket=…   store bytes           → { ok, key, size, sha256 }
+ *      GET  /portal/<key>?ticket=…   fetch bytes           → application/octet-stream
+ *  - SERVER plane (`/blob/<key>`): bearer-token, server-to-server, for the gateway's metadata-only ops
+ *    (HEAD to verify an upload's size, DELETE to drop bytes on removal). No bytes flow to the gateway.
+ *      HEAD   /blob/<key>            existence + size       → 200 (X-Attachment-Size) / 404
+ *      DELETE /blob/<key>            remove bytes           → { ok } / 404
+ *  - GET /healthz (open) — liveness.
  */
 import { createServer } from "node:http";
 import { timingSafeEqual } from "node:crypto";
 import { createFsStore, isValidKey } from "./store.mjs";
+import { verifyTicket } from "./ticket.mjs";
 
-/** Default max body size for an uploaded blob (override with ATTACHMENTS_MAX_BYTES). An unbounded buffer
- *  on an open PUT is a trivial memory-exhaustion DoS. */
 const DEFAULT_MAX_BODY_BYTES = 25 * 1024 * 1024;
 
 export class BodyTooLargeError extends Error {}
 
-/** Buffer the request body, rejecting past `limit` bytes (both the declared content-length and the
- *  actual stream length). */
+/** Buffer the request body, rejecting past `limit` bytes (declared content-length AND actual stream). */
 function readBody(req, limit) {
   return new Promise((resolve, reject) => {
     const declared = Number(req.headers["content-length"]);
-    if (Number.isFinite(declared) && declared > limit) {
-      return reject(new BodyTooLargeError("request body too large"));
-    }
+    if (Number.isFinite(declared) && declared > limit) return reject(new BodyTooLargeError("request body too large"));
     const chunks = [];
     let size = 0;
     req.on("data", (c) => {
       size += c.length;
-      if (size > limit) {
-        reject(new BodyTooLargeError("request body too large"));
-        req.destroy();
-        return;
-      }
+      if (size > limit) { reject(new BodyTooLargeError("request body too large")); req.destroy(); return; }
       chunks.push(c);
     });
     req.on("end", () => resolve(Buffer.concat(chunks)));
@@ -44,7 +41,7 @@ function readBody(req, limit) {
   });
 }
 
-/** Constant-time bearer check — avoids leaking the token via response-time correlation. */
+/** Constant-time bearer check for the server-to-server plane. */
 function bearerOk(header, token) {
   const prefix = "Bearer ";
   if (typeof header !== "string" || !header.startsWith(prefix)) return false;
@@ -53,53 +50,100 @@ function bearerOk(header, token) {
   return got.length === want.length && timingSafeEqual(got, want);
 }
 
-function send(res, status, body) {
-  res.writeHead(status, { "content-type": "application/json" });
+function send(res, status, body, extraHeaders = {}) {
+  res.writeHead(status, { "content-type": "application/json", ...extraHeaders });
   res.end(JSON.stringify(body));
 }
 
-/** Build the request handler over a store + optional token — exported for tests. */
-export function createHandler(store, token, opts = {}) {
+/** CORS headers for the browser plane. `origin` is the configured app origin (or "*"). */
+function corsHeaders(origin) {
+  return {
+    "access-control-allow-origin": origin,
+    "access-control-allow-methods": "PUT, GET, OPTIONS",
+    "access-control-allow-headers": "content-type",
+    "access-control-max-age": "600",
+    ...(origin !== "*" ? { vary: "Origin" } : {}),
+  };
+}
+
+/** Build the request handler. `opts`: { store, token, ticketSecret, allowedOrigin, maxBytes }. */
+export function createHandler(opts) {
+  const store = opts.store;
+  const token = opts.token;
+  const ticketSecret = opts.ticketSecret;
+  const origin = opts.allowedOrigin || "*";
   const limit = opts.maxBytes ?? DEFAULT_MAX_BODY_BYTES;
+  const cors = corsHeaders(origin);
+
   return async (req, res) => {
-    const url = req.url ?? "";
     const method = req.method ?? "GET";
-    if (method === "GET" && url === "/healthz") return send(res, 200, { ok: true });
-    if (token && !bearerOk(req.headers["authorization"], token)) return send(res, 401, { error: "unauthorized" });
+    const url = new URL(req.url ?? "/", "http://localhost");
+    const path = url.pathname;
 
-    const m = url.match(/^\/blob\/([^/?#]+)$/);
-    if (!m) return send(res, 404, { error: "not found" });
-    const key = decodeURIComponent(m[1]);
-    if (!isValidKey(key)) return send(res, 400, { error: "invalid key" });
+    if (method === "GET" && path === "/healthz") return send(res, 200, { ok: true });
 
-    try {
-      if (method === "PUT") {
-        const buf = await readBody(req, limit);
-        return send(res, 200, { ok: true, ...(await store.put(key, buf)) });
+    // ── Browser plane: /portal/<key>, ticket-authorised, CORS-enabled ──────────────────────────────
+    const portal = path.match(/^\/portal\/([^/?#]+)$/);
+    if (portal) {
+      if (method === "OPTIONS") { res.writeHead(204, cors); res.end(); return; }
+      const key = decodeURIComponent(portal[1]);
+      if (!isValidKey(key)) return send(res, 400, { error: "invalid key" }, cors);
+      if (!ticketSecret) return send(res, 503, { error: "portal disabled (no ticket secret)" }, cors);
+      const op = method === "PUT" ? "put" : method === "GET" ? "get" : null;
+      if (!op) return send(res, 405, { error: "method not allowed" }, cors);
+      const payload = verifyTicket(url.searchParams.get("ticket"), ticketSecret, { op, key });
+      if (!payload) return send(res, 401, { error: "invalid or expired ticket" }, cors);
+      try {
+        if (op === "put") {
+          const buf = await readBody(req, limit);
+          return send(res, 200, { ok: true, ...(await store.put(key, buf)) }, cors);
+        }
+        const bytes = await store.get(key);
+        if (!bytes) return send(res, 404, { error: "not found" }, cors);
+        // The download ticket may carry the original filename so a direct browser navigation downloads it.
+        const name = typeof payload.name === "string" ? payload.name : null;
+        res.writeHead(200, {
+          "content-type": "application/octet-stream",
+          "content-length": String(bytes.length),
+          "x-content-type-options": "nosniff",
+          ...(name ? { "content-disposition": `attachment; filename*=UTF-8''${encodeURIComponent(name)}` } : {}),
+          ...cors,
+        });
+        return res.end(bytes);
+      } catch (err) {
+        if (err instanceof BodyTooLargeError) return send(res, 413, { error: err.message }, cors);
+        // eslint-disable-next-line no-console
+        console.error("attachments-broker: portal op failed", { op, key, err: String(err) });
+        return send(res, 500, { error: "internal error" }, cors);
       }
-      if (method === "GET") {
-        const buf = await store.get(key);
-        if (!buf) return send(res, 404, { error: "not found" });
-        res.writeHead(200, { "content-type": "application/octet-stream", "content-length": String(buf.length) });
-        return res.end(buf);
-      }
-      if (method === "HEAD") {
-        const has = await store.has(key);
-        res.writeHead(has ? 200 : 404);
-        return res.end();
-      }
-      if (method === "DELETE") {
-        const existed = await store.del(key);
-        return send(res, existed ? 200 : 404, existed ? { ok: true } : { error: "not found" });
-      }
-      return send(res, 405, { error: "method not allowed" });
-    } catch (err) {
-      if (err instanceof BodyTooLargeError) return send(res, 413, { error: err.message });
-      // Never echo a raw fs error (leaks paths); keep it server-side.
-      // eslint-disable-next-line no-console
-      console.error("attachments-broker: op failed", { method, key, err: String(err) });
-      return send(res, 500, { error: "internal error" });
     }
+
+    // ── Server plane: /blob/<key>, bearer-token, metadata-only (no bytes to the gateway) ────────────
+    const blob = path.match(/^\/blob\/([^/?#]+)$/);
+    if (blob) {
+      if (token && !bearerOk(req.headers["authorization"], token)) return send(res, 401, { error: "unauthorized" });
+      const key = decodeURIComponent(blob[1]);
+      if (!isValidKey(key)) return send(res, 400, { error: "invalid key" });
+      try {
+        if (method === "HEAD") {
+          const size = await store.size(key);
+          if (size === null) { res.writeHead(404); return res.end(); }
+          res.writeHead(200, { "x-attachment-size": String(size) });
+          return res.end();
+        }
+        if (method === "DELETE") {
+          const existed = await store.del(key);
+          return send(res, existed ? 200 : 404, existed ? { ok: true } : { error: "not found" });
+        }
+        return send(res, 405, { error: "method not allowed" });
+      } catch (err) {
+        // eslint-disable-next-line no-console
+        console.error("attachments-broker: blob op failed", { method, key, err: String(err) });
+        return send(res, 500, { error: "internal error" });
+      }
+    }
+
+    return send(res, 404, { error: "not found" });
   };
 }
 
@@ -109,26 +153,32 @@ export function main() {
   const host = process.env["HOST"]?.trim() || "0.0.0.0";
   const dir = process.env["ATTACHMENTS_BROKER_DIR"]?.trim() || "/data";
   const token = process.env["ATTACHMENTS_BROKER_TOKEN"]?.trim();
+  const ticketSecret = process.env["ATTACHMENTS_TICKET_SECRET"]?.trim();
+  const allowedOrigin = process.env["ATTACHMENTS_ALLOWED_ORIGIN"]?.trim() || "*";
   const allowAnon = process.env["ATTACHMENTS_BROKER_ALLOW_ANON"] === "1";
-  // Fail closed: /blob/* reads and writes user file bytes, so refuse to serve unauthenticated unless the
-  // operator explicitly opts in (e.g. a loopback-only dev run).
+  // Fail closed: the server plane reads/deletes user file bytes, so refuse to serve it unauthenticated
+  // unless the operator explicitly opts in (loopback-only dev).
   if (!token && !allowAnon) {
     // eslint-disable-next-line no-console
     console.error(
       "attachments-broker: refusing to start without ATTACHMENTS_BROKER_TOKEN. " +
-        "Set the token, or set ATTACHMENTS_BROKER_ALLOW_ANON=1 to accept UNAUTHENTICATED requests (not for production).",
+        "Set the token, or set ATTACHMENTS_BROKER_ALLOW_ANON=1 to accept UNAUTHENTICATED server-plane requests (not for production).",
     );
     process.exit(1);
   }
+  if (!ticketSecret) {
+    // eslint-disable-next-line no-console
+    console.warn("attachments-broker: WARNING — ATTACHMENTS_TICKET_SECRET unset; the browser upload/download portal is DISABLED (503).");
+  }
   if (!token && allowAnon) {
     // eslint-disable-next-line no-console
-    console.warn(`attachments-broker: WARNING — running UNAUTHENTICATED (ATTACHMENTS_BROKER_ALLOW_ANON=1) on ${host}:${port}`);
+    console.warn(`attachments-broker: WARNING — server plane UNAUTHENTICATED (ATTACHMENTS_BROKER_ALLOW_ANON=1) on ${host}:${port}`);
   }
   const store = createFsStore(dir);
-  const handler = createHandler(store, token || undefined);
+  const handler = createHandler({ store, token: token || undefined, ticketSecret: ticketSecret || undefined, allowedOrigin });
   createServer((req, res) => void handler(req, res)).listen(port, host, () => {
     // eslint-disable-next-line no-console
-    console.log(`attachments-broker listening on ${host}:${port} (dir=${dir})`);
+    console.log(`attachments-broker listening on ${host}:${port} (dir=${dir}, portal=${ticketSecret ? "on" : "off"}, cors=${allowedOrigin})`);
   });
 }
 
