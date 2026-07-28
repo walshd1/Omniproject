@@ -92,6 +92,7 @@ export * from "./view-catalogue";
 export * from "./compatibility";
 export * from "./notification-routing";
 export * from "./notification-kinds";
+export * from "./notification-prefs";
 export * from "./field-vocabulary";
 export * from "./methodology-pack";
 export * from "./entity-resolution";
