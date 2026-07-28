@@ -1865,11 +1865,17 @@ multi-tenancy → managed offering (§5.4).
 > other 21 items verified as genuine gaps.
 
 ### 5.1 Interactive collaboration UX (bar: Linear / Monday / Asana / Notion)
-- ✳ **Rich-text on comments/descriptions** *(partial — the wiki already has it)* — the wiki `DocEditor` is a
-  full **block editor** (headings/callouts/code/tables/lists/checklists/embeds, palette-driven from the
-  primitive store). Comments/issue-descriptions are still a plain input with server-parsed mentions
-  (`components/issue-dialog/CommentsPanel.tsx`). Gap: bring the block editor (or a rich-text lib) to those.
-- ✳ **Mention autocomplete** — client typeahead against project members (mentions are parsed server-side already; pure UI).
+- 🚧 **Rich-text on comments/descriptions** — *comments now render markdown-lite* (`components/issue-dialog/CommentsPanel.tsx`
+  renders bodies through the shared, XSS-safe `MarkdownLite` renderer — bold/italic/code/links/lists/checklists, the
+  same format task notes use), and the composer is a multi-line textarea (⌘/Ctrl+Enter to send). The body is stored as
+  plain markdown **source** (a string), so the zero-at-rest posture and the backend write-through are unchanged. The
+  wiki `DocEditor` remains the full block editor. **Remaining:** the full block editor (or CRDT co-edit) on issue
+  *descriptions*.
+- 🚧 **Mention autocomplete** — *a free-text `@`-typeahead now ships on the comment composer* (`lib/mention-suggest.ts`
+  + `CommentsPanel`): a keyboard-navigable menu suggests handles drawn from the thread's own participants and inserts a
+  server-parseable `@token`. Because the overlay owns no user directory (identity lives in the IdP/SCIM), the token
+  stays free-text — exactly what the gateway already parses/notifies. **Remaining:** a richer candidate source if/when a
+  project-members read becomes available.
 - ✅ **Real-time CRDT co-edit + live cursors — BUILT (flagged); extend surface.** Yjs CRDT co-edit ships on the
   wiki block model (`lib/collab`, `lib/collab-doc`, `routes/collab`, default-off `wikiCoEdit` flag) and live
   cursors ship on whiteboards (`CanvasEditor.tsx`, `presence` toggle). The parity review listed this as a gap —
