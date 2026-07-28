@@ -1902,8 +1902,13 @@ multi-tenancy → managed offering (§5.4).
   (`routes/attachments.ts` ticket-mint/record/link + `lib/attachments-meta.ts`, off-by-default
   `ATTACHMENTS_SIDECAR_URL`; byte-path needs `ATTACHMENTS_SIDECAR_PUBLIC_URL` + `ATTACHMENTS_TICKET_SECRET`),
   and the SPA UI (`AttachmentsPanel`, default-off `attachments` feature) all ship. See `docs/ATTACHMENTS.md`.
+  Uploads are **malware-scanned inside the sidecar before the blob is stored** (`scan.mjs`): always-on
+  zero-dep heuristics (EICAR test signature + executable/script magic bytes, so a renamed binary is still
+  caught) plus optional **ClamAV** (`clamd` INSTREAM, fail-closed by default) — a file that fails is rejected
+  `422` and never written, so it never becomes downloadable and no pointer is recorded.
   **Remaining:** cloud object-store backends (S3/GCS/Azure) **in the sidecar** (SDKs connect out from the
-  sidecar, never the gateway) + compose/Helm wiring (incl. the sidecar's browser-reachable ingress).
+  sidecar, never the gateway) + compose/Helm wiring (incl. the sidecar's browser-reachable ingress + a bundled
+  ClamAV service).
 - ✅ **Global undo — BUILT.** App-wide undo/redo stack over recent field mutations via `Cmd/Ctrl+Z` /
   `Cmd/Ctrl+Shift+Z` and palette Undo/Redo actions (`lib/edit-history.ts`, `lib/use-undo-redo.ts`,
   `components/UndoRedoHotkeys.tsx`; PR #948), layered on top of the existing per-action toast undo.
