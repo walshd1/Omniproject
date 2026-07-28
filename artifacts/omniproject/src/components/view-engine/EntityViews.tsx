@@ -105,6 +105,7 @@ export function EntityViews<T>({
           labelForPriority={labelForPriority}
           {...(labelForStatus ? { labelForStatus } : {})}
           {...(onCreate ? { onCreate: (status: string) => onCreate({ status }) } : {})}
+          {...(current.groupBy ? { swimlaneBy: current.groupBy, fields: descriptor.fields } : {})}
           onMove={move}
           onOpen={onOpen}
         />
