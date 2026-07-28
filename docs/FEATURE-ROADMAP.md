@@ -1892,9 +1892,13 @@ multi-tenancy → managed offering (§5.4).
   `groupBy` Def field as horizontal lanes (`lib/view-engine/swimlane.ts`, `components/view-engine/RecordBoard.tsx`,
   PR #950) — the board counterpart to the list view's group-by, so a board and a list grouped by X partition
   identically. Per-column WIP limits ring the column and flag the count red when over (`BoardColumn.wip`, PR #945).
-- ⚠ **Binary attachments** — filename+URL references only today (zero-at-rest by design). State-respecting path:
-  **streaming pass-through upload to the backend's own blob store** through the broker (gateway as courier,
-  never buffered at rest) — an attachment is a superset field whose home is the backend's blob store.
+- 🚧 **Binary attachments — SHIPPING.** Real file upload/list/download/delete now works on issues via a
+  **separate hardened `attachments-broker` sidecar** that holds the bytes below the seam, while the gateway
+  keeps only a byte-free pointer (streaming pass-through upload — gateway as courier, never at rest). Sidecar
+  (`services/attachments-broker`), gateway seam (`routes/attachments.ts` + `lib/attachments-meta.ts`, off-by-
+  default `ATTACHMENTS_SIDECAR_URL`), and the SPA UI (`AttachmentsPanel`, default-off `attachments` feature)
+  all ship. See `docs/ATTACHMENTS.md`. **Remaining:** cloud object-store backends (S3/GCS/Azure) in the
+  sidecar + compose/Helm wiring.
 - ✅ **Global undo — BUILT.** App-wide undo/redo stack over recent field mutations via `Cmd/Ctrl+Z` /
   `Cmd/Ctrl+Shift+Z` and palette Undo/Redo actions (`lib/edit-history.ts`, `lib/use-undo-redo.ts`,
   `components/UndoRedoHotkeys.tsx`; PR #948), layered on top of the existing per-action toast undo.
