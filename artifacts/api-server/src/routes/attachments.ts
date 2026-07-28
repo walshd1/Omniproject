@@ -83,7 +83,10 @@ router.post(
   express.raw({ type: () => true, limit: MAX_BYTES }),
   async (req: Request, res: Response) => {
     const roomId = clean(req.params["roomId"], 200);
-    const filename = safeFilename(req.get("x-filename") ?? (req.query["filename"] as string | undefined));
+    // `req.query[...]` can be a string, an array, or a nested object (parameter tampering) — take it only
+    // when it's actually a string, so a `?filename[]=a&filename[]=b` array can never reach `safeFilename`.
+    const qFilename = req.query["filename"];
+    const filename = safeFilename(req.get("x-filename") ?? (typeof qFilename === "string" ? qFilename : undefined));
     if (!roomId || !filename) { res.status(400).json({ error: "roomId and an x-filename header are required" }); return; }
     if (!(await guardRoomScope(req, res, roomId))) return;
 

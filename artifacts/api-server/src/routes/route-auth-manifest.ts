@@ -70,6 +70,9 @@ export const ROUTE_AUTH_EXCEPTIONS: readonly RouteAuthException[] = [
   { file: "approvals.ts", method: "post", path: "/approvals/workflow-acceptances/:workflowId", posture: "in-handler", reason: "getSession → 401 when unauthenticated" },
   { file: "approvals.ts", method: "delete", path: "/approvals/workflow-acceptances/:workflowId", posture: "in-handler", reason: "workflow-scope gate in-handler" },
 
+  // Attachment delete — the uploader (session.sub === author.sub) or a pmo/admin; resolved + checked in-handler.
+  { file: "attachments.ts", method: "delete", path: "/attachments/:roomId/:id", posture: "in-handler", reason: "uploader-or-pmo/admin check + room project-scope resolved in-handler" },
+
   // Auth surface — the entry/exit points of a session.
   { file: "auth.ts", method: "post", path: "/auth/saml/callback", posture: "public", reason: "SAML IdP POST-back — pre-session by definition; the assertion is the credential" },
   { file: "auth.ts", method: "post", path: "/auth/magic/request", posture: "public", reason: "magic-link request — pre-session; rate-limited, no session to require" },
