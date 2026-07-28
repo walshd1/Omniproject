@@ -1998,7 +1998,8 @@ external infrastructure a CI sandbox can't reach (so they are execution/attestat
   read/write adapters** (§4.6 last mile).
 - ✳ **Published scale / load result** — against a gateway wired to real n8n + backend; queue-mode numbers are placeholders.
 - ✳ **Independent attestation** — pen-test summary, SOC 2 / ISO 27001 *certificates* (control mappings exist),
-  signed images (cosign parked), GitHub native secret-scanning on.
+  GitHub native secret-scanning on. (Signed, published images now ship — `release.yml` pushes `omni-shell`
+  to GHCR and attests the pushed digest, keyless SLSA; `gh attestation verify` works.)
 - ✳ **KMS / vault / OTLP live verification** + **Authentik blueprint applied live** (mock-verified only today).
 - ✳ **Tested multi-region DR runbook** + a multi-replica (not single-SQLite) sample manifest.
 - ✅ **Exploration replica-workbench dirty-flag data-loss bug — FIXED** (per-source dirty tracking; commit

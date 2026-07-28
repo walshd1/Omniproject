@@ -217,10 +217,11 @@ supply-chain integrity; SSO/lifecycle integration; observability of security eve
 **Honesty notes:** SAML is a **runtime-optional** dependency (not installed by a
 default `pnpm install`; enabled by adding `@node-saml/node-saml` when `SAML_*` is
 configured). Tracing is trace-context + span export, not a full metrics/logs OTel
-SDK. **SLSA build-provenance + CycloneDX SBOM attestation ship on release** (keyless Sigstore via
-`actions/attest-build-provenance@v4` + `attest-sbom@v4`, `.github/workflows/release.yml`); the one
-remaining gap is that the built image isn't yet **pushed to a registry**, so there's no published digest
-for a consumer to `gh attestation verify` against (see `docs/SUPPLY-CHAIN.md`).
+SDK. **A signed, published image ships on release.** `.github/workflows/release.yml` pushes the `omni-shell`
+image to **GHCR** on a version tag and binds keyless SLSA build-provenance + CycloneDX SBOM attestations
+(Sigstore via `actions/attest-build-provenance@v4` + `attest-sbom@v4`) to the **pushed registry digest**,
+so a consumer can `gh attestation verify oci://ghcr.io/<owner>/<repo>:<tag>` against the exact image they
+pulled (see `docs/SUPPLY-CHAIN.md`). The image stays source-buildable; the published image is additive.
 
 **Gaps to add:**
 - **SSO/SAML + SCIM as first-class, always-present** (bundle SAML by default; publish
@@ -379,7 +380,7 @@ whether the item already appears in the code, `[Unreleased]` CHANGELOG, or
 | 2 | Per-*request* country/tenant residency routing (beyond the shipped per-country/per-region policy) | Compliance / IT | M | Mostly done — per-country/per-region policy + dual fail-closed seams ship (`residency-policy.ts`); only per-request selection remains |
 | 3 | Scale validation at ~60 programmes / 200 projects (published result) | IT | M | Partial — load-test harness exists, no published result |
 | 4 | SSO/SAML bundled by default + SCIM setup runbook + IdP presets | CISO / IT | S–M | Partial — SAML/SCIM implemented; SAML runtime-optional |
-| 5 | Published, verifiable signed image + independent pen-test summary | CISO | M | Mostly done — SLSA build-provenance + SBOM attestation ship on release (`release.yml`); gap is pushing the image to a registry so the attestation is consumer-verifiable, plus an external pen-test |
+| 5 | Published, verifiable signed image + independent pen-test summary | CISO | M | Image half **done** — `release.yml` pushes `omni-shell` to GHCR on a version tag and binds keyless SLSA build-provenance + SBOM attestations to the **pushed registry digest**, so `gh attestation verify oci://ghcr.io/<owner>/<repo>:<tag>` is consumer-verifiable; remaining is an external pen-test summary |
 | 6 | SOC 2 / ISO 27001 independent attestation (mapping → certified) | Compliance / CISO | L | Partial — control mapping exists (`docs/COMPLIANCE.md`) |
 | 7 | One-click compliance/evidence pack (audit-chain + snapshots + governance) | Compliance | M | No — primitives exist, bundling does not |
 | 8 | Segregation-of-duties / approvals coverage widened to more sensitive actions | Compliance | S | Partial — maker-checker engine (`dual-control.ts`) shipped |

@@ -27,10 +27,20 @@ and [`SECURITY-AUDIT.md`](./SECURITY-AUDIT.md).
   `.github/workflows/ci.yml`, tuned via `.gitleaks.toml` to allowlist known test fixtures while
   blocking real new secrets.
 - **Automated dependency updates.** Dependabot is configured (`.github/dependabot.yml`).
-- **Release build provenance + SBOM attestation.** On a version tag, `.github/workflows/release.yml`
-  produces a cryptographically verifiable **SLSA build-provenance** attestation and an **SBOM
-  attestation** (`actions/attest-build-provenance@v1` + `actions/attest-sbom@v1`, keyless via
-  Sigstore/GitHub OIDC — no long-lived signing key), verifiable with `gh attestation verify`.
+- **Published image on GHCR + attestation against the pushed digest.** On a version tag,
+  `.github/workflows/release.yml` builds the `omni-shell` image, **pushes it to GHCR**
+  (`ghcr.io/<owner>/<repo>:<tag>`, `packages: write`), and binds a **SLSA build-provenance** attestation
+  and an **SBOM attestation** (`actions/attest-build-provenance@v4` + `actions/attest-sbom@v4`, keyless
+  via Sigstore/GitHub OIDC — no long-lived signing key) to the **pushed registry manifest digest** (also
+  stored in the registry as OCI referrers via `push-to-registry`). A consumer can then verify the exact
+  image they pulled:
+
+  ```sh
+  gh attestation verify oci://ghcr.io/<owner>/<repo>:<tag> --owner <owner>
+  ```
+
+  The image remains source-buildable from the same `Dockerfile`; the published image is an additive,
+  independently verifiable artifact. The CycloneDX SBOM is also attached to the GitHub Release.
 - **Pinned base + reproducible install.** The image pins its base tag and CI installs against the
   committed lockfile (`--frozen-lockfile`); the broker images in compose are pinned (enforced by the
   compose guard).
@@ -50,15 +60,14 @@ grype sbom:sbom-cyclonedx.json        # vulnerabilities
 These close the remaining supply-chain gaps but require infrastructure/policy choices, so they're
 left for review rather than guessed at:
 
-1. **Hosted image publish + registry signing (GHCR / cosign).** Build-provenance and SBOM
-   attestation already ship for the release artifact (see "in place today"); what remains is a
-   decision to **publish the image** to a registry (e.g. GHCR) and sign the pushed image — this
-   requires (a) the registry + publish intent, (b) the repo's `packages: write` permission, and
-   (c) a signing-identity policy (keyless OIDC vs a managed key). The `release.yml` GHCR block is
-   staged (commented) for when that decision is made: push to GHCR → `cosign sign` (keyless) →
-   re-attest provenance against the pushed digest. (GitHub's native **secret scanning** +
-   **push protection**, enabled in repo settings, is a zero-config complement worth turning on
-   regardless.)
+1. **Hosted image publish + registry attestation — DONE** (see "in place today"). `release.yml` now
+   pushes `omni-shell` to GHCR on a version tag and binds keyless SLSA build-provenance + SBOM
+   attestations to the **pushed registry digest** (`packages: write` granted, `push-to-registry` stores
+   the attestations as OCI referrers), so `gh attestation verify oci://ghcr.io/<owner>/<repo>:<tag>`
+   works against the exact pulled image. A separate bare `cosign sign` is **not** needed: the keyless
+   Sigstore attestation against the pushed digest already provides the consumer-verifiable signature,
+   and it carries provenance a bare signature does not. (GitHub's native **secret scanning** +
+   **push protection**, enabled in repo settings, remains a zero-config complement worth turning on.)
 2. **Signed release tags.** Tagging `0.7.0` with a GPG/SSH-signed tag — pairs with the
    maintainer-driven release in [`RELEASE-NOTES-0.7.0-DRAFT.md`](./archive/releases/RELEASE-NOTES-0.7.0-DRAFT.md).
 

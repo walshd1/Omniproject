@@ -146,14 +146,16 @@ to confirm (and possibly absolute-path the healthchecks).
 **Recommendation:** do it together with one `compose up` to validate the healthcheck path; low effort,
 real hardening once confirmed.
 
-### B1. Container image signing + SLSA provenance (cosign)
-**SLSA build-provenance + SBOM attestation — shipped.** `.github/workflows/release.yml` uses
-`actions/attest-build-provenance@v1` and `actions/attest-sbom@v1`, attaching the CycloneDX SBOM
-attestation to the GitHub Release.
-**Still parked — cosign container-image signing pushed to a registry.** This requires deciding to
-**publish the image to a registry** (e.g. GHCR, the push is currently commented out) and granting CI
-`packages: write` + `id-token: write`. See [`SUPPLY-CHAIN.md`](./SUPPLY-CHAIN.md) §Parked.
-**Recommendation:** yes once you confirm the registry; it's a small CI addition after that.
+### B1. Container image signing + SLSA provenance — **shipped**
+**Published, attested image on GHCR.** `.github/workflows/release.yml` now pushes the `omni-shell`
+image to GHCR on a version tag (`packages: write`) and binds keyless SLSA build-provenance +
+CycloneDX SBOM attestations (`actions/attest-build-provenance@v4`, `actions/attest-sbom@v4`) to the
+**pushed registry digest** (`push-to-registry` also stores them as OCI referrers), so
+`gh attestation verify oci://ghcr.io/<owner>/<repo>:<tag>` verifies the exact pulled image. The SBOM
+is still attached to the GitHub Release. See [`SUPPLY-CHAIN.md`](./SUPPLY-CHAIN.md).
+**Note:** a separate bare `cosign sign` was considered and deliberately skipped — the keyless
+Sigstore *attestation* against the pushed digest already provides a consumer-verifiable signature and
+carries provenance a bare signature does not.
 
 ### B2. Secret-scanning gate (gitleaks) tuning — **shipped** (CI half)
 A blocking `secret-scan` CI job runs `gitleaks detect` over the checked-out source

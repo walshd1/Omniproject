@@ -131,9 +131,10 @@ narratives/estimates is unbenchmarked, same caveat as the copilot.
 
 > **Correction vs the agents' parked view:** the **benefits (E1)** and **CapEx/OpEx (E2)** field groups and
 > their reports are now **shipped** (PRs #281/#282) — they are no longer parked, and neither is **SMTP
-> C4** (real email sending — see PARKED-DECISIONS.md §C4). Remaining parked items (first-party backend
-> A1, hosted A2, mTLS/FIPS A3, distroless B0, cosign B1, gitleaks B2, stage-gates E3) stay in
-> `PARKED-DECISIONS.md`.
+> C4** (real email sending — see PARKED-DECISIONS.md §C4). **Signed, published images (B1)** are now
+> shipped too — `release.yml` pushes `omni-shell` to GHCR and attests the pushed digest (keyless SLSA).
+> Remaining parked items (first-party backend A1, hosted A2, mTLS/FIPS A3, distroless B0, gitleaks B2,
+> stage-gates E3) stay in `PARKED-DECISIONS.md`.
 
 ---
 
