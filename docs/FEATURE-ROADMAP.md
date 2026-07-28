@@ -1909,15 +1909,15 @@ multi-tenancy → managed offering (§5.4).
   **Remaining:** cloud object-store backends (S3/GCS/Azure) **in the sidecar** (SDKs connect out from the
   sidecar, never the gateway) + compose/Helm wiring (incl. the sidecar's browser-reachable ingress + a bundled
   ClamAV service).
-- 🚧 **App-native TOTP two-factor (IAM S7) — SHIPPING.** An authenticator-app second factor alongside the
+- ✅ **App-native TOTP two-factor (IAM S7) — BUILT.** An authenticator-app second factor alongside the
   existing passkeys, for local/no-IdP self-host accounts (where an external IdP is present, MFA is best
   enforced *there* — the app already delegates step-up via OIDC/SAML). The crypto is the audited `otpauth` +
   `@noble/hashes` libraries (`lib/totp.ts`), never hand-rolled; the per-user secret + recovery-code hashes
   live in a **separately-keyed sealed store** (`lib/totp-store.ts`, `deriveKey(root, "totp:v1")`, scrypt for
   recovery hashes). Enrol → confirm → step-up → disable routes (`/api/auth/totp/*`) mirror the passkey
   step-up pair, re-issuing the session with a fresh `stepUpAt`; codes are single-use inside their window (a
-  `lastStep` replay lock) and the verify paths sit behind the strict login limiter. **Remaining:** the SPA
-  enrol/QR settings panel + a login-time verify surface.
+  `lastStep` replay lock) and the verify paths sit behind the strict login limiter. The SPA settings panel
+  (`TwoFactorAuth`: QR enrol via the `qrcode` lib, confirm, one-time recovery codes, disable) ships too.
 - ✅ **Global undo — BUILT.** App-wide undo/redo stack over recent field mutations via `Cmd/Ctrl+Z` /
   `Cmd/Ctrl+Shift+Z` and palette Undo/Redo actions (`lib/edit-history.ts`, `lib/use-undo-redo.ts`,
   `components/UndoRedoHotkeys.tsx`; PR #948), layered on top of the existing per-action toast undo.
