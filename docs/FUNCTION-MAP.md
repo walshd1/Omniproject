@@ -417,6 +417,14 @@ Replay engine — play a capture tape (capture.ts) two ways:
 | `buildReplayBroker` | Serve mode: a Broker backed by a tape. |
 | `redrive` | Re-drive a tape against a live broker (instance B), diffing each live result against the recording. |
 
+### `artifacts/api-server/src/broker/retention-capture.ts`
+
+OPTIONAL, OFF-BY-DEFAULT retention capture around the broker seam.
+
+| Function | What it does |
+| --- | --- |
+| `wrapWithRetentionCapture` | Wrap a broker so every write is captured to the durable history store when one is configured. |
+
 ### `artifacts/api-server/src/broker/router.ts`
 
 Broker router — turn the per-kind routing DECISION (`brokerForCommand`) into an actual per-kind DISPATCH.

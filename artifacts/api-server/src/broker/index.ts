@@ -18,6 +18,7 @@ import { applyVendorProfile, demoVendorFor } from "./vendor-profile";
 import { readCacheEnabled, wrapWithCache, invalidateReadCache } from "./cache";
 import { sharedReadCacheEnabled, wrapWithSharedCache } from "./shared-cache";
 import { wrapWithAutonomousGuard } from "./autonomous-guard";
+import { wrapWithRetentionCapture } from "./retention-capture";
 import { wrapWithScopeGuard } from "./scope-guard";
 import { wrapWithSanitizer } from "./sanitizer";
 import { wrapWithSingleFlight } from "./single-flight";
@@ -54,6 +55,10 @@ export function getBroker(): Broker {
     // fail-closed authorizeAutonomousWrite gate). A no-op for human contexts, so normal writes are
     // unaffected; placed closest to the real broker so no outer wrapper can route a write around it.
     base = wrapWithAutonomousGuard(base);
+    // Just outside the autonomous guard (so it still captures the REAL write, once, before any caching
+    // wrapper): auto-capture each write to the durable history store WHEN one is configured. A no-op
+    // otherwise — gated on retentionSourceFor(scope) !== null — so the gateway stays zero-at-rest.
+    base = wrapWithRetentionCapture(base);
     // Keyed-access posture: a LIVE broker is hard-gated behind a configured key
     // (BROKER_PSK) outside dev mode — no keyless request reaches a real vendor/broker.
     // Innermost so a cache hit (which reaches no broker) isn't blocked. Demo/dev brokers
@@ -161,7 +166,7 @@ export function brokerConfigured(): boolean {
 // edge forwards arbitrary mutating actions, so leaving it unwrapped would let an autonomous actor route
 // a write around the guard (defeating "innermost, so no wrapper routes a write around it"). No-op for
 // human contexts, so route traffic (all human) is unaffected.
-const commandBroker = wrapWithAutonomousGuard(new ReferenceBroker());
+const commandBroker = wrapWithRetentionCapture(wrapWithAutonomousGuard(new ReferenceBroker()));
 /** Forward an arbitrary action + payload through the adapter's command edge. */
 export function brokerCommand(ctx: ActorContext, action: string, payload: Record<string, unknown>, source: string): Promise<unknown> {
   // Arbitrary commands may mutate the backend, and they bypass the cached broker —
