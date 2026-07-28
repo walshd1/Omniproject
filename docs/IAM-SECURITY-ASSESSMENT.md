@@ -100,21 +100,24 @@ SAML lib). These are tracked here but are not part of the pure-functional-core w
 
 **Wave complete — all in-lane engines delivered and merged as pure functional cores.**
 
-> **Enforcement status — read this before citing the table as "controls in force."** Slices 1–4 shipped
-> as **pure catalogue engines with unit tests but no runtime consumer**: `authz-policy.ts`,
-> `access-review.ts`, `separation-of-duties.ts` and `human-delegation.ts` are **not imported by any route
-> or `app.ts`** (verified: zero non-test importers outside the catalogue). Runtime authorization is still
-> the imperative `requireRole` / `requireAnyRole` ladder (`lib/rbac.ts`, used across ~90 route files), and
-> no request-time decision consults the ABAC/SoD/access-review/delegation engines yet. **Only Slice 5**
-> (the route→grant manifest + fail-closed CI guard) is a **live, enforced** control. So these engines are
-> "built and ready to wire," not "in force" — a SoD conflict or a failed recertification detects/decides
-> nothing at request time today. Wiring each engine to an enforcement path is the follow-on work.
+> **Enforcement status — read this before citing the table as "controls in force."** The engines shipped
+> as pure catalogue cores; wiring them to a runtime enforcement path is separate, ongoing work. Current state:
+> - **S3 (separation-of-duties) — WIRED & enforced.** `separation-of-duties.ts` is now consumed at request
+>   time by `PUT /admin/role-map` (`routes/role-map.ts` via `lib/sod-policy.ts`): a mapping that would grant
+>   one IdP group a toxic combination of authorities is rejected **409** before it is proposed. Inert until
+>   an operator sets `SOD_POLICIES` (a JSON array of `{id,label,severity?,a[],b[]}`); fail-closed if that env
+>   is present but unparseable. See CONTROL-EVIDENCE.md "Separation of duties".
+> - **S6 (route→grant manifest) — live/enforced in CI** (the fail-closed verifier guard).
+> - **S1 (ABAC), S2 (access-review), S4/S5 (human-delegation) — still engine-only:** `authz-policy.ts`,
+>   `access-review.ts` and `human-delegation.ts` have no runtime consumer yet; runtime authorization remains
+>   the imperative `requireRole` / `requireAnyRole` ladder (`lib/rbac.ts`, ~90 route files). Wiring each to an
+>   enforcement path is the remaining follow-on work — they are "built and ready to wire," not yet "in force."
 
 | Slice | Gap | Deliverable | Wiring | PR |
 | --- | --- | --- | --- | --- |
 | **1 ✅** | S1 | ABAC authorization-policy engine (`authz-policy.ts`, reuses `predicate.ts`) | engine only — no runtime consumer | #913 |
 | **2 ✅** | S2 | Access-review / recertification engine (`access-review.ts`) | engine only — no runtime consumer | #914 |
-| **3 ✅** | S3 | Separation-of-duties conflict engine (`separation-of-duties.ts`, reuses the severity vocabulary) | engine only — no runtime consumer | #915 |
+| **3 ✅** | S3 | Separation-of-duties conflict engine (`separation-of-duties.ts`, reuses the severity vocabulary) | **wired: enforced in `routes/role-map.ts`** (409 on a toxic-combination grant; opt-in via `SOD_POLICIES`) | #915 |
 | **4 ✅** | S5 | Human delegation grant (`human-delegation.ts`, the human analogue of `autonomous-grant.ts`) | engine only — no runtime consumer | #916 |
 | **5 ✅** | S6 | Declarative route→grant manifest (`route-auth-manifest.ts`) + fail-closed verifier guard (`guard-route-grants.ts`, wired into CI) | **live / enforced in CI** | #917 |
 

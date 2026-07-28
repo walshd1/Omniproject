@@ -26,6 +26,7 @@ file on a control's status or location, **this file wins and should be updated f
 | Strong-auth (WebAuthn) gate for pmo/admin | `lib/rbac.ts` (`hasStrongAuth`, `STRONG_AMR`) | `__tests__/rbac-enforcement.test.ts` (amr-gated) |
 | Step-up re-auth | `lib/step-up.ts` (`requireStepUp`) | `__tests__/security-routes.test.ts` (`code:"step_up_required"`) |
 | Dual-control (four-eyes) | `lib/dual-control.ts` (`approve` rejects self) | `lib/dual-control.test.ts` |
+| Separation of duties (toxic-combination grants) | `separation-of-duties.ts` engine + `lib/sod-policy.ts` wired into `routes/role-map.ts` (`PUT /admin/role-map` → 409); opt-in via `SOD_POLICIES` | `lib/sod-policy.test.ts`, `__tests__/role-map-routes.test.ts` (conflict rejected, inert-when-unset, fail-closed) |
 | Default-deny chokepoint | `routes/index.ts` (`requireAuth` on every protected router) | `__tests__/security.test.ts` (401 without session) |
 
 ## 2. Session management
