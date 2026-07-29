@@ -61,19 +61,19 @@ test("the org's active deployment type: unset → null, then PUT sets it (admin)
   // Set to solo-selfhost, overriding the broker (a pickable setting).
   const put = await h.req("/deployment-type", {
     method: "PUT", cookie: adminCookie(),
-    body: { deploymentType: "solo-selfhost", overrides: { broker: "builtin:postgres", auth: "none" } },
+    body: { deploymentType: "solo-selfhost", overrides: { broker: "builtin:sql", auth: "none" } },
   });
   assert.equal(put.status, 200);
   const set = await json(put);
   assert.equal(set.deploymentType, "solo-selfhost");
-  assert.equal(set.setup.broker, "builtin:postgres");   // pickable override accepted
+  assert.equal(set.setup.broker, "builtin:sql");   // pickable override accepted (external SQL sidecar)
   assert.deepEqual(set.rejectedOverrides, ["auth"]);     // non-pickable override rejected
   assert.ok(set.settings.some((s: { key: string }) => s.key === "storage"));
 
   // The active type persists + resolves.
   const got = await json(await h.req("/deployment-type", { cookie: adminCookie() }));
   assert.equal(got.deploymentType, "solo-selfhost");
-  assert.equal(got.setup.broker, "builtin:postgres");
+  assert.equal(got.setup.broker, "builtin:sql");
 
   // CHANGE to a different type — one per org, so it replaces.
   const change = await json(await h.req("/deployment-type", { method: "PUT", cookie: adminCookie(), body: { deploymentType: "enterprise-onprem" } }));

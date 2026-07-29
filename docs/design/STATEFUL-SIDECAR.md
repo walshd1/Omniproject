@@ -1,9 +1,11 @@
 # Design: OmniStore — a first-party, stateful system-of-record sidecar
 
 **Status:** **partially realized** — an MVP first-party stateful sidecar **ships today** (OmniStore, an
-encrypted append-only event-log store below the broker seam); the Postgres data model (§4–§5), the
-Jira-class workflow/search/agile/links extensions (§3, §6–§8), and the horizontal scale-out ladder (§10)
-remain **proposed**. · **Author:** (AI-assisted) · **Audience:** maintainers + implementers
+encrypted append-only event-log store below the broker seam). **OmniStore's internal store IS that event
+log — not Postgres.** The relational schema (§4–§5) and the horizontal scale-out ladder (§10) describe the
+**optional, separate external SQL-sidecar backend** you may broker over (the `sql` broker — your own
+PostgreSQL/MySQL/MSSQL), not OmniStore itself. The Jira-class workflow/search/agile/links extensions
+(§3, §6–§8) remain **proposed** for OmniStore. · **Author:** (AI-assisted) · **Audience:** maintainers + implementers
 
 > **What's realized (as of 2026-07).** OmniStore ships as a first-party backend sidecar — **not** the
 > Postgres design in §4/§10, but a **durable, encrypted, hash-chained, append-only event-log store**
@@ -20,22 +22,29 @@ remain **proposed**. · **Author:** (AI-assisted) · **Audience:** maintainers +
 > `broker/omnistore/omnistore.test.ts` + `superset.test.ts` against the conformance bar. State is a
 > deterministic projection of the log, so a reload can never diverge from a live write.
 >
-> **Still proposed** (this document's larger target): the **Postgres** data model + SQL action→query
-> mapping (§4–§5), the configurable **workflow** transition engine (§6), structured **`search_issues`** +
-> keyset paging (§5, §7), the **outbox → webhooks/notifications** worker (§8), agile **boards/sprints** and
-> **custom-field defs / issue links / watchers** (Phases 2–4), the **scale-out ladder** —
-> read-replicas → pgbouncer → partitioning → Citus/sharding + materialised rollups + a published loadtest
-> (§10) — and the **Jira/CSV importer + dual-run** cutover (§11). The realized store is event-sourced in a
-> sealed file, so §4/§10's Postgres specifics are design targets, not current behaviour.
+> **Internal store = the event log, permanently.** OmniStore is **not** Postgres-backed — its system of
+> record is the encrypted append-only log above. The **relational data model** (§4–§5) and the **Postgres
+> scale-out ladder** (§10 — read-replicas → pgbouncer → partitioning → Citus) describe the **optional
+> external SQL-sidecar backend** (the `sql` broker over your own PostgreSQL/MySQL/MSSQL), a *separate*
+> backend choice you broker over — not OmniStore's storage. You can still interface with a Postgres
+> database as a backend; it just isn't OmniStore's internal store.
+>
+> **Still proposed for OmniStore itself:** the configurable **workflow** transition engine (§6), structured
+> **`search_issues`** + keyset paging (§5, §7), the **outbox → webhooks/notifications** worker (§8), agile
+> **boards/sprints** + **custom-field defs / issue links / watchers** (Phases 2–4), and the **Jira/CSV
+> importer + dual-run** cutover (§11).
 
 ## 1. Goal & positioning
 
 Today OmniProject is a **stateless overlay**: it brokers over an external system of record (Jira,
 OpenProject, a SQL sidecar) and holds no work-item data itself. This design adds **OmniStore** — a
-first-party, **Postgres-backed, stateful sidecar that _is_ a full work-tracking system of record**.
+first-party, **stateful sidecar that _is_ a full work-tracking system of record**, backed by an
+**encrypted, append-only event log** (a sealed file it owns — *not* an external database).
 Paired with the OmniProject overlay it becomes a complete, self-hostable product that can **replace
 Jira/Linear/OpenProject** rather than sit on top of one — while the gateway stays exactly as it is:
-stateless, DB-credential-free, and unaware that this backend is "first-party."
+stateless, DB-credential-free, and unaware that this backend is "first-party." (If you'd rather keep your
+data in your own relational database, that's the *external* SQL-sidecar backend — the `sql` broker — a
+different choice covered in §4–§5/§10, not OmniStore's internal store.)
 
 The design constraint that makes this clean: **OmniStore wires in like any other backend.** It
 implements the existing broker HTTP sidecar contract — nothing in the gateway core changes, and it
@@ -43,9 +52,9 @@ must pass the existing `http-conformance.test.ts` acceptance suite. Everything J
 today's contract is added as **additive, capability-gated actions** (backward compatible: a backend
 that doesn't advertise the capability is never called for it).
 
-Why this is competitive: self-hosted + **data-sovereign** (your Postgres, not a vendor cloud),
-MIT-licensed (vs. per-seat SaaS), and you get the **portfolio/PMO layer for free** on top of the
-execution tracker. Honest non-goals below (§13).
+Why this is competitive: self-hosted + **data-sovereign** (your data on your disk, under your keys — not a
+vendor cloud), MIT-licensed (vs. per-seat SaaS), and you get the **portfolio/PMO layer for free** on top of
+the execution tracker. Honest non-goals below (§13).
 
 ### Optional — never required
 
@@ -109,7 +118,13 @@ Everything in "Additive" is **capability-gated**: OmniProject already governs ba
 an org running OmniStore gets the full set, while the same gateway talking to Jira just doesn't call
 the actions Jira's adapter doesn't advertise.
 
-## 4. Data model (Postgres)
+## 4. Relational data model — reference for the *external* SQL-sidecar backend
+
+> **This section is NOT OmniStore's internal store.** OmniStore persists to its own encrypted, append-only
+> event log (projected to Row state — see the realized-status callout at the top and §8). The relational
+> schema below is a **reference for anyone brokering over an external SQL database** via the `sql` broker
+> (your own PostgreSQL/MySQL/MSSQL behind the SQL sidecar) — an optional, separate backend choice, not our
+> internal storage. It is kept because that external path is fully supported.
 
 Core tables (abbreviated DDL — every mutable row carries `version int` for optimistic concurrency and
 `updated_at timestamptz` for the change-token cursor + keyset paging):
@@ -251,7 +266,13 @@ exactly-once-ish (dedupe on `event_id`).
 - **Audit:** the `events` log is the tamper-evident record; optionally hash-chain it like the gateway
   audit chain.
 
-## 10. Built to scale OUT (horizontal, every tier)
+## 10. Built to scale OUT (horizontal, every tier) — the *external* SQL-sidecar backend
+
+> **Applies to the external SQL-sidecar backend, not OmniStore's internal store.** OmniStore's own store is
+> a single durable, encrypted event log (sealed file) — a single-writer system of record scaled vertically
+> with backup/DR, not the horizontally-sharded Postgres tier below. The read-replica → pgbouncer →
+> partitioning → Citus ladder is how **your own PostgreSQL** (reached via the `sql` broker) scales; it is
+> the external backend's concern, and OmniProject never holds those DB credentials.
 
 The whole stack is designed to **scale out, not just up** — add replicas, not just bigger boxes. This
 mirrors the gateway, which is already stateless and fleet-scaled (N replicas + Redis shared-state).
