@@ -83,6 +83,12 @@ export function registerAutonomousActor(id: string, maxRole: Role): void {
   REGISTRY.set(id, maxRole);
 }
 
+/** Drop a dynamically-registered actor id (e.g. a just-in-time, per-run principal after its run completes),
+ *  so no mint source lingers past its use. A no-op for a built-in id it doesn't know. */
+export function unregisterAutonomousActor(id: string): void {
+  REGISTRY.delete(id);
+}
+
 /** The max role a known actor may run as, or undefined if it isn't an allowed source. */
 export function authorizedRole(id: string): Role | undefined {
   return REGISTRY.get(id);

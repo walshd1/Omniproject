@@ -57,6 +57,13 @@ export function getAutonomousGrant(actorId: string): AutonomousWriteGrant | unde
   return GRANTS.get(actorId);
 }
 
+/** Revoke a single grant (and reset its write counter). Used to tear down a JUST-IN-TIME grant the instant a
+ *  supervised run finishes, so no write authority outlives the run that a human approved. */
+export function revokeAutonomousGrant(actorId: string): void {
+  GRANTS.delete(actorId);
+  writeCounts.delete(actorId);
+}
+
 /** Every active write grant (for the admin dashboard). No secrets — pure scope data. */
 export function listAutonomousGrants(): AutonomousWriteGrant[] {
   return [...GRANTS.values()];
