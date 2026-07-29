@@ -778,6 +778,7 @@ Supervised agentic execution (D1) — the EXECUTION half (approve-the-batch), JU
 | `runApprovedBatch` | Run a batch a human has just approved. |
 | `ensureBatchExecutor` | Register the ONE approval executor for supervised batches (idempotent). |
 | `proposeBatch` | Plan → propose. |
+| `pendingBatchesFor` | The supervised batches awaiting THIS approver's sign-off, each with its plan + a fresh dry-run preview so the approver reviews the exact actions before signing (the point of "supervised"). |
 
 ### `artifacts/api-server/src/lib/agentic-batch.ts`
 
@@ -943,6 +944,7 @@ The action-id prefix a workflow RUN binds to (`workflow.run:<id>`) — matched h
 | `loadProposal` | Load a stored proposal by id, or null when absent / structurally invalid (parse-safe). |
 | `createProposal` | Raise a proposal: snapshot the chain def, start it at stage 0, persist. |
 | `inboxFor` | Proposals awaiting `actor`'s decision: pending, actor eligible for the CURRENT stage, not the proposer, and hasn't already decided it. |
+| `inboxDetailFor` | Like {@link inboxFor} but restricted to ONE action and carrying each proposal's `params`. |
 | `challengeForStage` | Issue a one-time passkey challenge for `sub` to sign the CURRENT stage of a proposal. |
 | `submitDecision` | Submit a passkey-signed decision for the current stage. |
 | `redirectProposal` | PMO REDIRECT — reassign the current stage's approvers. |
@@ -4553,7 +4555,7 @@ The ORG-wide accessibility DEFAULTS — a partial UserPrefs the org sets as ever
 
 ### `artifacts/api-server/src/routes/agentic.ts`
 
-Supervised agentic execution (D1) — the PLAN→PROPOSE surface ("approve-the-batch").
+The human approver identity for this request, or null for no session / an autonomous (non-human) principal.
 
 ### `artifacts/api-server/src/routes/ai-allowlist.ts`
 

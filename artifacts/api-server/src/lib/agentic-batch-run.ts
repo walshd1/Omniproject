@@ -6,8 +6,9 @@ import { runWorkflow, type WorkflowDef, type WorkflowEffect } from "./workflow";
 import crypto from "node:crypto";
 import { compileRecipe } from "./automation";
 import { getActionDef, type AutomationRecipe } from "@workspace/backend-catalogue";
-import { registerApprovalExecutor, createProposal } from "./approval-service";
+import { registerApprovalExecutor, createProposal, inboxDetailFor } from "./approval-service";
 import { chainForAction } from "./approval-gate";
+import type { Actor } from "./approval-chain";
 import { BatchPlanError, validateBatchPlan, type AgenticBatchPlan } from "./agentic-batch";
 
 /**
@@ -188,4 +189,31 @@ export async function proposeBatch(rawPlan: unknown, proposedBy: string, now: nu
   const batchId = crypto.randomUUID();
   const proposalId = await createProposal({ def, action: BATCH_APPROVAL_ACTION, params: { batchId, plan, onBehalfOf: proposedBy }, proposedBy });
   return { batchId, proposalId, preview: previewBatch(plan, batchId, now) };
+}
+
+export interface PendingBatch {
+  proposalId: string;
+  batchId: string;
+  plan: AgenticBatchPlan;
+  preview: BatchStepPreview[];
+  createdAt: string;
+}
+
+/**
+ * The supervised batches awaiting THIS approver's sign-off, each with its plan + a fresh dry-run preview so
+ * the approver reviews the exact actions before signing (the point of "supervised"). Eligibility — pending,
+ * eligible for the current stage, not the proposer, not already decided — is enforced by
+ * {@link inboxDetailFor}. A proposal whose stored params don't re-validate as a plan is skipped, never shown.
+ */
+export async function pendingBatchesFor(actor: Actor, now: number = Date.now()): Promise<PendingBatch[]> {
+  const items = await inboxDetailFor(actor, BATCH_APPROVAL_ACTION);
+  const out: PendingBatch[] = [];
+  for (const it of items) {
+    const params = (it.params ?? {}) as { batchId?: unknown; plan?: unknown };
+    if (typeof params.batchId !== "string") continue;
+    let plan: AgenticBatchPlan;
+    try { plan = validateBatchPlan(params.plan); } catch { continue; }
+    out.push({ proposalId: it.id, batchId: params.batchId, plan, preview: previewBatch(plan, params.batchId, now), createdAt: it.createdAt });
+  }
+  return out;
 }

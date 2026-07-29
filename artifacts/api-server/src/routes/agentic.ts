@@ -1,8 +1,17 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import { getSession } from "./auth";
-import { requireRole } from "../lib/rbac";
-import { proposeBatch } from "../lib/agentic-batch-run";
+import { requireRole, hasRole, ROLES } from "../lib/rbac";
+import type { Actor } from "../lib/approval-chain";
+import { proposeBatch, pendingBatchesFor } from "../lib/agentic-batch-run";
 import { BatchPlanError } from "../lib/agentic-batch";
+
+/** The human approver identity for this request, or null for no session / an autonomous (non-human) principal.
+ *  Mirrors routes/approvals.ts `actorFor` — an AI/agent can never be an approver here. */
+function humanActor(req: Request): Actor | null {
+  const s = getSession(req);
+  if (!s?.sub || /^(?:automation|agent):/i.test(s.sub)) return null;
+  return { sub: s.sub, roles: ROLES.filter((r) => hasRole(req, r)), via: "human" };
+}
 
 /**
  * Supervised agentic execution (D1) — the PLAN→PROPOSE surface ("approve-the-batch").
@@ -32,6 +41,16 @@ router.post("/agentic/batches", requireRole("contributor"), async (req: Request,
     }
     throw err;
   }
+});
+
+// GET /api/agentic/batches/pending — the supervised batches awaiting THIS caller's sign-off, each with its
+// plan + a fresh dry-run preview so the approver reviews the exact actions before approving/aborting. Only
+// batches the caller is eligible to decide (and didn't propose) are returned. A human session is required —
+// an autonomous principal can never approve a batch.
+router.get("/agentic/batches/pending", requireRole("contributor"), async (req: Request, res: Response) => {
+  const actor = humanActor(req);
+  if (!actor) { res.status(403).json({ error: "reviewing supervised batches requires an interactive session" }); return; }
+  res.json({ pending: await pendingBatchesFor(actor) });
 });
 
 export default router;
