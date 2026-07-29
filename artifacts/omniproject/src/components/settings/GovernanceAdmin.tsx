@@ -19,7 +19,7 @@ import { useToast } from "@/hooks/use-toast";
  * SaaS vendor allowed generally but forced off on a sensitive screen. Admin-only (the
  * gateway also enforces it).
  */
-const KIND_ORDER: CapabilityKind[] = ["ai-tool", "mcp", "ai-provider", "broker", "vendor"];
+const KIND_ORDER: CapabilityKind[] = ["ai-tool", "mcp", "ai-provider", "broker", "vendor", "finance"];
 
 export function GovernanceAdmin() {
   const { data: auth } = useAuth();

@@ -13,6 +13,7 @@ import { requireRole } from "../lib/rbac";
 import { guardProjectScope } from "../lib/project-scope";
 import { getSession } from "./auth";
 import { enforceCapability, CapabilityBlockedError, getCapability } from "../lib/capability-governance";
+import { financeCapabilityForAction } from "../lib/finance-capability";
 import { grantedCapabilitiesForReq } from "../lib/custom-roles";
 import { enforceBusinessRules } from "../lib/ruleset-guard";
 import { zodParseOr400 } from "../lib/validate";
@@ -60,6 +61,23 @@ async function handle(req: Request, res: Response): Promise<void> {
     } catch (err) {
       if (err instanceof CapabilityBlockedError) {
         respondBrokerError(res, new BrokerError("unavailable", `Vendor "${vendorId}" is turned off by the administrator`));
+        return;
+      }
+      throw err;
+    }
+  }
+
+  // Finance governance: a finance record action (create_bill, update_gl_account, list_tax_rates, …) is
+  // gated by its finance sub-capability (finance:ar/ap/gl/banking/tax), off by default. Non-finance actions
+  // parse to undefined and pass through. Same shape as the vendor gate above.
+  const financeCap = financeCapabilityForAction(action);
+  if (financeCap) {
+    try {
+      const s = getSession(req);
+      enforceCapability(financeCap, { actor: s ? { sub: s.sub, email: s.email } : null, granted: grantedCapabilitiesForReq(req) });
+    } catch (err) {
+      if (err instanceof CapabilityBlockedError) {
+        respondBrokerError(res, new BrokerError("unavailable", `${getCapability(financeCap)?.label ?? "This finance area"} is turned off by the administrator`));
         return;
       }
       throw err;

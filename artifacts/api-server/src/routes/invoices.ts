@@ -14,6 +14,9 @@ import {
 } from "../lib/invoice";
 import { resolveBillingAdapter } from "../broker/backends";
 import { billableStaffCostForProject, labourLinesFromStaffCost } from "../lib/invoice-autobuild";
+import { enforceCapability, CapabilityBlockedError } from "../lib/capability-governance";
+import { grantedCapabilitiesForReq } from "../lib/custom-roles";
+import { getSession } from "./auth";
 
 /**
  * INVOICES (roadmap 3.3). A generated, client-facing invoice — a number + currency + typed line primitives,
@@ -24,6 +27,20 @@ import { billableStaffCostForProject, labourLinesFromStaffCost } from "../lib/in
  * storage-target authz). Behind the default-off `invoicing` feature module.
  */
 const router = Router();
+
+// Finance governance (F0): invoices are the accounts-receivable surface, so the whole router is gated by the
+// `finance:ar` capability (off by default — an admin turns AR on). Applies to every invoice route below,
+// on top of the manager+ RBAC and the `invoicing` feature module. A blocked caller gets 403, not 404.
+router.use((req, res, next) => {
+  try {
+    const s = getSession(req);
+    enforceCapability("finance:ar", { actor: s ? { sub: s.sub, email: s.email } : null, granted: grantedCapabilitiesForReq(req) });
+    next();
+  } catch (err) {
+    if (err instanceof CapabilityBlockedError) { res.status(403).json({ error: "Accounts receivable is turned off by the administrator" }); return; }
+    next(err);
+  }
+});
 
 const authorizeTarget = (
   req: Parameters<typeof authorizeStorageTarget>[0], res: Parameters<typeof authorizeStorageTarget>[1],

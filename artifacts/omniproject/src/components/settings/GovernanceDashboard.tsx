@@ -17,7 +17,7 @@ import { ConfirmButton } from "../ConfirmButton";
  * and a feed of recent uses / blocks / config changes (capability, surface, who, when).
  * Admin-only. Read-only — the controls live in GovernanceAdmin.
  */
-const KIND_ORDER: CapabilityKind[] = ["ai-tool", "mcp", "ai-provider", "broker", "vendor"];
+const KIND_ORDER: CapabilityKind[] = ["ai-tool", "mcp", "ai-provider", "broker", "vendor", "finance"];
 
 const ACTION_STYLE: Record<CapabilityLogEntry["action"], { label: string; cls: string }> = {
   use: { label: "used", cls: "text-emerald-600" },
