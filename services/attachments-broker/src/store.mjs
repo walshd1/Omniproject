@@ -7,7 +7,7 @@
  */
 import { createHash } from "node:crypto";
 import { mkdir, readFile, writeFile, unlink, stat } from "node:fs/promises";
-import { join } from "node:path";
+import { join, resolve, sep } from "node:path";
 
 /** A key is a flat filename token — no separators, no dot-segments — so it can never escape the root. */
 const KEY_RE = /^[A-Za-z0-9._-]{1,200}$/;
@@ -29,9 +29,16 @@ export function sha256Hex(buf) {
  * never read or write outside the root. Returns `null`/`false` for a missing blob rather than throwing.
  */
 export function createFsStore(rootDir) {
+  const root = resolve(rootDir);
   const pathOf = (key) => {
     if (!isValidKey(key)) throw new StoreError("invalid key");
-    return join(rootDir, key);
+    // Defence-in-depth + a barrier a static path-injection analyser recognises: resolve the candidate and
+    // assert it stays inside the store root. isValidKey already guarantees this (a flat token with no
+    // separators or dot-segments can't escape), so a valid key never trips it — but making the no-escape
+    // property explicit keeps it robust to any future key-shape change and provable to the scanner.
+    const p = resolve(root, key);
+    if (p !== root && !p.startsWith(root + sep)) throw new StoreError("invalid key");
+    return p;
   };
   return {
     /** Write `buf` under `key`; returns `{ key, size, sha256 }`. */
