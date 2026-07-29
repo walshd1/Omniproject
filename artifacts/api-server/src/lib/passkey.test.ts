@@ -99,3 +99,18 @@ test("challenge is one-time: consume succeeds once, then fails; a wrong value ne
   assert.equal(await consumeChallenge(scope, challenge), true);
   assert.equal(await consumeChallenge(scope, challenge), false); // already consumed
 });
+
+test("registerCredential caps the number of passkeys per user", async () => {
+  const { MAX_PASSKEYS_PER_USER } = await import("./passkey");
+  const sub = "cap-user";
+  // Enrol up to the cap (distinct ids, same valid SPKI stands in for distinct authenticators).
+  for (let i = 0; i < MAX_PASSKEYS_PER_USER; i++) {
+    await registerCredential(sub, { credentialId: `cred-${i}`, publicKeySpki });
+  }
+  assert.equal((await credentialsFor(sub)).length, MAX_PASSKEYS_PER_USER);
+  // One more distinct credential is refused…
+  await assert.rejects(() => registerCredential(sub, { credentialId: "one-too-many", publicKeySpki }), AssertionError);
+  // …but re-registering an EXISTING id replaces (doesn't grow), so it still succeeds at the cap.
+  await registerCredential(sub, { credentialId: "cred-0", publicKeySpki });
+  assert.equal((await credentialsFor(sub)).length, MAX_PASSKEYS_PER_USER);
+});
