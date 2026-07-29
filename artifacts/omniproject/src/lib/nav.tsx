@@ -22,6 +22,7 @@ import { Layers, Briefcase, BarChart3, FlaskConical, Settings as SettingsIcon, P
 import { useGetCapabilities } from "@workspace/api-client-react";
 import { canSurfaceEntity } from "./capabilities-fields";
 import { useFeatures, featureEnabled } from "./features";
+import { useMyCapabilities, capabilityEnabled } from "./my-capabilities";
 import { useAuth, isPmoOrAdmin, roleAtLeast, type Role } from "./auth";
 import { useMethodologyComposition } from "./methodology-composition-api";
 import { visibleRoutedScreens, screenVisibleUnder, type ScreenCatalogueEntry } from "./screen-catalogue";
@@ -46,6 +47,9 @@ export interface NavItem {
   requiresEntity?: string;
   /** If set, only show this item when that feature module is enabled. */
   requiresFeature?: string;
+  /** If set, only show this item when that governed capability is enabled for the caller (e.g. a finance
+   *  area like `finance:ar`). A UX gate — the gateway still enforces the capability at the route. */
+  requiresCapability?: string;
   /** If set, a HARD visibility gate: a role that fails it never sees this item at
    *  all (sidebar or command palette), not even collapsed behind "show advanced". */
   visibleToRoles?: (role: Role | undefined) => boolean;
@@ -66,7 +70,7 @@ export const NAV_ITEMS: NavItem[] = [
   { href: "/programmes", i18nKey: "nav.programmes", label: "Programmes", icon: Boxes, match: (l) => l.startsWith("/programmes"), requiresEntity: "programme", group: "primary" },
   { href: "/projects", i18nKey: "nav.projects", label: "Projects", icon: Briefcase, chord: "G+P", match: (l) => l.startsWith("/projects"), group: "primary" },
   { href: "/budgets", i18nKey: "nav.budgets", label: "Budgets", icon: Wallet, match: (l) => l.startsWith("/budgets"), group: "primary" },
-  { href: "/invoices", i18nKey: "nav.invoices", label: "Invoices", icon: Receipt, match: (l) => l.startsWith("/invoices"), requiresFeature: "invoicing", group: "primary" },
+  { href: "/invoices", i18nKey: "nav.invoices", label: "Invoices", icon: Receipt, match: (l) => l.startsWith("/invoices"), requiresFeature: "invoicing", requiresCapability: "finance:ar", group: "primary" },
   { href: "/reports", i18nKey: "nav.reports", label: "Reports", icon: BarChart3, chord: "G+R", match: (l) => l.startsWith("/reports"), group: "primary" },
   { href: "/resources", i18nKey: "nav.resources", label: "Resources", icon: Users, match: (l) => l.startsWith("/resources"), requiresEntity: "member", group: "primary" },
   { href: "/resource-planning", i18nKey: "nav.resourcePlanning", label: "Resource planning", icon: Users, match: (l) => l.startsWith("/resource-planning"), group: "primary" },
@@ -138,6 +142,7 @@ export function navShelvesForRole(
 export function useVisibleNavItems(): NavItem[] {
   const { data: caps } = useGetCapabilities();
   const { data: features } = useFeatures();
+  const { data: myCaps } = useMyCapabilities();
   const { data: auth } = useAuth();
   const { data: composition } = useMethodologyComposition();
   const { data: disabled } = useDisabledScreens();
@@ -148,6 +153,7 @@ export function useVisibleNavItems(): NavItem[] {
     (item) =>
       (!item.requiresEntity || canSurfaceEntity(caps, item.requiresEntity)) &&
       (!item.requiresFeature || featureEnabled(features, item.requiresFeature)) &&
+      (!item.requiresCapability || capabilityEnabled(myCaps, item.requiresCapability)) &&
       (!item.visibleToRoles || item.visibleToRoles(auth?.role)),
   );
   const composed = composition ?? null;
