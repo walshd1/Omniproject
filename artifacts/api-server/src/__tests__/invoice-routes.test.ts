@@ -37,6 +37,10 @@ before(async () => {
   server = app.listen(0);
   await new Promise<void>((r) => server.once("listening", () => r()));
   base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+  // Invoices are the accounts-receivable surface, gated by the `finance:ar` capability (off by default).
+  // Enable it so the AR flows below are exercised; the off→403 case is asserted in its own test.
+  const { updateSettings } = await import("../lib/settings");
+  updateSettings({ capabilityStates: { "finance:ar": { state: "user-defined" } } });
 });
 after(() => { server?.close(); fs.rmSync(CONFIG_DIR, { recursive: true, force: true }); });
 
@@ -99,6 +103,18 @@ test("status flow: issue → paid, and an issued invoice can't be edited", async
   // issued → paid.
   const paid = await req(`/invoices/${gid}/status`, { method: "POST", body: { status: "paid" } });
   assert.equal(((await paid.json()) as { status: string; paidAt: string }).status, "paid");
+});
+
+test("finance:ar off → 403 on every invoice route (the F0 capability gate); on → served again", async () => {
+  const { updateSettings } = await import("../lib/settings");
+  updateSettings({ capabilityStates: { "finance:ar": { state: "off" } } });
+  try {
+    assert.equal((await req("/invoices")).status, 403);
+    assert.equal((await req("/invoices", { method: "POST", body: DRAFT })).status, 403);
+  } finally {
+    updateSettings({ capabilityStates: { "finance:ar": { state: "user-defined" } } });
+  }
+  assert.equal((await req("/invoices")).status, 200); // restored
 });
 
 test("a bad write is 400; a contributor cannot touch invoices (manager+)", async () => {

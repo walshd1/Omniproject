@@ -49,6 +49,19 @@ export function isFinanceRecordType(recordType: string): boolean {
   return recordType in RECORD_TYPE_TO_CAPABILITY;
 }
 
+/**
+ * The finance capability a broker action touches, parsed from a `<verb>_<recordType>` action name (e.g.
+ * `create_bill`, `update_gl_account`, `list_tax_rates`), or `undefined` for a non-finance / unparseable
+ * action. Best-effort: it strips a leading verb and an optional plural `s`, then maps the record type. An
+ * action it can't parse yields `undefined` and passes UNGATED — finance governance is a feature toggle, not
+ * an access-control boundary (RBAC + scope still apply), so failing open here only leaves a governance gate
+ * incomplete, never opens a security hole.
+ */
+export function financeCapabilityForAction(action: string): FinanceCapabilityId | undefined {
+  const m = /^[a-z]+_([a-z_]+?)s?$/.exec(action);
+  return m ? financeCapabilityForRecordType(m[1]!) : undefined;
+}
+
 /** Every finance record type, grouped by capability — for tests + the admin surface. */
 export function financeRecordTypesByCapability(): Record<FinanceCapabilityId, string[]> {
   const out = { "finance:ar": [], "finance:ap": [], "finance:gl": [], "finance:banking": [], "finance:tax": [] } as Record<FinanceCapabilityId, string[]>;
