@@ -174,7 +174,11 @@ export async function submitDecision(proposalId: string, actor: Actor, signed: S
 
 async function runExecutor(action: string, params: unknown): Promise<boolean> {
   const fn = executors.get(action);
-  if (!fn) return false; // no executor registered — approval recorded, nothing to apply
+  // `executors` is a code-populated Map (keys registered via registerApprovalExecutor), so a lookup can
+  // only ever return a registered function or undefined — never an inherited prototype method. Assert
+  // the value is callable before dispatch: nothing to apply otherwise, and it makes the "the callee is a
+  // validated function, not an arbitrary user-named method" property explicit to a static analyser.
+  if (typeof fn !== "function") return false;
   await fn(params);
   return true;
 }

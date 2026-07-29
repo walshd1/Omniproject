@@ -112,7 +112,11 @@ export async function approve(id: string, actor: Actor, now: string): Promise<De
   if (!p || p.status !== "pending") return { ok: false, error: "No such pending proposal." };
   if (p.proposedBy === actor.sub) return { ok: false, error: "Four-eyes: a different admin must approve this." };
   const exec = executors.get(p.action);
-  if (!exec) return { ok: false, error: `No executor registered for "${p.action}".` };
+  // `executors` is a code-populated Map (keys registered via registerExecutor), so a lookup can only
+  // return a registered function or undefined — never an inherited prototype method. Assert the value is
+  // callable before dispatch: no executor otherwise, and it makes the "validated function, not an
+  // arbitrary user-named method" property explicit to a static analyser.
+  if (typeof exec !== "function") return { ok: false, error: `No executor registered for "${p.action}".` };
   await exec(p.params);
   p.status = "approved";
   p.decidedBy = actor.sub;

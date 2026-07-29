@@ -47,10 +47,16 @@ export interface ScimGroup {
 }
 
 interface Directory { users: Record<string, ScimUser>; groups: Record<string, ScimGroup> }
-let dir: Directory = { users: {}, groups: {} };
+// Null-prototype maps throughout: the by-id maps are indexed by the SCIM `id`, which arrives as a raw
+// route param. `safeId` already rejects `__proto__`/`constructor`/`prototype`, but a null-prototype map
+// makes the no-pollution property structural (a bare `Object.create(null)` has no prototype to reach),
+// so `dir.users[id]` can never resolve to `Object.prototype` even absent the guard — defence-in-depth,
+// and the barrier a static prototype-pollution analyser recognises.
+const emptyMap = <T>(): Record<string, T> => Object.create(null) as Record<string, T>;
+let dir: Directory = { users: emptyMap<ScimUser>(), groups: emptyMap<ScimGroup>() };
 // Tombstones: id → deletedAt (epoch ms). A hard-deleted user/group leaves no record, so LWW alone
 // would let a sibling's stale copy resurrect it; a tombstone that out-dates the record suppresses it.
-let tombstones: Record<string, number> = {};
+let tombstones: Record<string, number> = emptyMap<number>();
 const store = new SealedFile(() => resolveConfigFile("SCIM_STATE_FILE", "scim.json"), "scim");
 
 /**
@@ -85,19 +91,19 @@ export function pruneTombstones(t: Record<string, number>, now: number): Record<
 /** Per-record LWW merge of two directory snapshots: newer `meta.lastModified` wins; a tombstone that
  *  out-dates a record drops it. Deterministic (ids sorted) so the caller can skip an unchanged re-write. */
 function mergeDirectories(a: ScimShared, b: ScimShared): ScimShared {
-  const tomb: Record<string, number> = {};
+  const tomb: Record<string, number> = emptyMap<number>();
   for (const id of new Set([...Object.keys(a.tombstones ?? {}), ...Object.keys(b.tombstones ?? {})])) {
     tomb[id] = Math.max(a.tombstones?.[id] ?? 0, b.tombstones?.[id] ?? 0);
   }
   const pick = <T extends { meta: { lastModified: string } }>(x: T | undefined, y: T | undefined): T =>
     (epoch(y?.meta.lastModified) > epoch(x?.meta.lastModified) ? y! : (x ?? y!));
-  const users: Record<string, ScimUser> = {};
+  const users: Record<string, ScimUser> = emptyMap<ScimUser>();
   for (const id of [...new Set([...Object.keys(a.users ?? {}), ...Object.keys(b.users ?? {})])].sort()) {
     const rec = pick(a.users?.[id], b.users?.[id]);
     if ((tomb[id] ?? 0) >= epoch(rec.meta.lastModified)) continue; // deleted after its last update
     users[id] = rec;
   }
-  const groups: Record<string, ScimGroup> = {};
+  const groups: Record<string, ScimGroup> = emptyMap<ScimGroup>();
   for (const id of [...new Set([...Object.keys(a.groups ?? {}), ...Object.keys(b.groups ?? {})])].sort()) {
     const rec = pick(a.groups?.[id], b.groups?.[id]);
     if ((tomb[id] ?? 0) >= epoch(rec.meta.lastModified)) continue;
@@ -116,7 +122,7 @@ function mergeDirectories(a: ScimShared, b: ScimShared): ScimShared {
  *  write is still a write — but it guarantees whatever survives is SHAPE-SAFE for `directoryDecision`. */
 export function sanitizeSharedDirectory(raw: string): ScimShared {
   const parsed = safeParseJson<Partial<ScimShared>>(raw) ?? {};
-  const out: ScimShared = { users: {}, groups: {}, tombstones: {} };
+  const out: ScimShared = { users: emptyMap<ScimUser>(), groups: emptyMap<ScimGroup>(), tombstones: emptyMap<number>() };
   const lastModified = (m: unknown): string | null =>
     m && typeof m === "object" && typeof (m as { lastModified?: unknown }).lastModified === "string"
       ? (m as { lastModified: string }).lastModified : null;
@@ -233,8 +239,9 @@ function ensureLoaded(): void {
     // reviver the fleet path uses keeps a single restore chokepoint and can't return a polluted map.
     const parsed = safeParseJson<Directory>(raw);
     if (!parsed) { logger.warn("scim: directory restore skipped — unparseable sealed state"); return; }
-    if (parsed.users) dir.users = parsed.users;
-    if (parsed.groups) dir.groups = parsed.groups;
+    // Re-home onto null-prototype maps so the restored directory keeps the no-pollution structural property.
+    if (parsed.users) dir.users = Object.assign(emptyMap<ScimUser>(), parsed.users);
+    if (parsed.groups) dir.groups = Object.assign(emptyMap<ScimGroup>(), parsed.groups);
     logger.info({ users: Object.keys(dir.users).length, groups: Object.keys(dir.groups).length }, "scim: directory restored");
   });
 }
@@ -524,4 +531,4 @@ export function scimStats(): { enabled: boolean; users: number; groups: number }
 }
 
 /** Test-only: wipe the directory. */
-export function __resetScim(): void { dir = { users: {}, groups: {} }; tombstones = {}; store.reset(); }
+export function __resetScim(): void { dir = { users: emptyMap<ScimUser>(), groups: emptyMap<ScimGroup>() }; tombstones = emptyMap<number>(); store.reset(); }
