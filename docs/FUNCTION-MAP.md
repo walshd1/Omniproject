@@ -765,6 +765,16 @@ Shared actor-identity helpers over the broker's `ActorContext`.
 | --- | --- |
 | `actorLabel` | The human-readable label recorded on a write's `*By` audit field: the actor's email, then name, then subject id, or null when the context carries none. |
 
+### `artifacts/api-server/src/lib/agentic-batch.ts`
+
+Supervised agentic execution (D1) — the ACTION-CLASS BOUNDARY.
+
+| Function | What it does |
+| --- | --- |
+| `classifyBatchAction` | Classify an action kind against the D1 boundary. |
+| `isBatchExecutable` | Whether the supervised agent may EXECUTE this action (vs only propose it for a human to run). |
+| `validateBatchPlan` | Validate a proposed batch (pure). |
+
 ### `artifacts/api-server/src/lib/ai-allowlist.ts`
 
 AI SELECTION ALLOWLISTS — governance FLOORS (roadmap Phase C) over which AI providers / models / STT engines may be SELECTED (`aiProvider` / `aiModel` / `sttProvider`).
