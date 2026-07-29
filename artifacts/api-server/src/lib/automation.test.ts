@@ -38,6 +38,17 @@ test("validateAutomations rejects malformed recipes", () => {
   assert.throws(() => validateAutomations([{ ...MUTATING, scope: { kind: "org" } }]), AutomationError);
 });
 
+test("validateAutomations rejects a colon or prototype-key recipe id (autonomous-grant key isolation)", () => {
+  // The id keys the rule's autonomous-write grant (`rule_<id>`); the grant gate splits the principal on ':',
+  // so a colon would collapse `a` and `a:b` onto one grant. Prototype keys are refused at the same boundary.
+  assert.throws(() => validateAutomations([{ ...INFORM, id: "r1:evil" }]), AutomationError);
+  for (const bad of ["__proto__", "constructor", "prototype"]) {
+    assert.throws(() => validateAutomations([{ ...INFORM, id: bad }]), AutomationError);
+  }
+  // A normal slug id is still accepted.
+  assert.equal(validateAutomations([{ ...INFORM, id: "rule_ok-1" }])[0]!.id, "rule_ok-1");
+});
+
 test("recipeMutates + recipeRequirements distinguish inform from mutating", () => {
   const [inform, mutating] = validateAutomations([INFORM, MUTATING]);
   assert.equal(recipeMutates(inform!), false);
