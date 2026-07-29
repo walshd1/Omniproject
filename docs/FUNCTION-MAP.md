@@ -3530,6 +3530,15 @@ RISK-EXPOSURE maths, routed through the SCOPE-RESOLVED graded vocabularies.
 
 Re-export of the ONE shared, artifact-agnostic roll-up (`@workspace/backend-catalogue`), so the backend (rollup endpoints, exports) and the SPA (no-code report engine) run the SAME aggregation implementation — a single roll-up behind every output of the system.
 
+### `artifacts/api-server/src/lib/room-scope.ts`
+
+The projectId a realtime room is scoped to, or null when the room has no project boundary.
+
+| Function | What it does |
+| --- | --- |
+| `projectIdOfRoom` | The projectId a realtime room is scoped to, or null when the room has no project boundary. |
+| `guardRoomScope` | Enforce the caller's project scope on a room whose id encodes a projectId (IDOR guard); a room with no project boundary (`user`/`org`/`sidecar` content) is allowed through. |
+
 ### `artifacts/api-server/src/lib/rules-dispatcher.ts`
 
 Cascade bounds — a rule's write emits a follow-on event that can trigger more rules; these stop a runaway.
