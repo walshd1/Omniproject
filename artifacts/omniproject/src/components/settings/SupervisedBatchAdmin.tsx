@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { safeParseJson } from "../../lib/safe-json";
 import { proposeBatch, type AgenticBatchPlan, type ProposedBatch } from "../../lib/agentic";
 
 const EXAMPLE = JSON.stringify(
@@ -40,7 +41,9 @@ export function SupervisedBatchAdmin() {
     setResult(null);
     let plan: AgenticBatchPlan;
     try {
-      plan = JSON.parse(text) as AgenticBatchPlan;
+      // Untrusted, user-typed JSON — parse via the prototype-pollution-safe reviver (the server re-validates
+      // and strips dangerous keys again, but the SPA deserialization-boundary gate wants this here too).
+      plan = safeParseJson<AgenticBatchPlan>(text);
     } catch {
       setParseError("The plan is not valid JSON.");
       return;
