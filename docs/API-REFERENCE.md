@@ -27,6 +27,14 @@ The ORG-wide accessibility DEFAULTS — a partial UserPrefs the org sets as ever
 | GET | `/api/accessibility-defaults` | requireAnyRole(pmo, admin) | — |
 | PUT | `/api/accessibility-defaults` | requireAnyRole(pmo, admin) | — |
 
+### `artifacts/api-server/src/routes/agentic.ts`
+
+Supervised agentic execution (D1) — the PLAN→PROPOSE surface ("approve-the-batch").
+
+| Method | Path | Gate | Description |
+| --- | --- | --- | --- |
+| POST | `/api/agentic/batches` | requireRole(contributor) | — |
+
 ### `artifacts/api-server/src/routes/ai-allowlist.ts`
 
 AI SELECTION ALLOWLISTS — the org's governance FLOORS over which AI providers / models / STT engines may be selected (roadmap Phase C).

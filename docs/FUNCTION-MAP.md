@@ -765,6 +765,20 @@ Shared actor-identity helpers over the broker's `ActorContext`.
 | --- | --- |
 | `actorLabel` | The human-readable label recorded on a write's `*By` audit field: the actor's email, then name, then subject id, or null when the context carries none. |
 
+### `artifacts/api-server/src/lib/agentic-batch-run.ts`
+
+Supervised agentic execution (D1) — the EXECUTION half (approve-the-batch), JUST-IN-TIME authority model.
+
+| Function | What it does |
+| --- | --- |
+| `batchActorId` | The per-batch autonomous actor id (grant is keyed on this via `actorIdOf`, which splits the principal on ':'). |
+| `buildBatchGrant` | Build the JUST-IN-TIME write grant for an approved plan: admits ONLY `update_issue`, ONLY the plan's projects, capped at the plan's write count, expiring shortly. |
+| `compileBatchToWorkflow` | Compile a validated batch into a runnable WorkflowDef, reusing the automation compiler so the action→effect mapping (and `__op` stamping) can't drift. |
+| `previewBatch` | Side-effect-free dry-run of the POST-approval state: registers the batch's JIT grant transiently, checks each write against it, then tears it down — so a human sees exactly what the approval would authorize (and any step the plan's own grant would still deny). |
+| `runApprovedBatch` | Run a batch a human has just approved. |
+| `ensureBatchExecutor` | Register the ONE approval executor for supervised batches (idempotent). |
+| `proposeBatch` | Plan → propose. |
+
 ### `artifacts/api-server/src/lib/agentic-batch.ts`
 
 Supervised agentic execution (D1) — the ACTION-CLASS BOUNDARY.
@@ -1072,6 +1086,7 @@ Autonomous WRITE authorisation — the hard limit that stops an autonomous sessi
 | --- | --- |
 | `registerAutonomousGrant` | Seed/replace an autonomous write grant (admin/config). |
 | `getAutonomousGrant` | The grant for an actor id, or undefined (⇒ default deny). |
+| `revokeAutonomousGrant` | Revoke a single grant (and reset its write counter). |
 | `listAutonomousGrants` | Every active write grant (for the admin dashboard). |
 | `cleanGrant` | Validate + normalise an untrusted grant to a clean AutonomousWriteGrant, or null if unusable. |
 | `setAutonomousGrants` | Replace the whole grant set (admin config JSON / restore / fleet converge). |
@@ -1091,6 +1106,7 @@ Autonomous principals.
 | `autonomousSub` | The namespaced, clearly-non-human principal id for an autonomous actor. |
 | `actorKindOf` | The kind of principal a spec describes. |
 | `registerAutonomousActor` | Register (or raise/lower) the max role an autonomous actor id may run as (admin/config). |
+| `unregisterAutonomousActor` | Drop a dynamically-registered actor id (e.g. a just-in-time, per-run principal after its run completes), so no mint source lingers past its use. |
 | `authorizedRole` | The max role a known actor may run as, or undefined if it isn't an allowed source. |
 | `mintAutonomousContext` | Mint a KEYED, RBAC-roled ActorContext for an autonomous actor. |
 | `assertMintFresh` | Confirm a minted context is FRESH for this run: stamped, not in the future, not past its short expiry, and within the (short) TTL of `now`. |
@@ -4534,6 +4550,10 @@ Minimal, dependency-free STORED (uncompressed) ZIP writer.
 ### `artifacts/api-server/src/routes/accessibility.ts`
 
 The ORG-wide accessibility DEFAULTS — a partial UserPrefs the org sets as everyone's starting point (a default font, reduced motion for a sensitive environment, …).
+
+### `artifacts/api-server/src/routes/agentic.ts`
+
+Supervised agentic execution (D1) — the PLAN→PROPOSE surface ("approve-the-batch").
 
 ### `artifacts/api-server/src/routes/ai-allowlist.ts`
 

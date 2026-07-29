@@ -220,6 +220,7 @@ const BESPOKE_WRITES = new Set<string>([
   "POST /admin/ruleset/apply-reference",
   "POST /admin/scheduled-export/run",
   "POST /admin/system-defs/apply",
+  "POST /agentic/batches",
   "POST /ai/chat",
   "POST /ai/copilot",
   "POST /ai/estimate",

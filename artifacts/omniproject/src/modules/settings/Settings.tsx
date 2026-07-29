@@ -70,6 +70,7 @@ import { RaciAdmin } from "../../components/settings/RaciAdmin";
 import { StakeholdersAdmin } from "../../components/settings/StakeholdersAdmin";
 import { FormsAdmin } from "../../components/settings/FormsAdmin";
 import { AutomationsAdmin } from "../../components/settings/AutomationsAdmin";
+import { SupervisedBatchAdmin } from "../../components/settings/SupervisedBatchAdmin";
 import { TemplatesAdmin } from "../../components/settings/TemplatesAdmin";
 import { CustomBackendAdmin } from "../../components/settings/CustomBackendAdmin";
 import { ContentPagesAdmin } from "../../components/settings/ContentPagesAdmin";
@@ -179,6 +180,7 @@ const ADMIN_PANELS: AdminPanel[] = [
   { key: "aiProviders", Component: AiProvidersAdmin },
   { key: "aiAllowlists", Component: AiAllowlistsAdmin },
   { key: "actionCatalogue", Component: ActionCatalogue },
+  { key: "supervisedBatch", Component: SupervisedBatchAdmin },
   { key: "a11y", Component: A11yControls, wrap: "bare" },
   { key: "notifications", Component: NotificationPreferences, wrap: "bare" },
   { key: "twoFactor", Component: TwoFactorAuth, wrap: "bare" },

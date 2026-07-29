@@ -61,6 +61,50 @@ anonymous system call:
   **mandatory fail-closed audit**. A stolen, stale or over-reaching autonomous session is
   inert without a matching admin grant — the "no backdoor" property.
 
+## 2a. Supervised agentic execution — "approve-the-batch" (D1)
+
+The in-app AI may **plan a batch** of actions; a human **approves the whole batch once**; it then
+executes under the autonomous-write substrate above. It is **off by default** and **fail-closed** —
+until an operator enables it (below), a batch can never run.
+
+- **Action boundary (allowlist, not denylist).** The agent may EXECUTE only **inform + low-risk
+  reversible edits** — `notify`, `set-field`, `set-status`, `assign`, `add-label`. Structural creation
+  (`create-issue`), financial postings (`run-depreciation`), and any unlisted/future action stay
+  **propose-only**: the agent may draft them, but a person runs them by hand. A newly added catalogue
+  action is excluded until deliberately admitted. `lib/agentic-batch.ts`.
+- **Human-only approval.** A batch binds to the `agentic.batch` approval action, which is **not** a
+  `workflow.run:` action, so the AI-as-approver carve-out never applies — only a human can approve it.
+- **Just-in-time authority (no standing grant).** Approving a batch is what mints — for that one run —
+  a per-batch principal (`agent:batch_<id>:<proposer>`) AND an autonomous-write grant scoped to
+  **exactly** the approved plan: only `update_issue`, only the plan's projects, `maxWrites` = the plan's
+  write count, a 5-minute expiry. The batch runs (re-minting a fresh ~30s context per write), then the
+  grant is **revoked and the actor unregistered in a `finally`, even on error** — so nothing the AI can
+  write outlives the run a human authorized. `lib/agentic-batch-run.ts`.
+- **Containment.** The JIT grant is narrow (specific actions + projects, never a wildcard), so it
+  satisfies `off`/`local` AI containment without `allowBroad`. A **public/SaaS AI provider (strictest
+  containment) intentionally cannot drive issue mutations** here — the safe direction to fail for a
+  supervised agent.
+- **Surfaces.** `POST /api/agentic/batches` (contributor + interactive session) validates the plan and
+  raises the proposal; the approval itself flows through the existing passkey approvals inbox; the
+  **Settings → Supervised Batch** panel submits a plan and shows the dry-run preview.
+
+### Operator setup — enabling it
+
+Supervised execution is enabled by **binding an approval chain to the `agentic.batch` action** (who signs
+off a batch). Nothing else is provisioned — there is no standing AI grant to create (the grant is minted
+just-in-time per approval). Until a chain is bound, `POST /api/agentic/batches` returns **409** and the
+Settings panel shows "not enabled".
+
+1. Author an approval chain (PMO org-scoped / PM project-scoped) as usual — e.g. one stage requiring a
+   `manager` (or a dual-control chain with `requireDistinctApprovers` for a stricter posture).
+2. Add a binding `{ action: "agentic.batch", chainId: "<your-chain-id>" }` (Settings → approval chains /
+   `PUT /api/approval-chains`). This is itself a security-reducing change, so it is held for approval.
+3. Ensure the AI provider containment is `off` or `local` (self-hosted / private-network endpoint) — a
+   public/SaaS provider cannot drive the issue writes by design.
+
+To disable it again, remove the binding: the feature returns to fail-closed with zero standing authority
+left behind. The global **AI kill switch** (`break-glass:ai-kill`) also halts any in-flight batch write.
+
 ## 3. Data egress
 
 - **Containment governs actions; the prompt governs egress.** A public/remote AI sees
