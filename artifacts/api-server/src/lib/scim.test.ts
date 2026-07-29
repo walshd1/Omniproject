@@ -185,7 +185,7 @@ test("sanitizeSharedDirectory drops prototype-pollution ids + malformed records 
   const clean = sanitizeSharedDirectory(hostile);
   assert.deepEqual(Object.keys(clean.users), ["u-good"]);
   assert.deepEqual(Object.keys(clean.groups), ["g-good"]);
-  assert.deepEqual(clean.tombstones, { t1: 123 });
+  assert.deepEqual({ ...clean.tombstones }, { t1: 123 }); // spread: the maps are null-prototype by design
   // The prototype was not polluted by the "__proto__" key.
   assert.equal(({} as Record<string, unknown>)["polluted"], undefined);
 });
