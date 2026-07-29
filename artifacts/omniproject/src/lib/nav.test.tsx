@@ -12,6 +12,7 @@ import {
   catalogueScreenNavItems,
 } from "./nav";
 import { featuresQueryKey, type FeatureStatus } from "./features";
+import { myCapabilitiesQueryKey } from "./my-capabilities";
 import type { Role } from "./auth";
 
 function Probe() {
@@ -45,6 +46,12 @@ function withMyWorkEnabled(enabled: boolean): QueryClient {
 function withRole(role: Role | undefined): QueryClient {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } });
   if (role) qc.setQueryData(["auth", "me"], { sub: "u1", role });
+  return qc;
+}
+
+function withMyCapabilities(enabled: string[]): QueryClient {
+  const qc = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } });
+  qc.setQueryData(myCapabilitiesQueryKey, { enabled });
   return qc;
 }
 
@@ -169,6 +176,31 @@ describe("useVisibleNavItems — role gating (hard gate)", () => {
   it("ungated items stay visible regardless of role", () => {
     const { queryByText } = renderWithProviders(<Probe />, { client: withRole("viewer") });
     expect(queryByText("Projects")).not.toBeNull();
+  });
+});
+
+describe("useVisibleNavItems — capability gating", () => {
+  it("hides Invoices when the finance:ar capability is off for the caller", () => {
+    const { queryByText } = renderWithProviders(<Probe />, { client: withMyCapabilities([]) });
+    expect(queryByText("Invoices")).toBeNull();
+    expect(queryByText("Projects")).not.toBeNull(); // ungated items stay
+  });
+
+  it("shows Invoices when finance:ar is enabled for the caller", () => {
+    const { queryByText } = renderWithProviders(<Probe />, { client: withMyCapabilities(["finance:ar"]) });
+    expect(queryByText("Invoices")).not.toBeNull();
+  });
+
+  it("shows Invoices by default while the capability query is still loading", () => {
+    const { queryByText } = renderWithProviders(<Probe />, { client: withProgramme(true) });
+    expect(queryByText("Invoices")).not.toBeNull();
+  });
+
+  it("stays permissive when the query resolves without an enabled array (never throws / hides)", () => {
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } });
+    qc.setQueryData(myCapabilitiesQueryKey, {} as { enabled?: string[] });
+    const { queryByText } = renderWithProviders(<Probe />, { client: qc });
+    expect(queryByText("Invoices")).not.toBeNull();
   });
 });
 

@@ -2,6 +2,8 @@ import { Router } from "express";
 import { getSession } from "./auth";
 import { effectiveDefaultPrefs, orgAccessibilityDefaults, getUserPrefs, hasUserPrefs, setUserPrefs } from "../lib/user-prefs";
 import { mountCommand, type CommandDescriptor } from "../lib/action-base";
+import { listCapabilities, effectiveState } from "../lib/capability-governance";
+import { grantedCapabilitiesForReq } from "../lib/custom-roles";
 
 /**
  * The signed-in user's own preferences.
@@ -21,6 +23,16 @@ router.get("/me/prefs", (req, res) => {
   const s = getSession(req);
   if (!s) { res.json({ prefs: effectiveDefaultPrefs(), stored: false, orgDefaults }); return; }
   res.json({ prefs: getUserPrefs(s.sub), stored: hasUserPrefs(s.sub), orgDefaults });
+});
+
+// GET /api/me/capabilities — the governed capabilities ENABLED for this caller: effective state is not "off",
+// or a custom-role permission set lifts the gate for them. A UX hint so the SPA can hide a surface whose
+// capability is turned off (e.g. the Invoices nav when `finance:ar` is off); the server still enforces the
+// gate at each route. A pure read — no audit, no side effects.
+router.get("/me/capabilities", (req, res) => {
+  const granted = grantedCapabilitiesForReq(req);
+  const enabled = listCapabilities().map((c) => c.id).filter((id) => effectiveState(id) !== "off" || granted.has(id));
+  res.json({ enabled });
 });
 
 /**
