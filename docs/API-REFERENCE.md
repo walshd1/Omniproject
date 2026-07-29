@@ -110,7 +110,7 @@ Approval-chain endpoints — the human, passkey-signed approver surface (design 
 | POST | `/api/approvals/:id/redirect` | requireRole(pmo) | PMO escape hatches (pmo+ only) POST /approvals/:id/redirect — reassign the current stage's approvers. |
 | POST | `/api/approvals/:id/bypass/challenge` | requireRole(pmo) | POST /approvals/:id/bypass/challenge — challenge for a PMO bypass signature. |
 | POST | `/api/approvals/:id/bypass` | requireRole(pmo) | POST /approvals/:id/bypass — force-approve the chain with a PMO passkey signature (never silent). |
-| GET | `/api/approvals/workflow-acceptances` | requireRole(manager) | GET /approvals/workflow-acceptances — every stored acceptance with its LIVE active/void status (pmo+). |
+| GET | `/api/approvals/workflow-acceptances` | requireRole(pmo) | identity + which automations are AI-auto-approvable). |
 | POST | `/api/approvals/workflow-acceptances/:workflowId/challenge` | — | POST /approvals/workflow-acceptances/:workflowId/challenge — challenge to sign, bound to the CURRENT version. |
 | POST | `/api/approvals/workflow-acceptances/:workflowId` | — | POST /approvals/workflow-acceptances/:workflowId — record the passkey-signed acceptance (scope owner only). |
 | DELETE | `/api/approvals/workflow-acceptances/:workflowId` | — | DELETE /approvals/workflow-acceptances/:workflowId — revoke the grant (strengthens → immediate; scope owner). |

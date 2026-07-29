@@ -114,7 +114,11 @@ router.get("/calendar/push.json", (req, res) =>
     const grant = getCalendarPush(sub);
     if (!grant.granted) { res.status(403).json({ error: "calendar push not granted", grant }); return; }
     const whoami = [session?.email, session?.name, sub].filter((x): x is string => typeof x === "string" && !!x);
-    const opts = grant.scope === "all" ? {} : { mineFor: whoami };
+    // `scope:"all"` on the grant only widens the feed for a principal who ACTUALLY holds portfolio scope —
+    // exactly as GET /calendar.ics gates it. getTasks is scope-blind, so trusting the caller-set grant value
+    // alone would fold every tenant's tasks into the pushed feed (a scoped caller falls back to their own).
+    const scopeAll = grant.scope === "all" && scopeForReq(req).level === "all";
+    const opts = scopeAll ? {} : { mineFor: whoami };
     const [tasks, issues] = await Promise.all([getTasks(req), allIssues(req)]);
     const events = [...tasksToIcsEvents(tasks, opts), ...issuesToIcsEvents(issues, opts)]
       .map((e) => ({ op: "upsert" as const, ...e }));
