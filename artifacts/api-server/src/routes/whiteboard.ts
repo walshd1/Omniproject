@@ -6,7 +6,7 @@ import { getSession } from "./auth";
 import { requireRole, isDeprovisioned } from "../lib/rbac";
 import { assertProjectScope, guardProjectScope } from "../lib/project-scope";
 import { authorizeStorageTarget } from "../lib/storage-target-authz";
-import { joinCollabRoom, relayToRoom, collabConnectionCount, MAX_COLLAB_STREAMS_PER_SUB } from "../lib/collab-hub";
+import { joinCollabRoom, relayToRoom, roomConnSub, collabConnectionCount, MAX_COLLAB_STREAMS_PER_SUB } from "../lib/collab-hub";
 import { openSse, keepAlive } from "../lib/sse";
 import { peerColor } from "../lib/presence-hub";
 import { artifactStoreEnabled, listArtifacts, getArtifact, putArtifact, deleteArtifact, requireArtifactStore } from "../lib/artifact-store";
@@ -228,6 +228,9 @@ router.post("/whiteboards/rooms/:roomId", requireRole("viewer"), async (req: Req
   if (!(await guardCursorRoom(req, res, roomId))) return;
   if (JSON.stringify(body.msg ?? null).length > 2_000) { res.status(413).json({ error: "message too large" }); return; }
   const session = getSession(req);
+  // Anti-spoof (shared collab-hub): don't relay under a `cid` a DIFFERENT live participant owns.
+  const owner = roomConnSub(roomId, cid);
+  if (owner && owner !== session?.sub) { res.status(409).json({ error: "that cid belongs to another participant" }); return; }
   const sub = session?.sub ?? "anonymous";
   const label = session?.name || session?.email || "Someone";
   const delivered = relayToRoom(roomId, cid, "cursor", { from: cid, label, color: peerColor(sub), msg: body.msg });

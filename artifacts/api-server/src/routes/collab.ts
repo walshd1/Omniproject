@@ -1,7 +1,7 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import { getSession } from "./auth";
 import { isDeprovisioned, requireRole } from "../lib/rbac";
-import { joinCollabRoom, relayToRoom, collabConnectionCount, MAX_COLLAB_STREAMS_PER_SUB } from "../lib/collab-hub";
+import { joinCollabRoom, relayToRoom, roomConnSub, collabConnectionCount, MAX_COLLAB_STREAMS_PER_SUB } from "../lib/collab-hub";
 import { openSse, keepAlive } from "../lib/sse";
 import { guardProjectScope } from "../lib/project-scope";
 
@@ -76,6 +76,11 @@ router.post("/collab/rooms/:roomId", requireRole("contributor"), async (req: Req
   const cid = clean(body.cid, 80);
   if (!roomId || !cid) { res.status(400).json({ error: "roomId and cid are required" }); return; }
   if (!(await guardRoomScope(req, res, roomId))) return;
+  // Anti-spoof: a relay is fanned out as `{ from: cid }`, so a member must not claim a `cid` that another
+  // live participant owns (that would attribute a CRDT message to the wrong peer). Reject a cid held by a
+  // DIFFERENT sub; an unregistered cid or the caller's own is fine (a POST needn't have an open stream).
+  const owner = roomConnSub(roomId, cid);
+  if (owner && owner !== getSession(req)?.sub) { res.status(409).json({ error: "that cid belongs to another participant" }); return; }
   // Bound the relayed payload so a client can't push an unbounded blob through the fan-out.
   if (typeof body.msg === "string" ? body.msg.length > 200_000 : JSON.stringify(body.msg ?? null).length > 200_000) {
     res.status(413).json({ error: "message too large" });

@@ -36,6 +36,13 @@ export function collabRoomSize(roomId: string): number {
   return rooms.get(roomId)?.size ?? 0;
 }
 
+/** The `sub` that owns live connection `cid` in `roomId`, or undefined when no such connection is open.
+ *  Lets a relay route reject a broadcast that CLAIMS another live participant's `cid` (peer-identity
+ *  spoofing) while still allowing an unregistered cid (or the caller's own). */
+export function roomConnSub(roomId: string, cid: string): string | undefined {
+  return rooms.get(roomId)?.get(cid)?.sub;
+}
+
 /** Join a room; returns a leave function that removes this connection (and drops the room when empty). */
 export function joinCollabRoom(conn: CollabConn): () => void {
   let room = rooms.get(conn.roomId);
