@@ -100,8 +100,18 @@ already exist, so they close the most competitive distance for the least build.
   action-only workflow runs through the caller-scoped effect surface. Inform recipes fire; mutating recipes
   return 202 (held for a grant). A "Test run" button in the builder. `compileRecipe` now compiles actions
   only (conditions are a runner-side pre-gate, the correct model for an external trigger subject).
-- **Next slice:** live trigger binding (schedule → scheduled-job; event → the broker event/notify bus) so
-  recipes fire automatically, and the grant-bound execution of mutating recipes.
+- **Slice 3 shipped (live trigger binding) ✅.** Recipes fire automatically: **event** triggers via the
+  domain-event dispatcher (`startRulesDispatcher`, wired at boot), **schedule** triggers via one cron
+  `ScheduledJob` per recipe on the unified job scheduler (`recipeScheduledJobs`), both reading the
+  `automations` collection and running through the same grant-gated path as the manual run — all behind
+  `RULES_ENGINE_EVENTS` (off by default). Hardening pass verified **emit coverage** and fixed a real gap: the
+  `wiki_doc` entity emitted under `wiki_doc` while the advertised trigger surface is `wiki-doc`, so
+  *"When a wiki document is …"* recipes silently never fired — closed with an `eventSurface` override on the
+  entity descriptor, plus an exhaustive coverage test (`automation-live-triggers.test.ts`) that flags any
+  advertised `RULE_SURFACES` key with no emitting write path. Live-emitting surfaces today: `issue`, `task`,
+  `wiki-doc`; `risk`/`project`/`timesheet` remain advertised-but-observe-only until a write path emits them.
+  The manual `POST /automations/:id/run` still holds mutating recipes at `202` (no grant); the automatic
+  paths run them grant-gated. See `docs/design/SEMANTIC-RULES-ENGINE.md` → "Live-trigger status & emit coverage".
 - **Slice 4 — external executors + pub/sub triggers.** A recipe should be able to run **in-engine** (our
   workflow runner) OR be **dispatched to an external orchestrator** the deployment already runs — **Node-RED,
   Power Automate**, Make, n8n, Airflow — by compiling to that orchestrator's flow format. This reuses the

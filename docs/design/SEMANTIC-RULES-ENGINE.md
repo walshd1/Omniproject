@@ -50,6 +50,41 @@ Companion to, and a strict **reuse** of:
 > trigger/action catalogue) and one **safety extension** (gated mutating effects). Nothing
 > here loosens an existing gate.
 
+## Live-trigger status & emit coverage
+
+The engine fires recipes automatically through two already-wired paths (both gated by
+`RULES_ENGINE_EVENTS`, off by default, and both reading the `automations` collection):
+
+- **Event triggers** — `startRulesDispatcher()` (`index.ts`) subscribes the dispatcher to the
+  domain-event bus; a matching write runs the recipe post-commit, in-process.
+- **Schedule triggers** — `recipeScheduledJobs()` (`lib/schedule-dispatcher.ts`) registers a cron
+  `ScheduledJob` per enabled `mode: "schedule"` recipe on the unified job scheduler (claim-once,
+  fleet-safe with `REDIS_URL`); `SCHEDULER_HEARTBEAT_MINUTES` (default 60, `0` disables) paces it.
+
+**Emit coverage (which advertised surfaces actually emit an event today).** A trigger only fires if
+some write path emits a `DomainEvent` whose `surface` equals the advertised `RULE_SURFACES` key — and
+the emitted surface is the entity's `eventSurface ?? entity` (Lane-1) or an action's `emits` (Lane-2):
+
+| Surface | Emits? | Source |
+| --- | --- | --- |
+| `issue` | ✅ | Lane-1 `issue` entity |
+| `task` | ✅ | Lane-1 `task` entity |
+| `wiki-doc` | ✅ | Lane-1 `wiki_doc` entity via `eventSurface: "wiki-doc"` (the internal name is `wiki_doc`; the override aligns the emitted surface to the advertised trigger — without it a "When a wiki document is …" recipe silently never fired) |
+| `risk` | ⚠ observe-only | the RAID entity emits under `raid_entry`, not `risk`; no `risk` emit yet |
+| `project` | ⚠ observe-only | no Lane-1 project entity; project writes are bespoke/Lane-2 with no `emits` |
+| `timesheet` | ⚠ observe-only | no Lane-1 timesheet entity; no `emits` yet |
+
+The ⚠ observe-only rows are **advertised in the builder but inert** until a write path emits them —
+codified by `lib/automation-live-triggers.test.ts` (an exhaustive classification test that fails if a
+`RULE_SURFACES` key is neither emitting nor listed as a known observe-only gap), so the gap can't drift
+unnoticed and wiring one later is a deliberate move.
+
+**Manual run vs. live firing.** `POST /automations/:id/run` (the builder's "Test run") executes
+**inform** recipes fully but returns `202` for **mutating** recipes (it holds them — it does not carry
+an autonomous grant). The *automatic* paths above run mutating recipes through the grant-gated
+autonomous surface (`effectsForAutonomousContext`, default-deny). So a mutating recipe only ever writes
+when it's enabled, a trigger fires, **and** an autonomous grant (or approval binding) authorises it.
+
 ---
 
 ## 1. What already exists (reuse, do not rebuild)

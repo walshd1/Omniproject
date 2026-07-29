@@ -207,6 +207,10 @@ const validateWikiWrite = (req: Request, res: import("express").Response): WikiW
  */
 export const wikiEntity: EntityDescriptor = {
   entity: "wiki_doc",
+  // The rules-engine trigger surface is the public "wiki-doc" (see RULE_SURFACES) — align the emitted event
+  // to it so a "When a wiki document is created/updated/deleted" recipe actually fires (the audit/broker
+  // name stays "wiki_doc"). Without this override the emit was "wiki_doc.*" and never matched "wiki-doc.*".
+  eventSurface: "wiki-doc",
   basePath: "/wiki/docs",
   idParam: "id",
   updateMethod: "put",
