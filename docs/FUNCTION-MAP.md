@@ -1341,6 +1341,7 @@ Collaborative-edit relay hub (roadmap 2.1 slice 6 — Yjs co-edit).
 | --- | --- |
 | `collabConnectionCount` | How many co-edit streams this principal currently holds (across all rooms). |
 | `collabRoomSize` | Members currently in a room. |
+| `roomConnSub` | The `sub` that owns live connection `cid` in `roomId`, or undefined when no such connection is open. |
 | `joinCollabRoom` | Join a room; returns a leave function that removes this connection (and drops the room when empty). |
 | `relayToRoom` | Relay `data` (under event `name`) to every member of `roomId` EXCEPT the sender (`fromCid`). |
 | `_resetCollabForTest` | Test hook: drop all rooms/connections. |

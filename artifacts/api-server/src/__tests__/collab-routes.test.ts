@@ -117,3 +117,27 @@ test("a viewer is refused the co-edit stream AND relay (403)", async () => {
     assert.equal(relay.status, 403);
   });
 });
+
+test("a relay can't claim a cid a DIFFERENT live participant owns (anti-spoof); own/unregistered cid is fine", async () => {
+  const OTHER = signedSessionCookie({ sub: "u-other", name: "Otto", email: "o@x.io", roles: ["omni-admins"] });
+  const room = "doc:spoof-1";
+  // EDITOR joins the room holding cid "ed".
+  const ac = new AbortController();
+  const stream = await fetch(`${base}/api/collab/rooms/${room}/stream?cid=ed`, { headers: { cookie: EDITOR }, signal: ac.signal });
+  assert.equal(stream.status, 200);
+  const reader = stream.body!.getReader();
+  const dec = new TextDecoder();
+  let buf = "";
+  const deadline = Date.now() + 4000;
+  while (!buf.includes("event: ready") && Date.now() < deadline) {
+    const { value, done } = await reader.read(); if (done) break; buf += dec.decode(value, { stream: true });
+  }
+  assert.ok(buf.includes("event: ready"), "stream opened");
+  // OTHER relaying under EDITOR's live cid "ed" is refused (409)…
+  assert.equal((await post(room, { cid: "ed", msg: { t: "u", u: "AA==" } }, OTHER)).status, 409);
+  // …but OTHER's own (unregistered) cid works, and EDITOR's own cid works.
+  assert.equal((await post(room, { cid: "otto", msg: { t: "u", u: "AA==" } }, OTHER)).status, 200);
+  assert.equal((await post(room, { cid: "ed", msg: { t: "u", u: "AA==" } }, EDITOR)).status, 200);
+  ac.abort();
+  try { await reader.cancel(); } catch { /* aborted */ }
+});
