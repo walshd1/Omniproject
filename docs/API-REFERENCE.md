@@ -29,11 +29,12 @@ The ORG-wide accessibility DEFAULTS — a partial UserPrefs the org sets as ever
 
 ### `artifacts/api-server/src/routes/agentic.ts`
 
-Supervised agentic execution (D1) — the PLAN→PROPOSE surface ("approve-the-batch").
+The human approver identity for this request, or null for no session / an autonomous (non-human) principal.
 
 | Method | Path | Gate | Description |
 | --- | --- | --- | --- |
 | POST | `/api/agentic/batches` | requireRole(contributor) | — |
+| GET | `/api/agentic/batches/pending` | requireRole(contributor) | an autonomous principal can never approve a batch. |
 
 ### `artifacts/api-server/src/routes/ai-allowlist.ts`
 

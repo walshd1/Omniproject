@@ -1,7 +1,7 @@
 import { test, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
 import {
-  compileBatchToWorkflow, buildBatchGrant, previewBatch, runApprovedBatch, proposeBatch,
+  compileBatchToWorkflow, buildBatchGrant, previewBatch, runApprovedBatch, proposeBatch, pendingBatchesFor,
   batchActorId, BATCH_APPROVAL_ACTION, BATCH_WRITE_ACTION,
 } from "./agentic-batch-run";
 import { getAutonomousGrant, __resetAutonomousGrants } from "./autonomous-grant";
@@ -92,6 +92,22 @@ test("proposeBatch raises ONE approval proposal and returns the dry-run preview 
   assert.equal(res.preview[1]!.allowed, true); // set-status admitted by the JIT grant it would mint
   // Proposing does not itself grant anything standing — nothing runs until a human approves.
   assert.equal(getAutonomousGrant(batchActorId(res.batchId)), undefined);
+});
+
+test("pendingBatchesFor offers a bound batch to an eligible approver (with plan+preview), never to its proposer", async () => {
+  enableBatchApprovals();
+  const { proposalId, batchId } = await proposeBatch(PLAN, "u1");
+
+  const asApprover = await pendingBatchesFor({ sub: "mgr-1", roles: ["manager"], via: "human" });
+  const mine = asApprover.find((p) => p.proposalId === proposalId);
+  assert.ok(mine, "an eligible manager is offered the batch to review");
+  assert.equal(mine!.batchId, batchId);
+  assert.equal(mine!.plan.actions.length, 2);
+  assert.ok(mine!.preview.length >= 1, "the approver sees a dry-run preview of the actions");
+
+  // The proposer is never offered their own batch (self-approval is refused).
+  const asProposer = await pendingBatchesFor({ sub: "u1", roles: ["manager"], via: "human" });
+  assert.equal(asProposer.some((p) => p.proposalId === proposalId), false);
 });
 
 test("proposeBatch rejects a plan with a propose-only action (allowlist re-checked at the boundary)", async () => {

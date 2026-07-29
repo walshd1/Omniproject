@@ -96,6 +96,28 @@ export async function inboxFor(actor: Actor): Promise<Array<{ id: string; action
   return out;
 }
 
+/** Like {@link inboxFor} but restricted to ONE action and carrying each proposal's `params`. The action
+ *  filter is required so params are only ever exposed for a surface that OWNS them and needs to render what
+ *  is being approved (e.g. a supervised agentic batch, whose params ARE the plan the approver reviews) —
+ *  never a blanket dump of every proposal's params. Same eligibility as the inbox (pending, eligible for the
+ *  current stage, not the proposer, hasn't already decided). */
+export async function inboxDetailFor(actor: Actor, action: string): Promise<Array<{ id: string; stageId: string; params: unknown; createdAt: string }>> {
+  const entries = await sharedKv.list(PROP_PREFIX);
+  const out: Array<{ id: string; stageId: string; params: unknown; createdAt: string }> = [];
+  for (const { key, value } of entries) {
+    let p: StoredProposal | null = null;
+    try { p = safeParseJson<StoredProposal>(value); } catch { continue; }
+    if (!p || p.action !== action || p.state?.status !== "pending") continue;
+    const stage = activeStage(p.def, p.state);
+    if (!stage) continue;
+    if (actor.sub === p.state.proposedBy) continue;
+    if (!isEligible(stage, actor)) continue;
+    if (p.state.decisions.some((d) => d.stageId === stage.id && d.by === actor.sub)) continue;
+    out.push({ id: key.slice(PROP_PREFIX.length), stageId: stage.id, params: p.params, createdAt: p.createdAt });
+  }
+  return out;
+}
+
 /** Issue a one-time passkey challenge for `sub` to sign the CURRENT stage of a proposal. Scoped per user
  *  so concurrent approvers each get their own challenge (no race on a single slot). */
 export async function challengeForStage(proposalId: string, sub: string): Promise<{ challenge: string; rpId: string; stageId: string } | null> {

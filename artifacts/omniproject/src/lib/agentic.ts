@@ -1,4 +1,4 @@
-import { sendJson } from "./api";
+import { getJson, sendJson } from "./api";
 
 /**
  * Supervised agentic execution (D1) — client. Submit a planned batch of low-risk actions; the gateway
@@ -35,4 +35,18 @@ export interface ProposedBatch {
  *  the gateway's message on an invalid plan (400) or when supervised execution isn't enabled (409). */
 export function proposeBatch(plan: AgenticBatchPlan): Promise<ProposedBatch> {
   return sendJson<ProposedBatch>("/api/agentic/batches", { plan }, "POST", "could not submit the batch");
+}
+
+/** A supervised batch awaiting the current user's sign-off, with its plan + a fresh dry-run preview to review. */
+export interface PendingBatch {
+  proposalId: string;
+  batchId: string;
+  plan: AgenticBatchPlan;
+  preview: BatchStepPreview[];
+  createdAt: string;
+}
+
+/** The supervised batches awaiting THIS user's approval (empty when none / not an eligible approver). */
+export function fetchPendingBatches(): Promise<PendingBatch[]> {
+  return getJson<{ pending: PendingBatch[] }>("/api/agentic/batches/pending").then((r) => r.pending);
 }

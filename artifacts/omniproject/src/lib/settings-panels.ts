@@ -13,7 +13,7 @@ export const SETTINGS_PANEL_KEYS = [
   "rateCard", "scopeUplift", "rateGrid", "identityMap", "costRules", "budgetPlans", "resourceAllocations",
   "raci", "stakeholders", "guestInvite", "forms", "automations", "templates", "screens", "customReports", "customBackend",
   "contentPages", "priorityWeights", "federatedPeers", "governanceRules", "fieldVisibility",
-  "governanceDashboard", "governance", "users", "passkeySecurity", "recoveryKey", "roleMap", "customRoles", "defPolicy", "aiProviders", "aiAllowlists", "actionCatalogue", "supervisedBatch", "a11y", "notifications", "twoFactor", "deviceSessions", "calendarPush", "labels",
+  "governanceDashboard", "governance", "users", "passkeySecurity", "recoveryKey", "roleMap", "customRoles", "defPolicy", "aiProviders", "aiAllowlists", "actionCatalogue", "supervisedBatch", "supervisedBatchApprovals", "a11y", "notifications", "twoFactor", "deviceSessions", "calendarPush", "labels",
   "priorityLabels", "viewBuilder", "methodologyComposer", "performance", "scheduling", "usageLimits",
 ] as const;
 
