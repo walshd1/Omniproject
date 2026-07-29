@@ -49,6 +49,29 @@ test("patchUser: unknown id → null; active/displayName/userName ops; non-add/r
   assert.equal(unchanged.displayName, "Bobby");
 });
 
+test("coerceActive is case-insensitive on string booleans (IdPs vary: 'TRUE'/'True'/' true ')", () => {
+  // An IdP that sends "TRUE" (or padded) for active must re-activate — the strict compare is
+  // normalised (trim + lowercase). Any non-'true' string (incl. "1", "yes", "") fails closed.
+  const u = createUser({ userName: "gwen", active: false });
+  patchUser(u.id, [{ op: "replace", path: "active", value: "TRUE" }]);
+  assert.equal(directoryDecision({ userName: "gwen" }).active, true);
+  patchUser(u.id, [{ op: "replace", path: "active", value: "  True  " }]);
+  assert.equal(directoryDecision({ userName: "gwen" }).active, true);
+  patchUser(u.id, [{ op: "replace", path: "active", value: "1" }]); // not "true" → disabled
+  assert.equal(directoryDecision({ userName: "gwen" }).active, false);
+});
+
+test("patchUser pathless replace applies displayName + userName (Azure AD attribute-object shape), not just active", () => {
+  const u = createUser({ userName: "hank", displayName: "Hank", active: true });
+  // Azure AD sends `{op:"replace", value:{...}}` with no path — a bare object of attributes. All
+  // recognised keys must apply, not only `active` (a pathless displayName/userName change was dropped).
+  const after = patchUser(u.id, [{ op: "replace", value: { displayName: "Henry", userName: "henry", active: false } }])!;
+  assert.equal(after.displayName, "Henry");
+  assert.equal(after.userName, "henry");
+  assert.equal(after.active, false);
+  assert.equal(directoryDecision({ userName: "henry" }).active, false);
+});
+
 test("deleteUser returns false for an unknown id", () => {
   assert.equal(deleteUser("ghost"), false);
   const u = createUser({ userName: "temp" });

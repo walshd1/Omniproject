@@ -4,7 +4,7 @@ import {
   createUser, getUser, patchUser, replaceUser, deleteUser, listUsers,
   createGroup, patchGroup, directoryDecision, scimTokenValid, scimEnabled,
   refreshScimFromShared, SCIM_SHARED_KEY, __resetScim,
-  sanitizeSharedDirectory,
+  sanitizeSharedDirectory, pruneTombstones,
 } from "./scim";
 import { sharedKv, __resetSharedStateForTest } from "./shared-state";
 
@@ -188,4 +188,51 @@ test("sanitizeSharedDirectory drops prototype-pollution ids + malformed records 
   assert.deepEqual(clean.tombstones, { t1: 123 });
   // The prototype was not polluted by the "__proto__" key.
   assert.equal(({} as Record<string, unknown>)["polluted"], undefined);
+});
+
+test("sanitizeSharedDirectory rebuilds each field — a non-boolean `active` fails closed, malformed emails/groups can't crash the gate", async () => {
+  const now = new Date().toISOString();
+  // A hostile fleet snapshot: `active` is a TRUTHY non-boolean (would defeat `!active` if stored
+  // verbatim); emails carries a non-string value (would throw at `.value.toLowerCase()` in
+  // directoryDecision → a fleet-wide 500 on every gated request); groups carries a non-string.
+  const hostile = JSON.stringify({
+    users: {
+      "u1": {
+        userName: "mallory@corp.com",
+        active: "totally-active",                 // truthy non-boolean → must NOT read as active
+        emails: [{ value: 123 }, { value: "m@corp.com" }],
+        groups: ["real-role", { evil: 1 }],
+        meta: { resourceType: "User", created: now, lastModified: now },
+      },
+    },
+    groups: {},
+    tombstones: {},
+  });
+  // Unit-level: the sanitizer rebuilds every field through the write-path validators.
+  const clean = sanitizeSharedDirectory(hostile);
+  const u = clean.users["u1"]!;
+  assert.equal(u.active, false, "non-boolean active fails closed to disabled");
+  assert.deepEqual(u.emails, [{ value: "m@corp.com" }], "non-string email value dropped");
+  assert.deepEqual(u.groups, ["real-role"], "non-string group dropped");
+
+  // End-to-end: the same hostile blob published to the fleet KV converges WITHOUT crashing the
+  // request-time gate, and the user is denied (active=false), not admitted.
+  __resetScim();
+  await sharedKv.set(SCIM_SHARED_KEY, hostile);
+  await refreshScimFromShared();
+  let d!: ReturnType<typeof directoryDecision>;
+  assert.doesNotThrow(() => { d = directoryDecision({ email: "m@corp.com" }); }, "gate must not throw on sanitized fleet data");
+  assert.equal(d.known, true);
+  assert.equal(d.active, false, "the sanitized non-boolean active leaves the user deprovisioned, not admitted");
+});
+
+test("pruneTombstones drops entries past the 30-day TTL, keeps recent ones", () => {
+  const now = 1_000 * 86_400_000; // a fixed, deterministic "now" (no Date.now in the assertion)
+  const t = {
+    fresh: now - 1_000,                    // just now → kept
+    edge: now - 29 * 86_400_000,           // 29 days → kept
+    stale: now - 31 * 86_400_000,          // 31 days → pruned
+  };
+  pruneTombstones(t, now);
+  assert.deepEqual(Object.keys(t).sort(), ["edge", "fresh"]);
 });
