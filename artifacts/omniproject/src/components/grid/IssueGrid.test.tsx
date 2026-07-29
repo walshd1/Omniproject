@@ -97,6 +97,29 @@ describe("IssueGrid component", () => {
     expect(screen.getByText("Beta task")).toBeInTheDocument();
   });
 
+  it("renders a JSON-authored gridColumns def over the built-in catalogue (X.7)", () => {
+    const qc = seed([issue()]);
+    // Turn the importer on and seed a resolved grid-columns def that renames Title→Ticket, reorders, and drops
+    // the other columns — proving the grid renders the JSON catalogue, not the hardcoded GRID_COLUMNS.
+    qc.setQueryData(featuresQueryKey(), [
+      { id: "savedViews", kind: "module", label: "Saved views", description: "", enabled: false, loaded: true, needsRestart: false },
+      { id: "sidePanel", kind: "module", label: "Side panel", description: "", enabled: false, loaded: true, needsRestart: false },
+      { id: "defImporter", kind: "module", label: "Definition importer", description: "", enabled: true, loaded: true, needsRestart: false },
+    ] satisfies FeatureStatus[]);
+    qc.setQueryData(["defs", "resolved", "gridColumns", "p1", null], [
+      {
+        id: "org-cols", kind: "gridColumns", name: "Grid columns", storage: "org",
+        createdBy: "u1", createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z", rowVersion: 1,
+        payload: { id: "default", columns: [{ field: "status", label: "State", type: "status" }, { field: "title", label: "Ticket", type: "text" }] },
+      },
+    ]);
+    renderWithProviders(<IssueGrid projectId="p1" />, { client: qc });
+    expect(screen.getByRole("button", { name: /^Ticket/ })).toBeInTheDocument(); // def label wins
+    expect(screen.getByRole("button", { name: /^State/ })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^Title/ })).toBeNull(); // built-in label replaced
+    expect(screen.queryByRole("button", { name: /^Priority/ })).toBeNull(); // column not in the def
+  });
+
   it("virtualizes the row list (rows are windowing rows; all render when short/unmeasured)", () => {
     renderWithProviders(<IssueGrid projectId="p1" />, { client: seed([issue(), issue({ id: "i2", title: "Beta task" })]) });
     // Each data row is tagged for the windowing hook; in jsdom (unmeasured) every row still renders.

@@ -997,7 +997,18 @@ authoring, and the drift guards — no feature bypasses the golden rules.
   posture (an org-wide security floor, independent of the caller) — not a per-principal gate. mcp + broker-command
   route suites green; typecheck clean.
 
-### X.7 The issue grid as a JSON-defined artifact  ⬜ Todo — designed
+### X.7 The issue grid as a JSON-defined artifact  ✅ Done (via the importer, X.10-convergent)
+- **Delivered.** The grid's column catalogue is now a JSON-defined artifact. Rather than the stale "new
+  `gridColumns` settings-bundle slice" plan (which predates X.10 and would create another parallel writer to
+  retire), the column set is a new **`gridColumns` importer def kind** — authored through the ONE validated
+  write path (`POST/PUT /api/defs`), sealed in the scoped stores, and rendered read-only. `IssueGrid` resolves
+  it via the generic `useResolvedDefs<GridColumnsDef>("gridColumns", projectId)` seam and `resolveGridColumns`
+  (most-specific scope wins; newest on a tie) OVER the built-in `GRID_COLUMNS` default — so with no def authored
+  (or the importer off) behaviour is unchanged. `def-import` gains `validateGridColumnsDef` (id + a non-empty
+  `columns[]` of `{field,label,type}` where `type` is a grid cell renderer). Availability gating (`fieldVisible`)
+  and saved-views (`scope:"grid"`) stay the render-time intersection and per-user narrowing layers, untouched.
+  Tests: def-import validator + the DEF_KINDS closed-set assertion, a pure `resolveGridColumns` suite, and an
+  IssueGrid render test proving a JSON def drives the headers. Both packages typecheck clean; route-grants green.
 - **Rationale.** The editable data grid (`components/grid/IssueGrid`) still hardcodes its column set
   (`GRID_COLUMNS`, availability-gated; saved-views can narrow/reorder but only over those hardcoded
   fields). Per the universal-coverage rule, the grid's **column catalogue/config should be JSON**,
