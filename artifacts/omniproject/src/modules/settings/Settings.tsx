@@ -36,6 +36,7 @@ import { BrokerLog } from "../../components/settings/BrokerLog";
 import { A11yControls } from "../../components/settings/A11yControls";
 import { NotificationPreferences } from "../../components/settings/NotificationPreferences";
 import { TwoFactorAuth } from "../../components/settings/TwoFactorAuth";
+import { DeviceSessions } from "../../components/settings/DeviceSessions";
 import { CalendarPushConsent } from "../../components/settings/CalendarPushConsent";
 import { LabelsAdmin } from "../../components/premium/LabelsAdmin";
 import { PriorityLabelsAdmin } from "../../components/settings/PriorityLabelsAdmin";
@@ -181,6 +182,7 @@ const ADMIN_PANELS: AdminPanel[] = [
   { key: "a11y", Component: A11yControls, wrap: "bare" },
   { key: "notifications", Component: NotificationPreferences, wrap: "bare" },
   { key: "twoFactor", Component: TwoFactorAuth, wrap: "bare" },
+  { key: "deviceSessions", Component: DeviceSessions, wrap: "bare" },
   { key: "calendarPush", Component: CalendarPushConsent, wrap: "bare" },
   { key: "labels", Component: LabelsAdmin, wrap: "section" },
   { key: "priorityLabels", Component: PriorityLabelsAdmin, wrap: "bare" },

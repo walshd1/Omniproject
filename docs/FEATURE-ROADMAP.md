@@ -1918,19 +1918,20 @@ multi-tenancy → managed offering (§5.4).
   step-up pair, re-issuing the session with a fresh `stepUpAt`; codes are single-use inside their window (a
   `lastStep` replay lock) and the verify paths sit behind the strict login limiter. The SPA settings panel
   (`TwoFactorAuth`: QR enrol via the `qrcode` lib, confirm, one-time recovery codes, disable) ships too.
-- ◐ **Device & active-session inventory (IAM S8) — BACKEND BUILT; SPA panel next.** A signed-in user can see
-  their own active sessions (this browser plus any other devices) and sign one out — the account-security
-  hygiene surface that lets a user cut off a lost/stolen device without an admin. Sessions stay stateless
-  sealed cookies; an **always-on session directory** (`lib/session-registry.ts`, alongside the existing
-  concurrency cap and rotating-token sequence) records each live session — first/last-seen, user-agent, IP —
-  keyed by the per-session `salt`, which **never leaves the server** (the inventory identifies each session by
-  a non-reversible SHA-256 handle). Per-session **revoke** marks the session signed-out at the single
+- ✅ **Device & active-session inventory (IAM S8) — BUILT.** A signed-in user can see their own active
+  sessions (this browser plus any other devices) and sign one out — the account-security hygiene surface that
+  lets a user cut off a lost/stolen device without an admin. Sessions stay stateless sealed cookies; an
+  **always-on session directory** (`lib/session-registry.ts`, alongside the existing concurrency cap and
+  rotating-token sequence) records each live session — first/last-seen, user-agent, IP — keyed by the
+  per-session `salt`, which **never leaves the server** (the inventory identifies each session by a
+  non-reversible SHA-256 handle). Per-session **revoke** marks the session signed-out at the single
   `readSession` chokepoint on its next request, and — in a declared fleet (`REDIS_URL`) — publishes/reconciles
   a shared revoke marker so the sign-out propagates across replicas (mirrors the seq-mark pattern). Routes
   (`GET /api/auth/sessions`, `POST /api/auth/sessions/revoke` — one device by handle, or `{ others: true }` to
   sign out every *other* device; revoking the current one is a logout) gate on `readSession`, so a caller can
   only ever manage their own principal's sessions. Best-effort per-replica RAM, honestly scoped like the rest
-  of the registry. The SPA settings panel is the follow-up slice.
+  of the registry. The SPA **DeviceSessions** settings panel (`lib/sessions.ts` client + a device list with a
+  friendly UA label, last-active time, per-device revoke and "sign out all other devices") ships alongside.
 - ✅ **Global undo — BUILT.** App-wide undo/redo stack over recent field mutations via `Cmd/Ctrl+Z` /
   `Cmd/Ctrl+Shift+Z` and palette Undo/Redo actions (`lib/edit-history.ts`, `lib/use-undo-redo.ts`,
   `components/UndoRedoHotkeys.tsx`; PR #948), layered on top of the existing per-action toast undo.
