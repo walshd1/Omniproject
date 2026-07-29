@@ -237,8 +237,11 @@ function workflowScopeGate(req: Request, res: Response, workflowId: string): boo
   return true;
 }
 
-// GET /approvals/workflow-acceptances — every stored acceptance with its LIVE active/void status (pmo+).
-router.get("/approvals/workflow-acceptances", requireRole("manager"), async (_req: Request, res: Response) => {
+// GET /approvals/workflow-acceptances — every stored acceptance with its LIVE active/void status. Gated at
+// `pmo` (the scope-owner authority the sibling sign/revoke routes require for org workflows): the list spans
+// ALL scopes incl. org, so a project `manager` must not enumerate org-workflow acceptance metadata (signer
+// identity + which automations are AI-auto-approvable).
+router.get("/approvals/workflow-acceptances", requireRole("pmo"), async (_req: Request, res: Response) => {
   res.json({ acceptances: await listAcceptances() });
 });
 

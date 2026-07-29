@@ -185,6 +185,12 @@ function roomBoardProjectId(roomId: string): string | null {
 }
 
 async function guardCursorRoom(req: Request, res: Response, roomId: string): Promise<boolean> {
+  // A cursor room MUST live in the `board:` namespace. The live-cursor hub shares its room registry with the
+  // wiki co-edit relay (lib/collab-hub, keyed by the raw roomId), and these cursor routes require only
+  // `viewer` — so a non-board roomId like `issue:<pid>:<iid>` would let a viewer OUTSIDE that project's scope
+  // join the scoped co-edit room and receive (or inject) its live CRDT document stream. Reject anything
+  // outside the board namespace up front (fail closed), so a cursor room can never collide with a collab room.
+  if (!roomId.startsWith("board:")) { res.status(404).json({ error: "no such cursor room" }); return false; }
   const projectId = roomBoardProjectId(roomId);
   return projectId ? guardProjectScope(req, res, projectId) : true;
 }

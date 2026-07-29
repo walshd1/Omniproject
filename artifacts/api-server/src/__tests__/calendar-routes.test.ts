@@ -1,6 +1,6 @@
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
-import { startHarness, adminCookie, type Harness } from "./_harness";
+import { startHarness, adminCookie, memberCookie, type Harness } from "./_harness";
 
 /**
  * GET /api/calendar.ics — the signed-in user's due-dated work as an importable iCalendar file
@@ -83,4 +83,25 @@ test("calendar push is consent-gated: default not granted, and push.json 403s un
   // Revoke → refused again.
   await req("/calendar/push", { method: "PUT", body: { granted: false } });
   assert.equal((await req("/calendar/push.json")).status, 403);
+});
+
+test("push.json honours scope:all ONLY for a portfolio-scoped principal — a scoped user's own grant can't widen the feed", async () => {
+  // Real auth (non-demo) so a member is genuinely user-scoped. getTasks is scope-blind, so trusting the
+  // caller-saved grant scope:"all" alone would fold every owner's tasks into the pushed feed; the fix falls
+  // back to mineFor for a caller who does not actually hold portfolio scope (mirrors GET /calendar.ics).
+  const prev = process.env["OIDC_ISSUER_URL"];
+  process.env["OIDC_ISSUER_URL"] = "https://idp.example";
+  try {
+    const member = memberCookie(); // user-level scope (roles map to nothing ⇒ no authorities)
+    const g = await h.req("/calendar/push", { method: "PUT", cookie: member, body: { granted: true, target: "google-calendar", scope: "all" } });
+    assert.equal(g.status, 200);
+    const feed = await json(await h.req("/calendar/push.json", { cookie: member }));
+    assert.equal(feed.status ?? 200, 200);
+    const uids = (feed.events as { uid?: string }[]).map((e) => e.uid ?? "");
+    // The demo's dated task (task-3) is owned by another persona, so a user-scoped member's feed excludes it —
+    // whereas the all-scope admin's feed (asserted above) includes it. Proves the grant can't self-widen.
+    assert.ok(!uids.some((u) => u.includes("task-task-3")), "a scoped user's scope:all grant does not fold in another owner's tasks");
+  } finally {
+    if (prev === undefined) delete process.env["OIDC_ISSUER_URL"]; else process.env["OIDC_ISSUER_URL"] = prev;
+  }
 });

@@ -141,3 +141,23 @@ test("a tampered signature is refused (403), executor does not run", async () =>
   assert.equal(r.status, 403);
   assert.equal(ran, false);
 });
+
+test("workflow-acceptances list is pmo-gated: a plain manager cannot enumerate org acceptances, a pmo can", async () => {
+  // Real auth (non-demo) so authorities depend on the mapped claim. The list spans ALL scopes incl. org, so
+  // it must require the pmo (scope-owner) authority — a project manager must not enumerate org-workflow
+  // acceptance metadata (signer identity + which automations are AI-auto-approvable).
+  const prev = { iss: process.env["OIDC_ISSUER_URL"], pmo: process.env["OIDC_PMO_ROLES"], mgr: process.env["OIDC_MANAGER_ROLES"] };
+  process.env["OIDC_ISSUER_URL"] = "https://idp.example";
+  process.env["OIDC_PMO_ROLES"] = "govs";
+  process.env["OIDC_MANAGER_ROLES"] = "leads";
+  try {
+    const mgr = cookie({ sub: "m1", email: "m@x.io", roles: ["leads"] });                // manager base, no authority
+    const pmo = cookie({ sub: "p1", email: "p@x.io", roles: ["govs"], amr: ["hwk"] });    // pmo authority (strong auth)
+    assert.equal((await h.req("/approvals/workflow-acceptances", { cookie: mgr })).status, 403);
+    assert.equal((await h.req("/approvals/workflow-acceptances", { cookie: pmo })).status, 200);
+  } finally {
+    if (prev.iss === undefined) delete process.env["OIDC_ISSUER_URL"]; else process.env["OIDC_ISSUER_URL"] = prev.iss;
+    if (prev.pmo === undefined) delete process.env["OIDC_PMO_ROLES"]; else process.env["OIDC_PMO_ROLES"] = prev.pmo;
+    if (prev.mgr === undefined) delete process.env["OIDC_MANAGER_ROLES"]; else process.env["OIDC_MANAGER_ROLES"] = prev.mgr;
+  }
+});

@@ -157,7 +157,8 @@ export const timesheetActionCommand: CommandDescriptor<
   prepare: async (req, res, prelim) => {
     const sheet = await prelim.s.get(String(req.params["id"]));
     if (!sheet) { res.status(404).json({ error: "timesheet not found" }); return null; }
-    // Submit/reopen are the owner's; approve/reject need a manager+ AND aren't self-serve.
+    // Submit/reopen are the owner's; approve/reject need a manager+. (The four-eyes SoD rule — an owner
+    // can't approve their own sheet — is enforced in the state machine, applyTimesheetAction → 422.)
     if (prelim.type === "submit" || prelim.type === "reopen") {
       if (sheet.resourceId !== prelim.sub) { res.status(403).json({ error: "only the owner can submit or reopen their timesheet" }); return null; }
     } else if (!hasRole(req, "manager")) {
