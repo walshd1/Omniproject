@@ -27,6 +27,15 @@ The ORG-wide accessibility DEFAULTS — a partial UserPrefs the org sets as ever
 | GET | `/api/accessibility-defaults` | requireAnyRole(pmo, admin) | — |
 | PUT | `/api/accessibility-defaults` | requireAnyRole(pmo, admin) | — |
 
+### `artifacts/api-server/src/routes/agentic.ts`
+
+The human approver identity for this request, or null for no session / an autonomous (non-human) principal.
+
+| Method | Path | Gate | Description |
+| --- | --- | --- | --- |
+| POST | `/api/agentic/batches` | requireRole(contributor) | — |
+| GET | `/api/agentic/batches/pending` | requireRole(contributor) | an autonomous principal can never approve a batch. |
+
 ### `artifacts/api-server/src/routes/ai-allowlist.ts`
 
 AI SELECTION ALLOWLISTS — the org's governance FLOORS over which AI providers / models / STT engines may be selected (roadmap Phase C).
