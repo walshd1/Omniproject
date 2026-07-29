@@ -129,12 +129,23 @@ export function getProvider(id: string): AiProviderConfig | undefined {
   return state.providers.find((p) => p.id === id);
 }
 
+/** Upper bound on provider entities — generous for real deployments, but a fixed ceiling so a create loop
+ *  can't grow the sealed store without bound. */
+export const MAX_AI_PROVIDERS = 50;
+
 /** Add or replace a provider entity (by id). The id and kind are validated by the caller. */
 export function upsertProvider(cfg: AiProviderConfig): void {
   ensureLoaded();
+  // The id keys `keyRotatedAt[id]` (a plain object) — reject a prototype key at the store boundary so every
+  // caller is covered, not only the ones that pre-validate (defence-in-depth beside the route's charset check).
+  if (isForbiddenKey(cfg.id)) throw new Error("invalid provider id");
   beginMutation();
   const idx = state.providers.findIndex((p) => p.id === cfg.id);
-  if (idx >= 0) state.providers[idx] = cfg; else state.providers.push(cfg);
+  if (idx >= 0) { state.providers[idx] = cfg; }
+  else {
+    if (state.providers.length >= MAX_AI_PROVIDERS) throw new Error(`too many providers configured (max ${MAX_AI_PROVIDERS})`);
+    state.providers.push(cfg);
+  }
   persist();
 }
 
