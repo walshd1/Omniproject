@@ -686,9 +686,14 @@ router.post("/auth/local", async (req, res) => {
   // Downgrade prevention: local passwords are unavailable once stronger SSO is configured (unless recovery).
   if (!userDirectoryEnabled() || !credentialsEnabled() || !localPasswordsAllowed()) { res.status(404).json({ error: "In-app sign-in is not available on this deployment." }); return; }
   const user = getActiveUserByUserName(userName);
-  // Verify even when the user is missing (verifyPassword burns equivalent work) so timing can't enumerate
-  // accounts; a single generic error covers "no such user", "inactive", and "wrong password".
-  const ok = !!user && verifyPassword(user.id, password);
+  // Verify UNCONDITIONALLY — even when the user is missing — so response timing can't enumerate accounts.
+  // verifyPassword runs a dummy scrypt for an absent credential (user-credentials.ts), which is the whole
+  // point of calling it here; a bare `!!user && verifyPassword(...)` SHORT-CIRCUITS and skips that ~16 MB
+  // memory-hard work, so a nonexistent username returns measurably faster than a real one with a wrong
+  // password (account-enumeration oracle). A single generic error still covers "no such user", "inactive",
+  // and "wrong password".
+  const passwordOk = verifyPassword(user?.id ?? "", password);
+  const ok = !!user && passwordOk;
   const travel = user ? await travelCheck(user.id, user.email || user.id, req.ip) : {};
   if (!ok || !user) {
     recordRequestAudit(req, { category: "request", action: "auth.local.login", write: true, result: "error", status: 401, meta: { userName } });
