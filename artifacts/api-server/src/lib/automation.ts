@@ -29,6 +29,12 @@ export function validateAutomations(value: unknown): AutomationRecipe[] {
     const id = str(o["id"]);
     const label = str(o["label"]);
     if (!id || !label) throw new AutomationError("each recipe needs an id and a label");
+    // The id keys the rule's autonomous-write grant: writes run as `automation:rule_<id>` and the grant gate
+    // resolves the actor with a regex that splits the principal on ':' (autonomous-grant.ts `actorIdOf`). A
+    // colon in the id would truncate that key, collapsing two recipes (`a` and `a:b`) onto one grant and
+    // defeating per-rule isolation. Forbid the colon and the prototype keys at this store boundary — the
+    // `ruleActorId` invariant already assumes a colon-free id.
+    if (id.includes(":") || isForbiddenKey(id)) throw new AutomationError(`recipe "${id}" has an invalid id (no ':' — it keys the rule's autonomous-write grant)`);
     if (ids.has(id)) throw new AutomationError(`duplicate recipe id "${id}"`);
     ids.add(id);
 
