@@ -26,7 +26,7 @@ export { recentCapabilityLog, recentCapabilityLogShared, __resetCapabilityLogSin
  * states live in customer-level JSON; changing them is admin-gated.
  */
 
-export type CapabilityKind = "ai-tool" | "mcp" | "ai-provider" | "vendor" | "broker";
+export type CapabilityKind = "ai-tool" | "mcp" | "ai-provider" | "vendor" | "broker" | "finance";
 
 export interface GovernedCapability {
   id: string;
@@ -124,9 +124,24 @@ function sttCapabilities(): GovernedCapability[] {
   ];
 }
 
+/**
+ * Finance sub-areas — each a governable capability so a deployment can enable only the finance surfaces it
+ * uses (e.g. AR + tax, but not the general ledger). The record types they gate live in the broker catalogue;
+ * `finance-capability.ts` maps a record type to its capability. Customer-owned data only (`user-defined`),
+ * so the offered states are just off | user-defined. Surface-aware, so a sensitive screen can force one off.
+ * Like every capability these default OFF until an admin enables them — see the enforcement seam.
+ */
+const FINANCE_CAPABILITIES: GovernedCapability[] = [
+  { id: "finance:ar", kind: "finance", label: "Accounts receivable", description: "Invoices, payments, credit notes, quotes and recurring invoices — money owed to you.", supportedStates: ["user-defined"], surfaceAware: true },
+  { id: "finance:ap", kind: "finance", label: "Accounts payable", description: "Bills, expenses, purchase orders and vendors — money you owe.", supportedStates: ["user-defined"], surfaceAware: true },
+  { id: "finance:gl", kind: "finance", label: "General ledger", description: "Chart of accounts, journal entries, fiscal periods, dimensions and fixed assets.", supportedStates: ["user-defined"], surfaceAware: true },
+  { id: "finance:banking", kind: "finance", label: "Banking", description: "Bank accounts and bank transactions — reconciliation and cash.", supportedStates: ["user-defined"], surfaceAware: true },
+  { id: "finance:tax", kind: "finance", label: "Tax", description: "Tax rates applied to invoices and lines.", supportedStates: ["user-defined"], surfaceAware: true },
+];
+
 /** Every governed capability across all kinds. */
 export function listCapabilities(): GovernedCapability[] {
-  return [...AI_TOOLS, MCP_CAPABILITY, ...providerCapabilities(), ...sttCapabilities(), ...brokerCapabilities(), ...vendorCapabilities()];
+  return [...AI_TOOLS, MCP_CAPABILITY, ...providerCapabilities(), ...sttCapabilities(), ...brokerCapabilities(), ...vendorCapabilities(), ...FINANCE_CAPABILITIES];
 }
 
 const byId = new Map(listCapabilities().map((c) => [c.id, c]));

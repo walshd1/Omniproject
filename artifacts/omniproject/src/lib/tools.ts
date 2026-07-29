@@ -10,7 +10,7 @@ import { getJson, sendJson } from "./api";
  * (screen). All admin-gated; all stored in customer-level JSON.
  */
 export type DeploymentState = "off" | "user-defined" | "public";
-export type CapabilityKind = "ai-tool" | "mcp" | "ai-provider" | "vendor" | "broker";
+export type CapabilityKind = "ai-tool" | "mcp" | "ai-provider" | "vendor" | "broker" | "finance";
 
 export interface ResolvedCapability {
   id: string;
@@ -68,6 +68,7 @@ export const KIND_LABEL: Record<CapabilityKind, string> = {
   "ai-provider": "AI providers",
   broker: "Brokers",
   vendor: "Vendors",
+  finance: "Finance",
 };
 
 /** One entry in the live capability activity log (for the admin dashboard). */
