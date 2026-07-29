@@ -51,6 +51,10 @@ export interface EntityOp<B> {
 export interface EntityDescriptor {
   /** Entity name — the label in errors/audit and the ratchet. */
   entity: string;
+  /** The domain-event SURFACE this entity emits under (the rules-engine trigger noun). Defaults to `entity`.
+   *  Set it when the internal entity name differs from the public trigger surface — e.g. the `wiki_doc`
+   *  entity emits under the advertised `wiki-doc` surface so a "When a wiki document is …" recipe matches. */
+  eventSurface?: string;
   /** Collection path, e.g. "/projects/:projectId/issues". */
   basePath: string;
   /** The id path-param for item ops (update/delete); appended to basePath as `/:idParam`. */
@@ -72,7 +76,7 @@ const scopeFor = (op: EntityOp<unknown>, descScope: EntityScope | undefined): En
 const projectIdOf = (req: Request, scope: EntityScope): string | null =>
   scope.kind === "project" ? String(req.params[scope.param] ?? "") : null;
 
-function runOp(entity: string, verb: string, op: EntityOp<unknown>, scope: EntityScope, defaultStatus: number) {
+function runOp(entity: string, verb: string, op: EntityOp<unknown>, scope: EntityScope, defaultStatus: number, eventSurface: string) {
   return (req: Request, res: Response): Promise<void> => {
     const projectId = projectIdOf(req, scope);
     return withBrokerErrors(req, res, `${verb}_${entity} failed`, async () => {
@@ -85,13 +89,14 @@ function runOp(entity: string, verb: string, op: EntityOp<unknown>, scope: Entit
       if (result === undefined) {
         // The op already responded (404 / 204 / etc.). Emit only on a SUCCESS status — never for a 404
         // "unknown id" — so a `deleted`/`updated` event that self-responds 2xx still fires the rules engine.
-        if (domainEventsEnabled() && res.statusCode < 400) emitEntityWrite(req, entity, verb, projectId, { body });
+        if (domainEventsEnabled() && res.statusCode < 400) emitEntityWrite(req, eventSurface, verb, projectId, { body });
         return;
       }
       res.status(op.status ?? defaultStatus).json(result);
       // Post-commit, best-effort, out-of-band: fire the domain event so matching rules can run. Never
-      // throws into the write path (see domain-event.ts). Off unless RULES_ENGINE_EVENTS is set.
-      if (domainEventsEnabled()) emitEntityWrite(req, entity, verb, projectId, { body, result });
+      // throws into the write path (see domain-event.ts). Off unless RULES_ENGINE_EVENTS is set. The emitted
+      // SURFACE is `eventSurface` (defaults to `entity`) so the trigger noun can differ from the audit name.
+      if (domainEventsEnabled()) emitEntityWrite(req, eventSurface, verb, projectId, { body, result });
     }, projectId ? { projectId } : {});
   };
 }
@@ -109,7 +114,8 @@ export function entityRoutes(desc: EntityDescriptor): string[] {
 /** Mount an entity descriptor's ops, each running the fixed RBAC → validate → ruleset → scope → run pipeline. */
 export function mountEntity(router: IRouter, desc: EntityDescriptor): void {
   const itemPath = desc.idParam ? `${desc.basePath}/:${desc.idParam}` : desc.basePath;
-  if (desc.create) router.post(desc.basePath, requireRole(desc.create.role), runOp(desc.entity, "create", desc.create, scopeFor(desc.create, desc.scope), 201));
-  if (desc.update) router[desc.updateMethod ?? "patch"](itemPath, requireRole(desc.update.role), runOp(desc.entity, "update", desc.update, scopeFor(desc.update, desc.scope), 200));
-  if (desc.remove) router.delete(itemPath, requireRole(desc.remove.role), runOp(desc.entity, "delete", desc.remove, scopeFor(desc.remove, desc.scope), 200));
+  const surface = desc.eventSurface ?? desc.entity;
+  if (desc.create) router.post(desc.basePath, requireRole(desc.create.role), runOp(desc.entity, "create", desc.create, scopeFor(desc.create, desc.scope), 201, surface));
+  if (desc.update) router[desc.updateMethod ?? "patch"](itemPath, requireRole(desc.update.role), runOp(desc.entity, "update", desc.update, scopeFor(desc.update, desc.scope), 200, surface));
+  if (desc.remove) router.delete(itemPath, requireRole(desc.remove.role), runOp(desc.entity, "delete", desc.remove, scopeFor(desc.remove, desc.scope), 200, surface));
 }
