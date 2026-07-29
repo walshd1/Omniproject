@@ -3665,6 +3665,7 @@ SECURITY: the directory maps are plain objects indexed by the SCIM resource `id`
 
 | Function | What it does |
 | --- | --- |
+| `pruneTombstones` | Drop tombstones older than the TTL (mutates in place). |
 | `sanitizeSharedDirectory` | Validate an untrusted shared-directory blob from the fleet KV BEFORE it can influence authorization. |
 | `refreshScimFromShared` | Converge this replica's directory with shared state once (the fleet-sync tick, also directly testable). |
 | `startScimFleetSync` | Start periodic fleet convergence so a deprovision on ANY replica takes effect here. |
