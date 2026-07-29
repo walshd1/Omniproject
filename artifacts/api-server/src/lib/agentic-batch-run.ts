@@ -3,9 +3,12 @@ import { registerAutonomousActor, unregisterAutonomousActor, mintAutonomousConte
 import { registerAutonomousGrant, revokeAutonomousGrant, previewAutonomousWrite, type AutonomousWriteGrant } from "./autonomous-grant";
 import { effectsForAutonomousContext } from "./workflow-run";
 import { runWorkflow, type WorkflowDef, type WorkflowEffect } from "./workflow";
+import crypto from "node:crypto";
 import { compileRecipe } from "./automation";
 import { getActionDef, type AutomationRecipe } from "@workspace/backend-catalogue";
-import { BatchPlanError, type AgenticBatchPlan } from "./agentic-batch";
+import { registerApprovalExecutor, createProposal } from "./approval-service";
+import { chainForAction } from "./approval-gate";
+import { BatchPlanError, validateBatchPlan, type AgenticBatchPlan } from "./agentic-batch";
 
 /**
  * Supervised agentic execution (D1) — the EXECUTION half (approve-the-batch), JUST-IN-TIME authority model.
@@ -40,9 +43,10 @@ export function batchActorId(batchId: string): string {
   return `batch_${batchId}`;
 }
 
-/** The approval action a supervised batch binds to. NOT a `workflow.run:` action, so the approval-service
- *  AI-approver carve-out never applies — only a HUMAN can approve a batch. */
-export function batchRunAction(batchId: string): string { return `agentic.batch:${batchId}`; }
+/** The STABLE approval action every supervised batch binds to (the batch id travels in the proposal params,
+ *  so one operator-configured chain gates them all and one executor serves them all). NOT a `workflow.run:`
+ *  action, so the approval-service AI-approver carve-out never applies — only a HUMAN can approve a batch. */
+export const BATCH_APPROVAL_ACTION = "agentic.batch";
 
 /** The distinct project ids a plan's MUTATING actions target (from each action's params, else the batch scope). */
 function batchProjectIds(plan: AgenticBatchPlan): string[] {
@@ -135,16 +139,53 @@ async function executeBatch(batchId: string, plan: AgenticBatchPlan, onBehalfOf:
 export async function runApprovedBatch(
   batchId: string,
   plan: AgenticBatchPlan,
-  opts: { approverSub: string; now?: () => number },
+  opts: { onBehalfOf: string; now?: () => number },
 ): Promise<BatchRunResult> {
   const actorId = batchActorId(batchId);
   const now = opts.now ?? (() => Date.now());
   registerAutonomousActor(actorId, BATCH_ACTOR_ROLE);
   registerAutonomousGrant(buildBatchGrant(plan, batchId, now()));
   try {
-    return await executeBatch(batchId, plan, opts.approverSub, now);
+    return await executeBatch(batchId, plan, opts.onBehalfOf, now);
   } finally {
     revokeAutonomousGrant(actorId);
     unregisterAutonomousActor(actorId);
   }
+}
+
+/** Register the ONE approval executor for supervised batches (idempotent). On a human approval, the engine
+ *  calls this with the proposal's params — it re-validates the plan (never trusts the queued copy) and runs
+ *  it via {@link runApprovedBatch}, so the JIT grant is minted, used, and torn down inside this call. */
+export function ensureBatchExecutor(): void {
+  registerApprovalExecutor(BATCH_APPROVAL_ACTION, async (params) => {
+    const p = (params ?? {}) as { batchId?: unknown; plan?: unknown; onBehalfOf?: unknown };
+    const batchId = typeof p.batchId === "string" ? p.batchId : "";
+    if (!batchId) throw new BatchPlanError("batch executor: missing batchId");
+    const plan = validateBatchPlan(p.plan); // re-validate at execution — the allowlist is enforced again
+    const onBehalfOf = typeof p.onBehalfOf === "string" ? p.onBehalfOf : "automation";
+    await runApprovedBatch(batchId, plan, { onBehalfOf });
+  });
+}
+
+export interface ProposedBatch {
+  batchId: string;
+  proposalId: string;
+  preview: BatchStepPreview[];
+}
+
+/**
+ * Plan → propose. Validate the agent's proposed batch, mint a server-side batch id, and raise a SINGLE
+ * approval proposal a human must sign off (via the existing approval surface). Returns the dry-run preview so
+ * the caller can show what the approval would authorize. Throws {@link BatchPlanError} if the plan is invalid
+ * OR — fail-closed — if no approval chain is bound to {@link BATCH_APPROVAL_ACTION}: supervised execution is
+ * OFF until an operator configures who approves batches, so a batch can never run without a human in the loop.
+ */
+export async function proposeBatch(rawPlan: unknown, proposedBy: string, now: number = Date.now()): Promise<ProposedBatch> {
+  const plan = validateBatchPlan(rawPlan);
+  const def = chainForAction(BATCH_APPROVAL_ACTION);
+  if (!def) throw new BatchPlanError("supervised batch execution is not enabled — no approval chain is bound to it");
+  ensureBatchExecutor();
+  const batchId = crypto.randomUUID();
+  const proposalId = await createProposal({ def, action: BATCH_APPROVAL_ACTION, params: { batchId, plan, onBehalfOf: proposedBy }, proposedBy });
+  return { batchId, proposalId, preview: previewBatch(plan, batchId, now) };
 }

@@ -772,11 +772,12 @@ Supervised agentic execution (D1) — the EXECUTION half (approve-the-batch), JU
 | Function | What it does |
 | --- | --- |
 | `batchActorId` | The per-batch autonomous actor id (grant is keyed on this via `actorIdOf`, which splits the principal on ':'). |
-| `batchRunAction` | The approval action a supervised batch binds to. |
 | `buildBatchGrant` | Build the JUST-IN-TIME write grant for an approved plan: admits ONLY `update_issue`, ONLY the plan's projects, capped at the plan's write count, expiring shortly. |
 | `compileBatchToWorkflow` | Compile a validated batch into a runnable WorkflowDef, reusing the automation compiler so the action→effect mapping (and `__op` stamping) can't drift. |
 | `previewBatch` | Side-effect-free dry-run of the POST-approval state: registers the batch's JIT grant transiently, checks each write against it, then tears it down — so a human sees exactly what the approval would authorize (and any step the plan's own grant would still deny). |
 | `runApprovedBatch` | Run a batch a human has just approved. |
+| `ensureBatchExecutor` | Register the ONE approval executor for supervised batches (idempotent). |
+| `proposeBatch` | Plan → propose. |
 
 ### `artifacts/api-server/src/lib/agentic-batch.ts`
 
@@ -4549,6 +4550,10 @@ Minimal, dependency-free STORED (uncompressed) ZIP writer.
 ### `artifacts/api-server/src/routes/accessibility.ts`
 
 The ORG-wide accessibility DEFAULTS — a partial UserPrefs the org sets as everyone's starting point (a default font, reduced motion for a sensitive environment, …).
+
+### `artifacts/api-server/src/routes/agentic.ts`
+
+Supervised agentic execution (D1) — the PLAN→PROPOSE surface ("approve-the-batch").
 
 ### `artifacts/api-server/src/routes/ai-allowlist.ts`
 

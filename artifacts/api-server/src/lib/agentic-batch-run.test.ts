@@ -1,13 +1,14 @@
 import { test, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
 import {
-  compileBatchToWorkflow, buildBatchGrant, previewBatch, runApprovedBatch,
-  batchActorId, batchRunAction, BATCH_WRITE_ACTION,
+  compileBatchToWorkflow, buildBatchGrant, previewBatch, runApprovedBatch, proposeBatch,
+  batchActorId, BATCH_APPROVAL_ACTION, BATCH_WRITE_ACTION,
 } from "./agentic-batch-run";
 import { getAutonomousGrant, __resetAutonomousGrants } from "./autonomous-grant";
 import { authorizedRole } from "./autonomous";
 import { setContainmentRelax, __resetContainmentRelax } from "./ai-containment";
-import type { AgenticBatchPlan } from "./agentic-batch";
+import { getSettings, updateSettings } from "./settings";
+import { BatchPlanError, type AgenticBatchPlan } from "./agentic-batch";
 
 /**
  * Supervised agentic execution (D1) — execution half, JUST-IN-TIME authority. A batch has NO standing write
@@ -15,8 +16,21 @@ import type { AgenticBatchPlan } from "./agentic-batch";
  * down after the run. These tests relax AI containment to "off" (the containment gate is tested separately)
  * to isolate the batch lifecycle.
  */
+const ORIGINAL = getSettings();
 beforeEach(() => setContainmentRelax("off"));
-afterEach(() => { __resetAutonomousGrants(); __resetContainmentRelax(); });
+afterEach(() => {
+  __resetAutonomousGrants();
+  __resetContainmentRelax();
+  updateSettings({ approvalChains: ORIGINAL.approvalChains ?? [], approvalBindings: ORIGINAL.approvalBindings ?? [] });
+});
+
+/** A minimal org-scoped chain requiring one manager approval, bound to the batch action. */
+function enableBatchApprovals(): void {
+  updateSettings({
+    approvalChains: [{ id: "c-batch", scope: { kind: "org" }, rejectionPolicy: "abort", stages: [{ id: "s1", approvers: [{ kind: "role", role: "manager" }] }] }],
+    approvalBindings: [{ action: BATCH_APPROVAL_ACTION, chainId: "c-batch" }],
+  });
+}
 
 const PLAN: AgenticBatchPlan = {
   scope: { kind: "project", projectId: "P1" },
@@ -53,14 +67,37 @@ test("previewBatch reflects the post-approval grant, then leaves NO standing aut
   assert.equal(authorizedRole(batchActorId("b1")), undefined);
 });
 
-test("batchRunAction is NOT a workflow.run action — only a human can approve a batch", () => {
-  assert.equal(batchRunAction("b1"), "agentic.batch:b1");
-  assert.equal(/^workflow\.run:/.test(batchRunAction("b1")), false);
+test("the batch approval action is NOT a workflow.run action — only a human can approve a batch", () => {
+  assert.equal(BATCH_APPROVAL_ACTION, "agentic.batch");
+  assert.equal(/^workflow\.run:/.test(BATCH_APPROVAL_ACTION), false);
 });
 
 test("runApprovedBatch tears down the JIT grant + actor after the run — authority never outlives approval", async () => {
   // Whether the underlying write succeeds or throws in this unit context, the finally must clean up.
-  await runApprovedBatch("b1", PLAN, { approverSub: "u1" }).catch(() => {});
+  await runApprovedBatch("b1", PLAN, { onBehalfOf: "u1" }).catch(() => {});
   assert.equal(getAutonomousGrant(batchActorId("b1")), undefined);
   assert.equal(authorizedRole(batchActorId("b1")), undefined);
+});
+
+test("proposeBatch fails closed when no approval chain is bound (supervised execution off by default)", async () => {
+  await assert.rejects(() => proposeBatch(PLAN, "u1"), BatchPlanError);
+});
+
+test("proposeBatch raises ONE approval proposal and returns the dry-run preview when a chain is bound", async () => {
+  enableBatchApprovals();
+  const res = await proposeBatch(PLAN, "u1");
+  assert.equal(typeof res.batchId, "string");
+  assert.equal(typeof res.proposalId, "string");
+  assert.equal(res.preview.length, 2);
+  assert.equal(res.preview[1]!.allowed, true); // set-status admitted by the JIT grant it would mint
+  // Proposing does not itself grant anything standing — nothing runs until a human approves.
+  assert.equal(getAutonomousGrant(batchActorId(res.batchId)), undefined);
+});
+
+test("proposeBatch rejects a plan with a propose-only action (allowlist re-checked at the boundary)", async () => {
+  enableBatchApprovals();
+  await assert.rejects(
+    () => proposeBatch({ scope: { kind: "org" }, actions: [{ kind: "create-issue", params: {} }] }, "u1"),
+    BatchPlanError,
+  );
 });
