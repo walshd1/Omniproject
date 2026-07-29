@@ -53,7 +53,7 @@ describe("SupervisedBatchApprovals", () => {
       }),
     );
     stubWebAuthn(get);
-    const calls: Array<{ url: string; method?: string; body?: unknown }> = [];
+    const calls: Array<{ url: string; method: string | undefined; body: unknown }> = [];
     vi.stubGlobal("fetch", vi.fn((url: string, opts?: { method?: string; body?: unknown }) => {
       calls.push({ url: String(url), method: opts?.method, body: opts?.body });
       if (String(url).includes("/pending")) return Promise.resolve(jsonResponse({ pending: PENDING }));
