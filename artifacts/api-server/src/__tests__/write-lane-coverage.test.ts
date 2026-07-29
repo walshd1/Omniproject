@@ -240,6 +240,7 @@ const BESPOKE_WRITES = new Set<string>([
   "POST /auth/passkey/step-up",
   "POST /auth/passkey/step-up/challenge",
   "POST /auth/saml/callback",
+  "POST /auth/sessions/revoke",
   "POST /auth/step-up",
   "POST /auth/totp/confirm",
   "POST /auth/totp/disable",

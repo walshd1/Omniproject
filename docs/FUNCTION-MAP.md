@@ -3848,6 +3848,12 @@ Concurrent-session cap.
 | `sequenceEnforced` | Whether rotating-token sequence enforcement is on. |
 | `issueSequence` | Issue the next sequence number for a session (called when its cookie is (re)sealed). |
 | `checkSequence` | Check a presented sequence against the session's high-water mark. |
+| `sessionPublicId` | A short, non-reversible public handle for a session id, so the raw per-session salt (which seeds the per-session broker key) never leaves the server. |
+| `noteSession` | Record/refresh a live session in the directory (always on, independent of the concurrent-session cap). |
+| `listUserSessions` | The caller's live (non-revoked) sessions, newest-activity first. |
+| `revokeSession` | Revoke ONE of a user's sessions by its public handle. |
+| `revokeOtherSessions` | Revoke every session EXCEPT the one identified by keepPublicId ("sign out all other devices"). |
+| `isSessionRevoked` | Whether a session (by sub+salt) has been revoked. |
 | `__resetSessionRegistry` | Test-only: clear the registry. |
 
 ### `artifacts/api-server/src/lib/session-secret-guard.ts`

@@ -1,6 +1,6 @@
 import { test, afterEach } from "node:test";
 import assert from "node:assert/strict";
-import { registerSession, activeSessionCount, maxSessionsPerUser, issueSequence, checkSequence, sequenceEnforced, __resetSessionRegistry } from "./session-registry";
+import { registerSession, activeSessionCount, maxSessionsPerUser, issueSequence, checkSequence, sequenceEnforced, noteSession, listUserSessions, revokeSession, revokeOtherSessions, isSessionRevoked, sessionPublicId, __resetSessionRegistry } from "./session-registry";
 import { __resetSharedStateForTest } from "./shared-state";
 
 afterEach(() => {
@@ -119,4 +119,65 @@ test("disabled ⇒ every sequence check is a no-op ok (never kills)", () => {
   const s = "salt-e";
   for (let i = 1; i <= 10; i++) issueSequence(s, 1000 + i);
   assert.equal(checkSequence(s, 1, 3000), "ok"); // would be a fork if enforced
+});
+
+// ── Device & active-session inventory (IAM S8) ──────────────────────────────────────────────────────
+
+test("directory lists a user's live sessions, newest-activity first, with device metadata", () => {
+  noteSession("u1", "salt-a", 1000, { ua: "Firefox", ip: "1.1.1.1" });
+  noteSession("u1", "salt-b", 2000, { ua: "Chrome", ip: "2.2.2.2" });
+  noteSession("u2", "salt-z", 1500); // a different principal — never leaks across users
+  const list = listUserSessions("u1", 3000);
+  assert.equal(list.length, 2);
+  assert.equal(list[0]!.ua, "Chrome"); // b is newer
+  assert.equal(list[1]!.ua, "Firefox");
+  // The raw salt never appears — the id is the non-reversible public handle.
+  assert.equal(list[0]!.id, sessionPublicId("salt-b"));
+  assert.notEqual(list[0]!.id, "salt-b");
+});
+
+test("a re-note refreshes last-seen + metadata without duplicating the session", () => {
+  noteSession("u1", "salt-a", 1000, { ua: "old" });
+  noteSession("u1", "salt-a", 5000, { ua: "new" });
+  const list = listUserSessions("u1", 6000);
+  assert.equal(list.length, 1);
+  assert.equal(list[0]!.last, 5000);
+  assert.equal(list[0]!.ua, "new");
+});
+
+test("revokeSession burns exactly one session; it drops out of the list and reads as revoked", () => {
+  noteSession("u1", "salt-a", 1000);
+  noteSession("u1", "salt-b", 1000);
+  const idA = sessionPublicId("salt-a");
+  assert.equal(revokeSession("u1", idA), true);
+  assert.equal(isSessionRevoked("u1", "salt-a", 2000), true);
+  assert.equal(isSessionRevoked("u1", "salt-b", 2000), false); // sibling untouched
+  assert.deepEqual(listUserSessions("u1", 2000).map((s) => s.id), [sessionPublicId("salt-b")]);
+  assert.equal(revokeSession("u1", "no-such-id"), false);
+});
+
+test("revokeOtherSessions signs out every device except the one kept", () => {
+  noteSession("u1", "salt-a", 1000);
+  noteSession("u1", "salt-b", 1000);
+  noteSession("u1", "salt-c", 1000);
+  const keep = sessionPublicId("salt-b");
+  assert.equal(revokeOtherSessions("u1", keep), 2);
+  assert.equal(isSessionRevoked("u1", "salt-a", 2000), true);
+  assert.equal(isSessionRevoked("u1", "salt-c", 2000), true);
+  assert.equal(isSessionRevoked("u1", "salt-b", 2000), false);
+  assert.deepEqual(listUserSessions("u1", 2000).map((s) => s.id), [keep]);
+});
+
+test("directory prunes sessions past the absolute window", () => {
+  process.env["SESSION_ABSOLUTE_HOURS"] = "1"; // 1h window
+  noteSession("u1", "salt-old", 1000);
+  // A note far in the future prunes the stale entry (last < now - window).
+  noteSession("u1", "salt-new", 1000 + 2 * 3_600_000);
+  const list = listUserSessions("u1", 1000 + 2 * 3_600_000);
+  assert.deepEqual(list.map((s) => s.id), [sessionPublicId("salt-new")]);
+  delete process.env["SESSION_ABSOLUTE_HOURS"];
+});
+
+test("isSessionRevoked on an unknown session is false (no fleet, no reconcile side effect)", () => {
+  assert.equal(isSessionRevoked("nobody", "salt-unknown", 1000), false);
 });

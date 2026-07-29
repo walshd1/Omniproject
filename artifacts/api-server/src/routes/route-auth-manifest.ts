@@ -84,6 +84,7 @@ export const ROUTE_AUTH_EXCEPTIONS: readonly RouteAuthException[] = [
   { file: "auth.ts", method: "post", path: "/auth/totp/confirm", posture: "in-handler", reason: "readSession → 401; activates 2FA for the session subject after proving a code" },
   { file: "auth.ts", method: "post", path: "/auth/totp/step-up", posture: "in-handler", reason: "readSession → 401; steps up an EXISTING session with a TOTP/recovery code" },
   { file: "auth.ts", method: "post", path: "/auth/totp/disable", posture: "in-handler", reason: "readSession → 401; disables 2FA for the session subject after proving a code" },
+  { file: "auth.ts", method: "post", path: "/auth/sessions/revoke", posture: "in-handler", reason: "readSession → 401; revokes the caller's OWN session(s) by non-reversible handle (device inventory)" },
   { file: "auth.ts", method: "post", path: "/auth/logout", posture: "public", reason: "clears the session cookie — safe and idempotent with or without a session" },
   { file: "auth.ts", method: "post", path: "/auth/step-up", posture: "in-handler", reason: "readSession → 401; elevates an EXISTING session" },
 
