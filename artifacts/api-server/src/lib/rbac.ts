@@ -257,6 +257,22 @@ export function hasStrongAuth(session: { amr?: string[] | undefined; acr?: strin
 }
 
 /**
+ * Does this session count as STRONG auth for the pmo/admin gate? Hardware-MFA (amr/acr) — OR a local
+ * (in-app password) session when the operator has opted OUT of the passkey requirement
+ * (LOCAL_ADMIN_REQUIRE_PASSKEY=false). This is the ONE strong-auth rule the tier gate and the data-scope
+ * resolver must BOTH apply: `grantsForReq` and `scopeForReq` both call it, so a local admin's data scope
+ * always matches their authority. (When they diverged, a local admin under an opted-out deployment passed
+ * admin routes via grantsForReq but scopeForReq withheld the authority → empty programme scope → the admin
+ * could reach admin routes yet see no data.)
+ */
+export function sessionStrongAuth(
+  session: { amr?: string[] | undefined; acr?: string | undefined; local?: boolean | undefined } | null | undefined,
+): boolean {
+  if (!session) return false;
+  return hasStrongAuth(session) || (session.local === true && !localAdminRequiresPasskey());
+}
+
+/**
  * Pure mapping from a user's raw claim groups to their GRANTS (base rung + the set
  * of authorities), using the configured role lists. Side-effect free apart from
  * reading env/overrides, so it is unit-testable without an Express request.
@@ -335,7 +351,7 @@ export function grantsForReq(req: Request): Grants {
   // A local (in-app password) user's password counts as strong auth for admin/PMO ONLY when the operator has
   // opted OUT of the passkey requirement (LOCAL_ADMIN_REQUIRE_PASSKEY=false). By default it does NOT, so a local
   // admin must additionally step up with a passkey — the same hardware-MFA gate every IdP admin clears.
-  const strongAuth = hasStrongAuth(session) || (session.local === true && !localAdminRequiresPasskey());
+  const strongAuth = sessionStrongAuth(session);
   const fixed = grantsFromClaims(claims, { isDemo, strongAuth });
   // Demo already holds every grant; otherwise fold in any admin-defined custom roles the claims match (each
   // capped at its fixed base role, so this only ever equals a grant the admin could assign directly).
@@ -363,7 +379,10 @@ export function scopeForReq(req: Request): Scope {
   // A guest is confined to exactly its one invited project — the narrowest scope.
   if (session.guest) return { level: "project", projectId: session.guest.projectId };
   const claims = decision.known ? [...(session.roles ?? []), ...decision.roleClaims] : (session.roles ?? []);
-  const grants = grantsFromClaims(claims, { isDemo: isDemoAuth(), strongAuth: hasStrongAuth(session) });
+  // Use the SAME strong-auth rule as grantsForReq (incl. the local-admin passkey opt-out) so a local admin's
+  // data scope matches their tier authority — otherwise an opted-out local admin gets `all` at the tier gate
+  // but a withheld authority here, collapsing to an empty programme scope (admin routes, but no data).
+  const grants = grantsFromClaims(claims, { isDemo: isDemoAuth(), strongAuth: sessionStrongAuth(session) });
   return resolveScope(grants, { sub: session.sub, groups: claims });
 }
 
