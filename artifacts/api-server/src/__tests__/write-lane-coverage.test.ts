@@ -24,6 +24,7 @@ import { approvedUpdateCommand, aiKillCommand, containmentCommand } from "../rou
 import { roleMapRollbackCommand } from "../routes/role-map";
 import { webhookDeleteCommand, webhookTestCommand } from "../routes/webhooks";
 import { energyVocabularyCommand } from "../routes/energy-vocabulary";
+import { taskContextVocabularyCommand } from "../routes/task-context-vocabulary";
 import { impactVocabularyCommand } from "../routes/impact-vocabulary";
 import { likelihoodVocabularyCommand } from "../routes/likelihood-vocabulary";
 import { severityVocabularyCommand } from "../routes/severity-vocabulary";
@@ -141,6 +142,7 @@ const LANE2 = new Set<string>([
   ...commandRoutes(webhookDeleteCommand),
   ...commandRoutes(webhookTestCommand),
   ...commandRoutes(energyVocabularyCommand),
+  ...commandRoutes(taskContextVocabularyCommand),
   ...commandRoutes(impactVocabularyCommand),
   ...commandRoutes(likelihoodVocabularyCommand),
   ...commandRoutes(severityVocabularyCommand),
@@ -238,7 +240,12 @@ const BESPOKE_WRITES = new Set<string>([
   "POST /auth/passkey/step-up",
   "POST /auth/passkey/step-up/challenge",
   "POST /auth/saml/callback",
+  "POST /auth/sessions/revoke",
   "POST /auth/step-up",
+  "POST /auth/totp/confirm",
+  "POST /auth/totp/disable",
+  "POST /auth/totp/enrol",
+  "POST /auth/totp/step-up",
   "POST /automations/:id/run",
   "POST /automations/preview",
   "POST /break-glass/lockdown",
@@ -259,6 +266,11 @@ const BESPOKE_WRITES = new Set<string>([
   "POST /history/erase",
   "POST /import/commit",
   "POST /import/preview",
+  // Session-less inbound billing settlement webhook — mounted outside requireAuth (secret-authed), so it's a
+  // genuinely irreducible bespoke write (drives an invoice's own status; no arbitrary field writes). The
+  // neutral path plus the back-compat vendor-named alias are both live (see routes/billing-webhook.ts).
+  "POST /invoices/billing-webhook",
+  "POST /invoices/ninja-webhook",
   "POST /mcp",
   "POST /notifications/ingest",
   "POST /portal/invites",
@@ -287,6 +299,7 @@ const BESPOKE_WRITES = new Set<string>([
   "POST /setup/verify-workflow",
   "POST /snapshots/capture",
   "POST /snapshots/verify",
+  "POST /tasks/bulk",
   "POST /tasks/reminders/sweep",
   "POST /usage/notify",
   "POST /webhooks",
@@ -298,6 +311,8 @@ const BESPOKE_WRITES = new Set<string>([
   "PUT /admin/maintenance",
   "PUT /admin/role-map",
   "PUT /admin/ruleset",
+  "PUT /admin/ruleset/accounting",
+  "PUT /admin/ruleset/domains",
   "PUT /admin/ruleset/fields",
   "PUT /admin/ruleset/scope",
   "PUT /error-telemetry",

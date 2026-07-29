@@ -29,6 +29,7 @@ import priorityLabelsRouter from "./priority-labels";
 import workVocabularyRouter from "./work-vocabulary";
 import taskVocabularyRouter from "./task-vocabulary";
 import energyVocabularyRouter from "./energy-vocabulary";
+import taskContextVocabularyRouter from "./task-context-vocabulary";
 import severityVocabularyRouter from "./severity-vocabulary";
 import impactVocabularyRouter from "./impact-vocabulary";
 import likelihoodVocabularyRouter from "./likelihood-vocabulary";
@@ -101,6 +102,7 @@ import reportsRouter from "./reports";
 import resourceAllocationsRouter from "./resource-allocations";
 import budgetPlansRouter from "./budget-plans";
 import scimRouter from "./scim";
+import { billingWebhookRouter } from "./billing-webhook";
 import breakGlassRouter from "./break-glass";
 import { isDeprovisioned, requireRole } from "../lib/rbac";
 import { hasValidApiToken } from "../lib/api-token";
@@ -170,9 +172,16 @@ router.use(mcpRouter);
 // it's mounted outside requireAuth. Rate-limited + audited like the rest of /api.
 router.use(scimRouter);
 
+// Inbound billing settlement webhook — self-authed by the connected backend's webhook secret (not a user
+// session, since the broker / billing backend hold none), so mounted outside requireAuth. Rate-limited +
+// audited like the rest of /api; gated internally by the adapter's sync flag + the artifact store.
+router.use(billingWebhookRouter);
+
 // Strict, per-IP throttle on login / step-up initiation (brute-force / flow-cookie
 // spam) — tighter than the general apiLimiter and applied just to these endpoints.
-router.use(["/auth/login", "/auth/step-up", "/auth/saml/login", "/auth/oauth2/login", "/auth/magic/request", "/auth/local", "/auth/local/bootstrap", "/auth/passkey/step-up", "/break-glass/lockdown", "/break-glass/release", "/break-glass/status"], loginLimiter);
+// (`/portal/invites` sends an email to a caller-supplied address, like `/auth/magic/request`, so it rides
+//  the same strict per-IP throttle even though it's manager-gated — bounds invite-email abuse.)
+router.use(["/auth/login", "/auth/step-up", "/auth/saml/login", "/auth/oauth2/login", "/auth/magic/request", "/auth/local", "/auth/local/bootstrap", "/auth/passkey/step-up", "/auth/totp/confirm", "/auth/totp/step-up", "/auth/totp/disable", "/portal/invites", "/break-glass/lockdown", "/break-glass/release", "/break-glass/status"], loginLimiter);
 router.use(authRouter);
 
 // Break-glass containment — the IdP-INDEPENDENT panic button for admin impersonation. Self-authed by
@@ -222,6 +231,7 @@ router.use(requireAuth, priorityLabelsRouter);
 router.use(requireAuth, workVocabularyRouter);
 router.use(requireAuth, taskVocabularyRouter);
 router.use(requireAuth, energyVocabularyRouter);
+router.use(requireAuth, taskContextVocabularyRouter);
 router.use(requireAuth, severityVocabularyRouter);
 router.use(requireAuth, impactVocabularyRouter);
 router.use(requireAuth, likelihoodVocabularyRouter);

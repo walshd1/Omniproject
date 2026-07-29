@@ -36,12 +36,16 @@ write ─▶ diffToJournal ─▶ issue_history        (append-only: one row per
         computeSeries(metric, window, grain) ─▶ TrendSeries ─▶ trend reports
 ```
 
-> **Capture is not yet auto-wired.** The `write ─▶ diffToJournal` arrow above is the *designed* flow, but
-> the gateway does not yet call the write-path glue (`recordWrite`) from its write routes — see
-> **"What ships vs. what follows"** below. So today, even with a `RetentionSource` configured, nothing
-> populates the journal from app writes and the trends API answers the honest `available: false`
-> ("history not yet retained"). The read/compute half (snapshot → `computeSeries` → trend) and the
-> Project Health chart are shipped and correct; they light up once capture is wired (the self-host DB work).
+> **Capture is auto-wired at the broker seam.** Every through-broker write is captured to the durable
+> store by `wrapWithRetentionCapture` (`broker/retention-capture.ts`), a wrapper on the broker write
+> methods (the same seam the autonomous-guard wraps) that calls `recordWrite` once per write — for every
+> route and every in-process job, not per-handler. It is **off by default and zero-at-rest**: the whole
+> capture body is gated on `retentionSourceFor(scope) !== null`, so with no `RETENTION_BROKER_URL`
+> configured nothing is built, called or stored. It is **best-effort**: capture runs *after* the write
+> resolves (a failed write is never captured) and `recordWrite` is fire-and-forget, so a journal/snapshot
+> fault can never fail or slow the originating write. The captured set is the snapshottable PPM entities
+> (issue / project / task); comments, attachments, credentials and generic commands are explicitly
+> not snapshotted (a parity test forces every new broker write to be classified before it ships).
 
 - **Change journal** (`issue_history`) — the raw truth. `diffToJournal` emits one row per genuinely
   changed field on each write (0/false/"" are real values; structural values diff by deep equality),
@@ -91,6 +95,11 @@ backend maps onto is what a trend charts.
   Tests inject an in-memory source; production injects the self-host source (below the seam).
 - **`recordWrite`** — the write-path glue: append the diff to the journal and, if the cadence is due,
   materialise + persist a snapshot. Pure orchestration over the injected source.
+- **`wrapWithRetentionCapture`** (`broker/retention-capture.ts`) — the broker-seam wrapper that CALLS
+  `recordWrite` automatically on every through-broker write (issue / project / task), once per write,
+  for every route and job. Gated on `retentionSourceFor(scope) !== null` (off-by-default, zero-at-rest)
+  and fire-and-forget (a capture fault never fails the write). A parity test keeps its classifier set in
+  lock-step with the guarded broker writes.
 - **Trends API** — `GET /api/history/trends/:metric?grain&programmeId&projectId&entity&ids&from&to`,
   gated on the self-host `history` domain being enabled for the scope. Returns a `TrendSeries`.
 - **SPA** — `useTrend(query)` + the dependency-free `<TrendChart>` (inline SVG; null points break the
@@ -179,14 +188,16 @@ connector is only for deployments whose source tool keeps too little history.
 ## What ships vs. what follows
 
 - **Shipped:** the pure retention engine (journal → snapshot → cadence → trend), the `RetentionSource`
-  seam + provider registry, the settings + admin/PMO cadence gating, the trends API, the SPA hook +
-  chart wired into Project Health, and the cloud connectors + retention-broker process. Fully tested
-  (node:test + vitest; connectors via in-memory port doubles).
+  seam + provider registry, **automatic write-path capture at the broker seam** (`wrapWithRetentionCapture`),
+  the settings + admin/PMO cadence gating, the trends API, the SPA hook + chart wired into Project Health,
+  and the cloud connectors + retention-broker process. Fully tested (node:test + vitest; connectors via
+  in-memory port doubles).
 - **Follows (with the self-host SQL work in [SELF-HOST-DB.md](SELF-HOST-DB.md)):** the concrete
-  `RetentionSource` backed by the parameterised-SQL broker workflow, the `issue_history` /
-  `entity_snapshot` DDL (generated additively from `fields.json`), and wiring `recordWrite` into the
-  self-host adapter's write path. Then EVM-over-time / benefit-realisation / flow panels into their
-  existing reports.
+  `RetentionSource` backed by the parameterised-SQL broker workflow and the `issue_history` /
+  `entity_snapshot` DDL (generated additively from `fields.json`) — the durable store the now-live
+  capture writes into. Then a truer `prev`-image diff (capture currently snapshots the full post-image),
+  wider entity coverage beyond issue/project/task, and EVM-over-time / benefit-realisation / flow panels
+  into their existing reports.
 
 ## Honest limits
 

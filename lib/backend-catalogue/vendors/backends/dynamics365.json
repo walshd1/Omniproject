@@ -37,6 +37,7 @@
   },
   "credentialType": "microsoftDynamicsOAuth2Api",
   "docsUrl": "https://learn.microsoft.com/en-us/power-apps/developer/data-platform/webapi/overview",
+  "primaryRecord": "issue",
   "id": "dynamics365",
   "label": "Microsoft Dynamics 365 (Project Operations)",
   "notes": "Auth is handled by n8n's Microsoft Dynamics OAuth2 credential (no per-user token). Project Operations runs on Dataverse — msdyn_project / msdyn_projecttask, with finance entities for EVM. DATAVERSE_URL e.g. https://org.crm.dynamics.com.",

@@ -66,6 +66,16 @@ test("email lowercases + trims and validates the address shape", () => {
   assert.deepEqual(applyFieldPolicy("not-an-email", policy, "Email").errors, ["Email must be a valid email address"]);
 });
 
+test("a reference is validated as an id-safe, bounded token (security floor for every reference field)", () => {
+  const policy = resolveFieldPolicy("reference");
+  assert.deepEqual(applyFieldPolicy("ENG-PLAT", policy, "Cost centre").errors, []); // a real dimension id passes
+  assert.deepEqual(applyFieldPolicy("proj~p1~inv9", policy, "Ref").errors, []); // id separators allowed
+  assert.deepEqual(applyFieldPolicy("", policy, "Ref").errors, []); // optional / empty is fine
+  assert.ok(applyFieldPolicy("has space", policy, "Ref").errors.length > 0); // whitespace rejected
+  assert.ok(applyFieldPolicy("<script>", policy, "Ref").errors.length > 0); // markup rejected (escaped + pattern)
+  assert.ok(applyFieldPolicy("x".repeat(200), policy, "Ref").errors.length > 0); // bounded at 128
+});
+
 test("number keeps only numeric characters", () => {
   assert.equal(sanitiseValue("abc-12.5xyz", resolveFieldPolicy("number").sanitise), "-12.5");
 });
@@ -74,6 +84,16 @@ test("a single-choice field validates its value against its options", () => {
   const policy = resolveFieldPolicy("single-choice", { options: ["low", "high"] });
   assert.deepEqual(validateValue("high", policy.validation, "Level"), []);
   assert.deepEqual(validateValue("nope", policy.validation, "Level"), ['Level: "nope" is not an allowed option']);
+});
+
+test("a canonical enum field validates its value against its declared options", () => {
+  const policy = resolveFieldPolicy("enum", { options: ["open", "closed", "locked"] });
+  assert.deepEqual(policy.validation.options, ["open", "closed", "locked"]);
+  assert.deepEqual(validateValue("closed", policy.validation, "Period status"), []);
+  assert.deepEqual(validateValue("banana", policy.validation, "Period status"), ['Period status: "banana" is not an allowed option']);
+  // An enum field still sanitises (never leaves input un-cleaned) and passes the contract check.
+  assert.ok(resolveFieldPolicy("enum").sanitise.length > 0);
+  assert.equal(assertFieldHasPolicy("enum", { options: ["a"] }, "enum"), null);
 });
 
 test("a multi-choice field validates every member of the comma-joined set", () => {

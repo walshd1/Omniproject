@@ -2,15 +2,18 @@ import crypto from "node:crypto";
 import { Router } from "express";
 import { contextFromReq, withBrokerErrors } from "../broker";
 import { requireRole } from "../lib/rbac";
-import { assertProjectScope } from "../lib/project-scope";
+import { assertProjectScope, guardProjectScope } from "../lib/project-scope";
 import { authorizeStorageTarget } from "../lib/storage-target-authz";
 import { enforceBusinessRules } from "../lib/ruleset-guard";
 import { artifactStoreEnabled, listArtifacts, getArtifact, putArtifact, deleteArtifact, requireArtifactStore } from "../lib/artifact-store";
 import {
   INVOICE_ARTIFACT, sanitizeInvoiceWrite, makeInvoiceId, parseInvoiceId, invoiceScope,
-  newInvoiceRow, mergeInvoiceRow, invoiceMeta, isInvoiceStatus, canTransitionInvoice, applyInvoiceStatus, InvoiceError,
+  newInvoiceRow, mergeInvoiceRow, invoiceMeta, isInvoiceStatus, canTransitionInvoice, applyInvoiceStatus,
+  applyInvoiceExternalRef, paidTransitionChain, InvoiceError,
   type Invoice, type InvoiceMeta, type InvoiceStorage,
 } from "../lib/invoice";
+import { resolveBillingAdapter } from "../broker/backends";
+import { billableStaffCostForProject, labourLinesFromStaffCost } from "../lib/invoice-autobuild";
 
 /**
  * INVOICES (roadmap 3.3). A generated, client-facing invoice — a number + currency + typed line primitives,
@@ -75,6 +78,39 @@ router.post("/invoices", requireRole("manager"), (req, res) => {
   });
 });
 
+// POST /api/invoices/from-project/:projectId — seed a DRAFT invoice from approved timesheets × the rate
+// card (manager+). Labour lines are built server-side (time × charge-out rate per role); the caller
+// supplies the header (number, clientName, currency, …) and edits the draft before pushing it.
+router.post("/invoices/from-project/:projectId", requireRole("manager"), (req, res) =>
+  withBrokerErrors(req, res, "invoice auto-build failed", async () => {
+    if (!requireArtifactStore(res)) return;
+    const projectId = String(req.params["projectId"]);
+    // Authorise the project READ before we compute (and thus read) its timesheet/cost data.
+    if (!(await guardProjectScope(req, res, projectId))) return;
+
+    const cost = await billableStaffCostForProject(req, projectId);
+    if (!cost) { res.status(409).json({ error: "no timesheet store is configured for this project" }); return; }
+    const lines = labourLinesFromStaffCost(cost);
+    if (lines.length === 0) { res.status(422).json({ error: "no billable approved time to invoice for this project" }); return; }
+
+    // Header from the body; lines are server-built; project store by default. One choke point: sanitize.
+    const body = (req.body ?? {}) as Record<string, unknown>;
+    let input;
+    try { input = sanitizeInvoiceWrite({ ...body, projectId, storage: body["storage"] ?? "project", lines }); }
+    catch (e) { if (e instanceof InvoiceError) { res.status(400).json({ error: e.message }); return; } throw e; }
+
+    if (!(await authorizeTarget(req, res, input.storage, input.projectId, "write"))) return;
+    if (!enforceBusinessRules(req, res, "create_invoice", { projectId: input.projectId ?? null, payload: input as unknown as Record<string, unknown> })) return;
+    const ctx = contextFromReq(req);
+    const scope = invoiceScope(input, ctx.sub);
+    if (!scope) { res.status(400).json({ error: "invalid storage target" }); return; }
+    const id = makeInvoiceId(input.storage, crypto.randomUUID(), input.projectId);
+    const row = newInvoiceRow(id, input, ctx, new Date().toISOString());
+    putArtifact(INVOICE_ARTIFACT, scope, row);
+    res.status(201).json(row);
+  }),
+);
+
 // PUT /api/invoices/:id — update an invoice in place; only a DRAFT may be edited (manager+).
 router.put("/invoices/:id", requireRole("manager"), (req, res) => {
   let input;
@@ -118,6 +154,60 @@ router.post("/invoices/:id/status", requireRole("manager"), (req, res) => {
     res.json(row);
   });
 });
+
+// POST /api/invoices/:id/push — sync the invoice to the connected billing backend and record the external
+// ref back on the sealed artifact (manager+; gated by the backend's sync flag). Re-push updates in place
+// (idempotent). The backend is resolved from `backendSource` through the neutral billing seam — this route
+// never names a vendor.
+router.post("/invoices/:id/push", requireRole("manager"), (req, res) =>
+  withBrokerErrors(req, res, "push_invoice failed", async () => {
+    const billing = resolveBillingAdapter();
+    if (!billing?.enabled()) { res.status(409).json({ error: "Billing sync is not enabled for the connected backend" }); return; }
+    const id = String(req.params["id"]);
+    const parsed = parseInvoiceId(id);
+    if (!parsed || !artifactStoreEnabled()) { res.status(404).json({ error: "Invoice not found" }); return; }
+    if (!(await authorizeTarget(req, res, parsed.storage, parsed.projectId, "write"))) return;
+    const ctx = contextFromReq(req);
+    const scope = invoiceScope(parsed, ctx.sub);
+    const existing = scope ? getArtifact<Invoice>(INVOICE_ARTIFACT, scope, id) : null;
+    if (!scope || !existing) { res.status(404).json({ error: "Invoice not found" }); return; }
+    if (existing.status === "void") { res.status(409).json({ error: "a void invoice cannot be pushed" }); return; }
+    const now = new Date().toISOString();
+    const ref = await billing.push(ctx, existing, now);
+    if (!ref) { res.status(502).json({ error: "the billing backend returned no usable invoice id" }); return; }
+    const row = applyInvoiceExternalRef(existing, ref, ctx, now);
+    putArtifact(INVOICE_ARTIFACT, scope, row);
+    res.json(row);
+  }),
+);
+
+// POST /api/invoices/:id/pull — pull the invoice's record from the connected billing backend (get_invoice)
+// and refresh the external ref (assigned number + PDF/portal link) on the local artifact, reconciling status
+// to `paid` if the backend now reports it settled (a manual fallback for a missed inbound webhook). manager+;
+// gated by the backend's sync flag. Requires the invoice to have been pushed already.
+router.post("/invoices/:id/pull", requireRole("manager"), (req, res) =>
+  withBrokerErrors(req, res, "pull_invoice failed", async () => {
+    const billing = resolveBillingAdapter();
+    if (!billing?.enabled()) { res.status(409).json({ error: "Billing sync is not enabled for the connected backend" }); return; }
+    const id = String(req.params["id"]);
+    const parsed = parseInvoiceId(id);
+    if (!parsed || !artifactStoreEnabled()) { res.status(404).json({ error: "Invoice not found" }); return; }
+    if (!(await authorizeTarget(req, res, parsed.storage, parsed.projectId, "write"))) return;
+    const ctx = contextFromReq(req);
+    const scope = invoiceScope(parsed, ctx.sub);
+    const existing = scope ? getArtifact<Invoice>(INVOICE_ARTIFACT, scope, id) : null;
+    if (!scope || !existing) { res.status(404).json({ error: "Invoice not found" }); return; }
+    if (existing.externalRef?.system !== billing.id) { res.status(409).json({ error: "invoice has not been pushed to the billing backend yet" }); return; }
+    const now = new Date().toISOString();
+    const { ref, paid } = await billing.pull(ctx, existing, now);
+    if (!ref) { res.status(502).json({ error: "the billing backend returned no usable invoice record" }); return; }
+    let row = applyInvoiceExternalRef(existing, ref, ctx, now);
+    // Reconcile a settlement the backend reports but we missed (webhook fallback): advance to paid.
+    if (paid) { for (const step of paidTransitionChain(row.status) ?? []) row = applyInvoiceStatus(row, step, ctx, now); }
+    putArtifact(INVOICE_ARTIFACT, scope, row);
+    res.json(row);
+  }),
+);
 
 // DELETE /api/invoices/:id — remove an invoice (manager+).
 router.delete("/invoices/:id", requireRole("manager"), (req, res) =>

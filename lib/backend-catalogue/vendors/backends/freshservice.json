@@ -69,6 +69,7 @@
   },
   "credentialType": "freshserviceApi",
   "docsUrl": "https://docs.n8n.io/integrations/builtin/app-nodes/n8n-nodes-base.freshservice/",
+  "primaryRecord": "issue",
   "id": "freshservice",
   "label": "Freshservice (Freshworks ITSM)",
   "notes": "Freshworks ITSM. Departments → projects, Tickets → issues. service capability on.",

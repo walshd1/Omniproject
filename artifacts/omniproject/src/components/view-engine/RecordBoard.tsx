@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { Plus } from "lucide-react";
-import { CHIP_TONE_CLASS, type BoardColumn, type ViewRecord } from "../../lib/view-engine/types";
+import { CHIP_TONE_CLASS, type BoardColumn, type EntityField, type ViewRecord } from "../../lib/view-engine/types";
+import { toSwimlanes } from "../../lib/view-engine/swimlane";
 
 /**
  * Generic kanban-style board — the entity-agnostic engine behind both the issue Kanban and the task
@@ -8,6 +9,10 @@ import { CHIP_TONE_CLASS, type BoardColumn, type ViewRecord } from "../../lib/vi
  * workflow, a scrum flow, or a plain status kanban with no code change. Drag a card between columns
  * to change its status, or use the per-card selector (keyboard-accessible). Any status not covered
  * by the preset still gets its own trailing column rather than being dropped.
+ *
+ * SWIMLANES: when `swimlaneBy` (a field key, the view's `groupBy`) is set, the same columns render once
+ * per lane — records split into horizontal lanes by that field, ordered/labelled via the shared
+ * `toSwimlanes` helper (the board counterpart to the list view's group-by). Unset → the flat layout.
  */
 export function RecordBoard<T>({
   records,
@@ -18,6 +23,8 @@ export function RecordBoard<T>({
   onMove,
   onOpen,
   onCreate,
+  swimlaneBy,
+  fields,
 }: {
   records: ViewRecord<T>[];
   columns: BoardColumn[];
@@ -30,6 +37,10 @@ export function RecordBoard<T>({
   /** OPTIONAL: create a new record seeded with a column's status — enables the per-column "+" and the
    *  empty-column "+ Add" affordance. Omitted → the board is read/move-only (no create UI). */
   onCreate?: (status: string) => void;
+  /** OPTIONAL: group records into horizontal swimlanes by this field key (the view's `groupBy`). */
+  swimlaneBy?: string;
+  /** The entity's fields — needed to resolve the `swimlaneBy` value. Only consulted when swimlaning. */
+  fields?: EntityField<T>[];
 }) {
   const [dragId, setDragId] = useState<string | null>(null);
 
@@ -43,14 +54,29 @@ export function RecordBoard<T>({
     if (record.status !== status) onMove(record, status);
   };
 
-  return (
-    <div className="flex gap-4 h-full min-w-max pb-4" data-testid="record-board">
+  // Resolve lane labels through the same vocabulary the columns/chips use (status/priority label maps).
+  const laneLabel =
+    swimlaneBy === "priority" ? (v: string) => labelForPriority(v)
+    : swimlaneBy === "status" ? (v: string) => (labelForStatus ? labelForStatus(v) : v)
+    : undefined;
+  const lanes = useMemo(
+    () => (swimlaneBy ? toSwimlanes(records, swimlaneBy, fields ?? [], laneLabel) : []),
+    // laneLabel is derived from swimlaneBy + the label maps (stable per render); keying on swimlaneBy is enough.
+    [records, swimlaneBy, fields], // eslint-disable-line react-hooks/exhaustive-deps
+  );
+
+  /** One horizontal row of columns over a given record subset (the whole board, or one swimlane). */
+  const renderColumns = (scoped: ViewRecord<T>[], testId?: string) => (
+    <div className="flex gap-4 h-full min-w-max pb-4" {...(testId ? { "data-testid": testId } : {})}>
       {cols.map((col) => {
-        const cards = records.filter((r) => r.status === col.status);
+        const cards = scoped.filter((r) => r.status === col.status);
+        // WIP limit: a column over its limit flags the count red and rings the column (a standard kanban cue).
+        const overWip = col.wip != null && cards.length > col.wip;
         return (
           <div
             key={col.status}
-            className="w-72 flex flex-col bg-card border border-border"
+            className={`w-72 flex flex-col bg-card border border-border${overWip ? " ring-1 ring-inset ring-red-500/60" : ""}`}
+            data-testid={overWip ? `board-col-over-wip-${col.status}` : undefined}
             onDragOver={(e) => e.preventDefault()}
             onDrop={() => { const r = records.find((x) => x.id === dragId); if (r) move(r, col.status); setDragId(null); }}
           >
@@ -63,7 +89,14 @@ export function RecordBoard<T>({
                 {col.label}
               </span>
               <span className="flex items-center gap-2">
-                <span className="text-[10px] tabular-nums text-muted-foreground">{cards.length}</span>
+                <span
+                  className={`text-[10px] tabular-nums ${overWip ? "text-red-600 font-black" : "text-muted-foreground"}`}
+                  {...(col.wip != null
+                    ? { title: `${cards.length} of ${col.wip} WIP limit`, "aria-label": `${col.label}: ${cards.length} of ${col.wip}${overWip ? ", over WIP limit" : ""}` }
+                    : {})}
+                >
+                  {cards.length}{col.wip != null ? ` / ${col.wip}` : ""}
+                </span>
                 {onCreate && (
                   <button
                     type="button"
@@ -124,4 +157,22 @@ export function RecordBoard<T>({
       {cols.length === 0 && <p className="text-sm text-muted-foreground p-4">No {noun}s to show.</p>}
     </div>
   );
+
+  // Swimlanes on → the same columns rendered once per lane; off → the flat single-row board.
+  if (lanes.length > 0) {
+    return (
+      <div className="space-y-6" data-testid="record-board">
+        {lanes.map((lane) => (
+          <div key={lane.key} data-testid={`swimlane-${lane.key}`} className="space-y-2">
+            <div className="flex items-center gap-2 text-xs font-black uppercase tracking-widest text-muted-foreground">
+              <span>{lane.label}</span>
+              <span className="tabular-nums opacity-70">{lane.records.length}</span>
+            </div>
+            {renderColumns(lane.records)}
+          </div>
+        ))}
+      </div>
+    );
+  }
+  return renderColumns(records, "record-board");
 }

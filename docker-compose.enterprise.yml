@@ -27,7 +27,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    image: omniproject-shell:0.2.0
+    image: omniproject-shell:0.6.0
     container_name: omni-shell
     ports:
       # Loopback-only on the host: the operator's reverse proxy / ingress is the only external path.

@@ -67,6 +67,26 @@
     "entity": {
       "type": "string",
       "description": "The canonical entity (table) this field belongs to. Defaults to 'issue' when omitted. Drives which table a field becomes a column on in the superset-native self-host DB schema generator."
+    },
+    "options": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "type": "string", "pattern": "^[a-z0-9][a-z0-9_]*$" },
+      "description": "For type: enum — the allowed values (a canonical, id-safe allow-list; lower_snake_case). Threaded to the live superset and the sidecar enumeration, so a UI element bound to the field inherits this choice set as a validation floor (deriveValidationRule → checkFieldValue). A deployment may extend/override it via the field overlay. Only meaningful on an enum field."
+    },
+    "maxLength": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Max character length for string/text/reference fields — the value-bound a linked UI element inherits (absent ⇒ the type's default ceiling)."
+    },
+    "precision": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Decimal places for number/currency/percent fields (display + rounding hint)."
+    },
+    "pattern": {
+      "type": "string",
+      "description": "A regular-expression the value must match (e.g. a postcode/email/reference shape). ReDoS-guarded before use (isSafePattern) wherever it is enforced."
     }
   }
 }

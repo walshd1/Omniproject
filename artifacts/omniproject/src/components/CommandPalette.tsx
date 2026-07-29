@@ -8,6 +8,10 @@ import { VIEWS } from "../lib/views";
 import { useVisibleNavItems } from "../lib/nav";
 import { SETTINGS_PANEL_KEYS, settingsPanelLabel } from "../lib/settings-panels";
 import { reportCatalogue } from "@workspace/backend-catalogue";
+import { useRecentItems } from "../lib/recent-items";
+import { useSidePanel } from "../lib/side-panel";
+import { useFeatures, featureEnabled } from "../lib/features";
+import { useUndoRedo } from "../lib/use-undo-redo";
 
 // The full report catalogue is static data — compute the palette's jump targets once. Each id has a
 // matching scroll-anchor on the Reports page (see pages/Reports.tsx), so ⌘K → report = exactly 2 actions.
@@ -32,6 +36,24 @@ export function CommandPalette() {
   const [, setLocation] = useLocation();
   const { data: projects } = useListProjects();
   const navItems = useVisibleNavItems();
+  const { undo, redo, canUndo, canRedo } = useUndoRedo();
+  // Recently-visited entities (projects / programmes / issues) — the same personal recents the global
+  // search shows, surfaced at the top of the palette so ⌘K jumps straight back. Routes exactly as the
+  // search overlay does; the issue side-panel opens only where that module is enabled.
+  const recents = useRecentItems((s) => s.items);
+  const openSidePanel = useSidePanel((s) => s.openIssue);
+  const { data: features } = useFeatures();
+  const sidePanelOn = featureEnabled(features, "sidePanel");
+
+  function goRecent(hit: (typeof recents)[number]) {
+    setCommandOpen(false);
+    if (hit.type === "project") { setActiveProjectId(hit.id); setLocation(`/projects/${hit.id}`); }
+    else if (hit.type === "programme") setLocation(`/programmes/${hit.id}`);
+    else if (hit.type === "issue" && hit.projectId) {
+      setLocation(`/projects/${hit.projectId}`);
+      if (sidePanelOn) openSidePanel(hit.projectId, hit.id);
+    }
+  }
 
   useEffect(() => {
     const down = (e: KeyboardEvent) => {
@@ -63,7 +85,23 @@ export function CommandPalette() {
         />
         <Command.List className="max-h-[300px] overflow-y-auto p-2">
           <Command.Empty className="p-4 text-sm text-center text-muted-foreground">No results found.</Command.Empty>
-          
+
+          {recents.length > 0 && (
+            <Command.Group heading="Recent" className="px-2 py-1 text-xs text-muted-foreground font-semibold uppercase tracking-wider">
+              {recents.map((hit) => (
+                <Command.Item
+                  key={`recent-${hit.type}-${hit.id}`}
+                  value={`recent ${hit.label} ${hit.sublabel ?? ""}`}
+                  onSelect={() => goRecent(hit)}
+                  className="px-2 py-2 text-sm text-foreground hover:bg-accent cursor-pointer flex items-center gap-2"
+                >
+                  <span className="truncate">{hit.label}</span>
+                  <span className="shrink-0 text-xs font-black uppercase tracking-widest opacity-60">{hit.type}</span>
+                </Command.Item>
+              ))}
+            </Command.Group>
+          )}
+
           <Command.Group heading="Navigation" className="px-2 py-1 text-xs text-muted-foreground font-semibold uppercase tracking-wider">
             {navItems.map((item) => {
               const Icon = item.icon;
@@ -104,6 +142,22 @@ export function CommandPalette() {
             >
               Keyboard shortcuts
             </Command.Item>
+            {canUndo && (
+              <Command.Item
+                onSelect={() => { undo(); setCommandOpen(false); }}
+                className="px-2 py-2 text-sm text-foreground hover:bg-accent cursor-pointer flex items-center gap-2"
+              >
+                Undo last edit <span className="text-muted-foreground text-xs">· ⌘Z</span>
+              </Command.Item>
+            )}
+            {canRedo && (
+              <Command.Item
+                onSelect={() => { redo(); setCommandOpen(false); }}
+                className="px-2 py-2 text-sm text-foreground hover:bg-accent cursor-pointer flex items-center gap-2"
+              >
+                Redo edit <span className="text-muted-foreground text-xs">· ⇧⌘Z</span>
+              </Command.Item>
+            )}
           </Command.Group>
 
           {projects && projects.length > 0 && (

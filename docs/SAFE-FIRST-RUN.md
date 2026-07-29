@@ -28,31 +28,22 @@ problem the README names, and proving it beats promising it.
 ## Step 0 — See it work, zero config (demo mode)
 
 With no environment set, OmniProject runs in **demo mode** against sample data —
-no n8n, no SSO, nothing touched.
-
-```bash
-pnpm install
-PORT=8080 node artifacts/api-server/dist/index.mjs    # open the SPA
-```
-
-Click around: dashboard, programmes, reports. Numbers are badged **SAMPLE/DERIVED**
-so you always know what's real vs. illustrative.
+no n8n, no SSO, nothing touched. Numbers are badged **SAMPLE/DERIVED** so you
+always know what's real vs. illustrative. For the exact clone-and-run commands
+see **[QUICKSTART § run it (zero config)](QUICKSTART.md)** — this guide picks up
+where that leaves off, at the point you point it at *real* data.
 
 ## Step 1 — Wire n8n **read-only** (it physically can't write)
 
-In the app: the **Configurator**.
-
-1. **Generate a workflow** for your backend (`POST /api/setup/generate-workflow`)
-   and import it into n8n. **It's read-only by default** — the UI checkbox and
-   the API's `readOnly` param both default to `true`, so the JSON you get back
-   simply never has a `create_issue` / `update_issue` / `delete_issue` node to
-   begin with. There's no manual step to remember: with no write path in the
-   workflow, OmniProject *cannot* mutate your backend, full stop. (Attaching a
-   backend credential with only read scope is a good belt-and-braces extra, but
-   it isn't required to get this guarantee.)
-3. **Test reachability** (`POST /api/setup/test-broker`) — a non-destructive probe
-   that just checks the webhook answers and reports which capabilities it exposes.
-4. Point the gateway at it (`BROKER_URL`).
+Generate the workflow and wire the broker exactly as in
+**[QUICKSTART](QUICKSTART.md)** / **[N8N-WORKFLOWS.md](N8N-WORKFLOWS.md)** (the
+canonical explanation of read-only generation). The one point that matters for
+*this* guide: generation is **read-only by default** — the UI checkbox and the
+API's `readOnly` param both default to `true`, so the emitted JSON has no
+`create_issue` / `update_issue` / `delete_issue` node at all. With no write path
+in the workflow, OmniProject **cannot** mutate your backend, full stop — a
+read-scoped credential is a good belt-and-braces extra but isn't required for
+that guarantee. Then point the gateway at it with `BROKER_URL`.
 
 ## Step 2 — Dry-run **verify** (probe without touching the backend)
 

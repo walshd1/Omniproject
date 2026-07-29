@@ -1,0 +1,11 @@
+{
+  "name": "omniproject-attachments-broker",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Below-the-seam attachments broker: holds file bytes in a filesystem (later: object-store) volume so the gateway stays zero-at-rest and SDK-free. Its own process, NOT part of the pnpm workspace. Zero runtime dependencies (node built-ins only).",
+  "scripts": {
+    "start": "node src/server.mjs",
+    "test": "node --test"
+  }
+}

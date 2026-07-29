@@ -16,7 +16,7 @@ and tick items as they land.
 ## Where OmniProject already leads (context)
 
 OmniProject is a **stateless governance + portfolio overlay** on top of systems of record
-(41 connectors), not a Jira/Asana clone. It already meets or beats the field on:
+(42 connectors), not a Jira/Asana clone. It already meets or beats the field on:
 
 - **PPM depth** — EVM, Monte-Carlo schedule risk, critical path, capacity levelling,
   scenario/what-if, benefits realisation, stage gates, multi-currency + rate cards
@@ -100,8 +100,18 @@ already exist, so they close the most competitive distance for the least build.
   action-only workflow runs through the caller-scoped effect surface. Inform recipes fire; mutating recipes
   return 202 (held for a grant). A "Test run" button in the builder. `compileRecipe` now compiles actions
   only (conditions are a runner-side pre-gate, the correct model for an external trigger subject).
-- **Next slice:** live trigger binding (schedule → scheduled-job; event → the broker event/notify bus) so
-  recipes fire automatically, and the grant-bound execution of mutating recipes.
+- **Slice 3 shipped (live trigger binding) ✅.** Recipes fire automatically: **event** triggers via the
+  domain-event dispatcher (`startRulesDispatcher`, wired at boot), **schedule** triggers via one cron
+  `ScheduledJob` per recipe on the unified job scheduler (`recipeScheduledJobs`), both reading the
+  `automations` collection and running through the same grant-gated path as the manual run — all behind
+  `RULES_ENGINE_EVENTS` (off by default). Hardening pass verified **emit coverage** and fixed a real gap: the
+  `wiki_doc` entity emitted under `wiki_doc` while the advertised trigger surface is `wiki-doc`, so
+  *"When a wiki document is …"* recipes silently never fired — closed with an `eventSurface` override on the
+  entity descriptor, plus an exhaustive coverage test (`automation-live-triggers.test.ts`) that flags any
+  advertised `RULE_SURFACES` key with no emitting write path. Live-emitting surfaces today: `issue`, `task`,
+  `wiki-doc`; `risk`/`project`/`timesheet` remain advertised-but-observe-only until a write path emits them.
+  The manual `POST /automations/:id/run` still holds mutating recipes at `202` (no grant); the automatic
+  paths run them grant-gated. See `docs/design/SEMANTIC-RULES-ENGINE.md` → "Live-trigger status & emit coverage".
 - **Slice 4 — external executors + pub/sub triggers.** A recipe should be able to run **in-engine** (our
   workflow runner) OR be **dispatched to an external orchestrator** the deployment already runs — **Node-RED,
   Power Automate**, Make, n8n, Airflow — by compiling to that orchestrator's flow format. This reuses the
@@ -642,7 +652,7 @@ authoring, and the drift guards — no feature bypasses the golden rules.
   invoice lines from billable timesheet actuals × the rate-card engine is a natural follow-up.**
 
 ### 3.4 Third-party app / plugin marketplace  ✅ Done (slices 1–2)
-- **Competitors.** Jira/Monday/Asana marketplaces. **Have.** 41 connectors + MCP + broker
+- **Competitors.** Jira/Monday/Asana marketplaces. **Have.** 42 connectors + MCP + broker
   seam. **Missing.** UI-extension ecosystem (installable panels/screens/reports).
 - **Leverage.** Panel registry, screen-def bundles, MCP, config-bundle delivery.
 - **Design.** An installed EXTENSION is a JSON manifest of typed **contribution primitives** — all pure-JSON
@@ -1638,39 +1648,112 @@ explicit, not forgotten. Every item is ⬜ Todo unless noted.
 - ⚠ **Tension** — pulls against a core rule (zero-at-rest, no data cached in config, stateless); needs an explicit exception or a sidecar SoR.
 - ❄ **Likely won't build** — contradicts the architecture or the positioning; logged for completeness, not planned.
 
+> **PROGRAM IN FLIGHT — domain primitive spine (the finance pattern, applied to PM / programme / resource / forecasting).** 🚧
+> A 2026-07 four-domain survey found the same shape everywhere: a rich SURFACE (fields, reports, consolidations,
+> methodologies) on a THIN primitive spine — the opposite of finance, which was built out to 22 governed record
+> types + pure compute engines + ruleset governance. This program applies that finance playbook to the four PPM
+> domains, **foundations-first, one PR per slice**, following the golden rules (agnostic broker seam,
+> fields-as-primitives, functional-core compute with tests, ruleset governance, write-lane coverage). It is the
+> vehicle that completes many of the 4.x items below — cross-references noted per wave.
+> - **Wave 0 — compute quick win.** ✅ **EVM engine** (`lib/backend-catalogue/src/evm.ts`, PR #874) — see 4.7.
+> - **Wave 1 — foundational primitives.** ✅ typed cross-project **`dependency`** (FS/SS/FF/SF + lag → 4.10, 4.3, #876) ·
+>   cost+schedule **`baseline`** snapshot (→ 4.7, #877) · **`resource`/`assignment`/`timesheet`** record types + a
+>   `resource` field cluster (→ 4.2, #878).
+> - **Wave 2 — compute engines.** ✅ promoted **critical-path** (#879) + **Monte-Carlo** (#880) into the catalogue
+>   as vendor-neutral pure modules, server-usable (→ 4.3) · **run-rate / burn** projector (#881) ·
+>   **capacity-vs-demand** engine (#882, → 4.2) · wired **EVM** (CPI/SPI/EAC) into the portfolio-financials
+>   roll-up (#883, → 4.7). The analytics engines — critical-path, monte-carlo, run-rate, capacity, evm,
+>   depreciation, consolidation — are now one **vendor-neutral functional core** in `lib/backend-catalogue`,
+>   shared by every surface below the broker seam.
+> - **Wave 3 — domain build-out + governance.** ✅ **`benefit`** realisation record + curve (→ 4.1, #885) ·
+>   **`milestone`** record (→ 4.8, 4.10, #886) · **`change_request`** + **`stage_gate`** delivery-governance
+>   records (→ 4.8, #887) · **`skill`** / **`resource_skill`** / **`leave`** people-depth records (→ 4.2, #888) ·
+>   **`portfolio`** scope tier completing portfolio→programme→project (→ 4.3, #889) · **PERT** three-point
+>   estimating engine as a pure catalogue module (→ 4.3, #890) · **per-domain `ruleset` governance** — every
+>   business rule tagged by domain, a per-domain mode floor that tightens a whole domain at once, folded
+>   through the existing tighten-only scope resolution (→ 4.8, #891). The governed record spine now spans
+>   benefit / milestone / change-control / stage-gate / portfolio alongside the Wave-1 resource/assignment/
+>   timesheet and skills/leave records, with PERT joining the vendor-neutral functional core.
+> - **Wave 4 — decisioning + scenarios.** ✅ **funding-envelope** engine — envelope vs committed+forecast →
+>   headroom / over-commit / burn-through, with portfolio roll-up (→ 4.3, #893) · **efficient-frontier
+>   selection** engine — highest-value subset under a budget/capacity cap, greedy value/cost heuristic + exact
+>   bounded knapsack DP (→ 4.3, #894) · **`booking`** soft-vs-hard resource-reservation record (→ 4.2, #895) ·
+>   **WSJF / RICE** prioritisation engine surfacing the per-item scores the priority-weights engine blends
+>   (→ 4.3, #896) · **scenario / what-if** comparison engine — NPV / ROI / benefit-cost ratio / payback over a
+>   discounted cash-flow series, NPV-ranked (→ 4.3, #897) · **benefit / value Monte-Carlo** — the value half of
+>   §4.3's Monte-Carlo, sampling benefit+cost to a net-value distribution with break-even / target probability,
+>   P10 value-at-risk and a driver tornado (→ 4.3, #898) · what-if resource **reassignment** engine — reuses the
+>   capacity engine to project the over-allocation delta of proposed moves before committing (→ 4.2, #900) ·
+>   **multi-currency EAC/ETC** engine — converts mixed-currency cost lines to a base currency (gating each on
+>   convertibility) then runs the EVM math (→ 4.1, #901) · **stage-gate criteria** evaluation engine — decides a
+>   gate's pass/fail/pending/waived from its criteria (via the shared predicate engine) + approvals (→ 4.3, #902).
+>   All pure functional-core with deterministic tests. The Wave-4 decisioning set is now **substantially
+>   complete** — funding · selection · prioritisation · scenario NPV · benefit Monte-Carlo · resource
+>   reassignment · multi-currency EAC/ETC · stage-gate criteria, atop the Wave-2 critical-path / schedule-cost
+>   Monte-Carlo / PERT engines. **Remaining (surfaces + refinements, not core compute):** funding-source tranches
+>   at the plan layer (→ 4.1) · the theme/bucket grouping is already served by the generic `rollup.ts` engine, so
+>   only its portfolio-Kanban / roadmap surface remains (→ 4.3) · the gap-analysis roll-up surface (→ 4.2).
+> - **Wave 5 — embedded AI + agile linkage.** ✅ **epic/initiative health-scoring** engine — weighted R/A/G bands
+>   over risk dimensions (dependencies / blocked-work / timeline / ownership) with plain-English reasons, outputs
+>   the canonical rag-vocabulary bands (→ 4.4, #904) · **OKR ↔ delivery linkage** roll-up — wires objectives to
+>   delivery items and auto-rolls-up progress from BOTH key results and linked items with a `deliveryGap`
+>   divergence signal (→ 4.5, #905) · **duplicate-demand detection** — Jaccard token-overlap over intake items →
+>   ranked candidate pairs + union-find clusters (→ 4.4, #906) · **structured exec-digest / status-report**
+>   generator — assembles the above engines' results into one deterministic digest an LLM narrates (→ 4.4, #907) ·
+>   **capacity-based sprint/PI forecasting** — backlog + velocity → sprints/PIs with an optimistic/likely/
+>   pessimistic band (→ 4.5, #909) · **cross-team critical-path** — reuses the CPM solver, annotates the path
+>   with teams + surfaces the cross-team hand-off edges (→ 4.5, #910). All pure functional-core with deterministic
+>   tests — the deterministic scoring/assembly cores the copilot narrates, with **no LLM in-core**. **Remaining
+>   (out of this lane):** the portfolio-grounded copilot Q&A surface + NL→artifact (→ 4.4, the LLM-facing layer
+>   atop these cores) · SAFe / Jira-Align + first-class SAP connector (→ 4.5/4.6, brokered integration).
+>
+> **P3M catalogue-engine programme status (Waves 0–5): pure-functional-core COMPLETE.** The programme has
+> delivered its vendor-neutral deterministic compute core — 20+ engines/records in `lib/backend-catalogue`
+> (EVM, critical-path, Monte-Carlo, run-rate, capacity, PERT, funding, portfolio-select, prioritise, scenario,
+> benefit Monte-Carlo, reassignment, multi-currency EVM, stage-gate, health-score, OKR-linkage, demand-dedup,
+> exec-digest, PI-forecast, cross-team critical-path, + the Wave-1/3 record types) with guarded divides and
+> deterministic (no `Math.random`/`Date`) tests. The remaining 4.x competitive-parity work — portfolio-grounded
+> copilot, NL→artifact, first-class SAP / Jira-Align connectors, brokered read models — is LLM-surface +
+> broker-integration territory that belongs to a different lane, not the functional-core catalogue.
+
 ### 4.1 Financial / ERP-native depth (SAP's moat)
 - 🔌 **Project→GL cost brokering** — surface actual cost postings, commitments, and WIP by WBS/cost-object, read live from SAP/Oracle/NetSuite; never posted or stored here.
 - 🔌 **Event-based revenue recognition mirror** — display SAP EBRR results (fixed-price / T&M / periodic) as a read model; recognition stays in the ERP.
 - 🔌 **Capitalization / CapEx-OpEx split, cost-center + procurement + HR-cost roll-ups** — brokered read models per scope.
 - ❄ **Be the ledger** — own postings, settlement, actuals, revenue recognition at rest. Directly contradicts zero-at-rest; SAP's job, not ours.
-- ✳ **Deeper cost engine at the plan layer** — multi-currency EAC/ETC, funding sources, chargeback/showback, rate-card versioning over time (extends existing rate-card + budget-plan).
-- ✳ **Benefits realization tracking** — planned vs actual benefit by initiative, tied to Goals/OKRs.
+- ✳ **Deeper cost engine at the plan layer** — multi-currency EAC/ETC, funding sources, chargeback/showback, rate-card versioning over time (extends existing rate-card + budget-plan). **Funding envelope ✅ (P3M Wave 4, PR #893)** — a pure **funding-envelope** engine (envelope vs committed+forecast → headroom / over-commit / burn-through, with portfolio roll-up). **Multi-currency EAC/ETC ✅ (P3M Wave 4, PR #901)** — a pure engine that converts mixed-currency PV/EV/AC/BAC cost lines to a base currency (gating each line on convertibility, surfacing the rest) then runs the existing EVM math on the totals. Funding-source tranches + chargeback/showback + rate-card versioning remain.
+- ✳ **Benefits realization tracking** — planned vs actual benefit by initiative, tied to Goals/OKRs. **Record ✅ (P3M Wave 3, PR #885):** a governed **`benefit`** record type + realisation curve in the catalogue. **Planned-vs-actual roll-up ✅ (Finance-depth wave, PR #930):** `benefit-realisation.ts` — a pure `analyzeBenefitRealisation` crossing each benefit's planned vs actual value into variance / variance % / realisation ratio + a realised/overdue-at-risk/abandoned/on-track classification, with a portfolio roll-up by category and status and the realised-vs-outstanding value split. **Goals/OKR linkage ✅ (`okr-linkage.ts`)** already rolls objectives up from key results + delivery items. So the §4.1 pure-core lane is complete — the remaining items (funding-source tranches, chargeback/showback, rate-card versioning, project→GL cost brokering, revenue-recognition mirror, CapEx/OpEx split) are brokered/GL-posting (🔌) or the deliberate "be the ledger" non-goal (❄), out of the pure-functional-core lane.
 
 ### 4.2 Resource management & capacity planning
-- ✳ **Capacity vs demand at portfolio scale** — role/skill supply modelling, allocation heatmaps, over/under-utilisation (extends resource-allocations + skills-planning).
-- ✳ **Skills/competency matrix + gap analysis**, **named + generic (role-based) resourcing**, **soft vs hard booking / reservations**.
-- 🔌 **Timesheet actuals reconciliation** — brokered from the timesheet SoR; drive utilisation + burn.
-- ✳ **What-if resource scenarios** — model reassignments before committing (client-side projection, same posture as the scheduler).
+
+> **Resource Management wave ✅ (pure-core lane).** The one genuinely-missing pure-core engine here — the skills gap-analysis roll-up — was delivered (`skills-gap.ts`, **PR #929**, `analyzeSkillsGap`: per-skill qualifying supply vs demand, shortfall, guarded coverage, worst-gap ranking + bench). The **capacity-vs-demand allocation heatmap is already served by the existing `capacity.ts`** (`computeCapacity` utilisation grid) — no duplicate built — and brokered timesheet-actuals reconciliation is out-of-lane. So the §4.2 pure-core lane is complete.
+
+- ✳ **Capacity vs demand at portfolio scale** — role/skill supply modelling, allocation heatmaps, over/under-utilisation. **Engine ✅ (`capacity.ts`, `computeCapacity`):** the utilisation grid (who is over-allocated, who has slack) per resource/period already exists; the histogram/heatmap **visualisation** is the SPA follow-on.
+- ✳ **Skills/competency matrix + gap analysis**, **named + generic (role-based) resourcing**, **soft vs hard booking / reservations**. **Records ✅ (P3M Wave 3, PR #888; P3M Wave 4, PR #895):** governed **`skill`** / **`resource_skill`** (proficiency link) / **`leave`** record types (#888) plus the **`booking`** soft-vs-hard resource-reservation record (#895, %FTE allocation with a soft/hard type + date window). **Gap-analysis roll-up ✅ (Resource Management wave, PR #929):** `skills-gap.ts` crosses resource-skill holdings against per-skill demand into supply / shortfall / coverage per skill, worst-gap ranked, with the bench of held-but-not-required skills.
+- 🔌 **Timesheet actuals reconciliation** — brokered from the timesheet SoR; drive utilisation + burn. *(Out of the pure-core lane — brokered read.)*
+- ✅ **What-if resource scenarios (P3M Wave 4, PR #900).** A pure **reassignment** engine — applies proposed effort-shifts between resources to the baseline and reuses the capacity engine to project the per-resource + total over-allocation delta (with an `improved` verdict + rejected/clamped moves) before committing; same posture as the scheduler, nothing stored.
 
 ### 4.3 Portfolio analytics & decisioning
-- ✳ **Scenario / what-if portfolio planning** — fund/defer/cut simulations against capacity + budget envelopes.
-- ✳ **Efficient-frontier / optimisation** — pick the highest-value portfolio under constraints (value vs cost vs risk).
-- ✳ **Monte Carlo** on schedule + cost + benefit (client-side compute; no data retained).
-- ✳ **Roadmap / investment themes / strategic buckets**, **stage-gate governance with gate criteria + approvals** (extends composition + approval chains).
-- ✳ **Portfolio Kanban + WSJF/RICE/weighted-shortest-job** (priority-weights engine already exists — deepen).
+- ✅ **Portfolio scope tier + three-point estimating (P3M Wave 3).** A governed **`portfolio`** record type above programme completes the **portfolio → programme → project** scope hierarchy (PR #889), and a pure-functional **PERT** three-point estimating engine (mean, standard deviation, variance-summing roll-up, confidence band; deterministic tests) joins the catalogue's vendor-neutral compute core (PR #890) — the estimating substrate the scenario/optimisation work below builds on.
+- ✅ **Scenario / what-if portfolio planning (P3M Wave 4, PR #897).** A pure **scenario** engine — per candidate: NPV (discounted), ROI, benefit-cost ratio and payback period over a net cash-flow series; scenarios NPV-ranked so a fund/defer/cut decision is made against one yardstick. (Capacity-envelope coupling to the funding engine remains a future refinement.)
+- ✅ **Efficient-frontier / optimisation (P3M Wave 4, PR #894).** A pure **portfolio-selection** engine — highest-value subset under a budget (and optional capacity) cap: a deterministic greedy value/cost heuristic plus an exact bounded 0/1-knapsack DP, honestly flagging which ran.
+- ✅ **Monte Carlo on schedule + cost + benefit (client-side compute; no data retained).** Schedule/effort via `monte-carlo.ts` (P3M Wave 2, PR #880) and the **benefit / value** half (PR #898) — sampling benefit+cost to a net-value distribution with break-even / target probability, a P10 value-at-risk and a driver tornado.
+- ✅ **Stage-gate governance with gate criteria + approvals (P3M Wave 4, PR #902).** A pure **stage-gate** evaluation engine — decides a gate's `pending`/`passed`/`failed`/`waived` from its criteria (each a `ConditionSet` over the item context, evaluated by the shared `predicate.ts` engine) + approvals, with a weighted readiness score and ordered blockers, atop the Wave-3 `change_request`/`stage_gate` records (#887). **Roadmap / investment themes / strategic buckets:** the grouping/roll-up is already served by the generic `rollup.ts` engine (`groupBy` theme + `sum` metrics); only the portfolio-Kanban / roadmap **surface** remains.
+- ✅ **Portfolio Kanban + WSJF/RICE/weighted-shortest-job (P3M Wave 4, PR #896).** A pure **prioritisation** engine computing the per-item WSJF (cost-of-delay / job-size) and RICE (reach·impact·confidence / effort) scores the existing priority-weights engine blends; deterministic ranking, guarded divides. (The Kanban board surface remains.)
 
 ### 4.4 Embedded AI / copilot grounded in the live portfolio *(where ServiceNow/MS are pulling ahead)*
 - ✳ **Portfolio-grounded copilot** — Q&A + roll-ups over the *brokered* live portfolio (status, risk, "what slipped and why"), grounded at query time, nothing cached. The single highest-leverage AI item.
-- ✳ **Epic/initiative health scoring** — R/Y/G across risk dimensions (dependencies, blocked work, timeline, ownership) with plain-English reasoning (ServiceNow Now Assist parity).
+- ✅ **Epic/initiative health scoring (P3M Wave 5, PR #904).** A pure **health-score** engine — weight-averages per-dimension risk severities (dependencies / blocked-work / timeline / ownership) into a composite, classifies it into the canonical rag-vocabulary R/A/G band, and emits plain-English reasons worst-first; a portfolio roll-up ranks worst-health-first with per-band counts. Deterministic, no LLM in-core (ServiceNow Now Assist parity for the scoring core; the LLM narrates on top).
 - ✳ **NL → artifact** already exists for primitives; extend to **NL → report / dashboard / screen / automation**.
-- ✳ **AI status-report + exec-digest generation** from brokered state (builds on exec-digest).
-- ✳ **Agentic task monitoring / next-best-action**, **duplicate-demand detection**, **auto-summarise threads/wiki/proofs**.
+- ✅ **AI status-report + exec-digest generation (P3M Wave 5, PR #907).** A pure **exec-digest** assembly engine — composes the health-score / okr-linkage / evm / demand-dedup RESULT objects into one structured digest (worst-band headline, top-N risks with reasons, OKR worst-objectives + delivery gaps, EVM cost/schedule status, duplicate counts) that an LLM narrates; no LLM and no recompute in-core, so the narration stays grounded in what the engine selected.
+- ✳ **Agentic task monitoring / next-best-action**, **auto-summarise threads/wiki/proofs**. **Duplicate-demand detection ✅ (P3M Wave 5, PR #906):** a pure Jaccard token-overlap engine over intake items → ranked candidate duplicate pairs (with shared tokens) + union-find clusters; distinct from entity-resolution's identity-key matching.
 - ⚠ **AI over historical trend data** — needs a retained corpus; only over the opt-in sidecar/history store, never core.
 
 ### 4.5 Agile / adaptive planning at scale
 - 🔌 **SAFe / scaled-agile constructs** (ARTs, PI planning, program board, dependency mapping) — orchestrate over the brokered agile SoR (Jira etc.), Jira Align / Atlassian Align territory.
-- ✳ **OKR ↔ delivery linkage** (Goals exist; wire objectives to brokered epics/initiatives + auto-roll-up progress).
-- ✳ **Dependency graph + critical-path across teams**, **capacity-based sprint/PI forecasting**.
+- ✅ **OKR ↔ delivery linkage (P3M Wave 5, PR #905).** A pure roll-up engine — wires objectives to their key results AND linked delivery items, auto-computes progress from both sides (milestone-binary or start→target ramp key results; weighted delivery completion), and surfaces a `deliveryGap` so a divergence (KRs claim 80%, delivery 30%) is visible; portfolio mean + status counts. The Goals/OKR cadence records already exist (Phase 3.2).
+- ✅ **Capacity-based sprint/PI forecasting (P3M Wave 5, PR #909).** A pure engine — remaining backlog + per-sprint velocity → sprints and Program Increments to clear it, with an optimistic / likely / pessimistic band and a `feasible` flag; guarded (velocity ≤ 0 ⇒ null, never Infinity). Velocity is an input (derive from `capacity.ts` supply or historical throughput).
+- ✅ **Dependency graph + critical-path across teams (P3M Wave 5, PR #910).** A pure engine — reuses the CPM solver (`critical-path.ts`), annotates the critical path with each activity's team, and surfaces the cross-team **hand-off edges** (where PI plans break) + per-team duration share. The SAFe/Jira-Align **orchestration** over a brokered agile SoR remains (integration territory, above).
 
 ### 4.6 Enterprise integration & data
 - 🚧 **First-class SAP connector** (S/4HANA / PS / PPM read models) — the credibility connector; brokered, not
@@ -1710,15 +1793,31 @@ explicit, not forgotten. Every item is ⬜ Todo unless noted.
 - ⚠ **Data warehouse / lakehouse export** — legitimate, but any retained extract needs the sidecar SoR + explicit retention, not core.
 
 ### 4.7 Reporting, BI & dashboards
-- ✳ **Cross-project/portfolio pivot + drill-through**, **scheduled report delivery / subscriptions**, **export to PPTX/XLSX/PDF**.
-- ✳ **Baseline vs actual variance + EVM suite** (SPI/CPI/EAC — partially present, complete it), **burn-up/down + cumulative flow**.
+
+> **Reporting/BI wave ✅ (pure-core lane).** The below-seam analytics engines for this section were delivered as a dedicated wave (one PR per slice, pure functional-core, deterministic tests, reuse-over-duplicate): the **burn-up / burn-down / cumulative-flow engine (PR #927)** and the **velocity engine (PR #928)**. The **cross-project pivot** was found to already exist — `rollup.ts` groups any rows by any field and aggregates sum/avg/count/min/max with an optional pivot dimension — so no new engine was built for it. What remains in §4.7 is surface work (scheduled delivery/subscriptions, PPTX/XLSX/PDF export, embedded external BI) — outside the pure-core lane.
+
+- ✳ **Cross-project/portfolio pivot + drill-through** *(already served by the generic `rollup.ts` group-by/pivot engine)*, **scheduled report delivery / subscriptions**, **export to PPTX/XLSX/PDF**. *(The last two are out of the pure-core lane — delivery + export surfaces.)*
+- 🚧 **Baseline vs actual variance + EVM suite** (SPI/CPI/EAC). **Slice ✅ (EVM engine, PR #874):** the pure
+  `lib/backend-catalogue/src/evm.ts` now DERIVES the full suite from the PV/EV/AC/BAC primitives — CV/SV/CPI/SPI,
+  all four EAC methods (cpi / budget-rate / cpi·spi / bottom-up-etc), ETC, **VAC**, and **TCPI** (to BAC and to
+  EAC) — instead of reading them blind off the source; adds the missing `varianceAtCompletion` + `toCompletePerformanceIndex`
+  fields. **Burn-up/down + cumulative flow ✅ (Reporting/BI wave, PR #927):** `flow-metrics.ts` — a pure
+  `computeFlowMetrics` reconstructing per-period burn-down (vs a guarded ideal line), burn-up (with scope-change),
+  a per-status-class cumulative-flow (backlog/active/done lanes) and throughput, over caller-supplied epoch-ms
+  periods, measured by count or points; **velocity ✅ (Reporting/BI wave, PR #928):** `velocity.ts` derives
+  mean/median/rolling/spread + a predictability score and optimistic/likely/pessimistic anchors from a throughput
+  history, feeding `pi-forecast`. **Remaining:** a cost+schedule **`baseline`** snapshot record for true
+  baseline-vs-actual variance (Wave 1) and wiring the engine into the live financials read (Wave 2).
 - 🔌 **Embedded external BI** (SAC / Power BI / Tableau) via broker seam rather than re-implementing a BI engine.
 
 ### 4.8 Governance, risk, compliance
-- ✳ **Risk + issue register with scoring/heatmaps** (RAID exists in registers — deepen to scored matrices + mitigation workflow).
-- ✳ **Change-control board / change requests**, **decision log**, **assumption + dependency registers** (some exist — formalise).
-- ✳ **Audit-ready compliance packs** (SOC2/ISO evidence export) — leans on the tamper-evident audit chain we just shipped.
-- ✳ **Policy-as-config guardrails** (mandatory fields/gates per methodology — composition gate exists, extend).
+
+> **Risk & Governance wave ✅ (pure-core lane).** The pure engines + governance records for this section were delivered as a dedicated wave (one PR per slice, pure functional-core, deterministic tests, reuse-over-duplicate): **risk register / exposure-heatmap engine (PR #924)**, **decision-log + lessons-learned registers (PR #925)**, **per-methodology mandatory-gate policy (PR #926)**. What remains in §4.8 is SPA/surface work (the change-control **board UI**, the register/heatmap **visualisations**) and the compliance-evidence export — outside the pure-core lane.
+
+- ✳ **Risk + issue register with scoring/heatmaps** (RAID exists in registers — deepen to scored matrices + mitigation workflow). **Engine ✅ (Risk & Governance wave, PR #924):** `risk-register.ts` — pure P×I exposure scoring over the shipped likelihood/impact/severity vocabularies, severity banding, a likelihood×impact **heatmap grid**, an exposure-weighted roll-up (by type/status/band, open vs closed, overdue mitigations) and a worst-first top-risk ranking. The heatmap/matrix **visualisation** is the SPA follow-on.
+- ✳ **Change-control board / change requests**, **decision log**, **assumption + dependency registers** (some exist — formalise). **Records ✅ (P3M Wave 3):** governed **`change_request`** + **`stage_gate`** records (PR #887) and a **`milestone`** record (PR #886). **Registers ✅ (Risk & Governance wave, PR #925):** a **`decision`** log entity (status proposed/accepted/rejected/superseded, rationale, maker, supersedes-link) and a **`lessons_learned`** entity (category what-went-well/to-improve/risk/process), data-not-code alongside their `change_request`/`stage_gate` siblings; the board **UI** remains.
+- ✳ **Audit-ready compliance packs** (SOC2/ISO evidence export) — leans on the tamper-evident audit chain we just shipped. *(Out of the pure-core lane — an export surface.)*
+- ✳ **Policy-as-config guardrails** (mandatory fields/gates per methodology — composition gate exists, extend). **Slice ✅ (P3M Wave 3, PR #891):** **per-domain ruleset governance** — every business rule is tagged by domain (general/delivery/finance/people) and a per-domain mode floor tightens a whole domain at once, folded tighten-only through the existing system<org<programme<project scope resolution. **Mandatory-gate extension ✅ (Risk & Governance wave, PR #926):** `methodology-gates.ts` — a pure `evaluateMethodologyGates` that checks a project's stage-gate records against a methodology's required-gate policy (shipped PRINCE2 g0…g5 default, caller-overridable), **reusing `evaluateGate`** per gate; reports the unmet/missing blocking gates and whether the project is clear to proceed.
 
 ### 4.9 Config lifecycle & portability *(our wedge — sharpen vs SAP CTS/CTS+)*
 - ✅ **Config diff / drift report between instances** — `lib/config-diff` (`buildConfigDiff(from, to, now)`)
@@ -1776,27 +1875,84 @@ multi-tenancy → managed offering (§5.4).
 > other 21 items verified as genuine gaps.
 
 ### 5.1 Interactive collaboration UX (bar: Linear / Monday / Asana / Notion)
-- ✳ **Rich-text on comments/descriptions** *(partial — the wiki already has it)* — the wiki `DocEditor` is a
-  full **block editor** (headings/callouts/code/tables/lists/checklists/embeds, palette-driven from the
-  primitive store). Comments/issue-descriptions are still a plain input with server-parsed mentions
-  (`components/issue-dialog/CommentsPanel.tsx`). Gap: bring the block editor (or a rich-text lib) to those.
-- ✳ **Mention autocomplete** — client typeahead against project members (mentions are parsed server-side already; pure UI).
+- 🚧 **Rich-text on comments/descriptions** — *comments now render markdown-lite* (`components/issue-dialog/CommentsPanel.tsx`
+  renders bodies through the shared, XSS-safe `MarkdownLite` renderer — bold/italic/code/links/lists/checklists, the
+  same format task notes use), and the composer is a multi-line textarea (⌘/Ctrl+Enter to send). The body is stored as
+  plain markdown **source** (a string), so the zero-at-rest posture and the backend write-through are unchanged. The
+  wiki `DocEditor` remains the full block editor. **Remaining:** the full block editor (or CRDT co-edit) on issue
+  *descriptions*.
+- 🚧 **Mention autocomplete** — *a free-text `@`-typeahead now ships on the comment composer* (`lib/mention-suggest.ts`
+  + `CommentsPanel`): a keyboard-navigable menu suggests handles drawn from the thread's own participants and inserts a
+  server-parseable `@token`. Because the overlay owns no user directory (identity lives in the IdP/SCIM), the token
+  stays free-text — exactly what the gateway already parses/notifies. **Remaining:** a richer candidate source if/when a
+  project-members read becomes available.
 - ✅ **Real-time CRDT co-edit + live cursors — BUILT (flagged); extend surface.** Yjs CRDT co-edit ships on the
   wiki block model (`lib/collab`, `lib/collab-doc`, `routes/collab`, default-off `wikiCoEdit` flag) and live
   cursors ship on whiteboards (`CanvasEditor.tsx`, `presence` toggle). The parity review listed this as a gap —
   it is wrong. **Remaining:** extend CRDT co-edit to issue comments/descriptions (still plain today).
-- ✳ **Interactive Gantt dependency editing** — dependency arrows, link create/edit, bar-resize handles,
-  critical-path overlay ON the timeline. *Note: cascade-reschedule (move a bar + every dependent it pushes)
-  already ships (`lib/cascade-reschedule`, `gantt-cascade-toggle`); the four named interactions are the gap.*
-  Now unblocked by the durable `dependencies` slot (§5.5) — the create/edit/delete hooks exist. Extends §4.10.
-- ✳ **Kanban swimlanes + WIP-limit enforcement** — swimlane grouping (assignee/epic/priority) + board-level
-  `wipLimit` enforcement (the methodology packs already declare the concept).
-- ⚠ **Binary attachments** — filename+URL references only today (zero-at-rest by design). State-respecting path:
-  **streaming pass-through upload to the backend's own blob store** through the broker (gateway as courier,
-  never buffered at rest) — an attachment is a superset field whose home is the backend's blob store.
-- ✳ **Global undo** — app-wide undo stack / `Cmd+Z` across recent mutations (per-action toast undo exists).
-- ✳ **Per-user notification preferences** — per-event/per-channel subscription, quiet hours, digest opt-in
-  (small per-user state; today one localStorage on/off + role/list digests). Extends §4.10.
+- 🚧 **Interactive Gantt dependency editing** — *dependency arrows + link create/delete now SHIP* on the board
+  Gantt (`components/board/GanttChart.tsx`): durable edges render as clickable SVG arrows (finish-to-start solid,
+  `relates_to` dashed); a click-source-then-click-target handle pair creates an edge and clicking an arrow removes
+  it, both through the existing durable `dependencies` slot hooks (`useWriteProjectDependency` /
+  `useRemoveProjectDependency`) with the optimistic-write-then-revert pattern and contributor+ enforced
+  server-side. *Note: cascade-reschedule already ships (`lib/cascade-reschedule`, `gantt-cascade-toggle`).*
+  **Remaining:** bar-resize handles, a critical-path overlay on the timeline, and richer link types
+  (FS/SS/FF/SF + lag — the durable edge is coarse `blocks/depends_on/relates_to` today, see §5.5). Extends §4.10.
+- ✅ **Kanban swimlanes + WIP-limit enforcement — BUILT.** Board swimlanes render the view's optional
+  `groupBy` Def field as horizontal lanes (`lib/view-engine/swimlane.ts`, `components/view-engine/RecordBoard.tsx`,
+  PR #950) — the board counterpart to the list view's group-by, so a board and a list grouped by X partition
+  identically. Per-column WIP limits ring the column and flag the count red when over (`BoardColumn.wip`, PR #945).
+- 🚧 **Binary attachments — SHIPPING.** Real file upload/list/download/delete now works on issues via a
+  **separate hardened `attachments-broker` sidecar** that holds the bytes below the seam. The bytes **never
+  pass through the gateway at all**: the gateway mints a short-lived, HMAC-signed **ticket** and the browser
+  transfers bytes **directly** to/from the sidecar's `/portal` (browser plane, CORS + ticket); the gateway
+  keeps only a byte-free pointer and, server-to-server, HEAD-verifies + deletes blobs (server plane, bearer).
+  So a (possibly malicious) upload is only ever inside the isolated sidecar container — best run on its own
+  VM. Sidecar (`services/attachments-broker`, two planes + `ticket.mjs`), gateway seam
+  (`routes/attachments.ts` ticket-mint/record/link + `lib/attachments-meta.ts`, off-by-default
+  `ATTACHMENTS_SIDECAR_URL`; byte-path needs `ATTACHMENTS_SIDECAR_PUBLIC_URL` + `ATTACHMENTS_TICKET_SECRET`),
+  and the SPA UI (`AttachmentsPanel`, default-off `attachments` feature) all ship. See `docs/ATTACHMENTS.md`.
+  Uploads are **malware-scanned inside the sidecar before the blob is stored** (`scan.mjs`): always-on
+  zero-dep heuristics (EICAR test signature + executable/script magic bytes, so a renamed binary is still
+  caught) plus optional **ClamAV** (`clamd` INSTREAM, fail-closed by default) — a file that fails is rejected
+  `422` and never written, so it never becomes downloadable and no pointer is recorded.
+  **Remaining:** cloud object-store backends (S3/GCS/Azure) **in the sidecar** (SDKs connect out from the
+  sidecar, never the gateway) + compose/Helm wiring (incl. the sidecar's browser-reachable ingress + a bundled
+  ClamAV service).
+- ✅ **App-native TOTP two-factor (IAM S7) — BUILT.** An authenticator-app second factor alongside the
+  existing passkeys, for local/no-IdP self-host accounts (where an external IdP is present, MFA is best
+  enforced *there* — the app already delegates step-up via OIDC/SAML). The crypto is the audited `otpauth` +
+  `@noble/hashes` libraries (`lib/totp.ts`), never hand-rolled; the per-user secret + recovery-code hashes
+  live in a **separately-keyed sealed store** (`lib/totp-store.ts`, `deriveKey(root, "totp:v1")`, scrypt for
+  recovery hashes). Enrol → confirm → step-up → disable routes (`/api/auth/totp/*`) mirror the passkey
+  step-up pair, re-issuing the session with a fresh `stepUpAt`; codes are single-use inside their window (a
+  `lastStep` replay lock) and the verify paths sit behind the strict login limiter. The SPA settings panel
+  (`TwoFactorAuth`: QR enrol via the `qrcode` lib, confirm, one-time recovery codes, disable) ships too.
+- ✅ **Device & active-session inventory (IAM S8) — BUILT.** A signed-in user can see their own active
+  sessions (this browser plus any other devices) and sign one out — the account-security hygiene surface that
+  lets a user cut off a lost/stolen device without an admin. Sessions stay stateless sealed cookies; an
+  **always-on session directory** (`lib/session-registry.ts`, alongside the existing concurrency cap and
+  rotating-token sequence) records each live session — first/last-seen, user-agent, IP — keyed by the
+  per-session `salt`, which **never leaves the server** (the inventory identifies each session by a
+  non-reversible SHA-256 handle). Per-session **revoke** marks the session signed-out at the single
+  `readSession` chokepoint on its next request, and — in a declared fleet (`REDIS_URL`) — publishes/reconciles
+  a shared revoke marker so the sign-out propagates across replicas (mirrors the seq-mark pattern). Routes
+  (`GET /api/auth/sessions`, `POST /api/auth/sessions/revoke` — one device by handle, or `{ others: true }` to
+  sign out every *other* device; revoking the current one is a logout) gate on `readSession`, so a caller can
+  only ever manage their own principal's sessions. Best-effort per-replica RAM, honestly scoped like the rest
+  of the registry. The SPA **DeviceSessions** settings panel (`lib/sessions.ts` client + a device list with a
+  friendly UA label, last-active time, per-device revoke and "sign out all other devices") ships alongside.
+- ✅ **Global undo — BUILT.** App-wide undo/redo stack over recent field mutations via `Cmd/Ctrl+Z` /
+  `Cmd/Ctrl+Shift+Z` and palette Undo/Redo actions (`lib/edit-history.ts`, `lib/use-undo-redo.ts`,
+  `components/UndoRedoHotkeys.tsx`; PR #948), layered on top of the existing per-action toast undo.
+- ✅ **Per-user notification preferences — BUILT.** Each user chooses their delivery channels (in-app / email
+  / push), silences individual event kinds, and sets a daily quiet-hours window — stored on their own
+  per-user prefs blob (rides the `/me/prefs` vault + the `A11yProvider` sync, no new route) and enforced at
+  the in-app SSE plane. A pure evaluator (`@workspace/backend-catalogue` `notification-prefs.ts`) is the one
+  source both the gateway (`notify-hub` snapshot-at-connect filter) and the SPA settings panel
+  (`NotificationPreferences`) read; a `critical` kind (blocker/incident) can never be muted — the bell is a
+  guaranteed floor. Extends §4.10. **Remaining (deferred):** per-user opt-out on the role-broadcast digests
+  (they'd need to enumerate recipients) and a per-user timezone for quiet hours (evaluated server-local today).
 - ✅ **Bounded encrypted offline read cache — BUILT (flagged).** The AES-256-GCM, session-scoped (key bound to
   `sub`, wiped on logout), 24h-TTL, allow-listed (tasks + my-work) on-device read cache ships (`lib/offline-cache`,
   `use-offline-cache`, default-off `offlineCache` flag; Phase 2.5). The parity review's "none" is wrong.
@@ -1881,8 +2037,9 @@ drift bug).
     and adapts each row into the `DependencyEdge` shape the schedulers already consume. Critical Path, the
     auto-schedule forecast, and the Gantt drag-cascade MERGE the durable slot rows with the browser-volatile
     overlay — live CPM + cascade run on real precedence. Write/remove hooks PUT/DELETE through the generic slot.
-  - **Next:** an in-project link editor (create/delete edges from the Gantt/board — the hooks exist) + the
-    network-diagram view.
+  - **✅ In-project link editor.** The board Gantt now renders durable edges as clickable arrows and
+    creates/deletes them in place (`components/board/GanttChart.tsx`, source→target link handles + click-an-arrow
+    to remove). **Next:** the network-diagram view + richer link types (FS/SS/FF/SF + lag) on the durable edge.
 - ✳ **Sprints / iterations** — a `sprints` mapping slot (`{id, name, goal, startDate, endDate, state, itemIds}`)
   + a sprint-board screen def + a velocity/burndown report def, all authored through the importer (agile-only,
   loosely coupled). No engine entity. (A bespoke `Sprint` broker entity was prototyped, then reverted in favour
@@ -1905,7 +2062,8 @@ external infrastructure a CI sandbox can't reach (so they are execution/attestat
   read/write adapters** (§4.6 last mile).
 - ✳ **Published scale / load result** — against a gateway wired to real n8n + backend; queue-mode numbers are placeholders.
 - ✳ **Independent attestation** — pen-test summary, SOC 2 / ISO 27001 *certificates* (control mappings exist),
-  signed images (cosign parked), GitHub native secret-scanning on.
+  GitHub native secret-scanning on. (Signed, published images now ship — `release.yml` pushes `omni-shell`
+  to GHCR and attests the pushed digest, keyless SLSA; `gh attestation verify` works.)
 - ✳ **KMS / vault / OTLP live verification** + **Authentik blueprint applied live** (mock-verified only today).
 - ✳ **Tested multi-region DR runbook** + a multi-replica (not single-SQLite) sample manifest.
 - ✅ **Exploration replica-workbench dirty-flag data-loss bug — FIXED** (per-source dirty tracking; commit
@@ -2150,6 +2308,27 @@ catalogued Salesforce backend). Its still-open residue, carried so nothing is lo
   no-SSO-but-real-local-accounts profile, so such a deployment boots on the public default `SESSION_SECRET`
   (forgeable admin cookie) and seals data under a public dev master key. Logged with corroborating findings in
   `TECH-DEBT-AND-ROADMAP.md §1`.
+- _2026-07-26_ — **Domain primitive-spine program kicked off** (Phase 4 "PROGRAM IN FLIGHT" callout). A
+  four-domain survey (project · programme/portfolio · people/resource · forecasting) found the finance pattern
+  inverted everywhere — rich surface, thin primitive spine — so the finance playbook (governed record types +
+  pure compute engines + ruleset governance) is being applied to all four, foundations-first, one PR per slice.
+  **Wave 0 ✅ — EVM engine** (`lib/backend-catalogue/src/evm.ts`, PR #874): pure derivation of the full EVM
+  suite (CV/SV/CPI/SPI, four EAC methods, ETC, VAC, TCPI) from PV/EV/AC/BAC + the missing VAC/TCPI fields
+  (updates §4.7). Next: Wave 1 foundational primitives — typed cross-project `dependency`, cost+schedule
+  `baseline`, `resource`/`assignment`/`timesheet` (§4.10 / §4.7 / §4.2).
+- _2026-07-26_ — **Domain primitive-spine: Waves 1–2 complete.** **Wave 1 ✅** foundational primitives —
+  typed cross-project `dependency` (FS/SS/FF/SF + lag, #876), cost+schedule `baseline` snapshot (#877),
+  and `resource`/`assignment`/`timesheet` record types + a `resource` field cluster (#878), each a governed
+  record type on the finance slice pattern (manifest verbs + required-reads + write-lane + primaryRecord +
+  field cluster). **Wave 2 ✅** compute engines — promoted `critical-path` (#879) and `monte-carlo` (#880)
+  from the SPA into the catalogue as vendor-neutral pure modules (SPA keeps stable re-export paths), added a
+  net-new `run-rate`/burn projector (#881) and `capacity-vs-demand` engine (#882) over the Wave-1 resource
+  primitives, and wired the shared `computeEvm` into the portfolio-financials roll-up so CPI/SPI/EAC surface
+  per programme + portfolio (#883). The analytics engines — critical-path, monte-carlo, run-rate, capacity,
+  evm, depreciation, consolidation — are now one **vendor-neutral functional core** in `lib/backend-catalogue`,
+  shared below the broker seam; every compute divide is null-guarded and every module has deterministic tests.
+  Next: Wave 3 — `benefit` realisation primitive, change-control/stage-gate/milestone records, skills/leave,
+  portfolio scope tier, per-domain ruleset governance (§4.1 / §4.8 / §4.2 / §4.3).
 
 ---
 

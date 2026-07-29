@@ -37,6 +37,7 @@
   },
   "credentialType": "microsoftDynamicsOAuth2Api",
   "docsUrl": "https://learn.microsoft.com/en-us/dynamics365/project-operations/",
+  "primaryRecord": "issue",
   "id": "msproject",
   "label": "Microsoft Project (Project for the web)",
   "notes": "Project for the web stores schedules in Dataverse (msdyn_project / msdyn_projecttask). For classic Project Online, point at the PWA OData (/_api/ProjectData) with a Microsoft OAuth credential instead.",

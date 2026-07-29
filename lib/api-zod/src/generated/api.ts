@@ -272,6 +272,8 @@ export const GetProjectIssuesResponseItem = zod.object({
   "loggedHours": zod.number().nullish().describe('Effort logged so far, in hours (effort field group).'),
   "remainingHours": zod.number().nullish().describe('Remaining effort in hours (effort field group).'),
   "storyPoints": zod.number().nullish().describe('Agile story-point estimate (agile field group; surfaced only when the backend tracks agile fields).'),
+  "epic": zod.string().nullish().describe('Parent epic \/ work-item id — the epic → story → task hierarchy (agile field group; surfaced only when the backend tracks a parent link).'),
+  "sprint": zod.string().nullish().describe('Sprint \/ iteration the work item belongs to (agile field group).'),
   "healthStatus": zod.string().nullish().describe('Delivery health \/ RAG (quality field group). Free-form to preserve the backend\'s vocabulary.'),
   "riskLevel": zod.string().nullish(),
   "impact": zod.string().nullish(),
@@ -337,6 +339,8 @@ export const CreateIssueBody = zod.object({
   "loggedHours": zod.number().nullish(),
   "remainingHours": zod.number().nullish(),
   "storyPoints": zod.number().nullish(),
+  "epic": zod.string().nullish(),
+  "sprint": zod.string().nullish(),
   "healthStatus": zod.string().nullish(),
   "riskLevel": zod.string().nullish(),
   "impact": zod.string().nullish(),
@@ -372,6 +376,8 @@ export const CreateIssueResponse = zod.object({
   "loggedHours": zod.number().nullish().describe('Effort logged so far, in hours (effort field group).'),
   "remainingHours": zod.number().nullish().describe('Remaining effort in hours (effort field group).'),
   "storyPoints": zod.number().nullish().describe('Agile story-point estimate (agile field group; surfaced only when the backend tracks agile fields).'),
+  "epic": zod.string().nullish().describe('Parent epic \/ work-item id — the epic → story → task hierarchy (agile field group; surfaced only when the backend tracks a parent link).'),
+  "sprint": zod.string().nullish().describe('Sprint \/ iteration the work item belongs to (agile field group).'),
   "healthStatus": zod.string().nullish().describe('Delivery health \/ RAG (quality field group). Free-form to preserve the backend\'s vocabulary.'),
   "riskLevel": zod.string().nullish(),
   "impact": zod.string().nullish(),
@@ -437,6 +443,8 @@ export const UpdateIssueBody = zod.object({
   "loggedHours": zod.number().nullish(),
   "remainingHours": zod.number().nullish(),
   "storyPoints": zod.number().nullish(),
+  "epic": zod.string().nullish(),
+  "sprint": zod.string().nullish(),
   "healthStatus": zod.string().nullish(),
   "riskLevel": zod.string().nullish(),
   "impact": zod.string().nullish(),
@@ -474,6 +482,8 @@ export const UpdateIssueResponse = zod.object({
   "loggedHours": zod.number().nullish().describe('Effort logged so far, in hours (effort field group).'),
   "remainingHours": zod.number().nullish().describe('Remaining effort in hours (effort field group).'),
   "storyPoints": zod.number().nullish().describe('Agile story-point estimate (agile field group; surfaced only when the backend tracks agile fields).'),
+  "epic": zod.string().nullish().describe('Parent epic \/ work-item id — the epic → story → task hierarchy (agile field group; surfaced only when the backend tracks a parent link).'),
+  "sprint": zod.string().nullish().describe('Sprint \/ iteration the work item belongs to (agile field group).'),
   "healthStatus": zod.string().nullish().describe('Delivery health \/ RAG (quality field group). Free-form to preserve the backend\'s vocabulary.'),
   "riskLevel": zod.string().nullish(),
   "impact": zod.string().nullish(),
@@ -706,6 +716,41 @@ export const GetProjectBaselineResponse = zod.union([zod.object({
 
 
 /**
+ * Routed to the broker with X-OmniProject-Action: list_tasks. Tasks are an optional broker capability; a backend that does not model them returns an empty list. Out-of-scope tasks are filtered at the gateway.
+ * @summary GTD next-action tasks (optionally scoped to a project)
+ */
+export const GetTasksQueryParams = zod.object({
+  "projectId": zod.coerce.string().optional()
+})
+
+export const GetTasksResponseItem = zod.object({
+  "id": zod.string(),
+  "title": zod.string(),
+  "status": zod.string().describe('GTD next-action status (e.g. next \/ waiting \/ scheduled \/ someday \/ done \/ dropped).'),
+  "projectId": zod.string().nullish(),
+  "context": zod.string().nullish().describe('GTD @context (where\/with-what the action can be done).'),
+  "waitingOn": zod.string().nullish(),
+  "assignee": zod.string().nullish(),
+  "description": zod.string().nullish(),
+  "priority": zod.string().nullish(),
+  "tags": zod.array(zod.string()).optional(),
+  "startDate": zod.string().nullish(),
+  "dueDate": zod.string().nullish(),
+  "recurrence": zod.string().nullish(),
+  "estimateHours": zod.number().nullish(),
+  "parentTaskId": zod.string().nullish(),
+  "url": zod.string().nullish(),
+  "completedAt": zod.string().nullish(),
+  "reminderAt": zod.string().nullish(),
+  "energy": zod.string().nullish().describe('GTD energy level the action needs (low \/ medium \/ high).'),
+  "section": zod.string().nullish(),
+  "sortOrder": zod.number().nullish(),
+  "collaborators": zod.array(zod.string()).optional()
+}).describe('A GTD next-action — an actionable to-do, distinct from an Issue. Tasks are an optional broker capability surfaced via GET \/tasks; every field beyond id\/title\/status is optional and populated only when the backend models it (the field superset — admins wire up what their backend carries).')
+export const GetTasksResponse = zod.array(GetTasksResponseItem)
+
+
+/**
  * Routed to the broker with X-OmniProject-Action: get_raid, X-OmniProject-Source: raid_register
  * @summary RAID log (Risks, Assumptions, Issues, Dependencies) for a project
  */
@@ -863,8 +908,35 @@ export const GetPortfolioFinancialsResponse = zod.object({
   "actual": zod.number(),
   "forecast": zod.number(),
   "earnedValue": zod.number(),
+  "plannedValue": zod.number(),
   "variance": zod.number(),
   "cpi": zod.number().nullable(),
+  "evm": zod.object({
+  "plannedValue": zod.number(),
+  "earnedValue": zod.number(),
+  "actualCost": zod.number(),
+  "budgetAtCompletion": zod.number(),
+  "costVariance": zod.number(),
+  "scheduleVariance": zod.number(),
+  "costVariancePct": zod.number().nullable(),
+  "scheduleVariancePct": zod.number().nullable(),
+  "costPerformanceIndex": zod.number().nullable(),
+  "schedulePerformanceIndex": zod.number().nullable(),
+  "percentComplete": zod.number().nullable(),
+  "percentSpent": zod.number().nullable(),
+  "eacMethod": zod.enum(['cpi', 'budget_rate', 'cpi_spi', 'etc']),
+  "estimateAtCompletion": zod.number().nullable(),
+  "estimateToComplete": zod.number().nullable(),
+  "varianceAtCompletion": zod.number().nullable(),
+  "toCompletePerformanceIndex": zod.number().nullable(),
+  "toCompletePerformanceIndexToEac": zod.number().nullable(),
+  "eacVariants": zod.object({
+  "cpi": zod.number().nullable(),
+  "budgetRate": zod.number().nullable(),
+  "cpiSpi": zod.number().nullable(),
+  "etc": zod.number().nullable()
+})
+}).describe('The Earned Value Management picture derived from the four primitives (PV\/EV\/AC\/BAC) by the shared computeEvm engine. Ratios whose denominator is zero are null (rendered as \"—\"), never NaN\/Infinity. SPI and schedule variance are null until a backend supplies plannedValue.').nullable(),
   "localCurrency": zod.string().nullable(),
   "local": zod.object({
   "budget": zod.number(),
@@ -882,8 +954,35 @@ export const GetPortfolioFinancialsResponse = zod.object({
   "actual": zod.number(),
   "forecast": zod.number(),
   "earnedValue": zod.number(),
+  "plannedValue": zod.number(),
   "variance": zod.number(),
   "cpi": zod.number().nullable(),
+  "evm": zod.object({
+  "plannedValue": zod.number(),
+  "earnedValue": zod.number(),
+  "actualCost": zod.number(),
+  "budgetAtCompletion": zod.number(),
+  "costVariance": zod.number(),
+  "scheduleVariance": zod.number(),
+  "costVariancePct": zod.number().nullable(),
+  "scheduleVariancePct": zod.number().nullable(),
+  "costPerformanceIndex": zod.number().nullable(),
+  "schedulePerformanceIndex": zod.number().nullable(),
+  "percentComplete": zod.number().nullable(),
+  "percentSpent": zod.number().nullable(),
+  "eacMethod": zod.enum(['cpi', 'budget_rate', 'cpi_spi', 'etc']),
+  "estimateAtCompletion": zod.number().nullable(),
+  "estimateToComplete": zod.number().nullable(),
+  "varianceAtCompletion": zod.number().nullable(),
+  "toCompletePerformanceIndex": zod.number().nullable(),
+  "toCompletePerformanceIndexToEac": zod.number().nullable(),
+  "eacVariants": zod.object({
+  "cpi": zod.number().nullable(),
+  "budgetRate": zod.number().nullable(),
+  "cpiSpi": zod.number().nullable(),
+  "etc": zod.number().nullable()
+})
+}).describe('The Earned Value Management picture derived from the four primitives (PV\/EV\/AC\/BAC) by the shared computeEvm engine. Ratios whose denominator is zero are null (rendered as \"—\"), never NaN\/Infinity. SPI and schedule variance are null until a backend supplies plannedValue.').nullable(),
   "localCurrency": zod.string().nullable(),
   "local": zod.object({
   "budget": zod.number(),

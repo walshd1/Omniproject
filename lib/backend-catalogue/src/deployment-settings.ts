@@ -19,8 +19,12 @@ export interface DeploymentSetting {
   options: string[];
 }
 
-/** The built-in broker homes (not in the external broker catalogue) an admin may also pick. */
-const BUILTIN_BROKERS = ["builtin:omnistore", "builtin:postgres", "builtin:memory"];
+/** The built-in broker homes (not in the external broker catalogue) an admin may also pick. The only
+ *  first-party STATEFUL store is OmniStore (the encrypted event-log); `memory` is ephemeral/dev. Postgres
+ *  is NOT a first-party store — `builtin:sql` is the built-in broker over an EXTERNAL SQL sidecar
+ *  (PostgreSQL/MySQL/MSSQL you host; needs SQL_SIDECAR_URL), so you still interface with a Postgres
+ *  database as a backend, just not as an "internal" store we provide. */
+const BUILTIN_BROKERS = ["builtin:omnistore", "builtin:sql", "builtin:memory"];
 /** The first-party backends (not third-party) an admin may also pick. */
 const BUILTIN_BACKENDS = ["omnistore", "sidecar", "external"];
 

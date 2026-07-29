@@ -8,7 +8,7 @@ import { roleFromClaims, grantsFromClaims, grantsSatisfy, grantsForRole } from "
 import { idempotencyKey } from "../broker/reference-broker/index";
 import { resolveCapabilities } from "../lib/capabilities";
 import { buildConfigExport, configEntries } from "../lib/config-export";
-import { BACKENDS, getBackend, isEnterpriseBackend, backendCatalogue, generateWorkflow, titleFor } from "@workspace/backend-catalogue";
+import { BACKENDS, getBackend, isEnterpriseBackend, backendCatalogue, generateWorkflow, titleFor, RECORD_TYPE_REQUIRED_READS } from "@workspace/backend-catalogue";
 import { buildSnapshot, applySnapshot, SNAPSHOT_SCHEMA } from "../lib/config-snapshot";
 import { convertAmount, supportedCurrencies } from "../lib/currency";
 import { shouldAudit, createHttpSink } from "../lib/audit";
@@ -733,7 +733,11 @@ test("BACKENDS: every manifest is well-formed", () => {
     // carries no auth + no contract read actions. Live/database backends must.
     if (b.kind === "import") continue;
     assert.ok(b.authHeader || b.credentialType, `manifest ${b.id} missing auth`);
-    assert.ok(b.actions.list_projects && b.actions.list_issues, `${b.id} must map core reads`);
+    // A backend must map the READ verbs its primaryRecord owns (issue ⇒ projects+issues;
+    // invoice ⇒ invoice list) — not a fixed PM assumption.
+    for (const read of RECORD_TYPE_REQUIRED_READS[b.primaryRecord]) {
+      assert.ok(b.actions[read], `${b.id} (primaryRecord=${b.primaryRecord}) must map ${read}`);
+    }
   }
 });
 

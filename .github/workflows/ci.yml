@@ -46,6 +46,19 @@ permissions:
 # Still runs on main: typecheck, guards, smoke (build + n8n + e2e-smoke/stress), e2e (sharded),
 # docker-image, accessibility, deploy-lint, dependency-scan, secret-scan, taint-scan.
 # ─────────────────────────────────────────────────────────────────────────────────────────────
+#
+# PNPM VERSION POLICY (float on next, pin on main)
+#   Every `pnpm/action-setup` below resolves its version from the branch (any event on `main`, or a PR
+#   whose base is `main`):
+#     main line  → PINNED '11.8.0' — reproducible releases.
+#     everything else (next + feature-branch PRs) → 'latest'  — next continuously exercises the
+#                                                                          newest pnpm, so a breaking pnpm
+#                                                                          release is caught on next, never
+#                                                                          on a release. The Dockerfile (the
+#                                                                          shipped image = the main line) stays
+#                                                                          pinned to the same '11.8.0'.
+#   Bump the pinned version in ONE place — the literal in the expression below — and mirror it in the
+#   Dockerfile. (A float-only failure on next means "latest pnpm broke us"; investigate before bumping main.)
 
 jobs:
   # HARD-RULE guard that makes the lighter `main` gate safe: main must only ever be a promotion of
@@ -72,13 +85,13 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
-      # Keep this pnpm/Node pair in sync with the Dockerfile's builder stage — it deliberately
-      # mirrors these exact versions, and bumping one without the other risks a silent drift
-      # between what CI verifies and what actually ships.
+      # pnpm version follows the branch (see PNPM VERSION POLICY above): PINNED on the main line
+      # (mirrors the Dockerfile's builder stage — what actually ships), FLOATING 'latest' on next +
+      # PRs so the newest pnpm is exercised before it can reach a release. Node stays pinned on both.
       - name: Install pnpm
         uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6
         with:
-          version: 11.8.0
+          version: "${{ (github.ref_name == 'main' || github.base_ref == 'main') && '11.8.0' || 'latest' }}"
 
       - name: Setup Node
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v6
@@ -116,7 +129,7 @@ jobs:
       - name: Install pnpm
         uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6
         with:
-          version: 11.8.0
+          version: "${{ (github.ref_name == 'main' || github.base_ref == 'main') && '11.8.0' || 'latest' }}"
       - name: Setup Node
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v6
         with:
@@ -161,7 +174,7 @@ jobs:
       - name: Install pnpm
         uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6
         with:
-          version: 11.8.0
+          version: "${{ (github.ref_name == 'main' || github.base_ref == 'main') && '11.8.0' || 'latest' }}"
       - name: Setup Node
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v6
         with:
@@ -209,7 +222,7 @@ jobs:
       - name: Install pnpm
         uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6
         with:
-          version: 11.8.0
+          version: "${{ (github.ref_name == 'main' || github.base_ref == 'main') && '11.8.0' || 'latest' }}"
       - name: Setup Node
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v6
         with:
@@ -246,7 +259,7 @@ jobs:
       - name: Install pnpm
         uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6
         with:
-          version: 11.8.0
+          version: "${{ (github.ref_name == 'main' || github.base_ref == 'main') && '11.8.0' || 'latest' }}"
       - name: Setup Node
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v6
         with:
@@ -274,7 +287,7 @@ jobs:
       - name: Install pnpm
         uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6
         with:
-          version: 11.8.0
+          version: "${{ (github.ref_name == 'main' || github.base_ref == 'main') && '11.8.0' || 'latest' }}"
       - name: Setup Node
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v6
         with:
@@ -441,6 +454,12 @@ jobs:
       - name: Verify a concrete broker adapter is imported only via the seam
         run: pnpm --filter @workspace/scripts run guard-broker-isolation
 
+      - name: Verify a concrete backend adapter is imported only via the seam
+        run: pnpm --filter @workspace/scripts run guard-backend-isolation
+
+      - name: Verify every mutating route declares an auth posture (route-grants guard)
+        run: pnpm --filter @workspace/scripts run guard-route-grants
+
       - name: Verify every clickable affordance is keyboard-operable (parity guard)
         run: pnpm --filter @workspace/scripts run guard-interactive
 
@@ -476,7 +495,7 @@ jobs:
       - name: Install pnpm
         uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6
         with:
-          version: 11.8.0
+          version: "${{ (github.ref_name == 'main' || github.base_ref == 'main') && '11.8.0' || 'latest' }}"
       - name: Setup Node
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v6
         with:
@@ -604,7 +623,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6
         with:
-          version: 11.8.0
+          version: "${{ (github.ref_name == 'main' || github.base_ref == 'main') && '11.8.0' || 'latest' }}"
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v6
         with:
           node-version: 26
@@ -642,12 +661,52 @@ jobs:
   # the image can't build, can't boot, or doesn't serve both the API and the SPA.
   docker-image:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Build the omni-shell image
         run: docker build -t omni-shell:ci .
+
+      # Container-image OS-layer CVE scan (IAM assessment gap S9): scan the image we just built and BLOCK
+      # on fixable HIGH/CRITICAL in the OS/distro layer — the layer the pnpm lockfile can't see (the
+      # `dependency-scan` job already gates the app's JS dependencies via `pnpm audit`). Scoped to
+      # `--pkg-types os` on purpose: the app's own Node deps are covered elsewhere, and language findings
+      # in the base image's OWN bundled tooling (e.g. the `npm` that ships inside node:*-slim) are upstream
+      # base-image concerns with no fixed base image yet — out of this repo's control, so they don't gate.
+      # Trivy is installed via the repo's checksum-verified downloader (no unpinned third-party action, no
+      # curl|sh) — same discipline as the kubeconform lint. `--ignore-unfixed`: a blocking gate must be
+      # actionable, so a CVE with no upstream fix is reported, not a build-blocker. Trivy pulls its vuln DB
+      # from ghcr.io (not Docker Hub) so this adds no Docker-Hub-pull flakiness, and it fails closed on a
+      # scan error, consistent with the dependency-scan gate.
+      - name: Install Trivy (checksum-verified)
+        env:
+          # Pin the immutable SHA-256 (from the release CHECKSUMS) for full supply-chain protection.
+          # Empty ⇒ fetch-verified falls back to the release-published checksums file and warns; fill this
+          # to upgrade to a hard pin — see scripts/ci/fetch-verified.sh.
+          TRIVY_SHA256: ""
+        run: |
+          ver="0.72.0"
+          bash scripts/ci/fetch-verified.sh \
+            --url "https://github.com/aquasecurity/trivy/releases/download/v${ver}/trivy_${ver}_Linux-64bit.tar.gz" \
+            --out trivy.tar.gz \
+            --sha256 "$TRIVY_SHA256" \
+            --checksums-url "https://github.com/aquasecurity/trivy/releases/download/v${ver}/trivy_${ver}_checksums.txt" \
+            --checksums-name "trivy_${ver}_Linux-64bit.tar.gz"
+          tar -xzf trivy.tar.gz trivy
+          ./trivy --version
+
+      - name: Scan the image for HIGH/CRITICAL CVEs (Trivy)
+        run: |
+          ./trivy image \
+            --scanners vuln \
+            --pkg-types os \
+            --severity HIGH,CRITICAL \
+            --ignore-unfixed \
+            --exit-code 1 \
+            --no-progress \
+            --format table \
+            omni-shell:ci
 
       - name: Smoke-boot in demo mode (API health + served SPA root)
         run: |
@@ -683,7 +742,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6
         with:
-          version: 11.8.0
+          version: "${{ (github.ref_name == 'main' || github.base_ref == 'main') && '11.8.0' || 'latest' }}"
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v6
         with:
           node-version: 26
@@ -691,11 +750,18 @@ jobs:
       - run: pnpm install --frozen-lockfile --ignore-scripts
 
       - name: Audit (block on high or critical)
-        run: pnpm audit --audit-level high
-
-      - name: Report all advisories (non-blocking)
-        if: always()
-        run: pnpm audit || true
+        shell: bash
+        # `pnpm audit` is unusable: npm's bulk advisory endpoint returns a gzip body WITHOUT a
+        # `Content-Encoding` header, so pnpm/undici never decompress it and die with
+        # ERR_PNPM_AUDIT_BAD_RESPONSE on every pnpm version (verified 11.8.0 → 11.17.0). The endpoint is
+        # healthy (curl --compressed decodes it fine). scripts/ci/audit-advisories.mjs fetches + gunzips
+        # correctly and blocks on any HIGH/CRITICAL advisory affecting an installed version — FAIL CLOSED on
+        # any error, so an outage can never masquerade as "no vulnerabilities". semver is installed into a
+        # throwaway NODE_PATH so the workspace tree + lockfile are untouched.
+        run: |
+          tmp="$(mktemp -d)"
+          ( cd "$tmp" && npm init -y >/dev/null 2>&1 && npm install --no-audit --no-fund --no-package-lock semver@7 >/dev/null 2>&1 )
+          NODE_PATH="$tmp/node_modules" node scripts/ci/audit-advisories.mjs
 
       - name: Generate dependency + licence SBOM inventory
         if: always()
@@ -786,7 +852,7 @@ jobs:
       - name: Install pnpm
         uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6
         with:
-          version: 11.8.0
+          version: "${{ (github.ref_name == 'main' || github.base_ref == 'main') && '11.8.0' || 'latest' }}"
       - name: Setup Node
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v6
         with:
@@ -833,4 +899,22 @@ jobs:
       - name: Typecheck
         run: npm run typecheck
       - name: Test (offline; SDK clients faked)
+        run: npm test
+
+  # Standalone attachments-broker service (services/attachments-broker) — NOT part of the pnpm workspace,
+  # holds file bytes below the seam so the gateway stays zero-at-rest. Zero runtime dependencies (node
+  # built-ins only), so there is nothing to install — just node:test.
+  attachments-broker:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    defaults:
+      run:
+        working-directory: services/attachments-broker
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - name: Setup Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v6
+        with:
+          node-version: 26
+      - name: Test (offline; node:test, no dependencies)
         run: npm test

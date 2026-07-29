@@ -110,7 +110,7 @@ Approval-chain endpoints — the human, passkey-signed approver surface (design 
 | POST | `/api/approvals/:id/redirect` | requireRole(pmo) | PMO escape hatches (pmo+ only) POST /approvals/:id/redirect — reassign the current stage's approvers. |
 | POST | `/api/approvals/:id/bypass/challenge` | requireRole(pmo) | POST /approvals/:id/bypass/challenge — challenge for a PMO bypass signature. |
 | POST | `/api/approvals/:id/bypass` | requireRole(pmo) | POST /approvals/:id/bypass — force-approve the chain with a PMO passkey signature (never silent). |
-| GET | `/api/approvals/workflow-acceptances` | requireRole(manager) | GET /approvals/workflow-acceptances — every stored acceptance with its LIVE active/void status (pmo+). |
+| GET | `/api/approvals/workflow-acceptances` | requireRole(pmo) | identity + which automations are AI-auto-approvable). |
 | POST | `/api/approvals/workflow-acceptances/:workflowId/challenge` | — | POST /approvals/workflow-acceptances/:workflowId/challenge — challenge to sign, bound to the CURRENT version. |
 | POST | `/api/approvals/workflow-acceptances/:workflowId` | — | POST /approvals/workflow-acceptances/:workflowId — record the passkey-signed acceptance (scope owner only). |
 | DELETE | `/api/approvals/workflow-acceptances/:workflowId` | — | DELETE /approvals/workflow-acceptances/:workflowId — revoke the grant (strengthens → immediate; scope owner). |
@@ -123,6 +123,18 @@ Read the self-managed ARCHIVE — the closed projects whose data was migrated ou
 | --- | --- | --- | --- |
 | GET | `/api/archive/projects` | requireAnyRole(pmo, admin) | GET /api/archive/projects — the index of archived projects (guid + archivedAt). |
 | GET | `/api/archive/projects/:guid` | requireAnyRole(pmo, admin) | GET /api/archive/projects/:guid — one archived project's snapshot (project + issues), relink-aware. |
+
+### `artifacts/api-server/src/routes/attachments.ts`
+
+File attachments (the "attachments" feature module) — attach a file to a work item.
+
+| Method | Path | Gate | Description |
+| --- | --- | --- | --- |
+| GET | `/api/attachments/:roomId` | — | GET /api/attachments/:roomId — list the room's attachment pointers. |
+| POST | `/api/attachments/:roomId/upload-ticket` | requireRole(contributor) | No bytes here: the browser PUTs to `uploadUrl` itself, then calls POST /attachments/:roomId to record it. |
+| POST | `/api/attachments/:roomId` | requireRole(contributor) | sidecar's size, not the client's claim. |
+| GET | `/api/attachments/:roomId/:id/link` | — | transit the gateway). |
+| DELETE | `/api/attachments/:roomId/:id` | — | DELETE /api/attachments/:roomId/:id — the uploader, or a pmo/admin (moderation). |
 
 ### `artifacts/api-server/src/routes/auth.ts`
 
@@ -148,6 +160,13 @@ Authentication routes + the session helpers the rest of the gateway reads from.
 | POST | `/api/auth/step-up` | — | — |
 | GET | `/api/auth/providers` | — | branded "Sign in with <label>" button per provider. |
 | GET | `/api/auth/step-up` | — | cookie). |
+| GET | `/api/auth/totp/status` | — | GET /auth/totp/status — is 2FA available on this instance, and is this user enrolled / mid-enrolment? |
+| POST | `/api/auth/totp/enrol` | — | The enrolment isn't active until /auth/totp/confirm proves a code, so a half-finished enrol can't lock a user out. |
+| POST | `/api/auth/totp/confirm` | — | hand back the one-time recovery codes (shown once), and step the session up. |
+| POST | `/api/auth/totp/step-up` | — | a TOTP code's step must exceed the last consumed one, so it can't be re-used inside its ~90s window. |
+| POST | `/api/auth/totp/disable` | — | live session can't silently strip the second factor. |
+| GET | `/api/auth/sessions` | — | GET /auth/sessions — the caller's own active sessions, the current one flagged. |
+| POST | `/api/auth/sessions/revoke` | — | so this browser's cookies are cleared too. |
 
 ### `artifacts/api-server/src/routes/automations.ts`
 
@@ -159,6 +178,14 @@ Automation RECIPES — the user-facing "when X, do Y" builder (Phase 1.2).
 | POST | `/api/automations/:id/run` | — | Run a stored recipe now against a `subject` (the triggering entity, or a manual test payload). |
 | GET | `/api/automations` | requireAuth | Read the collection. |
 | PUT | `/api/automations` | requireAuth | Replace the collection (write-guarded). |
+
+### `artifacts/api-server/src/routes/billing-webhook.ts`
+
+INBOUND settlement webhook for the connected billing backend (finance superset; docs/design/INVOICE-NINJA.md).
+
+| Method | Path | Gate | Description |
+| --- | --- | --- | --- |
+| POST | `/api/invoices/billing-webhook` | — | The canonical neutral path (documented + statically analysable) … |
 
 ### `artifacts/api-server/src/routes/branding.ts`
 
@@ -580,8 +607,11 @@ INVOICES (roadmap 3.3).
 | GET | `/api/invoices` | requireRole(manager) | GET /api/invoices?projectId= — invoices (lines omitted) across the org + a project store (manager+). |
 | GET | `/api/invoices/:id` | requireRole(manager) | GET /api/invoices/:id — one invoice with its lines (manager+). |
 | POST | `/api/invoices` | requireRole(manager) | POST /api/invoices — create an invoice in the chosen storage target (manager+). |
+| POST | `/api/invoices/from-project/:projectId` | requireRole(manager) | supplies the header (number, clientName, currency, …) and edits the draft before pushing it. |
 | PUT | `/api/invoices/:id` | requireRole(manager) | PUT /api/invoices/:id — update an invoice in place; only a DRAFT may be edited (manager+). |
 | POST | `/api/invoices/:id/status` | requireRole(manager) | POST /api/invoices/:id/status — transition an invoice (draft→issued→paid; live→void) (manager+). |
+| POST | `/api/invoices/:id/push` | requireRole(manager) | never names a vendor. |
+| POST | `/api/invoices/:id/pull` | requireRole(manager) | gated by the backend's sync flag. |
 | DELETE | `/api/invoices/:id` | requireRole(manager) | DELETE /api/invoices/:id — remove an invoice (manager+). |
 
 ### `artifacts/api-server/src/routes/labels.ts`
@@ -981,8 +1011,12 @@ Whether a methodology's reference ruleset is enabled by the methodology composit
 | --- | --- | --- | --- |
 | GET | `/api/admin/ruleset` | requireRole(pmo) | — |
 | PUT | `/api/admin/ruleset` | requireRole(pmo) | — |
+| GET | `/api/admin/ruleset/domains` | requireRole(pmo) | floor only tightens (off < warn < hard), never grants. |
+| PUT | `/api/admin/ruleset/domains` | requireRole(pmo) | — |
 | GET | `/api/admin/ruleset/fields` | requireRole(pmo) | whole set. |
 | PUT | `/api/admin/ruleset/fields` | requireRole(pmo) | — |
+| GET | `/api/admin/ruleset/accounting` | requireRole(pmo) | scope-overridden through the /admin/ruleset/scope override below. |
+| PUT | `/api/admin/ruleset/accounting` | requireRole(pmo) | — |
 | GET | `/api/admin/ruleset/reference` | requireRole(pmo) | the methodology composition enables (uncurated ⇒ all). |
 | POST | `/api/admin/ruleset/apply-reference` | requireRole(pmo) | (routes through applyRuleset → setRuleModes/setFieldRules). |
 | GET | `/api/admin/ruleset/scope` | requireRole(pmo) | GET the override stored at a programme/project scope (for the admin UI). |
@@ -1201,6 +1235,15 @@ The SYSTEM DEFAULTS update mechanism (roadmap X.11).
 | GET | `/api/admin/system-defs` | requireRole(admin) | GET /api/admin/system-defs — a read-only summary of the installed shipped defaults (count per kind). |
 | POST | `/api/admin/system-defs/apply` | requireRole(admin) + requireStepUp | the content is always the approved-from-us catalogue, so this can't be used to inject custom system defs. |
 
+### `artifacts/api-server/src/routes/task-context-vocabulary.ts`
+
+Scope-overridable GTD task-context vocabulary.
+
+| Method | Path | Gate | Description |
+| --- | --- | --- | --- |
+| GET | `/api/task-context-vocabulary` | — | — |
+| PUT | `/api/task-context-vocabulary` | requireAnyRole(pmo, admin) | PUT /api/task-context-vocabulary — set the org-scope context vocabulary override (pmo/admin). |
+
 ### `artifacts/api-server/src/routes/task-vocabulary.ts`
 
 Scope-overridable Task vocabulary.
@@ -1226,6 +1269,7 @@ Task routes — GTD actionable next-actions (distinct from issues): list/create/
 | POST | `/api/tasks/:taskId/comments` | requireRole(contributor) | Add a comment to a task (contributor+). |
 | GET | `/api/tasks/:taskId/attachments` | — | — |
 | POST | `/api/tasks/:taskId/attachments` | requireRole(contributor) | Add a file-reference attachment to a task (contributor+), when the backend supports them. |
+| POST | `/api/tasks/bulk` | requireRole(manager) + requireStepUp | — |
 
 ### `artifacts/api-server/src/routes/templates.ts`
 

@@ -40,6 +40,7 @@
   },
   "credentialType": "microsoftDynamicsOAuth2Api",
   "docsUrl": "https://learn.microsoft.com/en-us/power-apps/developer/data-platform/webapi/overview",
+  "primaryRecord": "issue",
   "id": "dynamics365-sales",
   "label": "Microsoft Dynamics 365 Sales",
   "notes": "CRM on Dataverse: Account → project, Opportunity → issue. Auth via n8n's Microsoft Dynamics OAuth2 credential. Sibling to the dynamics365 Project Operations binding.",

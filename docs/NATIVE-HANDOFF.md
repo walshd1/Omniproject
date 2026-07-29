@@ -1,6 +1,12 @@
 # Native handoff (companion-app bridge)
 
-**Status:** design (not yet built). See `docs/FEATURE-ROADMAP.md` → "Native handoff".
+**Status:** BUILT (flagged). The bridge ships behind the default-off `nativeHandoff` feature module —
+`artifacts/api-server/src/lib/native-handoff.ts` + `routes/native.ts` (`GET /native/surfaces`,
+`POST /native/handoff`, `POST /native/import`) on the gateway, and `components/native/UseNative.tsx` +
+`lib/native.ts` on the SPA, currently mounted on the whiteboard surface (`modules/whiteboard/Whiteboards.tsx`).
+**Remaining:** extend the "Use native" affordance to the other inline surfaces (docs, sheets, boards,
+gantts, dashboards). This doc describes the design; the sections below noting "sketch only" predate the
+build and are retained as background. See `docs/FEATURE-ROADMAP.md` → "Native handoff".
 
 ## The idea
 
@@ -75,8 +81,9 @@ Illustrative mappings (all driven by what's connected, nothing hard-coded):
 
 ## The contract (interface sketch)
 
-Proposed additions to the shared broker types (`artifacts/api-server/src/broker/types.ts`) and
-the connector catalogue. **Sketch only** — not yet wired in.
+The shipped types live in the shared broker types (`artifacts/api-server/src/broker/types.ts`) and the
+connector catalogue; the sketch below is the original design and is now **wired in** (see the Status note
+above for the concrete files).
 
 ```ts
 /** An artifact type OmniProject renders inline and a backend can front natively. Matches our

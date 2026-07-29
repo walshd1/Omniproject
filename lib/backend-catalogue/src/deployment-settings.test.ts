@@ -22,9 +22,9 @@ test("describeDeploymentSetup tags each present setting with the deployment type
 
 test("applyDeploymentOverrides accepts a pickable override to a valid option, rejects the rest", () => {
   const { setup } = resolveDeploymentSetup("solo-selfhost")!;
-  // Broker is pickable → an admin may swap it to another valid broker.
-  const ok = applyDeploymentOverrides(setup, { broker: "builtin:postgres" });
-  assert.equal(ok.setup.broker, "builtin:postgres");
+  // Broker is pickable → an admin may swap it to another valid broker (e.g. the built-in SQL sidecar home).
+  const ok = applyDeploymentOverrides(setup, { broker: "builtin:sql" });
+  assert.equal(ok.setup.broker, "builtin:sql");
   assert.deepEqual(ok.rejected, []);
   // auth is NOT pickable, and an unknown broker value is not an option → both rejected, setup unchanged.
   const bad = applyDeploymentOverrides(setup, { auth: "none", broker: "not-a-broker" });

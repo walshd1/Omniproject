@@ -4,7 +4,7 @@ import { requireRole, hasRole } from "../lib/rbac";
 import { addComment, listComments, getComment, deleteComment, type Comment } from "../lib/comments";
 import { getNotifyBus } from "../lib/notify-bus";
 import { getBroker, contextFromReq } from "../broker";
-import { guardProjectScope } from "../lib/project-scope";
+import { guardRoomScope } from "../lib/room-scope";
 import { recordAudit, actorForAudit } from "../lib/audit";
 import { enforceBusinessRules } from "../lib/ruleset-guard";
 import { logger } from "../lib/logger";
@@ -38,20 +38,8 @@ function clean(v: unknown, max: number): string | null {
   return s;
 }
 
-/** The projectId a room belongs to, from the shared surface-id format (`issue:<projectId>:<issueId>` /
- *  `project:<projectId>`), or null when the room isn't project-scoped. */
-function projectIdOfRoom(roomId: string): string | null {
-  const parts = roomId.split(":");
-  return (parts[0] === "issue" || parts[0] === "project") && parts[1] ? parts[1] : null;
-}
-
-/** Enforce the caller's project scope on a room whose id encodes a projectId (IDOR guard — the comment
- *  store is keyed only by roomId, so without this any authenticated user could read/post/delete another
- *  tenant's thread by naming its room). A non-project room has no boundary to enforce. */
-async function guardRoomScope(req: Request, res: Response, roomId: string): Promise<boolean> {
-  const projectId = projectIdOfRoom(roomId);
-  return projectId ? guardProjectScope(req, res, projectId) : true;
-}
+// Room→project scope resolution + IDOR guard lives in lib/room-scope (shared with presence/attachments/
+// collab), so a project doc's `doc:project~…` room is scoped exactly like an `issue:`/`project:` room.
 
 // GET /api/comments/:roomId — read the thread. Any authenticated user may read.
 router.get("/comments/:roomId", async (req: Request, res: Response) => {

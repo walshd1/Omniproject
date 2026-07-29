@@ -31,9 +31,10 @@ const ALLOWLIST: Record<string, { count: number; reason: string }> = {
   "lib/ai-providers.ts": { count: 1, reason: "sealed providers-state load" },
   "lib/rate-card-store.ts": { count: 1, reason: "sealed rate-card store load" },
   "lib/security-state.ts": { count: 1, reason: "sealed security-state load" },
-  "lib/scim.ts": { count: 1, reason: "sealed SCIM directory load (cross-replica uses safeParseJson in scim.ts)" },
-  "lib/ruleset.ts": { count: 2, reason: "sealed ruleset store load" },
+  // (lib/scim.ts removed: its sealed-directory load now goes through safeParseJson too — no bare JSON.parse.)
+  "lib/ruleset.ts": { count: 4, reason: "operator env-seeded governance baselines (BUSINESS_RULE_MODES / BUSINESS_DOMAIN_MODES / BUSINESS_FIELD_RULES / BUSINESS_ACCOUNTING), each try/catch-guarded and validated after parse" },
   "lib/residency-policy.ts": { count: 1, reason: "sealed residency-policy load, then validateResidencyPolicy" },
+  "lib/sod-policy.ts": { count: 1, reason: "operator env-seeded SOD_POLICIES (deploy-set JSON), try/catch-guarded, then consumed by the fail-closed separation-of-duties engine" },
   "lib/audit-chain.ts": { count: 1, reason: "sealed chain-head load (the cross-replica shared head uses safeParseJson)" },
   "lib/archive/archive-store.ts": { count: 1, reason: "archive store's own at-rest text" },
   "lib/magic-link.ts": { count: 1, reason: "decrypted (opened) magic-link payload" },

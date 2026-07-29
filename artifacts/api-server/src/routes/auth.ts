@@ -35,12 +35,14 @@ import { isDemoAuth } from "../lib/auth-runtime";
 import { getActiveUserByUserName, createUser, anyUserExists, userDirectoryEnabled, localAdminRequiresPasskey } from "../lib/user-directory";
 import { credentialsFor, getCredential, issueChallenge, consumeChallenge, verifyWebAuthnAssertion, AssertionError } from "../lib/passkey";
 import { verifyPassword, setPassword, credentialsEnabled, assertPasswordPolicy } from "../lib/user-credentials";
+import { generateTotpSecret, otpauthUrl, generateRecoveryCodes, verifyTotpStep } from "../lib/totp";
+import { totpStoreEnabled, totpStatus, getTotp, beginEnrolment, confirmEnrolment, recordStep, consumeRecovery, disableTotp, type TotpRecord } from "../lib/totp-store";
 import { getRoleMap, setRoleMap } from "../lib/rbac";
 import { effectiveSession } from "../lib/impersonation";
 import { seal, open } from "../lib/session-crypto";
 import { isSessionExpired, timeoutPolicy, sessionCookieMaxAgeMs } from "../lib/session-timeout";
 import { currentVersion, isActive, userSessionsRevokedAt, revokeUserSessions } from "../lib/key-registry";
-import { registerSession, issueSequence, checkSequence } from "../lib/session-registry";
+import { registerSession, issueSequence, checkSequence, noteSession, listUserSessions, revokeSession, revokeOtherSessions, isSessionRevoked, sessionPublicId } from "../lib/session-registry";
 import { requireTls } from "../lib/deployment-profile";
 import { productionSignals } from "../lib/dev-mode-guard";
 import { ensureCsrfCookie, setCsrfCookie, newCsrfToken } from "../lib/csrf";
@@ -219,6 +221,17 @@ function readSession(req: Request): Session | null {
       // the replica that caught the replay. Assume-breach: a detected fork burns the whole family.
       if (session.sub) revokeUserSessions(session.sub);
       return null;
+    }
+    // Per-session revocation (device inventory "sign out this device"): a session the owner explicitly
+    // revoked reads as signed-out on its next request — here, and fleet-wide via the shared revoke marker.
+    // Unlike a fork, this burns only the ONE session, never the whole family.
+    if (session.sub && session.salt && isSessionRevoked(session.sub, session.salt, Date.now())) return null;
+    // Record this live session in the always-on directory (with its device metadata) so the owner can see
+    // and manage it. Best-effort per-replica RAM; independent of the concurrent-session cap.
+    if (session.sub && session.salt) {
+      const ua = req.get("user-agent");
+      const ip = req.ip;
+      noteSession(session.sub, session.salt, Date.now(), { ...(ua ? { ua } : {}), ...(ip ? { ip } : {}) });
     }
     return session;
   } catch {
@@ -673,9 +686,14 @@ router.post("/auth/local", async (req, res) => {
   // Downgrade prevention: local passwords are unavailable once stronger SSO is configured (unless recovery).
   if (!userDirectoryEnabled() || !credentialsEnabled() || !localPasswordsAllowed()) { res.status(404).json({ error: "In-app sign-in is not available on this deployment." }); return; }
   const user = getActiveUserByUserName(userName);
-  // Verify even when the user is missing (verifyPassword burns equivalent work) so timing can't enumerate
-  // accounts; a single generic error covers "no such user", "inactive", and "wrong password".
-  const ok = !!user && verifyPassword(user.id, password);
+  // Verify UNCONDITIONALLY — even when the user is missing — so response timing can't enumerate accounts.
+  // verifyPassword runs a dummy scrypt for an absent credential (user-credentials.ts), which is the whole
+  // point of calling it here; a bare `!!user && verifyPassword(...)` SHORT-CIRCUITS and skips that ~16 MB
+  // memory-hard work, so a nonexistent username returns measurably faster than a real one with a wrong
+  // password (account-enumeration oracle). A single generic error still covers "no such user", "inactive",
+  // and "wrong password".
+  const passwordOk = verifyPassword(user?.id ?? "", password);
+  const ok = !!user && passwordOk;
   const travel = user ? await travelCheck(user.id, user.email || user.id, req.ip) : {};
   if (!ok || !user) {
     recordRequestAudit(req, { category: "request", action: "auth.local.login", write: true, result: "error", status: 401, meta: { userName } });
@@ -903,6 +921,157 @@ router.get("/auth/step-up", async (req, res) => {
     req.log.error({ err }, "step-up initiation failed");
     res.status(502).send("Re-authentication is temporarily unavailable.");
   }
+});
+
+// ── App-native TOTP two-factor (authenticator app), alongside passkeys ───────────────────────────────────
+// Same shape as the passkey step-up: any signed-in session (local or IdP) can enrol an authenticator, and a
+// verified code re-issues the session with an `otp` amr + a fresh `stepUpAt`, so `requireStepUp` passes. The
+// crypto is the audited `otpauth` library (lib/totp); the secret + recovery-code hashes live in a
+// separately-keyed sealed store (lib/totp-store). A code is single-use inside its window (the store's
+// `lastStep` replay lock). These verify paths are covered by the strict `loginLimiter` (index.ts).
+const totpIssuer = (): string => process.env["BRAND_APP_NAME"]?.trim() || "OmniProject";
+const strField = (v: unknown): string => (typeof v === "string" ? v : "");
+
+/**
+ * Verify a presented TOTP code (replay-locked) OR a single-use recovery code against an enrolled record.
+ * Returns true iff valid, consuming the recovery code / advancing the replay lock as a side effect. The
+ * user-supplied credential is CONFINED here so the route handlers gate their sensitive action (session
+ * step-up / disabling 2FA) on this boolean RESULT — never directly on raw request input.
+ */
+function passesTotpChallenge(sub: string, rec: TotpRecord, body: { code?: unknown; recoveryCode?: unknown }, nowSec: number): boolean {
+  const recoveryCode = strField(body.recoveryCode);
+  if (recoveryCode) return consumeRecovery(sub, recoveryCode);
+  const step = verifyTotpStep(rec.secret, strField(body.code), nowSec);
+  if (step === null || step <= rec.lastStep) return false; // wrong/expired code, or a replay inside the window
+  recordStep(sub, step);
+  return true;
+}
+
+// GET /auth/totp/status — is 2FA available on this instance, and is this user enrolled / mid-enrolment?
+router.get("/auth/totp/status", (req, res) => {
+  const s = readSession(req);
+  if (!s) { res.status(401).json({ error: "Not signed in." }); return; }
+  res.json({ available: totpStoreEnabled(), ...totpStatus(s.sub) });
+});
+
+// POST /auth/totp/enrol — start enrolment: mint a secret, return it + the otpauth:// URI for the QR code.
+// The enrolment isn't active until /auth/totp/confirm proves a code, so a half-finished enrol can't lock a user out.
+router.post("/auth/totp/enrol", (req, res) => {
+  const s = readSession(req);
+  if (!s) { res.status(401).json({ error: "Not signed in." }); return; }
+  if (!totpStoreEnabled()) { res.status(503).json({ error: "Two-factor is not configured on this instance (set OMNI_CONFIG_DIR or TOTP_FILE)." }); return; }
+  if (getTotp(s.sub)?.confirmed) { res.status(409).json({ error: "Two-factor is already enabled. Disable it first to re-enrol." }); return; }
+  const secret = generateTotpSecret();
+  beginEnrolment(s.sub, secret, Date.now());
+  const account = s.email || s.sub;
+  recordRequestAudit(req, { category: "request", action: "auth.totp.enrol", write: true, result: "success" });
+  res.json({ secret, otpauthUrl: otpauthUrl({ secret, account, issuer: totpIssuer() }) });
+});
+
+// POST /auth/totp/confirm — finish enrolment: verify a code against the pending secret, then activate 2FA,
+// hand back the one-time recovery codes (shown once), and step the session up.
+router.post("/auth/totp/confirm", (req, res) => {
+  const s = readSession(req);
+  if (!s) { res.status(401).json({ error: "Not signed in." }); return; }
+  const rec = getTotp(s.sub);
+  if (!rec || rec.confirmed) { res.status(409).json({ error: "No pending 2FA enrolment. Start with /auth/totp/enrol." }); return; }
+  const step = verifyTotpStep(rec.secret, strField((req.body as { code?: unknown })?.code), Math.floor(Date.now() / 1000));
+  if (step === null) {
+    recordRequestAudit(req, { category: "request", action: "auth.totp.confirm", write: true, result: "error", status: 400 });
+    res.status(400).json({ error: "That code is incorrect or expired. Check your authenticator and try again." }); return;
+  }
+  const recoveryCodes = generateRecoveryCodes();
+  confirmEnrolment(s.sub, recoveryCodes, step, Date.now());
+  const amr = Array.from(new Set([...(s.amr ?? []), "otp"]));
+  setSession(res, { ...s, amr, stepUpAt: Date.now() });
+  recordRequestAudit(req, { category: "request", action: "auth.totp.confirm", write: true, result: "success" });
+  res.json({ ok: true, recoveryCodes });
+});
+
+// POST /auth/totp/step-up — prove a code (or a recovery code) to strengthen the session. Replay-protected:
+// a TOTP code's step must exceed the last consumed one, so it can't be re-used inside its ~90s window.
+router.post("/auth/totp/step-up", (req, res) => {
+  const s = readSession(req);
+  if (!s) { res.status(401).json({ error: "Not signed in." }); return; }
+  const rec = getTotp(s.sub);
+  if (!rec?.confirmed) { res.status(409).json({ error: "No authenticator is enrolled for this account.", needsEnrolment: true }); return; }
+  if (!passesTotpChallenge(s.sub, rec, (req.body ?? {}) as { code?: unknown; recoveryCode?: unknown }, Math.floor(Date.now() / 1000))) {
+    recordRequestAudit(req, { category: "request", action: "auth.totp.stepup", write: true, result: "error", status: 401 });
+    res.status(401).json({ error: "That code is incorrect, expired, or already used." }); return;
+  }
+  const amr = Array.from(new Set([...(s.amr ?? []), "otp"]));
+  setSession(res, { ...s, amr, stepUpAt: Date.now() });
+  recordRequestAudit(req, { category: "request", action: "auth.totp.stepup", write: true, result: "success" });
+  res.json({ ok: true });
+});
+
+// POST /auth/totp/disable — turn 2FA off. Requires proving a current code (or recovery code) so a hijacked
+// live session can't silently strip the second factor.
+router.post("/auth/totp/disable", (req, res) => {
+  const s = readSession(req);
+  if (!s) { res.status(401).json({ error: "Not signed in." }); return; }
+  const rec = getTotp(s.sub);
+  if (!rec?.confirmed) { res.status(409).json({ error: "Two-factor isn't enabled for this account." }); return; }
+  if (!passesTotpChallenge(s.sub, rec, (req.body ?? {}) as { code?: unknown; recoveryCode?: unknown }, Math.floor(Date.now() / 1000))) {
+    recordRequestAudit(req, { category: "request", action: "auth.totp.disable", write: true, result: "error", status: 401 });
+    res.status(401).json({ error: "Confirm a current authenticator code to disable two-factor." }); return;
+  }
+  disableTotp(s.sub);
+  recordRequestAudit(req, { category: "request", action: "auth.totp.disable", write: true, result: "success" });
+  res.json({ ok: true });
+});
+
+// ── Device & active-session inventory (IAM S8) ────────────────────────────────────────────────────────
+// A signed-in user can see their own active sessions (this browser plus any other devices they're logged
+// in on) and sign a device out. Sessions are stateless sealed cookies, so "active" is sourced from the
+// best-effort session directory (lib/session-registry); a revoked session reads as signed-out on its next
+// request (fleet-wide via the shared revoke marker). The raw per-session salt never leaves the server —
+// each session is identified by a non-reversible public handle.
+
+// GET /auth/sessions — the caller's own active sessions, the current one flagged.
+router.get("/auth/sessions", (req, res) => {
+  const s = readSession(req);
+  if (!s) { res.status(401).json({ error: "Not signed in." }); return; }
+  const currentId = s.salt ? sessionPublicId(s.salt) : null;
+  const sessions = listUserSessions(s.sub, Date.now()).map((info) => ({
+    id: info.id,
+    current: info.id === currentId,
+    firstSeen: info.first,
+    lastSeen: info.last,
+    ...(info.ua ? { userAgent: info.ua } : {}),
+    ...(info.ip ? { ip: info.ip } : {}),
+  }));
+  res.json({ sessions });
+});
+
+// POST /auth/sessions/revoke — sign a device out. `{ id }` revokes one session by its handle; `{ others: true }`
+// signs out every OTHER device (keeping the caller's current session). Revoking the current session is a logout,
+// so this browser's cookies are cleared too. Any signed-in session may manage only its OWN principal's sessions.
+router.post("/auth/sessions/revoke", (req, res) => {
+  const s = readSession(req);
+  if (!s) { res.status(401).json({ error: "Not signed in." }); return; }
+  const body = (req.body ?? {}) as { id?: unknown; others?: unknown };
+  const currentId = s.salt ? sessionPublicId(s.salt) : "";
+  if (body.others === true) {
+    const revoked = revokeOtherSessions(s.sub, currentId);
+    recordRequestAudit(req, { category: "request", action: "auth.session.revoke-others", write: true, result: "success" });
+    res.json({ ok: true, revoked });
+    return;
+  }
+  const id = strField(body.id);
+  if (!id) { res.status(400).json({ error: "Provide a session id, or { others: true } to sign out all other devices." }); return; }
+  if (!revokeSession(s.sub, id)) {
+    recordRequestAudit(req, { category: "request", action: "auth.session.revoke", write: true, result: "error", status: 404 });
+    res.status(404).json({ error: "No matching active session." }); return;
+  }
+  const isCurrent = id === currentId;
+  if (isCurrent) {
+    // Revoking your own current session behaves like a logout — clear this browser's cookies now.
+    res.clearCookie(SESSION_COOKIE, cookieBase());
+    res.clearCookie("omni_csrf", { ...cookieBase(), httpOnly: false, signed: false });
+  }
+  recordRequestAudit(req, { category: "request", action: "auth.session.revoke", write: true, result: "success" });
+  res.json({ ok: true, current: isCurrent });
 });
 
 export default router;

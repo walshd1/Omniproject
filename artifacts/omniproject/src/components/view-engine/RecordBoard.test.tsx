@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from "vitest";
 import { screen, fireEvent, within } from "@testing-library/react";
 import { render } from "@testing-library/react";
 import { RecordBoard } from "./RecordBoard";
-import type { BoardColumn, ViewRecord } from "../../lib/view-engine/types";
+import type { BoardColumn, EntityField, ViewRecord } from "../../lib/view-engine/types";
 
 /**
  * The generic kanban engine behind both the issue Kanban and the task GTD board. These tests drive
@@ -261,5 +261,81 @@ describe("RecordBoard", () => {
       />,
     );
     expect(screen.getByText("No tasks to show.")).toBeInTheDocument();
+  });
+
+  it("renders a WIP limit as count / limit and flags a column that is over it", () => {
+    render(
+      <RecordBoard
+        records={[
+          rec({ id: "a", title: "Alpha", status: "wip" }),
+          rec({ id: "b", title: "Bravo", status: "wip" }),
+          rec({ id: "c", title: "Charlie", status: "todo" }),
+        ]}
+        columns={[
+          { status: "todo", label: "To Do" },
+          { status: "wip", label: "In Progress", wip: 1 },
+        ]}
+        noun="task"
+        labelForPriority={labelForPriority}
+        onMove={vi.fn()}
+        onOpen={vi.fn()}
+      />,
+    );
+    // The limited column shows "2 / 1" and is flagged over-limit; the plain column shows a bare count.
+    expect(screen.getByText("2 / 1")).toBeInTheDocument();
+    expect(screen.getByTestId("board-col-over-wip-wip")).toBeInTheDocument();
+    expect(screen.queryByTestId("board-col-over-wip-todo")).not.toBeInTheDocument();
+  });
+
+  it("renders horizontal swimlanes when swimlaneBy is set, splitting cards by that field", () => {
+    type Owned = { id: string; owner?: string };
+    const fields: EntityField<Owned>[] = [{ key: "owner", label: "Owner", get: (r) => r.owner }];
+    const owned = (id: string, title: string, status: string, owner: string): ViewRecord<Owned> => ({
+      id, title, status, priority: null, chips: [], raw: { id, owner },
+    });
+    render(
+      <RecordBoard
+        records={[
+          owned("a", "Alpha", "todo", "ada"),
+          owned("b", "Bravo", "done", "bob"),
+        ]}
+        columns={COLUMNS}
+        noun="task"
+        labelForPriority={labelForPriority}
+        swimlaneBy="owner"
+        fields={fields}
+        onMove={vi.fn()}
+        onOpen={vi.fn()}
+      />,
+    );
+    // One lane per owner; each card lands in its owner's lane.
+    const adaLane = screen.getByTestId("swimlane-ada");
+    const bobLane = screen.getByTestId("swimlane-bob");
+    expect(within(adaLane).getByText("Alpha")).toBeInTheDocument();
+    expect(within(adaLane).queryByText("Bravo")).toBeNull();
+    expect(within(bobLane).getByText("Bravo")).toBeInTheDocument();
+  });
+
+  it("stays flat (no swimlane rows) when swimlaneBy is omitted", () => {
+    render(
+      <RecordBoard records={[rec({ id: "a", title: "Alpha" })]} columns={COLUMNS} noun="task" labelForPriority={labelForPriority} onMove={vi.fn()} onOpen={vi.fn()} />,
+    );
+    expect(screen.getByTestId("record-board")).toBeInTheDocument();
+    expect(screen.queryByTestId(/^swimlane-/)).toBeNull();
+  });
+
+  it("does not flag a column at or under its WIP limit", () => {
+    render(
+      <RecordBoard
+        records={[rec({ id: "a", title: "Alpha", status: "wip" })]}
+        columns={[{ status: "wip", label: "In Progress", wip: 2 }]}
+        noun="task"
+        labelForPriority={labelForPriority}
+        onMove={vi.fn()}
+        onOpen={vi.fn()}
+      />,
+    );
+    expect(screen.getByText("1 / 2")).toBeInTheDocument();
+    expect(screen.queryByTestId("board-col-over-wip-wip")).not.toBeInTheDocument();
   });
 });

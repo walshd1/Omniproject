@@ -179,6 +179,10 @@ export function Reports() {
           <CatalogueReport id="utilisation" />
         </Gated>
 
+        <Gated caps={caps} domain="resources" title="Skills Coverage" reportId="skills-gap" requires="skills declared on resource-pool members" section>
+          <CatalogueReport id="skills-gap" />
+        </Gated>
+
         <Gated caps={caps} domain="scheduling" title="Portfolio Roadmap" reportId="gantt" requires="start / due dates on work items" section>
           <CatalogueReport id="portfolio-roadmap" />
         </Gated>
@@ -249,6 +253,30 @@ export function Reports() {
         )}
 
         {projectId && (
+          <Gated caps={caps} domain="scheduling" title="Cycle & Lead Time" reportId="cycle-time" requires="completed work items with created / done dates" section>
+            <CatalogueReport id="cycle-time" projectId={projectId} />
+          </Gated>
+        )}
+
+        {projectId && (
+          <Gated caps={caps} domain="scheduling" title="Epic Progress Tree" reportId="hierarchy-progress" requires="work items with epic parent links" section>
+            <CatalogueReport id="hierarchy-progress" projectId={projectId} />
+          </Gated>
+        )}
+
+        {projectId && (
+          <Gated caps={caps} domain="scheduling" title="Sprint Review" reportId="sprint-review" requires="work items carrying a sprint field" section>
+            <CatalogueReport id="sprint-review" projectId={projectId} />
+          </Gated>
+        )}
+
+        {projectId && (
+          <Gated caps={caps} domain="scheduling" title="My Day" reportId="plan-my-day" requires="GTD tasks with due dates / priority" section>
+            <CatalogueReport id="plan-my-day" projectId={projectId} />
+          </Gated>
+        )}
+
+        {projectId && (
           <Gated caps={caps} domain="benefits" title="Benefits Realisation" requires="benefit value/status fields on work items" section>
             <CatalogueReport id="benefits-realisation" projectId={projectId} />
           </Gated>
@@ -305,6 +333,12 @@ export function Reports() {
         {projectId && (
           <Gated caps={caps} domain="raid" title="RAID Register" reportId="raid-register" requires="a RAID log (get_project_raid)" section>
             <CatalogueReport id="raid-register" projectId={projectId} />
+          </Gated>
+        )}
+
+        {projectId && (
+          <Gated caps={caps} domain="raid" title="Risk Exposure Heatmap" reportId="risk-register" requires="a RAID log (get_project_raid)" section>
+            <CatalogueReport id="risk-register" projectId={projectId} />
           </Gated>
         )}
 

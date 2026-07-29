@@ -122,3 +122,4 @@ test("sanitizeSchedulingValues validates + normalises (partial, sorted, de-duped
   assert.throws(() => sanitizeSchedulingValues({ workingWeekdays: [7] }), /workingWeekdays/);
   assert.throws(() => sanitizeSchedulingValues({ holidays: ["25/12/2026"] }), /holidays/);
 });
+

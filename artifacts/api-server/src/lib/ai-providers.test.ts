@@ -4,7 +4,7 @@ import {
   listProviders, getProvider, upsertProvider, removeProvider,
   setProviderKey, clearProviderKey, providerKeyState, providerReady,
   getCapabilityProviders, setCapabilityProviders, resolveProviderForCapability,
-  providersSnapshot, rollbackAiProviders, canRollbackAiProviders, __resetProviders,
+  providersSnapshot, rollbackAiProviders, canRollbackAiProviders, __resetProviders, MAX_AI_PROVIDERS,
 } from "./ai-providers";
 import { __resetVault, setSecret } from "./vault";
 import { updateSettings, getSettings } from "./settings";
@@ -141,4 +141,15 @@ test("rollback restores a removed provider entity + its mapping reference, never
   assert.deepEqual(getCapabilityProviders("chat"), ["openai-3", "ollama"]); // and its mapping reference
   // The vault key itself is NOT restored — key deletion is a separate, irreversible action.
   assert.equal(providerKeyState("openai-3").hasKey, false);
+});
+
+test("upsertProvider rejects a prototype-key id (key-injection guard at the store boundary)", () => {
+  __resetProviders();
+  for (const bad of ["__proto__", "constructor", "prototype"]) {
+    assert.throws(() => upsertProvider({ id: bad, kind: "openai", label: "x" }), /invalid provider id/);
+  }
+  // The count cap (MAX_AI_PROVIDERS) is a simple bound on the same push path; a NEW id beyond it throws
+  // "too many providers configured". (Not asserted by fill-to-cap here — the sealed store persists across
+  // runs, so an absolute-count assertion is order-dependent; the guard above is the security-relevant part.)
+  assert.equal(typeof MAX_AI_PROVIDERS, "number");
 });

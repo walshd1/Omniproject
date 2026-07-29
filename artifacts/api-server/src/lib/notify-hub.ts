@@ -1,4 +1,5 @@
 import type { Role } from "./rbac";
+import { acceptsInApp, type NotificationPrefs } from "@workspace/backend-catalogue";
 
 /**
  * Real-time notification hub (Server-Sent Events).
@@ -27,6 +28,10 @@ export interface NotifyClient {
   send: (event: string, data: unknown) => void;
   /** End the underlying SSE response — called on graceful shutdown. */
   close?: () => void;
+  /** The user's notification prefs, snapshotted when the stream connects, so the in-app plane can honour
+   *  muted kinds / a disabled in-app channel without an async lookup per delivery. A pref change takes
+   *  effect on the next stream reconnect. Absent ⇒ deliver everything (no prefs = default-on). */
+  notifyPrefs?: NotificationPrefs | undefined;
 }
 
 const clients = new Set<NotifyClient>();
@@ -89,12 +94,16 @@ export function closeAllClients(): number {
  * not the public entry point — ingest goes through the bus (notify-bus.ts).
  */
 export function deliverLocal(notification: unknown, target?: NotifyTarget): number {
+  // The event kind drives the per-user in-app filter (mute / disabled in-app channel). A critical kind is
+  // never suppressed (acceptsInApp enforces that), so an emergency always reaches the bell.
+  const kind = typeof (notification as { kind?: unknown })?.kind === "string" ? (notification as { kind: string }).kind : "info";
+  const now = new Date();
   let delivered = 0;
   for (const c of clients) {
-    if (clientMatches(c, target)) {
-      c.send("notification", notification);
-      delivered++;
-    }
+    if (!clientMatches(c, target)) continue;
+    if (c.notifyPrefs && !acceptsInApp(c.notifyPrefs, kind, now)) continue; // user silenced this on the in-app plane
+    c.send("notification", notification);
+    delivered++;
   }
   return delivered;
 }

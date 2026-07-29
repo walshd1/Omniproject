@@ -296,6 +296,32 @@ export const REPORTS_DATA: ReportDefinition[] = [
     ]
   },
   {
+    "id": "cycle-time",
+    "label": "Cycle & lead time",
+    "docsUrl": "",
+    "kind": "progress",
+    "renderer": {
+      "engine": "builtin",
+      "component": "CycleTimeReport"
+    },
+    "capabilities": {
+      "requiresCapability": "scheduling",
+      "timeSeries": false,
+      "exports": [
+        "csv",
+        "pdf",
+        "png"
+      ]
+    },
+    "tools": [
+      "lead-time",
+      "cycle-time",
+      "percentiles"
+    ],
+    "notes": "Lead-time and cycle-time distribution (p50 / p85 / p95) over completed work items.",
+    "order": 46
+  },
+  {
     "id": "demand-intake",
     "label": "Demand Intake",
     "docsUrl": "",
@@ -442,6 +468,35 @@ export const REPORTS_DATA: ReportDefinition[] = [
     "order": 91
   },
   {
+    "id": "financial-statements",
+    "label": "Financial Statements",
+    "docsUrl": "",
+    "kind": "financial",
+    "renderer": {
+      "engine": "builtin",
+      "component": "FinancialStatements"
+    },
+    "capabilities": {
+      "requiresCapability": "financials",
+      "timeSeries": false,
+      "exports": [
+        "csv",
+        "pdf",
+        "png"
+      ]
+    },
+    "tools": [
+      "revenue",
+      "actualCost",
+      "grossProfit",
+      "margin",
+      "invoicedAmount",
+      "unbilled"
+    ],
+    "notes": "Consolidated financial statements (finance superset F9): a project-level P&L (income − cost → gross profit + margin) and a receivables summary (invoiced vs unbilled), derived live from the canonical revenue / actualCost / invoicedAmount fields. Balance sheet, cash-flow statement and aged AP populate when a general-ledger / banking backend (the finance ledger/banking contract verbs) is connected. Stateless.",
+    "order": 75
+  },
+  {
     "id": "financial-summary",
     "label": "Financial summary",
     "docsUrl": "",
@@ -529,6 +584,32 @@ export const REPORTS_DATA: ReportDefinition[] = [
     ]
   },
   {
+    "id": "hierarchy-progress",
+    "label": "Epic progress tree",
+    "docsUrl": "",
+    "kind": "progress",
+    "renderer": {
+      "engine": "builtin",
+      "component": "HierarchyProgress"
+    },
+    "capabilities": {
+      "requiresCapability": "scheduling",
+      "timeSeries": false,
+      "exports": [
+        "csv",
+        "pdf",
+        "png"
+      ]
+    },
+    "tools": [
+      "epic-rollup",
+      "progress",
+      "weighted"
+    ],
+    "notes": "Epic -> story -> task progress, rolled up as a weighted tree from each item's children.",
+    "order": 47
+  },
+  {
     "id": "income-invoicing",
     "label": "Income & Invoicing",
     "docsUrl": "",
@@ -580,6 +661,32 @@ export const REPORTS_DATA: ReportDefinition[] = [
     ],
     "notes": "Monte Carlo schedule/effort risk simulation. Stateless.",
     "order": 105
+  },
+  {
+    "id": "plan-my-day",
+    "label": "My Day",
+    "docsUrl": "",
+    "kind": "quality",
+    "renderer": {
+      "engine": "builtin",
+      "component": "PlanMyDay"
+    },
+    "capabilities": {
+      "requiresCapability": "scheduling",
+      "timeSeries": false,
+      "exports": [
+        "csv",
+        "pdf",
+        "png"
+      ]
+    },
+    "tools": [
+      "gtd",
+      "today",
+      "prioritise"
+    ],
+    "notes": "The ranked 'do these today' list — overdue / due-today / high-priority / flagged tasks, worst-first.",
+    "order": 49
   },
   {
     "id": "portfolio-benefits",
@@ -917,6 +1024,32 @@ export const REPORTS_DATA: ReportDefinition[] = [
     "order": 37
   },
   {
+    "id": "risk-register",
+    "label": "Risk exposure heatmap",
+    "docsUrl": "",
+    "kind": "quality",
+    "renderer": {
+      "engine": "builtin",
+      "component": "RiskRegister"
+    },
+    "capabilities": {
+      "requiresCapability": "raid",
+      "timeSeries": false,
+      "exports": [
+        "csv",
+        "pdf",
+        "png"
+      ]
+    },
+    "tools": [
+      "exposure",
+      "heatmap",
+      "top-risks"
+    ],
+    "notes": "Likelihood x impact exposure heatmap + top risks, scored from the RAID log.",
+    "order": 101
+  },
+  {
     "id": "scenario-sandbox",
     "label": "Scenario What-if",
     "docsUrl": "",
@@ -971,6 +1104,58 @@ export const REPORTS_DATA: ReportDefinition[] = [
       "waterfall",
       "prince2"
     ]
+  },
+  {
+    "id": "skills-gap",
+    "label": "Skills coverage",
+    "docsUrl": "",
+    "kind": "resource",
+    "renderer": {
+      "engine": "builtin",
+      "component": "SkillsGap"
+    },
+    "capabilities": {
+      "requiresCapability": "resources",
+      "timeSeries": false,
+      "exports": [
+        "csv",
+        "pdf",
+        "png"
+      ]
+    },
+    "tools": [
+      "skills",
+      "coverage",
+      "bench"
+    ],
+    "notes": "Per-skill supply/coverage across the resource pool, with the unrequired bench. Baseline demand is one qualified holder per held skill.",
+    "order": 51
+  },
+  {
+    "id": "sprint-review",
+    "label": "Sprint review",
+    "docsUrl": "",
+    "kind": "progress",
+    "renderer": {
+      "engine": "builtin",
+      "component": "SprintReview"
+    },
+    "capabilities": {
+      "requiresCapability": "scheduling",
+      "timeSeries": false,
+      "exports": [
+        "csv",
+        "pdf",
+        "png"
+      ]
+    },
+    "tools": [
+      "sprint",
+      "velocity",
+      "carryover"
+    ],
+    "notes": "Per-sprint committed vs completed vs added/carryover, completion rate, and the per-sprint velocity series.",
+    "order": 48
   },
   {
     "id": "staff-cost",

@@ -17,6 +17,7 @@
 // above the seam.
 import { CANONICAL_STATUS, STATUS_CLASS, canonicalStatusOf, type CanonicalStatus, type StatusClass } from "@workspace/backend-catalogue";
 export { CANONICAL_STATUS, STATUS_CLASS, canonicalStatusOf, type CanonicalStatus, type StatusClass };
+import { applyValueMap } from "./projection";
 
 // The canonical GTD task states + their workflow class are likewise shared reference data, DERIVED from the
 // methodology definitions (assets/methodologies/gtd.json → tools.taskStatuses — GTD owns the task axis) —
@@ -82,7 +83,10 @@ export interface StatusVocabulary {
 export function normaliseStatus(native: string | null | undefined, vocab?: StatusVocabulary): CanonicalStatus | null {
   if (!native) return null;
   const key = native.trim().toLowerCase();
-  return vocab?.toCanonical[key] ?? canonicalStatusOf(native) ?? canonicalStatusOf(key) ?? STATUS_SYNONYMS[key] ?? null;
+  // The backend's advertised dialect wins, applied through the shared projection engine's value-map primitive
+  // (the same one the invoice projector's `map` transform uses) — one implementation of "native → canonical".
+  return applyValueMap<CanonicalStatus>(native, vocab?.toCanonical, { lowerCase: true })
+    ?? canonicalStatusOf(native) ?? canonicalStatusOf(key) ?? STATUS_SYNONYMS[key] ?? null;
 }
 
 /** The lifecycle class of a native status; "open" when it can't be classified. */

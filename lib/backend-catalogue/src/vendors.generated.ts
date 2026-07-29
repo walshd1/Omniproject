@@ -85,6 +85,7 @@ export const BACKENDS_DATA: BackendDefinition[] = [
     },
     "credentialType": "asanaApi",
     "docsUrl": "https://docs.n8n.io/integrations/builtin/app-nodes/n8n-nodes-base.asana/",
+    "primaryRecord": "issue",
     "fieldKeys": [
       "title",
       "status",
@@ -156,6 +157,7 @@ export const BACKENDS_DATA: BackendDefinition[] = [
       "scheduling": true
     },
     "docsUrl": "https://learn.microsoft.com/en-us/rest/api/azure/devops/wit/",
+    "primaryRecord": "issue",
     "id": "azure-devops",
     "label": "Azure DevOps (Boards)",
     "notes": "AZDO_BASIC_AUTH = base64(':PAT'). Work-item writes need the json-patch+json content type — set it on the HTTP node after import.",
@@ -204,6 +206,7 @@ export const BACKENDS_DATA: BackendDefinition[] = [
       "scheduling": true
     },
     "docsUrl": "https://www.celoxis.com/cw/api/v3",
+    "primaryRecord": "issue",
     "fieldKeys": [
       "title",
       "status",
@@ -302,6 +305,7 @@ export const BACKENDS_DATA: BackendDefinition[] = [
     },
     "credentialType": "clickUpApi",
     "docsUrl": "https://docs.n8n.io/integrations/builtin/app-nodes/n8n-nodes-base.clickup/",
+    "primaryRecord": "issue",
     "fieldKeys": [
       "title",
       "status",
@@ -373,6 +377,7 @@ export const BACKENDS_DATA: BackendDefinition[] = [
     },
     "credentialType": "httpHeaderAuth",
     "docsUrl": "https://wiki.dolibarr.org/index.php?title=Module_Web_Services_API_REST_(developer)",
+    "primaryRecord": "issue",
     "id": "dolibarr",
     "label": "Dolibarr (SMB ERP)",
     "notes": "Open-source SMB ERP. projects → projects, tasks → issues. Auth via the DOLAPIKEY header (configure an n8n Header Auth credential named DOLAPIKEY). DOLIBARR_URL e.g. https://erp.example.com.",
@@ -421,6 +426,7 @@ export const BACKENDS_DATA: BackendDefinition[] = [
     },
     "credentialType": "microsoftDynamicsOAuth2Api",
     "docsUrl": "https://learn.microsoft.com/en-us/power-apps/developer/data-platform/webapi/overview",
+    "primaryRecord": "issue",
     "id": "dynamics365",
     "label": "Microsoft Dynamics 365 (Project Operations)",
     "notes": "Auth is handled by n8n's Microsoft Dynamics OAuth2 credential (no per-user token). Project Operations runs on Dataverse — msdyn_project / msdyn_projecttask, with finance entities for EVM. DATAVERSE_URL e.g. https://org.crm.dynamics.com.",
@@ -474,6 +480,7 @@ export const BACKENDS_DATA: BackendDefinition[] = [
     },
     "credentialType": "oAuth2Api",
     "docsUrl": "https://learn.microsoft.com/en-us/dynamics365/project-operations/prod-pma/overview-project-management-accounting",
+    "primaryRecord": "issue",
     "fieldKeys": [
       "title",
       "status",
@@ -556,6 +563,7 @@ export const BACKENDS_DATA: BackendDefinition[] = [
     },
     "credentialType": "microsoftDynamicsOAuth2Api",
     "docsUrl": "https://learn.microsoft.com/en-us/power-apps/developer/data-platform/webapi/overview",
+    "primaryRecord": "issue",
     "id": "dynamics365-sales",
     "label": "Microsoft Dynamics 365 Sales",
     "notes": "CRM on Dataverse: Account → project, Opportunity → issue. Auth via n8n's Microsoft Dynamics OAuth2 credential. Sibling to the dynamics365 Project Operations binding.",
@@ -604,6 +612,7 @@ export const BACKENDS_DATA: BackendDefinition[] = [
     },
     "credentialType": "httpHeaderAuth",
     "docsUrl": "https://docs.n8n.io/integrations/builtin/core-nodes/n8n-nodes-base.httprequest/",
+    "primaryRecord": "issue",
     "id": "enterprise",
     "label": "Enterprise backbone (Capita / custom REST / OData / SOAP)",
     "notes": "A starting template for bespoke corporate systems — Capita platforms, ESB/SOA gateways, mainframe-fronting REST. Auth via n8n's generic Header-Auth/OAuth2 credential. For SOAP backbones set the HTTP node to send XML (or use a SOAP community node); for message buses (IBM MQ, Kafka, RabbitMQ) trigger via the matching n8n node and call back through /api/notifications/ingest or a follow-up action.",
@@ -628,6 +637,7 @@ export const BACKENDS_DATA: BackendDefinition[] = [
       "scheduling": true
     },
     "docsUrl": "https://github.com/walshd1/omniproject/blob/main/docs/ops/IMPORT.md",
+    "primaryRecord": "issue",
     "id": "excel",
     "kind": "import",
     "label": "Excel / CSV import",
@@ -707,6 +717,7 @@ export const BACKENDS_DATA: BackendDefinition[] = [
     },
     "credentialType": "freshserviceApi",
     "docsUrl": "https://docs.n8n.io/integrations/builtin/app-nodes/n8n-nodes-base.freshservice/",
+    "primaryRecord": "issue",
     "id": "freshservice",
     "label": "Freshservice (Freshworks ITSM)",
     "notes": "Freshworks ITSM. Departments → projects, Tickets → issues. service capability on.",
@@ -755,6 +766,7 @@ export const BACKENDS_DATA: BackendDefinition[] = [
       "scheduling": false
     },
     "docsUrl": "https://docs.github.com/en/rest/issues",
+    "primaryRecord": "issue",
     "id": "github",
     "label": "GitHub Issues",
     "nomenclature": {
@@ -812,6 +824,7 @@ export const BACKENDS_DATA: BackendDefinition[] = [
       "scheduling": true
     },
     "docsUrl": "https://docs.gitlab.com/ee/api/issues.html",
+    "primaryRecord": "issue",
     "id": "gitlab",
     "label": "GitLab Issues",
     "nomenclature": {
@@ -875,6 +888,7 @@ export const BACKENDS_DATA: BackendDefinition[] = [
     },
     "credentialType": "googleTasksOAuth2Api",
     "docsUrl": "https://developers.google.com/tasks/reference/rest",
+    "primaryRecord": "issue",
     "fieldKeys": [
       "title",
       "status",
@@ -967,12 +981,429 @@ export const BACKENDS_DATA: BackendDefinition[] = [
     },
     "credentialType": "hubspotApi",
     "docsUrl": "https://docs.n8n.io/integrations/builtin/app-nodes/n8n-nodes-base.hubspot/",
+    "primaryRecord": "issue",
     "id": "hubspot",
     "label": "HubSpot",
     "notes": "CRM mapping: Company → project, Deal → issue. crm + financials capabilities light up amount / pipeline / stage. Confirm resource/param names against the installed HubSpot node version after import.",
     "requiredEnv": [],
     "verification": "catalogued",
     "via": "Native n8n node (hubspotApi or hubspotOAuth2Api credential)"
+  },
+  {
+    "actions": {
+      "create_invoice": {
+        "body": "={{ JSON.stringify($json.body.payload) }}",
+        "method": "POST",
+        "note": "Body is the OmniProject-shaped Invoice Ninja invoice payload (toNinjaInvoice). custom_value1 carries omni:<invoiceId> for inbound correlation.",
+        "url": "={{ $env.INVOICE_NINJA_URL }}/api/v1/invoices"
+      },
+      "update_invoice": {
+        "body": "={{ JSON.stringify($json.body.payload) }}",
+        "method": "PUT",
+        "url": "={{ $env.INVOICE_NINJA_URL }}/api/v1/invoices/{{ $json.body.payload.invoiceId }}"
+      },
+      "get_invoice": {
+        "method": "GET",
+        "url": "={{ $env.INVOICE_NINJA_URL }}/api/v1/invoices/{{ $json.body.payload.invoiceId }}"
+      },
+      "list_invoices": {
+        "method": "GET",
+        "note": "Optional client filter via ?client_id=…; the workflow forwards query params from the payload.",
+        "url": "={{ $env.INVOICE_NINJA_URL }}/api/v1/invoices"
+      },
+      "list_clients": {
+        "method": "GET",
+        "note": "Client master (finance superset F1) — the invoice bill-to parties.",
+        "url": "={{ $env.INVOICE_NINJA_URL }}/api/v1/clients"
+      },
+      "get_client": {
+        "method": "GET",
+        "url": "={{ $env.INVOICE_NINJA_URL }}/api/v1/clients/{{ $json.body.payload.clientId }}"
+      },
+      "create_client": {
+        "body": "={{ JSON.stringify($json.body.payload) }}",
+        "method": "POST",
+        "url": "={{ $env.INVOICE_NINJA_URL }}/api/v1/clients"
+      },
+      "update_client": {
+        "body": "={{ JSON.stringify($json.body.payload) }}",
+        "method": "PUT",
+        "url": "={{ $env.INVOICE_NINJA_URL }}/api/v1/clients/{{ $json.body.payload.clientId }}"
+      },
+      "list_products": {
+        "method": "GET",
+        "note": "Product/item catalogue (finance superset F2) — the priced items invoices draw from.",
+        "url": "={{ $env.INVOICE_NINJA_URL }}/api/v1/products"
+      },
+      "get_product": {
+        "method": "GET",
+        "url": "={{ $env.INVOICE_NINJA_URL }}/api/v1/products/{{ $json.body.payload.productId }}"
+      },
+      "create_product": {
+        "body": "={{ JSON.stringify($json.body.payload) }}",
+        "method": "POST",
+        "url": "={{ $env.INVOICE_NINJA_URL }}/api/v1/products"
+      },
+      "update_product": {
+        "body": "={{ JSON.stringify($json.body.payload) }}",
+        "method": "PUT",
+        "url": "={{ $env.INVOICE_NINJA_URL }}/api/v1/products/{{ $json.body.payload.productId }}"
+      },
+      "list_payments": {
+        "method": "GET",
+        "note": "AR receipts (finance superset F3) — settlements applied to invoices.",
+        "url": "={{ $env.INVOICE_NINJA_URL }}/api/v1/payments"
+      },
+      "get_payment": {
+        "method": "GET",
+        "url": "={{ $env.INVOICE_NINJA_URL }}/api/v1/payments/{{ $json.body.payload.paymentId }}"
+      },
+      "create_payment": {
+        "body": "={{ JSON.stringify($json.body.payload) }}",
+        "method": "POST",
+        "url": "={{ $env.INVOICE_NINJA_URL }}/api/v1/payments"
+      },
+      "list_credit_notes": {
+        "method": "GET",
+        "note": "AR credit notes (finance superset F4) — Invoice Ninja credits.",
+        "url": "={{ $env.INVOICE_NINJA_URL }}/api/v1/credits"
+      },
+      "get_credit_note": {
+        "method": "GET",
+        "url": "={{ $env.INVOICE_NINJA_URL }}/api/v1/credits/{{ $json.body.payload.creditNoteId }}"
+      },
+      "create_credit_note": {
+        "body": "={{ JSON.stringify($json.body.payload) }}",
+        "method": "POST",
+        "url": "={{ $env.INVOICE_NINJA_URL }}/api/v1/credits"
+      },
+      "list_quotes": {
+        "method": "GET",
+        "note": "AR quotes/estimates (finance superset F4).",
+        "url": "={{ $env.INVOICE_NINJA_URL }}/api/v1/quotes"
+      },
+      "get_quote": {
+        "method": "GET",
+        "url": "={{ $env.INVOICE_NINJA_URL }}/api/v1/quotes/{{ $json.body.payload.quoteId }}"
+      },
+      "create_quote": {
+        "body": "={{ JSON.stringify($json.body.payload) }}",
+        "method": "POST",
+        "url": "={{ $env.INVOICE_NINJA_URL }}/api/v1/quotes"
+      },
+      "update_quote": {
+        "body": "={{ JSON.stringify($json.body.payload) }}",
+        "method": "PUT",
+        "url": "={{ $env.INVOICE_NINJA_URL }}/api/v1/quotes/{{ $json.body.payload.quoteId }}"
+      },
+      "list_tax_rates": {
+        "method": "GET",
+        "note": "Tax-rate table (finance superset F5).",
+        "url": "={{ $env.INVOICE_NINJA_URL }}/api/v1/tax_rates"
+      },
+      "get_tax_rate": {
+        "method": "GET",
+        "url": "={{ $env.INVOICE_NINJA_URL }}/api/v1/tax_rates/{{ $json.body.payload.taxRateId }}"
+      },
+      "create_tax_rate": {
+        "body": "={{ JSON.stringify($json.body.payload) }}",
+        "method": "POST",
+        "url": "={{ $env.INVOICE_NINJA_URL }}/api/v1/tax_rates"
+      },
+      "update_tax_rate": {
+        "body": "={{ JSON.stringify($json.body.payload) }}",
+        "method": "PUT",
+        "url": "={{ $env.INVOICE_NINJA_URL }}/api/v1/tax_rates/{{ $json.body.payload.taxRateId }}"
+      },
+      "list_vendors": {
+        "method": "GET",
+        "note": "Supplier master (finance superset F6 — accounts payable).",
+        "url": "={{ $env.INVOICE_NINJA_URL }}/api/v1/vendors"
+      },
+      "get_vendor": {
+        "method": "GET",
+        "url": "={{ $env.INVOICE_NINJA_URL }}/api/v1/vendors/{{ $json.body.payload.vendorId }}"
+      },
+      "create_vendor": {
+        "body": "={{ JSON.stringify($json.body.payload) }}",
+        "method": "POST",
+        "url": "={{ $env.INVOICE_NINJA_URL }}/api/v1/vendors"
+      },
+      "update_vendor": {
+        "body": "={{ JSON.stringify($json.body.payload) }}",
+        "method": "PUT",
+        "url": "={{ $env.INVOICE_NINJA_URL }}/api/v1/vendors/{{ $json.body.payload.vendorId }}"
+      },
+      "list_expenses": {
+        "method": "GET",
+        "note": "Expenses (finance superset F6) — costs, optionally billable to a client.",
+        "url": "={{ $env.INVOICE_NINJA_URL }}/api/v1/expenses"
+      },
+      "get_expense": {
+        "method": "GET",
+        "url": "={{ $env.INVOICE_NINJA_URL }}/api/v1/expenses/{{ $json.body.payload.expenseId }}"
+      },
+      "create_expense": {
+        "body": "={{ JSON.stringify($json.body.payload) }}",
+        "method": "POST",
+        "url": "={{ $env.INVOICE_NINJA_URL }}/api/v1/expenses"
+      },
+      "update_expense": {
+        "body": "={{ JSON.stringify($json.body.payload) }}",
+        "method": "PUT",
+        "url": "={{ $env.INVOICE_NINJA_URL }}/api/v1/expenses/{{ $json.body.payload.expenseId }}"
+      }
+    },
+    "authHeader": "",
+    "capabilities": {
+      "baseline": false,
+      "blockers": false,
+      "financials": true,
+      "history": false,
+      "issues": false,
+      "portfolio": false,
+      "raid": false,
+      "resources": false,
+      "scheduling": false
+    },
+    "credentialType": "httpHeaderAuth",
+    "docsUrl": "https://api-docs.invoicing.co/",
+    "fieldKeys": [
+      "clientBillingAddress",
+      "clientCreditLimit",
+      "clientEmail",
+      "clientName",
+      "clientPaymentTerms",
+      "clientTaxId",
+      "currency",
+      "dueDate",
+      "invoiceBalance",
+      "invoiceNumber",
+      "invoicePaidDate",
+      "invoiceStatus",
+      "invoiceTaxRate",
+      "invoiceTotal",
+      "invoicedAmount",
+      "productCost",
+      "productName",
+      "productSku",
+      "productTaxRate",
+      "productUnitPrice",
+      "paymentAmount",
+      "paymentDate",
+      "paymentMethod",
+      "paymentReference",
+      "creditNoteAmount",
+      "creditNoteNumber",
+      "creditNoteStatus",
+      "quoteAmount",
+      "quoteExpiryDate",
+      "quoteNumber",
+      "quoteStatus",
+      "recurringFrequency",
+      "taxRateCode",
+      "taxRateCompound",
+      "taxRateJurisdiction",
+      "taxRateName",
+      "taxRatePercent",
+      "expenseAmount",
+      "expenseCategory",
+      "expenseDate",
+      "vendorEmail",
+      "vendorName",
+      "vendorTaxId"
+    ],
+    "fields": [
+      {
+        "key": "invoiceNumber",
+        "label": "Invoice Number",
+        "type": "string",
+        "group": "financial"
+      },
+      {
+        "key": "invoiceStatus",
+        "label": "Invoice Status",
+        "type": "enum",
+        "group": "financial"
+      },
+      {
+        "key": "invoiceTotal",
+        "label": "Invoice Total",
+        "type": "currency",
+        "group": "financial"
+      },
+      {
+        "key": "invoiceBalance",
+        "label": "Invoice Balance Due",
+        "type": "currency",
+        "group": "financial"
+      },
+      {
+        "key": "invoiceTaxRate",
+        "label": "Invoice Tax Rate",
+        "type": "percent",
+        "group": "financial"
+      },
+      {
+        "key": "invoicePaidDate",
+        "label": "Invoice Paid Date",
+        "type": "date",
+        "group": "financial"
+      }
+    ],
+    "id": "invoice-ninja",
+    "label": "Invoice Ninja (billing)",
+    "notes": "Open-source, self-hostable billing system of record. Implements the invoice contract verbs plus the client (customer-master), product (item-catalogue), payment (AR-receipt), credit-note, quote, tax-rate, vendor and expense verbs (financials capability) — not a project/issue tracker. Auth via the X-API-Token header (configure an n8n Header Auth credential holding INVOICE_NINJA_TOKEN). INVOICE_NINJA_URL e.g. https://invoicing.example.com. Invoice sync is fully data-driven: the advertised invoiceSync mapping (below) is applied by the gateway's generic projector, so no vendor-shaped billing code lives in the gateway and the API token never leaves the broker's secret store.",
+    "primaryRecord": "invoice",
+    "requiredEnv": [
+      "INVOICE_NINJA_URL"
+    ],
+    "verification": "catalogued",
+    "via": "HTTP (Invoice Ninja v5 REST) + n8n Header-Auth credential (X-API-Token)",
+    "invoiceSync": {
+      "correlation": {
+        "field": "custom_value1",
+        "altFields": [
+          "correlation"
+        ]
+      },
+      "env": {
+        "enable": [
+          "INVOICE_NINJA_SYNC"
+        ],
+        "webhookSecret": [
+          "INVOICE_NINJA_WEBHOOK_SECRET"
+        ]
+      },
+      "outbound": {
+        "fields": [
+          {
+            "to": "number",
+            "from": "number"
+          },
+          {
+            "to": "client_name",
+            "from": "clientName"
+          },
+          {
+            "to": "currency_code",
+            "from": "currency"
+          },
+          {
+            "to": "tax_rate1",
+            "from": "taxRatePct"
+          },
+          {
+            "to": "tax_name1",
+            "from": "taxRatePct",
+            "transform": "const-when-gt",
+            "gt": 0,
+            "then": "Tax",
+            "else": ""
+          },
+          {
+            "to": "due_date",
+            "from": "dueAt",
+            "transform": "date-only"
+          },
+          {
+            "to": "public_notes",
+            "from": "note"
+          }
+        ],
+        "lines": {
+          "to": "line_items",
+          "from": "lines",
+          "fields": [
+            {
+              "to": "type_id",
+              "from": "kind",
+              "transform": "map",
+              "map": {
+                "labour": "2"
+              },
+              "default": "1"
+            },
+            {
+              "to": "product_key",
+              "from": "kind"
+            },
+            {
+              "to": "notes",
+              "from": "description"
+            },
+            {
+              "to": "cost",
+              "from": "unitPrice",
+              "transform": "sign-when",
+              "whenField": "kind",
+              "equals": "discount"
+            },
+            {
+              "to": "quantity",
+              "from": "quantity"
+            }
+          ]
+        },
+        "correlationTo": "custom_value1"
+      },
+      "inbound": {
+        "unwrap": [
+          "data"
+        ],
+        "id": "id",
+        "number": "number",
+        "pdf": "invitations.0.link",
+        "paid": {
+          "anyOf": [
+            {
+              "field": "status_id",
+              "equalsAny": [
+                4,
+                "4"
+              ]
+            },
+            {
+              "allOf": [
+                {
+                  "field": "balance",
+                  "finite": true,
+                  "lte": 0
+                },
+                {
+                  "field": "paid_to_date",
+                  "finite": true,
+                  "gt": 0
+                }
+              ]
+            }
+          ]
+        }
+      },
+      "webhook": {
+        "wrappers": [
+          "data",
+          "invoice",
+          "payload"
+        ],
+        "arrayWrappers": [
+          "data",
+          "payload"
+        ],
+        "invoicesKey": "invoices",
+        "amountWrappers": [
+          "data",
+          "payload"
+        ],
+        "amountField": "amount",
+        "legacyPaths": [
+          "/invoices/ninja-webhook"
+        ],
+        "legacyHeaders": [
+          "x-invoice-ninja-secret"
+        ]
+      }
+    }
   },
   {
     "actions": {
@@ -1012,6 +1443,7 @@ export const BACKENDS_DATA: BackendDefinition[] = [
       "scheduling": true
     },
     "docsUrl": "https://developer.atlassian.com/cloud/jira/platform/rest/v3/",
+    "primaryRecord": "issue",
     "id": "jira",
     "label": "Jira (Cloud)",
     "notes": "JIRA_BASIC_AUTH = base64('email:api_token'). Sprints/story points come from Agile fields (board API + customfield_*); attach sprint:/sp: labels in the Normalize node.",
@@ -1065,6 +1497,7 @@ export const BACKENDS_DATA: BackendDefinition[] = [
     },
     "credentialType": "jiraSoftwareCloudApi",
     "docsUrl": "https://developer.atlassian.com/cloud/jira/service-desk/rest/",
+    "primaryRecord": "issue",
     "id": "jira-service-management",
     "label": "Jira Service Management",
     "notes": "ITSM on Jira: service desks → projects, requests → issues. Reads use servicedeskapi; writes fall back to the Jira core v3 API. JIRA_BASE_URL e.g. https://your-org.atlassian.net.",
@@ -1146,6 +1579,7 @@ export const BACKENDS_DATA: BackendDefinition[] = [
     },
     "credentialType": "linearApi",
     "docsUrl": "https://docs.n8n.io/integrations/builtin/app-nodes/n8n-nodes-base.linear/",
+    "primaryRecord": "issue",
     "fieldKeys": [
       "title",
       "status",
@@ -1213,6 +1647,7 @@ export const BACKENDS_DATA: BackendDefinition[] = [
       "scheduling": true
     },
     "docsUrl": "https://www.liquidplanner.com/support/articles/api-up/",
+    "primaryRecord": "issue",
     "id": "liquidplanner",
     "label": "LiquidPlanner",
     "notes": "Predictive-scheduling PM: workspaces → projects (LP plans/packages), tasks → issues; ranged estimates, workload + time tracking feed the scheduling/resources/history domains. LIQUIDPLANNER_WORKSPACE_URL is the workspace API base (…/api/v1/workspaces/<id>). Confirm the endpoint/field shapes against your workspace — reference mappings.",
@@ -1297,6 +1732,7 @@ export const BACKENDS_DATA: BackendDefinition[] = [
     },
     "credentialType": "microsoftToDoOAuth2Api",
     "docsUrl": "https://docs.n8n.io/integrations/builtin/app-nodes/n8n-nodes-base.microsofttodo/",
+    "primaryRecord": "issue",
     "fieldKeys": [
       "title",
       "status",
@@ -1387,6 +1823,7 @@ export const BACKENDS_DATA: BackendDefinition[] = [
     },
     "credentialType": "mondayComApi",
     "docsUrl": "https://docs.n8n.io/integrations/builtin/app-nodes/n8n-nodes-base.mondaycom/",
+    "primaryRecord": "issue",
     "fieldKeys": [
       "title",
       "status",
@@ -1452,6 +1889,7 @@ export const BACKENDS_DATA: BackendDefinition[] = [
       "scheduling": true
     },
     "docsUrl": "https://github.com/walshd1/omniproject/blob/main/docs/ops/DATABASE-BACKENDS.md",
+    "primaryRecord": "issue",
     "id": "mongodb",
     "kind": "database",
     "label": "MongoDB",
@@ -1502,6 +1940,7 @@ export const BACKENDS_DATA: BackendDefinition[] = [
     },
     "credentialType": "microsoftDynamicsOAuth2Api",
     "docsUrl": "https://learn.microsoft.com/en-us/dynamics365/project-operations/",
+    "primaryRecord": "issue",
     "id": "msproject",
     "label": "Microsoft Project (Project for the web)",
     "notes": "Project for the web stores schedules in Dataverse (msdyn_project / msdyn_projecttask). For classic Project Online, point at the PWA OData (/_api/ProjectData) with a Microsoft OAuth credential instead.",
@@ -1552,6 +1991,7 @@ export const BACKENDS_DATA: BackendDefinition[] = [
     },
     "credentialType": "oAuth1Api",
     "docsUrl": "https://docs.oracle.com/en/cloud/saas/netsuite/ns-online-help/section_1540391670.html",
+    "primaryRecord": "issue",
     "id": "netsuite",
     "label": "Oracle NetSuite",
     "notes": "Auth is NetSuite token-based (OAuth 1.0a TBA) configured as an n8n OAuth1 credential (consumer key/secret + token key/secret + realm/account id). NetSuite also offers OAuth 2.0 client-credentials (M2M) for SuiteTalk REST; TBA is the more common self-service setup for a single-tenant integration like this one and is the default modelled here — an operator on OAuth2 can swap credentialType to an OAuth2 n8n credential without changing the URLs below. NETSUITE_BASE_URL e.g. https://<account>.suitetalk.api.netsuite.com. Real SuiteTalk REST record types: job → project; projectTask → issue (plannedWork/startDate/endDate back the scheduling capability); resourceAllocation (resource assignments against a job/projectTask) backs the resources capability; job costing (job.actualCost / job.estimatedCost, i.e. budget/plannedCost/actualCost) plus the expenseReport and timeBill transaction records that roll up into it back the financials capability. NetSuite's SuiteQL endpoint (/services/rest/query/v1/suiteql, POST with a `q` SQL-like query) is the realistic path for aggregated budget-vs-actual reads across job/projectTask/expenseReport/timeBill; the REST record endpoints above are reference single-record CRUD, not a SuiteQL query. CATALOGUED, NOT LIVE-VERIFIED: this mapping is authored from NetSuite's public SuiteTalk REST record documentation, not tested against a live account in this environment — confirm every record/field name, the SuiteQL shape, and your SuiteTalk API version before relying on it beyond a starting point.",
@@ -1646,6 +2086,7 @@ export const BACKENDS_DATA: BackendDefinition[] = [
     },
     "credentialType": "odooApi",
     "docsUrl": "https://docs.n8n.io/integrations/builtin/app-nodes/n8n-nodes-base.odoo/",
+    "primaryRecord": "issue",
     "id": "odoo",
     "label": "Odoo",
     "notes": "Odoo via the custom-model resource: project.project → projects, project.task → issues. Auth + URL live in the Odoo credential. Confirm model/field names for your Odoo modules.",
@@ -1692,6 +2133,7 @@ export const BACKENDS_DATA: BackendDefinition[] = [
       "scheduling": true
     },
     "docsUrl": "https://www.openproject.org/docs/api/",
+    "primaryRecord": "issue",
     "id": "openproject",
     "label": "OpenProject",
     "notes": "OpenProject work packages map to OmniProject issues. lockVersion ↔ version gives real optimistic concurrency. Baselines + journals give history/baseline.",
@@ -1742,6 +2184,7 @@ export const BACKENDS_DATA: BackendDefinition[] = [
     },
     "credentialType": "httpBasicAuth",
     "docsUrl": "https://docs.oracle.com/en/cloud/saas/project-management/24c/fapap/index.html",
+    "primaryRecord": "issue",
     "fieldKeys": [
       "budget",
       "plannedCost",
@@ -1840,6 +2283,7 @@ export const BACKENDS_DATA: BackendDefinition[] = [
     },
     "credentialType": "pipedriveApi",
     "docsUrl": "https://docs.n8n.io/integrations/builtin/app-nodes/n8n-nodes-base.pipedrive/",
+    "primaryRecord": "issue",
     "id": "pipedrive",
     "label": "Pipedrive",
     "nomenclature": {
@@ -1891,6 +2335,7 @@ export const BACKENDS_DATA: BackendDefinition[] = [
       "scheduling": true
     },
     "docsUrl": "https://docs.plane.so/api-reference/introduction",
+    "primaryRecord": "issue",
     "fieldKeys": [
       "title",
       "status",
@@ -1954,6 +2399,7 @@ export const BACKENDS_DATA: BackendDefinition[] = [
     },
     "credentialType": "oAuth2Api",
     "docsUrl": "https://developer.planview.com/",
+    "primaryRecord": "issue",
     "id": "planview",
     "label": "Planview (Portfolios / AdaptiveWork)",
     "notes": "Enterprise PPM: portfolios → programmes/projects, work items → issues; resource + financial + baseline data are first-class (good fit for the strategy/KPI fields). Planview's REST surface varies by product (Portfolios vs AdaptiveWork/Clarizen) and version — confirm the endpoints + OAuth scopes against your tenant. Workflow generation is premium (enterprise tier).",
@@ -2002,6 +2448,7 @@ export const BACKENDS_DATA: BackendDefinition[] = [
     },
     "credentialType": "httpBasicAuth",
     "docsUrl": "https://docs.oracle.com/cd/F25600_01/English/Integration/P6_Integration_API/index.htm",
+    "primaryRecord": "issue",
     "id": "primavera",
     "label": "Oracle Primavera P6 EPPM",
     "notes": "Primavera P6 EPPM REST: projects → projects, activities → issues; baselines + resource assignments are first-class. Endpoint shapes vary by P6 version — confirm against your /p6ws/restapi build.",
@@ -2099,6 +2546,7 @@ export const BACKENDS_DATA: BackendDefinition[] = [
     },
     "credentialType": "salesforceOAuth2Api",
     "docsUrl": "https://docs.n8n.io/integrations/builtin/app-nodes/n8n-nodes-base.salesforce/",
+    "primaryRecord": "issue",
     "id": "salesforce",
     "label": "Salesforce",
     "notes": "CRM mapping: Account → project, Opportunity → issue. crm + financials capabilities light up deal value / stage / close date. Confirm field + param names against your Salesforce edition after import.",
@@ -2146,6 +2594,7 @@ export const BACKENDS_DATA: BackendDefinition[] = [
     },
     "credentialType": "oAuth2Api",
     "docsUrl": "https://api.sap.com/api/API_ENTERPRISE_PROJECT_SRV/overview",
+    "primaryRecord": "issue",
     "id": "sap",
     "label": "SAP S/4HANA (Enterprise Project / PS)",
     "notes": "S/4HANA Project System / Enterprise Project Management via OData. Auth via n8n's OAuth2 credential (S/4HANA Cloud) or switch to httpBasicAuth on-prem. Writes need the X-CSRF-Token handshake. For classic RFC/BAPI use an SAP community node or route through SAP Integration Suite / PI-PO.",
@@ -2182,6 +2631,7 @@ export const BACKENDS_DATA: BackendDefinition[] = [
     },
     "credentialType": "oAuth2Api",
     "docsUrl": "https://api.sap.com/api/API_ENTERPRISE_PROJECT_SRV/overview",
+    "primaryRecord": "issue",
     "fieldKeys": [
       "wbsCode",
       "costCenter",
@@ -2304,6 +2754,7 @@ export const BACKENDS_DATA: BackendDefinition[] = [
     },
     "credentialType": "serviceNowBasicApi",
     "docsUrl": "https://docs.n8n.io/integrations/builtin/app-nodes/n8n-nodes-base.servicenow/",
+    "primaryRecord": "issue",
     "id": "servicenow",
     "label": "ServiceNow (PPM)",
     "nomenclature": {
@@ -2356,6 +2807,7 @@ export const BACKENDS_DATA: BackendDefinition[] = [
       "scheduling": true
     },
     "docsUrl": "https://smartsheet.redoc.ly/",
+    "primaryRecord": "issue",
     "id": "smartsheet",
     "label": "Smartsheet",
     "notes": "Sheets → projects, rows → issues. issueId = row id; map your title column id after import.",
@@ -2407,6 +2859,7 @@ export const BACKENDS_DATA: BackendDefinition[] = [
       "scheduling": true
     },
     "docsUrl": "https://github.com/walshd1/omniproject/blob/main/docs/ops/DATABASE-BACKENDS.md",
+    "primaryRecord": "issue",
     "id": "sql",
     "kind": "database",
     "label": "Raw SQL (PostgreSQL / MySQL / SQL Server)",
@@ -2457,6 +2910,7 @@ export const BACKENDS_DATA: BackendDefinition[] = [
       "scheduling": true
     },
     "docsUrl": "https://developer.todoist.com/rest/v2/",
+    "primaryRecord": "issue",
     "fieldKeys": [
       "title",
       "status",
@@ -2557,6 +3011,7 @@ export const BACKENDS_DATA: BackendDefinition[] = [
     },
     "credentialType": "trelloApi",
     "docsUrl": "https://docs.n8n.io/integrations/builtin/app-nodes/n8n-nodes-base.trello/",
+    "primaryRecord": "issue",
     "fieldKeys": [
       "title",
       "status",
@@ -2653,6 +3108,7 @@ export const BACKENDS_DATA: BackendDefinition[] = [
     },
     "credentialType": "wrikeOAuth2Api",
     "docsUrl": "https://docs.n8n.io/integrations/builtin/app-nodes/n8n-nodes-base.wrike/",
+    "primaryRecord": "issue",
     "fieldKeys": [
       "title",
       "status",
@@ -2750,6 +3206,7 @@ export const BACKENDS_DATA: BackendDefinition[] = [
     },
     "credentialType": "zendeskApi",
     "docsUrl": "https://docs.n8n.io/integrations/builtin/app-nodes/n8n-nodes-base.zendesk/",
+    "primaryRecord": "issue",
     "id": "zendesk",
     "label": "Zendesk",
     "nomenclature": {

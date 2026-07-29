@@ -391,7 +391,7 @@ security headers; TLS gateway↔n8n in production; secret redaction in logs (and
 the settings read endpoint); rate limiting; and a supply chain with a dependency
 release-age delay.
 
-It's covered by **5,000+ automated tests** (~2,600 gateway + ~2,860 SPA — these
+It's covered by **8,000+ automated tests** (~4,700 gateway + ~4,200 SPA — these
 counts grow with nearly every merge; see [docs/TESTING.md](docs/TESTING.md) for
 how to get a current count rather than trusting a hardcoded one) behind
 **enforced CI coverage gates** (82% lines / 84% functions gateway; 94% lines /

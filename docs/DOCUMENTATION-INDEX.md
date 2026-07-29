@@ -36,11 +36,25 @@ How the system is put together, the broker seam, and the extensibility model.
 - **[PPM-DEPTH.md](PPM-DEPTH.md)** — the depth modules closing the gap to best-in-class PPM (portfolio optimiser, OKR cascade, skills demand/capacity, timesheets + staff-cost, stage-gate, SAFe PI board).
 - **[SELF-HOST-DB.md](SELF-HOST-DB.md)** — the optional, customer-owned stateful database for greenfield teams with nothing to connect.
 - **[RETENTION.md](RETENTION.md)** — durable time-series history (journal → snapshot → trend) and its cloud connectors (S3/DynamoDB/BigQuery via the retention-broker).
+- **[ATTACHMENTS.md](ATTACHMENTS.md)** — file attachments held below the seam by the hardened `attachments-broker` sidecar; the gateway keeps only a byte-free pointer record.
 - **[N8N-WORKFLOWS.md](N8N-WORKFLOWS.md)** — generate, wire & verify n8n workflows; open vs. licensed prebuilt integrations.
 - **[MCP.md](MCP.md)** — the read-only (write opt-in) MCP server so an AI agent can read through the broker seam.
 - **[adr/0001-broker-boundary.md](adr/0001-broker-boundary.md)** — ADR: the broker boundary decision.
 - **[adr/0002-language-choice.md](adr/0002-language-choice.md)** — ADR: the implementation-language decision.
 - **[PARKED-DECISIONS.md](PARKED-DECISIONS.md)** — items surfaced by review that need a maintainer decision before building, with the recommended call for each.
+- **[UPDATE-MECHANISM.md](UPDATE-MECHANISM.md)** — the immutable, signed, blue-green update mechanism (promote-by-digest, admission control, signed migration runner, per-org canary).
+- **[NATIVE-HANDOFF.md](NATIVE-HANDOFF.md)** — the "Use native" companion-app bridge (hand off an inline artifact to the specialist SaaS a backend already fronts); built behind the `nativeHandoff` module.
+- **[REFERENCE-DESIGNS.md](REFERENCE-DESIGNS.md)** — the reference-design registry: build-your-own primitives & JSON defs, served at `/api/registry`.
+
+### Design proposals (`docs/design/`)
+
+Forward-looking design records for larger features — the rationale and shape before/while they are built.
+
+- **[design/SEMANTIC-RULES-ENGINE.md](design/SEMANTIC-RULES-ENGINE.md)** — the globally-applicable, chainable trigger→action rules engine.
+- **[design/RULE-BUILDER.md](design/RULE-BUILDER.md)** — the comparison-rule builder and screen-scoped field picker.
+- **[design/WORKFLOW-APPROVAL-CHAINS.md](design/WORKFLOW-APPROVAL-CHAINS.md)** — the workflow creator + approval-chains design note.
+- **[design/STATEFUL-SIDECAR.md](design/STATEFUL-SIDECAR.md)** — OmniStore: the optional first-party, stateful system-of-record sidecar.
+- **[design/INVOICE-NINJA.md](design/INVOICE-NINJA.md)** — the Invoice Ninja billing system-of-record bridge.
 
 ### Connectors (vendor notes)
 
@@ -50,6 +64,7 @@ Capability-honest notes on each catalogued connector — what's mapped and what'
 - **[vendors/NETSUITE.md](vendors/NETSUITE.md)** — Oracle NetSuite.
 - **[vendors/SAP-S4HANA-PS-PPM.md](vendors/SAP-S4HANA-PS-PPM.md)** — SAP S/4HANA (PS/PPM) financials, read-only.
 - **[vendors/DYNAMICS-365-FO.md](vendors/DYNAMICS-365-FO.md)** — Dynamics 365 Finance & Operations (Project Management and Accounting).
+- **[SAP-CONNECTOR.md](SAP-CONNECTOR.md)** — the SAP connector design (roadmap §4.6).
 
 ### Contributor plane guides
 
@@ -77,6 +92,8 @@ Controls, audits, and the frameworks they map to.
 - **[ACCESSIBILITY-AUDIT.md](ACCESSIBILITY-AUDIT.md)** — the active WCAG 2.2 AA audit: the 14 defects found and fixed, the axe-core regression gate, and the residual/manual items.
 - **[ops/EGRESS-INVENTORY.md](ops/EGRESS-INVENTORY.md)** — every outbound destination the gateway can reach.
 - **[ops/ROLES.md](ops/ROLES.md)** — the RBAC model (base ladder + PMO/admin authorities) in product terms.
+- **[IAM-SECURITY-ASSESSMENT.md](IAM-SECURITY-ASSESSMENT.md)** — the IAM/security best-in-class assessment: shipped controls, the engines built-but-not-yet-wired, and the gaps.
+- **[DEPENDENCY-AUDIT-SHIM.md](DEPENDENCY-AUDIT-SHIM.md)** — *(temporary)* the dependency-audit shim and why it exists.
 
 ## Operations & scale
 
@@ -109,6 +126,7 @@ Fit, maturity, and evaluation.
 - **[ENTERPRISE-READINESS.md](ENTERPRISE-READINESS.md)** — the buyer-panel gap analysis (CEO, Finance, Compliance, CISO, IT, Projects).
 - **[ENTERPRISE-GA-CHECKLIST.md](ENTERPRISE-GA-CHECKLIST.md)** — the enterprise go/no-go tracker: the deciding artifacts (verified connector, SOC 2, published scale run, lighthouse pilot) that flip "impressive" to "yes", with acceptance evidence.
 - **[POV-SUCCESS-CRITERIA.md](POV-SUCCESS-CRITERIA.md)** — the time-boxed Proof-of-Value plan: entry gates, measurable success criteria, and the five go/no-go gates.
+- **[PILOT-RUNBOOK.md](PILOT-RUNBOOK.md)** — the internal-dogfood pilot runbook: a read-only-first, two-sprint pilot against a live Jira via the standalone stack.
 - **[SMALL-ORG-GUIDE.md](SMALL-ORG-GUIDE.md)** — the non-technical walkthrough for small teams, charities and self-hosters.
 - **[SAFE-FIRST-RUN.md](SAFE-FIRST-RUN.md)** — the step-by-step path to evaluating against real data safely (dry-run, read-only first).
 - **[FEATURE-MATURITY.md](FEATURE-MATURITY.md)** — a feature-by-feature maturity read: stable / beta / prototype / nominal, plus the buried debt.

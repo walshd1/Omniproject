@@ -105,6 +105,405 @@
     "group": "schedule"
   },
   {
+    "key": "milestoneName",
+    "label": "Milestone name",
+    "type": "text",
+    "group": "schedule",
+    "entity": "milestone"
+  },
+  {
+    "key": "milestoneDate",
+    "label": "Milestone date",
+    "type": "date",
+    "group": "schedule",
+    "entity": "milestone"
+  },
+  {
+    "key": "milestoneStatus",
+    "label": "Milestone status",
+    "type": "enum",
+    "group": "schedule",
+    "entity": "milestone",
+    "options": ["planned", "at_risk", "met", "missed"]
+  },
+  {
+    "key": "milestoneType",
+    "label": "Milestone type",
+    "type": "enum",
+    "group": "schedule",
+    "entity": "milestone",
+    "options": ["delivery", "gate", "payment", "external"]
+  },
+  {
+    "key": "milestoneProjectRef",
+    "label": "Milestone project",
+    "type": "reference",
+    "group": "schedule",
+    "entity": "milestone",
+    "references": "project"
+  },
+  {
+    "key": "crTitle",
+    "label": "Change request title",
+    "type": "text",
+    "group": "classification",
+    "entity": "change_request"
+  },
+  {
+    "key": "crStatus",
+    "label": "Change request status",
+    "type": "enum",
+    "group": "classification",
+    "entity": "change_request",
+    "options": ["raised", "assessing", "approved", "rejected", "implemented"]
+  },
+  {
+    "key": "crImpact",
+    "label": "Change request impact",
+    "type": "enum",
+    "group": "classification",
+    "entity": "change_request",
+    "options": ["scope", "cost", "schedule", "quality"]
+  },
+  {
+    "key": "crRequestedBy",
+    "label": "Change requested by",
+    "type": "user",
+    "group": "classification",
+    "entity": "change_request"
+  },
+  {
+    "key": "crDecisionDate",
+    "label": "Change decision date",
+    "type": "date",
+    "group": "classification",
+    "entity": "change_request"
+  },
+  {
+    "key": "crProjectRef",
+    "label": "Change request project",
+    "type": "reference",
+    "group": "classification",
+    "entity": "change_request",
+    "references": "project"
+  },
+  {
+    "key": "gateName",
+    "label": "Stage gate name",
+    "type": "text",
+    "group": "schedule",
+    "entity": "stage_gate"
+  },
+  {
+    "key": "gateStatus",
+    "label": "Stage gate status",
+    "type": "enum",
+    "group": "schedule",
+    "entity": "stage_gate",
+    "options": ["pending", "passed", "failed", "waived"]
+  },
+  {
+    "key": "gateDecisionDate",
+    "label": "Stage gate decision date",
+    "type": "date",
+    "group": "schedule",
+    "entity": "stage_gate"
+  },
+  {
+    "key": "gateApprover",
+    "label": "Stage gate approver",
+    "type": "user",
+    "group": "schedule",
+    "entity": "stage_gate"
+  },
+  {
+    "key": "gateType",
+    "label": "Stage gate type",
+    "type": "enum",
+    "group": "schedule",
+    "entity": "stage_gate",
+    "options": ["g0", "g1", "g2", "g3", "g4", "g5"]
+  },
+  {
+    "key": "gateProjectRef",
+    "label": "Stage gate project",
+    "type": "reference",
+    "group": "schedule",
+    "entity": "stage_gate",
+    "references": "project"
+  },
+  {
+    "key": "decisionTitle",
+    "label": "Decision title",
+    "type": "text",
+    "group": "classification",
+    "entity": "decision",
+    "required": true
+  },
+  {
+    "key": "decisionStatus",
+    "label": "Decision status",
+    "type": "enum",
+    "group": "classification",
+    "entity": "decision",
+    "options": ["proposed", "accepted", "rejected", "superseded"]
+  },
+  {
+    "key": "decisionRationale",
+    "label": "Decision rationale",
+    "type": "text",
+    "group": "classification",
+    "entity": "decision"
+  },
+  {
+    "key": "decisionMaker",
+    "label": "Decision maker",
+    "type": "user",
+    "group": "classification",
+    "entity": "decision"
+  },
+  {
+    "key": "decisionDate",
+    "label": "Decision date",
+    "type": "date",
+    "group": "classification",
+    "entity": "decision"
+  },
+  {
+    "key": "decisionProjectRef",
+    "label": "Decision project",
+    "type": "reference",
+    "group": "classification",
+    "entity": "decision",
+    "references": "project"
+  },
+  {
+    "key": "decisionSupersedes",
+    "label": "Supersedes decision",
+    "type": "reference",
+    "group": "classification",
+    "entity": "decision",
+    "references": "decision"
+  },
+  {
+    "key": "lessonTitle",
+    "label": "Lesson title",
+    "type": "text",
+    "group": "quality",
+    "entity": "lessons_learned",
+    "required": true
+  },
+  {
+    "key": "lessonCategory",
+    "label": "Lesson category",
+    "type": "enum",
+    "group": "quality",
+    "entity": "lessons_learned",
+    "options": ["what_went_well", "what_to_improve", "risk", "process"]
+  },
+  {
+    "key": "lessonDescription",
+    "label": "Lesson description",
+    "type": "text",
+    "group": "quality",
+    "entity": "lessons_learned"
+  },
+  {
+    "key": "lessonCapturedBy",
+    "label": "Lesson captured by",
+    "type": "user",
+    "group": "quality",
+    "entity": "lessons_learned"
+  },
+  {
+    "key": "lessonDate",
+    "label": "Lesson date",
+    "type": "date",
+    "group": "quality",
+    "entity": "lessons_learned"
+  },
+  {
+    "key": "lessonProjectRef",
+    "label": "Lesson project",
+    "type": "reference",
+    "group": "quality",
+    "entity": "lessons_learned",
+    "references": "project"
+  },
+  {
+    "key": "skillName",
+    "label": "Skill name",
+    "type": "text",
+    "group": "effort",
+    "entity": "skill"
+  },
+  {
+    "key": "skillCategory",
+    "label": "Skill category",
+    "type": "enum",
+    "group": "effort",
+    "entity": "skill",
+    "options": ["technical", "domain", "leadership", "certification"]
+  },
+  {
+    "key": "skillDescription",
+    "label": "Skill description",
+    "type": "text",
+    "group": "effort",
+    "entity": "skill"
+  },
+  {
+    "key": "rsResourceRef",
+    "label": "Resource skill resource",
+    "type": "reference",
+    "group": "effort",
+    "entity": "resource_skill",
+    "references": "resource"
+  },
+  {
+    "key": "rsSkillRef",
+    "label": "Resource skill skill",
+    "type": "reference",
+    "group": "effort",
+    "entity": "resource_skill",
+    "references": "skill"
+  },
+  {
+    "key": "rsProficiency",
+    "label": "Resource skill proficiency",
+    "type": "enum",
+    "group": "effort",
+    "entity": "resource_skill",
+    "options": ["novice", "intermediate", "advanced", "expert"]
+  },
+  {
+    "key": "rsLastUsedDate",
+    "label": "Resource skill last used",
+    "type": "date",
+    "group": "effort",
+    "entity": "resource_skill"
+  },
+  {
+    "key": "leaveResourceRef",
+    "label": "Leave resource",
+    "type": "reference",
+    "group": "effort",
+    "entity": "leave",
+    "references": "resource"
+  },
+  {
+    "key": "leaveType",
+    "label": "Leave type",
+    "type": "enum",
+    "group": "effort",
+    "entity": "leave",
+    "options": ["annual", "sick", "parental", "unpaid", "other"]
+  },
+  {
+    "key": "leaveStartDate",
+    "label": "Leave start date",
+    "type": "date",
+    "group": "effort",
+    "entity": "leave"
+  },
+  {
+    "key": "leaveEndDate",
+    "label": "Leave end date",
+    "type": "date",
+    "group": "effort",
+    "entity": "leave"
+  },
+  {
+    "key": "leaveStatus",
+    "label": "Leave status",
+    "type": "enum",
+    "group": "effort",
+    "entity": "leave",
+    "options": ["requested", "approved", "rejected", "taken"]
+  },
+  {
+    "key": "portfolioName",
+    "label": "Portfolio name",
+    "type": "text",
+    "group": "classification",
+    "entity": "portfolio"
+  },
+  {
+    "key": "portfolioOwner",
+    "label": "Portfolio owner",
+    "type": "user",
+    "group": "classification",
+    "entity": "portfolio"
+  },
+  {
+    "key": "portfolioType",
+    "label": "Portfolio type",
+    "type": "enum",
+    "group": "classification",
+    "entity": "portfolio",
+    "options": ["strategic", "operational", "mixed"]
+  },
+  {
+    "key": "investmentBudget",
+    "label": "Investment budget",
+    "type": "currency",
+    "group": "classification",
+    "entity": "portfolio"
+  },
+  {
+    "key": "portfolioProgrammeRef",
+    "label": "Portfolio programme",
+    "type": "reference",
+    "group": "classification",
+    "entity": "portfolio",
+    "references": "programme"
+  },
+  {
+    "key": "bookingResourceRef",
+    "label": "Booking resource",
+    "type": "reference",
+    "group": "effort",
+    "entity": "booking",
+    "references": "resource"
+  },
+  {
+    "key": "bookingType",
+    "label": "Booking type",
+    "type": "enum",
+    "group": "effort",
+    "entity": "booking",
+    "options": ["soft", "hard"]
+  },
+  {
+    "key": "bookingStartDate",
+    "label": "Booking start date",
+    "type": "date",
+    "group": "effort",
+    "entity": "booking"
+  },
+  {
+    "key": "bookingEndDate",
+    "label": "Booking end date",
+    "type": "date",
+    "group": "effort",
+    "entity": "booking"
+  },
+  {
+    "key": "bookingAllocationPct",
+    "label": "Booking allocation",
+    "type": "percent",
+    "group": "effort",
+    "entity": "booking"
+  },
+  {
+    "key": "bookingProjectRef",
+    "label": "Booking project",
+    "type": "reference",
+    "group": "effort",
+    "entity": "booking",
+    "references": "project"
+  },
+  {
     "key": "baselineStart",
     "label": "Baseline start",
     "type": "date",
@@ -275,7 +674,8 @@
   {
     "key": "costCenter",
     "label": "Cost centre",
-    "type": "string",
+    "type": "reference",
+    "references": "dimension",
     "group": "financial"
   },
   {
@@ -329,6 +729,18 @@
   {
     "key": "schedulePerformanceIndex",
     "label": "SPI",
+    "type": "number",
+    "group": "financial"
+  },
+  {
+    "key": "varianceAtCompletion",
+    "label": "Variance at completion (VAC)",
+    "type": "currency",
+    "group": "financial"
+  },
+  {
+    "key": "toCompletePerformanceIndex",
+    "label": "TCPI",
     "type": "number",
     "group": "financial"
   },
@@ -674,6 +1086,243 @@
     "group": "relationship"
   },
   {
+    "key": "dependencyType",
+    "label": "Dependency type",
+    "type": "enum",
+    "options": ["fs", "ss", "ff", "sf"],
+    "group": "schedule",
+    "entity": "dependency"
+  },
+  {
+    "key": "lagDays",
+    "label": "Lag (working days)",
+    "type": "number",
+    "group": "schedule",
+    "entity": "dependency"
+  },
+  {
+    "key": "leadDays",
+    "label": "Lead (working days)",
+    "type": "number",
+    "group": "schedule",
+    "entity": "dependency"
+  },
+  {
+    "key": "dependencySourceRef",
+    "label": "Predecessor work item",
+    "type": "reference",
+    "references": "task",
+    "group": "schedule",
+    "entity": "dependency"
+  },
+  {
+    "key": "dependencyTargetRef",
+    "label": "Successor work item",
+    "type": "reference",
+    "references": "task",
+    "group": "schedule",
+    "entity": "dependency"
+  },
+  {
+    "key": "dependencyStatus",
+    "label": "Dependency status",
+    "type": "enum",
+    "options": ["proposed", "active", "resolved", "rejected"],
+    "group": "schedule",
+    "entity": "dependency"
+  },
+  {
+    "key": "baselineName",
+    "label": "Baseline name",
+    "type": "text",
+    "group": "schedule",
+    "entity": "baseline"
+  },
+  {
+    "key": "baselineType",
+    "label": "Baseline type",
+    "type": "enum",
+    "options": ["schedule", "cost", "scope", "combined"],
+    "group": "schedule",
+    "entity": "baseline"
+  },
+  {
+    "key": "baselineStatus",
+    "label": "Baseline status",
+    "type": "enum",
+    "options": ["draft", "active", "superseded"],
+    "group": "schedule",
+    "entity": "baseline"
+  },
+  {
+    "key": "baselineApprovedBy",
+    "label": "Baseline approved by",
+    "type": "user",
+    "group": "schedule",
+    "entity": "baseline"
+  },
+  {
+    "key": "baselineApprovedDate",
+    "label": "Baseline approved date",
+    "type": "date",
+    "group": "schedule",
+    "entity": "baseline"
+  },
+  {
+    "key": "baselineFinishDate",
+    "label": "Baseline finish date",
+    "type": "date",
+    "group": "schedule",
+    "entity": "baseline"
+  },
+  {
+    "key": "baselineBudget",
+    "label": "Baseline budget",
+    "type": "currency",
+    "group": "financial",
+    "entity": "baseline"
+  },
+  {
+    "key": "resourceName",
+    "label": "Resource name",
+    "type": "text",
+    "group": "effort",
+    "entity": "resource"
+  },
+  {
+    "key": "jobTitle",
+    "label": "Job title",
+    "type": "text",
+    "group": "effort",
+    "entity": "resource"
+  },
+  {
+    "key": "grade",
+    "label": "Grade",
+    "type": "text",
+    "group": "effort",
+    "entity": "resource"
+  },
+  {
+    "key": "resourceType",
+    "label": "Resource type",
+    "type": "enum",
+    "group": "effort",
+    "entity": "resource",
+    "options": ["employee", "contractor", "vendor", "generic"]
+  },
+  {
+    "key": "fte",
+    "label": "FTE",
+    "type": "number",
+    "group": "effort",
+    "entity": "resource",
+    "precision": 2
+  },
+  {
+    "key": "managerId",
+    "label": "Manager",
+    "type": "user",
+    "group": "effort",
+    "entity": "resource"
+  },
+  {
+    "key": "teamId",
+    "label": "Team",
+    "type": "text",
+    "group": "effort",
+    "entity": "resource"
+  },
+  {
+    "key": "resourceSkills",
+    "label": "Skills",
+    "type": "labels",
+    "group": "effort",
+    "entity": "resource"
+  },
+  {
+    "key": "assignmentResource",
+    "label": "Assigned resource",
+    "type": "user",
+    "group": "effort",
+    "entity": "assignment"
+  },
+  {
+    "key": "assignmentProject",
+    "label": "Assignment project",
+    "type": "reference",
+    "group": "effort",
+    "entity": "assignment",
+    "references": "project"
+  },
+  {
+    "key": "assignmentEffortPct",
+    "label": "Assignment effort %",
+    "type": "percent",
+    "group": "effort",
+    "entity": "assignment",
+    "precision": 2
+  },
+  {
+    "key": "assignmentStartDate",
+    "label": "Assignment start date",
+    "type": "date",
+    "group": "effort",
+    "entity": "assignment"
+  },
+  {
+    "key": "assignmentEndDate",
+    "label": "Assignment end date",
+    "type": "date",
+    "group": "effort",
+    "entity": "assignment"
+  },
+  {
+    "key": "assignmentBookingStatus",
+    "label": "Booking status",
+    "type": "enum",
+    "group": "effort",
+    "entity": "assignment",
+    "options": ["tentative", "soft", "hard", "confirmed"]
+  },
+  {
+    "key": "timesheetPeriodStart",
+    "label": "Timesheet period start",
+    "type": "date",
+    "group": "effort",
+    "entity": "timesheet"
+  },
+  {
+    "key": "timesheetPeriodEnd",
+    "label": "Timesheet period end",
+    "type": "date",
+    "group": "effort",
+    "entity": "timesheet"
+  },
+  {
+    "key": "timesheetHours",
+    "label": "Timesheet hours",
+    "type": "number",
+    "group": "effort",
+    "entity": "timesheet",
+    "precision": 2
+  },
+  {
+    "key": "timesheetStatus",
+    "label": "Timesheet status",
+    "type": "enum",
+    "group": "effort",
+    "entity": "timesheet",
+    "options": ["draft", "submitted", "approved", "rejected"]
+  },
+  {
+    "key": "timesheetBillable",
+    "label": "Timesheet billable",
+    "type": "boolean",
+    "group": "effort",
+    "entity": "timesheet"
+  },
+  {
     "key": "completionPct",
     "label": "Completion %",
     "type": "number",
@@ -762,6 +1411,44 @@
     "label": "Benefit confidence",
     "type": "percent",
     "group": "benefits"
+  },
+  {
+    "key": "benefitName",
+    "label": "Benefit name",
+    "type": "text",
+    "group": "benefits",
+    "entity": "benefit"
+  },
+  {
+    "key": "benefitCategory",
+    "label": "Benefit category",
+    "type": "enum",
+    "group": "benefits",
+    "entity": "benefit",
+    "options": ["financial", "non_financial", "cost_avoidance", "revenue"]
+  },
+  {
+    "key": "benefitLifecycleStatus",
+    "label": "Benefit lifecycle status",
+    "type": "enum",
+    "group": "benefits",
+    "entity": "benefit",
+    "options": ["identified", "planned", "realising", "realised", "abandoned"]
+  },
+  {
+    "key": "benefitRealisationDate",
+    "label": "Benefit realisation date",
+    "type": "date",
+    "group": "benefits",
+    "entity": "benefit"
+  },
+  {
+    "key": "benefitProjectRef",
+    "label": "Benefit project",
+    "type": "reference",
+    "group": "benefits",
+    "entity": "benefit",
+    "references": "project"
   },
   {
     "key": "expenditureType",
@@ -975,5 +1662,1140 @@
     "type": "string",
     "group": "task",
     "entity": "task"
+  },
+  {
+    "key": "clientName",
+    "label": "Client / Bill-To",
+    "type": "string",
+    "group": "crm",
+    "entity": "client"
+  },
+  {
+    "key": "clientEmail",
+    "label": "Client email",
+    "type": "string",
+    "group": "crm",
+    "entity": "client"
+  },
+  {
+    "key": "clientBillingAddress",
+    "label": "Billing address",
+    "type": "text",
+    "group": "crm",
+    "entity": "client"
+  },
+  {
+    "key": "clientTaxId",
+    "label": "Client tax ID",
+    "type": "string",
+    "group": "financial",
+    "entity": "client"
+  },
+  {
+    "key": "clientPaymentTerms",
+    "label": "Payment terms",
+    "type": "string",
+    "group": "financial",
+    "entity": "client"
+  },
+  {
+    "key": "clientCreditLimit",
+    "label": "Credit limit",
+    "type": "currency",
+    "group": "financial",
+    "entity": "client"
+  },
+  {
+    "key": "productSku",
+    "label": "SKU / item code",
+    "type": "string",
+    "group": "financial",
+    "entity": "product"
+  },
+  {
+    "key": "productName",
+    "label": "Product / item",
+    "type": "string",
+    "group": "financial",
+    "entity": "product"
+  },
+  {
+    "key": "productUnitPrice",
+    "label": "Unit price",
+    "type": "currency",
+    "group": "financial",
+    "entity": "product"
+  },
+  {
+    "key": "productCost",
+    "label": "Item cost",
+    "type": "currency",
+    "group": "financial",
+    "entity": "product"
+  },
+  {
+    "key": "productTaxRate",
+    "label": "Item tax rate",
+    "type": "percent",
+    "group": "financial",
+    "entity": "product"
+  },
+  {
+    "key": "paymentAmount",
+    "label": "Payment amount",
+    "type": "currency",
+    "group": "financial",
+    "entity": "payment"
+  },
+  {
+    "key": "paymentDate",
+    "label": "Payment date",
+    "type": "date",
+    "group": "financial",
+    "entity": "payment"
+  },
+  {
+    "key": "paymentMethod",
+    "label": "Payment method",
+    "type": "enum",
+    "options": ["bank_transfer", "card", "cash", "cheque", "direct_debit", "paypal", "other"],
+    "group": "financial",
+    "entity": "payment"
+  },
+  {
+    "key": "paymentReference",
+    "label": "Payment reference",
+    "type": "string",
+    "group": "financial",
+    "entity": "payment"
+  },
+  {
+    "key": "creditNoteNumber",
+    "label": "Credit note number",
+    "type": "string",
+    "group": "financial",
+    "entity": "credit_note"
+  },
+  {
+    "key": "creditNoteAmount",
+    "label": "Credit note amount",
+    "type": "currency",
+    "group": "financial",
+    "entity": "credit_note"
+  },
+  {
+    "key": "creditNoteStatus",
+    "label": "Credit note status",
+    "type": "enum",
+    "options": ["draft", "issued", "applied", "voided"],
+    "group": "financial",
+    "entity": "credit_note"
+  },
+  {
+    "key": "quoteNumber",
+    "label": "Quote number",
+    "type": "string",
+    "group": "financial",
+    "entity": "quote"
+  },
+  {
+    "key": "quoteAmount",
+    "label": "Quote amount",
+    "type": "currency",
+    "group": "financial",
+    "entity": "quote"
+  },
+  {
+    "key": "quoteStatus",
+    "label": "Quote status",
+    "type": "enum",
+    "options": ["draft", "sent", "accepted", "declined", "expired", "converted"],
+    "group": "financial",
+    "entity": "quote"
+  },
+  {
+    "key": "quoteExpiryDate",
+    "label": "Quote expiry date",
+    "type": "date",
+    "group": "financial",
+    "entity": "quote"
+  },
+  {
+    "key": "recurringFrequency",
+    "label": "Recurring frequency",
+    "type": "enum",
+    "options": ["weekly", "biweekly", "monthly", "quarterly", "semiannually", "annually"],
+    "group": "financial",
+    "entity": "invoice"
+  },
+  {
+    "key": "taxRateName",
+    "label": "Tax rate name",
+    "type": "string",
+    "group": "financial",
+    "entity": "tax_rate"
+  },
+  {
+    "key": "taxRateCode",
+    "label": "Tax code",
+    "type": "string",
+    "group": "financial",
+    "entity": "tax_rate"
+  },
+  {
+    "key": "taxRatePercent",
+    "label": "Tax rate",
+    "type": "percent",
+    "group": "financial",
+    "entity": "tax_rate"
+  },
+  {
+    "key": "taxRateJurisdiction",
+    "label": "Tax jurisdiction",
+    "type": "string",
+    "group": "financial",
+    "entity": "tax_rate"
+  },
+  {
+    "key": "taxRateCompound",
+    "label": "Compound tax",
+    "type": "boolean",
+    "group": "financial",
+    "entity": "tax_rate"
+  },
+  {
+    "key": "vendorName",
+    "label": "Vendor / supplier",
+    "type": "string",
+    "group": "financial",
+    "entity": "vendor"
+  },
+  {
+    "key": "vendorEmail",
+    "label": "Vendor email",
+    "type": "string",
+    "group": "financial",
+    "entity": "vendor"
+  },
+  {
+    "key": "vendorTaxId",
+    "label": "Vendor tax ID",
+    "type": "string",
+    "group": "financial",
+    "entity": "vendor"
+  },
+  {
+    "key": "expenseAmount",
+    "label": "Expense amount",
+    "type": "currency",
+    "group": "financial",
+    "entity": "expense"
+  },
+  {
+    "key": "expenseDate",
+    "label": "Expense date",
+    "type": "date",
+    "group": "financial",
+    "entity": "expense"
+  },
+  {
+    "key": "expenseCategory",
+    "label": "Expense category",
+    "type": "enum",
+    "options": ["travel", "meals", "accommodation", "supplies", "equipment", "software", "professional_fees", "marketing", "utilities", "other"],
+    "group": "financial",
+    "entity": "expense"
+  },
+  {
+    "key": "billNumber",
+    "label": "Bill number",
+    "type": "string",
+    "group": "financial",
+    "entity": "bill"
+  },
+  {
+    "key": "billAmount",
+    "label": "Bill amount",
+    "type": "currency",
+    "group": "financial",
+    "entity": "bill"
+  },
+  {
+    "key": "billDueDate",
+    "label": "Bill due date",
+    "type": "date",
+    "group": "financial",
+    "entity": "bill"
+  },
+  {
+    "key": "billStatus",
+    "label": "Bill status",
+    "type": "enum",
+    "options": ["draft", "open", "approved", "paid", "partially_paid", "overdue", "void"],
+    "group": "financial",
+    "entity": "bill"
+  },
+  {
+    "key": "poNumber",
+    "label": "PO number",
+    "type": "string",
+    "group": "financial",
+    "entity": "purchase_order"
+  },
+  {
+    "key": "poAmount",
+    "label": "PO amount",
+    "type": "currency",
+    "group": "financial",
+    "entity": "purchase_order"
+  },
+  {
+    "key": "poStatus",
+    "label": "PO status",
+    "type": "enum",
+    "options": ["draft", "open", "approved", "received", "closed", "cancelled"],
+    "group": "financial",
+    "entity": "purchase_order"
+  },
+  {
+    "key": "accountCode",
+    "label": "Account code",
+    "type": "string",
+    "group": "financial",
+    "entity": "gl_account"
+  },
+  {
+    "key": "accountName",
+    "label": "Account name",
+    "type": "string",
+    "group": "financial",
+    "entity": "gl_account"
+  },
+  {
+    "key": "accountType",
+    "label": "Account type",
+    "type": "enum",
+    "options": ["asset", "liability", "equity", "revenue", "expense"],
+    "group": "financial",
+    "entity": "gl_account"
+  },
+  {
+    "key": "journalDate",
+    "label": "Journal date",
+    "type": "date",
+    "group": "financial",
+    "entity": "journal_entry"
+  },
+  {
+    "key": "journalDebit",
+    "label": "Debit",
+    "type": "currency",
+    "group": "financial",
+    "entity": "journal_entry"
+  },
+  {
+    "key": "journalCredit",
+    "label": "Credit",
+    "type": "currency",
+    "group": "financial",
+    "entity": "journal_entry"
+  },
+  {
+    "key": "journalMemo",
+    "label": "Journal memo",
+    "type": "string",
+    "group": "financial",
+    "entity": "journal_entry"
+  },
+  {
+    "key": "bankAccountName",
+    "label": "Bank account",
+    "type": "string",
+    "group": "financial",
+    "entity": "bank_account"
+  },
+  {
+    "key": "bankAccountNumber",
+    "label": "Account number",
+    "type": "string",
+    "group": "financial",
+    "entity": "bank_account"
+  },
+  {
+    "key": "bankAccountBalance",
+    "label": "Bank balance",
+    "type": "currency",
+    "group": "financial",
+    "entity": "bank_account"
+  },
+  {
+    "key": "bankTxnDate",
+    "label": "Transaction date",
+    "type": "date",
+    "group": "financial",
+    "entity": "bank_transaction"
+  },
+  {
+    "key": "bankTxnAmount",
+    "label": "Transaction amount",
+    "type": "currency",
+    "group": "financial",
+    "entity": "bank_transaction"
+  },
+  {
+    "key": "bankTxnReconciled",
+    "label": "Reconciled",
+    "type": "boolean",
+    "group": "financial",
+    "entity": "bank_transaction"
+  },
+  {
+    "key": "fxFromCurrency",
+    "label": "FX from currency",
+    "type": "string",
+    "group": "financial",
+    "entity": "fx_rate"
+  },
+  {
+    "key": "fxToCurrency",
+    "label": "FX to currency",
+    "type": "string",
+    "group": "financial",
+    "entity": "fx_rate"
+  },
+  {
+    "key": "fxRate",
+    "label": "Exchange rate",
+    "type": "number",
+    "group": "financial",
+    "entity": "fx_rate"
+  },
+  {
+    "key": "fxRateDate",
+    "label": "FX rate date",
+    "type": "date",
+    "group": "financial",
+    "entity": "fx_rate"
+  },
+  {
+    "key": "periodName",
+    "label": "Period name",
+    "type": "string",
+    "group": "financial",
+    "entity": "fiscal_period"
+  },
+  {
+    "key": "periodFiscalYear",
+    "label": "Fiscal year",
+    "type": "string",
+    "group": "financial",
+    "entity": "fiscal_period"
+  },
+  {
+    "key": "periodStartDate",
+    "label": "Period start",
+    "type": "date",
+    "group": "financial",
+    "entity": "fiscal_period"
+  },
+  {
+    "key": "periodEndDate",
+    "label": "Period end",
+    "type": "date",
+    "group": "financial",
+    "entity": "fiscal_period"
+  },
+  {
+    "key": "periodStatus",
+    "label": "Period status",
+    "type": "enum",
+    "options": ["open", "closed", "locked"],
+    "group": "financial",
+    "entity": "fiscal_period"
+  },
+  {
+    "key": "journalDocumentDate",
+    "label": "Document date",
+    "type": "date",
+    "group": "financial",
+    "entity": "journal_entry"
+  },
+  {
+    "key": "journalPostingDate",
+    "label": "Posting date",
+    "type": "date",
+    "group": "financial",
+    "entity": "journal_entry"
+  },
+  {
+    "key": "journalPostingStatus",
+    "label": "Posting status",
+    "type": "enum",
+    "options": ["draft", "posted", "reversed"],
+    "group": "financial",
+    "entity": "journal_entry"
+  },
+  {
+    "key": "journalFiscalPeriod",
+    "label": "Fiscal period",
+    "type": "reference",
+    "references": "fiscal_period",
+    "group": "financial",
+    "entity": "journal_entry"
+  },
+  {
+    "key": "journalReversalOf",
+    "label": "Reversal of",
+    "type": "reference",
+    "references": "journal_entry",
+    "group": "financial",
+    "entity": "journal_entry"
+  },
+  {
+    "key": "dimensionType",
+    "label": "Dimension type",
+    "type": "enum",
+    "options": ["department", "location", "class", "business_unit", "segment", "fund", "project", "cost_center"],
+    "group": "financial",
+    "entity": "dimension"
+  },
+  {
+    "key": "dimensionCode",
+    "label": "Dimension code",
+    "type": "string",
+    "group": "financial",
+    "entity": "dimension"
+  },
+  {
+    "key": "dimensionName",
+    "label": "Dimension name",
+    "type": "string",
+    "group": "financial",
+    "entity": "dimension"
+  },
+  {
+    "key": "dimensionParentId",
+    "label": "Parent dimension",
+    "type": "reference",
+    "references": "dimension",
+    "group": "financial",
+    "entity": "dimension"
+  },
+  {
+    "key": "department",
+    "label": "Department",
+    "type": "reference",
+    "references": "dimension",
+    "group": "financial"
+  },
+  {
+    "key": "location",
+    "label": "Location",
+    "type": "reference",
+    "references": "dimension",
+    "group": "financial"
+  },
+  {
+    "key": "accountingClass",
+    "label": "Class",
+    "type": "reference",
+    "references": "dimension",
+    "group": "financial"
+  },
+  {
+    "key": "businessUnit",
+    "label": "Business unit",
+    "type": "reference",
+    "references": "dimension",
+    "group": "financial"
+  },
+  {
+    "key": "segment",
+    "label": "Segment",
+    "type": "reference",
+    "references": "dimension",
+    "group": "financial"
+  },
+  {
+    "key": "fund",
+    "label": "Fund",
+    "type": "reference",
+    "references": "dimension",
+    "group": "financial"
+  },
+  {
+    "key": "deferredRevenue",
+    "label": "Deferred revenue",
+    "type": "currency",
+    "group": "financial"
+  },
+  {
+    "key": "recognizedRevenue",
+    "label": "Recognised revenue",
+    "type": "currency",
+    "group": "financial"
+  },
+  {
+    "key": "revRecMethod",
+    "label": "Revenue recognition method",
+    "type": "enum",
+    "options": ["point_in_time", "straight_line", "usage_based", "milestone", "percent_complete"],
+    "group": "financial"
+  },
+  {
+    "key": "revRecStartDate",
+    "label": "Recognition start",
+    "type": "date",
+    "group": "financial"
+  },
+  {
+    "key": "revRecEndDate",
+    "label": "Recognition end",
+    "type": "date",
+    "group": "financial"
+  },
+  {
+    "key": "performanceObligation",
+    "label": "Performance obligation",
+    "type": "string",
+    "group": "financial"
+  },
+  {
+    "key": "standaloneSellingPrice",
+    "label": "Standalone selling price",
+    "type": "currency",
+    "group": "financial"
+  },
+  {
+    "key": "contractAsset",
+    "label": "Contract asset",
+    "type": "currency",
+    "group": "financial"
+  },
+  {
+    "key": "contractLiability",
+    "label": "Contract liability",
+    "type": "currency",
+    "group": "financial"
+  },
+  {
+    "key": "revRecScheduleAmount",
+    "label": "Scheduled amount",
+    "type": "currency",
+    "group": "financial",
+    "entity": "rev_rec_schedule"
+  },
+  {
+    "key": "revRecScheduleDate",
+    "label": "Recognition date",
+    "type": "date",
+    "group": "financial",
+    "entity": "rev_rec_schedule"
+  },
+  {
+    "key": "revRecScheduleStatus",
+    "label": "Recognition status",
+    "type": "enum",
+    "options": ["scheduled", "recognized", "deferred", "cancelled"],
+    "group": "financial",
+    "entity": "rev_rec_schedule"
+  },
+  {
+    "key": "revRecScheduleInvoice",
+    "label": "Invoice",
+    "type": "reference",
+    "references": "invoice",
+    "group": "financial",
+    "entity": "rev_rec_schedule"
+  },
+  {
+    "key": "withholdingTaxRate",
+    "label": "Withholding tax rate",
+    "type": "percent",
+    "group": "financial"
+  },
+  {
+    "key": "withholdingAmount",
+    "label": "Withholding amount",
+    "type": "currency",
+    "group": "financial"
+  },
+  {
+    "key": "reverseCharge",
+    "label": "Reverse charge",
+    "type": "boolean",
+    "group": "financial"
+  },
+  {
+    "key": "taxPointDate",
+    "label": "Tax point date",
+    "type": "date",
+    "group": "financial"
+  },
+  {
+    "key": "recoverableTax",
+    "label": "Recoverable tax",
+    "type": "currency",
+    "group": "financial"
+  },
+  {
+    "key": "taxRegistrationNumber",
+    "label": "Tax registration number",
+    "type": "string",
+    "group": "financial"
+  },
+  {
+    "key": "taxCategory1099",
+    "label": "1099 category",
+    "type": "string",
+    "group": "financial"
+  },
+  {
+    "key": "cisCategory",
+    "label": "CIS category",
+    "type": "string",
+    "group": "financial"
+  },
+  {
+    "key": "eInvoicingId",
+    "label": "E-invoicing id",
+    "type": "string",
+    "group": "financial"
+  },
+  {
+    "key": "placeOfSupply",
+    "label": "Place of supply",
+    "type": "string",
+    "group": "financial"
+  },
+  {
+    "key": "grnNumber",
+    "label": "Goods receipt number",
+    "type": "string",
+    "group": "financial",
+    "entity": "goods_receipt"
+  },
+  {
+    "key": "grnDate",
+    "label": "Goods receipt date",
+    "type": "date",
+    "group": "financial",
+    "entity": "goods_receipt"
+  },
+  {
+    "key": "grnQuantity",
+    "label": "Goods received quantity",
+    "type": "number",
+    "group": "financial",
+    "entity": "goods_receipt"
+  },
+  {
+    "key": "matchStatus",
+    "label": "Match status",
+    "type": "enum",
+    "options": ["unmatched", "partially_matched", "matched", "exception"],
+    "group": "financial"
+  },
+  {
+    "key": "matchVariance",
+    "label": "Match variance",
+    "type": "currency",
+    "group": "financial"
+  },
+  {
+    "key": "earlyPaymentDiscountPercent",
+    "label": "Early-payment discount %",
+    "type": "percent",
+    "group": "financial"
+  },
+  {
+    "key": "earlyPaymentDiscountDays",
+    "label": "Early-payment discount days",
+    "type": "number",
+    "group": "financial"
+  },
+  {
+    "key": "approvalState",
+    "label": "Approval state",
+    "type": "enum",
+    "options": ["draft", "pending", "approved", "rejected"],
+    "group": "financial"
+  },
+  {
+    "key": "holdReason",
+    "label": "Hold reason",
+    "type": "string",
+    "group": "financial"
+  },
+  {
+    "key": "vendorBankIban",
+    "label": "Vendor bank IBAN",
+    "type": "string",
+    "group": "financial",
+    "entity": "vendor"
+  },
+  {
+    "key": "vendorBankSwift",
+    "label": "Vendor bank SWIFT/BIC",
+    "type": "string",
+    "group": "financial",
+    "entity": "vendor"
+  },
+  {
+    "key": "vendorBankRouting",
+    "label": "Vendor bank routing",
+    "type": "string",
+    "group": "financial",
+    "entity": "vendor"
+  },
+  {
+    "key": "creditHold",
+    "label": "Credit hold",
+    "type": "boolean",
+    "group": "financial"
+  },
+  {
+    "key": "dunningLevel",
+    "label": "Dunning level",
+    "type": "number",
+    "group": "financial"
+  },
+  {
+    "key": "dunningDate",
+    "label": "Last dunning date",
+    "type": "date",
+    "group": "financial"
+  },
+  {
+    "key": "agingBucket",
+    "label": "Aging bucket",
+    "type": "enum",
+    "options": ["current", "days_1_30", "days_31_60", "days_61_90", "over_90"],
+    "group": "financial"
+  },
+  {
+    "key": "daysSalesOutstanding",
+    "label": "Days sales outstanding",
+    "type": "number",
+    "group": "financial"
+  },
+  {
+    "key": "collectionStatus",
+    "label": "Collection status",
+    "type": "enum",
+    "options": ["current", "reminder_sent", "in_collections", "disputed", "written_off"],
+    "group": "financial"
+  },
+  {
+    "key": "writeOffAmount",
+    "label": "Write-off amount",
+    "type": "currency",
+    "group": "financial"
+  },
+  {
+    "key": "badDebtProvision",
+    "label": "Bad-debt provision",
+    "type": "currency",
+    "group": "financial"
+  },
+  {
+    "key": "statementDate",
+    "label": "Statement date",
+    "type": "date",
+    "group": "financial"
+  },
+  {
+    "key": "bankAccountIban",
+    "label": "Bank account IBAN",
+    "type": "string",
+    "group": "financial",
+    "entity": "bank_account"
+  },
+  {
+    "key": "bankAccountSwift",
+    "label": "Bank account SWIFT/BIC",
+    "type": "string",
+    "group": "financial",
+    "entity": "bank_account"
+  },
+  {
+    "key": "bankAccountCurrency",
+    "label": "Account currency",
+    "type": "string",
+    "group": "financial",
+    "entity": "bank_account"
+  },
+  {
+    "key": "bankAccountKind",
+    "label": "Account kind",
+    "type": "enum",
+    "options": ["checking", "savings", "money_market", "credit_line", "petty_cash"],
+    "group": "financial",
+    "entity": "bank_account"
+  },
+  {
+    "key": "availableBalance",
+    "label": "Available balance",
+    "type": "currency",
+    "group": "financial",
+    "entity": "bank_account"
+  },
+  {
+    "key": "clearedBalance",
+    "label": "Cleared balance",
+    "type": "currency",
+    "group": "financial",
+    "entity": "bank_account"
+  },
+  {
+    "key": "bankTxnType",
+    "label": "Transaction type",
+    "type": "enum",
+    "options": ["deposit", "withdrawal", "transfer", "fee", "interest", "adjustment"],
+    "group": "financial",
+    "entity": "bank_transaction"
+  },
+  {
+    "key": "bankTxnClearedStatus",
+    "label": "Cleared status",
+    "type": "enum",
+    "options": ["unreconciled", "cleared", "reconciled"],
+    "group": "financial",
+    "entity": "bank_transaction"
+  },
+  {
+    "key": "bankTxnClearedDate",
+    "label": "Cleared date",
+    "type": "date",
+    "group": "financial",
+    "entity": "bank_transaction"
+  },
+  {
+    "key": "bankTxnStatementRef",
+    "label": "Statement reference",
+    "type": "string",
+    "group": "financial",
+    "entity": "bank_transaction"
+  },
+  {
+    "key": "bankTxnMatchedEntry",
+    "label": "Matched journal entry",
+    "type": "reference",
+    "references": "journal_entry",
+    "group": "financial",
+    "entity": "bank_transaction"
+  },
+  {
+    "key": "bankTxnRunningBalance",
+    "label": "Running balance",
+    "type": "currency",
+    "group": "financial",
+    "entity": "bank_transaction"
+  },
+  {
+    "key": "statementOpeningBalance",
+    "label": "Statement opening balance",
+    "type": "currency",
+    "group": "financial"
+  },
+  {
+    "key": "statementClosingBalance",
+    "label": "Statement closing balance",
+    "type": "currency",
+    "group": "financial"
+  },
+  {
+    "key": "reconciledBalance",
+    "label": "Reconciled balance",
+    "type": "currency",
+    "group": "financial"
+  },
+  {
+    "key": "unreconciledAmount",
+    "label": "Unreconciled amount",
+    "type": "currency",
+    "group": "financial"
+  },
+  {
+    "key": "reconciliationDate",
+    "label": "Reconciliation date",
+    "type": "date",
+    "group": "financial"
+  },
+  {
+    "key": "cashPosition",
+    "label": "Cash position",
+    "type": "currency",
+    "group": "financial"
+  },
+  {
+    "key": "projectedCashFlow",
+    "label": "Projected cash flow",
+    "type": "currency",
+    "group": "financial"
+  },
+  {
+    "key": "liquidityBuffer",
+    "label": "Liquidity buffer",
+    "type": "currency",
+    "group": "financial"
+  },
+  {
+    "key": "interestEarned",
+    "label": "Interest earned",
+    "type": "currency",
+    "group": "financial"
+  },
+  {
+    "key": "assetNumber",
+    "label": "Asset number",
+    "type": "string",
+    "group": "financial",
+    "entity": "fixed_asset"
+  },
+  {
+    "key": "assetName",
+    "label": "Asset name",
+    "type": "string",
+    "group": "financial",
+    "entity": "fixed_asset"
+  },
+  {
+    "key": "assetTag",
+    "label": "Asset tag",
+    "type": "string",
+    "group": "financial",
+    "entity": "fixed_asset"
+  },
+  {
+    "key": "assetCategory",
+    "label": "Asset category",
+    "type": "enum",
+    "options": ["land", "building", "machinery", "vehicle", "furniture", "it_equipment", "intangible"],
+    "group": "financial",
+    "entity": "fixed_asset"
+  },
+  {
+    "key": "acquisitionDate",
+    "label": "Acquisition date",
+    "type": "date",
+    "group": "financial",
+    "entity": "fixed_asset"
+  },
+  {
+    "key": "acquisitionCost",
+    "label": "Acquisition cost",
+    "type": "currency",
+    "group": "financial",
+    "entity": "fixed_asset"
+  },
+  {
+    "key": "inServiceDate",
+    "label": "In-service date",
+    "type": "date",
+    "group": "financial",
+    "entity": "fixed_asset"
+  },
+  {
+    "key": "usefulLifeMonths",
+    "label": "Useful life (months)",
+    "type": "number",
+    "group": "financial",
+    "entity": "fixed_asset"
+  },
+  {
+    "key": "depreciationMethod",
+    "label": "Depreciation method",
+    "type": "enum",
+    "options": ["straight_line", "declining_balance", "units_of_production", "sum_of_years_digits"],
+    "group": "financial",
+    "entity": "fixed_asset"
+  },
+  {
+    "key": "salvageValue",
+    "label": "Salvage / residual value",
+    "type": "currency",
+    "group": "financial",
+    "entity": "fixed_asset"
+  },
+  {
+    "key": "accumulatedDepreciation",
+    "label": "Accumulated depreciation",
+    "type": "currency",
+    "group": "financial",
+    "entity": "fixed_asset"
+  },
+  {
+    "key": "netBookValue",
+    "label": "Net book value",
+    "type": "currency",
+    "group": "financial",
+    "entity": "fixed_asset"
+  },
+  {
+    "key": "impairmentLoss",
+    "label": "Impairment loss",
+    "type": "currency",
+    "group": "financial",
+    "entity": "fixed_asset"
+  },
+  {
+    "key": "assetStatus",
+    "label": "Asset status",
+    "type": "enum",
+    "options": ["in_service", "disposed", "impaired", "held_for_sale"],
+    "group": "financial",
+    "entity": "fixed_asset"
+  },
+  {
+    "key": "assetCustodian",
+    "label": "Custodian",
+    "type": "user",
+    "group": "financial",
+    "entity": "fixed_asset"
+  },
+  {
+    "key": "assetLocation",
+    "label": "Asset location",
+    "type": "reference",
+    "references": "dimension",
+    "group": "financial",
+    "entity": "fixed_asset"
+  },
+  {
+    "key": "assetCostCentre",
+    "label": "Asset cost centre",
+    "type": "reference",
+    "references": "dimension",
+    "group": "financial",
+    "entity": "fixed_asset"
+  },
+  {
+    "key": "disposalDate",
+    "label": "Disposal date",
+    "type": "date",
+    "group": "financial",
+    "entity": "fixed_asset"
+  },
+  {
+    "key": "disposalProceeds",
+    "label": "Disposal proceeds",
+    "type": "currency",
+    "group": "financial",
+    "entity": "fixed_asset"
+  },
+  {
+    "key": "gainLossOnDisposal",
+    "label": "Gain / loss on disposal",
+    "type": "currency",
+    "group": "financial",
+    "entity": "fixed_asset"
+  },
+  {
+    "key": "depreciationThroughDate",
+    "label": "Depreciated through",
+    "type": "date",
+    "group": "financial",
+    "entity": "fixed_asset"
   }
 ]

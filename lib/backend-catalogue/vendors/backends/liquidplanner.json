@@ -36,6 +36,7 @@
     "scheduling": true
   },
   "docsUrl": "https://www.liquidplanner.com/support/articles/api-up/",
+  "primaryRecord": "issue",
   "id": "liquidplanner",
   "label": "LiquidPlanner",
   "notes": "Predictive-scheduling PM: workspaces → projects (LP plans/packages), tasks → issues; ranged estimates, workload + time tracking feed the scheduling/resources/history domains. LIQUIDPLANNER_WORKSPACE_URL is the workspace API base (…/api/v1/workspaces/<id>). Confirm the endpoint/field shapes against your workspace — reference mappings.",

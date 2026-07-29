@@ -267,7 +267,7 @@ re-parse the upstream body into `details`.)
 
 ```mermaid
 flowchart TB
-  SUP["SUPERSET (canonical, JSON-sourced, CI drift-guarded)<br/>FIELD_REGISTRY / FIELD_KEYS · CAPABILITY_DOMAINS (14) · ENTITY_KEYS"]
+  SUP["SUPERSET (canonical, JSON-sourced, CI drift-guarded)<br/>FIELD_REGISTRY / FIELD_KEYS · CAPABILITY_DOMAINS (15) · ENTITY_KEYS"]
   subgraph resolve["capability resolution — lib/capabilities.ts"]
     ENV["1. CAPABILITIES env<br/>(admin-declared, authoritative)"]
     BRK["2. broker.capabilities(ctx)<br/>demo ⇒ all true; live ⇒ conservative + backend probe"]
@@ -287,8 +287,8 @@ flowchart TB
 **Prose.** The **superset** is the canonical vocabulary authored as JSON
 (`lib/backend-catalogue/assets/fields.json` → `FIELD_REGISTRY`) plus the 14
 `CAPABILITY_DOMAINS` (`issues, scheduling, resources, financials, portfolio,
-baseline, blockers, history, raid, quality, crm, service, benefits`) and
-`ENTITY_KEYS` — all drift-guarded in CI so backend and SPA can't diverge.
+baseline, blockers, history, raid, quality, crm, service, benefits, stakeholders,
+raci`) and `ENTITY_KEYS` — all drift-guarded in CI so backend and SPA can't diverge.
 
 `resolveCapabilities(req)` ([`lib/capabilities.ts`](../artifacts/api-server/src/lib/capabilities.ts))
 resolves in order: (1) the `CAPABILITIES` env var if set (authoritative); else

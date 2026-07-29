@@ -1,6 +1,6 @@
 import { test, afterEach } from "node:test";
 import assert from "node:assert/strict";
-import { evaluateRuleset, setRuleModes, getRuleModes, rulesetCatalogue, resetRuleModes, BUSINESS_RULES, setFieldRules, getFieldRules, applyRuleset } from "./ruleset";
+import { evaluateRuleset, setRuleModes, getRuleModes, rulesetCatalogue, resetRuleModes, BUSINESS_RULES, setFieldRules, getFieldRules, applyRuleset, getAccounting, setAccounting, resolveScopedAccounting, accountingCatalogue, setDomainModes, getDomainModes, RULE_DOMAINS } from "./ruleset";
 import { getReferenceRuleset, referenceRulesetCatalogue } from "@workspace/backend-catalogue";
 
 afterEach(() => resetRuleModes());
@@ -139,4 +139,122 @@ test("the catalogue exposes each rule + its mode for the admin UI", () => {
   const cat = rulesetCatalogue();
   assert.equal(cat.find((r) => r.id === "no-deletes")?.mode, "warn");
   assert.ok(cat.every((r) => r.label && r.description && r.defaultMode));
+});
+
+// ── Finance controls (F14) ───────────────────────────────────────────────────────────────────────────────
+test("finance: double-entry — an unbalanced journal is blocked, a balanced one passes, no lines can't fire", () => {
+  setRuleModes({ "finance-journal-balanced": "hard" });
+  const unbal = evaluateRuleset({ action: "create_journal_entry", write: true, role: "manager", payload: { lines: [{ journalDebit: 100 }, { journalCredit: 60 }] } });
+  assert.equal(unbal.allow, false);
+  assert.equal(unbal.blocked?.id, "finance-journal-balanced");
+  assert.equal(evaluateRuleset({ action: "create_journal_entry", write: true, role: "manager", payload: { lines: [{ debit: 100 }, { credit: 100 }] } }).allow, true);
+  assert.equal(evaluateRuleset({ action: "create_journal_entry", write: true, role: "manager", payload: {} }).allow, true); // restrict-only: unassessable → no block
+});
+
+test("finance: no posting to a closed or locked period", () => {
+  setRuleModes({ "finance-no-post-closed-period": "hard" });
+  assert.equal(evaluateRuleset({ action: "create_journal_entry", write: true, role: "manager", payload: { journalPeriodStatus: "closed" } }).allow, false);
+  assert.equal(evaluateRuleset({ action: "update_journal_entry", write: true, role: "manager", payload: { periodStatus: "locked" } }).allow, false);
+  assert.equal(evaluateRuleset({ action: "create_journal_entry", write: true, role: "manager", payload: { journalPeriodStatus: "open" } }).allow, true);
+});
+
+test("finance: a posted journal entry is immutable (reverse, don't edit)", () => {
+  setRuleModes({ "finance-posted-immutable": "hard" });
+  assert.equal(evaluateRuleset({ action: "update_journal_entry", write: true, role: "manager", payload: { journalPostingStatus: "posted" } }).allow, false);
+  assert.equal(evaluateRuleset({ action: "update_journal_entry", write: true, role: "manager", payload: { journalPostingStatus: "draft" } }).allow, true);
+});
+
+test("finance: a new journal entry requires a fiscal period and a posting date", () => {
+  setRuleModes({ "finance-journal-period": "hard", "finance-journal-posting-date": "hard" });
+  assert.equal(evaluateRuleset({ action: "create_journal_entry", write: true, role: "manager", payload: { journalPostingDate: "2026-07-25" } }).allow, false); // missing period
+  assert.equal(evaluateRuleset({ action: "create_journal_entry", write: true, role: "manager", payload: { journalFiscalPeriod: "fp1" } }).allow, false); // missing posting date
+  assert.equal(evaluateRuleset({ action: "create_journal_entry", write: true, role: "manager", payload: { journalFiscalPeriod: "fp1", journalPostingDate: "2026-07-25" } }).allow, true);
+});
+
+test("finance: tax is required where a jurisdiction applies (unless reverse-charge)", () => {
+  setRuleModes({ "finance-tax-required": "hard" });
+  assert.equal(evaluateRuleset({ action: "create_invoice", write: true, role: "manager", payload: { taxRateJurisdiction: "GB-VAT" } }).allow, false); // jurisdiction, no tax
+  assert.equal(evaluateRuleset({ action: "create_invoice", write: true, role: "manager", payload: { taxRateJurisdiction: "GB-VAT", taxAmount: 200 } }).allow, true); // tax present
+  assert.equal(evaluateRuleset({ action: "create_invoice", write: true, role: "manager", payload: { taxRateJurisdiction: "GB-VAT", reverseCharge: true } }).allow, true); // reverse-charge
+  assert.equal(evaluateRuleset({ action: "create_invoice", write: true, role: "manager", payload: {} }).allow, true); // no jurisdiction → n/a
+});
+
+test("finance: a bill can't be approved without a 3-way match", () => {
+  setRuleModes({ "finance-3way-match": "hard" });
+  assert.equal(evaluateRuleset({ action: "update_bill", write: true, role: "manager", payload: { approvalState: "approved", matchStatus: "unmatched" } }).allow, false);
+  assert.equal(evaluateRuleset({ action: "update_bill", write: true, role: "manager", payload: { approvalState: "approved", matchStatus: "matched" } }).allow, true);
+  assert.equal(evaluateRuleset({ action: "update_bill", write: true, role: "manager", payload: { approvalState: "draft" } }).allow, true); // not an approval → n/a
+});
+
+test("finance: no new invoice/quote to a customer on credit hold", () => {
+  setRuleModes({ "finance-credit-hold": "hard" });
+  assert.equal(evaluateRuleset({ action: "create_invoice", write: true, role: "manager", payload: { creditHold: true } }).allow, false);
+  assert.equal(evaluateRuleset({ action: "create_quote", write: true, role: "manager", payload: { creditHold: true } }).allow, false);
+  assert.equal(evaluateRuleset({ action: "create_invoice", write: true, role: "manager", payload: { creditHold: false } }).allow, true);
+  assert.equal(evaluateRuleset({ action: "create_invoice", write: true, role: "manager", payload: {} }).allow, true);
+});
+
+test("accounting policy is part of the governance baseline — default, override, and missing-accounts report", () => {
+  // Default baseline: empty GL codes, 200% DB, straight-line.
+  assert.deepEqual(accountingCatalogue().missingAccounts, ["depreciationExpense", "accumulatedDepreciation", "assetCost", "disposalProceeds", "gainLossOnDisposal"]);
+  assert.equal(getAccounting().decliningBalanceFactor, 2);
+
+  // An admin sets some codes + a 150% DB policy — a validated partial folded onto the baseline (override, not tighten).
+  setAccounting({ accounts: { depreciationExpense: "6800", accumulatedDepreciation: "1590" }, decliningBalanceFactor: 1.5 });
+  const cfg = getAccounting();
+  assert.equal(cfg.accounts.depreciationExpense, "6800");
+  assert.equal(cfg.accounts.assetCost, ""); // untouched
+  assert.equal(cfg.decliningBalanceFactor, 1.5);
+  assert.deepEqual(accountingCatalogue().missingAccounts, ["assetCost", "disposalProceeds", "gainLossOnDisposal"]);
+
+  // resolveScopedAccounting with no scope returns the org baseline (same governance path as the rule modes).
+  assert.deepEqual(resolveScopedAccounting(), cfg);
+  // A bad value is rejected, not silently applied.
+  assert.throws(() => setAccounting({ decliningBalanceFactor: 9 }), /decliningBalanceFactor/);
+  assert.equal(getAccounting().decliningBalanceFactor, 1.5); // unchanged after the rejected write
+});
+
+// ── Per-domain mode floors — raise every rule in a domain at once, tighten-only, composing with per-rule modes ──
+
+test("a domain floor raises EVERY rule in that domain without naming each rule", () => {
+  // The two finance journal rules are off; a `finance` floor of "hard" enforces both at once.
+  setDomainModes({ finance: "hard" });
+  const unbalanced = { lines: [{ debit: 100, credit: 90 }], journalFiscalPeriod: "2026-01", journalPostingDate: "2026-01-31" };
+  assert.equal(evaluateRuleset({ action: "create_journal_entry", write: true, role: "manager", payload: unbalanced }).allow, false);
+  // …and a delivery action is untouched by a finance floor.
+  assert.equal(evaluateRuleset({ action: "delete_issue", write: true, role: "admin" }).allow, true);
+});
+
+test("a domain floor is a FLOOR — the stricter of (rule mode, domain floor) wins, and it only tightens", () => {
+  // Floor delivery at "warn"; require-assignee (delivery, off) is lifted to warn, not blocked.
+  setDomainModes({ delivery: "warn" });
+  const warned = evaluateRuleset({ action: "create_issue", write: true, role: "contributor", payload: { title: "x" } });
+  assert.equal(warned.allow, true);
+  assert.ok(warned.warnings.some((w) => w.id === "require-assignee"));
+  // A per-rule "hard" is stricter than the "warn" floor and still wins.
+  setRuleModes({ "require-assignee": "hard" });
+  assert.equal(evaluateRuleset({ action: "create_issue", write: true, role: "contributor", payload: { title: "x" } }).allow, false);
+});
+
+test("an empty floor set is exactly today's behaviour; an unknown domain / bad mode is ignored", () => {
+  assert.deepEqual(getDomainModes(), { general: "off", delivery: "off", finance: "off", people: "off" });
+  // Unknown domain and invalid mode are both dropped (no grant, no new domain).
+  setDomainModes({ marketing: "hard", finance: "sideways" } as Record<string, unknown>);
+  assert.deepEqual(getDomainModes(), { general: "off", delivery: "off", finance: "off", people: "off" });
+  // With no floor and no rule mode, the engine stays inert.
+  assert.equal(evaluateRuleset({ action: "create_journal_entry", write: true, role: "manager", payload: { lines: [{ debit: 1, credit: 2 }] } }).allow, true);
+});
+
+test("the rule catalogue exposes each rule's domain, and every domain is a known one", () => {
+  const known = new Set<string>(RULE_DOMAINS);
+  for (const entry of rulesetCatalogue()) assert.ok(known.has(entry.domain), `rule ${entry.id} has domain ${entry.domain}`);
+  // Every built-in rule carries a domain tag.
+  for (const r of BUSINESS_RULES) assert.ok(known.has(r.domain));
+});
+
+test("applyRuleset resets domain floors deterministically alongside modes", () => {
+  setDomainModes({ finance: "hard" });
+  const applied = applyRuleset({ modes: {}, fieldRules: [], domainModes: { delivery: "warn" } });
+  assert.equal(applied.domainModes.finance, "off"); // prior floor cleared
+  assert.equal(applied.domainModes.delivery, "warn"); // bundle floor applied
 });

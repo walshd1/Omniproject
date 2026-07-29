@@ -39,6 +39,7 @@
     "scheduling": true
   },
   "docsUrl": "https://learn.microsoft.com/en-us/rest/api/azure/devops/wit/",
+  "primaryRecord": "issue",
   "id": "azure-devops",
   "label": "Azure DevOps (Boards)",
   "notes": "AZDO_BASIC_AUTH = base64(':PAT'). Work-item writes need the json-patch+json content type — set it on the HTTP node after import.",

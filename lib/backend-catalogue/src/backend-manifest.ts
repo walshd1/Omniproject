@@ -14,13 +14,173 @@
  * only consume the neutral half (see `backendCatalogue`).
  */
 
-/** The contract actions a backend must implement (broker-neutral). */
+/**
+ * The contract actions a backend can implement (broker-neutral). A backend implements a SUBSET (the `actions`
+ * map is Partial) — a project tool maps the issue/project verbs; a billing system of record (Invoice Ninja,
+ * Dolibarr, …) maps the invoice verbs. Finance verbs are gated by the `financials` capability domain.
+ */
 export type ContractAction =
   | "list_projects"
   | "list_issues"
   | "create_issue"
   | "update_issue"
   | "delete_issue"
+  // ── Billing / finance system-of-record (capability: financials) ──
+  | "create_invoice"
+  | "update_invoice"
+  | "get_invoice"
+  | "list_invoices"
+  // ── Client / customer master (finance superset F1) — the bill-to party a finance backend owns ──
+  | "list_clients"
+  | "get_client"
+  | "create_client"
+  | "update_client"
+  // ── Product / item catalogue (finance superset F2) — the priced line items invoices/quotes draw from ──
+  | "list_products"
+  | "get_product"
+  | "create_product"
+  | "update_product"
+  // ── Payment / receipt (finance superset F3) — a settlement applied against invoices (AR receipt) ──
+  | "list_payments"
+  | "get_payment"
+  | "create_payment"
+  // ── Credit note + quote/estimate (finance superset F4) — AR completeness ──
+  | "list_credit_notes"
+  | "get_credit_note"
+  | "create_credit_note"
+  | "list_quotes"
+  | "get_quote"
+  | "create_quote"
+  | "update_quote"
+  // ── Tax rate (finance superset F5) — a jurisdiction's tax rate applied to invoice/quote lines ──
+  | "list_tax_rates"
+  | "get_tax_rate"
+  | "create_tax_rate"
+  | "update_tax_rate"
+  // ── Accounts payable spine (finance superset F6) — vendor, expense, bill (vendor invoice), PO ──
+  | "list_vendors"
+  | "get_vendor"
+  | "create_vendor"
+  | "update_vendor"
+  | "list_expenses"
+  | "get_expense"
+  | "create_expense"
+  | "update_expense"
+  | "list_bills"
+  | "get_bill"
+  | "create_bill"
+  | "list_purchase_orders"
+  | "get_purchase_order"
+  | "create_purchase_order"
+  | "update_purchase_order"
+  // ── General ledger (finance superset F7) — chart of accounts + double-entry journals ──
+  | "list_accounts"
+  | "get_account"
+  | "create_account"
+  | "list_journal_entries"
+  | "get_journal_entry"
+  | "create_journal_entry"
+  // ── Banking + FX (finance superset F8) — bank accounts, feed transactions, exchange rates ──
+  | "list_bank_accounts"
+  | "get_bank_account"
+  | "create_bank_account"
+  | "list_bank_transactions"
+  | "get_bank_transaction"
+  | "create_bank_transaction"
+  | "list_fx_rates"
+  | "get_fx_rate"
+  | "create_fx_rate"
+  // ── Period & posting (finance superset F12) — the accounting-period master the ledger posts through ──
+  | "list_fiscal_periods"
+  | "get_fiscal_period"
+  | "create_fiscal_period"
+  | "update_fiscal_period"
+  // ── Accounting dimensions (finance superset F13) — the dimension master GL reporting pivots on ──
+  | "list_dimensions"
+  | "get_dimension"
+  | "create_dimension"
+  | "update_dimension"
+  // ── Revenue recognition (finance superset F15) — ASC 606 / IFRS 15 recognition schedules ──
+  | "list_rev_rec_schedules"
+  | "get_rev_rec_schedule"
+  | "create_rev_rec_schedule"
+  | "update_rev_rec_schedule"
+  // ── AP 3-way match (finance superset F17) — goods receipts matched to PO + bill ──
+  | "list_goods_receipts"
+  | "get_goods_receipt"
+  | "create_goods_receipt"
+  | "update_goods_receipt"
+  // ── Fixed assets (finance superset F20) — the asset register (cost, useful life, depreciation basis) ──
+  | "list_fixed_assets"
+  | "get_fixed_asset"
+  | "create_fixed_asset"
+  | "update_fixed_asset"
+  // ── Dependencies (PM primitive, Wave 1) — typed, cross-project precedence links (FS/SS/FF/SF + lag/lead) ──
+  | "list_dependencies"
+  | "get_dependency"
+  | "create_dependency"
+  | "update_dependency"
+  | "delete_dependency"
+  // ── Baselines (PM primitive, Wave 1) — an approved cost+schedule snapshot to measure variance against ──
+  | "list_baselines"
+  | "get_baseline"
+  | "create_baseline"
+  | "update_baseline"
+  // ── Resource management (people/resource domain, Wave 1) — the resource pool, its bookings, and timesheets ──
+  | "list_resources"
+  | "get_resource"
+  | "create_resource"
+  | "update_resource"
+  | "list_assignments"
+  | "get_assignment"
+  | "create_assignment"
+  | "update_assignment"
+  | "list_timesheets"
+  | "get_timesheet"
+  | "create_timesheet"
+  | "update_timesheet"
+  // ── Benefit realisation (programme/portfolio domain, Wave 3) — the governed benefit register ──
+  | "list_benefits"
+  | "get_benefit"
+  | "create_benefit"
+  | "update_benefit"
+  // ── Milestones (delivery-governance, Wave 3) — the governed milestone/gate schedule marker ──
+  | "list_milestones"
+  | "get_milestone"
+  | "create_milestone"
+  | "update_milestone"
+  // ── Change control + stage gates (delivery-governance, Wave 3) — the governed CR + gate decision records ──
+  | "list_change_requests"
+  | "get_change_request"
+  | "create_change_request"
+  | "update_change_request"
+  | "list_stage_gates"
+  | "get_stage_gate"
+  | "create_stage_gate"
+  | "update_stage_gate"
+  // ── Skills + leave (people/resource depth, Wave 3) — the governed competency register + absence records ──
+  | "list_skills"
+  | "get_skill"
+  | "create_skill"
+  | "update_skill"
+  | "list_resource_skills"
+  | "get_resource_skill"
+  | "create_resource_skill"
+  | "update_resource_skill"
+  | "list_leaves"
+  | "get_leave"
+  | "create_leave"
+  | "update_leave"
+  // ── Portfolio (scope hierarchy, Wave 3) — the governed investment tier above programme ──
+  | "list_portfolios"
+  | "get_portfolio"
+  | "create_portfolio"
+  | "update_portfolio"
+  // ── Resource bookings (people/resource depth, Wave 4) — the governed soft/hard reservation ──
+  | "list_bookings"
+  | "get_booking"
+  | "create_booking"
+  | "update_booking"
   | "get_capabilities";
 
 /** Catalogue tier — enterprise backends gate the premium workflow generation. */
@@ -80,10 +240,81 @@ export interface KeyFormat {
  * what an operator must configure, and which capability domains it can populate.
  * No transport specifics (no n8n nodes, URLs or auth expressions) live here.
  */
+/**
+ * The PRIMARY record a backend is a system of record FOR. A backend isn't forced to be a project tool — but it
+ * must declare which record it owns, because that decides which contract READ verbs it must implement (see
+ * {@link RECORD_TYPE_REQUIRED_READS}). Today: `issue` (PM/CRM/ITSM/ERP tools, normalised to the issue/project
+ * contract) or `invoice` (a billing system of record like Invoice Ninja / Dolibarr) or `client` (a customer
+ * master — a CRM/billing system whose primary record is the bill-to party) or `product` (an item catalogue
+ * whose primary record is the priced line item) or `payment` (an AR-receipt system whose primary record is a
+ * settlement applied to invoices) or `credit_note` / `quote` (AR documents — a credit against an account, an
+ * estimate that precedes an invoice) or `tax_rate` (a jurisdiction's tax-rate table) or an accounts-payable
+ * record — `vendor` (supplier master), `expense` (a cost), `bill` (a vendor invoice) or `purchase_order` —
+ * or a general-ledger record: `gl_account` (chart-of-accounts entry) or `journal_entry` (a double-entry
+ * posting) — or a banking record: `bank_account`, `bank_transaction` (a feed line) or `fx_rate` (an exchange
+ * rate). Extend as new record domains land.
+ *
+ * NOTE: the field superset is ONE universal registry — the union of `assets/fields.json` and EVERY backend's
+ * contributed `fields[]` — so whatever any backend can provide maps through to the standard surface. It is NOT
+ * scoped per record type; `primaryRecord` governs required actions, not which fields exist.
+ */
+export const BACKEND_RECORD_TYPES = ["issue", "invoice", "client", "product", "payment", "credit_note", "quote", "tax_rate", "vendor", "expense", "bill", "purchase_order", "gl_account", "journal_entry", "bank_account", "bank_transaction", "fx_rate", "fiscal_period", "dimension", "rev_rec_schedule", "goods_receipt", "fixed_asset", "dependency", "baseline", "resource", "assignment", "timesheet", "benefit", "milestone", "change_request", "stage_gate", "skill", "resource_skill", "leave", "portfolio", "booking"] as const;
+export type BackendRecordType = (typeof BACKEND_RECORD_TYPES)[number];
+
+/** The contract READ verbs a backend of each primary-record type must implement (the verifier enforces this).
+ *  An `issue` backend must expose projects + issues; an `invoice` backend must expose its invoice list; a
+ *  `client` (customer-master) backend must expose its client list; a `product` (item-catalogue) backend must
+ *  expose its product list; a `payment` (AR-receipt) backend must expose its payment list; a `credit_note` /
+ *  `quote` backend must expose its own list; a `tax_rate` backend must expose its tax-rate table. */
+export const RECORD_TYPE_REQUIRED_READS: Record<BackendRecordType, ContractAction[]> = {
+  issue: ["list_projects", "list_issues"],
+  invoice: ["list_invoices"],
+  client: ["list_clients"],
+  product: ["list_products"],
+  payment: ["list_payments"],
+  credit_note: ["list_credit_notes"],
+  quote: ["list_quotes"],
+  tax_rate: ["list_tax_rates"],
+  vendor: ["list_vendors"],
+  expense: ["list_expenses"],
+  bill: ["list_bills"],
+  purchase_order: ["list_purchase_orders"],
+  gl_account: ["list_accounts"],
+  journal_entry: ["list_journal_entries"],
+  bank_account: ["list_bank_accounts"],
+  bank_transaction: ["list_bank_transactions"],
+  fx_rate: ["list_fx_rates"],
+  fiscal_period: ["list_fiscal_periods"],
+  dimension: ["list_dimensions"],
+  rev_rec_schedule: ["list_rev_rec_schedules"],
+  goods_receipt: ["list_goods_receipts"],
+  fixed_asset: ["list_fixed_assets"],
+  dependency: ["list_dependencies"],
+  baseline: ["list_baselines"],
+  resource: ["list_resources"],
+  assignment: ["list_assignments"],
+  timesheet: ["list_timesheets"],
+  benefit: ["list_benefits"],
+  milestone: ["list_milestones"],
+  change_request: ["list_change_requests"],
+  stage_gate: ["list_stage_gates"],
+  skill: ["list_skills"],
+  resource_skill: ["list_resource_skills"],
+  leave: ["list_leaves"],
+  portfolio: ["list_portfolios"],
+  booking: ["list_bookings"],
+};
+
 export interface BackendManifest {
   id: string;
   label: string;
   docsUrl: string;
+  /**
+   * The primary record this backend is a system of record for (`issue` | `invoice`). Decides the required
+   * contract read verbs (see {@link RECORD_TYPE_REQUIRED_READS}) and which field superset applies — a backend
+   * need not be a project tool, but it must own a record type.
+   */
+  primaryRecord: BackendRecordType;
   /** How confident we are this manifest matches the real, live vendor API — see {@link VerificationStatus}. */
   verification: VerificationStatus;
   /** How this backend authenticates / is wired — human-readable, for the wizard UI. */
@@ -143,5 +374,67 @@ export interface BackendManifest {
   statusVocabulary?: {
     toCanonical: Record<string, string>;
     fromCanonical?: Record<string, string>;
+  };
+  /**
+   * Optional INVOICE-SYNC mapping — how this backend's billing API shapes maps to/from OmniProject's agnostic
+   * invoice surface, ADVERTISED as data so the gateway holds no vendor-shaped billing code. A generic projector
+   * (broker/backends/invoice-mapping) applies it both ways: outbound (agnostic Invoice → the vendor payload the
+   * broker POSTs) and inbound (the vendor's response / settlement webhook → agnostic external ref + paid signal).
+   * Only a backend that reconciles an external settlement onto the LOCAL sealed invoice artifact needs this;
+   * ordinary contract verbs are already executed from `actions`. See {@link InvoiceSyncSpec}.
+   */
+  invoiceSync?: InvoiceSyncSpec;
+}
+
+/** One outbound invoice-field mapping: agnostic `from` → vendor `to`, via an optional named transform (a CLOSED
+ *  set — no server-side evaluation of vendor-supplied expressions). */
+export type InvoiceSyncOutboundField =
+  | { to: string; from: string }
+  | { to: string; from: string; transform: "date-only" }
+  | { to: string; from: string; transform: "map"; map: Record<string, string>; default: string }
+  | { to: string; from: string; transform: "sign-when"; whenField: string; equals: string }
+  | { to: string; from: string; transform: "const-when-gt"; gt: number; then: string; else: string };
+
+/** A leaf settlement predicate over a normalised vendor record field. */
+export interface InvoiceSyncLeafPredicate {
+  field: string;
+  equalsAny?: (string | number)[];
+  finite?: true;
+  lte?: number;
+  gt?: number;
+}
+/** A settlement predicate: a leaf, or a boolean combinator. */
+export type InvoiceSyncPredicate =
+  | InvoiceSyncLeafPredicate
+  | { anyOf: InvoiceSyncPredicate[] }
+  | { allOf: InvoiceSyncPredicate[] };
+
+/** The advertised invoice-sync mapping a backend carries in its manifest (data, applied by the generic
+ *  projector). See broker/backends/invoice-mapping in the gateway for the engine. */
+export interface InvoiceSyncSpec {
+  correlation: { field: string; altFields?: string[] };
+  env: { enable: string[]; webhookSecret: string[] };
+  outbound: {
+    fields: InvoiceSyncOutboundField[];
+    lines: { to: string; from: string; fields: InvoiceSyncOutboundField[] };
+    correlationTo: string;
+  };
+  inbound: {
+    unwrap?: string[];
+    id: string;
+    number?: string;
+    pdf?: string;
+    paid: InvoiceSyncPredicate;
+  };
+  webhook: {
+    wrappers?: string[];
+    arrayWrappers?: string[];
+    invoicesKey?: string;
+    amountWrappers?: string[];
+    amountField: string;
+    /** Original vendor-named inbound URLs / header names kept working as back-compat aliases (advertised data,
+     *  so the neutral webhook router mounts/accepts them without a vendor name appearing in gateway code). */
+    legacyPaths?: string[];
+    legacyHeaders?: string[];
   };
 }

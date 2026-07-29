@@ -69,6 +69,12 @@ export const isLabelType = (type: string): boolean => LABEL_FIELD_TYPES.has(type
 const EMAIL_PATTERN = "^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$";
 const URL_PATTERN = "^https?://[^\\s]+$";
 const DATE_PATTERN = "^\\d{4}-\\d{2}-\\d{2}$";
+/** A reference value is a record IDENTIFIER, never free prose — an allow-list of id-safe characters
+ *  (alphanumerics + the separators real ids use: . _ : / ~ @ # + -). No whitespace, markup or control chars,
+ *  so a reference can never carry an injection payload or an unbounded blob. */
+const REFERENCE_PATTERN = "^[A-Za-z0-9._:/~@#+-]+$";
+/** Reference ids are short; bound them well below free-text so a reference field can't smuggle a large value. */
+const REFERENCE_MAXLENGTH = 128;
 
 /** The default free-text length ceiling when an author doesn't set one (bounds an unbounded text write). */
 export const DEFAULT_TEXT_MAXLENGTH = 500;
@@ -91,7 +97,10 @@ function defaultPolicy(type: string, options: string[]): FieldPolicy {
       return { sanitise: ["trim", "numeric"], validation: {} };
     case "date":
       return { sanitise: ["trim"], validation: { pattern: DATE_PATTERN, patternMessage: "must be a date (YYYY-MM-DD)" } };
-    // Single-choice families — the value must be one of the field's options.
+    // Single-choice families — the value must be one of the field's options. `enum` is the CANONICAL
+    // field-vocabulary choice type (assets/fields.json): its declared `options` are the allow-list, so a
+    // canonical enum field validates against its value set instead of falling through to free-text escaping.
+    case "enum":
     case "select":
     case "radio":
     case "single-choice":
@@ -106,6 +115,10 @@ function defaultPolicy(type: string, options: string[]): FieldPolicy {
       return { sanitise: ["trim"], validation: { options, multi: true } };
     case "likert":
       return { sanitise: ["trim"], validation: { options } };
+    // A reference points at another record by id — validated as an id-safe, bounded token (security floor for
+    // every reference field, incl. the finance dimension / period / reversal references).
+    case "reference":
+      return { sanitise: ["trim", "escape-html"], validation: { maxLength: REFERENCE_MAXLENGTH, pattern: REFERENCE_PATTERN, patternMessage: "must be a valid reference id (letters, digits and . _ : / ~ @ # + - only)" } };
     default:
       // Unknown-but-non-label input: still never leave it unsanitised.
       return { sanitise: ["trim", "escape-html"], validation: {} };

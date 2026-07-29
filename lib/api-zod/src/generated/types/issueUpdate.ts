@@ -41,6 +41,10 @@ export interface IssueUpdate {
   /** @nullable */
   storyPoints?: number | null;
   /** @nullable */
+  epic?: string | null;
+  /** @nullable */
+  sprint?: string | null;
+  /** @nullable */
   healthStatus?: string | null;
   /** @nullable */
   riskLevel?: string | null;

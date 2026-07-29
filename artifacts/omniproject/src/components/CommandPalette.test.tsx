@@ -6,6 +6,8 @@ import { getListProjectsQueryKey, type Project } from "@workspace/api-client-rea
 import { renderWithProviders } from "../test/utils";
 import { CommandPalette } from "./CommandPalette";
 import { useStore } from "../store/useStore";
+import { useRecentItems } from "../lib/recent-items";
+import { useEditHistory } from "../lib/edit-history";
 
 function project(over: Partial<Project> = {}): Project {
   return {
@@ -36,6 +38,8 @@ beforeEach(() => {
     isShortcutsOpen: false,
     isNewIssueOpen: false,
   });
+  useRecentItems.setState({ items: [] });
+  useEditHistory.setState({ past: [], future: [] });
 });
 
 describe("CommandPalette", () => {
@@ -160,6 +164,43 @@ describe("CommandPalette", () => {
     renderWithProviders(<CommandPalette />, { client: seeded([]) });
     const item = screen.getByText("New Task").closest("[role='option']");
     expect(item).not.toHaveAttribute("aria-disabled", "true");
+  });
+
+  it("surfaces a Recent group and routes a recent project on select", async () => {
+    const user = userEvent.setup();
+    useStore.setState({ isCommandOpen: true });
+    useRecentItems.setState({ items: [{ type: "project", id: "proj-recent", label: "Last Visited Project" }] });
+    renderWithProviders(<CommandPalette />, { client: seeded([]) });
+    expect(screen.getByText("Recent")).toBeInTheDocument();
+    await user.click(screen.getByText("Last Visited Project"));
+    expect(useStore.getState().activeProjectId).toBe("proj-recent");
+    expect(useStore.getState().isCommandOpen).toBe(false);
+  });
+
+  it("omits the Recent group when there are no recents", () => {
+    useStore.setState({ isCommandOpen: true });
+    renderWithProviders(<CommandPalette />, { client: seeded([]) });
+    expect(screen.queryByText("Recent")).not.toBeInTheDocument();
+  });
+
+  it("offers Undo when the edit history has an entry, and clears it on select", async () => {
+    const user = userEvent.setup();
+    useStore.setState({ isCommandOpen: true });
+    useEditHistory.setState({ past: [{ projectId: "p1", issueId: "i1", field: "status", from: "todo", to: "done", label: "Status" }], future: [] });
+    renderWithProviders(<CommandPalette />, { client: seeded([]) });
+    const undo = screen.getByText(/Undo last edit/);
+    expect(undo).toBeInTheDocument();
+    await user.click(undo);
+    // Undo popped the only entry off the past stack (moving it to future) and closed the palette.
+    expect(useEditHistory.getState().past).toHaveLength(0);
+    expect(useStore.getState().isCommandOpen).toBe(false);
+  });
+
+  it("omits Undo/Redo when the edit history is empty", () => {
+    useStore.setState({ isCommandOpen: true });
+    renderWithProviders(<CommandPalette />, { client: seeded([]) });
+    expect(screen.queryByText(/Undo last edit/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Redo edit/)).not.toBeInTheDocument();
   });
 
   it("selecting a view updates the store and closes the palette", async () => {

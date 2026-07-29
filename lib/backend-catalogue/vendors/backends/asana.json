@@ -76,6 +76,7 @@
   },
   "credentialType": "asanaApi",
   "docsUrl": "https://docs.n8n.io/integrations/builtin/app-nodes/n8n-nodes-base.asana/",
+  "primaryRecord": "issue",
   "fieldKeys": [
     "title",
     "status",

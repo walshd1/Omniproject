@@ -47,10 +47,16 @@ export interface ScimGroup {
 }
 
 interface Directory { users: Record<string, ScimUser>; groups: Record<string, ScimGroup> }
-let dir: Directory = { users: {}, groups: {} };
+// Null-prototype maps throughout: the by-id maps are indexed by the SCIM `id`, which arrives as a raw
+// route param. `safeId` already rejects `__proto__`/`constructor`/`prototype`, but a null-prototype map
+// makes the no-pollution property structural (a bare `Object.create(null)` has no prototype to reach),
+// so `dir.users[id]` can never resolve to `Object.prototype` even absent the guard — defence-in-depth,
+// and the barrier a static prototype-pollution analyser recognises.
+const emptyMap = <T>(): Record<string, T> => Object.create(null) as Record<string, T>;
+let dir: Directory = { users: emptyMap<ScimUser>(), groups: emptyMap<ScimGroup>() };
 // Tombstones: id → deletedAt (epoch ms). A hard-deleted user/group leaves no record, so LWW alone
 // would let a sibling's stale copy resurrect it; a tombstone that out-dates the record suppresses it.
-let tombstones: Record<string, number> = {};
+let tombstones: Record<string, number> = emptyMap<number>();
 const store = new SealedFile(() => resolveConfigFile("SCIM_STATE_FILE", "scim.json"), "scim");
 
 /**
@@ -67,22 +73,37 @@ export const SCIM_SHARED_KEY = "security:scim-directory";
 interface ScimShared { users: Record<string, ScimUser>; groups: Record<string, ScimGroup>; tombstones: Record<string, number> }
 const epoch = (iso: string | undefined): number => (iso ? Date.parse(iso) || 0 : 0);
 
+/** How long a hard-delete tombstone is retained. A tombstone only has to out-live the window in which
+ *  a sibling's stale copy of the deleted record could still resurrect it — bounded by the fleet-sync
+ *  interval and any offline replica's catch-up — so 30 days is generous. Past that the record is gone
+ *  fleet-wide and the tombstone is pure memory growth (one entry per resource ever deleted), so it's
+ *  pruned. Hardcoded (not an env var) to stay off the KNOWN_ENV_VARS guard. */
+const SCIM_TOMBSTONE_TTL_MS = 30 * 86_400_000;
+
+/** Drop tombstones older than the TTL (mutates in place). Keeps the map from growing without bound as
+ *  resources are deleted over the fleet's lifetime, long after any stale copy could resurrect them. */
+export function pruneTombstones(t: Record<string, number>, now: number): Record<string, number> {
+  const cutoff = now - SCIM_TOMBSTONE_TTL_MS;
+  for (const [id, ts] of Object.entries(t)) if (ts < cutoff) delete t[id];
+  return t;
+}
+
 /** Per-record LWW merge of two directory snapshots: newer `meta.lastModified` wins; a tombstone that
  *  out-dates a record drops it. Deterministic (ids sorted) so the caller can skip an unchanged re-write. */
 function mergeDirectories(a: ScimShared, b: ScimShared): ScimShared {
-  const tomb: Record<string, number> = {};
+  const tomb: Record<string, number> = emptyMap<number>();
   for (const id of new Set([...Object.keys(a.tombstones ?? {}), ...Object.keys(b.tombstones ?? {})])) {
     tomb[id] = Math.max(a.tombstones?.[id] ?? 0, b.tombstones?.[id] ?? 0);
   }
   const pick = <T extends { meta: { lastModified: string } }>(x: T | undefined, y: T | undefined): T =>
     (epoch(y?.meta.lastModified) > epoch(x?.meta.lastModified) ? y! : (x ?? y!));
-  const users: Record<string, ScimUser> = {};
+  const users: Record<string, ScimUser> = emptyMap<ScimUser>();
   for (const id of [...new Set([...Object.keys(a.users ?? {}), ...Object.keys(b.users ?? {})])].sort()) {
     const rec = pick(a.users?.[id], b.users?.[id]);
     if ((tomb[id] ?? 0) >= epoch(rec.meta.lastModified)) continue; // deleted after its last update
     users[id] = rec;
   }
-  const groups: Record<string, ScimGroup> = {};
+  const groups: Record<string, ScimGroup> = emptyMap<ScimGroup>();
   for (const id of [...new Set([...Object.keys(a.groups ?? {}), ...Object.keys(b.groups ?? {})])].sort()) {
     const rec = pick(a.groups?.[id], b.groups?.[id]);
     if ((tomb[id] ?? 0) >= epoch(rec.meta.lastModified)) continue;
@@ -93,18 +114,52 @@ function mergeDirectories(a: ScimShared, b: ScimShared): ScimShared {
 
 /** Validate an untrusted shared-directory blob from the fleet KV BEFORE it can influence authorization.
  *  Any replica (or anyone able to write `security:scim-directory`) can put this value, so a hostile or
- *  buggy one must not be able to grant roles, reactivate a deprovisioned user, or pollute the prototype.
- *  Parse prototype-safe, then keep only well-formed records under safe ids; drop everything else. */
+ *  buggy one must not be able to crash the request-time gate, slip a non-boolean `active` past the
+ *  `!active` deprovisioning check, inject role-claim group names, or pollute the prototype. Parse
+ *  prototype-safe, then REBUILD each record field-by-field through the same validators the write path
+ *  uses (`coerceActive`/`cleanEmails`/`cleanGroups`); drop any record missing its required fields.
+ *  Field validation can't make an access-controlled KV semantically trusted — a well-formed hostile
+ *  write is still a write — but it guarantees whatever survives is SHAPE-SAFE for `directoryDecision`. */
 export function sanitizeSharedDirectory(raw: string): ScimShared {
   const parsed = safeParseJson<Partial<ScimShared>>(raw) ?? {};
-  const out: ScimShared = { users: {}, groups: {}, tombstones: {} };
-  const validMeta = (m: unknown): boolean =>
-    !!m && typeof m === "object" && typeof (m as { lastModified?: unknown }).lastModified === "string";
-  for (const [id, rec] of Object.entries(parsed.users ?? {})) {
-    if (safeId(id) && rec && typeof rec === "object" && validMeta((rec as ScimUser).meta)) out.users[id] = rec as ScimUser;
+  const out: ScimShared = { users: emptyMap<ScimUser>(), groups: emptyMap<ScimGroup>(), tombstones: emptyMap<number>() };
+  const lastModified = (m: unknown): string | null =>
+    m && typeof m === "object" && typeof (m as { lastModified?: unknown }).lastModified === "string"
+      ? (m as { lastModified: string }).lastModified : null;
+  const str = (v: unknown): string | undefined => (typeof v === "string" ? v : undefined);
+  for (const [id, raw2] of Object.entries(parsed.users ?? {})) {
+    if (!safeId(id) || !raw2 || typeof raw2 !== "object") continue;
+    const r = raw2 as Partial<ScimUser>;
+    const lm = lastModified(r.meta);
+    if (typeof r.userName !== "string" || lm === null) continue; // required fields; else drop, don't cast
+    const created = str(r.meta?.created) ?? lm;
+    out.users[id] = {
+      id,
+      userName: r.userName,
+      active: coerceActive(r.active, false), // fail closed: a non-boolean `active` becomes disabled, never active
+      emails: cleanEmails(r.emails),
+      groups: cleanGroups(r.groups),
+      ...(str(r.externalId) !== undefined ? { externalId: str(r.externalId) } : {}),
+      ...(str(r.displayName) !== undefined ? { displayName: str(r.displayName) } : {}),
+      meta: { resourceType: "User", created, lastModified: lm },
+    };
   }
-  for (const [id, rec] of Object.entries(parsed.groups ?? {})) {
-    if (safeId(id) && rec && typeof rec === "object" && validMeta((rec as ScimGroup).meta)) out.groups[id] = rec as ScimGroup;
+  for (const [id, raw2] of Object.entries(parsed.groups ?? {})) {
+    if (!safeId(id) || !raw2 || typeof raw2 !== "object") continue;
+    const r = raw2 as Partial<ScimGroup>;
+    const lm = lastModified(r.meta);
+    if (typeof r.displayName !== "string" || lm === null) continue;
+    const created = str(r.meta?.created) ?? lm;
+    const members = Array.isArray(r.members)
+      ? r.members.filter((m): m is { value: string } => !!m && typeof m === "object" && typeof (m as { value?: unknown }).value === "string").map((m) => ({ value: m.value }))
+      : [];
+    out.groups[id] = {
+      id,
+      displayName: r.displayName,
+      members,
+      ...(str(r.externalId) !== undefined ? { externalId: str(r.externalId) } : {}),
+      meta: { resourceType: "Group", created, lastModified: lm },
+    };
   }
   for (const [id, ts] of Object.entries(parsed.tombstones ?? {})) {
     if (safeId(id) && typeof ts === "number" && Number.isFinite(ts)) out.tombstones[id] = ts;
@@ -124,6 +179,7 @@ export async function refreshScimFromShared(): Promise<void> {
     // Untrusted fleet input — validate before it can grant/reactivate anything (see sanitizeSharedDirectory).
     const shared: ScimShared = raw ? sanitizeSharedDirectory(raw) : { users: {}, groups: {}, tombstones: {} };
     const merged = mergeDirectories({ users: dir.users, groups: dir.groups, tombstones }, shared);
+    pruneTombstones(merged.tombstones, Date.now()); // bound tombstone growth once records are gone fleet-wide
     dir.users = merged.users;
     dir.groups = merged.groups;
     tombstones = merged.tombstones;
@@ -179,9 +235,13 @@ export function scimTokenValid(presented: string | undefined): boolean {
 
 function ensureLoaded(): void {
   store.loadOnce((raw) => {
-    const parsed = JSON.parse(raw) as Directory;
-    if (parsed.users) dir.users = parsed.users;
-    if (parsed.groups) dir.groups = parsed.groups;
+    // Prototype-safe parse (strips __proto__/constructor) — the sealed file is trusted, but the same
+    // reviver the fleet path uses keeps a single restore chokepoint and can't return a polluted map.
+    const parsed = safeParseJson<Directory>(raw);
+    if (!parsed) { logger.warn("scim: directory restore skipped — unparseable sealed state"); return; }
+    // Re-home onto null-prototype maps so the restored directory keeps the no-pollution structural property.
+    if (parsed.users) dir.users = Object.assign(emptyMap<ScimUser>(), parsed.users);
+    if (parsed.groups) dir.groups = Object.assign(emptyMap<ScimGroup>(), parsed.groups);
     logger.info({ users: Object.keys(dir.users).length, groups: Object.keys(dir.groups).length }, "scim: directory restored");
   });
 }
@@ -202,7 +262,12 @@ const newId = (): string => crypto.randomUUID();
  *  leaver as still-active — a silent deprovisioning bypass. */
 function coerceActive(value: unknown, fallback: boolean): boolean {
   if (value === undefined || value === null) return fallback;
-  return value === true || value === "true";
+  if (typeof value === "boolean") return value;
+  // IdPs vary on the string casing ("true"/"True"/"TRUE") — normalise before comparing. Any other
+  // type (number, object, malformed) is NOT truthy-trusted: it fails closed to `false` (disabled),
+  // never leaving a would-be-deprovisioned user readable as active.
+  if (typeof value === "string") return value.trim().toLowerCase() === "true";
+  return false;
 }
 
 /** Keep only well-formed `{ value: string }` email entries — an IdP-supplied `emails:[{value:123}]`
@@ -282,15 +347,21 @@ export function patchUser(id: string, operations: Array<{ op: string; path?: str
   const user = dir.users[id];
   if (!user) return null;
   for (const { op, path: p, value } of normalizedOps(operations)) {
-    if (op === "replace" || op === "add") {
-      if (p === "active" || (!p && typeof value === "object" && value && "active" in (value as object))) {
-        const v = p === "active" ? value : (value as { active?: unknown }).active;
-        user.active = coerceActive(v, user.active);
-      } else if (p === "displayname") {
-        user.displayName = String(value ?? "");
-      } else if (p === "username") {
-        user.userName = String(value ?? user.userName);
-      }
+    if (op !== "replace" && op !== "add") continue;
+    if (!p && value && typeof value === "object") {
+      // Pathless replace: the value is an object of attributes (what Azure AD sends). Apply each
+      // recognised key — not just `active`, so a pathless displayName/userName change isn't silently
+      // dropped. Keys are the SCIM camelCase attribute names.
+      const v = value as { active?: unknown; displayName?: unknown; userName?: unknown };
+      if ("active" in v) user.active = coerceActive(v.active, user.active);
+      if (typeof v.displayName === "string") user.displayName = v.displayName;
+      if (typeof v.userName === "string") user.userName = v.userName;
+    } else if (p === "active") {
+      user.active = coerceActive(value, user.active);
+    } else if (p === "displayname") {
+      user.displayName = String(value ?? "");
+    } else if (p === "username") {
+      user.userName = String(value ?? user.userName);
     }
   }
   user.meta.lastModified = now();
@@ -460,4 +531,4 @@ export function scimStats(): { enabled: boolean; users: number; groups: number }
 }
 
 /** Test-only: wipe the directory. */
-export function __resetScim(): void { dir = { users: {}, groups: {} }; tombstones = {}; store.reset(); }
+export function __resetScim(): void { dir = { users: emptyMap<ScimUser>(), groups: emptyMap<ScimGroup>() }; tombstones = emptyMap<number>(); store.reset(); }

@@ -3,6 +3,7 @@ import crypto from "node:crypto";
 import { getSession } from "./auth";
 import { roleForReq, isDeprovisioned, ROLES } from "../lib/rbac";
 import { addClient, clientCount, canAddClient } from "../lib/notify-hub";
+import { getUserPrefs } from "../lib/user-prefs";
 import { constantTimeEqual } from "../lib/crypto-keys";
 import { openSse, keepAlive, type SseStream } from "../lib/sse";
 import { getNotifyBus, busMode } from "../lib/notify-bus";
@@ -46,11 +47,14 @@ streamRouter.get("/notifications/stream", (req: Request, res: Response) => {
   }
 
   const stream = openSse(res, { ok: true });
+  // Snapshot the user's notification prefs at connect time so the hub can honour muted kinds / a disabled
+  // in-app channel synchronously (no per-delivery vault read). A pref change applies on the next reconnect.
   const remove = addClient({
     id: crypto.randomUUID(),
     sub: session?.sub,
     email: session?.email,
     roles: [roleForReq(req)],
+    notifyPrefs: getUserPrefs(session.sub).notifications,
     send: stream.send,
     // Graceful shutdown ends the stream; req "close" then runs the cleanup below.
     close: stream.close,

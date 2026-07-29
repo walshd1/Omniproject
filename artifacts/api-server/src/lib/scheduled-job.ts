@@ -2,7 +2,6 @@ import type { ActorContext } from "../broker/types";
 import { mintAutonomousContext } from "./autonomous";
 import { getNotifyBus } from "./notify-bus";
 import { recordAudit } from "./audit";
-import { logger } from "./logger";
 import type { Role } from "./rbac";
 
 /**
@@ -67,47 +66,4 @@ export async function runScheduledAutonomousJob<T>(opts: RunScheduledAutonomousJ
   });
 
   return { ...outcome.data, dispatched };
-}
-
-export interface IntervalScheduler {
-  /** The configured cadence in hours (env override, else the default; 0 = disabled). */
-  intervalHours(): number;
-  /** Start the timer; false (no-op) when the configured interval is 0 (opt-out). */
-  start(run: () => Promise<unknown>): boolean;
-  /** Stop the timer (idempotent). */
-  stop(): void;
-}
-
-/**
- * The shared "env-var hours → setInterval → unref → stoppable timer" bootstrap behind every
- * scheduled job's in-process cadence: an env-var override in hours (0 = opt out), a
- * self-unref'd interval so it never keeps the process alive, and a run's errors logged (never
- * fatal, never lost).
- */
-export function createIntervalScheduler(envVar: string, defaultHours: number, label: string): IntervalScheduler {
-  let timer: ReturnType<typeof setInterval> | null = null;
-
-  function intervalHours(): number {
-    const raw = process.env[envVar]?.trim();
-    if (raw === undefined || raw === "") return defaultHours;
-    const hours = Number(raw);
-    if (!Number.isFinite(hours) || hours < 0) return defaultHours;
-    return hours;
-  }
-
-  function start(run: () => Promise<unknown>): boolean {
-    const hours = intervalHours();
-    if (hours <= 0) return false;
-    if (timer) clearInterval(timer);
-    timer = setInterval(() => { void run().catch((err) => logger.warn({ err }, `${label} run failed`)); }, hours * 60 * 60 * 1000);
-    if (typeof timer.unref === "function") timer.unref(); // don't keep the process alive for the timer
-    logger.info({ everyHours: hours }, `${label}: scheduled in-process (opt-out; set ${envVar}=0 to disable, or use the trigger endpoint + external cron for a fleet)`);
-    return true;
-  }
-
-  function stop(): void {
-    if (timer) { clearInterval(timer); timer = null; }
-  }
-
-  return { intervalHours, start, stop };
 }

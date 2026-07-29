@@ -36,6 +36,7 @@
     "scheduling": true
   },
   "docsUrl": "https://developer.atlassian.com/cloud/jira/platform/rest/v3/",
+  "primaryRecord": "issue",
   "id": "jira",
   "label": "Jira (Cloud)",
   "notes": "JIRA_BASIC_AUTH = base64('email:api_token'). Sprints/story points come from Agile fields (board API + customfield_*); attach sprint:/sp: labels in the Normalize node.",

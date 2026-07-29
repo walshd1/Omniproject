@@ -11,12 +11,19 @@ import { PortfolioIncome } from "./PortfolioIncome";
 import { PortfolioBenefits } from "./PortfolioBenefits";
 import { PortfolioPrioritisation } from "./PortfolioPrioritisation";
 import { IncomeInvoicing } from "./IncomeInvoicing";
+import { FinancialStatements } from "./FinancialStatements";
 import { StaffTimeCost } from "./StaffTimeCost";
 import { Burndown } from "./Burndown";
 import { Burnup } from "./Burnup";
 import { CumulativeFlow } from "./CumulativeFlow";
 import { Velocity } from "./Velocity";
 import { RaidRegister } from "./RaidRegister";
+import { RiskRegister } from "./RiskRegister";
+import { CycleTimeReport } from "./CycleTimeReport";
+import { HierarchyProgress } from "./HierarchyProgress";
+import { SprintReview } from "./SprintReview";
+import { PlanMyDay } from "./PlanMyDay";
+import { SkillsGap } from "./SkillsGap";
 import { CrossProgrammeDependencies } from "./CrossProgrammeDependencies";
 import { FederatedPortfolio } from "./FederatedPortfolio";
 import { StrategyAlignment } from "./StrategyAlignment";
@@ -69,12 +76,22 @@ export const REPORT_RENDERERS: Record<string, ReportRendererComponent> = {
   PortfolioBenefits,
   PortfolioPrioritisation,
   IncomeInvoicing,
+  FinancialStatements,
   StaffTimeCost,
   Burndown,
   Burnup,
   CumulativeFlow,
   Velocity,
   RaidRegister,
+  // RiskRegister takes an optional `now` (test seam) alongside projectId; adapt it to the shared prop shape.
+  RiskRegister: RiskRegister as ReportRendererComponent,
+  CycleTimeReport,
+  HierarchyProgress,
+  SprintReview,
+  // PlanMyDay takes an optional `now` (test seam) alongside projectId; adapt it to the shared prop shape.
+  PlanMyDay: PlanMyDay as ReportRendererComponent,
+  // SkillsGap is portfolio-wide (reads the resource pool, takes no props); adapt it to the shared prop shape.
+  SkillsGap: SkillsGap as ReportRendererComponent,
   CrossProgrammeDependencies,
   FederatedPortfolio,
   StrategyAlignment,

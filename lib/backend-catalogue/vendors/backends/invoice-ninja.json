@@ -1,0 +1,320 @@
+{
+  "actions": {
+    "create_invoice": {
+      "body": "={{ JSON.stringify($json.body.payload) }}",
+      "method": "POST",
+      "note": "Body is the OmniProject-shaped Invoice Ninja invoice payload (toNinjaInvoice). custom_value1 carries omni:<invoiceId> for inbound correlation.",
+      "url": "={{ $env.INVOICE_NINJA_URL }}/api/v1/invoices"
+    },
+    "update_invoice": {
+      "body": "={{ JSON.stringify($json.body.payload) }}",
+      "method": "PUT",
+      "url": "={{ $env.INVOICE_NINJA_URL }}/api/v1/invoices/{{ $json.body.payload.invoiceId }}"
+    },
+    "get_invoice": {
+      "method": "GET",
+      "url": "={{ $env.INVOICE_NINJA_URL }}/api/v1/invoices/{{ $json.body.payload.invoiceId }}"
+    },
+    "list_invoices": {
+      "method": "GET",
+      "note": "Optional client filter via ?client_id=…; the workflow forwards query params from the payload.",
+      "url": "={{ $env.INVOICE_NINJA_URL }}/api/v1/invoices"
+    },
+    "list_clients": {
+      "method": "GET",
+      "note": "Client master (finance superset F1) — the invoice bill-to parties.",
+      "url": "={{ $env.INVOICE_NINJA_URL }}/api/v1/clients"
+    },
+    "get_client": {
+      "method": "GET",
+      "url": "={{ $env.INVOICE_NINJA_URL }}/api/v1/clients/{{ $json.body.payload.clientId }}"
+    },
+    "create_client": {
+      "body": "={{ JSON.stringify($json.body.payload) }}",
+      "method": "POST",
+      "url": "={{ $env.INVOICE_NINJA_URL }}/api/v1/clients"
+    },
+    "update_client": {
+      "body": "={{ JSON.stringify($json.body.payload) }}",
+      "method": "PUT",
+      "url": "={{ $env.INVOICE_NINJA_URL }}/api/v1/clients/{{ $json.body.payload.clientId }}"
+    },
+    "list_products": {
+      "method": "GET",
+      "note": "Product/item catalogue (finance superset F2) — the priced items invoices draw from.",
+      "url": "={{ $env.INVOICE_NINJA_URL }}/api/v1/products"
+    },
+    "get_product": {
+      "method": "GET",
+      "url": "={{ $env.INVOICE_NINJA_URL }}/api/v1/products/{{ $json.body.payload.productId }}"
+    },
+    "create_product": {
+      "body": "={{ JSON.stringify($json.body.payload) }}",
+      "method": "POST",
+      "url": "={{ $env.INVOICE_NINJA_URL }}/api/v1/products"
+    },
+    "update_product": {
+      "body": "={{ JSON.stringify($json.body.payload) }}",
+      "method": "PUT",
+      "url": "={{ $env.INVOICE_NINJA_URL }}/api/v1/products/{{ $json.body.payload.productId }}"
+    },
+    "list_payments": {
+      "method": "GET",
+      "note": "AR receipts (finance superset F3) — settlements applied to invoices.",
+      "url": "={{ $env.INVOICE_NINJA_URL }}/api/v1/payments"
+    },
+    "get_payment": {
+      "method": "GET",
+      "url": "={{ $env.INVOICE_NINJA_URL }}/api/v1/payments/{{ $json.body.payload.paymentId }}"
+    },
+    "create_payment": {
+      "body": "={{ JSON.stringify($json.body.payload) }}",
+      "method": "POST",
+      "url": "={{ $env.INVOICE_NINJA_URL }}/api/v1/payments"
+    },
+    "list_credit_notes": {
+      "method": "GET",
+      "note": "AR credit notes (finance superset F4) — Invoice Ninja credits.",
+      "url": "={{ $env.INVOICE_NINJA_URL }}/api/v1/credits"
+    },
+    "get_credit_note": {
+      "method": "GET",
+      "url": "={{ $env.INVOICE_NINJA_URL }}/api/v1/credits/{{ $json.body.payload.creditNoteId }}"
+    },
+    "create_credit_note": {
+      "body": "={{ JSON.stringify($json.body.payload) }}",
+      "method": "POST",
+      "url": "={{ $env.INVOICE_NINJA_URL }}/api/v1/credits"
+    },
+    "list_quotes": {
+      "method": "GET",
+      "note": "AR quotes/estimates (finance superset F4).",
+      "url": "={{ $env.INVOICE_NINJA_URL }}/api/v1/quotes"
+    },
+    "get_quote": {
+      "method": "GET",
+      "url": "={{ $env.INVOICE_NINJA_URL }}/api/v1/quotes/{{ $json.body.payload.quoteId }}"
+    },
+    "create_quote": {
+      "body": "={{ JSON.stringify($json.body.payload) }}",
+      "method": "POST",
+      "url": "={{ $env.INVOICE_NINJA_URL }}/api/v1/quotes"
+    },
+    "update_quote": {
+      "body": "={{ JSON.stringify($json.body.payload) }}",
+      "method": "PUT",
+      "url": "={{ $env.INVOICE_NINJA_URL }}/api/v1/quotes/{{ $json.body.payload.quoteId }}"
+    },
+    "list_tax_rates": {
+      "method": "GET",
+      "note": "Tax-rate table (finance superset F5).",
+      "url": "={{ $env.INVOICE_NINJA_URL }}/api/v1/tax_rates"
+    },
+    "get_tax_rate": {
+      "method": "GET",
+      "url": "={{ $env.INVOICE_NINJA_URL }}/api/v1/tax_rates/{{ $json.body.payload.taxRateId }}"
+    },
+    "create_tax_rate": {
+      "body": "={{ JSON.stringify($json.body.payload) }}",
+      "method": "POST",
+      "url": "={{ $env.INVOICE_NINJA_URL }}/api/v1/tax_rates"
+    },
+    "update_tax_rate": {
+      "body": "={{ JSON.stringify($json.body.payload) }}",
+      "method": "PUT",
+      "url": "={{ $env.INVOICE_NINJA_URL }}/api/v1/tax_rates/{{ $json.body.payload.taxRateId }}"
+    },
+    "list_vendors": {
+      "method": "GET",
+      "note": "Supplier master (finance superset F6 — accounts payable).",
+      "url": "={{ $env.INVOICE_NINJA_URL }}/api/v1/vendors"
+    },
+    "get_vendor": {
+      "method": "GET",
+      "url": "={{ $env.INVOICE_NINJA_URL }}/api/v1/vendors/{{ $json.body.payload.vendorId }}"
+    },
+    "create_vendor": {
+      "body": "={{ JSON.stringify($json.body.payload) }}",
+      "method": "POST",
+      "url": "={{ $env.INVOICE_NINJA_URL }}/api/v1/vendors"
+    },
+    "update_vendor": {
+      "body": "={{ JSON.stringify($json.body.payload) }}",
+      "method": "PUT",
+      "url": "={{ $env.INVOICE_NINJA_URL }}/api/v1/vendors/{{ $json.body.payload.vendorId }}"
+    },
+    "list_expenses": {
+      "method": "GET",
+      "note": "Expenses (finance superset F6) — costs, optionally billable to a client.",
+      "url": "={{ $env.INVOICE_NINJA_URL }}/api/v1/expenses"
+    },
+    "get_expense": {
+      "method": "GET",
+      "url": "={{ $env.INVOICE_NINJA_URL }}/api/v1/expenses/{{ $json.body.payload.expenseId }}"
+    },
+    "create_expense": {
+      "body": "={{ JSON.stringify($json.body.payload) }}",
+      "method": "POST",
+      "url": "={{ $env.INVOICE_NINJA_URL }}/api/v1/expenses"
+    },
+    "update_expense": {
+      "body": "={{ JSON.stringify($json.body.payload) }}",
+      "method": "PUT",
+      "url": "={{ $env.INVOICE_NINJA_URL }}/api/v1/expenses/{{ $json.body.payload.expenseId }}"
+    }
+  },
+  "authHeader": "",
+  "capabilities": {
+    "baseline": false,
+    "blockers": false,
+    "financials": true,
+    "history": false,
+    "issues": false,
+    "portfolio": false,
+    "raid": false,
+    "resources": false,
+    "scheduling": false
+  },
+  "credentialType": "httpHeaderAuth",
+  "docsUrl": "https://api-docs.invoicing.co/",
+  "fieldKeys": [
+    "clientBillingAddress",
+    "clientCreditLimit",
+    "clientEmail",
+    "clientName",
+    "clientPaymentTerms",
+    "clientTaxId",
+    "currency",
+    "dueDate",
+    "invoiceBalance",
+    "invoiceNumber",
+    "invoicePaidDate",
+    "invoiceStatus",
+    "invoiceTaxRate",
+    "invoiceTotal",
+    "invoicedAmount",
+    "productCost",
+    "productName",
+    "productSku",
+    "productTaxRate",
+    "productUnitPrice",
+    "paymentAmount",
+    "paymentDate",
+    "paymentMethod",
+    "paymentReference",
+    "creditNoteAmount",
+    "creditNoteNumber",
+    "creditNoteStatus",
+    "quoteAmount",
+    "quoteExpiryDate",
+    "quoteNumber",
+    "quoteStatus",
+    "recurringFrequency",
+    "taxRateCode",
+    "taxRateCompound",
+    "taxRateJurisdiction",
+    "taxRateName",
+    "taxRatePercent",
+    "expenseAmount",
+    "expenseCategory",
+    "expenseDate",
+    "vendorEmail",
+    "vendorName",
+    "vendorTaxId"
+  ],
+  "fields": [
+    {
+      "key": "invoiceNumber",
+      "label": "Invoice Number",
+      "type": "string",
+      "group": "financial"
+    },
+    {
+      "key": "invoiceStatus",
+      "label": "Invoice Status",
+      "type": "enum",
+      "group": "financial"
+    },
+    {
+      "key": "invoiceTotal",
+      "label": "Invoice Total",
+      "type": "currency",
+      "group": "financial"
+    },
+    {
+      "key": "invoiceBalance",
+      "label": "Invoice Balance Due",
+      "type": "currency",
+      "group": "financial"
+    },
+    {
+      "key": "invoiceTaxRate",
+      "label": "Invoice Tax Rate",
+      "type": "percent",
+      "group": "financial"
+    },
+    {
+      "key": "invoicePaidDate",
+      "label": "Invoice Paid Date",
+      "type": "date",
+      "group": "financial"
+    }
+  ],
+  "id": "invoice-ninja",
+  "label": "Invoice Ninja (billing)",
+  "notes": "Open-source, self-hostable billing system of record. Implements the invoice contract verbs plus the client (customer-master), product (item-catalogue), payment (AR-receipt), credit-note, quote, tax-rate, vendor and expense verbs (financials capability) — not a project/issue tracker. Auth via the X-API-Token header (configure an n8n Header Auth credential holding INVOICE_NINJA_TOKEN). INVOICE_NINJA_URL e.g. https://invoicing.example.com. Invoice sync is fully data-driven: the advertised invoiceSync mapping (below) is applied by the gateway's generic projector, so no vendor-shaped billing code lives in the gateway and the API token never leaves the broker's secret store.",
+  "primaryRecord": "invoice",
+  "requiredEnv": [
+    "INVOICE_NINJA_URL"
+  ],
+  "verification": "catalogued",
+  "via": "HTTP (Invoice Ninja v5 REST) + n8n Header-Auth credential (X-API-Token)",
+  "invoiceSync": {
+    "correlation": { "field": "custom_value1", "altFields": ["correlation"] },
+    "env": { "enable": ["INVOICE_NINJA_SYNC"], "webhookSecret": ["INVOICE_NINJA_WEBHOOK_SECRET"] },
+    "outbound": {
+      "fields": [
+        { "to": "number", "from": "number" },
+        { "to": "client_name", "from": "clientName" },
+        { "to": "currency_code", "from": "currency" },
+        { "to": "tax_rate1", "from": "taxRatePct" },
+        { "to": "tax_name1", "from": "taxRatePct", "transform": "const-when-gt", "gt": 0, "then": "Tax", "else": "" },
+        { "to": "due_date", "from": "dueAt", "transform": "date-only" },
+        { "to": "public_notes", "from": "note" }
+      ],
+      "lines": {
+        "to": "line_items",
+        "from": "lines",
+        "fields": [
+          { "to": "type_id", "from": "kind", "transform": "map", "map": { "labour": "2" }, "default": "1" },
+          { "to": "product_key", "from": "kind" },
+          { "to": "notes", "from": "description" },
+          { "to": "cost", "from": "unitPrice", "transform": "sign-when", "whenField": "kind", "equals": "discount" },
+          { "to": "quantity", "from": "quantity" }
+        ]
+      },
+      "correlationTo": "custom_value1"
+    },
+    "inbound": {
+      "unwrap": ["data"],
+      "id": "id",
+      "number": "number",
+      "pdf": "invitations.0.link",
+      "paid": {
+        "anyOf": [
+          { "field": "status_id", "equalsAny": [4, "4"] },
+          { "allOf": [{ "field": "balance", "finite": true, "lte": 0 }, { "field": "paid_to_date", "finite": true, "gt": 0 }] }
+        ]
+      }
+    },
+    "webhook": {
+      "wrappers": ["data", "invoice", "payload"],
+      "arrayWrappers": ["data", "payload"],
+      "invoicesKey": "invoices",
+      "amountWrappers": ["data", "payload"],
+      "amountField": "amount",
+      "legacyPaths": ["/invoices/ninja-webhook"],
+      "legacyHeaders": ["x-invoice-ninja-secret"]
+    }
+  }
+}

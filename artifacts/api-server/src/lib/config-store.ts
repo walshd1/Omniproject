@@ -216,11 +216,16 @@ function assertEnvName(name: string): void {
   if (!name || !/^[a-z0-9][a-z0-9_-]*$/i.test(name) || isForbiddenKey(name)) throw new Error("Invalid environment name");
 }
 
+/** Upper bound on named environments — far above any real deployment's needs, but a fixed ceiling so a
+ *  create loop can't grow the sealed store without bound (version history is already capped via MAX_VERSIONS). */
+const MAX_ENVIRONMENTS = 50;
+
 /** Create a named environment, seeded by cloning the active env's current config. */
 export function createEnvironment(name: string): StoreView {
   const s = ensure();
   assertEnvName(name);
   if (s.environments[name]) throw new Error(`Environment "${name}" already exists`);
+  if (Object.keys(s.environments).length >= MAX_ENVIRONMENTS) throw new Error(`too many environments (max ${MAX_ENVIRONMENTS})`);
   // Clone the active env's current config as the new environment's starting point.
   // activeEnv always names an existing environment (invariant maintained by the store API).
   s.environments[name] = structuredClone(s.environments[s.activeEnv]!);

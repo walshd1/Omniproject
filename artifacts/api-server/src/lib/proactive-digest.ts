@@ -1,6 +1,8 @@
 import type { Broker, PortfolioRow } from "../broker/types";
 import { type Role } from "./rbac";
-import { runScheduledAutonomousJob, createIntervalScheduler } from "./scheduled-job";
+import { runScheduledAutonomousJob } from "./scheduled-job";
+import { resolveIntervalHours, type ScheduledJob } from "./job-scheduler";
+import { getBroker } from "../broker";
 import { deliverDigestEmail } from "./digest-delivery";
 import type { Mailer } from "./email";
 import { logger } from "./logger";
@@ -265,23 +267,22 @@ export async function runProactiveDigest(opts: RunDigestOptions): Promise<RunDig
 // an operator opts OUT by setting PROACTIVE_DIGEST_INTERVAL_HOURS=0.
 const DEFAULT_INTERVAL_HOURS = 24 * 7;
 
-const scheduler = createIntervalScheduler("PROACTIVE_DIGEST_INTERVAL_HOURS", DEFAULT_INTERVAL_HOURS, "proactive-digest");
-
 /** The configured cadence in hours: the env override when a valid non-negative number,
  *  else the weekly default. 0 = disabled (opt-out). */
 export function digestIntervalHours(): number {
-  return scheduler.intervalHours();
+  return resolveIntervalHours("PROACTIVE_DIGEST_INTERVAL_HOURS", DEFAULT_INTERVAL_HOURS);
 }
 
 /**
- * Start the in-process digest timer (single-instance / homelab). ON by the weekly default;
- * `PROACTIVE_DIGEST_INTERVAL_HOURS=0` turns it OFF (opt-out). Returns true if started. Errors
- * in a run are logged, never fatal. For a fleet, set the interval to 0 and drive it from an
- * external scheduler hitting the trigger endpoint, so it fires once rather than once per replica.
+ * The unified-scheduler job for the proactive digest. ON by the weekly default; disabled when
+ * `PROACTIVE_DIGEST_INTERVAL_HOURS=0`. Registered once at boot — the shared heartbeat runs it, claim-once,
+ * so it fires exactly once across a fleet (no more "set to 0 on all but one replica").
  */
-export function startProactiveDigestScheduler(run: () => Promise<unknown>): boolean {
-  return scheduler.start(run);
+export function proactiveDigestScheduledJob(): ScheduledJob {
+  return {
+    id: "proactive-digest",
+    label: "proactive what-needs-me digest",
+    resolveSchedule: () => { const hours = digestIntervalHours(); return hours > 0 ? { kind: "interval", hours } : null; },
+    run: (now) => runProactiveDigest({ now, broker: getBroker() }),
+  };
 }
-
-/** Test-only: stop the timer. */
-export function __stopProactiveDigestScheduler(): void { scheduler.stop(); }

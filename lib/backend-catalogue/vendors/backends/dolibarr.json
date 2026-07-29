@@ -38,6 +38,7 @@
   },
   "credentialType": "httpHeaderAuth",
   "docsUrl": "https://wiki.dolibarr.org/index.php?title=Module_Web_Services_API_REST_(developer)",
+  "primaryRecord": "issue",
   "id": "dolibarr",
   "label": "Dolibarr (SMB ERP)",
   "notes": "Open-source SMB ERP. projects → projects, tasks → issues. Auth via the DOLAPIKEY header (configure an n8n Header Auth credential named DOLAPIKEY). DOLIBARR_URL e.g. https://erp.example.com.",

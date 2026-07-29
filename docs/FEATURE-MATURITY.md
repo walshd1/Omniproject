@@ -121,7 +121,7 @@ narratives/estimates is unbenchmarked, same caveat as the copilot.
 | --- | --- | --- | --- | --- |
 | Auth (OIDC/OAuth2/SAML, CSRF, HMAC seam, step-up, revocation) | stable | yes | **session cap is per-replica RAM** | **CORE** |
 | Broker plane (router, per-kind routing, vendor profile) | stable | yes (44) | multi-kind **decision logic done, per-kind adapter instances not wired**; malformed vendor rows now **fail-soft-repaired to contract shape** at the read seam by an always-on sanitizer (`broker/sanitizer.ts`) — also strips `__proto__`/`constructor`/`prototype` keys and surfaces an `X-OmniProject-Data-Repaired` signal | **CORE** |
-| Backends catalogue (41) | stable + nominal | partial | ~7 real & tested; all 41 are `catalogued` (built from public docs), **none yet `verified` against a live instance** (see `lib/backend-catalogue/vendors/README.md`); **SQL/Mongo sidecars untested against real DBs**; >15 nominal references | core (real) / optional (nominal, admin) |
+| Backends catalogue (42) | stable + nominal | partial | ~7 real & tested; all 42 are `catalogued` (built from public docs), **none yet `verified` against a live instance** (see `lib/backend-catalogue/vendors/README.md`); **SQL/Mongo sidecars untested against real DBs**; >15 nominal references | core (real) / optional (nominal, admin) |
 | Notification channels | beta | yes | MQTT/MCP nominal; Slack/Teams/Discord/webhook/SMTP real (`sendMagicLink` uses real SMTP via `nodemailer` once `SMTP_URL` is set, falling back to log-only) | optional — MQTT/MCP **OFF**, chat/SMTP **ON if configured** |
 | Config-as-JSON + crypto + durable state | stable | yes | **settings store per-replica RAM** (fleet changes don't propagate); audit-chain head in-RAM unless file set | **CORE** |
 | Dev mode / debug bundle | beta | yes | hard-gated to non-prod; dev-persist per-instance | optional — **OFF in prod** — *safety* |
@@ -131,9 +131,10 @@ narratives/estimates is unbenchmarked, same caveat as the copilot.
 
 > **Correction vs the agents' parked view:** the **benefits (E1)** and **CapEx/OpEx (E2)** field groups and
 > their reports are now **shipped** (PRs #281/#282) — they are no longer parked, and neither is **SMTP
-> C4** (real email sending — see PARKED-DECISIONS.md §C4). Remaining parked items (first-party backend
-> A1, hosted A2, mTLS/FIPS A3, distroless B0, cosign B1, gitleaks B2, stage-gates E3) stay in
-> `PARKED-DECISIONS.md`.
+> C4** (real email sending — see PARKED-DECISIONS.md §C4). **Signed, published images (B1)** are now
+> shipped too — `release.yml` pushes `omni-shell` to GHCR and attests the pushed digest (keyless SLSA).
+> Remaining parked items (first-party backend A1, hosted A2, mTLS/FIPS A3, distroless B0, gitleaks B2,
+> stage-gates E3) stay in `PARKED-DECISIONS.md`.
 
 ---
 

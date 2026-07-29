@@ -36,6 +36,7 @@
     "scheduling": true
   },
   "docsUrl": "https://www.celoxis.com/cw/api/v3",
+  "primaryRecord": "issue",
   "fieldKeys": [
     "title",
     "status",

@@ -38,6 +38,7 @@
   },
   "credentialType": "googleTasksOAuth2Api",
   "docsUrl": "https://developers.google.com/tasks/reference/rest",
+  "primaryRecord": "issue",
   "fieldKeys": [
     "title",
     "status",

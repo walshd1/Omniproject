@@ -1,0 +1,128 @@
+// Mount the default-off `attachments` feature module for this test process (before the app is imported).
+process.env["ENABLED_FEATURES"] = "attachments";
+
+import { test, before, after, afterEach } from "node:test";
+import assert from "node:assert/strict";
+import { startHarness, memberCookie, type Harness } from "./_harness";
+import { sharedKv } from "../lib/shared-state";
+import { _setAttachmentsSidecarForTest, type AttachmentsSidecar } from "../attachments/sidecar-client";
+import { createHash } from "node:crypto";
+
+/**
+ * routes/attachments.ts over the REAL app: mint-ticket → (browser uploads DIRECTLY to the sidecar) →
+ * record pointer → link → delete, with an in-memory fake sidecar standing in for the byte store. Proves
+ * the gateway keeps only pointers + mints tickets and NEVER handles bytes — the bytes only ever live in the
+ * fake sidecar's blob map, populated out-of-band (as a real browser PUT to the portal would), and the
+ * gateway records a pointer only after verifying the blob landed.
+ */
+let h: Harness;
+
+/** A Map-backed AttachmentsSidecar — the bytes the gateway is forbidden to hold live here. `putDirect`
+ *  models the browser's direct-to-portal PUT (bytes reach the sidecar without ever touching the gateway). */
+function fakeSidecar(over: Partial<AttachmentsSidecar> = {}) {
+  const blobs = new Map<string, Buffer>();
+  const putDirect = (key: string, bytes: Buffer) => blobs.set(key, Buffer.from(bytes));
+  const client: AttachmentsSidecar = {
+    async headBlob(key) { const b = blobs.get(key); return b ? { size: b.length } : null; },
+    async delBlob(key) { blobs.delete(key); },
+    async health() { return true; },
+    canMintTickets() { return true; },
+    mintPortalUrl(op, key, opts) { return { url: `https://sidecar.test/portal/${key}?ticket=${op}.${opts?.name ?? ""}`, expiresAt: 9_999_999_999_999 }; },
+    ...over,
+  };
+  return { client, blobs, putDirect };
+}
+
+before(async () => { h = await startHarness(); });
+after(() => h?.close());
+afterEach(async () => { await sharedKv.clear("attachments:"); _setAttachmentsSidecarForTest(null); });
+
+const ROOM = "issue:p1:i1";
+const post = (path: string, body: unknown) =>
+  fetch(`${h.base}/api${path}`, { method: "POST", headers: { cookie: memberCookie(), "content-type": "application/json" }, body: JSON.stringify(body) });
+
+test("mint-ticket → direct upload → record → link → the gateway keeps only a pointer", async () => {
+  const { client, blobs, putDirect } = fakeSidecar();
+  _setAttachmentsSidecarForTest(client);
+  const bytes = Buffer.from("PDFDATA binary", "utf8");
+  const sha256 = createHash("sha256").update(bytes).digest("hex");
+
+  // 1. Mint an upload ticket. The gateway returns a storageKey + a direct-to-sidecar URL — no bytes.
+  const ticketRes = await post(`/attachments/${ROOM}/upload-ticket`, { filename: "spec report.pdf", size: bytes.length });
+  assert.equal(ticketRes.status, 201);
+  const { storageKey, uploadUrl } = (await ticketRes.json()) as { storageKey: string; uploadUrl: string };
+  assert.match(storageKey, /^[a-f0-9]{32}$/);
+  assert.match(uploadUrl, /^https:\/\/sidecar\.test\/portal\//);
+  assert.equal(blobs.has(storageKey), false); // nothing stored yet — the gateway never got the bytes
+
+  // 2. The browser PUTs the bytes DIRECTLY to the sidecar portal (modelled here as putDirect).
+  putDirect(storageKey, bytes);
+
+  // 3. Record the pointer. The gateway HEAD-verifies the blob landed and trusts the sidecar's size.
+  const recordRes = await post(`/attachments/${ROOM}`, { storageKey, filename: "spec report.pdf", contentType: "application/pdf", sha256 });
+  assert.equal(recordRes.status, 201);
+  const { attachment } = (await recordRes.json()) as { attachment: { id: string; filename: string; size: number; storageKey: string } };
+  assert.equal(attachment.filename, "spec report.pdf");
+  assert.equal(attachment.size, bytes.length);
+  assert.equal(attachment.storageKey, storageKey);
+
+  // 4. List returns the pointer.
+  const list = await h.req(`/attachments/${ROOM}`, { cookie: memberCookie() });
+  const { attachments } = (await list.json()) as { attachments: { id: string }[] };
+  assert.deepEqual(attachments.map((a) => a.id), [attachment.id]);
+
+  // 5. Link mints a direct-download URL — the gateway never streams the bytes.
+  const linkRes = await h.req(`/attachments/${ROOM}/${attachment.id}/link`, { cookie: memberCookie() });
+  assert.equal(linkRes.status, 200);
+  const link = (await linkRes.json()) as { url: string; filename: string };
+  assert.match(link.url, /^https:\/\/sidecar\.test\/portal\//);
+  assert.equal(link.filename, "spec report.pdf");
+});
+
+test("recording a pointer for bytes that never landed is 409 (HEAD sees nothing)", async () => {
+  _setAttachmentsSidecarForTest(fakeSidecar().client);
+  const r = await post(`/attachments/${ROOM}`, {
+    storageKey: "a".repeat(32), filename: "ghost.txt", contentType: "text/plain", sha256: "b".repeat(64),
+  });
+  assert.equal(r.status, 409);
+});
+
+test("upload-ticket without a sidecar configured is 503 (not configured)", async () => {
+  _setAttachmentsSidecarForTest(null);
+  const r = await post(`/attachments/${ROOM}/upload-ticket`, { filename: "a.txt", size: 4 });
+  assert.equal(r.status, 503);
+});
+
+test("upload-ticket is 503 when the byte-path (public URL + secret) isn't wired", async () => {
+  _setAttachmentsSidecarForTest(fakeSidecar({ canMintTickets: () => false }).client);
+  const r = await post(`/attachments/${ROOM}/upload-ticket`, { filename: "a.txt", size: 4 });
+  assert.equal(r.status, 503);
+});
+
+test("upload-ticket validates the filename + a positive size", async () => {
+  _setAttachmentsSidecarForTest(fakeSidecar().client);
+  assert.equal((await post(`/attachments/${ROOM}/upload-ticket`, { size: 4 })).status, 400); // no filename
+  assert.equal((await post(`/attachments/${ROOM}/upload-ticket`, { filename: "a.txt", size: 0 })).status, 400); // non-positive
+});
+
+test("record validates the storageKey + sha256 shape", async () => {
+  _setAttachmentsSidecarForTest(fakeSidecar().client);
+  assert.equal((await post(`/attachments/${ROOM}`, { storageKey: "not-a-key", filename: "a.txt", sha256: "b".repeat(64) })).status, 400);
+  assert.equal((await post(`/attachments/${ROOM}`, { storageKey: "a".repeat(32), filename: "a.txt", sha256: "short" })).status, 400);
+});
+
+test("DELETE by the uploader removes the pointer and drops the bytes", async () => {
+  const { client, blobs, putDirect } = fakeSidecar();
+  _setAttachmentsSidecarForTest(client);
+  const bytes = Buffer.from("bye");
+  const { storageKey } = (await (await post(`/attachments/${ROOM}/upload-ticket`, { filename: "t.txt", size: bytes.length })).json()) as { storageKey: string };
+  putDirect(storageKey, bytes);
+  const { attachment } = (await (await post(`/attachments/${ROOM}`, { storageKey, filename: "t.txt", contentType: "text/plain", sha256: createHash("sha256").update(bytes).digest("hex") })).json()) as { attachment: { id: string; storageKey: string } };
+  assert.ok(blobs.has(attachment.storageKey));
+
+  const del = await h.req(`/attachments/${ROOM}/${attachment.id}`, { cookie: memberCookie(), method: "DELETE" });
+  assert.equal(del.status, 200);
+  const { attachments } = (await (await h.req(`/attachments/${ROOM}`, { cookie: memberCookie() })).json()) as { attachments: unknown[] };
+  assert.equal(attachments.length, 0);
+  assert.equal(blobs.has(attachment.storageKey), false); // bytes dropped too
+});

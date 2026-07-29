@@ -6,7 +6,7 @@ import { getSession } from "./auth";
 import { requireRole, isDeprovisioned } from "../lib/rbac";
 import { assertProjectScope, guardProjectScope } from "../lib/project-scope";
 import { authorizeStorageTarget } from "../lib/storage-target-authz";
-import { joinCollabRoom, relayToRoom, collabConnectionCount, MAX_COLLAB_STREAMS_PER_SUB } from "../lib/collab-hub";
+import { joinCollabRoom, relayToRoom, roomConnSub, collabConnectionCount, MAX_COLLAB_STREAMS_PER_SUB } from "../lib/collab-hub";
 import { openSse, keepAlive } from "../lib/sse";
 import { peerColor } from "../lib/presence-hub";
 import { artifactStoreEnabled, listArtifacts, getArtifact, putArtifact, deleteArtifact, requireArtifactStore } from "../lib/artifact-store";
@@ -185,6 +185,12 @@ function roomBoardProjectId(roomId: string): string | null {
 }
 
 async function guardCursorRoom(req: Request, res: Response, roomId: string): Promise<boolean> {
+  // A cursor room MUST live in the `board:` namespace. The live-cursor hub shares its room registry with the
+  // wiki co-edit relay (lib/collab-hub, keyed by the raw roomId), and these cursor routes require only
+  // `viewer` — so a non-board roomId like `issue:<pid>:<iid>` would let a viewer OUTSIDE that project's scope
+  // join the scoped co-edit room and receive (or inject) its live CRDT document stream. Reject anything
+  // outside the board namespace up front (fail closed), so a cursor room can never collide with a collab room.
+  if (!roomId.startsWith("board:")) { res.status(404).json({ error: "no such cursor room" }); return false; }
   const projectId = roomBoardProjectId(roomId);
   return projectId ? guardProjectScope(req, res, projectId) : true;
 }
@@ -222,6 +228,9 @@ router.post("/whiteboards/rooms/:roomId", requireRole("viewer"), async (req: Req
   if (!(await guardCursorRoom(req, res, roomId))) return;
   if (JSON.stringify(body.msg ?? null).length > 2_000) { res.status(413).json({ error: "message too large" }); return; }
   const session = getSession(req);
+  // Anti-spoof (shared collab-hub): don't relay under a `cid` a DIFFERENT live participant owns.
+  const owner = roomConnSub(roomId, cid);
+  if (owner && owner !== session?.sub) { res.status(409).json({ error: "that cid belongs to another participant" }); return; }
   const sub = session?.sub ?? "anonymous";
   const label = session?.name || session?.email || "Someone";
   const delivered = relayToRoom(roomId, cid, "cursor", { from: cid, label, color: peerColor(sub), msg: body.msg });

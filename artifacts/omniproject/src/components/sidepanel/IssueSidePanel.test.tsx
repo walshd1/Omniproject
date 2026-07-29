@@ -20,10 +20,11 @@ function issue(over: Partial<Issue> = {}): Issue {
   return { id: "i1", projectId: "p1", title: "Wire the broker", status: "todo", priority: "high", assignee: "ada", labels: [], source: "jira", version: 4, ...over } as Issue;
 }
 
-function seed(opts: { enabled?: boolean; issues?: Issue[]; activity?: ActivityEntry[] } = {}): QueryClient {
+function seed(opts: { enabled?: boolean; comments?: boolean; issues?: Issue[]; activity?: ActivityEntry[] } = {}): QueryClient {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity }, mutations: { retry: false } } });
   qc.setQueryData(featuresQueryKey(), [
     { id: "sidePanel", kind: "module", label: "Rich side-panel", description: "", enabled: opts.enabled ?? true, loaded: true, needsRestart: false },
+    { id: "comments", kind: "module", label: "Comments", description: "", enabled: opts.comments ?? false, loaded: true, needsRestart: false },
   ] satisfies FeatureStatus[]);
   qc.setQueryData(availabilityQueryKey, AVAIL);
   qc.setQueryData(getGetProjectIssuesQueryKey("p1"), opts.issues ?? [issue()]);
@@ -222,5 +223,19 @@ describe("IssueSidePanel", () => {
     expect(screen.getByTestId("side-panel-activity")).toBeInTheDocument();
     expect(screen.getByText(/ada/)).toBeInTheDocument();
     expect(screen.queryByText(/bob/)).toBeNull(); // other item's activity filtered out
+  });
+
+  it("mounts the comment thread (room issue:<project>:<issue>) when the comments module is on", async () => {
+    renderWithProviders(<IssueSidePanel />, { client: seed({ comments: true }) });
+    act(() => useSidePanel.getState().openIssue("p1", "i1"));
+    await screen.findByText("Wire the broker");
+    expect(await screen.findByTestId("comments")).toBeInTheDocument();
+  });
+
+  it("omits the comment thread when the comments module is off", async () => {
+    renderWithProviders(<IssueSidePanel />, { client: seed({ comments: false }) });
+    act(() => useSidePanel.getState().openIssue("p1", "i1"));
+    await screen.findByText("Wire the broker");
+    expect(screen.queryByTestId("comments")).toBeNull();
   });
 });

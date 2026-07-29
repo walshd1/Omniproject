@@ -23,10 +23,10 @@ pnpm --filter @workspace/scripts run stress         # load test (run separately)
 Both unit suites enforce a **coverage gate** (a ratchet set just below current
 coverage so it can't regress, raised as tests are added): the **gateway** via
 `c8` (`.c8rc.json`) at **82% lines / 84% functions / 82% statements / 74%
-branches** (~1,550 tests as of this writing), the **SPA** via Vitest + React
+branches** (~4,700 tests as of this writing), the **SPA** via Vitest + React
 Testing Library + jsdom (`vitest.config.ts`) at **94% lines / 89% functions /
 92% statements / 85% branches** — currently measuring a few points above every
-floor (see the comment above the thresholds in `vitest.config.ts`) — (~1,660
+floor (see the comment above the thresholds in `vitest.config.ts`) — (~4,200
 tests as of this writing). Both gates run in the CI `verify` job. Test counts
 change with nearly every merge; run `pnpm test` locally or check a recent CI run
 for the current number rather than trusting either figure above for long.

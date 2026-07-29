@@ -37,6 +37,7 @@
     "scheduling": true
   },
   "docsUrl": "https://developer.todoist.com/rest/v2/",
+  "primaryRecord": "issue",
   "fieldKeys": [
     "title",
     "status",

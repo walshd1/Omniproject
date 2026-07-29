@@ -50,12 +50,13 @@ workflow populates the optional labels below.
 | **Agile (umbrella)** | ✅ | Covered by the Kanban + Scrum views (grouped under "Agile"). |
 | **Kanban / Lean** | ✅ | Kanban view with WIP limits. |
 | **Scrum** | ✅ | Sprint board, backlog, burndown, velocity. |
+| **Scrumban** | ✅ | Selectable pack (`assets/methodologies/scrumban.json`) — Kanban flow with sprint cadence. |
 | **Waterfall** | ✅ | The Gantt view is a time-phased waterfall schedule. |
-| **Critical Path (CPM)** | ◐ | Gantt shows the schedule; explicit dependency/critical-path calc is a roadmap item (needs a `dependsOn` field via n8n). |
+| **Critical Path (CPM)** | ✅ | Critical-path engine (`lib/backend-catalogue/src/critical-path.ts`) + the Critical Path report (`components/reports/CriticalPath.tsx`) compute the critical path from the durable `dependencies` slot; the Gantt shows the schedule. |
 | **PRINCE2** | ✅ | Management stages + highlight report (RAG, exceptions, tolerance breach). |
 | **PMBOK / PMI** | ◐ | Process-group framing maps onto stages; the EVM **Reports** page already covers cost/schedule performance (CPI/SPI). |
 | **Six Sigma (DMAIC)** | ◐ | Reuses the stage view with `stage:Define|Measure|Analyze|Improve|Control` labels. |
-| **SAFe (scaled agile)** | ◐ | A selectable SAFe methodology pack ships (`assets/methodologies/safe.json` — states + PI ceremonies); only the dedicated PI-board **view** (multi-team + epic data) remains roadmap (the portfolio Reports view is the current rollup). |
+| **SAFe (scaled agile)** | ✅ | A selectable SAFe methodology pack ships (`assets/methodologies/safe.json` — states + PI ceremonies) **plus** the dedicated PI-planning board (`lib/pi-planning.ts` + `components/reports/PiBoard.tsx`); the portfolio Reports view remains the cross-programme rollup. |
 | **Extreme Programming (XP)** | ◐ | Use the Scrum/Kanban views; XP practices are process, not a distinct board. |
 
 ✅ built-in · ◐ partial / via labels · ☐ roadmap

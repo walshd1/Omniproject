@@ -358,6 +358,8 @@ A normalised issue/work-item row. `version` is the concurrency token.
 | `loggedHours` | number \| null | — |  |
 | `remainingHours` | number \| null | — |  |
 | `storyPoints` | number \| null | — |  |
+| `epic` | string \| null | — |  |
+| `sprint` | string \| null | — |  |
 | `healthStatus` | string \| null | — |  |
 | `riskLevel` | string \| null | — |  |
 | `impact` | string \| null | — |  |

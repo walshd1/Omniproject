@@ -92,6 +92,19 @@ test("the stream joins a room and a cursor is fanned out to the OTHER member, id
   try { await reader.cancel(); } catch { /* aborted */ }
 });
 
+test("a cursor room outside the board: namespace is refused (404) — can't reach the shared collab-hub co-edit rooms", async () => {
+  // The live-cursor hub shares its room registry with the wiki co-edit relay (lib/collab-hub). A collab room
+  // id like `issue:<pid>:<iid>` must NOT be joinable here, or a viewer could join a scoped co-edit room and
+  // read/inject its live CRDT stream. ADMIN holds all-scope (would clear any project guard), so a 404 proves
+  // the non-board id is rejected on the namespace check itself, before (and regardless of) any scope check.
+  for (const room of ["issue:p1:i1", "project:p1", "doc:wiki-1", "anything"]) {
+    const stream = await fetch(`${base}/api/whiteboards/rooms/${encodeURIComponent(room)}/stream?cid=c1`, { headers: { cookie: ADMIN } });
+    assert.equal(stream.status, 404, `stream ${room}`);
+    await stream.body?.cancel().catch(() => {});
+    assert.equal((await post(room, { cid: "c1", msg: { x: 1, y: 1 } })).status, 404, `post ${room}`);
+  }
+});
+
 test("a project board's cursor room is scope-guarded: an out-of-scope member is refused (403)", async () => {
   const keys = ["OIDC_ISSUER_URL"] as const;
   const prev = process.env["OIDC_ISSUER_URL"];

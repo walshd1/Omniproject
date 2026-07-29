@@ -24,6 +24,17 @@ Express application assembly — wires the middleware chain (security headers, b
 | `bootstrap` | Async boot side-effects that must run BEFORE the server serves AND before any sealed config/state is read. |
 | `seedDemoProgrammeRegistry` | Make demo mode internally consistent: programme membership is registry-driven (by project correlation GUID), so the sample projects only roll up into programmes once the registry names them. |
 
+### `artifacts/api-server/src/attachments/sidecar-client.ts`
+
+The gateway's no-SDK bridge to the attachments-broker service.
+
+| Function | What it does |
+| --- | --- |
+| `makeAttachmentsClient` | Build a client over a base URL + optional token/public-url/ticket-secret. |
+| `registerAttachmentsFromEnv` | Register the attachments sidecar from the environment. |
+| `attachmentsSidecar` | The registered sidecar client, or null when attachments aren't configured. |
+| `_setAttachmentsSidecarForTest` | Test-only: set the active client directly (bypasses env). |
+
 ### `artifacts/api-server/src/bench/fixtures.ts`
 
 Deterministic fixtures for the portfolio-fold compute benchmark (run.ts).
@@ -72,6 +83,31 @@ ALWAYS-ON autonomous-write guard around the broker seam.
 | Function | What it does |
 | --- | --- |
 | `wrapWithAutonomousGuard` | Wrap a broker so every write is first passed through the autonomous-write gate. |
+
+### `artifacts/api-server/src/broker/backends/index.ts`
+
+Backend billing-adapter SEAM — the neutral boundary between the gateway's invoice routes and a backend's outbound billing sync (push / pull-back / inbound settlement webhook).
+
+| Function | What it does |
+| --- | --- |
+| `resolveBillingAdapter` | The billing adapter for the connected backend, or null when none applies. |
+| `allLegacyWebhookPaths` | All back-compat vendor-named webhook paths advertised across every billing backend (data). |
+| `allLegacyWebhookHeaders` | All back-compat vendor-named webhook header names advertised across every billing backend (data). |
+
+### `artifacts/api-server/src/broker/backends/invoice-mapping.ts`
+
+Generic invoice-sync PROJECTOR — the backend-vendor-NEUTRAL engine that maps OmniProject's agnostic invoice surface onto whatever a backend ADVERTISES, and back, driven entirely by an {@link InvoiceSyncSpec} the backend carries in its catalogue manifest.
+
+| Function | What it does |
+| --- | --- |
+| `correlationValue` | ── Correlation (OmniProject's namespace) ──────────────────────────────────────────────────────────────── |
+| `parseCorrelation` | — |
+| `projectOutbound` | Project the agnostic invoice to the vendor payload the broker will send, applying the advertised field map + transforms via the shared projection engine. |
+| `parseExternalRef` | Normalise a create/update response into the external ref, or null when no usable id is present. |
+| `parsePaid` | Read the settlement signal ("paid" \| null) from a vendor invoice record via the advertised predicate. |
+| `parseWebhook` | Resolve the local invoice id + optional settlement amount from an inbound webhook, or null when not ours. |
+| `syncEnabled` | True when any of the advertised enable-env vars is truthy (`1`/`true`/`on`). |
+| `webhookSecret` | The first non-blank advertised webhook-secret env var, or undefined ⇒ webhook disabled. |
 
 ### `artifacts/api-server/src/broker/builtin/builtin-broker.ts`
 
@@ -289,6 +325,19 @@ OmniStore HTTP server — the deployable BACKEND container.
 | --- | --- |
 | `createOmniStoreServer` | Build (but don't start) the OmniStore backend server. |
 
+### `artifacts/api-server/src/broker/projection.ts`
+
+The PROJECTION ENGINE — the one vendor-neutral substrate for applying an advertised mapping to hard data.
+
+| Function | What it does |
+| --- | --- |
+| `asRecord` | A record that is definitely a plain object, or null. |
+| `applyValueMap` | Apply an advertised value-map: look `rawKey` up in `map` (optionally lower-cased first) and return the hit, else `fallback`. |
+| `getPath` | Read a dotted path with numeric index support (`a.b.0.c`). |
+| `unwrap` | Descend into the first present wrapper object (like `{data:{…}}`), else return the record as-is. |
+| `applyTransform` | Apply one advertised outbound field transform against its source record. |
+| `evalPredicate` | Evaluate an advertised settlement predicate over a normalised record — a leaf (strict-equality set and/or numeric comparisons) or a boolean combinator. |
+
 ### `artifacts/api-server/src/broker/provenance.ts`
 
 Provenance decorator for the broker seam.
@@ -378,6 +427,14 @@ Replay engine — play a capture tape (capture.ts) two ways:
 | `exchangeKey` | A stable key for matching a recorded call: method + args AFTER the actor ctx (arg 0 is the ActorContext, which varies per instance and is scrubbed). |
 | `buildReplayBroker` | Serve mode: a Broker backed by a tape. |
 | `redrive` | Re-drive a tape against a live broker (instance B), diffing each live result against the recording. |
+
+### `artifacts/api-server/src/broker/retention-capture.ts`
+
+OPTIONAL, OFF-BY-DEFAULT retention capture around the broker seam.
+
+| Function | What it does |
+| --- | --- |
+| `wrapWithRetentionCapture` | Wrap a broker so every write is captured to the durable history store when one is configured. |
 
 ### `artifacts/api-server/src/broker/router.ts`
 
@@ -679,6 +736,18 @@ History-retention vocabulary — the durable time-series layer that lets the sel
 
 Server entrypoint.
 
+### `artifacts/api-server/src/lib/accounting-policy.ts`
+
+ACCOUNTING POLICY — the org-set finance variables the ledger postings read: the chart-of-accounts code map plus the depreciation policy (declining-balance factor + default method).
+
+| Function | What it does |
+| --- | --- |
+| `sanitizeAccountingValues` | Validate + normalise a partial accounting `values` payload (the admin's edit) into a clean PARTIAL: account codes are id-safe tokens (or "" to unset), the DB factor is in [1, 4], the default method is one of the four. |
+| `foldAccounting` | Fold a partial accounting OVERRIDE onto a base, OVERRIDE-style (nearest wins): each supplied account code replaces the base's, the factor/method replace when present. |
+| `depreciationAccounts` | Map the resolved accounting config to the depreciation engine's period-run account params. |
+| `disposalAccounts` | Map the resolved accounting config to the depreciation engine's disposal account params. |
+| `missingAccountingAccounts` | The GL account codes still blank in a resolved config — the ones an org must set before a depreciation or disposal posting can run. |
+
 ### `artifacts/api-server/src/lib/action-base.ts`
 
 LANE 2 — the generic ACTION base.
@@ -903,6 +972,18 @@ SCOPED ENCRYPTED-JSON ARTIFACT STORE — the canonical home for user-authored ar
 | `replaceArtifacts` | Replace an ENTIRE (type, scope) collection in a SINGLE sealed write — one decrypt-free re-encrypt, no per-item read-modify-write. |
 | `deleteArtifact` | Remove an item from a scope; returns whether it was present. |
 | `listAllArtifactCollections` | Every collection of a type across ALL scopes — for portfolio-wide sweeps (e.g. the goal check-in cadence). |
+
+### `artifacts/api-server/src/lib/attachments-meta.ts`
+
+Attachment POINTERS — the byte-free metadata plane for file attachments, stored in the EPHEMERAL shared-state seam (in-process by default, fleet-wide when Redis is configured), keyed by the same room-id convention comments/presence use (`issue:<projectId>:<issueId>` / `project:<projectId>`).
+
+| Function | What it does |
+| --- | --- |
+| `newStorageKey` | A fresh, unique storage key for a new attachment's bytes (used as the sidecar `/blob/<key>`). |
+| `addAttachment` | Record a pointer to already-stored bytes. |
+| `listAttachments` | The room's attachments, newest first (stable — ties broken by id). |
+| `getAttachment` | Read a single pointer (for the download + the delete-authorization check). |
+| `deleteAttachment` | Delete a pointer. |
 
 ### `artifacts/api-server/src/lib/audit-chain.ts`
 
@@ -1260,6 +1341,7 @@ Collaborative-edit relay hub (roadmap 2.1 slice 6 — Yjs co-edit).
 | --- | --- |
 | `collabConnectionCount` | How many co-edit streams this principal currently holds (across all rooms). |
 | `collabRoomSize` | Members currently in a room. |
+| `roomConnSub` | The `sub` that owns live connection `cid` in `roomId`, or undefined when no such connection is open. |
 | `joinCollabRoom` | Join a room; returns a leave function that removes this connection (and drops the room when empty). |
 | `relayToRoom` | Relay `data` (under event `name`) to every member of `roomId` EXCEPT the sender (`fromCid`). |
 | `_resetCollabForTest` | Test hook: drop all rooms/connections. |
@@ -1485,6 +1567,18 @@ General, PMO-authored cost rules.
 | --- | --- |
 | `applyCostRules` | The effective uplift for a context: the scope-resolved base, then every matching rule applied in declared order (last write wins per field), so a later, more specific rule overrides an earlier general one. |
 | `firedCostRuleIds` | The ids of the rules that fired for a context — for explainability ("why is this charge this?"). |
+
+### `artifacts/api-server/src/lib/cron-match.ts`
+
+A compact, pure STANDARD 5-field cron matcher — "does this UTC minute match this cron expression?".
+
+| Function | What it does |
+| --- | --- |
+| `parseCron` | Parse a 5-field cron expression. |
+| `cronSpecMatches` | Does `date` (its UTC minute) match the parsed cron? |
+| `cronMatches` | Does the given UTC minute match the cron expression? Convenience over {@link parseCron} + {@link cronSpecMatches}. |
+| `isValidCron` | Is the cron expression well-formed? (For validation without throwing.) |
+| `cronMinutesInWindow` | The distinct UTC minutes in `(afterMs, throughMs]` at which `expr` fires — the "due since last tick" set the dispatcher iterates. |
 
 ### `artifacts/api-server/src/lib/crypto-aes-gcm.ts`
 
@@ -1736,6 +1830,22 @@ Deployment profile — lets a deployment declare its CONTEXT so the gateway's de
 | `requireTls` | Should the gateway treat itself as served over TLS (secure cookies + HSTS)? An explicit PUBLIC_TLS wins; otherwise "lan-ok" profiles default to HTTP (a deliberate, accepted posture — a self-hoster/charity can run production-stable on plain HTTP without breaking sessions), and "required" profiles (business/enterprise) default to true whenever this looks like a real deployment. |
 | `demoAuthSeverity` | The severity of the no-IdP finding for this deployment: the profile's default, or "info" once the operator explicitly accepts it (so SECURITY_STRICT won't block a deliberate choice). |
 
+### `artifacts/api-server/src/lib/depreciation-effect.ts`
+
+The DEPRECIATION POSTING effect — the I/O side the automation engine's `finance.runDepreciation` action runs.
+
+| Function | What it does |
+| --- | --- |
+| `runDepreciationPosting` | Run the depreciation posting for `asOf` (default today, UTC). |
+
+### `artifacts/api-server/src/lib/depreciation-run.ts`
+
+DEPRECIATION PERIOD-RUN PLANNER — pure.
+
+| Function | What it does |
+| --- | --- |
+| `planDepreciationRun` | Plan the depreciation run: which journals are due as of `asOf`, and each asset's resulting write-back. |
+
 ### `artifacts/api-server/src/lib/dev-entitlements.ts`
 
 Dev-mode entitlement overrides — force individual paid features on or off to test the licensed vs unlicensed UX without minting a real licence.
@@ -1812,8 +1922,7 @@ Third-party API drift canary.
 | `__resetDriftCanaryState` | Test-only: clear the baseline snapshot + findings ring. |
 | `runDriftCanary` | Run the canary: snapshot the broker's read-only surface, diff against the last snapshot, and dispatch a notification (kind "integration_drift", targeted at admins) when something broke or a field disappeared. |
 | `driftCanaryIntervalHours` | The configured cadence in hours: the env override when a valid non-negative number, else the 6-hour default. |
-| `startDriftCanaryScheduler` | Start the in-process canary timer (single-instance / homelab). |
-| `__stopDriftCanaryScheduler` | Test-only: stop the timer. |
+| `driftCanaryScheduledJob` | The unified-scheduler job for the drift canary. |
 
 ### `artifacts/api-server/src/lib/dsar.ts`
 
@@ -1947,8 +2056,8 @@ Scheduled executive digest — a periodic, read-only portfolio roll-up delivered
 | --- | --- |
 | `buildExecDigest` | Build the digest from portfolio rows (pure). |
 | `runExecDigest` | Read the portfolio under a keyed autonomous principal, build the digest, and dispatch it. |
-| `startExecDigestScheduler` | Start the in-process digest timer when EXEC_DIGEST_INTERVAL_HOURS > 0 (single-instance). |
-| `__stopExecDigestScheduler` | Test-only: stop the timer. |
+| `execDigestIntervalHours` | The configured cadence in hours (0 = disabled, the default — opt in with EXEC_DIGEST_INTERVAL_HOURS>0). |
+| `execDigestScheduledJob` | The unified-scheduler job for the executive digest. |
 
 ### `artifacts/api-server/src/lib/export-datasets.ts`
 
@@ -2176,6 +2285,9 @@ Health / anomaly watch.
 | `recentFindings` | The most recent findings (newest last). |
 | `__resetHealthWatch` | Test-only: clear the findings ring + restore default thresholds. |
 | `runHealthWatch` | Run the watch: mint the keyed actor, read the portfolio THROUGH the broker as that actor, evaluate the rules, notify per finding, and record the run. |
+| `deliverHealthFinding` | Deliver one finding as a broadcast notification — the health-watch notify sink shared by the manual `/run` route and the scheduled job, so both surface findings identically. |
+| `healthWatchIntervalHours` | The configured cadence in hours (0 = disabled, the default — opt in with HEALTH_WATCH_INTERVAL_HOURS>0). |
+| `healthWatchScheduledJob` | The unified-scheduler job for the portfolio health / anomaly watch. |
 
 ### `artifacts/api-server/src/lib/history-retention.ts`
 
@@ -2299,6 +2411,16 @@ INSTANCE RECOVERY KEY (IRK) — the portable secret an operator SAVES on first s
 | `markInstanceKeyRevealed` | Mark the current IRK revealed (called after a successful one-time reveal). |
 | `instanceKeyFingerprint` | A non-secret fingerprint of the current IRK — confirm which key a backup needs without revealing it. |
 
+### `artifacts/api-server/src/lib/invoice-autobuild.ts`
+
+Invoice auto-build (Invoice Ninja phase 3) — seed a DRAFT invoice's LABOUR lines from a project's APPROVED timesheets × the PMO rate card, reusing the exact staff-cost roll-up the `/projects/:id/staff-cost` route computes (same uplift assembly: central → programme → project, then the PMO cost rules).
+
+| Function | What it does |
+| --- | --- |
+| `billableItemsFrom` | Approved hours per resource as CLIENT-FACING timed items (billable), so `staffCost` resolves the client charge-out rate — the amount to invoice. |
+| `billableStaffCostForProject` | Client-facing staff-cost roll-up for a project from its APPROVED timesheets, or null when no timesheet store is configured for the scope. |
+| `labourLinesFromStaffCost` | One DRAFT labour line per costed role: `quantity` = hours, `unitPrice` = charge / hours (2dp); the invoice sanitiser re-derives the line amount. |
+
 ### `artifacts/api-server/src/lib/invoice.ts`
 
 INVOICE server logic (roadmap 3.3) — the authoritative sanitiser + storage access for first-class generated invoices.
@@ -2315,8 +2437,11 @@ INVOICE server logic (roadmap 3.3) — the authoritative sanitiser + storage acc
 | `parseInvoiceId` | — |
 | `invoiceScope` | — |
 | `newInvoiceRow` | Build the row for a NEW invoice (owner stamped from ctx; totals derived; status draft; version 1). |
+| `applyInvoiceExternalRef` | Record the external billing-system pointer after a successful push (phase 2). |
 | `mergeInvoiceRow` | Apply an UPDATE, preserving id/owner/storage/status/timestamps; totals recomputed. |
 | `applyInvoiceStatus` | Move an invoice to `next` status (assumes the transition was validated by {@link canTransitionInvoice}). |
+| `applyInvoicePayment` | Apply a PAYMENT of `amount` against an invoice (finance superset F3). |
+| `paidTransitionChain` | The status steps to drive an invoice to `paid` from its current status, or `null` when it can't be paid (a void invoice). |
 | `invoiceMeta` | The metadata view of an invoice (lines dropped) — the list projection. |
 
 ### `artifacts/api-server/src/lib/ip-allow.ts`
@@ -2345,6 +2470,22 @@ Correct (not string-prefix) containment checks for the link-local / cloud-metada
 | `isPrivateOrLoopbackIPv6` | IPv6 literal → true if loopback (::1), unique-local (fc00::/7), or an IPv4-mapped private/loopback v4. |
 | `isPrivateOrLoopbackIp` | Is a resolved DNS address in a private/loopback range (opt-in hardened egress)? |
 | `isPrivateOrLoopbackHostLiteral` | Is `host` (lower-cased, brackets stripped) a private/loopback IP literal? A plain hostname is not a literal — its resolved addresses are checked separately with `isPrivateOrLoopbackIp`. |
+
+### `artifacts/api-server/src/lib/job-scheduler.ts`
+
+UNIFIED JOB SCHEDULER — the one place background work is scheduled across the whole gateway.
+
+| Function | What it does |
+| --- | --- |
+| `resolveIntervalHours` | Resolve an interval cadence in hours from an env var: the override when it parses as a finite, non-negative number, else the default. |
+| `occurrencesInWindow` | The distinct occurrence timestamps (ms) at which `schedule` fires in `(sinceMs, nowMs]` (PURE, deterministic). |
+| `registerScheduledJob` | Register a static scheduled job (an infra job). |
+| `registerScheduledJobProvider` | Register a provider of dynamic jobs (e.g. the automation recipes), re-resolved fresh each tick. |
+| `__clearScheduledJobRegistry` | Test-only: drop all registrations. |
+| `runDueScheduledJobs` | Fire every registered job's occurrences due in `(sinceMs, nowMs]`. |
+| `jobSchedulerHeartbeatMinutes` | The heartbeat cadence in minutes: the SCHEDULER_HEARTBEAT_MINUTES override when a valid positive number, else 60. |
+| `startJobScheduler` | Start the single in-process heartbeat that drives every registered job. |
+| `stopJobScheduler` | Stop the heartbeat (tests / shutdown). |
 
 ### `artifacts/api-server/src/lib/jql.ts`
 
@@ -2781,6 +2922,7 @@ Portfolio financials fan-out — the server-side half of the Portfolio Financial
 
 | Function | What it does |
 | --- | --- |
+| `evmForRollup` | Derive the full EVM picture for one consolidated roll-up (pure; no I/O — unit-testable directly). |
 | `computePortfolioFinancials` | Compute the consolidated portfolio financials for one reporting currency (a `?currency=` override, else the org default → FX base → GBP). |
 
 ### `artifacts/api-server/src/lib/portfolio-reads.ts`
@@ -2879,8 +3021,7 @@ Proactive "what needs me" digest.
 | `buildProactiveDigest` | Build the "what needs me" digest from portfolio rows (PURE). |
 | `runProactiveDigest` | Read the portfolio under a keyed autonomous principal, build the "what needs me" digest, and dispatch it over the notify bus (kind "digest") targeted at the recipient role — unless it's empty (then it's skipped, so a healthy portfolio never pings). |
 | `digestIntervalHours` | The configured cadence in hours: the env override when a valid non-negative number, else the weekly default. |
-| `startProactiveDigestScheduler` | Start the in-process digest timer (single-instance / homelab). |
-| `__stopProactiveDigestScheduler` | Test-only: stop the timer. |
+| `proactiveDigestScheduledJob` | The unified-scheduler job for the proactive digest. |
 
 ### `artifacts/api-server/src/lib/process-guards.ts`
 
@@ -3116,6 +3257,7 @@ Role-based access control.
 | `snapshotRoleMap` | Serialise the current admin override as `{ role: [groups] }` (only overridden roles) — for durable persistence in the security-state file AND cross-replica fleet-sync, so a role-map edit (crucially REVOKING a compromised IdP group's admin/pmo authority) survives a restart and propagates fleet-wide instead of living only in the RAM of the replica that served the edit. |
 | `applyRoleMapSnapshot` | Apply a role-map override snapshot from a restore / fleet converge — the ZERO-TRUST twin of `setRoleMap`: it runs the SAME validation (only the five fixed roles, values must be string arrays, normalised lower-case; unknown keys / wrong types dropped) so a corrupt or hostile blob can never invent a role or inject a non-string group. |
 | `hasStrongAuth` | Does this session's auth-method assertion prove tamper-resistant (hardware-bound) MFA? |
+| `sessionStrongAuth` | Does this session count as STRONG auth for the pmo/admin gate? Hardware-MFA (amr/acr) — OR a local (in-app password) session when the operator has opted OUT of the passkey requirement (LOCAL_ADMIN_REQUIRE_PASSKEY=false). |
 | `grantsFromClaims` | Pure mapping from a user's raw claim groups to their GRANTS (base rung + the set of authorities), using the configured role lists. |
 | `roleFromClaims` | Back-compat single-role view of a user's claims (the representative label). |
 | `grantsForReq` | Resolve a request's session (or API token) to its grants. |
@@ -3170,6 +3312,14 @@ Recurring-task engine — the PURE next-occurrence computer.
 ### `artifacts/api-server/src/lib/redis-bus.ts`
 
 Shared Redis Pub/Sub fan-out base.
+
+### `artifacts/api-server/src/lib/register-scheduled-jobs.ts`
+
+The composition root for scheduled work: registers every background job with the unified {@link job-scheduler} exactly once.
+
+| Function | What it does |
+| --- | --- |
+| `registerScheduledJobs` | The composition root for scheduled work: registers every background job with the unified {@link job-scheduler} exactly once. |
 
 ### `artifacts/api-server/src/lib/registry.ts`
 
@@ -3380,6 +3530,15 @@ RISK-EXPOSURE maths, routed through the SCOPE-RESOLVED graded vocabularies.
 
 Re-export of the ONE shared, artifact-agnostic roll-up (`@workspace/backend-catalogue`), so the backend (rollup endpoints, exports) and the SPA (no-code report engine) run the SAME aggregation implementation — a single roll-up behind every output of the system.
 
+### `artifacts/api-server/src/lib/room-scope.ts`
+
+The projectId a realtime room is scoped to, or null when the room has no project boundary.
+
+| Function | What it does |
+| --- | --- |
+| `projectIdOfRoom` | The projectId a realtime room is scoped to, or null when the room has no project boundary. |
+| `guardRoomScope` | Enforce the caller's project scope on a room whose id encodes a projectId (IDOR guard); a room with no project boundary (`user`/`org`/`sidecar` content) is allowed through. |
+
 ### `artifacts/api-server/src/lib/rules-dispatcher.ts`
 
 Cascade bounds — a rule's write emits a follow-on event that can trigger more rules; these stop a runaway.
@@ -3389,6 +3548,7 @@ Cascade bounds — a rule's write emits a follow-on event that can trigger more 
 | `ruleActorId` | The autonomous actor id a rule's writes run under (`automation:rule_<id>`); the grant is keyed on the bare id (`rule_<id>`). |
 | `ruleRunAction` | The approval action a rule's RUN binds to — an admin can gate ONE sensitive rule via an approval chain. |
 | `dispatchDomainEvent` | Handle one domain event: run every matching, enabled, INFORM-ONLY recipe. |
+| `runScheduledRecipe` | Run ONE schedule-triggered recipe now (the schedule dispatcher's per-recipe step) through the SAME grant-gated path the event dispatch uses. |
 | `startRulesDispatcher` | Register the dispatcher as a domain-event handler (idempotent). |
 
 ### `artifacts/api-server/src/lib/ruleset-guard.ts`
@@ -3408,7 +3568,7 @@ SCOPED RULESET OVERLAY — lets a programme or project TIGHTEN the org's busines
 | `stricterMode` | The stricter of two modes (used to tighten, never loosen). |
 | `tightenModes` | Fold an override's MODES onto a base, keeping only the stricter mode per rule (tighten-only). |
 | `tightenFieldRules` | Fold an override's FIELD RULES onto a base. |
-| `resolveEffectiveRuleset` | Resolve the EFFECTIVE ruleset for a request scope: the org baseline, tightened by the programme override (if any), then the project override (if any) — system < org < programme < project, each only able to make things stricter. |
+| `resolveEffectiveRuleset` | Resolve the EFFECTIVE finance governance for a request scope: the org baseline, folded by the programme override (if any), then the project override (if any) — system < org < programme < project. |
 | `getRulesetOverride` | The stored override for one scope (for an admin UI to read/edit), or undefined. |
 | `setRulesetOverride` | Persist a scope's ruleset override (already delegation-gated by the caller). |
 
@@ -3418,10 +3578,16 @@ Business ruleset engine — EXTRA, admin-configurable rules layered ON TOP of th
 
 | Function | What it does |
 | --- | --- |
+| `getAccounting` | The org baseline accounting policy (a defensive copy). |
+| `setAccounting` | Admin sets the org baseline accounting policy — a validated PARTIAL folded onto the current baseline (an account code / factor / method is replaced; absent keys are untouched). |
+| `resolveScopedAccounting` | The EFFECTIVE accounting policy for a scope — the org baseline folded with any programme/project override (nearest wins), resolved through the same governance path as the rule modes. |
+| `accountingCatalogue` | The org baseline accounting policy + which GL codes are still unset — for the ruleset admin surface. |
 | `getFieldRules` | The current admin-authored field rules (a defensive copy). |
 | `setFieldRules` | Admin replaces the field-rule set. |
 | `getRuleModes` | The effective mode of every rule (configured, else its default). |
 | `setRuleModes` | Admin sets modes. |
+| `getDomainModes` | The org baseline mode floor for every domain (configured, else "off" — no floor). |
+| `setDomainModes` | Admin sets the per-domain floors. |
 | `applyRuleset` | Apply a named reference ruleset bundle (modes + field rules) atomically and DETERMINISTICALLY: every built-in resets to "off" first, then the bundle's modes apply, and the field-rule set is replaced wholesale. |
 | `rulesetCatalogue` | The catalogue for an admin UI (rule + current mode). |
 | `evaluateRuleset` | Evaluate the business ruleset for an action. |
@@ -3478,6 +3644,14 @@ How long a pending SP-initiated AuthnRequest id stays valid for InResponseTo mat
 | `validateSamlResponse` | Validate a base64 SAMLResponse from the ACS POST and return canonical claims, or null (unconfigured / library absent). |
 | `samlMetadata` | The SP metadata XML (so an IdP admin can configure the integration), or null. |
 
+### `artifacts/api-server/src/lib/schedule-dispatcher.ts`
+
+SCHEDULE PROVIDER — the time-driven half of the rules engine, expressed as jobs for the unified {@link job-scheduler}.
+
+| Function | What it does |
+| --- | --- |
+| `recipeScheduledJobs` | SCHEDULE PROVIDER — the time-driven half of the rules engine, expressed as jobs for the unified {@link job-scheduler}. |
+
 ### `artifacts/api-server/src/lib/scheduled-export.ts`
 
 Scheduled data export — periodically renders a dataset (projects / issues / activity) in a chosen format and EMAILS it as an attachment to the configured digest recipients.
@@ -3485,9 +3659,8 @@ Scheduled data export — periodically renders a dataset (projects / issues / ac
 | Function | What it does |
 | --- | --- |
 | `runScheduledExport` | Render + email one scheduled export. |
-| `scheduledExportIntervalHours` | The configured cadence in hours (0 = disabled, the default). |
-| `startScheduledExportScheduler` | Start the in-process export timer when SCHEDULED_EXPORT_INTERVAL_HOURS>0 (single-instance). |
-| `__stopScheduledExportScheduler` | Test-only: stop the timer. |
+| `scheduledExportIntervalHours` | The configured cadence in hours (0 = disabled, the default — opt in with SCHEDULED_EXPORT_INTERVAL_HOURS>0). |
+| `scheduledExportScheduledJob` | The unified-scheduler job for the scheduled export. |
 
 ### `artifacts/api-server/src/lib/scheduled-job.ts`
 
@@ -3496,7 +3669,6 @@ Shared skeleton behind every scheduled autonomous job (proactive-digest, drift-c
 | Function | What it does |
 | --- | --- |
 | `runScheduledAutonomousJob` | Run one scheduled autonomous job and return its result plus whether it dispatched a notification. |
-| `createIntervalScheduler` | The shared "env-var hours → setInterval → unref → stoppable timer" bootstrap behind every scheduled job's in-process cadence: an env-var override in hours (0 = opt out), a self-unref'd interval so it never keeps the process alive, and a run's errors logged (never fatal, never lost). |
 
 ### `artifacts/api-server/src/lib/scim.ts`
 
@@ -3504,6 +3676,7 @@ SECURITY: the directory maps are plain objects indexed by the SCIM resource `id`
 
 | Function | What it does |
 | --- | --- |
+| `pruneTombstones` | Drop tombstones older than the TTL (mutates in place). |
 | `sanitizeSharedDirectory` | Validate an untrusted shared-directory blob from the fleet KV BEFORE it can influence authorization. |
 | `refreshScimFromShared` | Converge this replica's directory with shared state once (the fleet-sync tick, also directly testable). |
 | `startScimFleetSync` | Start periodic fleet convergence so a deprovision on ANY replica takes effect here. |
@@ -3687,6 +3860,12 @@ Concurrent-session cap.
 | `sequenceEnforced` | Whether rotating-token sequence enforcement is on. |
 | `issueSequence` | Issue the next sequence number for a session (called when its cookie is (re)sealed). |
 | `checkSequence` | Check a presented sequence against the session's high-water mark. |
+| `sessionPublicId` | A short, non-reversible public handle for a session id, so the raw per-session salt (which seeds the per-session broker key) never leaves the server. |
+| `noteSession` | Record/refresh a live session in the directory (always on, independent of the concurrent-session cap). |
+| `listUserSessions` | The caller's live (non-revoked) sessions, newest-activity first. |
+| `revokeSession` | Revoke ONE of a user's sessions by its public handle. |
+| `revokeOtherSessions` | Revoke every session EXCEPT the one identified by keepPublicId ("sign out all other devices"). |
+| `isSessionRevoked` | Whether a session (by sub+salt) has been revoked. |
 | `__resetSessionRegistry` | Test-only: clear the registry. |
 
 ### `artifacts/api-server/src/lib/session-secret-guard.ts`
@@ -3838,6 +4017,16 @@ Provably-immutable snapshots.
 | `buildSnapshot` | Build a signed snapshot bundle over `data`. |
 | `verifySnapshot` | Verify a bundle: recompute the content hash and (if present) check the Ed25519 signature against the supplied public key (defaults to this deployment's). |
 
+### `artifacts/api-server/src/lib/sod-policy.ts`
+
+SEPARATION-OF-DUTIES (SoD) POLICY SEAM — the runtime glue that makes the pure `separation-of-duties` catalogue engine actually enforce something (IAM assessment gap S3).
+
+| Function | What it does |
+| --- | --- |
+| `sodPolicyState` | Load + validate the SoD policies from `SOD_POLICIES` (a JSON array), memoised by raw text. |
+| `prospectiveRoleMap` | Fold a proposed role-map edit (`body`, `{ role: string[] }`) onto the current effective map WITHOUT mutating any global state, so SoD can be evaluated against the map the edit WOULD produce. |
+| `roleMapToSoDAssignments` | Invert a role→group map into SoD assignments: one subject per IdP group, its grants = the roles that group is mapped into. |
+
 ### `artifacts/api-server/src/lib/sse.ts`
 
 Server-Sent Events framing — ONE place that gets the SSE wire format right, shared by every SSE endpoint (notifications, presence, the admin broker log).
@@ -3906,6 +4095,24 @@ THE SHIPPED-DEFAULTS INSTALLER for the read-only system store (roadmap X.11).
 | `applySystemDefaults` | One-shot (re)apply of the bundled defaults into the system store — decrypt→replace→re-encrypt in ONE write. |
 | `seedSystemDefaultsIfEmpty` | Auto-install on first boot only (empty system store). |
 
+### `artifacts/api-server/src/lib/task-bulk-actions.ts`
+
+Task BULK-ACTION runner — the admin "apply one canonical change to many GTD tasks" JOB, separated from the HTTP shell (the /api/tasks/bulk route).
+
+| Function | What it does |
+| --- | --- |
+| `taskBulkFingerprint` | A stateless confirmation fingerprint over the plan's canonical (order-independent) input. |
+| `runTaskBulk` | Plan + run a task bulk operation, at most {@link TASK_BULK_FANOUT} writes in flight, resolving in plan order. |
+
+### `artifacts/api-server/src/lib/task-context-vocabulary-config.ts`
+
+SCOPE-OVERRIDABLE GTD task-context vocabulary — the resolver + write sanitiser behind `GET`/`PUT /api/task-context-vocabulary`.
+
+| Function | What it does |
+| --- | --- |
+| `resolveTaskContextVocabulary` | The effective GTD task-context vocabulary at the given scopes: the shipped default with every `task-context-vocabulary` config-def layer folded on top (system → org → programme → project → user), nearest scope winning within each (id-keyed arrays merge by id). |
+| `sanitizeTaskContextVocabularyOverride` | Validate + normalise a PUT body into the config-def `values` to store. |
+
 ### `artifacts/api-server/src/lib/task-summary.ts`
 
 Task roll-up — the report/rollup INPUT for tasks (GTD next-actions), the analogue of the issue/project roll-ups.
@@ -3942,6 +4149,39 @@ LIVE TIME TRACKING — a running "clock" (roadmap 3.3).
 | `sanitizeTimerStart` | Validate a timer start (needs a projectId; issueId/note optional). |
 | `elapsedHours` | Elapsed hours between `startedAt` and `nowMs`, rounded to 2 dp; never negative (clock skew ⇒ 0). |
 | `timerToEntry` | Build the timesheet entry a stopped timer produces (dated to the stop day). |
+
+### `artifacts/api-server/src/lib/totp-store.ts`
+
+PER-USER TOTP 2FA STORE — the enrolled authenticator secret + recovery-code hashes, in a SEPARATELY-KEYED sealed store, isolated from the config store, the AI vault, and the password store.
+
+| Function | What it does |
+| --- | --- |
+| `totpStoreEnabled` | Whether the TOTP store can persist (a path resolves). |
+| `_resetTotpCache` | Reset the in-memory cache — test-only. |
+| `getTotp` | This user's record, or null. |
+| `hasTotp` | True iff the user has a CONFIRMED (active) TOTP enrolment. |
+| `totpStatus` | A client-safe status summary. |
+| `beginEnrolment` | Start (or restart) enrolment with a fresh secret. |
+| `confirmEnrolment` | Confirm a pending enrolment: mark it active and store the recovery-code hashes. |
+| `recordStep` | Record the highest consumed step (the replay lock) after a successful verification. |
+| `consumeRecovery` | Consume a recovery code (constant-time over the stored hashes). |
+| `disableTotp` | Disable 2FA for a user (remove the record). |
+
+### `artifacts/api-server/src/lib/totp.ts`
+
+TOTP (RFC 6238) for app-native two-factor auth — a thin wrapper over the audited, widely-used `otpauth` library (itself backed by `@noble/hashes`).
+
+| Function | What it does |
+| --- | --- |
+| `base32Encode` | Encode bytes as unpadded RFC 4648 base32 (the authenticator secret form) via the library. |
+| `base32Decode` | Decode an (optionally spaced/padded, any-case) base32 string to bytes via the library. |
+| `totpCode` | The TOTP code for a base32 secret at a given unix time (seconds). |
+| `verifyTotp` | Verify a presented code against the secret at `timeSec`, accepting ±`window` steps (default 1 → tolerates ~30s of clock skew each way). |
+| `verifyTotpStep` | Verify like `verifyTotp` but return the ABSOLUTE time-step the code matched (or null on failure). |
+| `generateTotpSecret` | A fresh random base32 TOTP secret (default 160 bits, per RFC 6238's recommendation). |
+| `otpauthUrl` | The `otpauth://` provisioning URI an authenticator app scans as a QR code. |
+| `generateRecoveryCodes` | N single-use recovery codes (grouped, lower-case) that bypass TOTP when a device is lost. |
+| `normalizeRecoveryCode` | Normalise a recovery code for comparison (strip spacing/dashes, lower-case) so display grouping is ignored. |
 
 ### `artifacts/api-server/src/lib/tracing.ts`
 
@@ -4313,6 +4553,10 @@ Approval-chain endpoints — the human, passkey-signed approver surface (design 
 
 Read the self-managed ARCHIVE — the closed projects whose data was migrated out of the SOR (the `archive` disposition).
 
+### `artifacts/api-server/src/routes/attachments.ts`
+
+File attachments (the "attachments" feature module) — attach a file to a work item.
+
 ### `artifacts/api-server/src/routes/audit-middleware.ts`
 
 Audits every /api/* action at the configured level.
@@ -4341,6 +4585,10 @@ Authentication routes + the session helpers the rest of the gateway reads from.
 ### `artifacts/api-server/src/routes/automations.ts`
 
 Automation RECIPES — the user-facing "when X, do Y" builder (Phase 1.2).
+
+### `artifacts/api-server/src/routes/billing-webhook.ts`
+
+INBOUND settlement webhook for the connected billing backend (finance superset; docs/design/INVOICE-NINJA.md).
 
 ### `artifacts/api-server/src/routes/branding.ts`
 
@@ -4666,6 +4914,10 @@ Resource allocation / booking store (the write side of resource management).
 
 Role-mapping editor — ADMIN-only, audited.
 
+### `artifacts/api-server/src/routes/route-auth-manifest.ts`
+
+ROUTE-AUTH MANIFEST — the declarative record of how every MUTATING route (POST/PUT/PATCH/DELETE) that does NOT carry a per-route authorization middleware is nonetheless gated.
+
 ### `artifacts/api-server/src/routes/routing.ts`
 
 The field-routing matrix: which source (vendor·broker·sourceField) feeds which UI element.
@@ -4737,6 +4989,10 @@ PRIMITIVE STUDIO routes — the AI authoring "skill" (roadmap X.2), behind the d
 ### `artifacts/api-server/src/routes/system-defs.ts`
 
 The SYSTEM DEFAULTS update mechanism (roadmap X.11).
+
+### `artifacts/api-server/src/routes/task-context-vocabulary.ts`
+
+Scope-overridable GTD task-context vocabulary.
 
 ### `artifacts/api-server/src/routes/task-vocabulary.ts`
 
@@ -4899,6 +5155,23 @@ Release-signing CLI (docs/UPDATE-MECHANISM.md §4, phase 1) — the release/CI s
 
 The seven vendor-neutral integration-plane registries (backends, brokers, outputs, notifications, methodologies, reports, screens) shared across the workspace.
 
+### `lib/backend-catalogue/src/access-review.ts`
+
+ACCESS-REVIEW / RECERTIFICATION ENGINE — the periodic "does this person still need this access?" campaign that SOC 2 / ISO 27001 auditors expect and that the platform did not yet compute (IAM assessment gap S2).
+
+| Function | What it does |
+| --- | --- |
+| `reviewAccess` | Classify every grant against its review cadence and assemble the recertification campaign. |
+
+### `lib/backend-catalogue/src/authz-policy.ts`
+
+AUTHORIZATION-POLICY (ABAC) ENGINE — a deny-by-default attribute-based access evaluator (IAM assessment gap S1).
+
+| Function | What it does |
+| --- | --- |
+| `evaluateAccess` | Evaluate one access request against an ordered policy set. |
+| `evaluateAccessBatch` | Evaluate many requests against the same policy set, preserving request order. |
+
 ### `lib/backend-catalogue/src/automation-catalogue.ts`
 
 AUTOMATION catalogue — the primitives of the user-facing "when X, do Y" recipe builder (Phase 1.2).
@@ -4926,6 +5199,22 @@ BACKEND catalogue — the systems-of-record plane (Jira, OpenProject, SAP, …).
 
 Broker-NEUTRAL backend catalogue types.
 
+### `lib/backend-catalogue/src/benefit-monte-carlo.ts`
+
+BENEFIT / VALUE MONTE-CARLO — a STATELESS quantitative-risk engine for the VALUE side of the portfolio (roadmap §4.3, "Monte Carlo on schedule + cost + benefit").
+
+| Function | What it does |
+| --- | --- |
+| `simulateBenefit` | Simulate the portfolio's net-value distribution. |
+
+### `lib/backend-catalogue/src/benefit-realisation.ts`
+
+BENEFIT REALISATION ROLL-UP — a pure, STATELESS planned-vs-actual analyser over the benefit register a portfolio already records (roadmap §4.1, "Benefits realization — record ✅, but the planned-vs-actual roll-up + Goals/OKR linkage remain").
+
+| Function | What it does |
+| --- | --- |
+| `analyzeBenefitRealisation` | Roll a benefit register up planned-vs-actual. |
+
 ### `lib/backend-catalogue/src/broker-catalogue.ts`
 
 BROKER registry — the automation/translation layer that sits between the gateway and a backend.
@@ -4941,6 +5230,14 @@ BROKER registry — the automation/translation layer that sits between the gatew
 ### `lib/backend-catalogue/src/canvas-catalogue.ts`
 
 WHITEBOARD / canvas content model — the neutral, primitive-built shape for OmniProject's visual canvas (roadmap 2.3).
+
+### `lib/backend-catalogue/src/capacity.ts`
+
+CAPACITY-VS-DEMAND ENGINE — the resource-planning compute the Wave-1 resource/assignment/timesheet primitives earn.
+
+| Function | What it does |
+| --- | --- |
+| `computeCapacity` | Cross the resource supply against the booked demand into a utilisation grid plus per-resource, per-period, and total roll-ups. |
 
 ### `lib/backend-catalogue/src/catalogue-base.ts`
 
@@ -5005,6 +5302,22 @@ KIND-ROOT CONSTRAINTS — the container-primitive floors that bind a WHOLE kind,
 | `kindRootConstraints` | The implicit root constraints every def of `kind` inherits (empty for kinds with no container floors). |
 | `kindElementErrors` | The PER-ELEMENT validation for a kind whose children are primitive instances — beyond the container floors, each child is validated against its own primitive. |
 
+### `lib/backend-catalogue/src/critical-path.ts`
+
+Critical Path Method (CPM) — a pure, STATELESS solver.
+
+| Function | What it does |
+| --- | --- |
+| `criticalPath` | Solve the CPM schedule. |
+
+### `lib/backend-catalogue/src/cross-team-critical-path.ts`
+
+CROSS-TEAM CRITICAL PATH — the scaled-agile lens on the critical path (roadmap §4.5, "dependency graph + critical-path across teams").
+
+| Function | What it does |
+| --- | --- |
+| `analyzeCrossTeamCriticalPath` | Solve the critical path, then analyse its cross-team structure. |
+
 ### `lib/backend-catalogue/src/currency.ts`
 
 Currency conversion — the pure, dependency-free FX primitives every money roll-up and report shares: convert an amount between currencies via a base-anchored rate table, decide whether a conversion is even possible, list the convertible codes, and the default display currency.
@@ -5015,6 +5328,14 @@ Currency conversion — the pure, dependency-free FX primitives every money roll
 | `isConvertible` | Whether `from` can actually be converted to `to` with these rates — callers that SUM across currencies must use this to exclude unconvertible rows, or a raw foreign amount corrupts the total. |
 | `currencyList` | The sorted list of currency codes a rate table can convert between. |
 | `currencyMix` | Tally the distinct source currencies across a set of rows (so a UI can say "consolidated from N currencies"), most-common first. |
+
+### `lib/backend-catalogue/src/cycle-time.ts`
+
+CYCLE-TIME / LEAD-TIME DISTRIBUTION ENGINE — the flow-time half of agile reporting: how long work actually takes, as a DISTRIBUTION not a single average (roadmap §4.3 / §5.5).
+
+| Function | What it does |
+| --- | --- |
+| `computeCycleTime` | Compute cycle-time + lead-time distributions over a set of work items. |
 
 ### `lib/backend-catalogue/src/dashboard-preset-catalogue.ts`
 
@@ -5072,6 +5393,14 @@ DELEGATION POLICY — the admin-set governance dial for how far DOWN the scope h
 | `isDelegationAllowed` | May a write at `target` scope proceed under a policy that allows variation down to `allowed`? True when the target is no deeper than the allowed level. |
 | `cleanDelegationPolicy` | Coerce untrusted input (imported/stored) into a valid policy, filling unknowns from the default. |
 
+### `lib/backend-catalogue/src/demand-dedup.ts`
+
+DUPLICATE-DEMAND DETECTION — surface intake/demand items that are probably the SAME request worded differently (roadmap §4.4, "duplicate-demand detection"), so a PMO isn't triaging the same need three times.
+
+| Function | What it does |
+| --- | --- |
+| `detectDuplicateDemand` | Detect probable duplicate demand items by pairwise token-overlap similarity. |
+
 ### `lib/backend-catalogue/src/deployment-profile-catalogue.ts`
 
 DEPLOYMENT-PROFILE catalogue — a deployment's CONTEXT posture.
@@ -5119,6 +5448,20 @@ DEPLOYMENT-TYPE catalogue — the archetypes a user picks on the way in (solo se
 
 GENERATED by scripts/src/gen-deployment-types.ts — do not edit.
 
+### `lib/backend-catalogue/src/depreciation.ts`
+
+FIXED-ASSET DEPRECIATION ENGINE — the pure computation over the F20 `fixed_asset` register.
+
+| Function | What it does |
+| --- | --- |
+| `addMonths` | ── Date maths — advance an ISO date by whole months, UTC, clamping to the shortest month ──────────────────── `YYYY-MM-DD` + `months`, UTC. |
+| `depreciableBase` | The depreciable base — cost minus salvage, never negative. |
+| `depreciationSchedule` | The full period-by-period depreciation schedule for an asset. |
+| `depreciationForPeriod` | The depreciation expense for the single period whose posting date is `periodDate`, or 0 if none matches. |
+| `depreciationJournal` | The balanced journal for ONE depreciation period: Dr depreciation expense, Cr accumulated depreciation. |
+| `disposalResult` | Carrying value + gain/loss on disposal. |
+| `disposalJournal` | The balanced retirement journal on disposal: clear the asset cost + its accumulated depreciation, book the proceeds, and recognise the gain (credit) or loss (debit). |
+
 ### `lib/backend-catalogue/src/drill-to.ts`
 
 DRILL-TO — the declarative "red number → filtered work-item list" descriptor (backlog #122).
@@ -5146,6 +5489,22 @@ ENTITY RESOLUTION — stateless helpers for reconciling the SAME real-world enti
 | `dedupeEntities` | Group records by a deterministic key and merge each group. |
 | `matchCandidates` | Surface likely-same entities WITHOUT merging them: for each matcher, group records by its derived key and report every group of ≥2. |
 | `normaliseKey` | A handy normaliser for building soft match keys (lowercased, trimmed, collapsed). |
+
+### `lib/backend-catalogue/src/evm.ts`
+
+EARNED VALUE MANAGEMENT (EVM) ENGINE — the pure computation the EVM field vocabulary earns.
+
+| Function | What it does |
+| --- | --- |
+| `computeEvm` | Compute the full EVM picture from the four primitives (PURE). |
+
+### `lib/backend-catalogue/src/exec-digest.ts`
+
+EXEC DIGEST / STATUS-REPORT ASSEMBLY — the capstone that turns Wave-5's analytic engines into ONE structured portfolio digest an LLM (or a report surface) narrates (roadmap §4.4, "AI status-report + exec-digest generation from brokered state").
+
+| Function | What it does |
+| --- | --- |
+| `assembleExecDigest` | Assemble a structured exec digest from whatever engine results are supplied. |
 
 ### `lib/backend-catalogue/src/field-primitive-catalogue.ts`
 
@@ -5181,6 +5540,14 @@ Canonical FIELD vocabulary — the single source of truth for the work-item fiel
 
 GENERATED by scripts/src/gen-fields.ts — do not edit.
 
+### `lib/backend-catalogue/src/flow-metrics.ts`
+
+FLOW-METRICS ENGINE — a pure, STATELESS builder for the agile delivery-flow series a progress report needs: BURN-DOWN (remaining work vs an ideal line), BURN-UP (completed vs scope, so scope-change is visible), a per-status-class CUMULATIVE-FLOW diagram (backlog / active / done lanes), and THROUGHPUT per period (roadmap §4.7, "Baseline vs actual variance + EVM — EVM engine ✅; burn-up/down + cumulative flow remain").
+
+| Function | What it does |
+| --- | --- |
+| `computeFlowMetrics` | Build the delivery-flow series over the caller's period boundaries. |
+
 ### `lib/backend-catalogue/src/form-catalogue.ts`
 
 FORM registry — intake / request forms OmniProject can render.
@@ -5195,6 +5562,15 @@ FORM registry — intake / request forms OmniProject can render.
 
 GENERATED by scripts/src/gen-forms.ts — do not edit.
 
+### `lib/backend-catalogue/src/funding.ts`
+
+FUNDING-ENVELOPE / SCENARIO ENGINE — does an approved funding envelope actually cover what's committed plus what's still forecast, and where does it run out?
+
+| Function | What it does |
+| --- | --- |
+| `computeFunding` | Read an envelope against its committed + forecast draw. |
+| `rollupFunding` | Roll a set of envelopes into one portfolio-scale envelope: sum the envelope / committed / forecast, then recompute headroom, over-commitment and burn-through at scale from those RAW sums (rounding never compounds through the fold). |
+
 ### `lib/backend-catalogue/src/goal-catalogue.ts`
 
 GOALS / OKRs model — the neutral, primitive-built shape for OmniProject's goal surface (roadmap 3.2).
@@ -5203,6 +5579,34 @@ GOALS / OKRs model — the neutral, primitive-built shape for OmniProject's goal
 | --- | --- |
 | `isBinaryKeyResultKind` | Whether a key-result kind's attainment is binary (met ⇒ 100, else 0). |
 | `formatKeyResultValue` | Format a key-result value for display by its kind — the primitive's presentational "method", shared by every surface so a `percent` always reads "75%" and a `currency` "$1,000". |
+
+### `lib/backend-catalogue/src/health-score.ts`
+
+EPIC / INITIATIVE HEALTH SCORING — a deterministic R/A/G health engine over the risk signals a portfolio already exposes (roadmap §4.4, "Epic/initiative health scoring — R/Y/G across risk dimensions (dependencies, blocked work, timeline, ownership) with plain-English reasoning").
+
+| Function | What it does |
+| --- | --- |
+| `classifyHealth` | Classify a 0…1 severity into a canonical RAG band using the (default 0.33 / 0.66) thresholds. |
+| `scoreHealth` | Score one initiative: weight-average its dimension severities into a composite, band it, and list the amber/red dimensions as plain-English reasons (worst first). |
+| `scoreHealthPortfolio` | Score a set of initiatives and rank them worst-health first. |
+
+### `lib/backend-catalogue/src/hierarchy-rollup.ts`
+
+WORK-ITEM HIERARCHY PROGRESS ROLL-UP — the epic → story → task progress fold every portfolio tool shows: a parent's completion is the WEIGHTED progress of its children, recursively, so an epic reads 62% because its stories do — not because someone typed 62% (roadmap §5.5, "Epics/work-item hierarchy — parentId field/relationship").
+
+| Function | What it does |
+| --- | --- |
+| `rollUpHierarchy` | Roll a work-item hierarchy up: each parent's progress becomes the weighted mean of its children's rolled progress. |
+
+### `lib/backend-catalogue/src/human-delegation.ts`
+
+HUMAN DELEGATION GRANT — the "Alice hands Bob the approve-payment capability for two weeks, capped and revocable, and every use is on the record" control that IAM assessment gap S5 calls for.
+
+| Function | What it does |
+| --- | --- |
+| `cleanDelegation` | Validate + normalise an untrusted delegation, or null if unusable. |
+| `resolveDelegatedAccess` | DEFAULT-DENY resolver: is the delegatee authorised to exercise `capability` (optionally in `projectId`) as of `now`, under any active delegation? Returns the authorising delegation id when allowed (the lowest id among all that authorise, for a deterministic pick), else denied with a reason. |
+| `activeDelegationsFor` | The delegations currently ACTIVE for a delegatee as of `now` (un-revoked, within any time window, not use-capped-out), id-sorted — for an audit view of "what can this person currently do on someone's behalf". |
 
 ### `lib/backend-catalogue/src/impact-vocabulary.generated.ts`
 
@@ -5298,6 +5702,15 @@ METHODOLOGY DEPLOY — the pure resolver behind "one-click deploy this methodolo
 | --- | --- |
 | `resolveMethodologyDeployment` | Resolve the one-click deploy plan for a methodology, or null when the id is unknown. |
 
+### `lib/backend-catalogue/src/methodology-gates.ts`
+
+PER-METHODOLOGY MANDATORY-GATE POLICY — a pure evaluator for "does this project clear the gates its methodology REQUIRES?" (roadmap §4.8, "Policy-as-config guardrails — the per-methodology mandatory-gate extension remains").
+
+| Function | What it does |
+| --- | --- |
+| `resolveMethodologyGatePolicy` | Resolve the required-gate policy for a methodology — a caller override wins, else the shipped default, else an empty policy (the methodology mandates no gates). |
+| `evaluateMethodologyGates` | Evaluate a project's gates against a methodology's required-gate policy. |
+
 ### `lib/backend-catalogue/src/methodology-group.ts`
 
 GROUP any methodology-tagged definitions by methodology — generic over EVERY catalogue plane (reports, views, screens, personas, …), since they all carry the same optional `methodologies` tag and share one matcher.
@@ -5346,6 +5759,23 @@ REFERENCE RULESETS — a curated, named business-ruleset bundle per methodology,
 | `getReferenceRuleset` | The reference ruleset bundle for a methodology (a deep copy), or undefined. |
 | `referenceRulesetCatalogue` | All reference ruleset bundles, ordered to match the methodology catalogue (so the planes line up). |
 
+### `lib/backend-catalogue/src/monte-carlo.ts`
+
+Monte Carlo schedule/effort-risk simulation — a STATELESS quantitative-risk engine.
+
+| Function | What it does |
+| --- | --- |
+| `simulate` | Run the simulation over the tasks. |
+| `mulberry32` | A small seeded PRNG (mulberry32) — for deterministic tests and reproducible report runs. |
+
+### `lib/backend-catalogue/src/multi-currency-evm.ts`
+
+MULTI-CURRENCY EAC / ETC — the plan-layer cost forecast when a programme's cost lines land in more than one currency (roadmap §4.1, "multi-currency EAC/ETC").
+
+| Function | What it does |
+| --- | --- |
+| `computeMultiCurrencyEvm` | Convert mixed-currency EVM measures to a single base currency and compute EAC/ETC/VAC on the totals. |
+
 ### `lib/backend-catalogue/src/notification-catalogue.ts`
 
 NOTIFICATION registry — the channels OmniProject can deliver alerts/events TO (Slack, Teams, …).
@@ -5364,6 +5794,17 @@ NOTIFICATION KINDS — the canonical vocabulary of event kinds a notification ca
 | `getNotificationKind` | One kind definition by id, or undefined. |
 | `notificationKindCatalogue` | All kind definitions (a defensive copy). |
 | `notificationSeverity` | The severity of a kind — defaults to "info" for an unknown/free-form kind. |
+
+### `lib/backend-catalogue/src/notification-prefs.ts`
+
+PER-USER NOTIFICATION PREFERENCES — the pure policy a user expresses over the notification plane: which channels they want, which event kinds they've silenced, and a daily quiet-hours window.
+
+| Function | What it does |
+| --- | --- |
+| `sanitizeNotificationPrefs` | Coerce arbitrary input to a valid `NotificationPrefs`, filling each missing field from defaults. |
+| `inQuietHours` | Is the local wall-clock time of `now` within the [start, end) daily quiet window? Handles a window that wraps past midnight (start > end, e.g. 22:00→07:00). |
+| `allowedChannels` | Which channels a notification of `kind` should reach for a user with these prefs, at time `now`. |
+| `acceptsInApp` | Does the in-app plane (the bell / SSE stream) accept this notification for this user at `now`? |
 
 ### `lib/backend-catalogue/src/notification-routes.generated.ts`
 
@@ -5396,6 +5837,16 @@ Numeric coercion + rounding — the ONE shared home for the "read a possibly-dir
 | `finiteValues` | The finite values from a list (drops null/undefined/NaN/±Infinity) — the input to a safe mean. |
 | `finiteAvg` | Mean of the finite values, or 0 when there are none — the divide-by-zero-safe average. |
 
+### `lib/backend-catalogue/src/okr-linkage.ts`
+
+OKR ↔ DELIVERY LINKAGE — roll a set of objectives up from BOTH their key results and the delivery items (epics/initiatives) wired to them (roadmap §4.5, "OKR ↔ delivery linkage — Goals exist; wire objectives to brokered epics/initiatives + auto-roll-up progress").
+
+| Function | What it does |
+| --- | --- |
+| `keyResultProgress` | Progress of one key result: binary for milestones, a clamped start→target ramp otherwise (guarded divide). |
+| `rollUpObjective` | Roll one objective up from its key results + linked delivery items. |
+| `rollUpObjectives` | Roll up a set of objectives, preserving order, with a portfolio mean + status counts. |
+
 ### `lib/backend-catalogue/src/output-catalogue.ts`
 
 OUTPUT registry — the outward interfaces that expose portfolio data/events to the outside world (BI tools, agents, scrapers, webhooks).
@@ -5419,6 +5870,32 @@ PERSONA registry — experienced PM/PgM methodology LENSES for the portfolio cop
 
 GENERATED by scripts/src/gen-personas.ts — do not edit.
 
+### `lib/backend-catalogue/src/pert.ts`
+
+PERT THREE-POINT ESTIMATING ENGINE — the beta-distribution estimate that turns a guess into a distribution with a variance you can roll up.
+
+| Function | What it does |
+| --- | --- |
+| `computePertEstimate` | Compute the PERT mean, standard deviation and variance for a single three-point estimate. |
+| `rollupPert` | Roll a set of independent three-point estimates into a chain estimate: mean = Σ task means, variance = Σ task variances, stdDev = sqrt(that summed variance). |
+| `pertInterval` | A symmetric confidence band around a mean, mean ± z·stdDev, for a z-score (≈1.645 for 90%, ≈1.96 for 95%). |
+
+### `lib/backend-catalogue/src/pi-forecast.ts`
+
+CAPACITY-BASED SPRINT / PI FORECASTING — "when will this backlog be done?" answered from throughput, not a hand-drawn plan (roadmap §4.5, "capacity-based sprint/PI forecasting").
+
+| Function | What it does |
+| --- | --- |
+| `forecastPi` | Forecast how many sprints and PIs a backlog needs at optimistic / likely / pessimistic velocities. |
+
+### `lib/backend-catalogue/src/plan-my-day.ts`
+
+PLAN-MY-DAY SELECTOR — a pure, STATELESS "what should I actually do today" chooser for GTD next-actions (task-management assessment gap T6).
+
+| Function | What it does |
+| --- | --- |
+| `planMyDay` | Rank today's open tasks and cap them by item / hours / energy budgets. |
+
 ### `lib/backend-catalogue/src/plane-verifier.ts`
 
 Plane verifier — validates a developer-written entry for ANY plane against that plane's manifest contract (shape + capabilities/tools linkage + plane-specific invariants).
@@ -5435,6 +5912,15 @@ The PLANES meta-registry — the seven integration planes OmniProject models, al
 | --- | --- |
 | `getPlane` | Look up a single plane descriptor by its id. |
 | `planeCatalogue` | All plane descriptors (a defensive copy). |
+
+### `lib/backend-catalogue/src/portfolio-select.ts`
+
+PORTFOLIO SELECTION / EFFICIENT-FRONTIER ENGINE — pick the highest-value subset of candidate initiatives that fits a budget (and an optional capacity) cap.
+
+| Function | What it does |
+| --- | --- |
+| `selectByRatio` | Greedy value/cost selection — a deterministic heuristic, not guaranteed optimal. |
+| `selectOptimal` | Exact optimum via 0/1-knapsack integer DP over the budget axis — used ONLY when it is provably bounded: non-negative INTEGER costs, an integer budget ≤ {@link EXACT_MAX_BUDGET}, no capacity cap, and a table of ≤ {@link EXACT_MAX_CELLS} cells. |
 
 ### `lib/backend-catalogue/src/predicate.ts`
 
@@ -5493,6 +5979,17 @@ PRIMITIVE BUNDLE SCHEMA + validator — the shared, closed-set definition of wha
 | --- | --- |
 | `validatePrimitiveDef` | Validate a primitive-bundle payload against the shared schema. |
 
+### `lib/backend-catalogue/src/prioritise.ts`
+
+PORTFOLIO PRIORITISATION ENGINE — the two standard "which do we do first?" scoring models, computed per initiative and returned as a deterministic ranked ordering.
+
+| Function | What it does |
+| --- | --- |
+| `scoreWSJF` | Score one initiative by WSJF = cost-of-delay ÷ job-size. |
+| `prioritiseWSJF` | Score and rank a set of initiatives by WSJF. |
+| `scoreRICE` | Score one initiative by RICE = reach × impact × confidence ÷ effort. |
+| `prioritiseRICE` | Score and rank a set of initiatives by RICE. |
+
 ### `lib/backend-catalogue/src/priority-weights.generated.ts`
 
 GENERATED by scripts/src/gen-priority-weights.ts — do not edit.
@@ -5528,6 +6025,14 @@ Canonical RAG/health BAND vocabulary — the single source of truth for the heal
 | `ragVocabularyValues` | Build the shipped-default {@link RagVocabularyValues} from the canonical entries. |
 | `ragBandsForMethodology` | The RAG bands that apply to `methodologyId` — its tagged ones plus the neutral ("*") ones. |
 
+### `lib/backend-catalogue/src/reassignment.ts`
+
+WHAT-IF RESOURCE REASSIGNMENT ENGINE — model moving booked effort between resources BEFORE committing (roadmap §4.2, "what-if resource scenarios").
+
+| Function | What it does |
+| --- | --- |
+| `simulateReassignment` | Apply `moves` to the baseline's demand and compare the resulting capacity grid against the baseline. |
+
 ### `lib/backend-catalogue/src/registry-catalogue.ts`
 
 ORG REGISTRY model — the neutral, primitive-built shape for OmniProject's org-wide store of APPROVED bespoke items (templates, reports, plugins, primitives, JSON defs …).
@@ -5552,6 +6057,14 @@ REPORT registry — the report / visualisation types OmniProject can render.
 
 GENERATED by scripts/src/gen-reports.ts — do not edit.
 
+### `lib/backend-catalogue/src/risk-register.ts`
+
+RISK REGISTER / EXPOSURE-HEATMAP ENGINE — a pure, STATELESS analyser for a project's RAID register (roadmap §4.8, "Risk + issue register with scoring/heatmaps").
+
+| Function | What it does |
+| --- | --- |
+| `analyzeRiskRegister` | Analyse a RAID register: score each entry's P×I exposure, band it, fill the likelihood×impact heatmap, and roll up by type / status / severity band with open/overdue counts. |
+
 ### `lib/backend-catalogue/src/rollup.ts`
 
 The ONE generic, artifact-agnostic roll-up — SHARED by the backend (rollup endpoints, exports) and the SPA (the no-code report/custom engine), so there is a single aggregation implementation behind every output of the system.
@@ -5561,6 +6074,23 @@ The ONE generic, artifact-agnostic roll-up — SHARED by the backend (rollup end
 | `aggregate` | The single metric-math implementation: aggregate a set of numeric values for one metric. |
 | `rollup` | Roll `rows` up per the spec into generic output rows: one per distinct `groupBy` value, carrying that value under the `groupBy` field plus each metric's aggregate (and a `count`). |
 | `parseRollupQuery` | Parse a compact query spec — `groupBy=programme&metric=sum:hours,avg:cost` — into a {@link RollupSpec}, or null when no `groupBy` is given (caller returns the raw rows). |
+
+### `lib/backend-catalogue/src/run-rate.ts`
+
+RUN-RATE / BURN PROJECTION ENGINE — the lightweight cost forecast that needs no EVM baseline.
+
+| Function | What it does |
+| --- | --- |
+| `computeRunRate` | Project spend-at-completion and variance from budget + actuals + elapsed fraction. |
+
+### `lib/backend-catalogue/src/scenario.ts`
+
+SCENARIO / WHAT-IF COMPARISON ENGINE — rank N candidate investment scenarios on their financial return so a fund/defer/cut decision can be made against the same yardstick (roadmap §4.3, "scenario / what-if portfolio planning").
+
+| Function | What it does |
+| --- | --- |
+| `scoreScenario` | Score one scenario. |
+| `compareScenarios` | Score and rank a set of scenarios by NPV (the primary fund/defer/cut yardstick). |
 
 ### `lib/backend-catalogue/src/screen-catalogue.ts`
 
@@ -5585,6 +6115,14 @@ Methodology overview screens — ordinary screens, each built PURELY from atom-c
 ### `lib/backend-catalogue/src/screens.generated.ts`
 
 GENERATED by scripts/src/gen-screens.ts — do not edit.
+
+### `lib/backend-catalogue/src/separation-of-duties.ts`
+
+SEPARATION-OF-DUTIES (SoD) CONFLICT ENGINE — the "no single person can both create AND approve a payment" control that SOC 2 / ISO 27001 / SOX auditors expect and that the platform did not yet compute (IAM assessment gap S3).
+
+| Function | What it does |
+| --- | --- |
+| `findSeparationOfDutiesConflicts` | Detect separation-of-duties conflicts: subjects holding both sides of a toxic-combination policy. |
 
 ### `lib/backend-catalogue/src/settings-preset-catalogue.ts`
 
@@ -5613,6 +6151,14 @@ Canonical RAID/risk SEVERITY vocabulary — the single source of truth for the s
 | `severityVocabularyValues` | Build the shipped-default {@link SeverityVocabularyValues} from the canonical entries. |
 | `severityLevelsForMethodology` | The severity grades that apply to `methodologyId` — its tagged ones plus the neutral ("*") ones. |
 
+### `lib/backend-catalogue/src/skills-gap.ts`
+
+SKILLS GAP-ANALYSIS ENGINE — a pure, STATELESS competency-coverage analyser over the resource-skill holdings a portfolio already records (roadmap §4.2, "Skills/competency matrix + gap analysis — records ✅, the gap-analysis roll-up remains").
+
+| Function | What it does |
+| --- | --- |
+| `analyzeSkillsGap` | Cross resource-skill holdings against per-skill demand into a gap analysis. |
+
 ### `lib/backend-catalogue/src/sort-filter.ts`
 
 SORT + FILTER — the ONE shared, pure "view controls" engine a screen table or a report row-set runs so a user can sort by ANY column (or row) and filter, with the SAME comparators everywhere.
@@ -5631,6 +6177,52 @@ SORT + FILTER — the ONE shared, pure "view controls" engine a screen table or 
 | `filterRowsBoolean` | Keep rows matching the boolean filter tree. |
 | `applyView` | The common "view" application: filter THEN sort, in one pure pass. |
 
+### `lib/backend-catalogue/src/sprint-metrics.ts`
+
+SPRINT AGGREGATION ENGINE — the sprint-review numbers every agile tool shows: per iteration, how much was COMMITTED vs COMPLETED, how much scope was ADDED mid-sprint (churn), what CARRIED OVER, and the resulting per-sprint VELOCITY series (roadmap §5.5 sprints/iterations + §4.3 agile reporting).
+
+| Function | What it does |
+| --- | --- |
+| `computeSprintMetrics` | Aggregate work items into per-sprint commit-vs-complete metrics + a velocity series. |
+
+### `lib/backend-catalogue/src/stage-gate.ts`
+
+STAGE-GATE CRITERIA EVALUATION — decide whether a delivery gate should PASS, deterministically, from its criteria + approvals (roadmap §4.3, "stage-gate governance with gate criteria + approvals").
+
+| Function | What it does |
+| --- | --- |
+| `evaluateGate` | Evaluate a gate. |
+
+### `lib/backend-catalogue/src/task-bulk.ts`
+
+TASK BULK-OPERATION PLANNER — the pure validation core behind the admin "apply one change to many GTD tasks" endpoint (task-management assessment gap T5).
+
+| Function | What it does |
+| --- | --- |
+| `planTaskBulk` | Plan a bulk operation over the selected tasks. |
+
+### `lib/backend-catalogue/src/task-context-vocabulary.generated.ts`
+
+GENERATED by scripts/src/gen-task-context-vocabulary.ts — do not edit.
+
+### `lib/backend-catalogue/src/task-context-vocabulary.ts`
+
+Canonical GTD TASK-CONTEXT vocabulary — the single source of truth for the @contexts OmniProject knows about (David Allen's "where / with what tool can I do this" filter) and their display order.
+
+| Function | What it does |
+| --- | --- |
+| `taskContextVocabulary` | The full task-context vocabulary (a defensive copy) — for a consumer that needs the raw entries. |
+| `taskContextVocabularyValues` | Build the shipped-default {@link TaskContextVocabularyValues} from the canonical entries. |
+| `taskContextsForMethodology` | The contexts that apply to `methodologyId` — its tagged ones plus the neutral ("*") ones. |
+
+### `lib/backend-catalogue/src/task-dependencies.ts`
+
+TASK DEPENDENCY GRAPH — a pure, STATELESS solver for GTD next-action blocking dependencies (task-management assessment gap T1).
+
+| Function | What it does |
+| --- | --- |
+| `resolveTaskDependencies` | Solve the task blocking graph. |
+
 ### `lib/backend-catalogue/src/task-vocabulary.ts`
 
 Canonical TASK-STATUS vocabulary — the single source of truth for the next-action statuses OmniProject knows about, their workflow class and their display order.
@@ -5643,6 +6235,14 @@ Canonical TASK-STATUS vocabulary — the single source of truth for the next-act
 | `taskVocabulary` | The full task vocabulary (a defensive copy) — for a consumer that needs the raw entries. |
 | `taskVocabularyValues` | Build the shipped-default {@link TaskVocabularyValues} from the canonical entries. |
 | `taskStatusesForMethodology` | The task statuses that apply to `methodologyId` — its tagged ones plus the neutral ("*") ones — a methodology's normal GTD nomenclature. |
+
+### `lib/backend-catalogue/src/task-workload.ts`
+
+TASK WORKLOAD / WIP / AGING ENGINE — a pure, STATELESS analyser for GTD next-action load (task-management assessment gap T2).
+
+| Function | What it does |
+| --- | --- |
+| `analyzeTaskWorkload` | Analyse the open tasks: per-assignee WIP load + age buckets. |
 
 ### `lib/backend-catalogue/src/template-catalogue.ts`
 
@@ -5659,6 +6259,14 @@ PROJECT TEMPLATE catalogue — reusable project blueprints for the "spin up a pr
 ### `lib/backend-catalogue/src/templates.generated.ts`
 
 GENERATED by scripts/src/gen-templates.ts — do not edit.
+
+### `lib/backend-catalogue/src/velocity.ts`
+
+VELOCITY ENGINE — derive a team's throughput/velocity STATISTICS from a per-period history, and the optimistic / likely / pessimistic velocity anchors a backlog forecast needs (roadmap §4.7 reporting; the velocity report def already ships, but nothing computed velocity FROM history).
+
+| Function | What it does |
+| --- | --- |
+| `computeVelocity` | Compute velocity statistics + forecast anchors from a throughput history. |
 
 ### `lib/backend-catalogue/src/vendor-overlay.ts`
 
@@ -5712,6 +6320,7 @@ GRADED-VOCABULARY generic — the shared read-side spine of the level-based voca
 | Function | What it does |
 | --- | --- |
 | `defineGradedVocabulary` | Build a graded vocabulary from a JSON-authored token list. |
+| `defineFlatVocabulary` | Build a FLAT vocabulary from a JSON-authored token list — the graded builder minus `level`/`levelById`, for a set whose only ordinal is display `order`. |
 
 ### `lib/backend-catalogue/src/widget-catalogue.ts`
 
@@ -5876,6 +6485,10 @@ Settings-preset (archetype blueprint) generator.
 
 Canonical RAID/risk severity vocabulary generator.
 
+### `scripts/src/gen-task-context-vocabulary.ts`
+
+Canonical GTD task-context vocabulary generator.
+
 ### `scripts/src/gen-templates.ts`
 
 Project-template catalogue generator.
@@ -5899,6 +6512,10 @@ Canonical work-item vocabulary generator.
 ### `scripts/src/gen-workflow-blueprints.ts`
 
 n8n example-blueprint generator + drift guard.
+
+### `scripts/src/guard-backend-isolation.ts`
+
+Backend-isolation guard — the BACKEND axis counterpart to guard-broker-isolation.
 
 ### `scripts/src/guard-broker-isolation.ts`
 
@@ -5933,6 +6550,15 @@ Interactive-parity guard — enforces the product rule that every UI affordance 
 ### `scripts/src/guard-report-coverage.ts`
 
 Coverage guard — "every declared report is built".
+
+### `scripts/src/guard-route-grants.ts`
+
+ROUTE-GRANT guard (IAM assessment gap S6) — every MUTATING route (POST/PUT/PATCH/DELETE) on the api-server must have its authorization posture DECLARED and checkable, so none silently escapes the auth net.
+
+| Function | What it does |
+| --- | --- |
+| `discoverMutatingRoutes` | Scan every route file for mutating router calls and whether each declares a per-route auth gate. |
+| `computeRouteGrantViolations` | The bidirectional invariant, as a pure function over discovered routes + the manifest (so it is testable without touching the process): unclassified unguarded routes AND stale manifest entries are both failures. |
 
 ### `scripts/src/guard-superset.ts`
 

@@ -6,6 +6,11 @@ that implements it** and the **command, test or endpoint that proves it** — so
 verified from a clean checkout without taking the claim on trust. Paths are relative to the repo root;
 line numbers drift, so the named function/env is the durable anchor.
 
+**This file is the single source of truth for "which control, in which file, proven how."** SECURITY-AUDIT,
+THREAT-MODEL, SECURITY-QUESTIONNAIRE, COMPLIANCE and ENTERPRISE-READINESS restate controls through their own
+lens (posture, attacker, buyer Q&A, framework map, gap analysis) — but when any of them disagrees with this
+file on a control's status or location, **this file wins and should be updated first.**
+
 > **How to use.** `pnpm install` then run the per-row verification. Unit/integration proof runs offline
 > (`node:test`/`vitest`); CI guards are in `.github/workflows/ci.yml`; runtime proof needs a running
 > instance (`curl` the endpoint). "Test" columns point at the sibling `*.test.ts` that exercises the control.
@@ -21,6 +26,7 @@ line numbers drift, so the named function/env is the durable anchor.
 | Strong-auth (WebAuthn) gate for pmo/admin | `lib/rbac.ts` (`hasStrongAuth`, `STRONG_AMR`) | `__tests__/rbac-enforcement.test.ts` (amr-gated) |
 | Step-up re-auth | `lib/step-up.ts` (`requireStepUp`) | `__tests__/security-routes.test.ts` (`code:"step_up_required"`) |
 | Dual-control (four-eyes) | `lib/dual-control.ts` (`approve` rejects self) | `lib/dual-control.test.ts` |
+| Separation of duties (toxic-combination grants) | `separation-of-duties.ts` engine + `lib/sod-policy.ts` wired into `routes/role-map.ts` (`PUT /admin/role-map` → 409); opt-in via `SOD_POLICIES` | `lib/sod-policy.test.ts`, `__tests__/role-map-routes.test.ts` (conflict rejected, inert-when-unset, fail-closed) |
 | Default-deny chokepoint | `routes/index.ts` (`requireAuth` on every protected router) | `__tests__/security.test.ts` (401 without session) |
 
 ## 2. Session management
@@ -80,10 +86,11 @@ line numbers drift, so the named function/env is the durable anchor.
 | Digest-pinned base + `--ignore-scripts` | `Dockerfile` | grep the `@sha256:` pin; CI `ci.yml` install steps |
 | Non-root / read-only / dropped-caps | `deploy/helm/omniproject/values.yaml`; `k8s-enterprise-manifest.yaml` | `__tests__/helm-guard.test.ts` (asserts the posture) |
 | SBOM + dependency scan | `.github/workflows/ci.yml` (`dependency-scan`: pnpm audit `--audit-level high`, CycloneDX) | CI job logs; [SUPPLY-CHAIN.md](SUPPLY-CHAIN.md) |
+| Container-image OS-layer CVE scan (blocks on fixable HIGH/CRITICAL) | `.github/workflows/ci.yml` (`docker-image` job → Trivy `image --pkg-types os --severity HIGH,CRITICAL --ignore-unfixed --exit-code 1`; Trivy installed checksum-verified via `scripts/ci/fetch-verified.sh`). App JS deps are gated separately by `dependency-scan` (`pnpm audit`). | CI `docker-image` job logs |
 | Secret scanning (gitleaks) | `.github/workflows/ci.yml` (`secret-scan` job), `.gitleaks.toml` | CI `secret-scan` job logs |
 | SAST (CodeQL) | `.github/workflows/codeql.yml` (`security-extended` pack) | CI `codeql` job logs / code-scanning alerts |
 | Static taint scan (semgrep) | `.github/workflows/ci.yml` (`taint-scan` job), `.semgrep/omniproject.yml` | CI `taint-scan` job logs |
-| Release build-provenance + SBOM attestation (SLSA, keyless) | `.github/workflows/release.yml` (`attest-build-provenance@v1`, `attest-sbom@v1`) | `gh attestation verify` against a release tag |
+| Published image + build-provenance + SBOM attestation (SLSA, keyless) | `.github/workflows/release.yml` pushes `omni-shell` to GHCR and attests the **pushed digest** (`attest-build-provenance@v4`, `attest-sbom@v4`, `push-to-registry`) | `gh attestation verify oci://ghcr.io/<owner>/<repo>:<tag> --owner <owner>` |
 | Mutation testing (money/FX core) | `.github/workflows/mutation.yml`, `artifacts/omniproject/stryker.conf.json` | CI `mutation` job logs (break threshold enforced) |
 
 ## 8. Data governance & seam integrity
@@ -95,7 +102,7 @@ line numbers drift, so the named function/env is the durable anchor.
 | Broker↔gateway signed envelope (HMAC+PSK) | `lib/broker-hmac.ts` (+ Redis-gated fleet replay) | `lib/broker-hmac.test.ts` |
 | Read-seam data sanitizer + data-quality signal | `broker/sanitizer.ts` (`wrapWithSanitizer`, wired `broker/index.ts`; strips `__proto__`/`constructor`/`prototype`), `lib/data-quality.ts` | `broker/sanitizer.test.ts`; runtime `X-OmniProject-Data-Repaired` response header |
 | DSAR report (content-free) | `lib/dsar.ts` (`buildDsarReport`) | `lib/dsar.test.ts`; runtime `GET /api/security/dsar` |
-| Retention / history | `history/retention.ts` (`recordWrite`, `buildTrend`) | `history/*.test.ts` |
+| Retention / history (auto-captured at the broker seam, off-by-default) | `history/retention.ts` (`recordWrite`, `buildTrend`) + `broker/retention-capture.ts` (`wrapWithRetentionCapture`, gated on `retentionSourceFor`) | `history/*.test.ts`, `broker/retention-capture.test.ts` |
 
 ## Whole-suite verification (one command each)
 

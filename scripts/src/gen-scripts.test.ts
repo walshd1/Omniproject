@@ -88,6 +88,7 @@ const CASES: GenCase[] = [
   { name: "gen-consolidations", script: "src/gen-consolidations.ts", outputs: [`${BC}/consolidations.generated.ts`] },
   { name: "gen-work-vocabulary", script: "src/gen-work-vocabulary.ts", outputs: [`${BC}/work-vocabulary.generated.ts`] },
   { name: "gen-energy-vocabulary", script: "src/gen-energy-vocabulary.ts", outputs: [`${BC}/energy-vocabulary.generated.ts`] },
+  { name: "gen-task-context-vocabulary", script: "src/gen-task-context-vocabulary.ts", outputs: [`${BC}/task-context-vocabulary.generated.ts`] },
   { name: "gen-severity-vocabulary", script: "src/gen-severity-vocabulary.ts", outputs: [`${BC}/severity-vocabulary.generated.ts`] },
   { name: "gen-impact-vocabulary", script: "src/gen-impact-vocabulary.ts", outputs: [`${BC}/impact-vocabulary.generated.ts`] },
   { name: "gen-likelihood-vocabulary", script: "src/gen-likelihood-vocabulary.ts", outputs: [`${BC}/likelihood-vocabulary.generated.ts`] },

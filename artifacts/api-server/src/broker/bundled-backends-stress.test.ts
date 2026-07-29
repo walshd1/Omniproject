@@ -10,6 +10,7 @@ import {
   BROKER_CAPABILITY_KEYS,
   transportOf,
   validateVendor,
+  RECORD_TYPE_REQUIRED_READS,
   type BackendDefinition,
 } from "@workspace/backend-catalogue";
 import { CAPABILITY_DOMAINS } from "../lib/capabilities";
@@ -120,8 +121,11 @@ for (const summary of BACKENDS) {
       assert.equal(actions.length, 0, `${id} is an import source but declares broker actions`);
       assert.deepEqual(summary.brokers, [], `${id} is import ⇒ no live brokers`);
     } else {
-      assert.ok(actions.includes("list_projects"), `${id} (${kind}) must implement list_projects`);
-      assert.ok(actions.includes("list_issues"), `${id} (${kind}) must implement list_issues`);
+      // A brokered backend must map the contract READ verbs its primaryRecord owns
+      // (issue ⇒ projects+issues; invoice ⇒ invoice list) — NOT a fixed PM assumption.
+      for (const read of RECORD_TYPE_REQUIRED_READS[def.primaryRecord]) {
+        assert.ok(actions.includes(read), `${id} (${kind}, primaryRecord=${def.primaryRecord}) must implement ${read}`);
+      }
       assert.ok(summary.brokers.length > 0, `${id} (${kind}) is brokered but no broker can reach its transport`);
     }
 

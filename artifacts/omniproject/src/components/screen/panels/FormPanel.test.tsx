@@ -52,6 +52,18 @@ describe("FormPanel", () => {
     expect(fetchMock.mock.calls.some(([u]) => String(u).includes("/submit"))).toBe(false);
   });
 
+  it("wires the error to its control (aria-invalid + aria-describedby) and focuses the first invalid field", () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("{}", { status: 200 }));
+    renderWithProviders(<FormPanel panel={panel} />, { client: seed([FORM]) });
+    fireEvent.submit(screen.getByTestId("intake-form"));
+    const summary = screen.getByTestId("form-field-summary");
+    expect(summary).toHaveAttribute("aria-invalid", "true");
+    expect(summary).toHaveAttribute("aria-describedby", "form-error-summary");
+    expect(screen.getByTestId("form-error-summary")).toHaveAttribute("id", "form-error-summary");
+    // Focus lands on the first invalid control so the user can start fixing immediately.
+    expect(summary).toHaveFocus();
+  });
+
   it("submits valid values to /api/forms/:id/submit", async () => {
     const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(JSON.stringify({ ok: true, issue: { id: "x" } }), { status: 201 }));
     renderWithProviders(<FormPanel panel={panel} />, { client: seed([FORM]) });

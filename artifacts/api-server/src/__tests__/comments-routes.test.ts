@@ -50,6 +50,24 @@ test("an @mention dispatches a mention notification to the mentioned user", asyn
   }
 });
 
+test("a project wiki-doc room is project-scoped (the fixed fail-open); user/org content stays unscoped", async () => {
+  // A project wiki doc's collaboration room is keyed `doc:project~<projectId>~<localId>`. It MUST be scoped
+  // like an `issue:`/`project:` room, or an out-of-scope principal reaches the project doc's thread. Flip to
+  // non-demo auth so a plain member resolves to user-level scope (demo auth sees everything), the same setup
+  // whiteboard-cursors.test.ts uses to exercise the project-board guard.
+  const prev = process.env["OIDC_ISSUER_URL"];
+  process.env["OIDC_ISSUER_URL"] = "https://idp.example";
+  try {
+    const foreign = await h.req(`/comments/doc:project~some-other-teams-project~doc-uuid`, { cookie: memberCookie() });
+    assert.equal(foreign.status, 403); // cross-project doc room — refused (was 200 before the fix)
+
+    const orgContent = await h.req(`/comments/doc:user~any-uuid`, { cookie: memberCookie() });
+    assert.equal(orgContent.status, 200); // user/org content has no project boundary — unchanged
+  } finally {
+    if (prev === undefined) delete process.env["OIDC_ISSUER_URL"]; else process.env["OIDC_ISSUER_URL"] = prev;
+  }
+});
+
 test("DELETE by the author removes the comment; an unknown comment is 404", async () => {
   const post = await h.req(`/comments/${ROOM}`, { cookie: memberCookie(), method: "POST", body: { body: "temp" } });
   const { comment } = (await post.json()) as { comment: { id: string } };

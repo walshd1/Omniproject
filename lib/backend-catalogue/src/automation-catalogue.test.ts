@@ -55,5 +55,15 @@ test("new field-write actions are catalogued (surface-targeted) and mutating", (
     assert.equal(a!.mutating, true);
     assert.equal(a!.surface, "issue");
   }
-  assert.ok(AUTOMATION_ACTIONS.every((a) => a.kind === "notify" ? a.surface === undefined : typeof a.surface === "string"));
+  // An action is surface-targeted IFF it compiles to a surface write (broker.writeIssue). notify (inform) and
+  // org-level actions (e.g. run-depreciation, a finance posting) carry no surface.
+  assert.ok(AUTOMATION_ACTIONS.every((a) => a.effect === "broker.writeIssue" ? a.surface === "issue" : a.surface === undefined));
+});
+
+test("run-depreciation is an org-level mutating finance action (no surface, needs a grant)", () => {
+  const a = getActionDef("run-depreciation");
+  assert.ok(a);
+  assert.equal(a!.mutating, true);
+  assert.equal(a!.surface, undefined); // org-level, not a work-item surface write
+  assert.equal(a!.effect, "finance.runDepreciation");
 });

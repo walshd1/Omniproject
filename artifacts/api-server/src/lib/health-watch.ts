@@ -2,6 +2,9 @@ import type { ActorContext, Broker, PortfolioRow } from "../broker/types";
 import { mintAutonomousContext } from "./autonomous";
 import { recordAudit } from "./audit";
 import { pushBounded } from "./ring-buffer";
+import { deliverLocal } from "./notify-hub";
+import { getBroker } from "../broker";
+import { resolveIntervalHours, type ScheduledJob } from "./job-scheduler";
 
 /**
  * Health / anomaly watch.
@@ -132,4 +135,36 @@ export async function runHealthWatch(opts: RunOptions): Promise<HealthFinding[]>
     meta: { projects: rows.length, findings: findings.length },
   });
   return findings;
+}
+
+/** Deliver one finding as a broadcast notification — the health-watch notify sink shared by the manual
+ *  `/run` route and the scheduled job, so both surface findings identically. */
+export function deliverHealthFinding(f: HealthFinding): void {
+  deliverLocal({
+    title: `${f.severity === "critical" ? "🔴" : "🟠"} ${f.projectName}: ${f.message}`,
+    severity: f.severity,
+    source: "health-watch",
+    projectId: f.projectId,
+    at: f.at,
+  });
+}
+
+/** The configured cadence in hours (0 = disabled, the default — opt in with HEALTH_WATCH_INTERVAL_HOURS>0). */
+export function healthWatchIntervalHours(): number {
+  return resolveIntervalHours("HEALTH_WATCH_INTERVAL_HOURS", 0);
+}
+
+/**
+ * The unified-scheduler job for the portfolio health / anomaly watch. OFF by default; enabled when
+ * `HEALTH_WATCH_INTERVAL_HOURS`>0. Registered once at boot — the shared heartbeat runs it, claim-once, so a
+ * fleet scans exactly once per occurrence rather than once per replica. The manual `/health-watch/run` endpoint
+ * stays for on-demand / external-cron use.
+ */
+export function healthWatchScheduledJob(): ScheduledJob {
+  return {
+    id: "health-watch",
+    label: "portfolio health / anomaly watch",
+    resolveSchedule: () => { const hours = healthWatchIntervalHours(); return hours > 0 ? { kind: "interval", hours } : null; },
+    run: (now) => runHealthWatch({ now, broker: getBroker(), notify: deliverHealthFinding }),
+  };
 }

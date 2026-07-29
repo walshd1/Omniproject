@@ -14,6 +14,7 @@ export const VENDOR_SCHEMAS: Record<string, JsonSchema> = {
       "id",
       "label",
       "docsUrl",
+      "primaryRecord",
       "verification",
       "via",
       "requiredEnv",
@@ -31,6 +32,47 @@ export const VENDOR_SCHEMAS: Record<string, JsonSchema> = {
       },
       "docsUrl": {
         "type": "string"
+      },
+      "primaryRecord": {
+        "enum": [
+          "issue",
+          "invoice",
+          "client",
+          "product",
+          "payment",
+          "credit_note",
+          "quote",
+          "tax_rate",
+          "vendor",
+          "expense",
+          "bill",
+          "purchase_order",
+          "gl_account",
+          "journal_entry",
+          "bank_account",
+          "bank_transaction",
+          "fx_rate",
+          "fiscal_period",
+          "dimension",
+          "rev_rec_schedule",
+          "goods_receipt",
+          "fixed_asset",
+          "dependency",
+          "baseline",
+          "resource",
+          "assignment",
+          "timesheet",
+          "benefit",
+          "milestone",
+          "change_request",
+          "stage_gate",
+          "skill",
+          "resource_skill",
+          "leave",
+          "portfolio",
+          "booking"
+        ],
+        "description": "The primary record this backend is a system of record for. Decides the required contract read verbs and which field superset applies — a backend need not be a project tool, but it must own a record type. \"issue\": PM/CRM/ITSM/ERP tools (normalised to the issue/project contract). \"invoice\": a billing system of record (Invoice Ninja, Dolibarr, …). \"client\": a customer master whose primary record is the bill-to party. \"product\": an item catalogue whose primary record is the priced line item. \"payment\": an AR-receipt system whose primary record is a settlement applied to invoices. \"credit_note\" / \"quote\": AR documents (a credit against an account, an estimate that precedes an invoice). \"tax_rate\": a jurisdiction's tax-rate table."
       },
       "verification": {
         "enum": [
@@ -194,6 +236,35 @@ export const VENDOR_SCHEMAS: Record<string, JsonSchema> = {
             "note": {
               "type": "string"
             }
+          }
+        }
+      },
+      "invoiceSync": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "correlation",
+          "env",
+          "outbound",
+          "inbound",
+          "webhook"
+        ],
+        "description": "Advertised invoice-sync mapping applied by the gateway's generic projector (broker/backends/invoice-mapping) — maps OmniProject's agnostic invoice surface to/from this backend's billing API, both ways, as data. Only needed by a backend that reconciles an external settlement onto the local sealed invoice.",
+        "properties": {
+          "correlation": {
+            "type": "object"
+          },
+          "env": {
+            "type": "object"
+          },
+          "outbound": {
+            "type": "object"
+          },
+          "inbound": {
+            "type": "object"
+          },
+          "webhook": {
+            "type": "object"
           }
         }
       }

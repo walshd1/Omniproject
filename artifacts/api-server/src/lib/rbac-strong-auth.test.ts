@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { grantsFromClaims, hasStrongAuth } from "./rbac";
+import { grantsFromClaims, hasStrongAuth, sessionStrongAuth } from "./rbac";
 
 /**
  * Tamper-resistant MFA gate for pmo/admin: a claim placing someone in the
@@ -61,6 +61,30 @@ test("grantsFromClaims: omitting strongAuth entirely does not downgrade (back-co
 test("grantsFromClaims: demo mode is exempt from the strong-auth gate (no real identity to phish)", () => {
   const g = grantsFromClaims([], { isDemo: true, strongAuth: false });
   assert.deepEqual([...g.authorities].sort(), ["admin", "pmo"]);
+});
+
+test("sessionStrongAuth: hardware MFA (amr/acr) qualifies regardless of local/env", () => {
+  assert.equal(sessionStrongAuth({ amr: ["hwk"] }), true);
+  assert.equal(sessionStrongAuth(null), false);
+  assert.equal(sessionStrongAuth({ amr: ["pwd"] }), false); // non-local password session, no hardware MFA
+});
+
+test("sessionStrongAuth: a local password session qualifies ONLY when the passkey requirement is opted out", () => {
+  // Default (LOCAL_ADMIN_REQUIRE_PASSKEY unset ⇒ false): a local password alone is strong, so a fresh
+  // IdP-less deployment is administrable out of the box. This is the SAME rule grantsForReq and scopeForReq
+  // both apply, so a local admin's data scope matches their tier authority (was: scopeForReq withheld it,
+  // collapsing an opted-out local admin to an empty programme scope — admin routes but no data).
+  delete process.env["LOCAL_ADMIN_REQUIRE_PASSKEY"];
+  assert.equal(sessionStrongAuth({ amr: ["pwd"], local: true }), true);
+
+  // Opted IN (LOCAL_ADMIN_REQUIRE_PASSKEY=true): a local password is NOT strong — a passkey step-up is required.
+  process.env["LOCAL_ADMIN_REQUIRE_PASSKEY"] = "true";
+  try {
+    assert.equal(sessionStrongAuth({ amr: ["pwd"], local: true }), false);
+    assert.equal(sessionStrongAuth({ amr: ["hwk"], local: true }), true); // ...unless it also holds hardware MFA
+  } finally {
+    delete process.env["LOCAL_ADMIN_REQUIRE_PASSKEY"];
+  }
 });
 
 test("grantsFromClaims: a plain manager/contributor/viewer claim is unaffected by strongAuth", () => {

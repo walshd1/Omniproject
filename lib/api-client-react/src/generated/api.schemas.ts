@@ -332,6 +332,16 @@ export interface Issue {
      */
   storyPoints?: number | null;
   /**
+     * Parent epic / work-item id — the epic → story → task hierarchy (agile field group; surfaced only when the backend tracks a parent link).
+     * @nullable
+     */
+  epic?: string | null;
+  /**
+     * Sprint / iteration the work item belongs to (agile field group).
+     * @nullable
+     */
+  sprint?: string | null;
+  /**
      * Delivery health / RAG (quality field group). Free-form to preserve the backend's vocabulary.
      * @nullable
      */
@@ -515,6 +525,10 @@ export interface IssueInput {
   /** @nullable */
   storyPoints?: number | null;
   /** @nullable */
+  epic?: string | null;
+  /** @nullable */
+  sprint?: string | null;
+  /** @nullable */
   healthStatus?: string | null;
   /** @nullable */
   riskLevel?: string | null;
@@ -573,6 +587,58 @@ export interface ResourceMember {
   /** @nullable */
   allocatedHours: number | null;
   projectIds: string[];
+}
+
+/**
+ * A GTD next-action — an actionable to-do, distinct from an Issue. Tasks are an optional broker capability surfaced via GET /tasks; every field beyond id/title/status is optional and populated only when the backend models it (the field superset — admins wire up what their backend carries).
+ */
+export interface Task {
+  id: string;
+  title: string;
+  /** GTD next-action status (e.g. next / waiting / scheduled / someday / done / dropped). */
+  status: string;
+  /** @nullable */
+  projectId?: string | null;
+  /**
+     * GTD @context (where/with-what the action can be done).
+     * @nullable
+     */
+  context?: string | null;
+  /** @nullable */
+  waitingOn?: string | null;
+  /** @nullable */
+  assignee?: string | null;
+  /** @nullable */
+  description?: string | null;
+  /** @nullable */
+  priority?: string | null;
+  tags?: string[];
+  /** @nullable */
+  startDate?: string | null;
+  /** @nullable */
+  dueDate?: string | null;
+  /** @nullable */
+  recurrence?: string | null;
+  /** @nullable */
+  estimateHours?: number | null;
+  /** @nullable */
+  parentTaskId?: string | null;
+  /** @nullable */
+  url?: string | null;
+  /** @nullable */
+  completedAt?: string | null;
+  /** @nullable */
+  reminderAt?: string | null;
+  /**
+     * GTD energy level the action needs (low / medium / high).
+     * @nullable
+     */
+  energy?: string | null;
+  /** @nullable */
+  section?: string | null;
+  /** @nullable */
+  sortOrder?: number | null;
+  collaborators?: string[];
 }
 
 export type TaskItemKind = typeof TaskItemKind[keyof typeof TaskItemKind];
@@ -657,6 +723,10 @@ export interface IssueUpdate {
   remainingHours?: number | null;
   /** @nullable */
   storyPoints?: number | null;
+  /** @nullable */
+  epic?: string | null;
+  /** @nullable */
+  sprint?: string | null;
   /** @nullable */
   healthStatus?: string | null;
   /** @nullable */
@@ -837,6 +907,63 @@ export interface FinanceLocalTotals {
   earnedValue: number;
 }
 
+export type EvmEacMethod = typeof EvmEacMethod[keyof typeof EvmEacMethod];
+
+
+export const EvmEacMethod = {
+  cpi: 'cpi',
+  budget_rate: 'budget_rate',
+  cpi_spi: 'cpi_spi',
+  etc: 'etc',
+} as const;
+
+export type EvmEacVariants = {
+  /** @nullable */
+  cpi: number | null;
+  /** @nullable */
+  budgetRate: number | null;
+  /** @nullable */
+  cpiSpi: number | null;
+  /** @nullable */
+  etc: number | null;
+};
+
+/**
+ * The Earned Value Management picture derived from the four primitives (PV/EV/AC/BAC) by the shared computeEvm engine. Ratios whose denominator is zero are null (rendered as "—"), never NaN/Infinity. SPI and schedule variance are null until a backend supplies plannedValue.
+ */
+export interface Evm {
+  plannedValue: number;
+  earnedValue: number;
+  actualCost: number;
+  budgetAtCompletion: number;
+  costVariance: number;
+  scheduleVariance: number;
+  /** @nullable */
+  costVariancePct: number | null;
+  /** @nullable */
+  scheduleVariancePct: number | null;
+  /** @nullable */
+  costPerformanceIndex: number | null;
+  /** @nullable */
+  schedulePerformanceIndex: number | null;
+  /** @nullable */
+  percentComplete: number | null;
+  /** @nullable */
+  percentSpent: number | null;
+  eacMethod: EvmEacMethod;
+  /** @nullable */
+  estimateAtCompletion: number | null;
+  /** @nullable */
+  estimateToComplete: number | null;
+  /** @nullable */
+  varianceAtCompletion: number | null;
+  /** @nullable */
+  toCompletePerformanceIndex: number | null;
+  /** @nullable */
+  toCompletePerformanceIndexToEac: number | null;
+  eacVariants: EvmEacVariants;
+}
+
 /**
  * A consolidated financial row (a programme, or the whole portfolio) in the reporting currency.
  */
@@ -848,9 +975,11 @@ export interface FinanceRollup {
   actual: number;
   forecast: number;
   earnedValue: number;
+  plannedValue: number;
   variance: number;
   /** @nullable */
   cpi: number | null;
+  evm: Evm | null;
   /** @nullable */
   localCurrency: string | null;
   local: FinanceLocalTotals | null;
@@ -1482,6 +1611,10 @@ from?: string;
  * ISO 8601 upper bound (inclusive).
  */
 to?: string;
+};
+
+export type GetTasksParams = {
+projectId?: string;
 };
 
 export type GetPortfolioFinancialsParams = {

@@ -45,6 +45,11 @@ function keyObjectFromSpki(spkiB64: string): crypto.KeyObject {
   return key;
 }
 
+/** Upper bound on passkeys held per user — plenty for a person's real devices, but a fixed cap so a caller
+ *  can't grow their own credential blob without bound (re-registering an existing id replaces, so it never
+ *  counts against this). */
+export const MAX_PASSKEYS_PER_USER = 20;
+
 /** Register a passkey public key for a user. Validates the SPKI parses as an EC P-256 key before storing. */
 export async function registerCredential(sub: string, input: { credentialId: string; publicKeySpki: string }): Promise<PasskeyCredential> {
   if (!sub || !input.credentialId || !input.publicKeySpki) throw new AssertionError("sub, credentialId and publicKeySpki are required");
@@ -52,6 +57,7 @@ export async function registerCredential(sub: string, input: { credentialId: str
   const cred: PasskeyCredential = { credentialId: input.credentialId, publicKeySpki: input.publicKeySpki, alg: "ES256", createdAt: new Date().toISOString() };
   const existing = await credentialsFor(sub);
   const next = [...existing.filter((c) => c.credentialId !== cred.credentialId), cred];
+  if (next.length > MAX_PASSKEYS_PER_USER) throw new AssertionError(`too many passkeys enrolled (max ${MAX_PASSKEYS_PER_USER}) — remove one first`);
   await sharedKv.set(credKey(sub), JSON.stringify(next));
   return cred;
 }

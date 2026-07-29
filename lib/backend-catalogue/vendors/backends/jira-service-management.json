@@ -41,6 +41,7 @@
   },
   "credentialType": "jiraSoftwareCloudApi",
   "docsUrl": "https://developer.atlassian.com/cloud/jira/service-desk/rest/",
+  "primaryRecord": "issue",
   "id": "jira-service-management",
   "label": "Jira Service Management",
   "notes": "ITSM on Jira: service desks → projects, requests → issues. Reads use servicedeskapi; writes fall back to the Jira core v3 API. JIRA_BASE_URL e.g. https://your-org.atlassian.net.",

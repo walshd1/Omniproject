@@ -283,3 +283,4 @@ export function sanitizeSchedulingValues(raw: unknown): Partial<SchedulingConfig
 export function resolveScheduling(scopes: ConfigScopes = {}): SchedulingConfig {
   return resolveConfig(SCHEDULING_CONFIG_ID, DEFAULT_SCHEDULING, scopes);
 }
+

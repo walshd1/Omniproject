@@ -588,6 +588,28 @@ paths:
                   - $ref: "#/components/schemas/ProjectBaseline"
                   - type: "null"
 
+  /tasks:
+    get:
+      operationId: getTasks
+      tags: [tasks]
+      summary: GTD next-action tasks (optionally scoped to a project)
+      description: "Routed to the broker with X-OmniProject-Action: list_tasks. Tasks are an optional broker capability; a backend that does not model them returns an empty list. Out-of-scope tasks are filtered at the gateway."
+      parameters:
+        - name: projectId
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Tasks
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Task"
+
   /projects/{projectId}/raid:
     get:
       operationId: getProjectRaid
@@ -1233,6 +1255,12 @@ components:
         storyPoints:
           type: ["number", "null"]
           description: Agile story-point estimate (agile field group; surfaced only when the backend tracks agile fields).
+        epic:
+          type: ["string", "null"]
+          description: Parent epic / work-item id — the epic → story → task hierarchy (agile field group; surfaced only when the backend tracks a parent link).
+        sprint:
+          type: ["string", "null"]
+          description: Sprint / iteration the work item belongs to (agile field group).
         healthStatus:
           type: ["string", "null"]
           description: Delivery health / RAG (quality field group). Free-form to preserve the backend's vocabulary.
@@ -1391,6 +1419,10 @@ components:
           type: ["number", "null"]
         storyPoints:
           type: ["number", "null"]
+        epic:
+          type: ["string", "null"]
+        sprint:
+          type: ["string", "null"]
         healthStatus:
           type: ["string", "null"]
         riskLevel:
@@ -1465,6 +1497,68 @@ components:
         - allocatedHours
         - projectIds
 
+    Task:
+      type: object
+      description: >-
+        A GTD next-action — an actionable to-do, distinct from an Issue. Tasks are an optional broker
+        capability surfaced via GET /tasks; every field beyond id/title/status is optional and populated
+        only when the backend models it (the field superset — admins wire up what their backend carries).
+      properties:
+        id:
+          type: string
+        title:
+          type: string
+        status:
+          type: string
+          description: GTD next-action status (e.g. next / waiting / scheduled / someday / done / dropped).
+        projectId:
+          type: ["string", "null"]
+        context:
+          type: ["string", "null"]
+          description: GTD @context (where/with-what the action can be done).
+        waitingOn:
+          type: ["string", "null"]
+        assignee:
+          type: ["string", "null"]
+        description:
+          type: ["string", "null"]
+        priority:
+          type: ["string", "null"]
+        tags:
+          type: array
+          items:
+            type: string
+        startDate:
+          type: ["string", "null"]
+        dueDate:
+          type: ["string", "null"]
+        recurrence:
+          type: ["string", "null"]
+        estimateHours:
+          type: ["number", "null"]
+        parentTaskId:
+          type: ["string", "null"]
+        url:
+          type: ["string", "null"]
+        completedAt:
+          type: ["string", "null"]
+        reminderAt:
+          type: ["string", "null"]
+        energy:
+          type: ["string", "null"]
+          description: GTD energy level the action needs (low / medium / high).
+        section:
+          type: ["string", "null"]
+        sortOrder:
+          type: ["number", "null"]
+        collaborators:
+          type: array
+          items:
+            type: string
+      required:
+        - id
+        - title
+        - status
     TaskItem:
       type: object
       description: A child issue or note raised against a task.
@@ -1548,6 +1642,10 @@ components:
           type: ["number", "null"]
         storyPoints:
           type: ["number", "null"]
+        epic:
+          type: ["string", "null"]
+        sprint:
+          type: ["string", "null"]
         healthStatus:
           type: ["string", "null"]
         riskLevel:
@@ -1816,16 +1914,74 @@ components:
         actual: { type: number }
         forecast: { type: number }
         earnedValue: { type: number }
+        plannedValue: { type: number }
         variance: { type: number }
         cpi:
           type: ["number", "null"]
+        evm:
+          nullable: true
+          allOf: [{ $ref: "#/components/schemas/Evm" }]
         localCurrency:
           type: ["string", "null"]
         local:
           nullable: true
           allOf: [{ $ref: "#/components/schemas/FinanceLocalTotals" }]
         excludedForFx: { type: integer }
-      required: [key, label, projects, budget, actual, forecast, earnedValue, variance, cpi, localCurrency, local, excludedForFx]
+      required: [key, label, projects, budget, actual, forecast, earnedValue, plannedValue, variance, cpi, evm, localCurrency, local, excludedForFx]
+
+    Evm:
+      type: object
+      description: >-
+        The Earned Value Management picture derived from the four primitives (PV/EV/AC/BAC) by the shared
+        computeEvm engine. Ratios whose denominator is zero are null (rendered as "—"), never NaN/Infinity.
+        SPI and schedule variance are null until a backend supplies plannedValue.
+      properties:
+        plannedValue: { type: number }
+        earnedValue: { type: number }
+        actualCost: { type: number }
+        budgetAtCompletion: { type: number }
+        costVariance: { type: number }
+        scheduleVariance: { type: number }
+        costVariancePct: { type: ["number", "null"] }
+        scheduleVariancePct: { type: ["number", "null"] }
+        costPerformanceIndex: { type: ["number", "null"] }
+        schedulePerformanceIndex: { type: ["number", "null"] }
+        percentComplete: { type: ["number", "null"] }
+        percentSpent: { type: ["number", "null"] }
+        eacMethod: { type: string, enum: [cpi, budget_rate, cpi_spi, etc] }
+        estimateAtCompletion: { type: ["number", "null"] }
+        estimateToComplete: { type: ["number", "null"] }
+        varianceAtCompletion: { type: ["number", "null"] }
+        toCompletePerformanceIndex: { type: ["number", "null"] }
+        toCompletePerformanceIndexToEac: { type: ["number", "null"] }
+        eacVariants:
+          type: object
+          properties:
+            cpi: { type: ["number", "null"] }
+            budgetRate: { type: ["number", "null"] }
+            cpiSpi: { type: ["number", "null"] }
+            etc: { type: ["number", "null"] }
+          required: [cpi, budgetRate, cpiSpi, etc]
+      required:
+        - plannedValue
+        - earnedValue
+        - actualCost
+        - budgetAtCompletion
+        - costVariance
+        - scheduleVariance
+        - costVariancePct
+        - scheduleVariancePct
+        - costPerformanceIndex
+        - schedulePerformanceIndex
+        - percentComplete
+        - percentSpent
+        - eacMethod
+        - estimateAtCompletion
+        - estimateToComplete
+        - varianceAtCompletion
+        - toCompletePerformanceIndex
+        - toCompletePerformanceIndexToEac
+        - eacVariants
 
     CurrencyMix:
       type: object

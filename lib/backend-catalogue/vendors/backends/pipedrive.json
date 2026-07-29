@@ -77,6 +77,7 @@
   },
   "credentialType": "pipedriveApi",
   "docsUrl": "https://docs.n8n.io/integrations/builtin/app-nodes/n8n-nodes-base.pipedrive/",
+  "primaryRecord": "issue",
   "id": "pipedrive",
   "label": "Pipedrive",
   "nomenclature": {
@@ -85,7 +86,7 @@
     "term.project": "Pipeline",
     "nav.projects": "Pipelines"
   },
-  "notes": "CRM mapping: Organization \u2192 project, Deal \u2192 issue. crm + financials capabilities light up deal value / stage. Confirm field + param names against the installed Pipedrive node version after import.",
+  "notes": "CRM mapping: Organization → project, Deal → issue. crm + financials capabilities light up deal value / stage. Confirm field + param names against the installed Pipedrive node version after import.",
   "requiredEnv": [],
   "verification": "catalogued",
   "via": "Native n8n node (pipedriveApi credential)"

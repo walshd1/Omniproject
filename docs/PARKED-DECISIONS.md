@@ -146,14 +146,16 @@ to confirm (and possibly absolute-path the healthchecks).
 **Recommendation:** do it together with one `compose up` to validate the healthcheck path; low effort,
 real hardening once confirmed.
 
-### B1. Container image signing + SLSA provenance (cosign)
-**SLSA build-provenance + SBOM attestation — shipped.** `.github/workflows/release.yml` uses
-`actions/attest-build-provenance@v1` and `actions/attest-sbom@v1`, attaching the CycloneDX SBOM
-attestation to the GitHub Release.
-**Still parked — cosign container-image signing pushed to a registry.** This requires deciding to
-**publish the image to a registry** (e.g. GHCR, the push is currently commented out) and granting CI
-`packages: write` + `id-token: write`. See [`SUPPLY-CHAIN.md`](./SUPPLY-CHAIN.md) §Parked.
-**Recommendation:** yes once you confirm the registry; it's a small CI addition after that.
+### B1. Container image signing + SLSA provenance — **shipped**
+**Published, attested image on GHCR.** `.github/workflows/release.yml` now pushes the `omni-shell`
+image to GHCR on a version tag (`packages: write`) and binds keyless SLSA build-provenance +
+CycloneDX SBOM attestations (`actions/attest-build-provenance@v4`, `actions/attest-sbom@v4`) to the
+**pushed registry digest** (`push-to-registry` also stores them as OCI referrers), so
+`gh attestation verify oci://ghcr.io/<owner>/<repo>:<tag>` verifies the exact pulled image. The SBOM
+is still attached to the GitHub Release. See [`SUPPLY-CHAIN.md`](./SUPPLY-CHAIN.md).
+**Note:** a separate bare `cosign sign` was considered and deliberately skipped — the keyless
+Sigstore *attestation* against the pushed digest already provides a consumer-verifiable signature and
+carries provenance a bare signature does not.
 
 ### B2. Secret-scanning gate (gitleaks) tuning — **shipped** (CI half)
 A blocking `secret-scan` CI job runs `gitleaks detect` over the checked-out source
@@ -221,16 +223,15 @@ A `benefits` field group (`benefitType`/`benefitOwner`/`benefitMeasure`/`benefit
 `capexAmount`/`opexAmount`/`costRate` fields are in `fields.generated.ts`, with a `CapexOpex.tsx`
 report backed by `lib/capex.ts`.
 
-### E3. Stage-gate governance (PRINCE2 / phase-gate)
+### E3. Stage-gate governance (PRINCE2 / phase-gate) — **shipped** (un-parked)
 **What:** define gates (e.g. SOBC → OBC → FBC, or Discovery → Alpha → Beta → Live) and advance/hold a
 project through them with an auditable decision.
-**Why parked (the one feature that wants state):** the gate *model* is fine as code/JSON, but recording
-*"this project is at gate 3, approved on date X by Y"* is state. Per **§0**, the answer is **write the
-gate status back to a backend field via the broker** (e.g. a status/customField) — no OmniProject
-store. Only the no-backend-field fallback needs the encrypted, short-lived, hash-abstracted local record.
-**Recommendation:** build the gate model (JSON, like methodology packs) + a write-back action to a mapped
-backend field; ship the local-store fallback **off by default**, encrypted, disclaimed, customer-owned.
-Larger than a report and touches the write path — worth doing deliberately, not blind. Wants your go.
+**Delivered:** the gate model shipped as catalogue code (`lib/backend-catalogue/src/stage-gate.ts`, P3M
+Wave 4 / PR #902) plus the SPA surface (`artifacts/omniproject/src/lib/stage-gate.ts` +
+`components/reports/StageGatePanel.tsx`). The state resolves exactly as §0 prescribes — the gate status
+writes back to a mapped backend field via the broker, with the encrypted, short-lived, customer-owned
+local record only as the no-backend-field fallback. This decision no longer needs your go; it is built on
+both tracks. (Cross-refs that still call it "parked" — e.g. `FEATURE-MATURITY.md` §4 — are stale.)
 
 ### E4. Dynamics 365 Finance & Operations connector — catalogued, not tenant-verified (backlog #141)
 **What:** `dynamics365-fo` (`lib/backend-catalogue/vendors/backends/dynamics365-fo.json`) — a
