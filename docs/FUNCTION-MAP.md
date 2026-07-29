@@ -3256,6 +3256,7 @@ Role-based access control.
 | `snapshotRoleMap` | Serialise the current admin override as `{ role: [groups] }` (only overridden roles) — for durable persistence in the security-state file AND cross-replica fleet-sync, so a role-map edit (crucially REVOKING a compromised IdP group's admin/pmo authority) survives a restart and propagates fleet-wide instead of living only in the RAM of the replica that served the edit. |
 | `applyRoleMapSnapshot` | Apply a role-map override snapshot from a restore / fleet converge — the ZERO-TRUST twin of `setRoleMap`: it runs the SAME validation (only the five fixed roles, values must be string arrays, normalised lower-case; unknown keys / wrong types dropped) so a corrupt or hostile blob can never invent a role or inject a non-string group. |
 | `hasStrongAuth` | Does this session's auth-method assertion prove tamper-resistant (hardware-bound) MFA? |
+| `sessionStrongAuth` | Does this session count as STRONG auth for the pmo/admin gate? Hardware-MFA (amr/acr) — OR a local (in-app password) session when the operator has opted OUT of the passkey requirement (LOCAL_ADMIN_REQUIRE_PASSKEY=false). |
 | `grantsFromClaims` | Pure mapping from a user's raw claim groups to their GRANTS (base rung + the set of authorities), using the configured role lists. |
 | `roleFromClaims` | Back-compat single-role view of a user's claims (the representative label). |
 | `grantsForReq` | Resolve a request's session (or API token) to its grants. |
