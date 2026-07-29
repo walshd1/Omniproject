@@ -3,7 +3,7 @@ import { getSession } from "./auth";
 import { isDeprovisioned, requireRole } from "../lib/rbac";
 import { joinCollabRoom, relayToRoom, roomConnSub, collabConnectionCount, MAX_COLLAB_STREAMS_PER_SUB } from "../lib/collab-hub";
 import { openSse, keepAlive } from "../lib/sse";
-import { guardProjectScope } from "../lib/project-scope";
+import { guardRoomScope } from "../lib/room-scope";
 
 /**
  * Real-time collaborative-edit relay (the "wikiCoEdit" feature module, roadmap 2.1 slice 6).
@@ -29,17 +29,10 @@ function clean(v: unknown, max: number): string | null {
   return s;
 }
 
-/** The projectId a room encodes (`issue:<pid>:…` / `project:<pid>`), or null. Same format as presence/comments. */
-function projectIdOfRoom(roomId: string): string | null {
-  const parts = roomId.split(":");
-  return (parts[0] === "issue" || parts[0] === "project") && parts[1] ? parts[1] : null;
-}
-
-/** Enforce project scope on a room whose id encodes a projectId (IDOR guard); non-project rooms have no boundary. */
-async function guardRoomScope(req: Request, res: Response, roomId: string): Promise<boolean> {
-  const projectId = projectIdOfRoom(roomId);
-  return projectId ? guardProjectScope(req, res, projectId) : true;
-}
+// Room→project scope resolution + IDOR guard lives in lib/room-scope (shared across the realtime routes),
+// so a project doc's `doc:project~…` co-edit room is scoped exactly like an `issue:`/`project:` room — and
+// a `board:project~…` room passed to this shared hub is scoped too (it would otherwise sidestep whiteboard's
+// own guardCursorRoom).
 
 // GET /api/collab/rooms/:roomId/stream — join a co-edit room and receive peers' messages (contributor+).
 router.get("/collab/rooms/:roomId/stream", requireRole("contributor"), async (req: Request, res: Response) => {

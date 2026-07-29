@@ -1,7 +1,7 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import { getSession } from "./auth";
 import { requireRole, hasRole } from "../lib/rbac";
-import { guardProjectScope } from "../lib/project-scope";
+import { guardRoomScope } from "../lib/room-scope";
 import { recordAudit, actorForAudit } from "../lib/audit";
 import { envInt } from "../lib/env-config";
 import { logger } from "../lib/logger";
@@ -49,18 +49,8 @@ function clean(v: unknown, max: number): string | null {
   return s;
 }
 
-/** The projectId a room belongs to (`issue:<projectId>:<issueId>` / `project:<projectId>`), or null. */
-function projectIdOfRoom(roomId: string): string | null {
-  const parts = roomId.split(":");
-  return (parts[0] === "issue" || parts[0] === "project") && parts[1] ? parts[1] : null;
-}
-
-/** Enforce the caller's project scope on a project-scoped room (IDOR guard — the store is keyed only by
- *  roomId, so without this any authed user could reach another tenant's attachments by naming its room). */
-async function guardRoomScope(req: Request, res: Response, roomId: string): Promise<boolean> {
-  const projectId = projectIdOfRoom(roomId);
-  return projectId ? guardProjectScope(req, res, projectId) : true;
-}
+// Room→project scope resolution + IDOR guard lives in lib/room-scope (shared across the realtime routes),
+// so a project doc's `doc:project~…` attachment room is scoped exactly like an `issue:`/`project:` room.
 
 /** A filename reduced to its basename (drop any path the browser included) + bounded. */
 function safeFilename(v: unknown): string | null {

@@ -3,7 +3,7 @@ import { getSession } from "./auth";
 import { isDeprovisioned } from "../lib/rbac";
 import { joinRoom, setEditing, roomSnapshot, presenceConnectionCount, MAX_PRESENCE_STREAMS_PER_SUB, type PresencePeer } from "../lib/presence-hub";
 import { openSse, keepAlive } from "../lib/sse";
-import { guardProjectScope } from "../lib/project-scope";
+import { guardRoomScope } from "../lib/room-scope";
 
 /**
  * Live-collaboration presence routes (the "presence" feature module).
@@ -26,22 +26,8 @@ function clean(v: unknown, max: number): string | null {
   return s;
 }
 
-/** The projectId a room belongs to, from the shared surface-id format (`issue:<projectId>:<issueId>` /
- *  `project:<projectId>`), or null when the room isn't project-scoped. Same format comments.ts uses. */
-function projectIdOfRoom(roomId: string): string | null {
-  const parts = roomId.split(":");
-  return (parts[0] === "issue" || parts[0] === "project") && parts[1] ? parts[1] : null;
-}
-
-/** Enforce the caller's project scope on a room whose id encodes a projectId (IDOR guard — the presence
- *  hub is keyed only by roomId, so without this any authenticated principal could join another tenant's
- *  room by naming it: reading the peer roster (sub/label + field being edited) and injecting presence).
- *  Mirrors comments.ts guardRoomScope over the identical shared-surface id. A non-project room has no
- *  boundary to enforce. */
-async function guardRoomScope(req: Request, res: Response, roomId: string): Promise<boolean> {
-  const projectId = projectIdOfRoom(roomId);
-  return projectId ? guardProjectScope(req, res, projectId) : true;
-}
+// Room→project scope resolution + IDOR guard lives in lib/room-scope (shared across the realtime routes),
+// so a project doc's `doc:project~…` presence room is scoped exactly like an `issue:`/`project:` room.
 
 // GET /api/presence/rooms/:roomId/stream — live peer presence for a shared surface.
 router.get("/presence/rooms/:roomId/stream", async (req: Request, res: Response) => {
