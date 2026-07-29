@@ -195,6 +195,13 @@ describe("useVisibleNavItems — capability gating", () => {
     const { queryByText } = renderWithProviders(<Probe />, { client: withProgramme(true) });
     expect(queryByText("Invoices")).not.toBeNull();
   });
+
+  it("stays permissive when the query resolves without an enabled array (never throws / hides)", () => {
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } });
+    qc.setQueryData(myCapabilitiesQueryKey, {} as { enabled?: string[] });
+    const { queryByText } = renderWithProviders(<Probe />, { client: qc });
+    expect(queryByText("Invoices")).not.toBeNull();
+  });
 });
 
 describe("nav grouping — progressive disclosure", () => {
