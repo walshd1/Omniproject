@@ -1,10 +1,32 @@
 # Design: OmniStore — a first-party, stateful system-of-record sidecar
 
-**Status:** design / proposal · **Author:** (AI-assisted) · **Audience:** maintainers + implementers
+**Status:** **partially realized** — an MVP first-party stateful sidecar **ships today** (OmniStore, an
+encrypted append-only event-log store below the broker seam); the Postgres data model (§4–§5), the
+Jira-class workflow/search/agile/links extensions (§3, §6–§8), and the horizontal scale-out ladder (§10)
+remain **proposed**. · **Author:** (AI-assisted) · **Audience:** maintainers + implementers
 
-> **Partial realization — attachments.** The attachments piece of this design (bytes below the seam,
-> gateway holds only a pointer) is being built standalone as a hardened sidecar; the byte-holding service
-> ships now. See [`../ATTACHMENTS.md`](../ATTACHMENTS.md) and `services/attachments-broker/`.
+> **What's realized (as of 2026-07).** OmniStore ships as a first-party backend sidecar — **not** the
+> Postgres design in §4/§10, but a **durable, encrypted, hash-chained, append-only event-log store**
+> (`broker/builtin/omnistore-log.ts` + `broker/omnistore/{backend,server,main}.ts`), persisted to a sealed
+> file (`OMNISTORE_FILE`; unset ⇒ in-memory with a loud warning) and fail-closed on decrypt/verify at load.
+> It speaks the **neutral broker sidecar contract** (`BROKER_URL` / `SQL_SIDECAR_URL` /
+> `BUILTIN_BROKER=sidecar`), so any broker points at it unchanged, and it persists the **whole Row
+> (superset)** for any vendor shape. Served today: projects, issues (with optimistic
+> `version`/`expectedVersion` → `409` concurrency and hierarchy fields), RAID, GTD task items, first-class
+> **comments** (their own event-sourced thread), and **attachments as references only** (zero-at-rest —
+> bytes live in the attachments-broker, see [`../ATTACHMENTS.md`](../ATTACHMENTS.md) and
+> `services/attachments-broker/`). Packaged as `services/omnistore/Dockerfile` +
+> `docker-compose.omnistore.yml` (`pnpm run omnistore`, port 5702) and covered by
+> `broker/omnistore/omnistore.test.ts` + `superset.test.ts` against the conformance bar. State is a
+> deterministic projection of the log, so a reload can never diverge from a live write.
+>
+> **Still proposed** (this document's larger target): the **Postgres** data model + SQL action→query
+> mapping (§4–§5), the configurable **workflow** transition engine (§6), structured **`search_issues`** +
+> keyset paging (§5, §7), the **outbox → webhooks/notifications** worker (§8), agile **boards/sprints** and
+> **custom-field defs / issue links / watchers** (Phases 2–4), the **scale-out ladder** —
+> read-replicas → pgbouncer → partitioning → Citus/sharding + materialised rollups + a published loadtest
+> (§10) — and the **Jira/CSV importer + dual-run** cutover (§11). The realized store is event-sourced in a
+> sealed file, so §4/§10's Postgres specifics are design targets, not current behaviour.
 
 ## 1. Goal & positioning
 
@@ -303,15 +325,18 @@ scale-out claim from design into evidence.
 
 ## 14. Build phases
 
-1. **MVP SoR** — projects + issues (CRUD, version, hierarchy) + comments + configurable workflow +
-   `search_issues` + events/history + idempotency + PSK/HMAC + scope. Passes conformance. *This alone
-   is a usable Jira alternative through the OmniProject UI.*
-2. **Agile** — boards, sprints, board_state; velocity/burndown feed the existing reports.
-3. **Fields & attachments** — custom fields (typed, via `describe_fields`) + attachments (object store).
-4. **Links & watchers & webhooks/outbox** — dependencies, subscriptions, realtime notifications.
-5. **Scale-out hardening** — multi-replica stateless app tier + HPA, competing-consumer outbox
+1. **MVP SoR** — **◐ partially shipped.** ✅ projects + issues (CRUD, optimistic `version`/`expectedVersion`
+   → `409`, hierarchy fields) + first-class comments + attachment **references** + event log
+   (history/replay basis) + PSK/HMAC + encrypted-at-rest + superset storage, passing the conformance bar.
+   ⏳ still open in this phase: the **configurable workflow** transition engine and structured
+   **`search_issues`** + keyset paging. The realized store is an encrypted event log, not Postgres.
+2. **Agile** — ⏳ proposed. boards, sprints, board_state; velocity/burndown feed the existing reports.
+3. **Fields & attachments** — ◐ attachment references ship (zero-at-rest); ⏳ typed custom-field defs
+   (via `describe_fields`) still proposed.
+4. **Links & watchers & webhooks/outbox** — ⏳ proposed. dependencies, subscriptions, realtime notifications.
+5. **Scale-out hardening** — ⏳ proposed. multi-replica stateless app tier + HPA, competing-consumer outbox
    workers, read replicas → pgbouncer → partitioning → (optional) programme-sharding/Citus, materialised
    rollups, and a multi-replica loadtest at 10k/1000 with published p50/p95/p99 + throughput.
-6. **Migration tooling** — Jira/CSV importer + dual-run cutover guide.
+6. **Migration tooling** — ⏳ proposed. Jira/CSV importer + dual-run cutover guide.
 
 Each phase is independently shippable and leaves the gateway untouched (additive, capability-gated).
