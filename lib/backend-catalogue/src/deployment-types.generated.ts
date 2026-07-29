@@ -86,7 +86,7 @@ export const DEPLOYMENT_TYPES_DATA: DeploymentType[] = [
     "setup": {
       "storage": "sql-sidecar",
       "auth": "idp",
-      "broker": "builtin:postgres",
+      "broker": "builtin:sql",
       "residency": "on",
       "methodology": "safe",
       "audit": "strict",
