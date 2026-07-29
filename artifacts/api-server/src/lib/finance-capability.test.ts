@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   financeCapabilityForRecordType, isFinanceRecordType, financeRecordTypesByCapability,
-  FINANCE_CAPABILITY_IDS,
+  financeCapabilityForAction, FINANCE_CAPABILITY_IDS,
 } from "./finance-capability";
 import { getCapability, offeredStates, listCapabilities } from "./capability-governance";
 
@@ -38,6 +38,24 @@ test("the partition is total + disjoint: every mapped type lands under exactly o
   for (const cap of FINANCE_CAPABILITY_IDS) assert.ok(grouped[cap].length >= 1, `${cap} gates at least one record type`);
   // Every mapped type resolves back to the capability that grouped it.
   for (const cap of FINANCE_CAPABILITY_IDS) for (const t of grouped[cap]) assert.equal(financeCapabilityForRecordType(t), cap);
+});
+
+test("financeCapabilityForAction parses <verb>_<type> (incl. plurals + underscored types)", () => {
+  assert.equal(financeCapabilityForAction("create_invoice"), "finance:ar");
+  assert.equal(financeCapabilityForAction("update_bill"), "finance:ap");
+  assert.equal(financeCapabilityForAction("delete_gl_account"), "finance:gl");
+  assert.equal(financeCapabilityForAction("get_fixed_asset"), "finance:gl");
+  assert.equal(financeCapabilityForAction("create_bank_transaction"), "finance:banking");
+  // plural list verbs, including an underscored type.
+  assert.equal(financeCapabilityForAction("list_tax_rates"), "finance:tax");
+  assert.equal(financeCapabilityForAction("list_gl_accounts"), "finance:gl");
+  assert.equal(financeCapabilityForAction("list_vendors"), "finance:ap");
+});
+
+test("financeCapabilityForAction leaves non-finance / unparseable actions ungated (undefined)", () => {
+  for (const a of ["create_project", "update_task", "delete_issue", "list_projects", "sync", "reconcile", ""]) {
+    assert.equal(financeCapabilityForAction(a), undefined);
+  }
 });
 
 test("the five finance capabilities are governed: kind 'finance', offered states off | user-defined", () => {

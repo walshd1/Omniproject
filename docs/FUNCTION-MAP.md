@@ -2206,6 +2206,7 @@ Finance record type → governed capability (Finance F0).
 | --- | --- |
 | `financeCapabilityForRecordType` | The finance capability that gates a record type, or `undefined` when the type is not a finance record (an ordinary work item — never gated by finance). |
 | `isFinanceRecordType` | Whether a record type is a finance record (has a finance capability). |
+| `financeCapabilityForAction` | The finance capability a broker action touches, parsed from a `<verb>_<recordType>` action name (e.g. `create_bill`, `update_gl_account`, `list_tax_rates`), or `undefined` for a non-finance / unparseable action. |
 | `financeRecordTypesByCapability` | Every finance record type, grouped by capability — for tests + the admin surface. |
 
 ### `artifacts/api-server/src/lib/fleet-readiness.ts`
