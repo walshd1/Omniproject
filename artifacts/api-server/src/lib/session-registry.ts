@@ -13,6 +13,7 @@
  * Redis round-trip inline in auth. That async refactor of the auth path is higher-risk and out
  * of scope here, so the per-replica cap is a knowingly-accepted limit rather than an oversight.
  */
+import { createHash } from "node:crypto";
 import { sharedKv } from "./shared-state";
 
 interface Entry { first: number; last: number }
@@ -192,5 +193,125 @@ export function checkSequence(salt: string, seq: number, now: number): SeqVerdic
   return "fork";
 }
 
+// ── Device & active-session inventory (IAM S8) ──────────────────────────────────────────────────────
+//
+// The concurrent-session cap above is a NO-OP when MAX_SESSIONS_PER_USER is unset (the default), so it
+// can't back a "your active devices" view. This directory is ALWAYS on: it records every live session so
+// the owner can list their devices and sign one out. Same honest scope as the rest of this module —
+// best-effort per-replica RAM, pruned by the absolute window — with one addition: a per-session REVOKE is
+// published to, and reconciled from, shared state in a DECLARED FLEET (REDIS_URL set), mirroring the
+// seq-mark cross-replica pattern, so signing a device out propagates fleet-wide rather than staying on the
+// replica that served the request. The raw per-session salt is the id key here but NEVER leaves the server;
+// callers identify a session by `sessionPublicId` (a non-reversible SHA-256 handle).
+interface DirEntry { first: number; last: number; ua?: string; ip?: string; revoked?: boolean }
+const directory = new Map<string, Map<string, DirEntry>>();
+
+/** A session as surfaced to its owner. `id` is the non-reversible public handle, not the raw salt. */
+export interface SessionInfo { id: string; first: number; last: number; ua?: string; ip?: string }
+
+const REVOKE_PREFIX = "sess:revoked:";
+
+function pruneDirectory(map: Map<string, DirEntry>, now: number): void {
+  // Past the absolute window the underlying cookie is expired anyway (readSession's isSessionExpired),
+  // so dropping the entry — revoked or not — loses nothing and keeps the directory bounded.
+  const cutoff = now - absoluteWindowMs();
+  for (const [id, e] of map) if (e.last < cutoff) map.delete(id);
+}
+
+/** A short, non-reversible public handle for a session id, so the raw per-session salt (which seeds the
+ *  per-session broker key) never leaves the server. Stable for a given salt; used as the inventory id. */
+export function sessionPublicId(sid: string): string {
+  return createHash("sha256").update(sid).digest("hex").slice(0, 16);
+}
+
+/** Record/refresh a live session in the directory (always on, independent of the concurrent-session cap).
+ *  Called on the authenticated read path with the request's device metadata. */
+export function noteSession(sub: string, sid: string, now: number, meta?: { ua?: string; ip?: string }): void {
+  let map = directory.get(sub);
+  if (!map) { map = new Map(); directory.set(sub, map); }
+  pruneDirectory(map, now);
+  const e = map.get(sid);
+  if (e) {
+    e.last = now;
+    if (meta?.ua) e.ua = meta.ua;
+    if (meta?.ip) e.ip = meta.ip;
+  } else {
+    map.set(sid, { first: now, last: now, ...(meta?.ua ? { ua: meta.ua } : {}), ...(meta?.ip ? { ip: meta.ip } : {}) });
+  }
+}
+
+/** The caller's live (non-revoked) sessions, newest-activity first. */
+export function listUserSessions(sub: string, now: number): SessionInfo[] {
+  const map = directory.get(sub);
+  if (!map) return [];
+  pruneDirectory(map, now);
+  return [...map.entries()]
+    .filter(([, e]) => !e.revoked)
+    .sort((a, b) => b[1].last - a[1].last)
+    .map(([sid, e]) => ({ id: sessionPublicId(sid), first: e.first, last: e.last, ...(e.ua ? { ua: e.ua } : {}), ...(e.ip ? { ip: e.ip } : {}) }));
+}
+
+function publishRevoke(sid: string): void {
+  if (!fleetDeclared()) return;
+  void sharedKv.set(REVOKE_PREFIX + sid, "1", { ttlMs: absoluteWindowMs() }).catch(() => { /* best-effort */ });
+}
+
+/** Revoke ONE of a user's sessions by its public handle. Returns true if a match was found. The session
+ *  reads as signed-out on its next request — here, and (in a declared fleet) on every replica. */
+export function revokeSession(sub: string, publicId: string): boolean {
+  const map = directory.get(sub);
+  if (!map) return false;
+  for (const [sid, e] of map) {
+    if (sessionPublicId(sid) === publicId) {
+      e.revoked = true;
+      publishRevoke(sid);
+      return true;
+    }
+  }
+  return false;
+}
+
+/** Revoke every session EXCEPT the one identified by keepPublicId ("sign out all other devices").
+ *  Returns how many were revoked. */
+export function revokeOtherSessions(sub: string, keepPublicId: string): number {
+  const map = directory.get(sub);
+  if (!map) return 0;
+  let n = 0;
+  for (const [sid, e] of map) {
+    if (e.revoked || sessionPublicId(sid) === keepPublicId) continue;
+    e.revoked = true;
+    publishRevoke(sid);
+    n++;
+  }
+  return n;
+}
+
+/** Fire-and-forget on FIRST sight of an unknown (sub,sid) on this replica: if the fleet holds a revoke
+ *  marker for it, seed a revoked entry so its NEXT request reads as signed-out (mirrors reconcileFirstSight). */
+function reconcileRevoke(sub: string, sid: string, now: number): void {
+  if (!fleetDeclared()) return;
+  void (async () => {
+    try {
+      const raw = await sharedKv.get(REVOKE_PREFIX + sid);
+      if (raw == null) return;
+      let map = directory.get(sub);
+      if (!map) { map = new Map(); directory.set(sub, map); }
+      const cur = map.get(sid);
+      if (cur) cur.revoked = true;
+      else map.set(sid, { first: now, last: now, revoked: true });
+    } catch { /* best-effort */ }
+  })();
+}
+
+/** Whether a session (by sub+salt) has been revoked. Sync per-replica check on the auth hot-path; on first
+ *  sight of an unknown session in a fleet, kicks an async reconcile so a revoke that landed elsewhere is
+ *  caught on the next request. Checked in readSession — a revoked session reads as signed-out. */
+export function isSessionRevoked(sub: string, sid: string, now: number): boolean {
+  const e = directory.get(sub)?.get(sid);
+  if (e?.revoked) return true;
+  if (!e) reconcileRevoke(sub, sid, now);
+  return false;
+}
+
 /** Test-only: clear the registry. */
-export function __resetSessionRegistry(): void { users.clear(); seqs.clear(); }
+export function __resetSessionRegistry(): void { users.clear(); seqs.clear(); directory.clear(); }

@@ -42,7 +42,7 @@ import { effectiveSession } from "../lib/impersonation";
 import { seal, open } from "../lib/session-crypto";
 import { isSessionExpired, timeoutPolicy, sessionCookieMaxAgeMs } from "../lib/session-timeout";
 import { currentVersion, isActive, userSessionsRevokedAt, revokeUserSessions } from "../lib/key-registry";
-import { registerSession, issueSequence, checkSequence } from "../lib/session-registry";
+import { registerSession, issueSequence, checkSequence, noteSession, listUserSessions, revokeSession, revokeOtherSessions, isSessionRevoked, sessionPublicId } from "../lib/session-registry";
 import { requireTls } from "../lib/deployment-profile";
 import { productionSignals } from "../lib/dev-mode-guard";
 import { ensureCsrfCookie, setCsrfCookie, newCsrfToken } from "../lib/csrf";
@@ -221,6 +221,17 @@ function readSession(req: Request): Session | null {
       // the replica that caught the replay. Assume-breach: a detected fork burns the whole family.
       if (session.sub) revokeUserSessions(session.sub);
       return null;
+    }
+    // Per-session revocation (device inventory "sign out this device"): a session the owner explicitly
+    // revoked reads as signed-out on its next request — here, and fleet-wide via the shared revoke marker.
+    // Unlike a fork, this burns only the ONE session, never the whole family.
+    if (session.sub && session.salt && isSessionRevoked(session.sub, session.salt, Date.now())) return null;
+    // Record this live session in the always-on directory (with its device metadata) so the owner can see
+    // and manage it. Best-effort per-replica RAM; independent of the concurrent-session cap.
+    if (session.sub && session.salt) {
+      const ua = req.get("user-agent");
+      const ip = req.ip;
+      noteSession(session.sub, session.salt, Date.now(), { ...(ua ? { ua } : {}), ...(ip ? { ip } : {}) });
     }
     return session;
   } catch {
@@ -1003,6 +1014,59 @@ router.post("/auth/totp/disable", (req, res) => {
   disableTotp(s.sub);
   recordRequestAudit(req, { category: "request", action: "auth.totp.disable", write: true, result: "success" });
   res.json({ ok: true });
+});
+
+// ── Device & active-session inventory (IAM S8) ────────────────────────────────────────────────────────
+// A signed-in user can see their own active sessions (this browser plus any other devices they're logged
+// in on) and sign a device out. Sessions are stateless sealed cookies, so "active" is sourced from the
+// best-effort session directory (lib/session-registry); a revoked session reads as signed-out on its next
+// request (fleet-wide via the shared revoke marker). The raw per-session salt never leaves the server —
+// each session is identified by a non-reversible public handle.
+
+// GET /auth/sessions — the caller's own active sessions, the current one flagged.
+router.get("/auth/sessions", (req, res) => {
+  const s = readSession(req);
+  if (!s) { res.status(401).json({ error: "Not signed in." }); return; }
+  const currentId = s.salt ? sessionPublicId(s.salt) : null;
+  const sessions = listUserSessions(s.sub, Date.now()).map((info) => ({
+    id: info.id,
+    current: info.id === currentId,
+    firstSeen: info.first,
+    lastSeen: info.last,
+    ...(info.ua ? { userAgent: info.ua } : {}),
+    ...(info.ip ? { ip: info.ip } : {}),
+  }));
+  res.json({ sessions });
+});
+
+// POST /auth/sessions/revoke — sign a device out. `{ id }` revokes one session by its handle; `{ others: true }`
+// signs out every OTHER device (keeping the caller's current session). Revoking the current session is a logout,
+// so this browser's cookies are cleared too. Any signed-in session may manage only its OWN principal's sessions.
+router.post("/auth/sessions/revoke", (req, res) => {
+  const s = readSession(req);
+  if (!s) { res.status(401).json({ error: "Not signed in." }); return; }
+  const body = (req.body ?? {}) as { id?: unknown; others?: unknown };
+  const currentId = s.salt ? sessionPublicId(s.salt) : "";
+  if (body.others === true) {
+    const revoked = revokeOtherSessions(s.sub, currentId);
+    recordRequestAudit(req, { category: "request", action: "auth.session.revoke-others", write: true, result: "success" });
+    res.json({ ok: true, revoked });
+    return;
+  }
+  const id = strField(body.id);
+  if (!id) { res.status(400).json({ error: "Provide a session id, or { others: true } to sign out all other devices." }); return; }
+  if (!revokeSession(s.sub, id)) {
+    recordRequestAudit(req, { category: "request", action: "auth.session.revoke", write: true, result: "error", status: 404 });
+    res.status(404).json({ error: "No matching active session." }); return;
+  }
+  const isCurrent = id === currentId;
+  if (isCurrent) {
+    // Revoking your own current session behaves like a logout — clear this browser's cookies now.
+    res.clearCookie(SESSION_COOKIE, cookieBase());
+    res.clearCookie("omni_csrf", { ...cookieBase(), httpOnly: false, signed: false });
+  }
+  recordRequestAudit(req, { category: "request", action: "auth.session.revoke", write: true, result: "success" });
+  res.json({ ok: true, current: isCurrent });
 });
 
 export default router;

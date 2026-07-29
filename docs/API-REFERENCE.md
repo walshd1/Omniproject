@@ -165,6 +165,8 @@ Authentication routes + the session helpers the rest of the gateway reads from.
 | POST | `/api/auth/totp/confirm` | — | hand back the one-time recovery codes (shown once), and step the session up. |
 | POST | `/api/auth/totp/step-up` | — | a TOTP code's step must exceed the last consumed one, so it can't be re-used inside its ~90s window. |
 | POST | `/api/auth/totp/disable` | — | live session can't silently strip the second factor. |
+| GET | `/api/auth/sessions` | — | GET /auth/sessions — the caller's own active sessions, the current one flagged. |
+| POST | `/api/auth/sessions/revoke` | — | so this browser's cookies are cleared too. |
 
 ### `artifacts/api-server/src/routes/automations.ts`
 
