@@ -446,7 +446,7 @@ export function patchGroup(id: string, operations: Array<{ op: string; path?: st
         // is a silent no-op and the user keeps the group-derived role. (User ids are lowercase uuids,
         // so matching against the lowercased path is safe.)
         const removeIds = new Set<string>(members.map((m) => m.value));
-        const filtered = p.match(/members\[value eq "(.+?)"\]/);
+        const filtered = p.match(/members\[value eq "([^"]+)"\]/);
         if (filtered?.[1]) removeIds.add(filtered[1]);
         group.members = group.members.filter((x) => !removeIds.has(x.value));
       }
