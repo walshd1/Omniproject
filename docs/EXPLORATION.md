@@ -1,18 +1,18 @@
 # Exploration mode — snapshots, what-if & dependency modelling
 
 OmniProject stores nothing and the gateway stays **stateless and zero-data-at-rest**.
-That is a feature for the *live* app — but it means there is no obvious home for the
-things you sometimes want to do *around* a portfolio: trend a few months of
+That is a feature for the *live* app, but it means there is no obvious home for the
+things you want to do *around* a portfolio: trend a few months of
 captures, sketch a "what if we slip project X" scenario, or note that an item in one
 system blocks an item in another. **Exploration mode (`/explore`)** is that home.
 
-It is a deliberately distinct, **"NOT LIVE DATA"** surface — a hazard-striped lab
-ribbon, kept visually and structurally separate from the live app so a modelled or
-historical figure can never be mistaken for production reality. Everything in it is:
+It is a distinct **"NOT LIVE DATA"** surface, a hazard-striped lab
+ribbon kept visually and structurally separate from the live app so a modelled or
+historical figure is never mistaken for production reality. Everything in it is:
 
 - **Client-side and session-volatile.** Snapshots, scenarios and dependency edges
   live in the browser's `sessionStorage`. There is **no broker call and no contract
-  change** — the gateway never sees any of it.
+  change**; the gateway never sees any of it.
 - **Download to keep, or discarded at session end.** A "Download exploration"
   control and a native leave-warning fire while there is undownloaded work; close
   the tab and anything you didn't export to a JSON file on your own disk is gone.

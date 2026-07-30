@@ -1,9 +1,9 @@
 # SMEs, charities & self-hosters — running OmniProject without the enterprise weight
 
-OmniProject is built **opt-in-hardened**: every advanced control (SSO, SCIM, KMS, IP
-allowlist, session caps, maker-checker) is **off by default**, and the product runs fully
+OmniProject is built **opt-in-hardened**: the advanced controls (SSO, SCIM, KMS, IP
+allowlist, session caps, maker-checker) are **off by default**, and the product runs
 without any of them. This guide is the small-org counterpart to `docs/AI-SECURITY.md` /
-`docs/ENTERPRISE-OPS.md` — what you actually need, and what you can safely skip.
+`docs/ENTERPRISE-OPS.md`: what you need, and what you can skip.
 
 ## Why this exists (for you specifically)
 

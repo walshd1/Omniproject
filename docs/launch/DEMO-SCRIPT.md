@@ -1,18 +1,17 @@
 # Demo recording script (~75s)
 
-A shot-by-shot script to record **once** and reuse: a ~75-second hero video for
-the README/posts, plus a ~12-second silent GIF loop for the top of the README.
-The goal is to make the claims *visceral* — especially "dry-run verify, no side
-effects" and "your methodology, one dataset."
+Record this **once** and reuse it: a ~75-second hero video for the README/posts,
+plus a ~12-second silent GIF loop for the top of the README. Make two claims
+land: "dry-run verify, no side effects" and "your methodology, one dataset."
 
-Captions are written as **on-screen text overlays** because most embeds (GIFs,
-muted autoplay) have no sound. Keep each on screen ~2–3s.
+Write captions as **on-screen text overlays**; most embeds (GIFs, muted
+autoplay) have no sound. Keep each on screen ~2–3s.
 
 ---
 
 ## Before you hit record
 
-- **Run in demo mode** (zero config, sample data — nothing real on screen):
+- **Run in demo mode** (zero config, sample data, nothing real on screen):
   ```bash
   pnpm install
   PORT=8080 node artifacts/api-server/dist/index.mjs

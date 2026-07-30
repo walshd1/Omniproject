@@ -1,11 +1,11 @@
 # Quickstart — running against your own data in 15 minutes
 
-This is the fast path: clone → see it running → connect one real backend,
-**read-only**, so nothing can be changed while you decide if it's useful. No
-SSO, no TLS certificates, no production stack — that's [docs/DEPLOY-LOCAL.md](DEPLOY-LOCAL.md)
-for later. If you want the fuller safety walkthrough (verify, sandbox, adding
-writes, rollback) once you're past this, that's [docs/SAFE-FIRST-RUN.md](SAFE-FIRST-RUN.md).
-This page is just the shortest path to *your own data on screen*.
+The fast path: clone → see it running → connect one real backend,
+**read-only**, so nothing changes while you decide if it's useful. This skips
+SSO, TLS certificates, and a production stack; [docs/DEPLOY-LOCAL.md](DEPLOY-LOCAL.md)
+covers those later. For the fuller safety walkthrough (verify, sandbox, adding
+writes, rollback) once you're past this, see [docs/SAFE-FIRST-RUN.md](SAFE-FIRST-RUN.md).
+This page gets your own data on screen.
 
 **You'll need:** Node.js 26+, pnpm (`corepack enable`), and an
 [n8n](https://n8n.io) instance you can import a workflow into (n8n Cloud's free
@@ -13,17 +13,15 @@ tier works fine, or `docker run -p 5678:5678 n8nio/n8n`).
 
 ## Why this is the fast path (and why read-only first)
 
-Of the three problems the [README](../README.md) names, this guide is built to answer the
-third — **migration risk** — in 15 minutes flat, not just
-claim it: you connect one real backend, **read-only**, and OmniProject renders it
-live — nothing is copied out of it, nothing new is written to it, and disconnecting
-when you're done undoes exactly nothing, because nothing was ever moved. Read-only
-isn't a caution bolted onto a tutorial, and it isn't something you have to remember
-to do yourself — it's the **default** the generator downloads (the 4–9 min step
-below): the workflow it hands you simply has no `create_issue` / `update_issue` /
-`delete_issue` node in it, so there's no write path to disable in the first place.
-No database of its own, no write path unless you deliberately opt into one — trying
-this against real data carries genuinely as little risk as it sounds.
+Of the three problems the [README](../README.md) names, this guide answers the
+third, **migration risk**, in 15 minutes. You connect one real backend,
+**read-only**, and OmniProject renders it live. It copies nothing out, writes
+nothing new, and disconnecting when you're done moves nothing back, because
+nothing ever moved. Read-only is the **default** the generator downloads (the
+4–9 min step below): the workflow it hands you has no `create_issue` /
+`update_issue` / `delete_issue` node, so there's no write path to disable.
+OmniProject keeps no database of its own and opens no write path unless you opt
+into one. Trying this against real data carries as little risk as it sounds.
 
 ---
 
