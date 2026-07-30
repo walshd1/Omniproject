@@ -45,7 +45,10 @@ export async function commitImport(input: CommitImportInput): Promise<ImportOutc
       continue;
     }
     try {
-      const issue = await broker.writeIssue(ctx, "create", { projectId, ...payload });
+      // Scope wins LAST: a mapped column can inject `projectId` into `payload`, and writeIssue is
+      // scope-blind, so spreading payload after projectId would let a row write into any project the
+      // caller isn't scoped to (mass-assignment IDOR). The guarded `projectId` must override it.
+      const issue = await broker.writeIssue(ctx, "create", { ...payload, projectId });
       if (!issue?.id) {
         skipped.push({ row: i, reason: "broker returned no issue" });
         continue;
