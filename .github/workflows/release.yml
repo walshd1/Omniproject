@@ -39,7 +39,7 @@ jobs:
         run: docker build -t omni-shell:${{ github.ref_name }} .
 
       - name: Log in to GHCR
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
