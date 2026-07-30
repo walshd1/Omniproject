@@ -77,7 +77,10 @@ function coerce(raw: string): string | number | boolean {
 
 /** Apply a minimal $filter expression to a row. */
 function matchesFilter(row: Row, filter: string): boolean {
-  const eq = filter.match(/^\s*(\w+)\s+eq\s+(.+?)\s*$/i);
+  // Greedy `(.+)$` with the trailing trim done in code, NOT lazy `(.+?)\s*$`: the lazy form re-tries
+  // `\s*$` at every expansion point, so a $filter ending in a long whitespace run costs O(n^2) — and
+  // this runs once PER ROW. Greedy-to-end is single-pass, and `.trim()` below strips the same padding.
+  const eq = filter.match(/^\s*(\w+)\s+eq\s+(.+)$/i);
   if (eq) {
     // both capture groups are present whenever the match succeeds
     const field = eq[1]!;
