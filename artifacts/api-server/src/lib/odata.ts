@@ -77,10 +77,15 @@ function coerce(raw: string): string | number | boolean {
 
 /** Apply a minimal $filter expression to a row. */
 function matchesFilter(row: Row, filter: string): boolean {
-  // Greedy `(.+)$` with the trailing trim done in code, NOT lazy `(.+?)\s*$`: the lazy form re-tries
-  // `\s*$` at every expansion point, so a $filter ending in a long whitespace run costs O(n^2) — and
-  // this runs once PER ROW. Greedy-to-end is single-pass, and `.trim()` below strips the same padding.
-  const eq = filter.match(/^\s*(\w+)\s+eq\s+(.+)$/i);
+  // Capture everything after `eq` and trim in code. Two ambiguous forms to avoid, both O(n^2) and both
+  // paid once PER ROW (and note an unsupported filter falls through to `return true`, so a regex that
+  // stops matching does not narrow — it silently returns every row):
+  //   `(.+?)\s*$`   — the lazy form re-tries `\s*$` at every expansion point;
+  //   `\s+(.+)$`    — `.` also matches a space, so the `\s+`/`.+` split can be made many ways.
+  // `eq(\s.*)$` has exactly one split: `\s` is a single character, `.*` takes the rest. The leading
+  // `\s` keeps the old requirement of whitespace after `eq`, and `.trim()` below reproduces the old
+  // value exactly, including the degenerate `x eq <spaces>` which trims to the empty string.
+  const eq = filter.match(/^\s*(\w+)\s+eq(\s.*)$/i);
   if (eq) {
     // both capture groups are present whenever the match succeeds
     const field = eq[1]!;
