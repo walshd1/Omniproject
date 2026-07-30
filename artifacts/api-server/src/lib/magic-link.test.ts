@@ -45,8 +45,9 @@ test("a tampered or non-sealed token verifies to null", () => {
 
 test("single-use: the first consume of a jti succeeds, a replay fails", async () => {
   const v = verifyMagicToken(mintMagicToken("a@b.co", NOW), NOW + 1000)!;
-  assert.equal(await consumeMagicToken(v.jti), true);  // first use
-  assert.equal(await consumeMagicToken(v.jti), false); // replay rejected
+  // The marker TTL is keyed off the token's own exp so it can't lapse before the token (guest-invite replay).
+  assert.equal(await consumeMagicToken(v.jti, v.exp), true);  // first use
+  assert.equal(await consumeMagicToken(v.jti, v.exp), false); // replay rejected
 });
 
 test("a step-up token round-trips its purpose; a default token is a login token", () => {

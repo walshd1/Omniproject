@@ -66,7 +66,11 @@ export function splitFullBackup(input: unknown): { settings: unknown; defStore: 
   if (!input || typeof input !== "object") throw new Error("backup must be a JSON object");
   const b = input as Partial<FullBackup>;
   if (b.schema !== FULL_BACKUP_SCHEMA) throw new Error(`unrecognised backup schema: ${String(b.schema)}`);
-  return { settings: b.settings, defStore: b.defStore, stores: b.stores };
+  // Deliberately DROP `stores`: the extra sensitive stores (ai-provider egress URLs, the tamper-evident
+  // audit chain + log, rate-card) ride ONLY the sealed backup and are surfaced by openSealedFullBackup.
+  // A plaintext envelope is attacker-authorable, so honouring a hand-crafted `stores` here let it reset the
+  // audit chain / inject AI-provider egress on a plaintext restore. Plaintext restores carry no stores.
+  return { settings: b.settings, defStore: b.defStore };
 }
 
 /** Apply the extra sealed stores (ai-providers + rate-card) from a decrypted sealed backup. Each importer

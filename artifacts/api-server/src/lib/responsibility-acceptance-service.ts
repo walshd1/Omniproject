@@ -97,8 +97,12 @@ function signerIsCurrent(a: WorkflowAcceptance): boolean {
  *  key) can mint a valid one, so an acceptance injected via config-dir or a hand-edited settings blob (which
  *  never re-verifies the passkey signature at use) carries no valid MAC and is rejected. Note: rotating the
  *  internal key voids existing acceptances (they must be re-signed) — a safe-side re-attestation. */
-function acceptanceMac(a: Pick<WorkflowAcceptance, "workflowId" | "workflowHash" | "acceptedBy" | "sigRef" | "acceptedAt">): string {
-  const input = canonicalJson({ workflowId: a.workflowId, workflowHash: a.workflowHash, acceptedBy: a.acceptedBy, sigRef: a.sigRef, acceptedAt: a.acceptedAt });
+function acceptanceMac(a: Pick<WorkflowAcceptance, "workflowId" | "workflowHash" | "acceptedBy" | "acceptedByEmail" | "sigRef" | "acceptedAt">): string {
+  // acceptedByEmail MUST be covered: signerIsCurrent → directoryDecision matches an active directory user by
+  // sub OR email, so an unMAC'd email let a config-store tamperer swap it to an active colleague and keep the
+  // AI-approver alive past the original signer's offboarding. Included only when present, matching the
+  // creation shape, so acceptances stored without an email keep their existing MAC.
+  const input = canonicalJson({ workflowId: a.workflowId, workflowHash: a.workflowHash, acceptedBy: a.acceptedBy, ...(a.acceptedByEmail ? { acceptedByEmail: a.acceptedByEmail } : {}), sigRef: a.sigRef, acceptedAt: a.acceptedAt });
   return createHmac("sha256", derivedKey("acceptance")).update(input).digest("hex");
 }
 function acceptanceMacValid(a: WorkflowAcceptance): boolean {
