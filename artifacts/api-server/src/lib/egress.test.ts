@@ -182,7 +182,7 @@ test("safeFetch strips credential headers on a CROSS-ORIGIN redirect but keeps t
   // must NOT survive, or a redirect exfiltrates Vault/OAuth/AI secrets to an arbitrary host).
   const seen: Array<{ auth: string | null; vault: string | null; other: string | null }> = [];
   __setEgressTransportForTest(async (_url, init) => {
-    const h = new Headers((init?.headers ?? {}) as HeadersInit);
+    const h = new Headers(init?.headers ?? {});
     seen.push({ auth: h.get("authorization"), vault: h.get("x-vault-token"), other: h.get("x-other") });
     if (seen.length === 1) return new Response(null, { status: 307, headers: { location: "http://api.example.com/same" } });
     if (seen.length === 2) return new Response(null, { status: 307, headers: { location: "http://api.eu.example.com/other" } });
