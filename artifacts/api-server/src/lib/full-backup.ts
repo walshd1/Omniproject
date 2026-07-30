@@ -149,5 +149,10 @@ export function openSealedFullBackup(input: unknown): { settings: unknown; defSt
   // Hardened parse (prototype-pollution safe) even though the AES-GCM tag already authenticated the plaintext.
   try { parsed = safeParseJson(plaintext); }
   catch { throw new SealedBackupError("decrypted backup was not valid JSON"); }
-  return splitFullBackup(parsed);
+  // `splitFullBackup` drops `stores` because a PLAINTEXT envelope is attacker-authorable. This payload
+  // is different in kind: it came out of `openConfig`, so AES-GCM has already authenticated it with the
+  // deployment's own key and nobody could have authored it. Re-attach the stores here — this is the one
+  // path allowed to surface them, and without it a sealed restore silently loses the ai-providers,
+  // rate-card, audit-chain head and audit evidence log it was carrying.
+  return { ...splitFullBackup(parsed), stores: (parsed as Partial<FullBackup>).stores };
 }

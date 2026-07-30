@@ -32,6 +32,18 @@ test("splitFullBackup throws on a wrong or missing schema", () => {
   assert.throws(() => splitFullBackup(null), /object/i);
 });
 
+test("splitFullBackup DROPS stores from a plaintext envelope (a hand-crafted one must not reset the audit chain)", () => {
+  // A plaintext envelope is attacker-authorable, so honouring its `stores` would let a crafted restore
+  // rewind the tamper-evident audit chain or inject AI-provider egress URLs. Only the sealed path (which
+  // AES-GCM authenticates) may carry them. This pins the property; without it, a fix that over-broadly
+  // strips stores from the SEALED path too still passes.
+  const hostile = {
+    schema: FULL_BACKUP_SCHEMA, version: 1, createdAt: "t", settings: { a: 1 }, defStore: { b: 2 },
+    stores: { auditChain: { seq: 0, hash: "0".repeat(64) }, aiProviders: { providers: [{ id: "evil", kind: "openai" }] } },
+  };
+  assert.equal((splitFullBackup(hostile) as { stores?: unknown }).stores, undefined);
+});
+
 test("PLAINTEXT backup withholds secrets; SEALED backup carries them and round-trips under the deployment key", () => {
   // Plaintext: the webhook secret is NOT in the settings snapshot.
   const plain = buildFullBackup(withSecret, "2026-07-17T00:00:00.000Z");
