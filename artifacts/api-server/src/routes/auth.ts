@@ -654,7 +654,7 @@ router.get("/auth/magic/verify", async (req, res) => {
   // magic link needs passwordless sign-in to be enabled (which is off whenever real SSO is configured).
   const allowed = verdict.purpose === "guest" ? guestPortalEnabled() : magicLinkEnabled();
   if (!allowed) { res.status(404).send("This sign-in link is not enabled."); return; }
-  if (!(await consumeMagicToken(verdict.jti))) { res.status(400).send("This sign-in link has already been used."); return; }
+  if (!(await consumeMagicToken(verdict.jti, verdict.exp))) { res.status(400).send("This sign-in link has already been used."); return; }
   const travel = await travelCheck(verdict.email, verdict.email, req.ip);
   // A guest invite mints a CONFINED session: the `guest` marker drops the principal to the guest role +
   // single-project scope (see rbac). It never carries IdP roles or step-up. Its only surface is the portal.
