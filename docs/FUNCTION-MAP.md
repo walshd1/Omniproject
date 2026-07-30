@@ -2492,7 +2492,7 @@ App-layer IP allowlisting — defence in depth even behind an ingress/LB.
 | `ipInCidr` | Does `ip` fall within `cidr` (or equal a bare IP)? |
 | `ipAllowlist` | The configured allowlist entries (empty ⇒ allowlisting off). |
 | `ipAllowed` | Is this client IP allowed? True when the allowlist is empty (feature off). |
-| `clientIp` | Resolve the client IP — socket peer, or the first X-Forwarded-For hop when TRUST_PROXY. |
+| `clientIp` | Resolve the client IP, honouring the trusted-hop count. |
 | `ipAllowGuard` | Middleware: refuse a client whose IP isn't allowlisted (no-op when the list is empty). |
 
 ### `artifacts/api-server/src/lib/ip-ranges.ts`
@@ -4242,7 +4242,8 @@ How many reverse-proxy hops in front of this process to trust `X-Forwarded-*` fr
 | Function | What it does |
 | --- | --- |
 | `resolveTrustProxy` | Resolve `TRUST_PROXY` to Express's `trust proxy` value: `false` (default/off), an explicit positive hop count, or `1` for a bare truthy value — never Express's unbounded `true`. |
-| `firstForwardedValue` | The FIRST value in a comma-separated `X-Forwarded-*` header (the chain runs furthest-hop-first, so the first entry is what the nearest trusted proxy actually saw) — trimmed, or undefined when the header is absent/empty. |
+| `firstForwardedValue` | The FIRST value in a comma-separated `X-Forwarded-*` header — trimmed, or undefined when absent/empty. |
+| `forwardedForChain` | All entries of a comma-separated `X-Forwarded-*` header, left-to-right, trimmed, empties dropped. |
 
 ### `artifacts/api-server/src/lib/undo-buffer.ts`
 
