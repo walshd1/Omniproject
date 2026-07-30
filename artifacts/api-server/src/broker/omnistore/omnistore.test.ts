@@ -45,6 +45,27 @@ test("a real broker drives OmniStore over the wire and passes conformance (drops
   });
 });
 
+test("H6 — OmniStore enforces the forwarded per-user DATA scope (multi-tenant isolation over the wire)", async () => {
+  // Two standard (user-level) principals. The gateway forwards each caller's verified scope in the signed
+  // userContext; OmniStore must confine each to the projects they own — no cross-tenant read OR write.
+  const alice: ActorContext = { sub: "alice", role: "contributor", scope: { level: "user", sub: "alice" }, authHeader: "Bearer a" } as ActorContext;
+  const bob: ActorContext = { sub: "bob", role: "contributor", scope: { level: "user", sub: "bob" }, authHeader: "Bearer b" } as ActorContext;
+  const admin: ActorContext = { sub: "root", role: "admin", scope: { level: "all" }, authHeader: "Bearer r" } as ActorContext;
+  await withServer(undefined, async (broker) => {
+    const aProj = await broker.createProject(alice, { name: "Alice's project" });
+    await broker.writeIssue(alice, "create", { projectId: aProj.id, title: "secret", status: "todo" });
+
+    // Bob (a different user) can neither see nor read nor write Alice's project.
+    assert.ok(!(await broker.listProjects(bob)).some((p: any) => p.id === aProj.id), "bob must not see alice's project");
+    assert.deepEqual(await broker.listIssues(bob, aProj.id), [], "bob must not read alice's issues");
+    await assert.rejects(broker.writeIssue(bob, "create", { projectId: aProj.id, title: "sneak" }), "bob must not write into alice's project");
+
+    // Alice sees her own; an all-scope admin sees everything.
+    assert.ok((await broker.listProjects(alice)).some((p: any) => p.id === aProj.id), "alice sees her own project");
+    assert.ok((await broker.listProjects(admin)).some((p: any) => p.id === aProj.id), "admin (all scope) sees every project");
+  });
+});
+
 test("Jira-class — comments are a first-class stored entity carried over the wire", async () => {
   await withServer(undefined, async (broker) => {
     const p = await broker.createProject(ctx, { name: "Collab" });

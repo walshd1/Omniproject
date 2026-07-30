@@ -177,6 +177,30 @@ test("safeFetch follows a redirect chain to an ALLOWED host through to the final
   assert.equal(calls, 2); // followed exactly one hop
 });
 
+test("safeFetch strips credential headers on a CROSS-ORIGIN redirect but keeps them same-origin", async () => {
+  // A trusted first host 307s same-origin (credentials must survive), then cross-origin (credentials
+  // must NOT survive, or a redirect exfiltrates Vault/OAuth/AI secrets to an arbitrary host).
+  const seen: Array<{ auth: string | null; vault: string | null; other: string | null }> = [];
+  __setEgressTransportForTest(async (_url, init) => {
+    const h = new Headers((init?.headers ?? {}) as HeadersInit);
+    seen.push({ auth: h.get("authorization"), vault: h.get("x-vault-token"), other: h.get("x-other") });
+    if (seen.length === 1) return new Response(null, { status: 307, headers: { location: "http://api.example.com/same" } });
+    if (seen.length === 2) return new Response(null, { status: 307, headers: { location: "http://api.eu.example.com/other" } });
+    return new Response("ok", { status: 200 });
+  });
+  const r = await safeFetch(
+    "http://api.example.com/start",
+    { headers: { authorization: "Bearer SECRET", "x-vault-token": "VT", "x-other": "keep" } },
+    SAFE,
+  );
+  assert.equal(r.status, 200);
+  assert.equal(seen[0]!.auth, "Bearer SECRET"); // initial request
+  assert.equal(seen[1]!.auth, "Bearer SECRET"); // same-origin redirect keeps credentials
+  assert.equal(seen[2]!.auth, null); // cross-origin redirect strips authorization
+  assert.equal(seen[2]!.vault, null); // ...and the app's custom secret header
+  assert.equal(seen[2]!.other, "keep"); // ...but non-credential headers survive
+});
+
 test("safeFetch refuses a redirect loop rather than following forever", async () => {
   __setEgressTransportForTest(async () =>
     new Response(null, { status: 302, headers: { location: "http://api.example.com/loop" } }));

@@ -32,7 +32,7 @@
  */
 import dns from "node:dns/promises";
 import net from "node:net";
-import { Agent, fetch as undiciFetch, type RequestInit as UndiciRequestInit } from "undici";
+import { Agent, fetch as undiciFetch, Headers as UndiciHeaders, type RequestInit as UndiciRequestInit } from "undici";
 import { isBlockedHostLiteral, isBlockedIp, isPrivateOrLoopbackHostLiteral, isPrivateOrLoopbackIp } from "./ip-ranges";
 import { parseCsvEnv, envFlag } from "./env";
 
@@ -230,6 +230,34 @@ function initForRedirect(init: UndiciRequestInit | undefined, status: number): U
   return next;
 }
 
+/** Request headers that must NOT survive a cross-origin redirect, or they leak to the new host. The
+ *  fetch spec strips authorization/cookie/proxy-authorization on a cross-origin hop; the manual redirect
+ *  loop below reimplements redirect following and so must reproduce that. The extra entries are this
+ *  app's own secret-bearing request headers (vault-store, kms/vault-aws SigV4 session token, ai). */
+const CROSS_ORIGIN_SENSITIVE_HEADERS = [
+  "authorization",
+  "cookie",
+  "proxy-authorization",
+  "x-vault-token",
+  "x-api-key",
+  "x-amz-security-token",
+];
+
+/** Drop sensitive headers from `init` — used when a redirect crosses origins so credentials aren't
+ *  re-sent to a host the caller never addressed (credential-leak-on-redirect, cf. curl CVE-2022-27774). */
+function stripCrossOriginHeaders(init: UndiciRequestInit | undefined): UndiciRequestInit | undefined {
+  if (!init?.headers) return init;
+  const headers = new UndiciHeaders(init.headers as ConstructorParameters<typeof UndiciHeaders>[0]);
+  let changed = false;
+  for (const name of CROSS_ORIGIN_SENSITIVE_HEADERS) {
+    if (headers.has(name)) {
+      headers.delete(name);
+      changed = true;
+    }
+  }
+  return changed ? { ...init, headers } : init;
+}
+
 /**
  * fetch() with the egress guard applied first — throws EgressError before any network call when the
  * target is disallowed. For a hostname target it also PINS the connection to the exact addresses it
@@ -265,6 +293,12 @@ export async function safeFetch(url: string, init?: RequestInit, lookup?: Lookup
     }
     void resp.body?.cancel?.().catch(() => {}); // free the socket; we won't read this hop's body
     currentInit = initForRedirect(currentInit, resp.status);
+    // A cross-origin redirect must not carry the caller's credential headers to the new host, or a
+    // 302 from a trusted upstream (or a user-configurable endpoint) exfiltrates Vault/KMS/OAuth/AI
+    // secrets. undici's built-in redirect follower strips these; the manual loop has to as well.
+    if (new URL(nextUrl).origin !== new URL(currentUrl).origin) {
+      currentInit = stripCrossOriginHeaders(currentInit);
+    }
     currentUrl = nextUrl;
   }
 }

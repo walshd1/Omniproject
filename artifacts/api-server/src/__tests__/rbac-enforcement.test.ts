@@ -77,17 +77,23 @@ test("reads stay open to any authenticated principal even under real RBAC (GET /
   });
 });
 
-// ── IDOR fix: GET /history/trends is scope-checked (P0) ───────────────────────
+// ── IDOR fix: GET /history/trends requires portfolio scope (P0) ───────────────
 // Before the fix any authenticated principal could read any project's retained history by naming its
-// id. A scoped (user-level) principal must not read cross-scope history; a PMO (all scope) still can.
-test("history trends: a scoped principal can't read portfolio-wide or out-of-scope history", async () => {
+// id. The retention read is portfolio-wide (keyed by entity+ids, not per-tenant), so `scope` can't
+// bound the returned bytes — a projectId gate was theatre. A scoped (user-level) principal must not
+// read trend history at all; a PMO (all scope) still can. Matches /history/replay.
+test("history trends: a scoped principal can't read trend history (portfolio-wide read needs portfolio scope)", async () => {
   await withRealRbac(async () => {
-    // A user-level principal (member) has no portfolio scope → portfolio-wide trend is refused.
+    // Portfolio-wide (no project filter) → refused.
     const wide = await h.req("/history/trends/completionPct", { cookie: memberCookie() });
     assert.equal(wide.status, 403);
-    // Naming a specific project they can't see is refused too (fail-closed on an unknown/out-of-scope id).
-    const proj = await h.req("/history/trends/completionPct?projectId=some-other-teams-project", { cookie: memberCookie() });
-    assert.equal(proj.status, 403);
+    // Naming a foreign project → refused.
+    const foreign = await h.req("/history/trends/completionPct?projectId=some-other-teams-project", { cookie: memberCookie() });
+    assert.equal(foreign.status, 403);
+    // And naming ANY project (even one they might see) → still refused: the by-id retention read isn't
+    // per-tenant, so scoping it below portfolio would leak. This pins the tightened rule.
+    const named = await h.req("/history/trends/completionPct?projectId=members-own-project", { cookie: memberCookie() });
+    assert.equal(named.status, 403);
   });
 });
 
