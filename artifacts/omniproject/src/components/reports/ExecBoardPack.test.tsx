@@ -20,7 +20,7 @@ function health(over: Partial<PortfolioHealthSummary>): PortfolioHealthSummary {
 // wants the financials overlay seeds a portfolio total here instead of per-project financials.
 function portfolioFin(portfolio: Partial<FinanceRollup>): PortfolioFinancials {
   const total: FinanceRollup = { key: "__portfolio__", label: "Portfolio", projects: 1, budget: 1000, actual: 400, forecast: 1100, earnedValue: 400, variance: -100, cpi: 1, localCurrency: null, local: null, excludedForFx: 0, ...portfolio } as FinanceRollup;
-  return { reportingCurrency: "GBP", programmes: [], portfolio: total, currencyMix: [], fx: { base: "GBP", provenance: "sample", asOf: "2026-06-01T00:00:00Z" } } as PortfolioFinancials;
+  return { reportingCurrency: "GBP", programmes: [], portfolio: total, currencyMix: [], availability: { complete: true, attempted: 0, answered: 0, unavailable: [] }, fx: { base: "GBP", provenance: "sample", asOf: "2026-06-01T00:00:00Z" } } as PortfolioFinancials;
 }
 
 function seed(opts: { projects: Project[]; health: PortfolioHealthSummary[]; fin?: PortfolioFinancials }) {

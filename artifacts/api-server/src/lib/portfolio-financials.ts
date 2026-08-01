@@ -130,8 +130,21 @@ export async function computePortfolioFinancials(req: Request, currencyRaw?: unk
   // Attribute the gaps: a project whose financials never arrived is a missing source, and the report
   // needs to say so rather than quietly consolidating a smaller portfolio into a confident total.
   recordAttempted(projects.length);
+  const missing: string[] = [];
   for (const [i, r] of rows.entries()) {
-    if (r === null) recordUnavailable(`project:${projects[i]!.id}`, "financials read failed");
+    if (r === null) {
+      recordUnavailable(`project:${projects[i]!.id}`, "financials read failed");
+      missing.push(projects[i]!.id);
+    }
+  }
+  // The RAW ids belong here, in the logs, where an operator diagnosing this is looking. The response
+  // keeps them too (for support), but the UI shows a plain sentence instead — a reader cannot place a
+  // project id, and twenty of them bury the fact that some cost data is simply missing.
+  if (missing.length) {
+    req.log.warn(
+      { projects: projects.length, missing: missing.length, missingProjectIds: missing.slice(0, 50) },
+      "portfolio financials incomplete — some projects' financials did not load",
+    );
   }
 
   // Bind each project's financials to the generic consolidation engine, grouped by programme. The
