@@ -71,6 +71,26 @@ export class ReadCache {
     return value;
   }
 
+  /**
+   * Like {@link wrap}, but reports whether the value was SERVED FROM CACHE and how stale it is.
+   *
+   * The cache trades the "never stale" guarantee for latency, and a figure that silently might be
+   * seconds old is the same problem as a total silently summed over a subset: the number looks live and
+   * isn't. Callers use `staleMs` to badge it, in the spirit of the provenance vocabulary. `null` means
+   * genuinely live — either computed just now, or the cache is off (the default).
+   */
+  async wrapWithFreshness<T>(key: string, fn: () => Promise<T>, now = Date.now()): Promise<{ value: T; staleMs: number | null }> {
+    const e = this.store.get(key);
+    const hit = this.get<T>(key, now);
+    if (hit !== undefined && e) {
+      // Age = how long ago it was stored, derived from its expiry and the TTL it was stored under.
+      return { value: hit, staleMs: Math.max(0, this.ttlMs - (e.exp - now)) };
+    }
+    const value = await fn();
+    this.set(key, value, now);
+    return { value, staleMs: null };
+  }
+
   clear(): void {
     this.store.clear();
   }
