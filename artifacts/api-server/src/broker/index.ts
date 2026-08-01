@@ -23,6 +23,7 @@ import { wrapWithScopeGuard } from "./scope-guard";
 import { wrapWithSanitizer } from "./sanitizer";
 import { wrapWithSingleFlight } from "./single-flight";
 import { messyDataArmed, wrapWithMessy } from "./messy-broker";
+import { brokerFaultsArmed, wrapWithFaults } from "./fault-broker";
 import { getSettings } from "../lib/settings";
 import { isTimeoutError } from "../lib/timeout-error";
 
@@ -54,6 +55,13 @@ export function getBroker(): Broker {
     // ALWAYS ON, innermost: bound every autonomous-actor write to its admin-declared grant (the
     // fail-closed authorizeAutonomousWrite gate). A no-op for human contexts, so normal writes are
     // unaffected; placed closest to the real broker so no outer wrapper can route a write around it.
+    // DEV/TEST-ONLY chaos, innermost of all: fail selected calls so degraded-read behaviour
+    // (docs/DEGRADED-READS.md) can be exercised — the demo broker always succeeds, so without this
+    // "3 of 4 sources answered" is untestable. Placed closest to the real broker so an injected fault
+    // propagates up the whole chain exactly as a genuine backend failure would. `brokerFaultsArmed()`
+    // is false in production and false in dev unless explicitly configured, so this wrap is normally
+    // never applied.
+    if (brokerFaultsArmed()) base = wrapWithFaults(base);
     base = wrapWithAutonomousGuard(base);
     // Just outside the autonomous guard (so it still captures the REAL write, once, before any caching
     // wrapper): auto-capture each write to the durable history store WHEN one is configured. A no-op
