@@ -233,6 +233,19 @@ Per-call broker endpoint override.
 | `currentEndpointOverride` | The endpoints in scope for the current async call, if a kind was routed to. |
 | `withEndpoints` | Run `fn` with the broker adapter bound to `endpoints` (the routed kind's URL[s]). |
 
+### `artifacts/api-server/src/broker/fault-broker.ts`
+
+Fault-injecting broker decorator — DEV MODE ONLY (plus an explicit in-process test hook).
+
+| Function | What it does |
+| --- | --- |
+| `__setBrokerFaultsForTest` | Arm (or disarm with `null`) fault injection for the current process — the TEST hook. |
+| `parseFaultEnv` | Parse `DEV_BROKER_FAULTS` — `method[:arg][,method[:arg]]…`, optionally suffixed `@timeout`. |
+| `brokerFaultsArmed` | Is fault injection armed at all? False in production, and false in dev unless configured. |
+| `faultMatches` | Does `spec` select this call? |
+| `faultError` | The error a matched call rejects with. |
+| `wrapWithFaults` | Wrap a broker so selected calls fail. |
+
 ### `artifacts/api-server/src/broker/field-cipher.ts`
 
 DETERMINISTIC component cipher for correlation identities.
@@ -1446,6 +1459,9 @@ Tiny bounded-concurrency pool — the `p-limit` pattern without adding a depende
 | `createConcurrencyLimiter` | A limiter: call `run(fn)` any number of times; at most `limit` of the wrapped calls are ever in flight concurrently. |
 | `poolMapWith` | Fan `items` out through an EXISTING limiter — the generic bounded fan-out. |
 | `poolMap` | Map `items` through the async `fn`, keeping at most `limit` calls in flight at once (its own fresh limiter). |
+| `poolSettleWith` | Like {@link poolMapWith}, but SETTLING: it never rejects. |
+| `poolSettle` | {@link poolSettleWith} with its own fresh limiter — the drop-in settling counterpart to `poolMap`. |
+| `settledValues` | The values that succeeded, in input order — the common case after {@link poolSettle}. |
 
 ### `artifacts/api-server/src/lib/concurrency.ts`
 
@@ -2978,9 +2994,11 @@ Portfolio-wide AGGREGATE summary — the one shape allowed to cross an instance 
 
 | Function | What it does |
 | --- | --- |
+| `fanoutWouldExceedCeiling` | Would fanning out over `projects` exceed the ceiling? Exported for the test that pins the arithmetic. |
 | `summarizeHealth` | Summarise portfolio-health rows (the existing `GET /portfolio/health` aggregate) into portfolio-wide counts — no per-project id/name survives. |
 | `foldFinance` | Fold per-project financials (the existing `GET /projects/:id/financials` rows) into ONE portfolio total in `target` currency — the portfolio-only reduction of `consolidateFinancials`. |
 | `foldCapacity` | Fold every project's resource rows (the existing `GET /projects/:id/capacity` rows, flattened across the portfolio) into ONE portfolio total — the portfolio-only reduction of `rollupByProgramme`. |
+| `alignToProjects` | Line a bulk read's rows up with the project list, positionally, so the bulk and fan-out paths hand `summaryFinance`/`summaryCapacity` the same shape and every downstream count (`droppedCalls`) keeps meaning what it meant. |
 | `portfolioSummaryCacheKey` | The read-cache key for a portfolio summary — the caller's identity+data-scope (`actorKey`, the scope-safe fingerprint the broker cache uses) plus the reporting-currency posture. |
 | `computeLocalPortfolioSummary` | Build the portfolio rollup for this request by fanning the four sections (health, finance, capacity, tasks) out in parallel over the broker, then folding them into one summary. |
 
@@ -3311,6 +3329,20 @@ Role-based access control.
 | `hasRole` | Does the request satisfy the gate `need`? |
 | `requireRole` | Express middleware: require the `need` grant, else 403. |
 | `requireAnyRole` | Express middleware: require ANY of the given grants (OR gate) — e.g. the surfaces that belong to whoever owns governance (pmo) or technical config (admin), since the two authorities are orthogonal and neither alone implies the other. |
+
+### `artifacts/api-server/src/lib/read-availability.ts`
+
+Read-availability tally — the "some sources didn't answer" half of the read seam, and the sibling of `lib/data-quality.ts` (which reports malformed data that DID arrive).
+
+| Function | What it does |
+| --- | --- |
+| `withAvailabilityScope` | Establish a fresh availability tally for the (possibly async) work `fn` starts — the request middleware entry point, mirroring `withDataQualityScope`. |
+| `currentAvailability` | The active tally, or undefined outside a scope (fan-outs still degrade; they just aren't counted). |
+| `recordAttempted` | Count sources we tried to reach. |
+| `recordUnavailable` | Record one source that did not answer. |
+| `readsWereComplete` | Did every source this request touched answer? Callers gate any CROSS-SOURCE aggregate on this and omit the figure when it is false. |
+| `availabilityReport` | `{ complete, attempted, answered, unavailable }` for a response body — what the UI needs to say "3 of 4 sources reporting" and name the missing one. |
+| `readAvailabilityMiddleware` | Surfacing middleware. |
 
 ### `artifacts/api-server/src/lib/read-cache.ts`
 
