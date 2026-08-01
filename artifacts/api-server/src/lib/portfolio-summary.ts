@@ -2,10 +2,12 @@ import type { Request } from "express";
 import { consolidateByGroup, consolidationSpec, numLoose as num, round1 } from "@workspace/backend-catalogue";
 import { getBroker, contextFromReq, type PortfolioRow, type Row, type Project } from "../broker";
 import { classifyRag } from "../broker/vocabulary";
+import { envInt } from "./env-config";
 import { getSettings } from "./settings";
 import { getFxRates } from "./currency";
 import { resolveCapabilities } from "./capabilities";
-import { createConcurrencyLimiter, poolMapWith, type Limiter } from "./concurrency-pool";
+import { createConcurrencyLimiter, poolMapWith, poolSettleWith, settledValues, type Limiter } from "./concurrency-pool";
+import { recordAttempted, recordUnavailable, availabilityReport } from "./read-availability";
 import { summariseTasks, type TaskSummary } from "./task-summary";
 import { planProjectSources, type SourcePlan } from "./closed-projects";
 import { getReadCache } from "./read-cache";
@@ -24,7 +26,33 @@ import { actorKey } from "../broker/cache";
 // Bound the per-project broker fan-out (financials + capacity) the same way the other portfolio
 // reads do — an unbounded Promise.all is ~1 broker call per project, so 200 projects = a 200-way
 // thundering herd per request against the backend.
-const PORTFOLIO_FANOUT_LIMIT = 10;
+// Tunable because the right value is a property of YOUR backend, not of OmniProject: 10 is safe against
+// a rate-limited SaaS, but an on-prem OpenProject or a queue-mode n8n with scaled workers will take far
+// more, and this is the only dial on the FALLBACK path (a broker implementing the bulk reads above skips
+// the fan-out entirely). Raising it shortens a portfolio view linearly and costs backend 429s if set
+// past what the backend tolerates — measure before raising it.
+const PORTFOLIO_FANOUT_LIMIT = envInt("PORTFOLIO_FANOUT_LIMIT", 10, { min: 1, max: 200 });
+
+/**
+ * Ceiling on the per-project FALLBACK fan-out. Past this many projects the fan-out is refused outright
+ * rather than attempted.
+ *
+ * Measured: the fan-out is one broker call per project at PORTFOLIO_FANOUT_LIMIT concurrency, so cost
+ * is linear in project count — 3,000 projects against a 50ms backend hop takes 15s, 30,000 takes ~150s.
+ * A request that takes two minutes is not a slow success, it is a failure that also pins a connection,
+ * holds a worker, and lands 30,000 calls on a backend. Refusing is strictly better: the caller gets an
+ * immediate, honest "totals unavailable, and here is why" through the same availability channel as a
+ * dead backend, and the rows still render.
+ *
+ * The fix is not a bigger ceiling: it is the broker implementing `portfolioFinancials`/`portfolioCapacity`,
+ * which skips the fan-out entirely and has no ceiling because it is one call.
+ */
+const PORTFOLIO_FANOUT_MAX_PROJECTS = envInt("PORTFOLIO_FANOUT_MAX_PROJECTS", 500, { min: 1, max: 100_000 });
+
+/** Would fanning out over `projects` exceed the ceiling? Exported for the test that pins the arithmetic. */
+export function fanoutWouldExceedCeiling(projectCount: number): boolean {
+  return projectCount > PORTFOLIO_FANOUT_MAX_PROJECTS;
+}
 
 /** RAG (red/amber/green) distribution across the portfolio's projects. */
 export interface RagCounts {
@@ -67,7 +95,18 @@ export interface CapacityTotals {
 }
 
 export interface PortfolioSummary {
+  /** Live projects that ANSWERED. Read with `availability`: when a source is unavailable this is the
+   *  count we could see, not the portfolio's true size, and `availability.complete` is false. */
   projects: number;
+  /** Which sources answered while building this roll-up. `complete: false` means at least one backend
+   *  did not answer, every cross-source total below is `null` by design (a total over a subset is wrong,
+   *  not smaller), and the UI should say "N of M sources reporting" rather than present this as the
+   *  portfolio. Nothing here is cached or persisted — it describes this request only. */
+  availability: ReturnType<typeof availabilityReport>;
+  /** Present ONLY when this roll-up was served from the opt-in read cache (`READ_CACHE_TTL_MS`), giving
+   *  its age in ms. Absent means live — computed for this request, or the cache is off (the default).
+   *  A stale total is not a wrong total, but it is not a live one either, and the UI should say so. */
+  staleMs?: number;
   /** null when the connected backend doesn't declare the `portfolio` capability. */
   health: HealthTotals | null;
   /** null when the connected backend doesn't declare the `financials` capability (or has no data). */
@@ -199,16 +238,54 @@ async function summaryHealth(broker: Broker, ctx: Ctx, caps: Caps): Promise<Heal
   return rows ? summarizeHealth(rows) : null;
 }
 
+/**
+ * Line a bulk read's rows up with the project list, positionally, so the bulk and fan-out paths hand
+ * `summaryFinance`/`summaryCapacity` the same shape and every downstream count (`droppedCalls`) keeps
+ * meaning what it meant. A project the bulk read didn't return is `null` — the same signal the
+ * per-project path uses for a failed call — so a backend that silently omits projects is treated as
+ * an incomplete read rather than a smaller portfolio.
+ */
+export function alignToProjects(rows: Row[], projects: Project[]): Array<Row | null> {
+  const byId = new Map<string, Row>();
+  for (const r of rows) {
+    const id = String(r["projectId"] ?? r["id"] ?? "");
+    if (id && !byId.has(id)) byId.set(id, r);
+  }
+  return projects.map((p) => byId.get(p.id) ?? null);
+}
+
 async function summaryFinance(req: Request, broker: Broker, ctx: Ctx, caps: Caps, projects: Project[], run: Limiter): Promise<FinanceTotals | null> {
   if ((caps && !caps.financials) || !projects.length) return null;
   const settings = getSettings();
-  // FX is independent of the financials rows (needed only at fold time) — fetch it alongside the fan-out.
+  // ONE call when the broker can aggregate, N calls when it can't. The bulk path is O(1) round trips;
+  // the fan-out below is O(projects) and is what makes a 30k-project portfolio take minutes. A bulk
+  // failure is NOT silently retried per-project: that would turn one failed call into 30,000 and
+  // hammer a backend that just told us it was struggling — it degrades to "unavailable" instead.
   const [rows, fx] = await Promise.all([
-    poolMapWith(run, projects, (p) => broker.projectFinancials(ctx, p.id).catch(() => null)),
+    broker.portfolioFinancials
+      ? broker.portfolioFinancials(ctx).then(
+          (all) => alignToProjects(all, projects),
+          () => projects.map(() => null),
+        )
+      : fanoutWouldExceedCeiling(projects.length)
+        ? Promise.resolve(projects.map(() => null)) // refused, not attempted — see the ceiling's comment
+        : poolMapWith(run, projects, (p) => broker.projectFinancials(ctx, p.id).catch(() => null)),
     getFxRates(req, resolveFxAsOf(settings)).catch(() => null),
   ]);
   const valid = rows.filter((r): r is Row => !!r);
   const droppedCalls = projects.length - valid.length; // projects whose financials call failed/timed out
+  // Each project whose financials call failed is a source that did not answer. Recorded (deduplicated)
+  // so the response can say which, and so `readsWereComplete()` below can veto the total.
+  recordAttempted(projects.length);
+  if (!broker.portfolioFinancials && fanoutWouldExceedCeiling(projects.length)) {
+    // ONE honest reason, not 30,000 identical ones — and it names the fix rather than blaming the backend.
+    recordUnavailable("finance", `too many projects for a per-project fan-out (${projects.length}); backend needs a bulk portfolioFinancials read`);
+    req.log.warn({ projects: projects.length, ceiling: PORTFOLIO_FANOUT_MAX_PROJECTS }, "portfolio finance fan-out refused — over the ceiling");
+  } else {
+    for (const [i, r] of rows.entries()) {
+      if (r === null) recordUnavailable(`project:${projects[i]!.id}`, "financials read failed");
+    }
+  }
   if (!valid.length) {
     if (droppedCalls > 0) req.log.warn({ projects: projects.length, droppedCalls }, "portfolio finance rollup unavailable — every project's financials call failed");
     return null;
@@ -223,6 +300,11 @@ async function summaryFinance(req: Request, broker: Broker, ctx: Ctx, caps: Caps
       "portfolio finance rollup is incomplete — total covers a subset of projects",
     );
   }
+  // A total summed across sources is only reportable when every source answered. Over a subset it is
+  // not a smaller total, it is a WRONG one — and screenshotted into a board pack it reads as
+  // authoritative. Suppress it and let `availability` explain the gap; the per-project rows the caller
+  // already holds are still real. (Warning above stays: operators see the gap in logs either way.)
+  if (droppedCalls > 0 || fold.droppedForFx > 0) return null;
   // Only surface a total when at least one project actually folded in — an all-dropped fold would
   // otherwise report a misleading £0.
   return fold.includedRows > 0 ? fold.totals : null;
@@ -230,8 +312,37 @@ async function summaryFinance(req: Request, broker: Broker, ctx: Ctx, caps: Caps
 
 async function summaryCapacity(broker: Broker, ctx: Ctx, caps: Caps, projects: Project[], run: Limiter): Promise<CapacityTotals | null> {
   if ((caps && !caps.resources) || !projects.length) return null;
-  const lists = await poolMapWith(run, projects, (p) => broker.resourceCapacity(ctx, p.id).catch(() => [] as Row[]));
-  const all = lists.flat();
+  // Settle rather than catch-to-empty: a failed project used to contribute `[]`, which is
+  // indistinguishable from "this project has no resources", so the capacity total silently covered a
+  // subset while looking complete. Now a failure is recorded as an unavailable source and vetoes the
+  // total, exactly like finance above.
+  recordAttempted(projects.length);
+  // Bulk when the broker can, fan-out when it can't — same O(1)-vs-O(projects) trade as finance above.
+  if (broker.portfolioCapacity) {
+    const all = await broker.portfolioCapacity(ctx).catch(() => null);
+    if (!all) {
+      recordUnavailable("capacity", "bulk resource-capacity read failed");
+      return null;
+    }
+    // SCOPE: the bulk reads take no projectId, so they are NOT covered by the seam's scope guard
+    // (`PROJECT_ID_AT_ARG1` in broker/scope-guard.ts), which re-checks per-project calls. Filter to the
+    // caller's VISIBLE projects here, or a programme-scoped user's capacity total would silently
+    // include every other programme's rows. The per-project path got this for free by only ever asking
+    // for projects it could see; the bulk path has to do it explicitly.
+    const visible = new Set(projects.map((p) => p.id));
+    const inScope = all.filter((r) => visible.has(String(r["projectId"] ?? r["id"] ?? "")));
+    return inScope.length ? foldCapacity(inScope) : null;
+  }
+  if (fanoutWouldExceedCeiling(projects.length)) {
+    recordUnavailable("capacity", `too many projects for a per-project fan-out (${projects.length}); backend needs a bulk portfolioCapacity read`);
+    return null;
+  }
+  const settled = await poolSettleWith(run, projects, (p) => broker.resourceCapacity(ctx, p.id));
+  for (const s of settled) {
+    if (!s.ok) recordUnavailable(`project:${s.item.id}`, "resource-capacity read failed");
+  }
+  if (settled.some((s) => !s.ok)) return null;
+  const all = settledValues(settled).flat();
   return all.length ? foldCapacity(all) : null;
 }
 
@@ -262,16 +373,27 @@ export async function computeLocalPortfolioSummary(req: Request): Promise<Portfo
   // all-scope admin's rollup is never served to a programme-scoped token) and the reporting-currency posture
   // (so a currency switch can't serve a wrong-currency total). Off by default ⇒ a pass-through (recomputes).
   const key = portfolioSummaryCacheKey(ctx, getSettings());
-  return getReadCache().wrap(key, () => computeFreshPortfolioSummary(req, broker, ctx));
+  // Report staleness rather than hiding it: a cached roll-up looks identical to a live one, and the
+  // whole product promise is that what you see is the backend right now. `staleMs` is null when the
+  // cache is off (the default) or the value was just computed.
+  const { value, staleMs } = await getReadCache().wrapWithFreshness(key, () => computeFreshPortfolioSummary(req, broker, ctx));
+  return staleMs === null ? value : { ...value, staleMs };
 }
 
 /** The uncached fold: fan the four sections out over the broker and reduce them. Split from the cached entry
  *  point above so the fan-out logic has one home whether or not the read cache is enabled. */
 async function computeFreshPortfolioSummary(req: Request, broker: Broker, ctx: Ctx): Promise<PortfolioSummary> {
   // Capabilities and the project list are independent — fetch them concurrently.
+  // `listProjects` failing used to degrade to `[]`, so a total outage reported `projects: 0` — an empty
+  // portfolio, indistinguishable from a healthy org that has none. Record it as an unavailable source
+  // so `availability.complete` is false and the UI says "unavailable" instead of "zero".
   const [caps, projects] = await Promise.all([
     resolveCapabilities(req).catch(() => null),
-    broker.listProjects(ctx).catch(() => [] as Project[]),
+    broker.listProjects(ctx).catch(() => {
+      recordAttempted(1);
+      recordUnavailable("projects", "project list read failed");
+      return [] as Project[];
+    }),
   ]);
 
   // The four sections share no data (all derive from projects/caps), so run them concurrently.
@@ -291,5 +413,5 @@ async function computeFreshPortfolioSummary(req: Request, broker: Broker, ctx: C
   const liveGuids = (projects as Row[]).map((p) => String(p["omniInstanceId"] ?? "")).filter(Boolean);
   const sources = planProjectSources([...liveGuids, ...Object.keys(settings.closedProjects)], settings.closedProjects, settings.guidAliases);
 
-  return { projects: projects.length, health, finance, capacity, tasks, sources };
+  return { projects: projects.length, availability: availabilityReport(), health, finance, capacity, tasks, sources };
 }
