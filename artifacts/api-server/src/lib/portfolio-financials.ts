@@ -13,6 +13,8 @@ import { getBroker, contextFromReq, type Row, type Project } from "../broker";
 import { getSettings } from "./settings";
 import { getFxRates } from "./currency";
 import { poolMap } from "./concurrency-pool";
+import { alignToProjects } from "./portfolio-summary";
+import { recordAttempted, recordUnavailable, availabilityReport } from "./read-availability";
 import { resolveCapabilities } from "./capabilities";
 import {
   consolidateByGroup, consolidationSpec, flattenRow, currencyMix, DEFAULT_CURRENCY,
@@ -73,6 +75,12 @@ export interface PortfolioFinancials {
   currencyMix: Array<{ currency: string; projects: number }>;
   /** The FX table's provenance for the footnote, or null when no rates were available. */
   fx: { base: string; provenance: string | null; asOf: string | null } | null;
+  /** Which sources answered while building this report. `complete: false` means a backend did not
+   *  answer and these roll-ups cover only what did — the report must say "N of M sources reporting"
+   *  rather than present the total as the portfolio's. Carried here (not just on /portfolio/summary)
+   *  because THIS is the endpoint the Portfolio Financials report calls, so it is where a user would
+   *  otherwise read a partial total as a complete one. See docs/DEGRADED-READS.md. */
+  availability: ReturnType<typeof availabilityReport>;
 }
 
 /** The org's FX "as of" date, mirroring resolveFxAsOf in portfolio-summary.ts / the SPA currency lib. */
@@ -105,9 +113,26 @@ export async function computePortfolioFinancials(req: Request, currencyRaw?: unk
   const target = sanitizeCurrency(currencyRaw) || settings.reportingCurrency || fx?.base || DEFAULT_CURRENCY;
 
   const financialsOff = !!caps && !caps.financials;
-  const rows = financialsOff || !projects.length
+  // Prefer the broker's BULK read when it has one: this is the endpoint the Portfolio Financials
+  // report actually calls, so it is where a user feels the O(projects) fan-out. Same trade as
+  // lib/portfolio-summary.ts — one call instead of one per project — with the fan-out kept as the
+  // fallback for adapters that don't implement it. `alignToProjects` maps rows onto the VISIBLE
+  // project list, which is also what keeps an out-of-scope row from reaching the consolidation.
+  const rows: Array<Row | null> = financialsOff || !projects.length
     ? []
-    : await poolMap(projects, FANOUT_LIMIT, (p) => broker.projectFinancials(ctx, p.id).catch(() => null));
+    : broker.portfolioFinancials
+      ? await broker.portfolioFinancials(ctx).then(
+          (all) => alignToProjects(all, projects),
+          () => projects.map(() => null),
+        )
+      : await poolMap(projects, FANOUT_LIMIT, (p) => broker.projectFinancials(ctx, p.id).catch(() => null));
+
+  // Attribute the gaps: a project whose financials never arrived is a missing source, and the report
+  // needs to say so rather than quietly consolidating a smaller portfolio into a confident total.
+  recordAttempted(projects.length);
+  for (const [i, r] of rows.entries()) {
+    if (r === null) recordUnavailable(`project:${projects[i]!.id}`, "financials read failed");
+  }
 
   // Bind each project's financials to the generic consolidation engine, grouped by programme. The
   // `financials` spec (data) says which fields to fold and derive; `flattenRow` hoists the resulting
@@ -131,6 +156,7 @@ export async function computePortfolioFinancials(req: Request, currencyRaw?: unk
     return { ...r, evm: evmForRollup(r) };
   };
   return {
+    availability: availabilityReport(),
     reportingCurrency: target,
     programmes: groups.map(flattenRow).map(withEvm),
     portfolio: withEvm(flattenRow(total)),
