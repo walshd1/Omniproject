@@ -15,6 +15,7 @@ const DATA: FederatedPortfolioData = {
     label: "This instance",
     region: "eu",
     summary: {
+      availability: { complete: true, attempted: 0, answered: 0, unavailable: [] },
       projects: 12,
       health: { projects: 12, rag: { green: 8, amber: 3, red: 1, other: 0 }, avgScheduleVarianceDays: -1, avgBudgetVariancePercentage: 2, totalActiveBlockers: 5 },
       finance: { currency: "GBP", budget: 1000, actual: 600, forecast: 900, earnedValue: 550, variance: 100, cpi: 0.92 },
@@ -29,6 +30,7 @@ const DATA: FederatedPortfolioData = {
       status: "ok",
       ms: 42,
       summary: {
+        availability: { complete: true, attempted: 0, answered: 0, unavailable: [] },
         projects: 5,
         health: { projects: 5, rag: { green: 4, amber: 1, red: 0, other: 0 }, avgScheduleVarianceDays: 0, avgBudgetVariancePercentage: -1, totalActiveBlockers: 1 },
         finance: null,

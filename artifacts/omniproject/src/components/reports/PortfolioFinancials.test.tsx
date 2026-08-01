@@ -73,3 +73,30 @@ describe("PortfolioFinancials", () => {
     expect(screen.queryByTestId("portfolio-fin-row-mixed-local")).not.toBeInTheDocument();
   });
 });
+
+describe("degraded reads", () => {
+  it("an OUTAGE must not render as 'no financials — connect a cost source'", () => {
+    // The trap this closes: an outage leaves portfolio.projects === 0, which used to fall through to
+    // the empty state and tell the user to go buy an ERP integration. That is advice about a product
+    // gap when the truth is that a backend timed out — actively misleading, and it hides a real fault.
+    const degraded = payload({
+      availability: { complete: false, attempted: 4, answered: 3, unavailable: [{ source: "project:p-2", reason: "financials read failed" }] },
+    } as Partial<PortfolioFinancialsData>);
+    renderWithProviders(<PortfolioFinancials />, { client: seed(degraded) });
+
+    expect(screen.queryByTestId("portfolio-fin-empty")).toBeNull();
+    const notice = screen.getByTestId("sources-unavailable-notice");
+    expect(notice).toHaveTextContent("3 of 4 sources reporting");
+    // Plain sentence, not the raw `project:p-2` key — that belongs in the gateway's logs.
+    expect(notice).toHaveTextContent("One project's data didn't load.");
+  });
+
+  it("a genuinely empty portfolio STILL gets the empty state (the outage path must not swallow it)", () => {
+    const empty = payload({
+      availability: { complete: true, attempted: 4, answered: 4, unavailable: [] },
+    } as Partial<PortfolioFinancialsData>);
+    renderWithProviders(<PortfolioFinancials />, { client: seed(empty) });
+    expect(screen.getByTestId("portfolio-fin-empty")).toBeInTheDocument();
+    expect(screen.queryByTestId("sources-unavailable-notice")).toBeNull();
+  });
+});
