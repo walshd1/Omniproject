@@ -247,7 +247,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: n8n
-          image: n8nio/n8n:1.123.61   # pinned to the blueprint-verified 1.x line, matching every compose profile (2.x exists but is unverified against the bundled blueprint)
+          image: n8nio/n8n:2.33.3   # pinned to the blueprint-verified 1.x line, matching every compose profile (2.x exists but is unverified against the bundled blueprint)
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:
