@@ -27,7 +27,7 @@
     "cors": "^2.8.6",
     "express": "^5.2.1",
     "express-rate-limit": "^8.6.1",
-    "jose": "^6.1.0",
+    "jose": "^6.2.7",
     "nodemailer": "^9.0.3",
     "openid-client": "^6.8.4",
     "otpauth": "^9.5.1",
