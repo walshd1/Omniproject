@@ -1,7 +1,5 @@
-import { DEV_PERSIST_ENABLED } from "./dev-persist";
 import { getMessyConfig } from "./messy-data";
-import { devModeActive } from "./dev-mode-guard";
-import { isProductionEnv } from "./node-env";
+import { devModeActive, devPersistArmed, traceArmed, captureArmed } from "./dev-mode-guard";
 
 /**
  * Dev mode — the single source of truth for "is this a developer/debug instance?".
@@ -17,14 +15,6 @@ import { isProductionEnv } from "./node-env";
  * is armed (stateful persistence, broker trace, or capture). The status it reports
  * tells an operator — and the on-screen watermark — exactly which surfaces are hot.
  */
-
-function traceArmed(): boolean {
-  return process.env["BROKER_TRACE"] === "1";
-}
-
-function captureArmed(): boolean {
-  return !!process.env["BROKER_CAPTURE"]?.trim();
-}
 
 /**
  * Is this a developer/debug instance? Always false in production.
@@ -57,14 +47,16 @@ export function devModeStatus(): DevModeStatus {
   // Every surface flag is gated on `active` (not merely non-prod), so the watermark can
   // never advertise a surface as hot when dev mode itself is off — e.g. OMNI_MESSY_DATA is
   // not a dev-mode trigger, so `messy` must stay false unless a real trigger armed dev mode.
+  // Each trigger reads the SAME live predicate the gate itself uses (dev-mode-guard), so the
+  // status can never disagree with the gate.
   const active = isDevMode();
   return {
     devMode: active,
     env: process.env["NODE_ENV"] ?? "development",
     surfaces: {
-      persist: active && DEV_PERSIST_ENABLED,
-      trace: active && traceArmed(),
-      capture: active && captureArmed(),
+      persist: active && devPersistArmed(process.env),
+      trace: active && traceArmed(process.env),
+      capture: active && captureArmed(process.env),
       messy: active && getMessyConfig().on,
     },
   };

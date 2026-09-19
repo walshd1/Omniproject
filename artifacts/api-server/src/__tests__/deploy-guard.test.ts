@@ -71,10 +71,18 @@ test("deploy guard: every required ${VAR:?} in compose is listed in .env.example
 // tested there), not inline in app.ts, so this test inspects that file.
 test("deploy guard: gateway fails fast on a default/empty SESSION_SECRET in production", () => {
   const appSrc = read("artifacts/api-server/src/lib/session-secret-guard.ts");
+  // The production decision must come from the SHARED fail-safe predicate (lib/node-env
+  // isProductionEnv — mis-cased/unknown NODE_ENV labels count as production), not a
+  // re-inlined bare `NODE_ENV === "production"` compare that could drift from the dev gates.
   assert.match(
     appSrc,
-    /NODE_ENV"?\]?\s*===\s*"production"/,
-    "session-secret-guard.ts must branch on production for SESSION_SECRET handling",
+    /isProductionEnv\(/,
+    "session-secret-guard.ts must branch on the shared isProductionEnv predicate for SESSION_SECRET handling",
+  );
+  assert.doesNotMatch(
+    appSrc,
+    /env\["NODE_ENV"\]\s*===\s*"production"/,
+    "session-secret-guard.ts must not re-inline a bare NODE_ENV compare (use isProductionEnv)",
   );
   assert.match(
     appSrc,
