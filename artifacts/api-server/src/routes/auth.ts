@@ -44,7 +44,7 @@ import { isSessionExpired, timeoutPolicy, sessionCookieMaxAgeMs } from "../lib/s
 import { currentVersion, isActive, userSessionsRevokedAt, revokeUserSessions } from "../lib/key-registry";
 import { registerSession, issueSequence, checkSequence, noteSession, listUserSessions, revokeSession, revokeOtherSessions, isSessionRevoked, sessionPublicId } from "../lib/session-registry";
 import { requireTls } from "../lib/deployment-profile";
-import { productionSignals } from "../lib/dev-mode-guard";
+import { isProductionLike } from "../lib/dev-mode-guard";
 import { ensureCsrfCookie, setCsrfCookie, newCsrfToken } from "../lib/csrf";
 import { checkLogin } from "../lib/impossible-travel";
 import { recordAudit, recordRequestAudit } from "../lib/audit";
@@ -185,7 +185,7 @@ export function resolveBaseUrl(opts: {
 export function baseUrl(req: Request): string {
   return resolveBaseUrl({
     configured: process.env["PUBLIC_URL"],
-    productionLike: process.env["NODE_ENV"] === "production" || productionSignals(process.env).length > 0,
+    productionLike: isProductionLike(process.env),
     trustProxy: !!req.app.get("trust proxy"),
     forwardedProto: req.headers["x-forwarded-proto"] as string | undefined,
     forwardedHost: req.headers["x-forwarded-host"] as string | undefined,

@@ -1907,6 +1907,9 @@ Dev-mode production guard — the hard safety interlock that stops a developer/ 
 
 | Function | What it does |
 | --- | --- |
+| `devPersistArmed` | The individual dev-mode triggers, exported so devModeStatus() (the watermark's surface flags) reads the SAME live predicates this gate does — one definition per trigger, no inline re-implementations to drift. |
+| `traceArmed` | Is broker method-boundary tracing requested? |
+| `captureArmed` | Is broker capture-to-tape requested? |
 | `devModeActive` | Dev mode computed purely from an env map — the SINGLE source of truth for "is a dev/debug surface allowed to be active?". |
 | `isProductionLike` | Does this environment look like production — by NODE_ENV, or via `productionSignals`? |
 | `productionSignals` | Production signals that must not coexist with dev mode (or a default SESSION_SECRET). |

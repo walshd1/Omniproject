@@ -164,23 +164,41 @@ overrides:
   # drizzle-kit uses esbuild internally on an older version that's vulnerable, this overrides it
   "@esbuild-kit/esm-loader": "npm:tsx@^4.21.0"
   esbuild: "0.27.3"
-  # js-yaml < 4.3.0 (via orval, the api-spec codegen devDep) has a HIGH advisory
-  # (GHSA-52cp-r559-cp3m: merge-key chains → quadratic CPU). Force the vulnerable range up to the
-  # patched line; js-yaml is a dev/codegen-time YAML parser here, so a patch bump is low-risk.
-  "js-yaml@>=4.0.0 <4.3.0": ">=4.3.0 <5.0.0"
-  # fast-uri 3.0.0–3.1.3 (via ajv, pulled by stryker mutation-testing + orval codegen devDeps) has a
-  # HIGH advisory (GHSA-v2hh-gcrm-f6hx: host confusion via a literal backslash authority delimiter).
-  # All install paths are dev/build tooling — never the production runtime — and 3.1.4 is a patch, so
+  # js-yaml < 4.3.2 (via orval, the api-spec codegen devDep) carries HIGH advisories
+  # (GHSA-52cp-r559-cp3m merge-key chains; GHSA-2883-xcg3-v3hh maxTotalMergeKeys CPU;
+  # GHSA-5p4m-2wfm-xmqj !!omap quadratic CPU). Force the vulnerable range up to the patched
+  # line; js-yaml is a dev/codegen-time YAML parser here, so a patch bump is low-risk.
+  "js-yaml@>=4.0.0 <4.3.2": ">=4.3.2 <5.0.0"
+  # fast-uri 3.0.0–3.1.5 (via ajv, pulled by stryker mutation-testing + orval codegen devDeps) carries
+  # HIGH advisories (GHSA-v2hh-gcrm-f6hx / GHSA-7p8r-x3mc-p8w7 backslash-authority host confusion;
+  # GHSA-jqff-g426-hqxp percent-encoded scheme; GHSA-fph4-wmhf-6fwf repeated percent-decoding SSRF;
+  # GHSA-f65p-4m7j-42xc malformed-IPv6 SSRF; GHSA-5jgf-p345-68v8 skipped IDN canonicalization).
+  # All install paths are dev/build tooling — never the production runtime — and 3.1.6 is a patch, so
   # forcing the vulnerable range up to the patched line is low-risk.
-  "fast-uri@>=3.0.0 <3.1.4": ">=3.1.4 <4.0.0"
+  "fast-uri@>=3.0.0 <3.1.6": ">=3.1.6 <4.0.0"
+  # browserslist <=4.28.6 (via the SPA build chain) carries HIGH advisories (GHSA-73wf-gq98-2v4g
+  # prototype write via untrusted custom stats; GHSA-c83g-rgw3-j3cx unbounded cache growth → OOM).
+  # Build-time only; in-major patch bump.
+  "browserslist@<4.28.7": ">=4.28.7 <5.0.0"
+  # nanoid 3.x <3.3.18 (transitive, CJS consumers pin the 3.x line) — HIGH GHSA-2v37-7h3g-55p8
+  # (custom generators loop forever on size 0). Stay on the 3.x line; in-major patch bump.
+  "nanoid@>=3.0.0 <3.3.18": ">=3.3.18 <4.0.0"
+  # undici <7.29.0 / <8.9.0 — HIGH GHSA-4cwx-7wf7-3272 (cross-user info disclosure + parse-time
+  # crash via degenerate private cache directives). In-major patch bumps on both lines.
+  "undici@>=7.0.0 <7.29.0": ">=7.29.0 <8.0.0"
+  "undici@>=8.0.0 <8.9.0": ">=8.9.0 <9.0.0"
+  # ip-address <=10.3.0 — HIGH GHSA-mwp4-54f8-5fhr (Address4 parses leading-zero octets as decimal
+  # while resolvers treat them as octal → SSRF / trust-boundary bypass). In-major minor bump.
+  "ip-address@>=10.0.0 <10.4.0": ">=10.4.0 <11.0.0"
   # brace-expansion carries a HIGH advisory (GHSA-mh99-v99m-4gvg: DoS via unbounded expansion → OOM). The
   # 5.x line reaches us via c8>test-exclude>minimatch@10; force it up to the patched 5.0.8 (in-major patch).
   # The other consumer — eslint's config-array via minimatch@3 — needs brace-expansion's LEGACY 1.x default-
   # function export, which 5.x no longer provides (5.x breaks minimatch@3 with "expand is not a function"),
   # so it must stay on the 1.x line. It already resolves to 1.1.16, which is ABOVE the advisory's 1.x patch
   # line (1.1.12) — i.e. genuinely fixed. See auditConfig.ignoreGhsas in package.json for why the scanner
-  # still needs a targeted ignore for that path.
-  "brace-expansion@>=5.0.0 <5.0.8": ">=5.0.8 <6.0.0"
+  # still needs a targeted ignore for that path. (Floor raised 5.0.8 → 5.0.9 for GHSA-rgw5-rvv9-x895,
+  # the bypass of the earlier unbounded-expansion mitigation.)
+  "brace-expansion@>=5.0.0 <5.0.9": ">=5.0.9 <6.0.0"
 
 allowBuilds:
   esbuild: true

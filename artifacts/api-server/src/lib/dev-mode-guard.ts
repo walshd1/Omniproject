@@ -22,6 +22,16 @@ type Env = Record<string, string | undefined>;
 
 const set = (v: string | undefined) => !!v?.trim();
 
+// The individual dev-mode triggers, exported so devModeStatus() (the watermark's surface
+// flags) reads the SAME live predicates this gate does — one definition per trigger, no
+// inline re-implementations to drift.
+/** Is stateful dev persistence requested? (Whether it is honoured is still prod-gated.) */
+export const devPersistArmed = (env: Env): boolean => set(env["DEV_PERSIST_FILE"]);
+/** Is broker method-boundary tracing requested? */
+export const traceArmed = (env: Env): boolean => env["BROKER_TRACE"] === "1";
+/** Is broker capture-to-tape requested? */
+export const captureArmed = (env: Env): boolean => set(env["BROKER_CAPTURE"]);
+
 /**
  * Dev mode computed purely from an env map — the SINGLE source of truth for
  * "is a dev/debug surface allowed to be active?". `lib/dev-mode.isDevMode()`
@@ -31,7 +41,7 @@ const set = (v: string | undefined) => !!v?.trim();
  */
 export function devModeActive(env: Env): boolean {
   if (isProductionEnv(env)) return false;
-  return env["OMNI_DEV_MODE"] === "1" || set(env["DEV_PERSIST_FILE"]) || env["BROKER_TRACE"] === "1" || set(env["BROKER_CAPTURE"]);
+  return env["OMNI_DEV_MODE"] === "1" || devPersistArmed(env) || traceArmed(env) || captureArmed(env);
 }
 
 /** Does this environment look like production — by NODE_ENV, or via `productionSignals`? */
@@ -104,6 +114,17 @@ export function runDevModeGuard(env: Env, logger: Logger): DevModeGuardResult {
     logger.warn({ signals: r.signals }, "[dev-mode] running with production signals present — ACKNOWLEDGED via OMNI_DEV_MODE_ACK_INSECURE. This is unsafe outside local testing.");
   } else {
     logger.info({}, "[dev-mode] active — debug surfaces are armed. Never expose this instance.");
+  }
+  // Dev mode armed WITHOUT an explicit NODE_ENV: an unset label is the local/CI default and reads
+  // as non-production (so this boots), but on a real box it usually means the deployment config
+  // forgot NODE_ENV=production while a dev flag was left set. Say so loudly — this is the one
+  // dev-arming combination the fail-safe label predicate cannot distinguish from a dev machine.
+  if (!env["NODE_ENV"]?.trim()) {
+    logger.warn(
+      {},
+      "[dev-mode] NODE_ENV is unset while dev mode is armed. Declare NODE_ENV=development (or test) explicitly on dev machines — " +
+        "a real deployment must set NODE_ENV=production, which turns every dev surface off.",
+    );
   }
   return r;
 }
