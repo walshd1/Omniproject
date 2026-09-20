@@ -142,7 +142,9 @@ export function sortRows<T extends Row>(rows: readonly T[], keys: readonly SortK
 
 // ── Filters — the shared predicate set (dates + numbers + ordinals compare the SAME way as the sort) ───────
 export type FilterOp =
-  | "eq" | "ne" | "in" | "nin" | "lt" | "lte" | "gt" | "gte" | "contains" | "truthy" | "falsy"
+  // `startsWith` is the path-scoped prefix match (case-insensitive) — e.g. a nested GTD context
+  // `home/office` matched by prefix `home/`. It is deliberately anchored, unlike `contains`.
+  | "eq" | "ne" | "in" | "nin" | "lt" | "lte" | "gt" | "gte" | "contains" | "startsWith" | "truthy" | "falsy"
   // Array-membership: the field holds a LIST (tags, labels, collaborators). `has` → the list includes the
   // value; `hasnt` → it does not; `hasAny` → the list intersects the value ARRAY. A scalar field is treated
   // as a one-element list, so `has` also works as a case-insensitive equals on a plain field.
@@ -184,6 +186,7 @@ export function evalFilter(p: FilterPredicate, row: Row): boolean {
     case "hasnt": return !memberSet(actual).includes(str(p.value));
     case "hasAny": return Array.isArray(p.value) && p.value.map(str).some((v) => memberSet(actual).includes(v));
     case "contains": return str(actual).toLowerCase().includes(str(p.value).toLowerCase());
+    case "startsWith": return str(actual).toLowerCase().startsWith(str(p.value).toLowerCase());
     case "lt": case "lte": case "gt": case "gte": {
       const a = magnitude(p, actual), b = magnitude(p, p.value);
       if (a === null || b === null) return false;

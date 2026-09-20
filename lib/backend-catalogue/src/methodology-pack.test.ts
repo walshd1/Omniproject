@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { methodologyPack, allMethodologyTags } from "./methodology-pack";
+import { resolveMethodologyDeployment } from "./methodology-deploy";
 import { getMethodology, METHODOLOGIES } from "./methodology-catalogue";
 import { VIEWS } from "./view-catalogue";
 
@@ -24,6 +25,17 @@ test("the pack's ruleset + routes + reports + screens all match the methodology"
   for (const s of pack.screens) assert.ok(s.methodologies?.includes("scrum"));
   // Scrum tags the burndown + velocity reports — they belong in the pack.
   assert.ok(pack.reports.some((r) => r.id === "burndown"));
+});
+
+test("the GTD one-click deploy ships weekly-review + gtd-overview screens and the My Day report (Mindwtr-parity surfaces)", () => {
+  // Screens live in the panel-bearing def catalogue (src/screens), which the DEPLOY unions with the
+  // pack's manifest screens — so the deployment plan, not the raw pack, is the user-facing contract.
+  const plan = resolveMethodologyDeployment("gtd");
+  assert.ok(plan, "gtd deployment plan should resolve");
+  assert.ok(plan.compositionItemIds.includes("screen:weekly-review"), "weekly-review screen must deploy with gtd");
+  assert.ok(plan.compositionItemIds.includes("screen:gtd-overview"));
+  // plan-my-day is tagged ["gtd","*"]: IN the deploy, and still neutral (available everywhere).
+  assert.ok(plan.compositionItemIds.includes("report:plan-my-day"), "plan-my-day must ship in the gtd deploy");
 });
 
 test("allMethodologyTags is the cross-plane derived picker list (every defined methodology + asset tag)", () => {

@@ -52,6 +52,14 @@ const SYNONYMS: Record<string, string> = {
   costcenter: "costCenter",
   parent: "parentTask",
   epiclink: "epic",
+  // MS Project XML (MSPDI) headers — the msproject-xml importer emits these words verbatim.
+  wbs: "wbsCode",
+  outlinenumber: "wbsCode",
+  duration: "estimateHours",
+  percentcomplete: "percentWorkComplete",
+  predecessors: "dependsOn",
+  resource: "assignee",
+  resourcenames: "assignee",
   prio: "priority",
 };
 
