@@ -1891,7 +1891,14 @@ components:
         capacity:
           nullable: true
           allOf: [{ $ref: "#/components/schemas/CapacityTotals" }]
-      required: [projects, health, finance, capacity]
+        availability: { $ref: "#/components/schemas/AvailabilityReport" }
+        staleMs:
+          type: integer
+          description: >-
+            Present ONLY when this roll-up came from the opt-in read cache (READ_CACHE_TTL_MS), giving
+            its age in ms. Absent means live. A stale total is not a wrong total, but it is not a live
+            one either, and the UI should say so.
+      required: [projects, health, finance, capacity, availability]
 
     FinanceLocalTotals:
       type: object
@@ -2013,7 +2020,29 @@ components:
             asOf:
               type: ["string", "null"]
           required: [base, provenance, asOf]
-      required: [reportingCurrency, programmes, portfolio, currencyMix, fx]
+        availability: { $ref: "#/components/schemas/AvailabilityReport" }
+      required: [reportingCurrency, programmes, portfolio, currencyMix, fx, availability]
+
+    AvailabilityReport:
+      type: object
+      description: >-
+        Which sources answered while building a read. `complete: false` means at least one backend did
+        not answer, so every figure summed ACROSS sources is withheld (a total over a subset is wrong,
+        not smaller) and the UI should say "N of M sources reporting". Describes THIS request only —
+        nothing is cached or persisted. See docs/DEGRADED-READS.md.
+      properties:
+        complete: { type: boolean }
+        attempted: { type: integer }
+        answered: { type: integer }
+        unavailable:
+          type: array
+          items:
+            type: object
+            properties:
+              source: { type: string, description: "The source that did not answer, in domain terms (a projectId, a backend key)." }
+              reason: { type: string, description: "A short, already-safe reason — never a raw backend error." }
+            required: [source, reason]
+      required: [complete, attempted, answered, unavailable]
 
     PeerPortfolioResult:
       type: object

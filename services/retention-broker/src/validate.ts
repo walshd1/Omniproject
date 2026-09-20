@@ -25,6 +25,18 @@ function requireString(v: unknown, field: string): string {
   return v;
 }
 
+/** A value that becomes a KEY SEGMENT in the storage layout (`journal/{entity}/{id}/{changedAt}#{txnId}#{field}`).
+ *  Reject the path/field separators and traversal, or a crafted value could collide with, overwrite, or
+ *  escape another entry's key — silent append-log / audit-trail tampering. */
+export function requireKeySegment(v: unknown, field: string): string {
+  const s = requireString(v, field);
+  // eslint-disable-next-line no-control-regex
+  if (/[/\\#]/.test(s) || s.includes("..") || /[\x00-\x1f]/.test(s)) {
+    throw new ValidationError(`${field} must not contain path/segment separators (/, \\, #), "..", or control characters`);
+  }
+  return s;
+}
+
 function requireTimestamp(v: unknown, field: string): string {
   const s = requireString(v, field);
   if (!ISO_8601.test(s) || Number.isNaN(Date.parse(s))) {
@@ -48,14 +60,14 @@ function parseEntry(v: unknown, i: number): HistoryEntry {
   if (typeof v !== "object" || v === null) throw new ValidationError(`entries[${i}] must be an object`);
   const e = v as Record<string, unknown>;
   return {
-    entity: requireString(e["entity"], `entries[${i}].entity`),
-    id: requireString(e["id"], `entries[${i}].id`),
-    field: requireString(e["field"], `entries[${i}].field`),
+    entity: requireKeySegment(e["entity"], `entries[${i}].entity`),
+    id: requireKeySegment(e["id"], `entries[${i}].id`),
+    field: requireKeySegment(e["field"], `entries[${i}].field`),
     oldValue: e["oldValue"],
     newValue: e["newValue"],
     changedAt: requireTimestamp(e["changedAt"], `entries[${i}].changedAt`),
     changedBy: e["changedBy"] == null ? null : requireString(e["changedBy"], `entries[${i}].changedBy`),
-    txnId: requireString(e["txnId"], `entries[${i}].txnId`),
+    txnId: requireKeySegment(e["txnId"], `entries[${i}].txnId`),
   };
 }
 
@@ -76,8 +88,8 @@ export function parseSnapshot(v: unknown): EntitySnapshot {
     throw new ValidationError("snapshot.values must be an object");
   }
   return {
-    entity: requireString(s["entity"], "snapshot.entity"),
-    id: requireString(s["id"], "snapshot.id"),
+    entity: requireKeySegment(s["entity"], "snapshot.entity"),
+    id: requireKeySegment(s["id"], "snapshot.id"),
     asOf: requireTimestamp(s["asOf"], "snapshot.asOf"),
     values: values as Record<string, unknown>,
     provenance: provenance as Provenance,

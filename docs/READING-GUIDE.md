@@ -1,7 +1,7 @@
 # OmniProject — Reading guide ("where do I look to understand X")
 
-> A map from **subsystem → entry-point files**, so a new engineer or auditor can
-> jump straight to the code that matters. For the exhaustive per-function index see
+> A map from **subsystem → entry-point files**, so a new engineer or auditor lands
+> on the code that matters. For the exhaustive per-function index see
 > [FUNCTION-MAP.md](FUNCTION-MAP.md) (generated from source comments, CI-drift-guarded).
 > For the system overview read [ARCHITECTURE.md](ARCHITECTURE.md); for traced request
 > paths read [SEQUENCES.md](SEQUENCES.md). Paths below are clickable.

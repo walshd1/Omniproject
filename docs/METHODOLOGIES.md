@@ -1,7 +1,7 @@
 # Methodology Views
 
 OmniProject presents the same project work through interchangeable **methodology
-views**. The data model is deliberately **methodology-neutral** (status,
+views**. The data model is **methodology-neutral** (status,
 priority, labels, dates, assignee); each view *derives* its concepts (sprints,
 story points, stages, WIP, RAG) from that data, so you can look at one project as
 Kanban, Scrum, PRINCE2, or a Gantt without re-keying anything.

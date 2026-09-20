@@ -1,11 +1,33 @@
 // OmniStore backend — the durable, encrypted, tamper-evident system-of-record adapter below the broker
 // seam (full contract + rationale in the block comment under the imports).
 import { isDone } from "../vocabulary";
-import { BrokerHttpError, type BrokerBackend } from "../reference-broker-blueprint";
+import { BrokerHttpError, type BrokerBackend, type ActorCtx } from "../reference-broker-blueprint";
 import { OmniEventLog, resolveStoreKey, deriveKeys, type OmniLink } from "../builtin/omnistore-log";
 import { omnistoreSupersetCapabilities } from "../../lib/omnistore-homing";
+import { inScope, type Scope, type ScopedResource } from "../../lib/scope";
 
 type Row = Record<string, unknown>;
+
+/** A project Row viewed as a `ScopedResource` for the shared scope helpers (owner / member / programme). */
+function projectAsScoped(r: Row): ScopedResource {
+  return {
+    id: r["id"] as string | undefined,
+    ownerSub: (r["ownerSub"] as string | null | undefined) ?? undefined,
+    memberSubs: r["memberSubs"] as readonly string[] | undefined,
+    programmeId: (r["programmeId"] as string | null | undefined) ?? undefined,
+    programmeIds: r["programmeIds"] as readonly string[] | undefined,
+  };
+}
+
+/** Does the caller's forwarded DATA scope permit this project? A SYSTEM/internal caller (no forwarded
+ *  scope) is unrestricted; a user/programme/guest caller is bounded to what they own / are a member of /
+ *  have a programme grant for. This is the row-level enforcement the seam contract expects a system of
+ *  record to apply (`user` = "only resources they own or are a member of"). */
+function projectVisible(ctx: ActorCtx, project: Row | undefined): boolean {
+  if (!project) return false;
+  const scope = ctx.scope as Scope | undefined;
+  return !scope || inScope(scope, projectAsScoped(project));
+}
 
 /**
  * OmniStore BACKEND — the durable, encrypted, tamper-evident system of record that sits BELOW the
@@ -128,14 +150,34 @@ export function omniStoreBackend(log: OmniEventLog, onCommit?: (sealed: string) 
   };
   const now = () => new Date().toISOString();
 
+  // The project a given issue belongs to (comments/attachments are keyed by issueId only, so scope
+  // enforcement on them has to resolve the owning project first).
+  const projectOfIssue = (issueId: string): Row | undefined => {
+    for (const [pid, list] of state.issues) if (list.some((i) => i["id"] === issueId)) return state.projects.get(pid);
+    return undefined;
+  };
+  // A READ gate: the project row iff the caller may see it, else null → the read returns its empty form and
+  // never leaks another tenant's data. Absent project ⇒ null too (unchanged empty result).
+  const readable = (ctx: ActorCtx, projectId: string): Row | null => {
+    const proj = state.projects.get(projectId);
+    return proj && projectVisible(ctx, proj) ? proj : null;
+  };
+  // A WRITE gate: refuse (403) an out-of-scope target. Absent project is left to the method's own 404/create
+  // semantics (a create for a brand-new id is the caller's own project once stamped with ownerSub).
+  const assertWritable = (ctx: ActorCtx, projectId: string): void => {
+    const proj = state.projects.get(projectId);
+    if (proj && !projectVisible(ctx, proj)) throw new BrokerHttpError(403, { message: "project out of scope" });
+  };
+
   return {
-    // ── Reads ────────────────────────────────────────────────────────────────
-    async listProjects() { return [...state.projects.values()].map((r) => ({ ...r })); },
-    async listIssues(_ctx, projectId) { return (state.issues.get(projectId) ?? []).map((r) => ({ ...r })); },
-    async getIssue(_ctx, projectId, issueId) { return (state.issues.get(projectId) ?? []).find((i) => i["id"] === issueId) ?? null; },
+    // ── Reads (scope-enforced: a caller sees only projects they own / are a member of / have a grant for) ──
+    async listProjects(ctx) { return [...state.projects.values()].filter((r) => projectVisible(ctx, r)).map((r) => ({ ...r })); },
+    async listIssues(ctx, projectId) { return readable(ctx, projectId) ? (state.issues.get(projectId) ?? []).map((r) => ({ ...r })) : []; },
+    async getIssue(ctx, projectId, issueId) { return readable(ctx, projectId) ? (state.issues.get(projectId) ?? []).find((i) => i["id"] === issueId) ?? null : null; },
     async listProjectMembers() { return []; },
     async listTaskItems(_ctx, _projectId, taskId) { return (state.taskItems.get(taskId) ?? []).map((r) => ({ ...r })); },
-    async projectSummary(_ctx, projectId) {
+    async projectSummary(ctx, projectId) {
+      if (!readable(ctx, projectId)) return { projectId, total: 0, completed: 0, overdue: 0, byStatus: {}, completionPct: 0 };
       const issues = state.issues.get(projectId) ?? [];
       const completed = issues.filter((i) => isDone(String(i["status"]))).length;
       return { projectId, total: issues.length, completed, overdue: 0, byStatus: {}, completionPct: issues.length ? Math.round((completed / issues.length) * 100) : 0 };
@@ -144,9 +186,9 @@ export function omniStoreBackend(log: OmniEventLog, onCommit?: (sealed: string) 
     // any such FIELDS written onto a project/issue are preserved in its stored Row (the superset).
     async projectHistory() { return []; },
     async baseline() { return null; },
-    async raid(_ctx, projectId) { return (state.raid.get(projectId) ?? []).map((r) => ({ ...r })); },
-    async portfolioHealth() {
-      return [...state.projects.values()].map((proj) => {
+    async raid(ctx, projectId) { return readable(ctx, projectId) ? (state.raid.get(projectId) ?? []).map((r) => ({ ...r })) : []; },
+    async portfolioHealth(ctx) {
+      return [...state.projects.values()].filter((proj) => projectVisible(ctx, proj)).map((proj) => {
         const issues = state.issues.get(String(proj["id"])) ?? [];
         const completed = issues.filter((i) => isDone(String(i["status"]))).length;
         return { projectId: proj["id"], name: proj["name"], total: issues.length, completed, rag: "green" };
@@ -161,24 +203,29 @@ export function omniStoreBackend(log: OmniEventLog, onCommit?: (sealed: string) 
     async activity() { return []; },
 
     // ── Writes (store the WHOLE Row — superset) ──────────────────────────────
-    async createProject(_ctx, input) {
+    async createProject(ctx, input) {
       const id = `proj-${state.seq.project + 1}`;
-      const row: Row = { ...input, id, source: "omnistore", issueCount: 0, completedCount: 0, createdAt: now(), updatedAt: now() };
+      // Stamp ownership so the creator (and anyone in memberSubs) can see it under user-level scope. `input`
+      // may pre-set ownerSub/memberSubs (e.g. an admin creating on someone's behalf); default owner = creator.
+      const row: Row = { ...input, id, ownerSub: input["ownerSub"] ?? ctx.sub ?? null, source: "omnistore", issueCount: 0, completedCount: 0, createdAt: now(), updatedAt: now() };
       commit("project.create", { row });
       return { ...row };
     },
-    async updateProject(_ctx, projectId, input) {
+    async updateProject(ctx, projectId, input) {
       if (!state.projects.has(projectId)) throw new BrokerHttpError(404);
+      assertWritable(ctx, projectId);
       commit("project.update", { id: projectId, patch: { ...input } });
       return { ...state.projects.get(projectId)! };
     },
-    async createIssue(_ctx, projectId, input) {
+    async createIssue(ctx, projectId, input) {
+      assertWritable(ctx, projectId);
       const id = `iss-${state.seq.issue + 1}`;
       const row: Row = { ...input, id, projectId, status: input["status"] ?? "todo", version: 1, source: "omnistore", createdAt: now(), updatedAt: now() };
       commit("issue.create", { row });
       return { ...row };
     },
-    async updateIssue(_ctx, projectId, issueId, input) {
+    async updateIssue(ctx, projectId, issueId, input) {
+      assertWritable(ctx, projectId);
       const issue = (state.issues.get(projectId) ?? []).find((i) => i["id"] === issueId);
       if (!issue) throw new BrokerHttpError(404);
       const current = (issue["version"] as number) ?? 1;
@@ -188,11 +235,13 @@ export function omniStoreBackend(log: OmniEventLog, onCommit?: (sealed: string) 
       commit("issue.update", { projectId, issueId, patch: { ...patch, version: current + 1 } });
       return { ...(state.issues.get(projectId) ?? []).find((i) => i["id"] === issueId)! };
     },
-    async deleteIssue(_ctx, projectId, issueId) {
+    async deleteIssue(ctx, projectId, issueId) {
+      assertWritable(ctx, projectId);
       commit("issue.delete", { projectId, issueId });
       return null;
     },
-    async createRaidEntry(_ctx, projectId, input) {
+    async createRaidEntry(ctx, projectId, input) {
+      assertWritable(ctx, projectId);
       const id = `raid-${state.seq.raid + 1}`;
       const row: Row = { ...input, id, projectId, provenance: "sourced", createdAt: now(), updatedAt: now() };
       commit("raid.add", { row });
@@ -208,8 +257,14 @@ export function omniStoreBackend(log: OmniEventLog, onCommit?: (sealed: string) 
     // ── Comments (Jira-class first-class collaboration entity) ────────────────
     // Kept as their OWN event-sourced thread keyed by issueId — not folded into an issue Row — so the
     // thread is append-only, individually addressable, and survives replay like every other entity.
-    async listTaskComments(_ctx, issueId) { return (state.comments.get(issueId) ?? []).map((r) => ({ ...r })); },
+    async listTaskComments(ctx, issueId) {
+      const proj = projectOfIssue(issueId);
+      if (proj && !projectVisible(ctx, proj)) return [];
+      return (state.comments.get(issueId) ?? []).map((r) => ({ ...r }));
+    },
     async addTaskComment(ctx, issueId, input) {
+      const proj = projectOfIssue(issueId);
+      if (proj && !projectVisible(ctx, proj)) throw new BrokerHttpError(403, { message: "issue out of scope" });
       const id = `cmt-${state.seq.comment + 1}`;
       // Store the WHOLE input Row (superset), then stamp the fields the store owns. `author` defaults to
       // the forwarded actor so a comment is attributable even when the caller doesn't supply one.
@@ -222,8 +277,14 @@ export function omniStoreBackend(log: OmniEventLog, onCommit?: (sealed: string) 
     // OmniStore stores a POINTER to where the file lives (filename/url/contentType/size), never the
     // bytes. `filename` is required; any raw content is dropped so the encrypted log can't become a blob
     // store — the zero-at-rest guarantee holds even for a first-party backend.
-    async listTaskAttachments(_ctx, issueId) { return (state.attachments.get(issueId) ?? []).map((r) => ({ ...r })); },
+    async listTaskAttachments(ctx, issueId) {
+      const proj = projectOfIssue(issueId);
+      if (proj && !projectVisible(ctx, proj)) return [];
+      return (state.attachments.get(issueId) ?? []).map((r) => ({ ...r }));
+    },
     async addTaskAttachment(ctx, issueId, input) {
+      const proj = projectOfIssue(issueId);
+      if (proj && !projectVisible(ctx, proj)) throw new BrokerHttpError(403, { message: "issue out of scope" });
       const filename = String(input["filename"] ?? "").trim();
       if (!filename) throw new BrokerHttpError(400, { message: "addTaskAttachment requires a filename" });
       const id = `att-${state.seq.attachment + 1}`;

@@ -3,13 +3,13 @@
 OmniProject is a **stateless program-management overlay**. It owns no system of
 record: every project/issue read and write is brokered through the broker (n8n by
 default) to the backends (OpenProject, Plane, Jira, …), and identity is delegated
-to your OIDC provider. That architecture keeps the attack surface small — but the
+to your OIDC provider. That architecture keeps the attack surface small. The
 gateway is still the front door, so this document records the controls in place
 and the review that backs them.
 
 > **We invite independent code audit and penetration testing.** The code is
-> deliberately human-readable (see [docs/FUNCTION-MAP.md](docs/FUNCTION-MAP.md) for
-> a map of every file and function) precisely so it can be reviewed. Read the
+> human-readable (see [docs/FUNCTION-MAP.md](docs/FUNCTION-MAP.md) for
+> a map of every file and function) so you can review it. Read the
 > [rules of engagement](#inviting-audit--penetration-testing) below before you
 > start, then report findings via a private advisory.
 
@@ -50,7 +50,7 @@ Browser ──TLS──> omni-shell gateway ──TLS──> n8n ──> backend
 - **RBAC is defence-in-depth, not the sole control.** The gateway gate improves
   UX and blocks obvious misuse, but the backend systems of record remain the
   authoritative authorization point because the user's own token is forwarded.
-  Do **not** rely on the gateway role alone for sensitive backends — configure
+  Do **not** rely on the gateway role alone for sensitive backends. Configure
   backend permissions too.
 - **Optimistic concurrency** is enforced locally in demo mode and delegated to
   the backend (e.g. OpenProject `lockVersion`) when wired; the gateway now

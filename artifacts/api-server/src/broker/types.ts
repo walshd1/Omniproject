@@ -738,6 +738,24 @@ export interface Broker {
   portfolioHealth(ctx: ActorContext): Promise<PortfolioRow[]>;
   resourceCapacity(ctx: ActorContext, projectId: string): Promise<Row[]>;
   projectFinancials(ctx: ActorContext, projectId: string): Promise<Row>;
+  /**
+   * OPTIONAL BULK READS — the portfolio roll-up in ONE call instead of one per project.
+   *
+   * `portfolioHealth` above is already shaped this way; finance and capacity were not, so a portfolio
+   * summary issues one broker call PER PROJECT, bounded to 10 concurrent. That is O(projects) round
+   * trips: measured, 3,000 projects at a 50ms backend hop takes 15s for a single view, and it grows
+   * linearly (≈150s at 30,000). Backends are good at aggregation — a JQL query, an OpenProject filter,
+   * one SAP aggregate — so asking once beats asking thirty thousand times.
+   *
+   * Implement them when the backend can aggregate; OMIT them and the gateway transparently falls back
+   * to the per-project fan-out, so every existing adapter keeps working unchanged. Each row should
+   * carry the project id (`projectId`) so the gateway can attribute it.
+   *
+   * They are reads of the same data the per-project calls return — no new data crosses the seam, and
+   * nothing is cached or persisted as a result.
+   */
+  portfolioFinancials?(ctx: ActorContext): Promise<Row[]>;
+  portfolioCapacity?(ctx: ActorContext): Promise<Row[]>;
   capabilities(ctx: ActorContext): Promise<CapabilityFlags>;
   /**
    * Optional finer-grained field/entity support. When a broker provides it, it

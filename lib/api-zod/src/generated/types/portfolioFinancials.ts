@@ -5,6 +5,7 @@
  * OmniProject API — the stable, broker-agnostic consumer (northbound) API. It surfaces projects, issues, programmes, reports and admin operations above the swappable broker seam, so it stays the same regardless of which broker reaches your backends. The southbound broker contract a broker must implement is published separately at GET /api/contract.
  * OpenAPI spec version: 0.1.0
  */
+import type { AvailabilityReport } from './availabilityReport';
 import type { CurrencyMix } from './currencyMix';
 import type { FinanceRollup } from './financeRollup';
 import type { PortfolioFinancialsFx } from './portfolioFinancialsFx';
@@ -18,4 +19,5 @@ export interface PortfolioFinancials {
   portfolio: FinanceRollup;
   currencyMix: CurrencyMix[];
   fx: PortfolioFinancialsFx;
+  availability: AvailabilityReport;
 }

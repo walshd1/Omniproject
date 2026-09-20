@@ -886,7 +886,17 @@ export const GetPortfolioSummaryResponse = zod.object({
   "assignedHours": zod.number(),
   "availableHours": zod.number(),
   "utilisation": zod.number().nullable()
-}).describe('The portfolio-total row of the capacity roll-up (see artifacts\/omniproject\/src\/lib\/capacity-rollup.ts CapacityRollup) — programme\/project breakdown is deliberately dropped for federation.').nullable()
+}).describe('The portfolio-total row of the capacity roll-up (see artifacts\/omniproject\/src\/lib\/capacity-rollup.ts CapacityRollup) — programme\/project breakdown is deliberately dropped for federation.').nullable(),
+  "availability": zod.object({
+  "complete": zod.boolean(),
+  "attempted": zod.number(),
+  "answered": zod.number(),
+  "unavailable": zod.array(zod.object({
+  "source": zod.string().describe('The source that did not answer, in domain terms (a projectId, a backend key).'),
+  "reason": zod.string().describe('A short, already-safe reason — never a raw backend error.')
+}))
+}).describe('Which sources answered while building a read. `complete: false` means at least one backend did not answer, so every figure summed ACROSS sources is withheld (a total over a subset is wrong, not smaller) and the UI should say \"N of M sources reporting\". Describes THIS request only — nothing is cached or persisted. See docs\/DEGRADED-READS.md.'),
+  "staleMs": zod.number().optional().describe('Present ONLY when this roll-up came from the opt-in read cache (READ_CACHE_TTL_MS), giving its age in ms. Absent means live. A stale total is not a wrong total, but it is not a live one either, and the UI should say so.')
 }).describe('The ONE aggregate shape allowed to cross an instance boundary for federation (backlog #135). Every field is a portfolio-level total or count — never a project\/programme id or name. A section is null when the connected backend doesn\'t declare the matching capability.')
 
 
@@ -1000,7 +1010,16 @@ export const GetPortfolioFinancialsResponse = zod.object({
   "base": zod.string(),
   "provenance": zod.string().nullable(),
   "asOf": zod.string().nullable()
-}).nullable()
+}).nullable(),
+  "availability": zod.object({
+  "complete": zod.boolean(),
+  "attempted": zod.number(),
+  "answered": zod.number(),
+  "unavailable": zod.array(zod.object({
+  "source": zod.string().describe('The source that did not answer, in domain terms (a projectId, a backend key).'),
+  "reason": zod.string().describe('A short, already-safe reason — never a raw backend error.')
+}))
+}).describe('Which sources answered while building a read. `complete: false` means at least one backend did not answer, so every figure summed ACROSS sources is withheld (a total over a subset is wrong, not smaller) and the UI should say \"N of M sources reporting\". Describes THIS request only — nothing is cached or persisted. See docs\/DEGRADED-READS.md.')
 }).describe('Portfolio financials consolidated into one reporting currency, rolled up by programme.')
 
 
@@ -1042,7 +1061,17 @@ export const GetFederatedPortfolioResponse = zod.object({
   "assignedHours": zod.number(),
   "availableHours": zod.number(),
   "utilisation": zod.number().nullable()
-}).describe('The portfolio-total row of the capacity roll-up (see artifacts\/omniproject\/src\/lib\/capacity-rollup.ts CapacityRollup) — programme\/project breakdown is deliberately dropped for federation.').nullable()
+}).describe('The portfolio-total row of the capacity roll-up (see artifacts\/omniproject\/src\/lib\/capacity-rollup.ts CapacityRollup) — programme\/project breakdown is deliberately dropped for federation.').nullable(),
+  "availability": zod.object({
+  "complete": zod.boolean(),
+  "attempted": zod.number(),
+  "answered": zod.number(),
+  "unavailable": zod.array(zod.object({
+  "source": zod.string().describe('The source that did not answer, in domain terms (a projectId, a backend key).'),
+  "reason": zod.string().describe('A short, already-safe reason — never a raw backend error.')
+}))
+}).describe('Which sources answered while building a read. `complete: false` means at least one backend did not answer, so every figure summed ACROSS sources is withheld (a total over a subset is wrong, not smaller) and the UI should say \"N of M sources reporting\". Describes THIS request only — nothing is cached or persisted. See docs\/DEGRADED-READS.md.'),
+  "staleMs": zod.number().optional().describe('Present ONLY when this roll-up came from the opt-in read cache (READ_CACHE_TTL_MS), giving its age in ms. Absent means live. A stale total is not a wrong total, but it is not a live one either, and the UI should say so.')
 }).describe('The ONE aggregate shape allowed to cross an instance boundary for federation (backlog #135). Every field is a portfolio-level total or count — never a project\/programme id or name. A section is null when the connected backend doesn\'t declare the matching capability.')
 }),
   "peers": zod.array(zod.object({
@@ -1079,7 +1108,17 @@ export const GetFederatedPortfolioResponse = zod.object({
   "assignedHours": zod.number(),
   "availableHours": zod.number(),
   "utilisation": zod.number().nullable()
-}).describe('The portfolio-total row of the capacity roll-up (see artifacts\/omniproject\/src\/lib\/capacity-rollup.ts CapacityRollup) — programme\/project breakdown is deliberately dropped for federation.').nullable()
+}).describe('The portfolio-total row of the capacity roll-up (see artifacts\/omniproject\/src\/lib\/capacity-rollup.ts CapacityRollup) — programme\/project breakdown is deliberately dropped for federation.').nullable(),
+  "availability": zod.object({
+  "complete": zod.boolean(),
+  "attempted": zod.number(),
+  "answered": zod.number(),
+  "unavailable": zod.array(zod.object({
+  "source": zod.string().describe('The source that did not answer, in domain terms (a projectId, a backend key).'),
+  "reason": zod.string().describe('A short, already-safe reason — never a raw backend error.')
+}))
+}).describe('Which sources answered while building a read. `complete: false` means at least one backend did not answer, so every figure summed ACROSS sources is withheld (a total over a subset is wrong, not smaller) and the UI should say \"N of M sources reporting\". Describes THIS request only — nothing is cached or persisted. See docs\/DEGRADED-READS.md.'),
+  "staleMs": zod.number().optional().describe('Present ONLY when this roll-up came from the opt-in read cache (READ_CACHE_TTL_MS), giving its age in ms. Absent means live. A stale total is not a wrong total, but it is not a live one either, and the UI should say so.')
 }).describe('The ONE aggregate shape allowed to cross an instance boundary for federation (backlog #135). Every field is a portfolio-level total or count — never a project\/programme id or name. A section is null when the connected backend doesn\'t declare the matching capability.').nullable(),
   "error": zod.string().optional(),
   "ms": zod.number()

@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import type { PortfolioRow } from "../broker";
-import { summarizeHealth, foldFinance, foldCapacity, portfolioSummaryCacheKey } from "./portfolio-summary";
+import { summarizeHealth, foldFinance, foldCapacity, portfolioSummaryCacheKey, alignToProjects, fanoutWouldExceedCeiling } from "./portfolio-summary";
 
 type CacheKeyCtx = Parameters<typeof portfolioSummaryCacheKey>[0];
 type CacheKeySettings = Parameters<typeof portfolioSummaryCacheKey>[1];
@@ -143,4 +143,53 @@ test("cache key: switching reporting currency changes the key (no wrong-currency
     portfolioSummaryCacheKey(ctx, settings({ reportingCurrency: "GBP" })),
     portfolioSummaryCacheKey(ctx, settings({ reportingCurrency: "USD" })),
   );
+});
+
+// ── Bulk portfolio reads (the O(1) path) ────────────────────────────────────────────────────────────
+test("alignToProjects: lines bulk rows up with the project list by projectId", () => {
+  const projects = [{ id: "p-1" }, { id: "p-2" }, { id: "p-3" }] as Parameters<typeof alignToProjects>[1];
+  const rows = [{ projectId: "p-3", budget: 30 }, { projectId: "p-1", budget: 10 }];
+  const aligned = alignToProjects(rows, projects);
+  assert.equal(aligned.length, 3, "one slot per project, in project order");
+  assert.equal(aligned[0]?.["budget"], 10);
+  assert.equal(aligned[1], null, "a project the bulk read OMITTED is null, not a silent gap");
+  assert.equal(aligned[2]?.["budget"], 30);
+});
+
+test("alignToProjects: a bulk read that omits projects reads as INCOMPLETE, not as a smaller portfolio", () => {
+  // This is the failure mode that matters: a backend aggregate that quietly returns fewer rows than
+  // there are projects must not produce a confident total over the subset. Nulls here become
+  // droppedCalls upstream, which withholds the total.
+  const projects = [{ id: "p-1" }, { id: "p-2" }] as Parameters<typeof alignToProjects>[1];
+  assert.deepEqual(alignToProjects([], projects), [null, null]);
+});
+
+test("alignToProjects: falls back to `id` and ignores duplicate rows for one project", () => {
+  const projects = [{ id: "p-1" }] as Parameters<typeof alignToProjects>[1];
+  assert.equal(alignToProjects([{ id: "p-1", budget: 7 }], projects)[0]?.["budget"], 7);
+  assert.equal(alignToProjects([{ projectId: "p-1", budget: 1 }, { projectId: "p-1", budget: 2 }], projects)[0]?.["budget"], 1, "first row wins, deterministically");
+});
+
+test("bulk reads must be scope-filtered: alignToProjects drops rows for projects the caller can't see", () => {
+  // The bulk reads take no projectId, so the seam's scope guard (PROJECT_ID_AT_ARG1) does not cover
+  // them. Attribution to the VISIBLE project list is what keeps another programme's rows out of a
+  // scoped user's totals — the per-project path got this for free by only asking for what it could see.
+  const visible = [{ id: "p-1" }] as Parameters<typeof alignToProjects>[1];
+  const bulkFromBackend = [
+    { projectId: "p-1", budget: 10 },
+    { projectId: "p-OTHER-PROGRAMME", budget: 999999 },
+  ];
+  const aligned = alignToProjects(bulkFromBackend, visible);
+  assert.equal(aligned.length, 1, "only the visible project has a slot");
+  assert.equal(aligned[0]?.["budget"], 10);
+  assert.ok(!aligned.some((r) => r?.["budget"] === 999999), "an out-of-scope row never reaches the fold");
+});
+
+test("fanoutWouldExceedCeiling: refuses a fan-out that would take minutes rather than attempting it", () => {
+  // Default ceiling is 500. Below it the per-project fallback runs; above it the totals are refused
+  // outright, because a 30k-project fan-out is ~150s of wall clock and 30k calls landed on a backend.
+  assert.equal(fanoutWouldExceedCeiling(1), false);
+  assert.equal(fanoutWouldExceedCeiling(500), false, "the ceiling itself is allowed");
+  assert.equal(fanoutWouldExceedCeiling(501), true);
+  assert.equal(fanoutWouldExceedCeiling(30_000), true);
 });

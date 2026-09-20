@@ -136,6 +136,23 @@ test("redactSettingsForRead: masks federated-peer tokens (never leaked over GET)
   assert.equal(redacted.federatedPeers[0]!.baseUrl, "https://eu.omni.example"); // non-secret fields preserved
 });
 
+test("redactSettingsForRead: strips per-project/per-user data (served only via scoped endpoints)", () => {
+  // These four are per-project financials/staffing PII and per-user records. GET /settings is readable by
+  // any authenticated session, so returning them here leaked every project's/user's data cross-scope —
+  // they must come back empty and be fetched only via their own scope-filtering endpoints.
+  const redacted = redactSettingsForRead({
+    ...getSettings(),
+    budgetPlans: [{ projectId: "P2", currency: "GBP", budget: 9_999_999 }] as never,
+    resourceAllocations: [{ projectId: "P2", person: "Jane", hoursPerWeek: 40 }] as never,
+    userPrefs: { "sub-123": { highContrast: true } } as never,
+    calendarPush: { "sub-123": { enabled: true } } as never,
+  });
+  assert.deepEqual(redacted.budgetPlans, []);
+  assert.deepEqual(redacted.resourceAllocations, []);
+  assert.deepEqual(redacted.userPrefs, {});
+  assert.deepEqual(redacted.calendarPush, {});
+});
+
 // NB branding + labelOverrides are no longer settings keys — they're `branding`/`label-overrides` config defs
 // (see lib/branding, lib/labels). The bulk PATCH can no longer set them; the font-stack / catalogue guards are
 // applied by saveBranding/saveLabels on write AND defensively on read (orgBranding/orgLabels), covered by

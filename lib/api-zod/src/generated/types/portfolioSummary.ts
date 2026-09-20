@@ -5,6 +5,7 @@
  * OmniProject API — the stable, broker-agnostic consumer (northbound) API. It surfaces projects, issues, programmes, reports and admin operations above the swappable broker seam, so it stays the same regardless of which broker reaches your backends. The southbound broker contract a broker must implement is published separately at GET /api/contract.
  * OpenAPI spec version: 0.1.0
  */
+import type { AvailabilityReport } from './availabilityReport';
 import type { CapacityTotals } from './capacityTotals';
 import type { FinanceTotals } from './financeTotals';
 import type { HealthTotals } from './healthTotals';
@@ -17,4 +18,7 @@ export interface PortfolioSummary {
   health: HealthTotals | null;
   finance: FinanceTotals | null;
   capacity: CapacityTotals | null;
+  availability: AvailabilityReport;
+  /** Present ONLY when this roll-up came from the opt-in read cache (READ_CACHE_TTL_MS), giving its age in ms. Absent means live. A stale total is not a wrong total, but it is not a live one either, and the UI should say so. */
+  staleMs?: number;
 }

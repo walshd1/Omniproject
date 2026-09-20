@@ -35,6 +35,10 @@ export interface ActorCtx {
   token?: string | undefined;
   sub?: string | undefined;
   role?: string | undefined;
+  /** The verified DATA scope (level + owned programmes + sub), forwarded in the signed userContext so a
+   *  system-of-record backend can enforce per-user/per-programme access. Opaque here (kept dependency-free);
+   *  a backend interprets it — e.g. OmniStore casts it to the gateway's `Scope` and calls `inScope`. */
+  scope?: Record<string, unknown> | undefined;
   /** Backend routing hint (which system of record), from the `source` field. */
   source?: string | undefined;
   /** Dedup token — a provider MAY use it to collapse duplicate triggers. */
@@ -305,6 +309,7 @@ export async function processBrokerCall(input: BrokerCoreInput, be: BrokerBacken
     token: (userContext?.["token"] as string | undefined) ?? authHeader?.replace(/^Bearer\s+/i, ""),
     sub: userContext?.["sub"] as string | undefined,
     role: userContext?.["role"] as string | undefined,
+    scope: userContext?.["scope"] as Record<string, unknown> | undefined,
     source: body["source"] as string | undefined,
     idempotencyKey: body["idempotencyKey"] as string | undefined,
     origin: body["origin"] as string | undefined,

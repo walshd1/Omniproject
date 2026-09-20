@@ -887,6 +887,23 @@ export interface CapacityTotals {
   utilisation: number | null;
 }
 
+export type AvailabilityReportUnavailableItem = {
+  /** The source that did not answer, in domain terms (a projectId, a backend key). */
+  source: string;
+  /** A short, already-safe reason — never a raw backend error. */
+  reason: string;
+};
+
+/**
+ * Which sources answered while building a read. `complete: false` means at least one backend did not answer, so every figure summed ACROSS sources is withheld (a total over a subset is wrong, not smaller) and the UI should say "N of M sources reporting". Describes THIS request only — nothing is cached or persisted. See docs/DEGRADED-READS.md.
+ */
+export interface AvailabilityReport {
+  complete: boolean;
+  attempted: number;
+  answered: number;
+  unavailable: AvailabilityReportUnavailableItem[];
+}
+
 /**
  * The ONE aggregate shape allowed to cross an instance boundary for federation (backlog #135). Every field is a portfolio-level total or count — never a project/programme id or name. A section is null when the connected backend doesn't declare the matching capability.
  */
@@ -895,6 +912,9 @@ export interface PortfolioSummary {
   health: HealthTotals | null;
   finance: FinanceTotals | null;
   capacity: CapacityTotals | null;
+  availability: AvailabilityReport;
+  /** Present ONLY when this roll-up came from the opt-in read cache (READ_CACHE_TTL_MS), giving its age in ms. Absent means live. A stale total is not a wrong total, but it is not a live one either, and the UI should say so. */
+  staleMs?: number;
 }
 
 /**
@@ -1011,6 +1031,7 @@ export interface PortfolioFinancials {
   portfolio: FinanceRollup;
   currencyMix: CurrencyMix[];
   fx: PortfolioFinancialsFx;
+  availability: AvailabilityReport;
 }
 
 export type PeerPortfolioResultStatus = typeof PeerPortfolioResultStatus[keyof typeof PeerPortfolioResultStatus];

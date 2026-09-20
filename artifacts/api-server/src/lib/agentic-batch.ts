@@ -96,6 +96,14 @@ export function validateBatchPlan(raw: unknown): AgenticBatchPlan {
     for (const k of Object.keys(params as Record<string, unknown>)) {
       if (isForbiddenKey(k)) throw new BatchPlanError(`batch action "${kind}" has a forbidden param key`);
     }
+    // Bind each action to the DECLARED scope. The JIT grant's projects are derived from action params, so
+    // without this a "project P1" plan could carry actions targeting P2 and the grant would silently admit
+    // P2 — the grant could never exceed the plan because it is generated FROM it. Fail closed: an action may
+    // not name a project outside a project-scoped batch (an org-scoped batch is intentionally cross-project).
+    const pid = (params as Record<string, unknown>)["projectId"];
+    if (scope.kind === "project" && typeof pid === "string" && pid.trim() && pid.trim() !== scope.projectId) {
+      throw new BatchPlanError(`batch action "${kind}" targets project "${pid.trim()}" outside the declared batch scope "${scope.projectId}"`);
+    }
     return { kind, params: params as Record<string, unknown> };
   });
 

@@ -23,8 +23,8 @@ import { validateCustomFieldDef } from "./custom-fields";
 import { validatePrimitiveDef, primitiveSafetyErrors, shippedDefRefs, shippedDefs, extendsLineage, composeExtends, composedConstraintErrors, kindRootConstraints, kindElementErrors, validateFormFields } from "@workspace/backend-catalogue";
 
 /** A user-definable JSON kind the importer accepts. */
-export type DefKind = "primitive" | "screen" | "form" | "report" | "dashboard" | "businessRule" | "methodology" | "mapping" | "customField" | "theme" | "font" | "config" | "jsonDef";
-export const DEF_KINDS: readonly DefKind[] = ["primitive", "screen", "form", "report", "dashboard", "businessRule", "methodology", "mapping", "customField", "theme", "font", "config", "jsonDef"];
+export type DefKind = "primitive" | "screen" | "form" | "report" | "dashboard" | "gridColumns" | "businessRule" | "methodology" | "mapping" | "customField" | "theme" | "font" | "config" | "jsonDef";
+export const DEF_KINDS: readonly DefKind[] = ["primitive", "screen", "form", "report", "dashboard", "gridColumns", "businessRule", "methodology", "mapping", "customField", "theme", "font", "config", "jsonDef"];
 
 /**
  * VENDOR-CONTROLLED kinds — WE control these; an org composes recipes FROM them but can never adjust them. They
@@ -131,6 +131,7 @@ function validateDefByKind(kind: DefKind, payload: unknown): DefValidation {
     }
     case "report": return structural(payload, ["id"]);
     case "dashboard": return validateDashboardDef(payload);
+    case "gridColumns": return validateGridColumnsDef(payload);
     case "businessRule": return structural(payload, ["id"]);
     case "methodology": return structural(payload, ["id", "label"]);
     case "mapping": return fromThrowing(() => sanitizeMapping(payload));
@@ -156,6 +157,31 @@ function validateDashboardDef(payload: unknown): DefValidation {
     const o = w as Record<string, unknown>;
     if (typeof o["id"] !== "string" || !o["id"].trim()) errors.push(`widgets[${i}].id is required`);
     if (typeof o["type"] !== "string" || !o["type"].trim()) errors.push(`widgets[${i}].type is required`);
+  });
+  return errors.length ? { ok: false, errors } : { ok: true, errors: [], value: payload };
+}
+
+/** The grid's cell renderers — the closed set a grid-columns def may name for a column `type`. Mirrors the
+ *  `ColType` union in the SPA's `components/grid/IssueGrid`. */
+const GRID_COLUMN_TYPES: ReadonlySet<string> = new Set(["text", "status", "priority", "date", "number"]);
+
+/** A GRID-COLUMNS def: an `id` + a non-empty `columns` array, each `{ field, label, type }` — the exact shape
+ *  the editable `IssueGrid` renders (roadmap X.7). The def IS the ordered column catalogue: it lists WHICH
+ *  advertised fields to show/edit and in what order, never issue data (the stateless-lens invariant). `field`
+ *  is a canonical field key — intersected with backend availability at render, so a column naming a field the
+ *  backend doesn't advertise is simply hidden, never surfaced. `type` must be one of the grid's cell renderers. */
+function validateGridColumnsDef(payload: unknown): DefValidation {
+  const base = structural(payload, ["id"]);
+  if (!base.ok) return base;
+  const columns = (payload as Record<string, unknown>)["columns"];
+  if (!Array.isArray(columns) || columns.length === 0) return { ok: false, errors: ["columns must be a non-empty array"] };
+  const errors: string[] = [];
+  columns.forEach((c, i) => {
+    if (!c || typeof c !== "object" || Array.isArray(c)) { errors.push(`columns[${i}] must be an object`); return; }
+    const o = c as Record<string, unknown>;
+    if (typeof o["field"] !== "string" || !o["field"].trim()) errors.push(`columns[${i}].field is required`);
+    if (typeof o["label"] !== "string" || !o["label"].trim()) errors.push(`columns[${i}].label is required`);
+    if (typeof o["type"] !== "string" || !GRID_COLUMN_TYPES.has(o["type"])) errors.push(`columns[${i}].type must be one of ${[...GRID_COLUMN_TYPES].join(", ")}`);
   });
   return errors.length ? { ok: false, errors } : { ok: true, errors: [], value: payload };
 }

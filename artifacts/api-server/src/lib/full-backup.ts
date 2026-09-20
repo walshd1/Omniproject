@@ -66,7 +66,11 @@ export function splitFullBackup(input: unknown): { settings: unknown; defStore: 
   if (!input || typeof input !== "object") throw new Error("backup must be a JSON object");
   const b = input as Partial<FullBackup>;
   if (b.schema !== FULL_BACKUP_SCHEMA) throw new Error(`unrecognised backup schema: ${String(b.schema)}`);
-  return { settings: b.settings, defStore: b.defStore, stores: b.stores };
+  // Deliberately DROP `stores`: the extra sensitive stores (ai-provider egress URLs, the tamper-evident
+  // audit chain + log, rate-card) ride ONLY the sealed backup and are surfaced by openSealedFullBackup.
+  // A plaintext envelope is attacker-authorable, so honouring a hand-crafted `stores` here let it reset the
+  // audit chain / inject AI-provider egress on a plaintext restore. Plaintext restores carry no stores.
+  return { settings: b.settings, defStore: b.defStore };
 }
 
 /** Apply the extra sealed stores (ai-providers + rate-card) from a decrypted sealed backup. Each importer
@@ -145,5 +149,10 @@ export function openSealedFullBackup(input: unknown): { settings: unknown; defSt
   // Hardened parse (prototype-pollution safe) even though the AES-GCM tag already authenticated the plaintext.
   try { parsed = safeParseJson(plaintext); }
   catch { throw new SealedBackupError("decrypted backup was not valid JSON"); }
-  return splitFullBackup(parsed);
+  // `splitFullBackup` drops `stores` because a PLAINTEXT envelope is attacker-authorable. This payload
+  // is different in kind: it came out of `openConfig`, so AES-GCM has already authenticated it with the
+  // deployment's own key and nobody could have authored it. Re-attach the stores here — this is the one
+  // path allowed to surface them, and without it a sealed restore silently loses the ai-providers,
+  // rate-card, audit-chain head and audit evidence log it was carrying.
+  return { ...splitFullBackup(parsed), stores: (parsed as Partial<FullBackup>).stores };
 }

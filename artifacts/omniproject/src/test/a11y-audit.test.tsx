@@ -9,6 +9,9 @@ import { AdminSection } from "../components/settings/AdminSection";
 import { StatTile } from "../components/tiles/StatTile";
 import { Badge } from "../components/tiles/Badge";
 import { DataQualityBadge } from "../components/DataQualityBadge";
+import { SourceAvailabilityBadge } from "../components/SourceAvailabilityBadge";
+import { SourcesUnavailableNotice } from "../components/SourcesUnavailableNotice";
+import { useSourceAvailability } from "../lib/source-availability";
 import { useDataQuality } from "../lib/data-quality";
 import { Boxes } from "lucide-react";
 
@@ -86,6 +89,23 @@ describe("WCAG 2.2 A/AA automated audit", () => {
     const { container } = renderWithProviders(<DataQualityBadge />);
     await expectNoAxe(container);
     useDataQuality.setState({ everRepaired: false, lastRepaired: 0 });
+  });
+
+  it("SourceAvailabilityBadge (live-region status)", async () => {
+    useSourceAvailability.setState({ unavailable: 2, at: Date.now() });
+    const { container } = renderWithProviders(<SourceAvailabilityBadge />);
+    await expectNoAxe(container);
+    useSourceAvailability.setState({ unavailable: 0, at: null });
+  });
+
+  it("SourcesUnavailableNotice (degraded-read explanation)", async () => {
+    const { container } = renderWithProviders(
+      <SourcesUnavailableNotice
+        availability={{ complete: false, attempted: 4, answered: 3, unavailable: [{ source: "project:p-2", reason: "financials read failed" }] }}
+        staleMs={45_000}
+      />,
+    );
+    await expectNoAxe(container);
   });
 
   it("labelled native select (form control)", async () => {

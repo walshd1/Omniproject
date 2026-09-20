@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { SourcesUnavailableNotice } from "../SourcesUnavailableNotice";
 import { ReportEmpty } from "./ReportEmpty";
 import { useT } from "../../lib/i18n";
 import { DataState } from "../DataState";
@@ -50,10 +51,16 @@ export function PortfolioFinancials() {
 
   return (
     <DataState isLoading={isLoading} isError={isError} error={error} onRetry={() => refetch()} className="min-h-40">
+      <SourcesUnavailableNotice availability={data?.availability} />
       {!data || !hasData ? (
-        <ReportEmpty testId="portfolio-fin-empty">
-          No financials — connect a cost / ERP source so projects report budget, actual and forecast.
-        </ReportEmpty>
+        // A DEGRADED read must never fall through to the empty state. "No financials — connect a cost
+        // source" is advice to go buy an integration; when the truth is that SAP timed out, that is
+        // actively misleading. The notice above has already explained it, so say nothing more here.
+        data && data.availability && !data.availability.complete ? null : (
+          <ReportEmpty testId="portfolio-fin-empty">
+            No financials — connect a cost / ERP source so projects report budget, actual and forecast.
+          </ReportEmpty>
+        )
       ) : (
         <div className="space-y-4" data-testid="portfolio-financials">
           <div className="flex flex-wrap items-center justify-between gap-3">

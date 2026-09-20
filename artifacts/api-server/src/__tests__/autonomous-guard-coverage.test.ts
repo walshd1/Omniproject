@@ -27,6 +27,11 @@ const KNOWN_NON_MUTATING = new Set([
   "baseline", "capabilities", "changeToken", "describeFields", "describeSchema", "fieldMap", "fxRates",
   "getIssue", "getTask", "listActivity", "listIssues", "listProjects", "listRaid", "listTaskAttachments",
   "listTaskComments", "listTaskItems", "listTasks", "notifications", "portfolioHealth", "projectFinancials",
+  // Optional BULK portfolio reads — the O(1) siblings of projectFinancials/resourceCapacity. Reads of
+  // exactly the same data, so no autonomous-write authorization applies. Note they carry no projectId
+  // and so are NOT covered by the seam scope guard; lib/portfolio-summary.ts filters their rows to the
+  // caller's visible projects instead (see docs/DEGRADED-READS.md and the scope test there).
+  "portfolioFinancials", "portfolioCapacity",
   "projectHistory", "projectMembers", "projectSummary", "replay", "resourceCapacity", "verify", "verifyConnection",
   // Wiki reads (bodies fetched from the backend through the seam; writeWikiDoc is the guarded mutation).
   "getWikiDoc", "listWikiDocs", "listWikiSpaces", "listWikiDocVersions", "getWikiDocVersion",

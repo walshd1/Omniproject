@@ -31,7 +31,7 @@ import { getArchiveStore } from "../lib/archive/archive-store";
 import { checkFieldValues, resolveFieldType } from "../lib/field-validation";
 import { randomUUID } from "node:crypto";
 import { aggregateResourcePool } from "../lib/resource-pool";
-import { guardProjectScope } from "../lib/project-scope";
+import { guardProjectScope, guardProgrammeScope } from "../lib/project-scope";
 import { resolveWbsMapping } from "../lib/wbs-mapping-resolve";
 import { applyWbsMapping, WbsMappingError } from "../lib/wbs-mapping";
 import { getSidecarWbs, hasSidecarWbs, upsertSidecarWbsRow } from "../lib/wbs-sidecar";
@@ -205,6 +205,11 @@ export const createProjectCommand: CommandDescriptor<{ body: Parsed<typeof Creat
       res.status(400).json({ error: ruleErrors[0], errors: ruleErrors });
       return null;
     }
+    // A project's programmeId feeds programme roll-ups/financials, so placing a project into a programme
+    // is a write into that programme: the caller must be scoped to the TARGET programme, not just hold the
+    // manager role. Without this a base manager could inject/distort any programme's portfolio.
+    const programmeId = (body as { programmeId?: string | null }).programmeId;
+    if (programmeId && !guardProgrammeScope(req, res, programmeId)) return null;
     return { body };
   },
   ruleScope: (_req, { body }) => ({ programmeId: (body as { programmeId?: string }).programmeId ?? null, payload: body as Record<string, unknown> }),
@@ -330,6 +335,11 @@ router.patch("/projects/:projectId", requireRole("manager"), async (req, res) =>
   }
   await withBrokerErrors(req, res, "update_project failed", async () => {
     if (!(await guardProjectScope(req, res, params.projectId))) return;
+    // Re-parenting a project into a programme must clear the DESTINATION programme's scope too (source is
+    // covered by guardProjectScope above) — else a manager could move a project into a programme they don't
+    // own and distort its roll-up. Only guards an actual target (a string id); null clears the grouping.
+    if (settingProgramme && typeof data.programmeId === "string" && data.programmeId
+        && !guardProgrammeScope(req, res, data.programmeId)) return;
     if (!passesBusinessRules(req, res, "update_project", params.projectId, data as Record<string, unknown>)) return;
     const updated = await getBroker().updateProject(contextFromReq(req), params.projectId, data);
     res.json(updated);

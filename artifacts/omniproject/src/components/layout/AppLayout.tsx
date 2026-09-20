@@ -10,6 +10,7 @@ import { GlobalSearch } from "../search/GlobalSearch";
 import { GlobalSearchTrigger } from "../search/GlobalSearchTrigger";
 import { NotificationsBell } from "../NotificationsBell";
 import { DataQualityBadge } from "../DataQualityBadge";
+import { SourceAvailabilityBadge } from "../SourceAvailabilityBadge";
 import { ApiPortalLink } from "../ApiPortalLink";
 import { OrgLogo } from "../OrgLogo";
 import { useStore } from "../../store/useStore";
@@ -332,6 +333,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
               <span className="text-xs font-bold tracking-widest">{connected ? t("header.connected") : t("header.offline")}</span>
             </div>
             <DataQualityBadge />
+            <SourceAvailabilityBadge />
             <GlobalSearchTrigger />
             <button
               type="button"

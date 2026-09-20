@@ -731,6 +731,23 @@ export class DemoBroker implements Broker {
     return SAMPLE_FINANCIALS;
   }
 
+  /**
+   * The BULK reads (optional in the contract) — the demo adapter implements them so the O(1) portfolio
+   * path is the one exercised by default, and so this stays a worked example for adapter authors: a
+   * real backend answers these with one JQL/filter/aggregate instead of one call per project.
+   *
+   * Each row carries `projectId` so the gateway can attribute it. The rows are the same sample data the
+   * per-project calls return, one set per project, so the folded totals are identical either way — the
+   * bulk path is a latency change, never a numbers change.
+   */
+  async portfolioFinancials(): Promise<Row[]> {
+    return SAMPLE_PROJECTS.map((p) => ({ ...SAMPLE_FINANCIALS, projectId: p.id }));
+  }
+
+  async portfolioCapacity(): Promise<Row[]> {
+    return SAMPLE_PROJECTS.flatMap((p) => SAMPLE_CAPACITY.map((r) => ({ ...r, projectId: p.id })));
+  }
+
   async capabilities(): Promise<CapabilityFlags> {
     // Reuse the contract's authoritative domain list so the demo adapter's
     // "everything available" map can't drift from the real domain set. Read

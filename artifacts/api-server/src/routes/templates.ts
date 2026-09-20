@@ -3,6 +3,7 @@ import { normalisedBy } from "../lib/settings";
 import { settingsCollectionRouter } from "../lib/settings-collection-router";
 import { readConfigCollection } from "../lib/scoped-config";
 import { requireAnyRole } from "../lib/rbac";
+import { guardProgrammeScope } from "../lib/project-scope";
 import { getBroker, contextFromReq } from "../broker";
 import type { IssueWrite } from "../broker/types";
 import { planInstantiation, validateTemplates, TemplateError } from "../lib/project-template";
@@ -42,6 +43,9 @@ export const templateInstantiateCommand: CommandDescriptor<{ id: string; plan: R
     const template = resolveProjectTemplate(id, readConfigCollection<ProjectTemplate[]>("templates", []));
     if (!template) { res.status(404).json({ error: "Template not found" }); return null; }
     const body = (req.body ?? {}) as { name?: unknown; programmeId?: unknown };
+    // Instantiating into a programme is a write into that programme's portfolio — the caller must be scoped
+    // to the TARGET programme, not just hold the manager role (broker.createProject is scope-blind here).
+    if (typeof body.programmeId === "string" && body.programmeId && !guardProgrammeScope(req, res, body.programmeId)) return null;
     const plan = planInstantiation(template, {
       ...(typeof body.name === "string" ? { name: body.name } : {}),
       ...(typeof body.programmeId === "string" ? { programmeId: body.programmeId } : {}),
