@@ -5847,6 +5847,15 @@ Monte Carlo schedule/effort-risk simulation — a STATELESS quantitative-risk en
 | `simulate` | Run the simulation over the tasks. |
 | `mulberry32` | A small seeded PRNG (mulberry32) — for deterministic tests and reproducible report runs. |
 
+### `lib/backend-catalogue/src/msproject-xml.ts`
+
+Microsoft Project XML (MSPDI) → import rows.
+
+| Function | What it does |
+| --- | --- |
+| `mspdiDurationToHours` | PT8H30M0S → 8.5 (hours). |
+| `parseMspdi` | — |
+
 ### `lib/backend-catalogue/src/multi-currency-evm.ts`
 
 MULTI-CURRENCY EAC / ETC — the plan-layer cost forecast when a programme's cost lines land in more than one currency (roadmap §4.1, "multi-currency EAC/ETC").
