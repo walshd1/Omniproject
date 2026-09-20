@@ -12,8 +12,10 @@ import type { BoardColumn, Chip, ChipTone, EntityDescriptor, ViewRecord } from "
  * hard-wired mode — how a user or org wants to view their tasks is up to them.
  */
 
-/** The classic Getting-Things-Done columns (the default board preset for tasks). */
+/** The classic Getting-Things-Done columns (the default board preset for tasks). Inbox leads:
+ *  capture lands there unclarified, and the weekly review drives it back to zero. */
 export const GTD_COLUMNS: BoardColumn[] = [
+  { status: "inbox", label: "Inbox" },
   { status: "next", label: "Next Actions" },
   { status: "waiting", label: "Waiting For" },
   { status: "scheduled", label: "Scheduled" },

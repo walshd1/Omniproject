@@ -93,6 +93,17 @@ test("filterRows: eq / in / contains, and ordering ops compare number- then date
   assert.deepEqual(ids(filterRows(rows, [{ field: "status", op: "eq", value: "todo" }])), [1, 3]);
   assert.deepEqual(ids(filterRows(rows, [{ field: "status", op: "in", value: ["done", "todo"] }])), [1, 2, 3]);
   assert.deepEqual(ids(filterRows(rows, [{ field: "title", op: "contains", value: "bug" }])), [1, 3]);
+  // startsWith is ANCHORED (path-prefix semantics for nested contexts) — never a substring match.
+  assert.deepEqual(
+    ids(filterRows([{ id: 1, ctx: "home" }, { id: 2, ctx: "home/office" }, { id: 3, ctx: "homework" }, { id: 4, ctx: "work/home" }], [
+      { field: "ctx", op: "startsWith", value: "home/" },
+    ])),
+    [2],
+  );
+  assert.deepEqual(
+    ids(filterRows([{ id: 1, ctx: "Home/Office" }], [{ field: "ctx", op: "startsWith", value: "home/" }])),
+    [1], // case-insensitive, like contains
+  );
   assert.deepEqual(ids(filterRows(rows, [{ field: "due", op: "lt", value: "2026-01-31" }])), [1, 3]);
 });
 
