@@ -15,7 +15,11 @@ name: release
 
 on:
   push:
-    tags: ["v*"]
+    # This repo tags releases BARE (0.8.0, 0.6.0, …): the second pattern is the one that fires.
+    # "v*" is kept so a future v-prefixed tag also releases. The trailing "*" on the semver
+    # pattern admits pre-release suffixes (0.9.0-rc.1). github.ref_name is used verbatim
+    # downstream (docker tag, GHCR tag, release name), so both shapes work unchanged.
+    tags: ["v*", "[0-9]+.[0-9]+.[0-9]+*"]
   workflow_dispatch: {}
 
 concurrency:
