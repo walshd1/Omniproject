@@ -263,7 +263,10 @@ can widen it further):
 - **Import.** Bring work items in from an **Excel/CSV** export (or any tabular
   source) with a **column → canonical-field mapper** that auto-suggests mappings
   (exact / synonym / fuzzy); preview, confirm, then write through your live
-  backend. See [docs/ops/IMPORT.md](docs/ops/IMPORT.md).
+  backend. See [docs/ops/IMPORT.md](docs/ops/IMPORT.md). Leaving Jira Data
+  Center? The mapper recognises Jira's CSV export headers out of the box —
+  see **[docs/MIGRATE-FROM-JIRA.md](docs/MIGRATE-FROM-JIRA.md)** for the
+  federate / import / phased-exit playbook.
 - **Business rulesets.** A PMO-configurable **governance** engine layered on top
   of the hard security rules: require an assignee/estimate, freeze a portfolio,
   ban deletes, enforce schedule sanity, all **restrict-only** (it can tighten,
