@@ -6755,6 +6755,16 @@ Markdown emit helpers for the codegen scripts (`gen-contract`, `gen-function-map
 | --- | --- |
 | `escapeTableCell` | Make an arbitrary string safe to drop into a GitHub-flavoured Markdown *table cell*. |
 
+### `scripts/src/lib/n8n-template.ts`
+
+Evaluator for the n8n expression dialect the backend catalogue's HTTP action mappings are written in (`={{ expr }}`, with `$env.X` / `$json.body.payload.Y` references and plain-JS bodies like `JSON.stringify({ … })`).
+
+| Function | What it does |
+| --- | --- |
+| `evalExpression` | Evaluate one `{{ … }}` inner expression against the context. |
+| `evalTemplate` | Evaluate a catalogue template string: - `=`-prefixed marks an n8n expression string; the prefix is stripped. |
+| `stubContext` | A permissive context for template-compilation checks: every `$env` name resolves (URL-ish names to a URL so `new URL()` passes), and the payload carries every field the catalogue's templates reference. |
+
 ### `scripts/src/lib/repo-root.ts`
 
 The repository root, resolved once from this file's fixed location (scripts/src/lib/).
@@ -6810,6 +6820,18 @@ Licence minting / key generation helper (vendor-side).
 ### `scripts/src/stress-test.ts`
 
 Load / stress test — simulate a large portfolio under concurrent users.
+
+### `scripts/src/verify-backend.ts`
+
+verify-backend — live flagship-backend certification runner.
+
+| Function | What it does |
+| --- | --- |
+| `extractId` | Fields a created-record id commonly lives under, across the flagship APIs (Jira id/key, Asana data.gid, ServiceNow result.sys_id, SAP OData d.*UUID). |
+| `findCollection` | Best-effort: find the array of records in a list response and return its length, or null. |
+| `runVerification` | The whole certification in one call: env/transport preflight, the read checks (list_projects → derive a project id → list_issues), and — only with opts.write — the create/update/delete round trip with loud cleanup. |
+| `writeEvidence` | Persist the evidence record (statuses + shape notes only — never credentials or bodies). |
+| `flipVerification` | Flip the vendor JSON to "verified". |
 
 ### `scripts/src/verify-broker-contract.ts`
 

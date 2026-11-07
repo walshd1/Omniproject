@@ -61,6 +61,18 @@ const SYNONYMS: Record<string, string> = {
   resource: "assignee",
   resourcenames: "assignee",
   prio: "priority",
+  // Jira CSV export headers ("Export → CSV (all fields)", Cloud and Data Center) —
+  // the DC-exodus landing path; see docs/MIGRATE-FROM-JIRA.md. Jira exports time
+  // fields in SECONDS; the import flow's per-row ruleset converts (documented there).
+  issuetype: "type",
+  components: "component", // "Component/s" normalises to "components"
+  fixversions: "fixVersion", // "Fix Version/s"
+  originalestimate: "originalEstimateHours",
+  timespent: "loggedHours",
+  remainingestimate: "remainingHours",
+  customfieldstorypoints: "storyPoints", // "Custom field (Story Points)"
+  // "Issue key" is deliberately NOT mapped: ENG-42 is a backend-local identifier with no
+  // canonical field; the operator maps it to tags/url for traceability if they want it kept.
 };
 
 export interface ColumnSuggestion {

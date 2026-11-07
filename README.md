@@ -263,7 +263,10 @@ can widen it further):
 - **Import.** Bring work items in from an **Excel/CSV** export (or any tabular
   source) with a **column → canonical-field mapper** that auto-suggests mappings
   (exact / synonym / fuzzy); preview, confirm, then write through your live
-  backend. See [docs/ops/IMPORT.md](docs/ops/IMPORT.md).
+  backend. See [docs/ops/IMPORT.md](docs/ops/IMPORT.md). Leaving Jira Data
+  Center? The mapper recognises Jira's CSV export headers out of the box —
+  see **[docs/MIGRATE-FROM-JIRA.md](docs/MIGRATE-FROM-JIRA.md)** for the
+  federate / import / phased-exit playbook.
 - **Business rulesets.** A PMO-configurable **governance** engine layered on top
   of the hard security rules: require an assignee/estimate, freeze a portfolio,
   ban deletes, enforce schedule sanity, all **restrict-only** (it can tighten,
@@ -274,9 +277,37 @@ can widen it further):
   two **orthogonal, joinable authorities**: **PMO** (business governance) and
   **admin** (technical config). An admin-only, audited **role-mapping editor** maps
   IdP groups to roles at runtime. See [docs/ops/ROLES.md](docs/ops/ROLES.md).
-- **AI assist.** Connect a local model (Ollama) or a public model (OpenRouter / OpenAI / Anthropic).
+- **AI assist.** Connect a local model (Ollama) or a public model (OpenRouter / OpenAI / Anthropic). See [Your AI, your key, no credit meter](#your-ai-your-key-no-credit-meter).
 - **SSO.** Env-gated OIDC against any provider; demo mode when unconfigured.
 - **Keyboard-driven.** `Cmd+K` palette and `g d/p/r/s/e` navigation.
+
+### Your AI, your key, no credit meter
+
+The PM industry has settled on metering AI: per-seat credit packs, usage
+dashboards to watch your allowance drain, and overage billing when an agent
+runs more than the plan guessed. Your AI spend becomes a second subscription
+negotiated inside someone else's product.
+
+OmniProject takes the opposite position, and it's structural, not a pricing
+promise:
+
+- **Bring your own provider.** `AI_PROVIDER` is `none | ollama | openrouter |
+  openai | anthropic`. You pay your provider directly at their raw API price —
+  or pay nothing and run **Ollama on your own hardware**, fully air-gapped.
+- **Your key never leaves your deployment.** Provider keys are entered in
+  *Settings → AI providers* and live in the encrypted vault inside your
+  container (`VAULT_KEY`), not in our cloud — there is no "our cloud".
+- **No per-action tax.** Nothing in OmniProject counts your prompts, caps your
+  agent runs, or bills an overage. If your provider is metered, that meter is
+  yours to see on your provider's bill, not a markup hidden in a PM tool's
+  credit pack.
+- **Off is a first-class setting.** `AI_PROVIDER=none` removes the surface
+  entirely — for regulated deployments where the answer to "what does the AI
+  send and to whom?" must be "nothing, to no one".
+
+The same stance applies to automation: agent-style workflows run in **your**
+broker (n8n or anything contract-speaking), so an automation that fires 10,000
+times a month costs you whatever your n8n instance costs — not 10,000 credits.
 
 ### Seven integration planes, separate but linked
 
