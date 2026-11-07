@@ -21,8 +21,9 @@ const load = (id: string): BackendManifest => JSON.parse(fs.readFileSync(path.jo
 
 test("evaluator: jira templates produce the URLs/bodies n8n would send", () => {
   const jira = load("jira");
+  // ZmFrZQ== is base64 "fake" — the repo's known-fake-fixture convention (see .gitleaks.toml).
   const ctx = {
-    $env: { JIRA_INSTANCE_URL: "https://acme.atlassian.net", JIRA_BASIC_AUTH: "dXNlcjp0b2tlbg==" },
+    $env: { JIRA_INSTANCE_URL: "https://acme.atlassian.net", JIRA_BASIC_AUTH: "ZmFrZQ==" },
     $json: { body: { payload: { projectId: "ENG", issueId: "ENG-7", title: "Hello" } } },
   };
   assert.equal(evalTemplate(jira.actions["list_projects"]!.url!, ctx), "https://acme.atlassian.net/rest/api/3/project/search");
@@ -30,7 +31,7 @@ test("evaluator: jira templates produce the URLs/bodies n8n would send", () => {
   assert.equal(evalTemplate(jira.actions["delete_issue"]!.url!, ctx), "https://acme.atlassian.net/rest/api/3/issue/ENG-7");
   const body = evalTemplate(jira.actions["create_issue"]!.body!, ctx);
   assert.deepEqual(JSON.parse(String(body)), { fields: { project: { key: "ENG" }, summary: "Hello", issuetype: { name: "Task" } } });
-  assert.equal(evalTemplate(jira.authHeader!, ctx), "Basic dXNlcjp0b2tlbg==");
+  assert.equal(evalTemplate(jira.authHeader!, ctx), "Basic ZmFrZQ==");
 });
 
 test("evaluator: sap OData templates (guid'…' URL interpolation + $format literal)", () => {
@@ -108,13 +109,13 @@ test("direct mode: full jira read+write round trip against a mock, auth + idempo
   try {
     const outcome = await runVerification(load("jira"), {
       write: true,
-      env: { JIRA_INSTANCE_URL: `http://127.0.0.1:${port}`, JIRA_BASIC_AUTH: "c2VjcmV0" },
+      env: { JIRA_INSTANCE_URL: `http://127.0.0.1:${port}`, JIRA_BASIC_AUTH: "ZmFrZQ==" },
     });
     assert.ok(outcome.passed, JSON.stringify(outcome.checks, null, 2));
     assert.equal(outcome.mode, "direct");
     assert.ok(outcome.checks.some((c) => c.name.startsWith("create_issue")));
     // The exact auth template was applied to every request…
-    assert.ok(requests.every((r) => r.auth === "Basic c2VjcmV0"));
+    assert.ok(requests.every((r) => r.auth === "Basic ZmFrZQ=="));
     // …writes carried the idempotency key, reads did not…
     assert.ok(requests.filter((r) => r.method !== "GET").every((r) => !!r.idem));
     assert.ok(requests.filter((r) => r.method === "GET").every((r) => !r.idem));

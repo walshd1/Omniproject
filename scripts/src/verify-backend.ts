@@ -193,6 +193,13 @@ function unwrap(mode: "direct" | "webhook", body: unknown): unknown {
   return "data" in o ? o["data"] : body;
 }
 
+/**
+ * The whole certification in one call: env/transport preflight, the read checks
+ * (list_projects → derive a project id → list_issues), and — only with
+ * opts.write — the create/update/delete round trip with loud cleanup. Returns a
+ * structured outcome (never throws for a failed check); `passed` means every
+ * check passed, which is what --flip requires before marking a backend verified.
+ */
 export async function runVerification(m: BackendManifest, opts: VerifyOptions): Promise<VerifyOutcome> {
   const fetchImpl = opts.fetchImpl ?? fetch;
   const env = opts.env ?? process.env;
