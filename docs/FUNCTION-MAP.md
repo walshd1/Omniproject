@@ -6829,7 +6829,7 @@ verify-backend — live flagship-backend certification runner.
 | --- | --- |
 | `extractId` | Fields a created-record id commonly lives under, across the flagship APIs (Jira id/key, Asana data.gid, ServiceNow result.sys_id, SAP OData d.*UUID). |
 | `findCollection` | Best-effort: find the array of records in a list response and return its length, or null. |
-| `runVerification` | — |
+| `runVerification` | The whole certification in one call: env/transport preflight, the read checks (list_projects → derive a project id → list_issues), and — only with opts.write — the create/update/delete round trip with loud cleanup. |
 | `writeEvidence` | Persist the evidence record (statuses + shape notes only — never credentials or bodies). |
 | `flipVerification` | Flip the vendor JSON to "verified". |
 
