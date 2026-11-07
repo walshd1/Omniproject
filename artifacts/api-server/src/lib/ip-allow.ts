@@ -1,7 +1,7 @@
 import type { Request, Response, NextFunction } from "express";
 import { logger } from "./logger";
 import { parseCsvEnv } from "./env";
-import { firstForwardedValue } from "./trust-proxy";
+import { forwardedForChain, resolveTrustProxy } from "./trust-proxy";
 
 /**
  * App-layer IP allowlisting — defence in depth even behind an ingress/LB. When
@@ -128,14 +128,18 @@ export function ipAllowed(ip: string): boolean {
   return target !== null && parsed.some((p) => matchParsed(target, p));
 }
 
-/** Resolve the client IP — socket peer, or the first X-Forwarded-For hop when TRUST_PROXY. */
+/** Resolve the client IP, honouring the trusted-hop count. With N trusted proxies, the real client is
+ *  the Nth-from-right X-Forwarded-For entry — each proxy APPENDS the peer it saw, so the leftmost entry
+ *  is attacker-controlled and must never be trusted (that would let any client spoof its source IP and
+ *  defeat the allowlist). Falls back to the socket peer when TRUST_PROXY is off or XFF is absent. */
 export function clientIp(req: Request): string {
-  const trust = process.env["TRUST_PROXY"]?.trim();
-  if (trust && trust !== "0" && trust.toLowerCase() !== "false") {
-    const xff = firstForwardedValue(req, "x-forwarded-for");
-    if (xff) return xff;
-  }
-  return (req.socket?.remoteAddress ?? "").replace(/^::ffff:/i, "");
+  const socketIp = (req.socket?.remoteAddress ?? "").replace(/^::ffff:/i, "");
+  const trust = resolveTrustProxy(process.env["TRUST_PROXY"]);
+  if (trust === false) return socketIp;
+  const hops = trust === true ? 1 : trust; // resolveTrustProxy never returns `true`, but stay total
+  const chain = forwardedForChain(req, "x-forwarded-for");
+  if (chain.length === 0) return socketIp;
+  return (chain[Math.max(0, chain.length - hops)] ?? socketIp).replace(/^::ffff:/i, "");
 }
 
 /** Middleware: refuse a client whose IP isn't allowlisted (no-op when the list is empty). */

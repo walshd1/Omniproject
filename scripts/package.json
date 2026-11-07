@@ -45,6 +45,7 @@
     "gen-settings-presets": "tsx ./src/gen-settings-presets.ts",
     "gen-forms": "tsx ./src/gen-forms.ts",
     "verify-broker": "tsx ./src/verify-broker-contract.ts",
+    "verify-backend": "tsx ./src/verify-backend.ts",
     "e2e-smoke": "tsx ./src/e2e-smoke.ts",
     "stress": "tsx ./src/stress-test.ts",
     "integration:openproject": "tsx ./src/integration-openproject.ts",
@@ -69,7 +70,7 @@
   },
   "devDependencies": {
     "@types/node": "catalog:",
-    "c8": "^11.0.0",
+    "c8": "^12.0.0",
     "tsx": "catalog:"
   }
 }

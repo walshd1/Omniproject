@@ -3,6 +3,7 @@ import { applyDevEntitlementOverrides } from "./dev-entitlements";
 import { decodePemOrBase64 } from "./pem";
 import { parseCommaSet } from "./env";
 import { isTruthy } from "./env-config";
+import { isProductionEnv } from "./node-env";
 
 /**
  * Licensing / entitlements — the paywall for premium overlay features.
@@ -138,7 +139,10 @@ function publicKey(): string | null {
 }
 
 function isProd(): boolean {
-  return process.env["NODE_ENV"] === "production";
+  // The shared fail-safe predicate — a mis-cased "Production" or an unknown label ("staging")
+  // reads as production, so the LICENSE_DEV_FEATURES unlock below can never arm on a box the
+  // dev-mode gate already treats as production (they key off the same definition).
+  return isProductionEnv(process.env);
 }
 
 function devFeatures(): LicenseFeature[] {

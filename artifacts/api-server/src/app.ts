@@ -30,6 +30,7 @@ import { initKms } from "./lib/kms";
 import { contentSecurityPolicy, cspHeaderName, cspNonce } from "./lib/csp";
 import { tracingMiddleware } from "./lib/tracing";
 import { dataQualityMiddleware } from "./lib/data-quality";
+import { readAvailabilityMiddleware } from "./lib/read-availability";
 import { ipAllowGuard } from "./lib/ip-allow";
 import { maintenanceGuard } from "./lib/maintenance";
 import { requireTls } from "./lib/deployment-profile";
@@ -268,6 +269,11 @@ app.use((_req, res, next) => {
 // repair malformed backend data to serve this response, emit the count as X-OmniProject-Data-Repaired
 // (same self-exposing Server-Timing-free approach as the timing headers — same-origin SPA reads it).
 app.use(dataQualityMiddleware);
+
+// Read-availability signal: the sibling of the above. Data-quality reports malformed data that DID
+// arrive; this reports sources that did not answer at all, as X-OmniProject-Sources-Unavailable. It
+// caches nothing — a degraded read is still a live read, and the tally dies with the request.
+app.use(readAvailabilityMiddleware);
 
 // RED metrics: count every request, its status class and latency, and track
 // in-flight depth. Pure in-process counters → always available at /api/metrics

@@ -65,3 +65,6 @@ sbom-licences.json
 # Playwright acceptance harness
 test-results/
 playwright-report/
+
+# Tool scratch state (claude-flow daemon/metrics) — never belongs in the repo.
+.claude-flow/

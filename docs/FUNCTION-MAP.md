@@ -233,6 +233,19 @@ Per-call broker endpoint override.
 | `currentEndpointOverride` | The endpoints in scope for the current async call, if a kind was routed to. |
 | `withEndpoints` | Run `fn` with the broker adapter bound to `endpoints` (the routed kind's URL[s]). |
 
+### `artifacts/api-server/src/broker/fault-broker.ts`
+
+Fault-injecting broker decorator — DEV MODE ONLY (plus an explicit in-process test hook).
+
+| Function | What it does |
+| --- | --- |
+| `__setBrokerFaultsForTest` | Arm (or disarm with `null`) fault injection for the current process — the TEST hook. |
+| `parseFaultEnv` | Parse `DEV_BROKER_FAULTS` — `method[:arg][,method[:arg]]…`, optionally suffixed `@timeout`. |
+| `brokerFaultsArmed` | Is fault injection armed at all? False in production, and false in dev unless configured. |
+| `faultMatches` | Does `spec` select this call? |
+| `faultError` | The error a matched call rejects with. |
+| `wrapWithFaults` | Wrap a broker so selected calls fail. |
+
 ### `artifacts/api-server/src/broker/field-cipher.ts`
 
 DETERMINISTIC component cipher for correlation identities.
@@ -1446,6 +1459,9 @@ Tiny bounded-concurrency pool — the `p-limit` pattern without adding a depende
 | `createConcurrencyLimiter` | A limiter: call `run(fn)` any number of times; at most `limit` of the wrapped calls are ever in flight concurrently. |
 | `poolMapWith` | Fan `items` out through an EXISTING limiter — the generic bounded fan-out. |
 | `poolMap` | Map `items` through the async `fn`, keeping at most `limit` calls in flight at once (its own fresh limiter). |
+| `poolSettleWith` | Like {@link poolMapWith}, but SETTLING: it never rejects. |
+| `poolSettle` | {@link poolSettleWith} with its own fresh limiter — the drop-in settling counterpart to `poolMap`. |
+| `settledValues` | The values that succeeded, in input order — the common case after {@link poolSettle}. |
 
 ### `artifacts/api-server/src/lib/concurrency.ts`
 
@@ -1891,6 +1907,9 @@ Dev-mode production guard — the hard safety interlock that stops a developer/ 
 
 | Function | What it does |
 | --- | --- |
+| `devPersistArmed` | The individual dev-mode triggers, exported so devModeStatus() (the watermark's surface flags) reads the SAME live predicates this gate does — one definition per trigger, no inline re-implementations to drift. |
+| `traceArmed` | Is broker method-boundary tracing requested? |
+| `captureArmed` | Is broker capture-to-tape requested? |
 | `devModeActive` | Dev mode computed purely from an env map — the SINGLE source of truth for "is a dev/debug surface allowed to be active?". |
 | `isProductionLike` | Does this environment look like production — by NODE_ENV, or via `productionSignals`? |
 | `productionSignals` | Production signals that must not coexist with dev mode (or a default SESSION_SECRET). |
@@ -2492,7 +2511,7 @@ App-layer IP allowlisting — defence in depth even behind an ingress/LB.
 | `ipInCidr` | Does `ip` fall within `cidr` (or equal a bare IP)? |
 | `ipAllowlist` | The configured allowlist entries (empty ⇒ allowlisting off). |
 | `ipAllowed` | Is this client IP allowed? True when the allowlist is empty (feature off). |
-| `clientIp` | Resolve the client IP — socket peer, or the first X-Forwarded-For hop when TRUST_PROXY. |
+| `clientIp` | Resolve the client IP, honouring the trusted-hop count. |
 | `ipAllowGuard` | Middleware: refuse a client whose IP isn't allowlisted (no-op when the list is empty). |
 
 ### `artifacts/api-server/src/lib/ip-ranges.ts`
@@ -2978,9 +2997,11 @@ Portfolio-wide AGGREGATE summary — the one shape allowed to cross an instance 
 
 | Function | What it does |
 | --- | --- |
+| `fanoutWouldExceedCeiling` | Would fanning out over `projects` exceed the ceiling? Exported for the test that pins the arithmetic. |
 | `summarizeHealth` | Summarise portfolio-health rows (the existing `GET /portfolio/health` aggregate) into portfolio-wide counts — no per-project id/name survives. |
 | `foldFinance` | Fold per-project financials (the existing `GET /projects/:id/financials` rows) into ONE portfolio total in `target` currency — the portfolio-only reduction of `consolidateFinancials`. |
 | `foldCapacity` | Fold every project's resource rows (the existing `GET /projects/:id/capacity` rows, flattened across the portfolio) into ONE portfolio total — the portfolio-only reduction of `rollupByProgramme`. |
+| `alignToProjects` | Line a bulk read's rows up with the project list, positionally, so the bulk and fan-out paths hand `summaryFinance`/`summaryCapacity` the same shape and every downstream count (`droppedCalls`) keeps meaning what it meant. |
 | `portfolioSummaryCacheKey` | The read-cache key for a portfolio summary — the caller's identity+data-scope (`actorKey`, the scope-safe fingerprint the broker cache uses) plus the reporting-currency posture. |
 | `computeLocalPortfolioSummary` | Build the portfolio rollup for this request by fanning the four sections (health, finance, capacity, tasks) out in parallel over the broker, then folding them into one summary. |
 
@@ -3311,6 +3332,20 @@ Role-based access control.
 | `hasRole` | Does the request satisfy the gate `need`? |
 | `requireRole` | Express middleware: require the `need` grant, else 403. |
 | `requireAnyRole` | Express middleware: require ANY of the given grants (OR gate) — e.g. the surfaces that belong to whoever owns governance (pmo) or technical config (admin), since the two authorities are orthogonal and neither alone implies the other. |
+
+### `artifacts/api-server/src/lib/read-availability.ts`
+
+Read-availability tally — the "some sources didn't answer" half of the read seam, and the sibling of `lib/data-quality.ts` (which reports malformed data that DID arrive).
+
+| Function | What it does |
+| --- | --- |
+| `withAvailabilityScope` | Establish a fresh availability tally for the (possibly async) work `fn` starts — the request middleware entry point, mirroring `withDataQualityScope`. |
+| `currentAvailability` | The active tally, or undefined outside a scope (fan-outs still degrade; they just aren't counted). |
+| `recordAttempted` | Count sources we tried to reach. |
+| `recordUnavailable` | Record one source that did not answer. |
+| `readsWereComplete` | Did every source this request touched answer? Callers gate any CROSS-SOURCE aggregate on this and omit the figure when it is false. |
+| `availabilityReport` | `{ complete, attempted, answered, unavailable }` for a response body — what the UI needs to say "3 of 4 sources reporting" and name the missing one. |
+| `readAvailabilityMiddleware` | Surfacing middleware. |
 
 ### `artifacts/api-server/src/lib/read-cache.ts`
 
@@ -4242,7 +4277,8 @@ How many reverse-proxy hops in front of this process to trust `X-Forwarded-*` fr
 | Function | What it does |
 | --- | --- |
 | `resolveTrustProxy` | Resolve `TRUST_PROXY` to Express's `trust proxy` value: `false` (default/off), an explicit positive hop count, or `1` for a bare truthy value — never Express's unbounded `true`. |
-| `firstForwardedValue` | The FIRST value in a comma-separated `X-Forwarded-*` header (the chain runs furthest-hop-first, so the first entry is what the nearest trusted proxy actually saw) — trimmed, or undefined when the header is absent/empty. |
+| `firstForwardedValue` | The FIRST value in a comma-separated `X-Forwarded-*` header — trimmed, or undefined when absent/empty. |
+| `forwardedForChain` | All entries of a comma-separated `X-Forwarded-*` header, left-to-right, trimmed, empties dropped. |
 
 ### `artifacts/api-server/src/lib/undo-buffer.ts`
 
@@ -5811,6 +5847,15 @@ Monte Carlo schedule/effort-risk simulation — a STATELESS quantitative-risk en
 | `simulate` | Run the simulation over the tasks. |
 | `mulberry32` | A small seeded PRNG (mulberry32) — for deterministic tests and reproducible report runs. |
 
+### `lib/backend-catalogue/src/msproject-xml.ts`
+
+Microsoft Project XML (MSPDI) → import rows.
+
+| Function | What it does |
+| --- | --- |
+| `mspdiDurationToHours` | PT8H30M0S → 8.5 (hours). |
+| `parseMspdi` | — |
+
 ### `lib/backend-catalogue/src/multi-currency-evm.ts`
 
 MULTI-CURRENCY EAC / ETC — the plan-layer cost forecast when a programme's cost lines land in more than one currency (roadmap §4.1, "multi-currency EAC/ETC").
@@ -6710,6 +6755,16 @@ Markdown emit helpers for the codegen scripts (`gen-contract`, `gen-function-map
 | --- | --- |
 | `escapeTableCell` | Make an arbitrary string safe to drop into a GitHub-flavoured Markdown *table cell*. |
 
+### `scripts/src/lib/n8n-template.ts`
+
+Evaluator for the n8n expression dialect the backend catalogue's HTTP action mappings are written in (`={{ expr }}`, with `$env.X` / `$json.body.payload.Y` references and plain-JS bodies like `JSON.stringify({ … })`).
+
+| Function | What it does |
+| --- | --- |
+| `evalExpression` | Evaluate one `{{ … }}` inner expression against the context. |
+| `evalTemplate` | Evaluate a catalogue template string: - `=`-prefixed marks an n8n expression string; the prefix is stripped. |
+| `stubContext` | A permissive context for template-compilation checks: every `$env` name resolves (URL-ish names to a URL so `new URL()` passes), and the payload carries every field the catalogue's templates reference. |
+
 ### `scripts/src/lib/repo-root.ts`
 
 The repository root, resolved once from this file's fixed location (scripts/src/lib/).
@@ -6765,6 +6820,18 @@ Licence minting / key generation helper (vendor-side).
 ### `scripts/src/stress-test.ts`
 
 Load / stress test — simulate a large portfolio under concurrent users.
+
+### `scripts/src/verify-backend.ts`
+
+verify-backend — live flagship-backend certification runner.
+
+| Function | What it does |
+| --- | --- |
+| `extractId` | Fields a created-record id commonly lives under, across the flagship APIs (Jira id/key, Asana data.gid, ServiceNow result.sys_id, SAP OData d.*UUID). |
+| `findCollection` | Best-effort: find the array of records in a list response and return its length, or null. |
+| `runVerification` | The whole certification in one call: env/transport preflight, the read checks (list_projects → derive a project id → list_issues), and — only with opts.write — the create/update/delete round trip with loud cleanup. |
+| `writeEvidence` | Persist the evidence record (statuses + shape notes only — never credentials or bodies). |
+| `flipVerification` | Flip the vendor JSON to "verified". |
 
 ### `scripts/src/verify-broker-contract.ts`
 

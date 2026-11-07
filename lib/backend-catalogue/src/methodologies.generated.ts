@@ -119,44 +119,51 @@ export const METHODOLOGIES_DATA: MethodologyDefinition[] = [
       ],
       "taskStatuses": [
         {
+          "id": "inbox",
+          "label": "Inbox",
+          "order": 0,
+          "class": "actionable",
+          "color": "#64748b"
+        },
+        {
           "id": "next",
           "label": "Next",
-          "order": 0,
+          "order": 1,
           "class": "actionable",
           "color": "#3b82f6"
         },
         {
           "id": "waiting",
           "label": "Waiting",
-          "order": 1,
+          "order": 2,
           "class": "waiting",
           "color": "#f59e0b"
         },
         {
           "id": "scheduled",
           "label": "Scheduled",
-          "order": 2,
+          "order": 3,
           "class": "deferred",
           "color": "#a855f7"
         },
         {
           "id": "someday",
           "label": "Someday",
-          "order": 3,
+          "order": 4,
           "class": "deferred",
           "color": "#71717a"
         },
         {
           "id": "done",
           "label": "Done",
-          "order": 4,
+          "order": 5,
           "class": "done",
           "color": "#22c55e"
         },
         {
           "id": "dropped",
           "label": "Dropped",
-          "order": 5,
+          "order": 6,
           "class": "dropped",
           "color": "#ef4444"
         }

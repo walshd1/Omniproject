@@ -89,10 +89,18 @@ verify the highest-value connector in each major category first — that buys
 more real confidence per unit of effort than a 42nd never-run backend would.
 Once every flagship id above carries `"verification": "verified"`, the freeze
 lifts on its own (see `scripts/src/lib/backend-freeze.ts` — the check is
-mechanical, not a standing manual gate). To verify a flagship backend: run it
-through the contract conformance suite against a real instance (see
-`docs/BROKER-HTTP-BINDING.md`), confirm a live read + write round trip, then
-flip its JSON's `verification` to `"verified"`.
+mechanical, not a standing manual gate). To verify a flagship backend, run the
+mechanical runner against a real instance — it drives the manifest's own
+templates through a live read + write round trip, writes an evidence record to
+`vendors/verification/<id>.json`, and flips the JSON on a full pass:
+
+```sh
+pnpm --filter @workspace/scripts run verify-backend -- --backend jira --write --project SANDBOX --flip
+```
+
+See [docs/VERIFY-BACKENDS.md](../../../docs/VERIFY-BACKENDS.md) for the
+per-flagship checklists (credentials, env, webhook mode for native-node
+backends) and `docs/BROKER-HTTP-BINDING.md` for the underlying contract.
 
 ## Per-deployment config (runtime)
 

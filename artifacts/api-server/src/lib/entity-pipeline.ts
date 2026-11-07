@@ -35,8 +35,11 @@ export interface EntityOp<B> {
   /** Business-ruleset action ("create_issue", "update_issue", …). */
   ruleAction: string;
   /** Validate the request into a typed body, or return null having ALREADY sent a 4xx. Delete ops that
-   *  carry no body return an empty object. */
-  validate: (req: Request, res: Response) => B | null;
+   *  carry no body return an empty object. May be async: a guard that has to reach the broker (project
+   *  scope / IDOR checks) needs to await, and `runOp` awaits this before it will run the effect. The
+   *  Promise arm is explicit in the type because `B` is instantiated as `unknown` at the call site —
+   *  without it an async validate stays assignable and its rejection is silently ignored. */
+  validate: (req: Request, res: Response) => B | null | Promise<B | null>;
   /** The effect. Return the response payload (the mounter sends it with `status`), or `undefined` when the
    *  op has already written the response itself (e.g. a 404 for an unknown id, or a 204 delete). */
   run: (req: Request, res: Response, body: B) => Promise<unknown>;
@@ -80,7 +83,10 @@ function runOp(entity: string, verb: string, op: EntityOp<unknown>, scope: Entit
   return (req: Request, res: Response): Promise<void> => {
     const projectId = projectIdOf(req, scope);
     return withBrokerErrors(req, res, `${verb}_${entity} failed`, async () => {
-      const body = op.validate(req, res);
+      // MUST await: an async validate otherwise yields a Promise here, which is never null, so the guard
+      // below passes, the Promise is handed to `run` as the body (every field reads `undefined`), and a
+      // validate that rejected the request with a 4xx does not stop the write.
+      const body = await op.validate(req, res);
       if (body === null) return;
       if (!enforceBusinessRules(req, res, op.ruleAction, { projectId, payload: (body ?? {}) as Record<string, unknown> })) return;
       if (scope.kind === "project" && !(await guardProjectScope(req, res, projectId!))) return;

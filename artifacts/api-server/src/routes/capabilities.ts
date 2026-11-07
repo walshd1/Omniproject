@@ -8,6 +8,7 @@ import { Router, type Request, type Response, type NextFunction } from "express"
 import { resolveCapabilities, resolveFieldManifest, resolveLiveSuperset } from "../lib/capabilities";
 import { resolveAvailability } from "../lib/availability";
 import { requireRole, roleForReq } from "../lib/rbac";
+import { guardProgrammeScope } from "../lib/project-scope";
 import { settingsCollectionRouter } from "../lib/settings-collection-router";
 import { SettingsValidationError } from "../lib/settings";
 
@@ -91,6 +92,9 @@ router.get("/fields/manifest", requireRole("manager"), async (req, res) => {
 router.get("/fields/superset", requireRole("manager"), async (req, res) => {
   try {
     const programmeId = typeof req.query["programmeId"] === "string" ? req.query["programmeId"] : undefined;
+    // A named programme's custom-field DEFINITIONS are readable only by a principal scoped to it — otherwise
+    // a manager could enumerate any other programme's field schema (label/key) by naming its id.
+    if (programmeId && !guardProgrammeScope(req, res, programmeId)) return;
     res.json({ fields: await resolveLiveSuperset(req, programmeId ? { programmeId } : {}) });
   } catch (err) {
     req.log.error({ err }, "live superset resolution failed");

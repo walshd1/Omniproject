@@ -1,8 +1,9 @@
 {
   "actions": {
     "create_issue": {
-      "body": "={{ JSON.stringify({ msdyn_subject: $json.body.payload.title }) }}",
+      "body": "={{ JSON.stringify({ msdyn_subject: $json.body.payload.title, msdyn_start: $json.body.payload.startDate, msdyn_finish: $json.body.payload.dueDate, 'msdyn_project@odata.bind': '/msdyn_projects(' + $json.body.payload.projectId + ')' }) }}",
       "method": "POST",
+      "note": "Writes to scheduling fields on msdyn_projecttask go through the Project Schedule APIs (operation sets) on real deployments — direct PATCHes of msdyn_start/msdyn_finish may be rejected for scheduled projects. Verify against your environment.",
       "url": "={{ $env.DATAVERSE_URL }}/api/data/v9.2/msdyn_projecttasks"
     },
     "delete_issue": {
@@ -18,8 +19,9 @@
       "url": "={{ $env.DATAVERSE_URL }}/api/data/v9.2/msdyn_projects?$select=msdyn_subject,msdyn_scheduledstart,msdyn_scheduledend"
     },
     "update_issue": {
-      "body": "={{ JSON.stringify({ msdyn_subject: $json.body.payload.title }) }}",
+      "body": "={{ JSON.stringify({ msdyn_subject: $json.body.payload.title, msdyn_start: $json.body.payload.startDate, msdyn_finish: $json.body.payload.dueDate, msdyn_progress: $json.body.payload.percentWorkComplete }) }}",
       "method": "PATCH",
+      "note": "Writes to scheduling fields on msdyn_projecttask go through the Project Schedule APIs (operation sets) on real deployments — direct PATCHes of msdyn_start/msdyn_finish may be rejected for scheduled projects. Verify against your environment.",
       "url": "={{ $env.DATAVERSE_URL }}/api/data/v9.2/msdyn_projecttasks({{ $json.body.payload.issueId }})"
     }
   },
@@ -36,11 +38,23 @@
     "scheduling": true
   },
   "credentialType": "microsoftDynamicsOAuth2Api",
-  "docsUrl": "https://learn.microsoft.com/en-us/dynamics365/project-operations/",
-  "primaryRecord": "issue",
+  "docsUrl": "https://learn.microsoft.com/en-us/dynamics365/project-operations/project-management/schedule-api-preview",
+  "fieldKeys": [
+    "title",
+    "status",
+    "startDate",
+    "dueDate",
+    "percentWorkComplete",
+    "parentTask",
+    "estimateHours",
+    "wbsCode",
+    "milestone",
+    "dependsOn"
+  ],
   "id": "msproject",
-  "label": "Microsoft Project (Project for the web)",
-  "notes": "Project for the web stores schedules in Dataverse (msdyn_project / msdyn_projecttask). For classic Project Online, point at the PWA OData (/_api/ProjectData) with a Microsoft OAuth credential instead.",
+  "label": "Microsoft Planner premium (Project)",
+  "notes": "Project for the web was retired into the new Planner (Aug 2025); its Dataverse tables (msdyn_project / msdyn_projecttask) remain the API surface for PREMIUM plans — this entry targets them via the Dataverse Web API (per-environment DATAVERSE_URL). Basic Planner plans use the separate Graph Planner API (delegated-only, etag If-Match on every write, no webhooks) and are not covered by this entry. Classic Project Online RETIRES 2026-09-30 (OData returns 410 after) — do not build against it; migrate via Planner premium or a Project XML (MSPDI) export through the import pipeline (parseMspdi -> /api/import). Desktop .mpp has no API: Save As XML (MSPDI) and run it through parseMspdi -> /api/import (summary rows skipped, outline chain kept as parentTask, PredecessorLink -> dependsOn, Duration -> hours).",
+  "primaryRecord": "issue",
   "requiredEnv": [
     "DATAVERSE_URL"
   ],

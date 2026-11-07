@@ -49,6 +49,12 @@ test("WHERE: project + surface scope is enforced", () => {
   assert.throws(() => authorizeAutonomousWrite(actor(), { action: "update_issue", projectId: "P1", surface: "finance", now: NOW }), AutonomousWriteDenied);
 });
 
+test("WHERE (default-deny): a grant that OMITS `projects` permits NO project-scoped write", () => {
+  registerAutonomousGrant({ actorId: "health-watch", actions: ["update_issue"] }); // note: no `projects`
+  // "Omitted ⇒ none allowed" — a project-scoped write must be refused, not silently authorised for ALL.
+  assert.throws(() => authorizeAutonomousWrite(actor(), { action: "update_issue", projectId: "P1", now: NOW }), AutonomousWriteDenied);
+});
+
 test("WHAT (fine): field scope is enforced", () => {
   registerAutonomousGrant({ actorId: "health-watch", actions: ["update_issue"], projects: ["*"], fields: ["status"] });
   assert.doesNotThrow(() => authorizeAutonomousWrite(actor(), { action: "update_issue", fields: ["status"], now: NOW }));

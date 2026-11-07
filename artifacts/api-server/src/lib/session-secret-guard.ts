@@ -1,4 +1,5 @@
 import { productionSignals } from "./dev-mode-guard";
+import { isProductionEnv } from "./node-env";
 
 /**
  * The session-cookie signing secret's boot-time guard, factored out of app.ts so the
@@ -11,9 +12,11 @@ import { productionSignals } from "./dev-mode-guard";
  * interaction with the real IdP: no password, no MFA, no audit trail, no rate limit.
  * `NODE_ENV === "production"` alone is not a sufficient trigger for refusing that —
  * plenty of real deployments run with NODE_ENV unset, misspelled, or set to something
- * like "staging" while still pointing at a real IdP on a public hostname. So this also
- * refuses whenever `productionSignals` sees a real-looking deployment (real SSO, a
- * licence, a public hostname), regardless of the NODE_ENV string.
+ * like "staging" while still pointing at a real IdP on a public hostname. So the label
+ * check is the shared fail-safe `isProductionEnv` (mis-cased "Production" and unknown
+ * labels like "staging" count as production), AND this also refuses whenever
+ * `productionSignals` sees a real-looking deployment (real SSO, a licence, a public
+ * hostname), regardless of the NODE_ENV string.
  */
 export const DEV_SESSION_SECRET = "omniproject-dev-secret-change-in-production";
 
@@ -24,8 +27,8 @@ export interface SessionSecretResult {
   secret: string;
   /** Whether this environment looks like a production deployment. */
   looksProduction: boolean;
-  /** The production signals found (empty if NODE_ENV is literally "production" — that
-   *  alone is reason enough, no signal detail needed). */
+  /** The production signals found (empty if the NODE_ENV label already reads production —
+   *  that alone is reason enough, no signal detail needed). */
   signals: string[];
   /** False when the environment looks like production but the secret is missing/default. */
   ok: boolean;
@@ -34,7 +37,10 @@ export interface SessionSecretResult {
 /** Evaluate the guard (pure). */
 export function evaluateSessionSecret(env: Env): SessionSecretResult {
   const fromEnv = env["SESSION_SECRET"]?.trim();
-  const isNodeProd = env["NODE_ENV"] === "production";
+  // The shared fail-safe label predicate (isProductionEnv): "production" in any casing, AND any
+  // unknown label like "staging", read as production here — same definition as the dev-mode gate,
+  // so the secret guard can never be laxer than the gates that assume it held.
+  const isNodeProd = isProductionEnv(env);
   const signals = isNodeProd ? [] : productionSignals(env);
   const looksProduction = isNodeProd || signals.length > 0;
   const weak = !fromEnv || fromEnv === DEV_SESSION_SECRET;

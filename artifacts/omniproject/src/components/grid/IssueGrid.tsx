@@ -17,6 +17,7 @@ import { readDrillFilter, DRILL_FILTER_PARAMS } from "../../lib/drill-to";
 import { DataState } from "../DataState";
 import { SkeletonRows } from "../Skeletons";
 import { SavedViewsBar } from "./SavedViewsBar";
+import { useResolvedGridColumns, resolveGridColumns } from "../../lib/grid-columns";
 
 /**
  * Editable data grid (the "grid" feature module) — a spreadsheet-style view of a project's work
@@ -52,9 +53,12 @@ export const GRID_COLUMNS: readonly GridColumn[] = [
   { field: "storyPoints", label: "Points", type: "number" },
 ];
 
-/** Columns visible given availability — only fields the backend surfaces and curation kept. */
-export function visibleGridColumns(availability: Availability | undefined): GridColumn[] {
-  return GRID_COLUMNS.filter((c) => fieldVisible(availability, c.field));
+/** Columns visible given availability — only fields the backend surfaces and curation kept. The `catalogue` is
+ *  the column set to gate: the built-in `GRID_COLUMNS` by default, or a JSON-authored `gridColumns` def when one
+ *  is active (roadmap X.7 — resolved by lib/grid-columns). Availability gating is identical either way, so a def
+ *  can never surface a field the backend doesn't advertise. */
+export function visibleGridColumns(availability: Availability | undefined, catalogue: readonly GridColumn[] = GRID_COLUMNS): GridColumn[] {
+  return catalogue.filter((c) => fieldVisible(availability, c.field));
 }
 
 /** Coerce a raw cell string to the typed value for an issue update (empty → null/undefined). */
@@ -77,6 +81,11 @@ function cellText(issue: Issue, col: GridColumn): string {
 export function IssueGrid({ projectId }: { projectId: string }) {
   const { data: issues, isLoading, isError, error, refetch } = useGetProjectIssues(projectId);
   const { data: availability } = useAvailability();
+  // The grid's column catalogue is a JSON-defined artifact (roadmap X.7): a `gridColumns` def authored through
+  // the importer, resolved over the built-in default. Falls back to GRID_COLUMNS when none is authored / the
+  // importer is off — the common case — so default behaviour is unchanged.
+  const { data: gridColumnDefs } = useResolvedGridColumns(projectId);
+  const catalogue = useMemo(() => resolveGridColumns(GRID_COLUMNS, gridColumnDefs), [gridColumnDefs]);
   const { write } = useIssueFieldWrite();
   const { toast } = useToast();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -109,11 +118,11 @@ export function IssueGrid({ projectId }: { projectId: string }) {
 
   // Available editable columns, optionally narrowed + ordered by the active saved view.
   const columns = useMemo(() => {
-    const available = visibleGridColumns(availability);
+    const available = visibleGridColumns(availability, catalogue);
     if (!viewColumns) return available;
     const byField = new Map(available.map((c) => [c.field, c]));
     return viewColumns.map((f) => byField.get(f as GridColumn["field"])).filter((c): c is GridColumn => !!c);
-  }, [availability, viewColumns]);
+  }, [availability, viewColumns, catalogue]);
 
   const [bulkField, setBulkField] = useState<string>("status");
 

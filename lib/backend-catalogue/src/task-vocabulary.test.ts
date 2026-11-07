@@ -26,8 +26,12 @@ test("the task vocabulary is DERIVED from the methodology definitions, not a sta
 });
 
 test("canonical GTD task statuses are in workflow order with their workflow class", () => {
-  assert.deepEqual([...CANONICAL_TASK_STATUS], ["next", "waiting", "scheduled", "someday", "done", "dropped"]);
+  // Inbox leads: capture lands unclarified, the weekly review drives it back to zero. It is
+  // classed actionable (open work needing attention), not deferred — an unprocessed item must
+  // never disappear from open-work views.
+  assert.deepEqual([...CANONICAL_TASK_STATUS], ["inbox", "next", "waiting", "scheduled", "someday", "done", "dropped"]);
   assert.deepEqual(TASK_STATUS_CLASS, {
+    inbox: "actionable",
     next: "actionable",
     waiting: "waiting",
     scheduled: "deferred",
@@ -46,9 +50,9 @@ test("every task status carries a label", () => {
   for (const s of CANONICAL_TASK_STATUS) assert.ok(TASK_STATUS_LABEL[s], `status ${s} needs a label`);
 });
 
-test("taskVocabularyValues ships the 6 statuses with class, order, methodology tags and colour", () => {
+test("taskVocabularyValues ships the 7 statuses with class, order, methodology tags and colour", () => {
   const { statuses } = taskVocabularyValues();
-  assert.deepEqual(statuses.map((s) => s.id), ["next", "waiting", "scheduled", "someday", "done", "dropped"]);
+  assert.deepEqual(statuses.map((s) => s.id), ["inbox", "next", "waiting", "scheduled", "someday", "done", "dropped"]);
   assert.equal(statuses.find((s) => s.id === "next")!.class, "actionable");
   assert.equal(statuses.find((s) => s.id === "done")!.color, "#22c55e");
   // Shipped statuses are neutral ("*") — they apply to every methodology.

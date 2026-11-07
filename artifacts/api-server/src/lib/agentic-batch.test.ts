@@ -42,6 +42,26 @@ test("validateBatchPlan accepts a well-formed inform + low-risk-edit batch", () 
   assert.equal(plan.actions[1]!.kind, "set-status");
 });
 
+test("validateBatchPlan rejects an action targeting a project OUTSIDE the declared project scope", () => {
+  // The JIT grant's projects derive from action params, so an out-of-scope action would expand the grant.
+  assert.throws(
+    () => validateBatchPlan({
+      scope: { kind: "project", projectId: "proj-1" },
+      actions: [{ kind: "set-status", params: { status: "done", projectId: "proj-2" } }],
+    }),
+    (e: unknown) => e instanceof BatchPlanError && /outside the declared batch scope/.test((e as Error).message),
+  );
+  // In-scope projectId, or an org-scoped (intentionally cross-project) batch, is accepted.
+  assert.doesNotThrow(() => validateBatchPlan({
+    scope: { kind: "project", projectId: "proj-1" },
+    actions: [{ kind: "set-status", params: { status: "done", projectId: "proj-1" } }],
+  }));
+  assert.doesNotThrow(() => validateBatchPlan({
+    scope: { kind: "org" },
+    actions: [{ kind: "set-status", params: { status: "done", projectId: "anything" } }],
+  }));
+});
+
 test("validateBatchPlan rejects a propose-only action, naming it", () => {
   assert.throws(
     () => validateBatchPlan({ scope: { kind: "org" }, actions: [{ kind: "create-issue", params: {} }] }),

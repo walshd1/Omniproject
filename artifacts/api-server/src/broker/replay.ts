@@ -20,9 +20,11 @@ import type { ActorContext, Broker } from "./types";
  * which is itself hard-gated to non-production.
  */
 
-/** Broker methods that mutate the backend — skipped by re-drive unless allowed. */
+/** Broker methods that mutate the backend — skipped by re-drive unless allowed. The prefix list must cover
+ *  EVERY mutating verb the seam uses, or a read-only re-drive would silently execute the gap (e.g. a
+ *  `store*`/`name*`/`rotate*` method) against the live target. */
 export function isWriteMethod(method: string): boolean {
-  return /^(create|update|delete|write|add|set|put|post|remove)/i.test(method);
+  return /^(create|update|delete|write|add|set|put|post|remove|store|save|name|rename|rotate|revoke|register|seal|mark|assign|move|import|archive|restore|reset|dispose|erase|apply|approve|grant)/i.test(method);
 }
 
 /** A stable key for matching a recorded call: method + args AFTER the actor ctx

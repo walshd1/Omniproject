@@ -11,7 +11,7 @@ import { runTaskBulk, taskBulkFingerprint, MAX_TASK_BULK_ITEMS } from "../lib/ta
 import { planTaskBulk } from "@workspace/backend-catalogue";
 import { mountEntity, type EntityDescriptor } from "../lib/entity-pipeline";
 import { mountCommand, type CommandDescriptor } from "../lib/action-base";
-import { assertTaskScope, filterTasksInScope } from "../lib/project-scope";
+import { assertTaskScope, filterTasksInScope, guardProjectScope } from "../lib/project-scope";
 import { auditScopeDenied, recordRequestAudit } from "../lib/audit";
 import { getSession } from "./auth";
 import { parseOr400, v } from "../lib/validate";
@@ -222,12 +222,15 @@ export const taskEntity: EntityDescriptor = {
   create: {
     role: "manager",
     ruleAction: "create_task",
-    scope: { kind: "none" }, // a new task has no task-access scope yet (the create had no guard)
-    validate: (req, res) => {
+    scope: { kind: "none" }, // no EXISTING task to guard on create; the DESTINATION project is guarded in validate
+    validate: async (req, res) => {
       if (!brokerHasTasks()) { res.status(501).json({ error: "this backend does not support tasks" }); return null; }
       const body = parseOr400(req, res, TaskBody);
       if (!body) return null;
       if (!body.title) { res.status(400).json({ error: "title is required" }); return null; }
+      // Bind the task to a project the caller is scoped to: create used scope:none, so without this a
+      // programme-scoped manager could plant a task into any project by naming a foreign projectId (IDOR).
+      if (body.projectId && !(await guardProjectScope(req, res, body.projectId))) return null;
       if (!checkTaskStatus(req, res, body)) return null;
       if (!checkTaskEnergy(req, res, body)) return null;
       return body;
@@ -237,10 +240,13 @@ export const taskEntity: EntityDescriptor = {
   update: {
     role: "manager",
     ruleAction: "update_task",
-    validate: (req, res) => {
+    validate: async (req, res) => {
       if (!brokerHasTasks()) { res.status(501).json({ error: "this backend does not support tasks" }); return null; }
       const body = parseOr400(req, res, TaskBody);
       if (!body) return null;
+      // The custom scope guard covers the SOURCE task; a relocation into a new project must also clear the
+      // DESTINATION project's scope, or an update could move a task into a project the caller can't reach.
+      if (body.projectId && !(await guardProjectScope(req, res, body.projectId))) return null;
       if (!checkTaskStatus(req, res, body)) return null;
       if (!checkTaskEnergy(req, res, body)) return null;
       return body;

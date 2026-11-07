@@ -21,13 +21,23 @@ export function resolveTrustProxy(raw: string | undefined): boolean | number {
   return false; // unrecognised ⇒ fail closed, don't silently trust
 }
 
-/** The FIRST value in a comma-separated `X-Forwarded-*` header (the chain runs
- *  furthest-hop-first, so the first entry is what the nearest trusted proxy actually saw) —
- *  trimmed, or undefined when the header is absent/empty. Only meaningful once the caller has
- *  already decided the immediate peer is a trusted proxy (see `resolveTrustProxy`); this is
- *  just the parsing, not the trust decision. */
+/** The FIRST value in a comma-separated `X-Forwarded-*` header — trimmed, or undefined when absent/empty.
+ *  For `X-Forwarded-Proto`/`-Host` the first entry is the ORIGINAL client's value (what secure-cookie and
+ *  redirect-URI logic want). Do NOT use this for `X-Forwarded-For` client-IP selection: XFF is client-first
+ *  and each proxy APPENDS, so the leftmost entry is fully attacker-controlled — use `forwardedForChain`
+ *  with the trusted-hop count instead (see `clientIp`). */
 export function firstForwardedValue(req: { headers: Record<string, unknown> }, headerName: string): string | undefined {
   const raw = req.headers[headerName];
   if (typeof raw !== "string") return undefined;
   return raw.split(",")[0]?.trim() || undefined;
+}
+
+/** All entries of a comma-separated `X-Forwarded-*` header, left-to-right, trimmed, empties dropped.
+ *  For `X-Forwarded-For` the list is client-first: index 0 is what the client claimed and each proxy
+ *  appended the peer it actually saw, so with N trusted hops the trustworthy address is the Nth from the
+ *  right (`chain[chain.length - N]`). */
+export function forwardedForChain(req: { headers: Record<string, unknown> }, headerName: string): string[] {
+  const raw = req.headers[headerName];
+  if (typeof raw !== "string") return [];
+  return raw.split(",").map((s) => s.trim()).filter((s) => s.length > 0);
 }

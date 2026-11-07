@@ -61,10 +61,11 @@ export function bootRefusalActive(env: Env): boolean {
  * specifically to catch a customer silently deploying a dangerous combination, and a
  * deployment with real OIDC/SAML configured (or a licence, or a public hostname) but
  * NODE_ENV unset/misspelled/"staging" is exactly that customer — skipping every check
- * here would defeat the self-check's whole purpose. So this also runs whenever
- * `productionSignals` sees a real-looking deployment, regardless of the NODE_ENV string
- * (the same detector `session-secret-guard.ts` and `requireTls()` use for the same class
- * of gap).
+ * here would defeat the self-check's whole purpose. So this uses `isProductionLike`:
+ * the shared fail-safe NODE_ENV label check (mis-cased "Production" and unknown labels
+ * like "staging" count as production) OR `productionSignals` seeing a real-looking
+ * deployment — the same detector `session-secret-guard.ts` and `requireTls()` use for
+ * the same class of gap.
  */
 export function securityFindings(env: Env): SecurityFinding[] {
   const out: SecurityFinding[] = [];

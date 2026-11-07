@@ -58,17 +58,28 @@ test("ipInCidr rejects an out-of-range prefix", () => {
   assert.equal(ipInCidr("10.0.0.1", "10.0.0.0/-1"), false); // negative
 });
 
-test("clientIp uses the socket peer by default and X-Forwarded-For under TRUST_PROXY", () => {
+test("clientIp uses the socket peer by default and the TRUSTED-HOP X-Forwarded-For entry under TRUST_PROXY", () => {
   const req = { socket: { remoteAddress: "::ffff:203.0.113.9" }, headers: {} } as unknown as Request;
   assert.equal(clientIp(req), "203.0.113.9"); // IPv4-mapped normalised
 
+  // One trusted proxy that appends: the real client is the single XFF entry it added.
   process.env["TRUST_PROXY"] = "1";
-  const proxied = { socket: { remoteAddress: "10.0.0.1" }, headers: { "x-forwarded-for": "198.51.100.7, 10.0.0.1" } } as unknown as Request;
-  assert.equal(clientIp(proxied), "198.51.100.7"); // first hop
+  const oneHop = { socket: { remoteAddress: "10.0.0.1" }, headers: { "x-forwarded-for": "198.51.100.7" } } as unknown as Request;
+  assert.equal(clientIp(oneHop), "198.51.100.7");
 
-  // TRUST_PROXY explicitly disabled falls back to the socket peer.
+  // SPOOF DEFENCE: an attacker prepends the allowlisted IP; the trusted proxy appends the attacker's
+  // real IP. With 1 trusted hop the trustworthy value is the RIGHTMOST entry, not the spoofed leftmost.
+  const spoofed = { socket: { remoteAddress: "10.0.0.1" }, headers: { "x-forwarded-for": "203.0.113.10, 198.51.100.7" } } as unknown as Request;
+  assert.equal(clientIp(spoofed), "198.51.100.7"); // NOT the attacker-prepended 203.0.113.10
+
+  // Two trusted proxies: skip both appended hops → the entry 2 from the right.
+  process.env["TRUST_PROXY"] = "2";
+  const twoHop = { socket: { remoteAddress: "10.0.0.1" }, headers: { "x-forwarded-for": "198.51.100.7, 172.16.0.9, 10.0.0.2" } } as unknown as Request;
+  assert.equal(clientIp(twoHop), "172.16.0.9");
+
+  // TRUST_PROXY explicitly disabled falls back to the socket peer, ignoring XFF entirely.
   process.env["TRUST_PROXY"] = "false";
-  assert.equal(clientIp(proxied), "10.0.0.1");
+  assert.equal(clientIp(spoofed), "10.0.0.1");
 });
 
 test("ipAllowGuard: passes through when off, allows a listed IP, 403s an unlisted one", () => {

@@ -7,6 +7,8 @@
  */
 
 export * from './activityEntry';
+export * from './availabilityReport';
+export * from './availabilityReportUnavailableItem';
 export * from './baselineItem';
 export * from './brokerCommandInput';
 export * from './brokerCommandInputPayload';

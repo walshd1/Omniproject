@@ -35,6 +35,20 @@ test("read-snapshots maps entity/ids/window to readSnapshots", async () => {
   assert.equal((out as EntitySnapshot[]).length, 1);
 });
 
+test("key-segment fields reject storage-key separators (audit-trail tamper defence)", async () => {
+  const s = recordingSource();
+  const window = { from: "2026-01-01T00:00:00Z", to: "2026-02-01T00:00:00Z" };
+  // entity/id/field/txnId become path/field segments (journal/{entity}/{id}/...#{txnId}#{field}), so a
+  // value carrying a separator could collide with or escape another entry's key.
+  await assert.rejects(dispatch(s, "read-journal", { entity: "issue/../secret", id: "1", window }));
+  await assert.rejects(dispatch(s, "read-snapshots", { entity: "issue", ids: ["1", "2#evil"], window }));
+  await assert.rejects(dispatch(s, "erase-entity", { entity: "issue", id: "../../etc" }));
+  await assert.rejects(dispatch(s, "append-journal", {
+    entries: [{ entity: "issue", id: "1", field: "sta#tus", oldValue: null, newValue: "todo", changedAt: "2026-01-05T09:30:00Z", changedBy: null, txnId: "x" }],
+  }));
+  assert.equal(s.calls.length, 0); // every tampered request rejected before reaching the source
+});
+
 test("append-journal + write-snapshot return {ok:true} and pass the payload through", async () => {
   const s = recordingSource();
   const entries: HistoryEntry[] = [{ entity: "issue", id: "1", field: "status", oldValue: null, newValue: "todo", changedAt: "2026-01-05T09:30:00Z", changedBy: null, txnId: "x" }];

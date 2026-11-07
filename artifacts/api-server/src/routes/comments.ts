@@ -125,6 +125,11 @@ async function maybePersistToBackend(req: Request, comment: Comment): Promise<vo
   const broker = getBroker();
   const ctx = contextFromReq(req);
   if (broker.addTaskComment) {
+    // guardRoomScope validated the room's PROJECT (segment 1), but the issueId (segment 2) is caller-
+    // controlled and addTaskComment takes it at arg1 — outside the broker scope-guard's projectId coverage.
+    // Confirm the issue actually lives in that project before writing, or a comment could be planted on a
+    // foreign issue. (When getIssue is unavailable the backend enforces scope itself, e.g. OmniStore.)
+    if (broker.getIssue && !(await broker.getIssue(ctx, projectId!, issueId!))) return;
     await broker.addTaskComment(ctx, issueId!, { body: comment.body });
     return;
   }

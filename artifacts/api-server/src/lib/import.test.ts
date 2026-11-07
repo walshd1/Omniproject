@@ -32,6 +32,18 @@ test("writes each valid row and returns the created ids", async () => {
   assert.equal(out.skipped.length, 0);
 });
 
+test("a mapped payload.projectId can NOT override the scope-guarded projectId (mass-assignment IDOR)", async () => {
+  const seen: unknown[] = [];
+  const broker = fakeBroker(async (_c, _op, p) => {
+    seen.push((p as { projectId: string }).projectId);
+    return { id: "x" } as never;
+  });
+  // A row that injected `projectId` (e.g. via a `{field:"projectId"}` column mapping) pointing at a
+  // project the caller isn't scoped to. writeIssue is scope-blind, so the guarded projectId must win.
+  await commitImport(base({ broker, projectId: "P1", payloads: [{ title: "A", projectId: "VICTIM" }] }));
+  assert.deepEqual(seen, ["P1"]); // NOT "VICTIM"
+});
+
 test("skips rows with a missing or non-string title", async () => {
   const out = await commitImport(base({ payloads: [{ title: "" }, { notitle: 1 }, { title: 42 }] }));
   assert.equal(out.created.length, 0);

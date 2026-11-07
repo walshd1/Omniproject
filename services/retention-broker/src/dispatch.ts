@@ -4,7 +4,7 @@
  * ops (`/retention/<op>`), so the names here are the wire contract — keep them in lock-step.
  */
 import type { RetentionSource } from "./contract";
-import { parseWindow, parseEntries, parseSnapshot, requireString, requireStringArray, requireTimestamp } from "./validate";
+import { parseWindow, parseEntries, parseSnapshot, requireStringArray, requireKeySegment, requireTimestamp } from "./validate";
 
 export type Op =
   | "read-snapshots"
@@ -40,9 +40,9 @@ export class UnsupportedOpError extends Error {
 export async function dispatch(source: RetentionSource, op: Op, body: Record<string, unknown>): Promise<unknown> {
   switch (op) {
     case "read-snapshots":
-      return source.readSnapshots(requireString(body["entity"], "entity"), requireStringArray(body["ids"], "ids"), parseWindow(body["window"]));
+      return source.readSnapshots(requireKeySegment(body["entity"], "entity"), requireStringArray(body["ids"], "ids").map((x, i) => requireKeySegment(x, `ids[${i}]`)), parseWindow(body["window"]));
     case "read-journal":
-      return source.readJournal(requireString(body["entity"], "entity"), requireString(body["id"], "id"), parseWindow(body["window"]));
+      return source.readJournal(requireKeySegment(body["entity"], "entity"), requireKeySegment(body["id"], "id"), parseWindow(body["window"]));
     case "append-journal":
       await source.appendJournal(parseEntries(body["entries"]));
       return { ok: true };
@@ -50,7 +50,7 @@ export async function dispatch(source: RetentionSource, op: Op, body: Record<str
       await source.writeSnapshot(parseSnapshot(body["snapshot"]));
       return { ok: true };
     case "last-snapshot-at":
-      return { asOf: await source.lastSnapshotAt(requireString(body["entity"], "entity"), requireString(body["id"], "id")) };
+      return { asOf: await source.lastSnapshotAt(requireKeySegment(body["entity"], "entity"), requireKeySegment(body["id"], "id")) };
     case "dispose-older-than": {
       if (!source.disposeOlderThan) throw new UnsupportedOpError(op);
       const cutoff = requireTimestamp(body["cutoff"], "cutoff");
@@ -60,7 +60,7 @@ export async function dispatch(source: RetentionSource, op: Op, body: Record<str
     }
     case "erase-entity": {
       if (!source.eraseEntity) throw new UnsupportedOpError(op);
-      return source.eraseEntity(requireString(body["entity"], "entity"), requireString(body["id"], "id"));
+      return source.eraseEntity(requireKeySegment(body["entity"], "entity"), requireKeySegment(body["id"], "id"));
     }
   }
 }

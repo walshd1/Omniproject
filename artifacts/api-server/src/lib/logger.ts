@@ -4,8 +4,9 @@
  * console.* so every line is structured and redaction/levels apply uniformly.
  */
 import pino from "pino";
+import { isProductionEnv } from "./node-env";
 
-const isProduction = process.env.NODE_ENV === "production";
+const isProduction = isProductionEnv(process.env);
 
 export const logger = pino({
   level: process.env.LOG_LEVEL ?? "info",
@@ -37,7 +38,9 @@ export const logger = pino({
     "*.verifier",
     "codeVerifier",
     "*.codeVerifier",
-    // A password should never reach a log line; redact defensively regardless of nesting.
+    // A password should never reach a log line. NOTE pino wildcards span exactly ONE level, so
+    // `password` + `*.password` cover top-level and one-deep only — a deeper shape (e.g.
+    // req.body.password) needs its own exact path added here.
     "password",
     "*.password",
   ],

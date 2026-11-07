@@ -420,8 +420,8 @@ test("magic-link: isValidEmail accepts ordinary addresses and rejects obvious no
 
 test("magic-link: consumeMagicToken is single-use — first jti wins, replay is rejected", async () => {
   for (const jti of ["jti-alpha", "jti-beta", "jti-🎉", "jti-'; DROP--"]) {
-    assert.equal(await consumeMagicToken(jti), true, "first use must succeed");
-    assert.equal(await consumeMagicToken(jti), false, "replay must be rejected");
+    assert.equal(await consumeMagicToken(jti, Date.now() + 60_000), true, "first use must succeed");
+    assert.equal(await consumeMagicToken(jti, Date.now() + 60_000), false, "replay must be rejected");
   }
 });
 

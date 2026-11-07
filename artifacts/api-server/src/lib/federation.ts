@@ -9,6 +9,7 @@ import { logger } from "./logger";
 import { isTimeoutError } from "./timeout-error";
 import { safeFetch } from "./egress";
 import { poolMap } from "./concurrency-pool";
+import { recordAttempted, recordUnavailable } from "./read-availability";
 
 /**
  * Cross-instance portfolio federation (backlog #135) — a minimal, stateless fan-out that lets a
@@ -40,8 +41,19 @@ function sanitizePeerSummary(raw: string): PortfolioSummary | null {
   if (!o || typeof o !== "object" || Array.isArray(o)) return null;
   const objOrNull = <T,>(v: unknown): T | null => (v && typeof v === "object" && !Array.isArray(v) ? (v as T) : null);
   const src = objOrNull<Record<string, unknown>>(o["sources"]);
+  const peerAvail = objOrNull<Record<string, unknown>>(o["availability"]);
   return {
     projects: isNum(o["projects"]) ? o["projects"] : 0,
+    // Carry the peer's OWN degraded state through — a peer that was missing a backend when it answered
+    // is reporting a partial region, and blending that into a federated view without the flag would
+    // launder it into apparent fact. A peer that sends no `availability` (an older build) makes no
+    // claim: `attempted: 0` is what says so, rather than us asserting completeness on its behalf.
+    availability: {
+      complete: typeof peerAvail?.["complete"] === "boolean" ? (peerAvail["complete"] as boolean) : true,
+      attempted: isNum(peerAvail?.["attempted"]) ? (peerAvail["attempted"] as number) : 0,
+      answered: isNum(peerAvail?.["answered"]) ? (peerAvail["answered"] as number) : 0,
+      unavailable: [],
+    },
     health: objOrNull(o["health"]),
     finance: objOrNull(o["finance"]),
     capacity: objOrNull(o["capacity"]),
@@ -128,9 +140,14 @@ export async function buildFederatedPortfolio(req: Request): Promise<FederatedPo
     // Bound the peer fan-out (each peer call in turn triggers that peer's local summary).
     poolMap(peers, 8, (p) => fetchPeerSummary(p)),
   ]);
+  recordAttempted(peers.length);
   for (const r of peerResults) {
     if (r.status !== "ok") {
       logger.warn({ peerId: r.id, peerLabel: r.label, status: r.status, error: r.error, ms: r.ms }, "federated_portfolio_peer_unavailable");
+      // A peer that didn't answer is a missing region of the federated portfolio, so it counts toward
+      // this response's availability the same way a missing backend does. `r.status` is our own
+      // taxonomy, never the peer's raw error text (which can carry hostnames).
+      recordUnavailable(`peer:${r.id}`, `peer ${r.status}`);
     }
   }
   return { generatedAt: new Date().toISOString(), local: { ...localIdentity(), summary }, peers: peerResults };

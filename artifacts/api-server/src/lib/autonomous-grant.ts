@@ -195,7 +195,13 @@ function checkWrite(ctx: ActorContext, req: WriteRequest): string | null {
 
   if (!grant.actions.includes(req.action)) return `action "${req.action}" not in grant`;
   if (typeof grant.notAfter === "number" && req.now > grant.notAfter) return "grant has expired";
-  if (req.projectId && grant.projects && !grant.projects.includes("*") && !grant.projects.includes(req.projectId)) return `project "${req.projectId}" out of scope`;
+  if (req.projectId) {
+    // `projects` is strict default-DENY (unlike surfaces/fields): omitted ⇒ no project allowed, per the
+    // interface doc. The old `&& grant.projects` short-circuited on `undefined`, skipping the check and
+    // authorising writes to ANY project — the reverse of the intended semantics.
+    const allowed = grant.projects ?? [];
+    if (!allowed.includes("*") && !allowed.includes(req.projectId)) return `project "${req.projectId}" out of scope`;
+  }
   if (req.surface && grant.surfaces && !grant.surfaces.includes("*") && !grant.surfaces.includes(req.surface)) return `surface "${req.surface}" out of scope`;
   if (req.fields?.length && grant.fields && !grant.fields.includes("*")) {
     const bad = req.fields.find((f) => !grant.fields!.includes(f));

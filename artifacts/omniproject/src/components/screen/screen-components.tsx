@@ -24,6 +24,7 @@ export const SCREEN_COMPONENTS: Record<string, ComponentType<ScreenComponentProp
   "project-detail": lazy(() => import("../../modules/shell/ProjectDetail").then((m) => ({ default: m.ProjectDetail as ComponentType<ScreenComponentProps> }))),
   explore: lazy(() => import("../../modules/shell/Explore").then((m) => ({ default: m.Explore as ComponentType<ScreenComponentProps> }))),
   burndown: lazy(() => import("../methodology/BurndownScreen").then((m) => ({ default: m.BurndownScreen as ComponentType<ScreenComponentProps> }))),
+  "weekly-review": lazy(() => import("../methodology/WeeklyReviewScreen").then((m) => ({ default: m.WeeklyReviewScreen as ComponentType<ScreenComponentProps> }))),
 };
 
 /** Whether a screen component is registered for this id. */

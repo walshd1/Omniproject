@@ -1,9 +1,10 @@
 version: 2
 
 # Keeps deploy image pins and CI actions fresh so they don't quietly rot the way
-# the deploy files did before. Note: the `docker` ecosystem scans the Dockerfile
-# AND docker-compose.*.yml image: pins, but NOT the k8s manifest image — review
-# k8s-enterprise-manifest.yaml's pins (and the intentional n8n 1.x hold) manually.
+# the deploy files did before. Note: the `docker` ecosystem scans the Dockerfile,
+# docker-compose.*.yml image: pins AND the k8s manifests (it opened #995 against
+# k8s-enterprise-manifest*.yaml, so the earlier "not the k8s manifest" note here
+# was wrong) — still review those pins manually.
 # All bump PRs open against `next` (the standing development branch), not `main`.
 # `main` is the stable release line; dependency updates are validated on `next`'s CI
 # and ride into `main` with the next promotion. See docs/BRANCHING.md.
@@ -17,6 +18,23 @@ updates:
     groups:
       deploy-images:
         patterns: ["*"]
+    ignore:
+      # HOLD n8n on the 1.x line. n8n is the REFERENCE BROKER: the bundled workflow
+      # blueprints, the generated blueprint generator, and the published broker contract
+      # were all built and verified against 1.x, and every compose profile + both k8s
+      # manifests pin the same 1.123.61 on purpose ("matching every compose profile").
+      #
+      # A major bump cannot be judged by CI here, and that is the trap: #995 (1.123.61 →
+      # 2.32.6) passed all 27 checks while touching ONLY the two k8s manifests — nothing in
+      # CI deploys those manifests or starts n8n 2.x, so the green was evidence of nothing,
+      # and merging it would also have split the k8s pins from the compose ones.
+      #
+      # Lifting this hold means actually verifying: stand up docker-compose.loadtest.yml
+      # against 2.x, import the bundled blueprint, run the live contract verification and
+      # the load harness, then bump ALL EIGHT pins together. Minor/patch 1.x bumps still
+      # flow normally.
+      - dependency-name: "n8nio/n8n"
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: github-actions
     directory: "/"

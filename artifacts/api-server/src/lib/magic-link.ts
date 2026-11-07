@@ -84,7 +84,7 @@ export function mintGuestToken(email: string, guest: GuestClaim, now: number): s
   return seal(JSON.stringify(payload));
 }
 
-export interface MagicVerdict { email: string; jti: string; purpose: MagicPurpose; guest?: GuestClaim }
+export interface MagicVerdict { email: string; jti: string; exp: number; purpose: MagicPurpose; guest?: GuestClaim }
 
 /** Validate a guest claim's shape (projectId non-empty, tier known). Defence-in-depth on top of the seal. */
 function validGuestClaim(g: unknown): GuestClaim | null {
@@ -111,9 +111,9 @@ export function verifyMagicToken(token: string, now: number): MagicVerdict | nul
   if (payload.purpose === "guest") {
     const guest = validGuestClaim(payload.guest);
     if (!guest) return null; // a guest token with a malformed claim is rejected outright
-    return { email: payload.email, jti: payload.jti, purpose: "guest", guest };
+    return { email: payload.email, jti: payload.jti, exp: payload.exp, purpose: "guest", guest };
   }
-  return { email: payload.email, jti: payload.jti, purpose: payload.purpose === "stepup" ? "stepup" : "login" };
+  return { email: payload.email, jti: payload.jti, exp: payload.exp, purpose: payload.purpose === "stepup" ? "stepup" : "login" };
 }
 
 /** Enforce single-use: returns true the FIRST time a jti is seen, false on replay. Marks it
@@ -125,9 +125,13 @@ export function verifyMagicToken(token: string, now: number): MagicVerdict | nul
  *  which both callers observed "unused" and both minted a session. `cas` is the same shared-seam
  *  primitive lib/audit-chain uses for its fleet-wide head; it is fleet-wide when Redis is
  *  configured and per-process otherwise (the single-replica default is inherently race-free here). */
-export async function consumeMagicToken(jti: string): Promise<boolean> {
+export async function consumeMagicToken(jti: string, exp: number): Promise<boolean> {
   const key = `magic:jti:${jti}`;
-  return sharedKv.cas(key, null, "1", { ttlMs: ttlMs() * 2 });
+  // The single-use marker MUST outlive the token, or once it expires the same still-valid token can be
+  // redeemed again. Guest invites live guestTtlMs() (days) while a login link lives ttlMs() (minutes), and
+  // consume only sees the jti — so key the marker off the token's own `exp`, not a fixed login TTL.
+  const ttl = Math.max(exp - Date.now(), 0) + 60_000; // +1min skew margin
+  return sharedKv.cas(key, null, "1", { ttlMs: ttl });
 }
 
 /** Sends via SMTP when `SMTP_URL` is set (lib/email.ts); otherwise falls back to logging the

@@ -101,6 +101,7 @@ Running it in production.
 
 - **[OPERATIONS.md](OPERATIONS.md)** — scaling, high availability, disaster recovery & backup, and enabling OTLP telemetry.
 - **[SCALING.md](SCALING.md)** — how OmniProject stays fast and gentle on backend rate limits as usage grows; companion to `ops/MULTI-REPLICA.md`.
+- **[DEGRADED-READS.md](DEGRADED-READS.md)** — what a live fan-out does when a backend doesn't answer: which rows still render, why cross-source totals are withheld, and the `X-OmniProject-Sources-Unavailable` signal.
 - **[ENTERPRISE-OPS.md](ENTERPRISE-OPS.md)** — the data map, DSAR, retention and backup/DR answers procurement asks for.
 - **[QUICKSTART.md](QUICKSTART.md)** — clone to your own real data (read-only) in about 15 minutes; the fast on-ramp.
 - **[DEPLOY-LOCAL.md](DEPLOY-LOCAL.md)** — the standalone stack (bundled Authentik IdP, Traefik, local-CA TLS) for fastest evaluation.

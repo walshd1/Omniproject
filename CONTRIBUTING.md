@@ -1,8 +1,7 @@
 # Contributing to OmniProject
 
-Thanks for your interest in OmniProject. This is an early-stage, open-core
-project and contributions are welcome — bug reports, docs, backends, and
-features all help.
+OmniProject is an early-stage, open-core project. Bug reports, docs, backends,
+and features all help.
 
 By participating you agree to the [Code of Conduct](CODE_OF_CONDUCT.md).
 
@@ -19,7 +18,7 @@ By participating you agree to the [Code of Conduct](CODE_OF_CONDUCT.md).
 ## Branching
 
 Base your work on **`next`**, not `main`. `main` is the stable release line; `next` is the
-standing development branch that sits one step ahead and is kept green. Dependency-bump PRs
+standing development branch that sits one step ahead and stays green. Dependency-bump PRs
 target `next` too. Full flow (promotion, the `next` re-seat ritual, hotfixes) is in
 **[docs/BRANCHING.md](docs/BRANCHING.md)**.
 
@@ -53,9 +52,9 @@ The e2e browser is a one-time setup step, kept out of `pnpm install` so a normal
 install stays fast and offline-friendly. CI installs it per job; locally you run
 `pnpm run e2e:install` once. `pnpm run e2e:run` runs the specs against an already-built app.
 
-Copy [`.env.example`](.env.example) to `.env` to configure — with nothing set the
-gateway runs in stateless **demo mode** (sample data, no SSO), which is the
-easiest way to develop.
+Copy [`.env.example`](.env.example) to `.env` to configure. With nothing set, the
+gateway runs in stateless **demo mode** (sample data, no SSO). That's the easiest
+way to develop.
 
 ## Contract-first codegen
 

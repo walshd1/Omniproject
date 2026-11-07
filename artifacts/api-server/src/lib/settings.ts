@@ -935,15 +935,24 @@ function refreshSettingsSnapshot(): void {
 
 /**
  * A read-safe view of settings for the GET endpoint. `GET /settings` is readable
- * by any authenticated session — including read-only API tokens — so webhook
- * signing secrets must never be returned over it. Masks them; everything else
- * (which the admin UI needs) is preserved.
+ * by any authenticated session — including read-only API tokens — so it must not
+ * carry secrets OR per-project/per-user confidential data. Masks webhook/peer
+ * secrets, and strips the per-project financial/staffing rows (`budgetPlans`,
+ * `resourceAllocations`) and per-user records (`userPrefs`, `calendarPush`): those
+ * are ONLY exposed through their dedicated endpoints, which scope each row to the
+ * caller via `filterRowsByProjectScope`. Returning them here unscoped leaked every
+ * project's budgets/staffing PII and all users' accessibility profiles to any reader.
  */
 export function redactSettingsForRead(s: SettingsState): SettingsState {
   return {
     ...s,
     webhooks: s.webhooks.map((w) => ({ ...w, secret: w.secret ? "********" : "" })),
     federatedPeers: (s.federatedPeers ?? []).map((p) => ({ ...p, token: p.token ? "********" : "" })),
+    // Per-project / per-user data — served (scoped) only by their own endpoints, never the bulk read.
+    budgetPlans: [],
+    resourceAllocations: [],
+    userPrefs: {},
+    calendarPush: {},
   };
 }
 

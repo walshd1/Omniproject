@@ -27,7 +27,10 @@ const REDACTIONS: { re: RegExp; with: string }[] = [
   { re: /\b(?:sk-[A-Za-z0-9]{16,}|AKIA[0-9A-Z]{12,}|gh[pous]_[A-Za-z0-9]{20,}|xox[baprs]-[A-Za-z0-9-]{10,})\b/g, with: "[redacted-secret]" },
   { re: /\bBearer\s+[A-Za-z0-9._-]{12,}\b/g, with: "Bearer [redacted-token]" },
   { re: /\b(?:\d[ -]?){13,16}\b/g, with: "[redacted-card]" },
-  { re: /[\w.+-]+@[\w-]+\.[\w.-]+/g, with: "[redacted-email]" },
+  // Bounded to the RFC 5321 maximum lengths (local part 64, DNS label 63, domain 255). Unbounded `+`
+  // here made the scan O(n^2): on text with no `@`, the engine walked the whole run from every start
+  // offset. The caps hold that per-offset work constant, and no real address exceeds them.
+  { re: /[\w.+-]{1,64}@[\w-]{1,63}\.[\w.-]{1,255}/g, with: "[redacted-email]" },
   { re: /\+?\d[\d\s().-]{8,}\d/g, with: "[redacted-phone]" },
 ];
 

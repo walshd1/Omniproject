@@ -97,10 +97,24 @@
   --sidebar-accent-foreground: 220 10% 7%;
   --sidebar-ring: var(--user-accent, var(--brand-accent, 217 91% 50%));
 
-  --app-font-sans: 'JetBrains Mono', monospace;
+  /* Type system: JetBrains Mono is the SIGNATURE (headings, labels, table headers, IDs, data, code — the
+     terminal identity, re-applied on those elements in @layer base). Body prose + table cells use a quiet,
+     legible proportional face so dense PPM data stays readable. The sans is a dependency-free system stack
+     (the app self-hosts fonts / stays offline); to pin it to Inter, add @fontsource-variable/inter and put
+     'Inter' first here. */
+  --app-font-sans: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
   --app-font-serif: 'JetBrains Mono', monospace;
-  --app-font-mono: 'JetBrains Mono', monospace;
+  --app-font-mono: 'JetBrains Mono', ui-monospace, monospace;
   --radius: 0rem;
+
+  /* Brand accent — the mark's orange (#FF3C00 = hsl 14 100% 50%), so the app's primary/ring/sidebar
+     accents match the favicon / app-icon / OG identity instead of a generic blue. The
+     var(--user-accent, var(--brand-accent, …)) chains above resolve here by default; a per-user theme
+     override (--user-accent) still wins. Contrast: orange vs the light/dark shells is 3.2:1 / 5.4:1
+     (AA for focus rings + UI components); white on orange is 3.6:1 (AA for the bold/large button labels
+     the shell uses — the same contrast band the prior blue default sat in). */
+  --brand-accent: 14 100% 50%;
+  --brand-accent-fg: 0 0% 100%;
 }
 
 .dark {
@@ -139,12 +153,25 @@
   }
 
   body {
-    @apply font-mono antialiased bg-background text-foreground;
+    @apply font-sans antialiased bg-background text-foreground;
     /* Font family cascade: PER-USER font (lib/a11y-prefs) overrides the company BRAND
        font (lib/branding) overrides the default. Background colour = per-user, over the
-       app default. Each falls back to the layer below when unset. */
-    font-family: var(--user-font-family, var(--brand-font-family, ui-monospace, SFMono-Regular, monospace));
+       app default. Each falls back to the layer below when unset. Default is now the legible
+       body sans (var(--font-sans)); the mono SIGNATURE is re-applied on structure below. */
+    font-family: var(--user-font-family, var(--brand-font-family, var(--font-sans)));
     background-color: var(--user-bg, hsl(var(--background)));
+  }
+
+  /* The terminal SIGNATURE stays JetBrains Mono where "mono" reads as intentional: headings, form
+     labels + table headers (chrome/labels), and code/keyboard/preformatted. Body prose and table DATA
+     cells inherit the legible sans. Utilities (font-sans / font-mono) sit in a later layer, so an explicit
+     class on any element still wins over these element defaults. Tabular numeric cells that want aligned
+     columns can opt back in with `font-mono tabular-nums`. */
+  h1, h2, h3, h4, h5, h6,
+  th, thead,
+  label,
+  code, kbd, samp, pre {
+    font-family: var(--font-mono);
   }
 }
 

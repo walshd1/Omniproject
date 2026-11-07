@@ -25,7 +25,7 @@ const GOOD_FORM = {
 };
 
 test("DEF_KINDS is the expected closed set", () => {
-  assert.deepEqual([...DEF_KINDS], ["primitive", "screen", "form", "report", "dashboard", "businessRule", "methodology", "mapping", "customField", "theme", "font", "config", "jsonDef"]);
+  assert.deepEqual([...DEF_KINDS], ["primitive", "screen", "form", "report", "dashboard", "gridColumns", "businessRule", "methodology", "mapping", "customField", "theme", "font", "config", "jsonDef"]);
 });
 
 test("a config def needs an id and an object `values`", () => {
@@ -68,6 +68,15 @@ test("validateDef uses the real per-kind validators", () => {
   assert.ok(bad.errors.length >= 2);
   // A screen missing its panels array fails the real screen validator.
   assert.equal(validateDef("screen", { id: "x", label: "X" }).ok, false);
+});
+
+test("a grid-columns def needs an id + a non-empty columns[] of {field,label,type}", () => {
+  const good = { id: "default", columns: [{ field: "title", label: "Title", type: "text" }, { field: "status", label: "Status", type: "status" }] };
+  assert.equal(validateDef("gridColumns", good).ok, true);
+  assert.equal(validateDef("gridColumns", { id: "x", columns: [] }).ok, false, "columns must be non-empty");
+  assert.equal(validateDef("gridColumns", { columns: [{ field: "title", label: "Title", type: "text" }] }).ok, false, "id required");
+  assert.equal(validateDef("gridColumns", { id: "x", columns: [{ field: "title", label: "Title", type: "bogus" }] }).ok, false, "type must be a grid cell renderer");
+  assert.equal(validateDef("gridColumns", { id: "x", columns: [{ label: "no field", type: "text" }] }).ok, false, "field required");
 });
 
 test("report/jsonDef get a structural check", () => {

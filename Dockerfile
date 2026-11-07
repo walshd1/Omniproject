@@ -40,6 +40,15 @@ RUN PORT=3000 BASE_PATH=/ pnpm --filter @workspace/omniproject run build \
 # ── Runtime ───────────────────────────────────────────────────────────────────
 FROM node:26-bookworm-slim@sha256:2d49d876e96237d76de412761cf05dbfe5aee325cc4406a4d41d5824c5bb8beb AS runtime
 
+# Pull in Debian security updates the pinned base digest predates — the image scanner (Trivy)
+# blocks the build on fixed-but-not-installed CVEs in base packages (e.g. the 2026-09 libpcre2
+# out-of-bounds-write set, fixed in 10.42-1+deb12u1). An upgrade at build time keeps the digest
+# pin (reproducible layers below) while landing the security-only fixes bookworm has published.
+RUN apt-get update \
+  && apt-get upgrade -y --no-install-recommends \
+  && apt-get clean \
+  && rm -rf /var/lib/apt/lists/*
+
 ENV NODE_ENV=production
 ENV PORT=3000
 # The gateway serves the built SPA from here (single-container mode).

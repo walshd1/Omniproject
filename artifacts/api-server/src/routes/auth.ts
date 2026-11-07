@@ -44,7 +44,7 @@ import { isSessionExpired, timeoutPolicy, sessionCookieMaxAgeMs } from "../lib/s
 import { currentVersion, isActive, userSessionsRevokedAt, revokeUserSessions } from "../lib/key-registry";
 import { registerSession, issueSequence, checkSequence, noteSession, listUserSessions, revokeSession, revokeOtherSessions, isSessionRevoked, sessionPublicId } from "../lib/session-registry";
 import { requireTls } from "../lib/deployment-profile";
-import { productionSignals } from "../lib/dev-mode-guard";
+import { isProductionLike } from "../lib/dev-mode-guard";
 import { ensureCsrfCookie, setCsrfCookie, newCsrfToken } from "../lib/csrf";
 import { checkLogin } from "../lib/impossible-travel";
 import { recordAudit, recordRequestAudit } from "../lib/audit";
@@ -185,7 +185,7 @@ export function resolveBaseUrl(opts: {
 export function baseUrl(req: Request): string {
   return resolveBaseUrl({
     configured: process.env["PUBLIC_URL"],
-    productionLike: process.env["NODE_ENV"] === "production" || productionSignals(process.env).length > 0,
+    productionLike: isProductionLike(process.env),
     trustProxy: !!req.app.get("trust proxy"),
     forwardedProto: req.headers["x-forwarded-proto"] as string | undefined,
     forwardedHost: req.headers["x-forwarded-host"] as string | undefined,
@@ -654,7 +654,7 @@ router.get("/auth/magic/verify", async (req, res) => {
   // magic link needs passwordless sign-in to be enabled (which is off whenever real SSO is configured).
   const allowed = verdict.purpose === "guest" ? guestPortalEnabled() : magicLinkEnabled();
   if (!allowed) { res.status(404).send("This sign-in link is not enabled."); return; }
-  if (!(await consumeMagicToken(verdict.jti))) { res.status(400).send("This sign-in link has already been used."); return; }
+  if (!(await consumeMagicToken(verdict.jti, verdict.exp))) { res.status(400).send("This sign-in link has already been used."); return; }
   const travel = await travelCheck(verdict.email, verdict.email, req.ip);
   // A guest invite mints a CONFINED session: the `guest` marker drops the principal to the guest role +
   // single-project scope (see rbac). It never carries IdP roles or step-up. Its only surface is the portal.

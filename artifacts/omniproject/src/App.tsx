@@ -12,6 +12,7 @@ import { ThemeScopeProvider } from "./lib/theme-scope";
 import { PlatformProvider } from "./lib/platform-context";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { installDataQualityObserver } from "./lib/data-quality";
+import { installSourceAvailabilityObserver } from "./lib/source-availability";
 import { ErrorTelemetrySync } from "./components/ErrorTelemetrySync";
 import { DevModeWatermark } from "./components/DevModeWatermark";
 import { ImpossibleTravelBanner } from "./components/ImpossibleTravelBanner";
@@ -70,6 +71,7 @@ const queryClient = new QueryClient({
 
 function DataQualityObserver() {
   useEffect(() => { installDataQualityObserver(); }, []);
+  useEffect(() => { installSourceAvailabilityObserver(); }, []);
   return null;
 }
 
