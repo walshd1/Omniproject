@@ -1,0 +1,1 @@
+{ "id": "weekly-review", "label": "Weekly Review", "methodologies": ["gtd"], "route": "/weekly-review", "nav": { "label": "Weekly Review" }, "bare": true, "panels": [ { "id": "weekly-review", "kind": "component", "config": { "component": "weekly-review" } } ] }

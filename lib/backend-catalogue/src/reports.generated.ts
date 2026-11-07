@@ -685,7 +685,11 @@ export const REPORTS_DATA: ReportDefinition[] = [
       "today",
       "prioritise"
     ],
-    "notes": "The ranked 'do these today' list — overdue / due-today / high-priority / flagged tasks, worst-first.",
+    "methodologies": [
+      "gtd",
+      "*"
+    ],
+    "notes": "The ranked 'do these today' list — overdue / due-today / high-priority / flagged tasks, worst-first. Tagged gtd so it ships in the GTD pack's one-click deploy; '*' keeps it neutral (available to every methodology) as before.",
     "order": 49
   },
   {
