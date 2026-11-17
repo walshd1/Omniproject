@@ -551,7 +551,8 @@ export async function probeVerifiableActions(
       let json = (await res.json().catch(() => ({}))) as { success?: boolean; message?: string; enc?: string; data?: { verified?: boolean } };
       if (psk && typeof json.enc === "string") {
         const opened = openPayload(json.enc);
-        json = opened ? (JSON.parse(opened) as typeof json) : {};
+        // Untrusted broker reply — prototype-safe parse (see the response path above).
+        json = opened ? (safeParseJson(opened) as typeof json) : {};
       }
       return {
         action,
