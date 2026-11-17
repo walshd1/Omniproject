@@ -379,8 +379,17 @@ router.get("/auth/login", async (req, res) => {
   const returnTo = safeLocalPath(req.query["returnTo"]);
   const provider = getOidcProvider(typeof req.query["provider"] === "string" ? req.query["provider"] : null);
 
-  // Demo mode: no IdP configured — establish a local demo session.
+  // Demo mode: establish a local demo session — but ONLY when the deployment is genuinely in demo
+  // mode. Gating on `!provider` alone was an authn bypass (security audit C1): a SAML / OAuth2 /
+  // magic-link / native-local-users deployment has no OIDC provider yet is NOT demo, so this branch
+  // would hand an anonymous caller a valid sealed session (resolving to `contributor`). `isDemoAuth()`
+  // is the real posture (no auth method of any kind configured, and no local user yet) — the same
+  // gate the other demo-only branches in this file use.
   if (!provider) {
+    if (!isDemoAuth()) {
+      res.status(404).json({ error: "OIDC is not configured. Use this deployment's configured sign-in method." });
+      return;
+    }
     establishSession(res, { sub: "demo-user", name: "Demo User", email: "demo@omniproject.local", accessToken: "demo-token" });
     res.redirect(returnTo);
     return;

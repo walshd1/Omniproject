@@ -1,5 +1,6 @@
 import crypto from "node:crypto";
 import { getSettings } from "../../lib/settings";
+import { safeParseJson } from "../../lib/safe-json";
 import { configuredBrokerUrl } from "../../lib/broker-url";
 import { assertResidency } from "../../lib/data-residency";
 import { currentEndpointOverride } from "../endpoint-context";
@@ -340,14 +341,18 @@ async function unwrapResponse<T>(
       throw new BrokerError("unavailable", "broker response was not signed");
     }
 
+    // The broker/n8n reply is UNTRUSTED (the seam's zero-trust boundary), so parse it with the
+    // prototype-safe parser — the same standard the other broker boundaries use (shared-cache,
+    // reference-broker-blueprint) — not raw JSON.parse, so a `__proto__`/`constructor` key in the
+    // reply can never pollute an object a caller later merges this data into.
     let json: unknown = {};
-    try { json = text ? JSON.parse(text) : {}; } catch { json = {}; }
+    try { json = text ? safeParseJson(text) : {}; } catch { json = {}; }
     // When PSK is on, a conformant broker encrypts its reply the same way; unwrap
     // the `{ v, enc }` envelope back to the plaintext result. A non-encrypted body
     // is left as-is (a broker that doesn't speak PSK simply won't decrypt anyway).
     if (psk && json && typeof json === "object" && typeof (json as { enc?: unknown }).enc === "string") {
       const opened = openPayload((json as { enc: string }).enc);
-      json = opened ? (JSON.parse(opened) as unknown) : {};
+      json = opened ? safeParseJson(opened) : {};
     }
     const result: AdapterResult<T> =
       json && typeof json === "object" && "success" in json ? (json as AdapterResult<T>) : { success: true, data: json as T };

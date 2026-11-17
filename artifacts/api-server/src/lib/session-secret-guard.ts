@@ -43,8 +43,21 @@ export function evaluateSessionSecret(env: Env): SessionSecretResult {
   const isNodeProd = isProductionEnv(env);
   const signals = isNodeProd ? [] : productionSignals(env);
   const looksProduction = isNodeProd || signals.length > 0;
-  const weak = !fromEnv || fromEnv === DEV_SESSION_SECRET;
+  const weak = !fromEnv || fromEnv === DEV_SESSION_SECRET || isKnownPlaceholderSecret(fromEnv);
   return { secret: fromEnv || DEV_SESSION_SECRET, looksProduction, signals, ok: !(looksProduction && weak) };
+}
+
+/**
+ * True for the publicly-known placeholder secrets that ship in the repo's example/compose files
+ * (docker-compose.dev.yml's `dev-only-insecure-session-secret-change-me`, the load-test rig's
+ * `loadtest-not-a-secret-change-me`, `.env.example`, …). The guard previously flagged only the one
+ * `DEV_SESSION_SECRET` constant, so a deployment reusing a DIFFERENT committed default as its secret
+ * passed the production check even though the value is in the public git history (security audit). A
+ * secret carrying any of these giveaway markers is, by construction, not a real secret.
+ */
+function isKnownPlaceholderSecret(secret: string): boolean {
+  const v = secret.toLowerCase();
+  return ["insecure", "change-me", "changeme", "change_me", "change-in-production", "not-a-secret", "notasecret", "placeholder", "dev-only", "loadtest", "example-secret"].some((m) => v.includes(m));
 }
 
 /**

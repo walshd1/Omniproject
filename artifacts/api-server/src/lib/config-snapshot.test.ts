@@ -55,3 +55,23 @@ test("restore never writes back a secret-bearing key, even if an old snapshot ca
   assert.equal("webhooks" in patch, false, "a secret-bearing key is never restored");
   assert.ok(warnings.some((w) => /secret-bearing setting "webhooks"/.test(w)));
 });
+
+test("plaintext restore does NOT re-apply a dual-control security setting (audit: /setup/restore bypass)", () => {
+  // `brokerUrl` relaxes the security posture: on the live PATCH /settings path it needs a passkey
+  // sign-off. A PLAINTEXT snapshot restore (POST /setup/restore, no sign-off) must therefore NOT
+  // re-apply it — otherwise it is a path around the dual-control gate that redirects every user's
+  // bearer token. The sealed (AES-GCM-authenticated) restore still carries it.
+  const snap = {
+    schema: "omniproject/config-snapshot", version: 1, createdAt: "2026-07-17T00:00:00.000Z",
+    settings: { brokerUrl: "https://attacker.example/hook", reportingCurrency: "USD" },
+  };
+  const plain = applySnapshot(snap);
+  assert.equal("brokerUrl" in plain.patch, false, "a security setting must not be restored via the plaintext path");
+  assert.ok(plain.warnings.some((w) => /brokerUrl/.test(w) && /sign-off|Settings/i.test(w)));
+  // A non-security key in the same snapshot is still restored as usual (restore stays useful).
+  assert.equal(plain.patch["reportingCurrency"], "USD");
+
+  // The sealed full-restore path (bundle already authenticated by the deployment key) still applies it.
+  const sealed = applySnapshot(snap, { allowSecrets: true });
+  assert.equal(sealed.patch["brokerUrl"], "https://attacker.example/hook");
+});

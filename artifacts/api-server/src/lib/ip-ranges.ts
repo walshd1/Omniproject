@@ -30,10 +30,34 @@ export function isLinkLocalIPv4(ip: string): boolean {
 }
 
 /** Expand a canonical (possibly `::`-compressed) IPv6 literal into its 8 hextets. */
+/** Expand a trailing IPv4 dotted-quad (the LAST colon-token, e.g. `169.254.169.254` in
+ *  `::ffff:169.254.169.254`) into its two encoded hextets. This is the form `inet_ntop`/`dns.lookup`
+ *  render for a v4-mapped or NAT64 address; without expansion the quad is parsed as a SINGLE
+ *  `parseInt(…,16)` slot, shifting 0xffff off hextet 5 so the mapped-range checks miss it — the
+ *  SSRF metadata-floor bypass. Returns the group unchanged when it has no trailing quad, or null
+ *  when the quad is malformed. */
+function expandTrailingQuad(parts: string[]): string[] | null {
+  if (parts.length === 0) return parts;
+  const last = parts[parts.length - 1]!;
+  if (!last.includes(".")) return parts;
+  const octets = last.split(".");
+  if (octets.length !== 4) return null;
+  const n = octets.map((o) => (/^\d{1,3}$/.test(o) ? Number(o) : NaN));
+  if (n.some((x) => !Number.isInteger(x) || x < 0 || x > 255)) return null;
+  const hi = ((n[0]! << 8) | n[1]!).toString(16);
+  const lo = ((n[2]! << 8) | n[3]!).toString(16);
+  return [...parts.slice(0, -1), hi, lo];
+}
+
 function expandIPv6(ip: string): number[] | null {
   const [head, tail] = ip.includes("::") ? ip.split("::") : [ip, undefined];
-  const headParts = head ? head.split(":") : [];
-  const tailParts = tail !== undefined && tail !== "" ? tail.split(":") : [];
+  // A trailing dotted-quad is always the final colon-token of the whole address — expand it in the
+  // trailing group (tail when `::` is present, else head) BEFORE the hextet count/parse.
+  const headRaw = head ? head.split(":") : [];
+  const tailRaw = tail !== undefined && tail !== "" ? tail.split(":") : [];
+  const headParts = tail === undefined ? expandTrailingQuad(headRaw) : headRaw;
+  const tailParts = tail === undefined ? tailRaw : expandTrailingQuad(tailRaw);
+  if (headParts === null || tailParts === null) return null;
   if (tail === undefined && headParts.length !== 8) return null; // no `::` ⇒ must be fully written out
   const missing = 8 - headParts.length - tailParts.length;
   if (missing < 0) return null;
@@ -41,6 +65,16 @@ function expandIPv6(ip: string): number[] | null {
   const hextets = allParts.map((p) => parseInt(p, 16));
   if (hextets.length !== 8 || hextets.some((h) => !Number.isInteger(h) || h < 0 || h > 0xffff)) return null;
   return hextets;
+}
+
+/** If `h` is the RFC 6052 well-known NAT64 prefix `64:ff9b::/96`, the dotted IPv4 it embeds in its low
+ *  32 bits; else null. A NAT64 resolver can hand back an AAAA in this prefix that routes to the embedded
+ *  IPv4 — so an attacker's `64:ff9b::169.254.169.254` reaches IMDS on a NAT64 deployment. */
+function nat64EmbeddedV4(h: number[]): string | null {
+  if (h[0] === 0x0064 && h[1] === 0xff9b && h[2] === 0 && h[3] === 0 && h[4] === 0 && h[5] === 0) {
+    return `${(h[6]! >> 8) & 0xff}.${h[6]! & 0xff}.${(h[7]! >> 8) & 0xff}.${h[7]! & 0xff}`;
+  }
+  return null;
 }
 
 /** IPv6 literal (as produced by `URL.hostname`, brackets stripped) → true if link-local
@@ -58,6 +92,9 @@ export function isLinkLocalIPv6(ip: string): boolean {
     const b = h[6]! & 0xff;
     return a === 169 && b === 254;
   }
+  // NAT64 (64:ff9b::/96) wrapping the IMDS address resolves to 169.254.169.254 on NAT64 egress.
+  const nat64 = nat64EmbeddedV4(h);
+  if (nat64) return isLinkLocalIPv4(nat64);
   return false;
 }
 
@@ -109,12 +146,15 @@ export function isPrivateOrLoopbackIPv4(ip: string): boolean {
 export function isPrivateOrLoopbackIPv6(ip: string): boolean {
   const h = expandIPv6(ip.toLowerCase());
   if (!h) return false;
+  if (h.every((x) => x === 0)) return true; // :: unspecified — connects to loopback on Linux (cf. 0.0.0.0/8)
   if (h[0] === 0 && h[1] === 0 && h[2] === 0 && h[3] === 0 && h[4] === 0 && h[5] === 0 && h[6] === 0 && h[7] === 1) return true; // ::1
   if ((h[0]! & 0xfe00) === 0xfc00) return true; // fc00::/7 unique-local
   if (h[0] === 0 && h[1] === 0 && h[2] === 0 && h[3] === 0 && h[4] === 0 && h[5] === 0xffff) { // IPv4-mapped
     const a = (h[6]! >> 8) & 0xff, b = h[6]! & 0xff, c = (h[7]! >> 8) & 0xff, d = h[7]! & 0xff;
     return isPrivateOrLoopbackIPv4(`${a}.${b}.${c}.${d}`);
   }
+  const nat64 = nat64EmbeddedV4(h); // NAT64-wrapped RFC1918/loopback reaches internal hosts on NAT64 egress
+  if (nat64) return isPrivateOrLoopbackIPv4(nat64);
   return false;
 }
 
