@@ -163,7 +163,11 @@ overrides:
   "@expo/ngrok-bin>@expo/ngrok-bin-win32-x64": "-"
   # drizzle-kit uses esbuild internally on an older version that's vulnerable, this overrides it
   "@esbuild-kit/esm-loader": "npm:tsx@^4.21.0"
-  esbuild: "0.27.3"
+  # Single-version pin so the whole tree resolves ONE esbuild (one native binary; the platform-exclude
+  # overrides above assume a single version). Bumped 0.27.3 → 0.28.2 to clear GHSA-g7r4-m6w7-qqqr (LOW:
+  # arbitrary file read via the esbuild dev server on Windows — build-time tooling only; the dev server
+  # is unused here). 0.28.2 also aligns with tsx 4.23.15's own ~0.28.0 requirement (0.27.3 was below it).
+  esbuild: "0.28.2"
   # js-yaml < 4.3.2 (via orval, the api-spec codegen devDep) carries HIGH advisories
   # (GHSA-52cp-r559-cp3m merge-key chains; GHSA-2883-xcg3-v3hh maxTotalMergeKeys CPU;
   # GHSA-5p4m-2wfm-xmqj !!omap quadratic CPU). Force the vulnerable range up to the patched
@@ -215,6 +219,22 @@ overrides:
   # still needs a targeted ignore for that path. (Floor raised 5.0.8 → 5.0.9 for GHSA-rgw5-rvv9-x895,
   # the bypass of the earlier unbounded-expansion mitigation.)
   "brace-expansion@>=5.0.0 <5.0.9": ">=5.0.9 <6.0.0"
+  # Nov 2026 moderate/low batch — all transitive, dev/build tooling except qs (runtime). Each clears the
+  # GitHub advisory for the flagged package; kept in-major where a patched in-major line exists.
+  # glob AbortSignal cancellation bypass → post-timeout fs traversal (GHSA-3g3m-2fjr-6pw4), via
+  # c8>test-exclude. No 13.x fix exists (the whole 13.x line is inside the affected <=14.0.1 range), so
+  # it moves to 14.x.
+  "glob@>=9.0.0 <14.0.2": ">=14.0.2 <15.0.0"
+  # minimatch globparts amplification DoS (GHSA-g3hv-75wg-m249), via @stryker-mutator + c8. Floor to the
+  # 11.x line the tree already resolves (11.0.9) on other paths.
+  "minimatch@>=7.0.0 <11.0.1": ">=11.0.1 <12.0.0"
+  # postcss-selector-parser quadratic flat-selector parsing → CPU exhaustion (GHSA-rj75-hqrm-r3gf), via
+  # @tailwindcss/typography. Stay on the 6.x line (6.1.6), not the 7.x major.
+  "postcss-selector-parser@<6.1.5": ">=6.1.6 <7.0.0"
+  # qs batch — array-limit bypass (GHSA-x5fp-wj9c-mxmx), isBuffer DoS (GHSA-4mjr-xmp4-gh2g), comma-format
+  # stringify DoS (GHSA-q8mj-m7cp-5q26, GHSA-6pq8-jhm2-2vcw). Runtime (express / typed-rest-client).
+  # Floor to 6.17.1 — the version body-parser already resolves — so qs dedupes to one copy.
+  "qs@>=2.2.5 <6.16.1": ">=6.17.1 <7.0.0"
 
 allowBuilds:
   esbuild: true
