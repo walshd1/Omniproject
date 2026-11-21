@@ -39,6 +39,7 @@ import safeOverview from "./screens/safe-overview.json";
 import grantTrackingOverview from "./screens/grant-tracking-overview.json";
 import volunteerRosterOverview from "./screens/volunteer-roster-overview.json";
 import fundraisingPipelineOverview from "./screens/fundraising-pipeline-overview.json";
+import weeklyReview from "./screens/weekly-review.json";
 
 /**
  * THE SHIPPED SCREEN-DEFINITION catalogue — the panel-bearing screen ARTIFACTS the generic builder renders,
@@ -66,7 +67,7 @@ export const SCREEN_DEF_CATALOGUE: RawScreenDef[] = [
   budgetPlans, resourceAllocations, home, myWork, tasks, reports, programmes, programmeDetail,
   projects, projectDetail, explore, kanban, scrum, sprints, userStories, epics, burndown, gantt, prince2,
   raid, intake, projectGantt, riskRegister, raciMatrix, stakeholders, sapProjectCost,
-  gtdOverview, scrumOverview, kanbanOverview, scrumbanOverview, waterfallOverview, prince2Overview, safeOverview,
+  gtdOverview, weeklyReview, scrumOverview, kanbanOverview, scrumbanOverview, waterfallOverview, prince2Overview, safeOverview,
   grantTrackingOverview, volunteerRosterOverview, fundraisingPipelineOverview,
 ] as unknown as RawScreenDef[];
 

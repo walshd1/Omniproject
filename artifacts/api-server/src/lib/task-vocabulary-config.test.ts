@@ -59,10 +59,11 @@ test("sanitizer: per-locale translations validate locale keys", () => {
   assert.throws(() => sanitizeTaskVocabularyOverride({ statuses: [{ id: "done", labels: { German: "Erledigt" } }] }), /not a valid locale/);
 });
 
-test("resolver: shipped default is the 6 GTD statuses in order", async () => {
+test("resolver: shipped default is the 7 GTD statuses in order (inbox leads — capture lands unclarified)", async () => {
   const { resolveTaskVocabulary } = await import("./task-vocabulary-config");
   const base = resolveTaskVocabulary();
-  assert.deepEqual(base.statuses.map((s) => s.id), ["next", "waiting", "scheduled", "someday", "done", "dropped"]);
+  assert.deepEqual(base.statuses.map((s) => s.id), ["inbox", "next", "waiting", "scheduled", "someday", "done", "dropped"]);
+  assert.equal(base.statuses.find((s) => s.id === "inbox")!.class, "actionable");
   assert.equal(base.statuses.find((s) => s.id === "next")!.class, "actionable");
   assert.equal(base.statuses.find((s) => s.id === "done")!.color, "#22c55e"); // shipped hex colour
 });

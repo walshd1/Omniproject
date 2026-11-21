@@ -17,7 +17,7 @@
 # means every build silently pulls whatever the tag currently resolves to — not reproducible,
 # and a compromised/tampered upstream tag would go unnoticed. Refresh the digest deliberately
 # (e.g. `docker buildx imagetools inspect node:26-bookworm-slim`) alongside a real version bump.
-FROM node:26-bookworm-slim@sha256:2d49d876e96237d76de412761cf05dbfe5aee325cc4406a4d41d5824c5bb8beb AS builder
+FROM node:26-bookworm-slim@sha256:5df79989ed685e09f0a98019db4cebfb22fb9df1a53c0161664a011f7ff6b0f1 AS builder
 
 # Node no longer bundles corepack, so install the pinned pnpm directly via npm.
 RUN npm install -g pnpm@11.8.0
@@ -38,7 +38,7 @@ RUN PORT=3000 BASE_PATH=/ pnpm --filter @workspace/omniproject run build \
  && pnpm --filter @workspace/api-server run build
 
 # ── Runtime ───────────────────────────────────────────────────────────────────
-FROM node:26-bookworm-slim@sha256:2d49d876e96237d76de412761cf05dbfe5aee325cc4406a4d41d5824c5bb8beb AS runtime
+FROM node:26-bookworm-slim@sha256:5df79989ed685e09f0a98019db4cebfb22fb9df1a53c0161664a011f7ff6b0f1 AS runtime
 
 # Pull in Debian security updates the pinned base digest predates — the image scanner (Trivy)
 # blocks the build on fixed-but-not-installed CVEs in base packages (e.g. the 2026-09 libpcre2
