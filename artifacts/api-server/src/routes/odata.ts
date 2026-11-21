@@ -72,7 +72,12 @@ router.get("/odata/$metadata", (_req, res) => {
 /** Extract a top-level `projectId eq '<id>'` predicate from a $filter (the minimal grammar has no
  *  AND/OR), so a single-project feed query can be pushed down to a single-project read. */
 function projectIdEq(q: ODataQuery): string | null {
-  const m = q.$filter?.match(/^\s*projectId\s+eq\s+'?([^']+)'?\s*$/i);
+  const s = q.$filter?.trim();
+  if (!s || s.length > 256) return null; // the predicate is tiny; bound the input defensively
+  // Two fully-anchored, linear matches for `projectId eq '<id>'` and `projectId eq <id>`. The previous
+  // single pattern let `[^']+` and a trailing `\s*$` both consume whitespace — an ambiguity that makes
+  // it polynomial on a crafted $filter (CWE-1333). These have no such overlap, so matching is linear.
+  const m = /^projectId\s+eq\s+'([^']+)'$/i.exec(s) ?? /^projectId\s+eq\s+(\S+)$/i.exec(s);
   return m ? m[1]! : null;
 }
 
