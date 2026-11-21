@@ -38,6 +38,22 @@ test("NODE_ENV=production with a real secret is accepted", () => {
   assert.equal(r.secret, "a-strong-random-secret");
 });
 
+test("a publicly-known committed placeholder secret is refused in production (not just the one dev constant)", () => {
+  // These are the exact strings that ship in the repo's compose/example files — all in public git history.
+  for (const placeholder of [
+    "dev-only-insecure-session-secret-change-me", // docker-compose.dev.yml
+    "loadtest-not-a-secret-change-me",            // docker-compose.loadtest.yml
+    "changeme",
+  ]) {
+    const r = evaluateSessionSecret({ NODE_ENV: "production", SESSION_SECRET: placeholder });
+    assert.equal(r.ok, false, `"${placeholder}" must be refused as a known placeholder`);
+  }
+  // A production-SIGNAL deployment (OIDC configured) with a placeholder is refused too, even when
+  // NODE_ENV isn't literally "production".
+  const signalled = evaluateSessionSecret({ NODE_ENV: "development", OIDC_ISSUER_URL: "https://idp.example.com", SESSION_SECRET: "my-insecure-dev-secret" });
+  assert.equal(signalled.ok, false);
+});
+
 test("real OIDC configured + NODE_ENV NOT literally 'production' + no secret is now refused (the gap this closes)", () => {
   const r = evaluateSessionSecret({ NODE_ENV: "development", OIDC_ISSUER_URL: "https://idp.example.com" });
   assert.equal(r.ok, false);
