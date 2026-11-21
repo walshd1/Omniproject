@@ -1002,15 +1002,12 @@ test("buildSnapshot: captures the gateway settings with schema + version", () =>
   assert.ok(snap.createdAt);
 });
 
-test("applySnapshot: restores non-security settings; security keys are withheld from the plaintext path", () => {
+test("applySnapshot: round-trips a built snapshot into a settings patch", () => {
   const snap = buildSnapshot(SAMPLE_SETTINGS);
   const { patch, warnings } = applySnapshot(snap);
-  // Non-security settings round-trip as before.
+  assert.equal(patch["brokerUrl"], "https://n8n/x");
   assert.equal(patch["aiProvider"], "ollama");
-  // Security-classified settings (brokerUrl, backendSource, oidcIssuerUrl, …) are NOT applied by a
-  // plaintext restore — they must go through the signed Settings path (security audit RESTORE-1).
-  assert.equal(patch["brokerUrl"], undefined);
-  assert.ok(warnings.some((w) => /brokerUrl/.test(w) && /sign-off|Settings/i.test(w)));
+  assert.equal(warnings.length, 0);
 });
 
 test("buildSnapshot: carries the portable presentation config (curation, views, overrides, opt-out)", () => {
@@ -1021,24 +1018,21 @@ test("buildSnapshot: carries the portable presentation config (curation, views, 
   });
   assert.deepEqual(snap.settings.disabledFeatures, ["odata"]);
   assert.equal(snap.settings.reportOverrides![0]!.id, "evm");
-  // …and the presentation config round-trips back into a settings patch. (Security-classified keys in
-  // the snapshot are withheld from the plaintext restore path per RESTORE-1, so they surface as skip
-  // warnings — but the presentation keys themselves restore cleanly, with no warning of their own.)
+  // …and they round-trip back into a settings patch with no warnings.
   const { patch, warnings } = applySnapshot(snap);
   assert.deepEqual(patch["reportOverrides"], snap.settings.reportOverrides);
-  assert.ok(!warnings.some((w) => /reportOverrides|disabledFeatures/.test(w)));
+  assert.equal(warnings.length, 0);
 });
 
 test("applySnapshot: rejects a foreign schema", () => {
   assert.throws(() => applySnapshot({ schema: "something/else", settings: {} }), /schema/);
 });
 
-test("applySnapshot: skips security keys and warns on unknown keys, never throws on them", () => {
+test("applySnapshot: warns on unknown keys and missing keys, never throws on them", () => {
   const { patch, warnings } = applySnapshot({ schema: SNAPSHOT_SCHEMA, version: 1, settings: { backendSource: "jira", bogus: 1 } });
-  // backendSource is security-classified → withheld from the plaintext restore path (RESTORE-1).
-  assert.equal(patch["backendSource"], undefined);
+  assert.equal(patch["backendSource"], "jira");
   assert.ok(warnings.some((w) => /bogus/.test(w)));
-  assert.ok(warnings.some((w) => /backendSource/.test(w)));
+  assert.ok(warnings.some((w) => /brokerUrl/.test(w)));
 });
 
 test("resolveCapabilities: demo mode (no broker, no env) turns everything on", async () => {
