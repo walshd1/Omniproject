@@ -88,3 +88,31 @@ test("applyColumnMapping skips a prototype-pollution field name", () => {
   assert.ok(!Object.prototype.hasOwnProperty.call(out[0], "__proto__"), "no own __proto__ key assigned");
   assert.equal(({} as Record<string, unknown>)["polluted"], undefined); // prototype intact
 });
+
+test("a real Jira CSV export header row maps onto the canonical vocabulary (the DC-exodus path)", () => {
+  // The header set "Export → CSV (all fields)" produces on Jira Cloud and Data Center.
+  const headers = [
+    "Issue key", "Issue Type", "Summary", "Description", "Status", "Priority", "Resolution",
+    "Assignee", "Reporter", "Labels", "Component/s", "Fix Version/s", "Sprint", "Epic Link",
+    "Due date", "Original estimate", "Time Spent", "Remaining Estimate", "Parent",
+    "Custom field (Story Points)",
+  ];
+  const byColumn = new Map(suggestColumnMapping(headers).map((s) => [s.column, s.suggestedField]));
+  assert.equal(byColumn.get("Issue Type"), "type");
+  assert.equal(byColumn.get("Summary"), "title");
+  assert.equal(byColumn.get("Component/s"), "component");
+  assert.equal(byColumn.get("Fix Version/s"), "fixVersion");
+  assert.equal(byColumn.get("Epic Link"), "epic");
+  assert.equal(byColumn.get("Due date"), "dueDate");
+  assert.equal(byColumn.get("Original estimate"), "originalEstimateHours");
+  assert.equal(byColumn.get("Time Spent"), "loggedHours");
+  assert.equal(byColumn.get("Remaining Estimate"), "remainingHours");
+  assert.equal(byColumn.get("Parent"), "parentTask");
+  assert.equal(byColumn.get("Custom field (Story Points)"), "storyPoints");
+  // The Jira key is backend-local: deliberately left for the operator to place.
+  assert.equal(byColumn.get("Issue key"), null);
+  // And the obvious ones still land.
+  for (const [col, field] of [["Status", "status"], ["Priority", "priority"], ["Assignee", "assignee"], ["Reporter", "reporter"], ["Labels", "labels"], ["Sprint", "sprint"], ["Resolution", "resolution"], ["Description", "description"]] as const) {
+    assert.equal(byColumn.get(col), field, col);
+  }
+});

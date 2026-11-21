@@ -9,10 +9,31 @@ describe("parseTaskSearch", () => {
     expect(where).toEqual({
       all: [
         { field: "tags", op: "has", value: "urgent" },
-        { field: "context", op: "eq", value: "calls" },
+        // A context query is subtree-aware: exact match OR any nested child path (`calls/…`).
+        { any: [
+          { field: "context", op: "eq", value: "calls" },
+          { field: "context", op: "startsWith", value: "calls/" },
+        ] },
         { field: "priority", op: "gte", value: "high", kind: "ordinal", levels: expect.anything() },
       ],
     });
+  });
+
+  it("a parent @context matches its nested children, but never a sibling that merely shares the prefix", () => {
+    const rows: Row[] = [
+      { id: 1, context: "home" },
+      { id: 2, context: "home/office" },
+      { id: 3, context: "homework" },
+      { id: 4, context: "work/home" },
+    ];
+    const { where } = parseTaskSearch("@home");
+    expect(filterRowsBoolean(rows, where).map((r) => r["id"])).toEqual([1, 2]);
+    // A child query stays scoped to the child.
+    const child = parseTaskSearch("@home/office").where;
+    expect(filterRowsBoolean(rows, child).map((r) => r["id"])).toEqual([2]);
+    // Negation excludes the whole subtree.
+    const not = parseTaskSearch("-@home").where;
+    expect(filterRowsBoolean(rows, not).map((r) => r["id"])).toEqual([3, 4]);
   });
 
   it("compiles to a tree the shared engine runs (over rows enriched with _urgency/_untouched)", () => {
