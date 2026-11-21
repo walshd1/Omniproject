@@ -11,5 +11,8 @@
  * (which would also break the row) collapse to spaces.
  */
 export function escapeTableCell(s: string): string {
-  return s.replace(/\|/g, "\\|").replace(/\r?\n/g, " ");
+  // Escape backslashes FIRST, then pipes, then collapse newlines. Order matters: escaping `|`→`\|`
+  // without first escaping a literal `\` leaves an input like `a\|b` as `a\\|b`, whose trailing `|`
+  // is then an unescaped column separator (incomplete escaping, CWE-116).
+  return s.replace(/\\/g, "\\\\").replace(/\|/g, "\\|").replace(/\r?\n/g, " ");
 }

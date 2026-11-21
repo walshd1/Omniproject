@@ -73,12 +73,16 @@ function configDirEntries(): { entries: ZipEntry[]; skipped: string[] } {
   const entries: ZipEntry[] = [];
   const skipped: string[] = [];
   const walk = (d: string, prefix: string) => {
-    for (const name of fs.readdirSync(d)) {
+    // `withFileTypes` returns each entry's kind from the single readdir call, so there's no separate
+    // statSync and therefore no stat-then-read gap per file (file-system race, CWE-367). The read is
+    // itself guarded, so an entry that changes under us (or isn't a regular file) is skipped, not thrown.
+    for (const ent of fs.readdirSync(d, { withFileTypes: true })) {
+      const name = ent.name;
       const full = path.join(d, name);
-      const stat = fs.statSync(full);
-      if (stat.isDirectory()) { walk(full, `${prefix}${name}/`); continue; }
+      if (ent.isDirectory()) { walk(full, `${prefix}${name}/`); continue; }
       if (!name.endsWith(".json")) continue;
-      const data = fs.readFileSync(full);
+      let data: Buffer;
+      try { data = fs.readFileSync(full); } catch { continue; }
       if (isSealedConfig(data.toString("utf8"))) { skipped.push(`${prefix}${name}`); continue; }
       entries.push({ name: `config-dir/${prefix}${name}`, data });
     }
