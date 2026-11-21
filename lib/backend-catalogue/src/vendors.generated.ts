@@ -1662,7 +1662,13 @@ export const BACKENDS_DATA: BackendDefinition[] = [
       "create_issue": {
         "kind": "n8nNode",
         "node": "n8n-nodes-base.microsoftToDo",
+        "note": "importance is low|normal|high — map canonical priority before the call. Due/reminder dates are dateTimeTimeZone objects ({dateTime, timeZone}), not plain ISO strings.",
         "parameters": {
+          "additionalFields": {
+            "content": "={{ $json.body.payload.description }}",
+            "dueDateTime": "={{ $json.body.payload.dueDate }}",
+            "importance": "={{ $json.body.payload.priority }}"
+          },
           "operation": "create",
           "resource": "task",
           "taskListId": "={{ $json.body.payload.projectId }}",
@@ -1706,12 +1712,17 @@ export const BACKENDS_DATA: BackendDefinition[] = [
       "update_issue": {
         "kind": "n8nNode",
         "node": "n8n-nodes-base.microsoftToDo",
+        "note": "status takes the Graph values (notStarted|inProgress|completed|waitingOnOthers|deferred) — translate from canonical via statusVocabulary before the call.",
         "parameters": {
           "operation": "update",
           "resource": "task",
           "taskId": "={{ $json.body.payload.issueId }}",
           "taskListId": "={{ $json.body.payload.projectId }}",
           "updateFields": {
+            "content": "={{ $json.body.payload.description }}",
+            "dueDateTime": "={{ $json.body.payload.dueDate }}",
+            "importance": "={{ $json.body.payload.priority }}",
+            "status": "={{ $json.body.payload.status }}",
             "title": "={{ $json.body.payload.title }}"
           }
         },
@@ -1731,8 +1742,7 @@ export const BACKENDS_DATA: BackendDefinition[] = [
       "scheduling": true
     },
     "credentialType": "microsoftToDoOAuth2Api",
-    "docsUrl": "https://docs.n8n.io/integrations/builtin/app-nodes/n8n-nodes-base.microsofttodo/",
-    "primaryRecord": "issue",
+    "docsUrl": "https://learn.microsoft.com/en-us/graph/todo-concept-overview",
     "fieldKeys": [
       "title",
       "status",
@@ -1747,8 +1757,22 @@ export const BACKENDS_DATA: BackendDefinition[] = [
     ],
     "id": "microsoft-todo",
     "label": "Microsoft To Do",
-    "notes": "Personal task manager: task lists → projects, tasks → issues. Updates/deletes need both the list id (projectId) and the task id (issueId).",
+    "nomenclature": {
+      "nav.projects": "Lists",
+      "term.project": "List"
+    },
+    "notes": "Personal task manager: task lists -> projects, tasks -> issues. Updates/deletes need both the list id (projectId) and the task id (issueId). AUTH IS DELEGATED-ONLY: Graph exposes no application-permission path to /todo, so the OAuth credential must be a signed-in user (Tasks.ReadWrite) — this matches OmniProject's per-user impersonation model; never a daemon key. Sync: prefer GET .../tasks/delta with a stored deltaLink; change-notification subscriptions are per-list and expire in under 3 days, so renew (or poll delta). checklistItems are the subtask analogue; linkedResources.externalId is the round-trip correlation slot for the OmniProject id. Throttled per app+mailbox at 10k requests/10min.",
+    "primaryRecord": "issue",
     "requiredEnv": [],
+    "statusVocabulary": {
+      "toCanonical": {
+        "completed": "done",
+        "deferred": "backlog",
+        "inProgress": "in_progress",
+        "notStarted": "todo",
+        "waitingOnOthers": "in_progress"
+      }
+    },
     "verification": "catalogued",
     "via": "Native n8n node (microsoftToDoOAuth2Api credential)"
   },
@@ -1904,8 +1928,9 @@ export const BACKENDS_DATA: BackendDefinition[] = [
   {
     "actions": {
       "create_issue": {
-        "body": "={{ JSON.stringify({ msdyn_subject: $json.body.payload.title }) }}",
+        "body": "={{ JSON.stringify({ msdyn_subject: $json.body.payload.title, msdyn_start: $json.body.payload.startDate, msdyn_finish: $json.body.payload.dueDate, 'msdyn_project@odata.bind': '/msdyn_projects(' + $json.body.payload.projectId + ')' }) }}",
         "method": "POST",
+        "note": "Writes to scheduling fields on msdyn_projecttask go through the Project Schedule APIs (operation sets) on real deployments — direct PATCHes of msdyn_start/msdyn_finish may be rejected for scheduled projects. Verify against your environment.",
         "url": "={{ $env.DATAVERSE_URL }}/api/data/v9.2/msdyn_projecttasks"
       },
       "delete_issue": {
@@ -1921,8 +1946,9 @@ export const BACKENDS_DATA: BackendDefinition[] = [
         "url": "={{ $env.DATAVERSE_URL }}/api/data/v9.2/msdyn_projects?$select=msdyn_subject,msdyn_scheduledstart,msdyn_scheduledend"
       },
       "update_issue": {
-        "body": "={{ JSON.stringify({ msdyn_subject: $json.body.payload.title }) }}",
+        "body": "={{ JSON.stringify({ msdyn_subject: $json.body.payload.title, msdyn_start: $json.body.payload.startDate, msdyn_finish: $json.body.payload.dueDate, msdyn_progress: $json.body.payload.percentWorkComplete }) }}",
         "method": "PATCH",
+        "note": "Writes to scheduling fields on msdyn_projecttask go through the Project Schedule APIs (operation sets) on real deployments — direct PATCHes of msdyn_start/msdyn_finish may be rejected for scheduled projects. Verify against your environment.",
         "url": "={{ $env.DATAVERSE_URL }}/api/data/v9.2/msdyn_projecttasks({{ $json.body.payload.issueId }})"
       }
     },
@@ -1939,11 +1965,23 @@ export const BACKENDS_DATA: BackendDefinition[] = [
       "scheduling": true
     },
     "credentialType": "microsoftDynamicsOAuth2Api",
-    "docsUrl": "https://learn.microsoft.com/en-us/dynamics365/project-operations/",
-    "primaryRecord": "issue",
+    "docsUrl": "https://learn.microsoft.com/en-us/dynamics365/project-operations/project-management/schedule-api-preview",
+    "fieldKeys": [
+      "title",
+      "status",
+      "startDate",
+      "dueDate",
+      "percentWorkComplete",
+      "parentTask",
+      "estimateHours",
+      "wbsCode",
+      "milestone",
+      "dependsOn"
+    ],
     "id": "msproject",
-    "label": "Microsoft Project (Project for the web)",
-    "notes": "Project for the web stores schedules in Dataverse (msdyn_project / msdyn_projecttask). For classic Project Online, point at the PWA OData (/_api/ProjectData) with a Microsoft OAuth credential instead.",
+    "label": "Microsoft Planner premium (Project)",
+    "notes": "Project for the web was retired into the new Planner (Aug 2025); its Dataverse tables (msdyn_project / msdyn_projecttask) remain the API surface for PREMIUM plans — this entry targets them via the Dataverse Web API (per-environment DATAVERSE_URL). Basic Planner plans use the separate Graph Planner API (delegated-only, etag If-Match on every write, no webhooks) and are not covered by this entry. Classic Project Online RETIRES 2026-09-30 (OData returns 410 after) — do not build against it; migrate via Planner premium or a Project XML (MSPDI) export through the import pipeline (parseMspdi -> /api/import). Desktop .mpp has no API: Save As XML (MSPDI) and run it through parseMspdi -> /api/import (summary rows skipped, outline chain kept as parentTask, PredecessorLink -> dependsOn, Duration -> hours).",
+    "primaryRecord": "issue",
     "requiredEnv": [
       "DATAVERSE_URL"
     ],

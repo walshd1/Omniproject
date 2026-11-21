@@ -3,7 +3,13 @@
     "create_issue": {
       "kind": "n8nNode",
       "node": "n8n-nodes-base.microsoftToDo",
+      "note": "importance is low|normal|high — map canonical priority before the call. Due/reminder dates are dateTimeTimeZone objects ({dateTime, timeZone}), not plain ISO strings.",
       "parameters": {
+        "additionalFields": {
+          "content": "={{ $json.body.payload.description }}",
+          "dueDateTime": "={{ $json.body.payload.dueDate }}",
+          "importance": "={{ $json.body.payload.priority }}"
+        },
         "operation": "create",
         "resource": "task",
         "taskListId": "={{ $json.body.payload.projectId }}",
@@ -47,12 +53,17 @@
     "update_issue": {
       "kind": "n8nNode",
       "node": "n8n-nodes-base.microsoftToDo",
+      "note": "status takes the Graph values (notStarted|inProgress|completed|waitingOnOthers|deferred) — translate from canonical via statusVocabulary before the call.",
       "parameters": {
         "operation": "update",
         "resource": "task",
         "taskId": "={{ $json.body.payload.issueId }}",
         "taskListId": "={{ $json.body.payload.projectId }}",
         "updateFields": {
+          "content": "={{ $json.body.payload.description }}",
+          "dueDateTime": "={{ $json.body.payload.dueDate }}",
+          "importance": "={{ $json.body.payload.priority }}",
+          "status": "={{ $json.body.payload.status }}",
           "title": "={{ $json.body.payload.title }}"
         }
       },
@@ -72,8 +83,7 @@
     "scheduling": true
   },
   "credentialType": "microsoftToDoOAuth2Api",
-  "docsUrl": "https://docs.n8n.io/integrations/builtin/app-nodes/n8n-nodes-base.microsofttodo/",
-  "primaryRecord": "issue",
+  "docsUrl": "https://learn.microsoft.com/en-us/graph/todo-concept-overview",
   "fieldKeys": [
     "title",
     "status",
@@ -88,8 +98,22 @@
   ],
   "id": "microsoft-todo",
   "label": "Microsoft To Do",
-  "notes": "Personal task manager: task lists → projects, tasks → issues. Updates/deletes need both the list id (projectId) and the task id (issueId).",
+  "nomenclature": {
+    "nav.projects": "Lists",
+    "term.project": "List"
+  },
+  "notes": "Personal task manager: task lists -> projects, tasks -> issues. Updates/deletes need both the list id (projectId) and the task id (issueId). AUTH IS DELEGATED-ONLY: Graph exposes no application-permission path to /todo, so the OAuth credential must be a signed-in user (Tasks.ReadWrite) — this matches OmniProject's per-user impersonation model; never a daemon key. Sync: prefer GET .../tasks/delta with a stored deltaLink; change-notification subscriptions are per-list and expire in under 3 days, so renew (or poll delta). checklistItems are the subtask analogue; linkedResources.externalId is the round-trip correlation slot for the OmniProject id. Throttled per app+mailbox at 10k requests/10min.",
+  "primaryRecord": "issue",
   "requiredEnv": [],
+  "statusVocabulary": {
+    "toCanonical": {
+      "completed": "done",
+      "deferred": "backlog",
+      "inProgress": "in_progress",
+      "notStarted": "todo",
+      "waitingOnOthers": "in_progress"
+    }
+  },
   "verification": "catalogued",
   "via": "Native n8n node (microsoftToDoOAuth2Api credential)"
 }

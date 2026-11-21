@@ -24,10 +24,10 @@ after(() => { h?.close(); fs.rmSync(CONFIG_DIR, { recursive: true, force: true }
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const json = async (r: Response): Promise<any> => r.json();
 
-test("GET /task-vocabulary returns the shipped 6 GTD statuses before anything is authored", async () => {
+test("GET /task-vocabulary returns the shipped 7 GTD statuses before anything is authored", async () => {
   const r = await h.req("/task-vocabulary", { cookie: adminCookie() });
   assert.equal(r.status, 200);
-  assert.deepEqual((await json(r)).statuses.map((s: { id: string }) => s.id), ["next", "waiting", "scheduled", "someday", "done", "dropped"]);
+  assert.deepEqual((await json(r)).statuses.map((s: { id: string }) => s.id), ["inbox", "next", "waiting", "scheduled", "someday", "done", "dropped"]);
 });
 
 test("the resolved endpoint requires auth", async () => {

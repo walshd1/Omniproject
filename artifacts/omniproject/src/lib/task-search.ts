@@ -6,7 +6,7 @@ import { ORDINAL_LEVELS_BY_KIND, TASK_CLOSED_STATUSES, type FilterNode, type Fil
  * grammar (Todoist/Task-Café-ish), any token optionally negated with a leading `-`:
  *
  *   #tag                    tags include <tag>
- *   @context                context = <context>
+ *   @context                context = <context>, or any nested child (`@home` also matches `home/office`)
  *   is:overdue | today | soon | scheduled     urgency band (needs the row enriched with `_urgency`)
  *   is:untouched            gone stale (needs the row enriched with `_untouched`)
  *   is:done | open          closed vs open (by status)
@@ -47,7 +47,18 @@ function parseToken(tok: string, opts: TaskSearchOptions): FilterNode | null {
     }
     return { field: "tags", op: "has", value: tag };
   }
-  if (tok.startsWith("@") && tok.length > 1) return { field: "context", op: "eq", value: tok.slice(1) };
+  if (tok.startsWith("@") && tok.length > 1) {
+    // Nested contexts, GTD-style: contexts are PATHS (`home/office`), and a query for a parent
+    // context matches the whole subtree — `@home` matches context `home` AND `home/office`, but
+    // never `homework` (the prefix is anchored at the `/` separator, not a substring).
+    const context = tok.slice(1);
+    return {
+      any: [
+        { field: "context", op: "eq", value: context },
+        { field: "context", op: "startsWith", value: `${context}/` },
+      ],
+    };
+  }
 
   const colon = /^([a-z]+)(:|>=|<=|>|<)(.+)$/i.exec(tok);
   if (colon) {
