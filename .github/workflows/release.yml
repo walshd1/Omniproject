@@ -10,7 +10,21 @@
 #
 # closing the "is this really the build for that tag, and is this the image I pulled?" supply-chain gap.
 # The image is also still source-buildable (users can build their own from the same Dockerfile); the
-# published image is an additive, verifiable artifact, and the SBOM is attached to the GitHub Release.
+# published image is an additive, verifiable artifact.
+#
+# SBOM + provenance live on the IMAGE, not the Release. The CycloneDX SBOM and both attestations are
+# pushed to GHCR as OCI referrers on the pushed digest (and the SBOM is kept as a workflow artifact),
+# NOT attached to the GitHub Release. This is deliberate: the repo has immutable releases enabled, and
+# a release locks the moment it is published — so attaching assets to it afterwards is rejected
+# ("Cannot upload assets to an immutable release"), which previously failed the whole release run and
+# skipped the attestations. Binding the supply-chain evidence to the registry digest instead is both
+# immutability-proof and strictly more verifiable (a consumer checks the image they pulled, not a file
+# dangling off a release page). Retrieve the SBOM with:
+#
+#   gh attestation verify oci://ghcr.io/<owner>/<repo>:<tag> --owner <owner> --predicate-type https://cyclonedx.org/bom
+#
+# Release NOTES are authored/published separately (manually in the UI, or by the best-effort step below
+# when no release exists yet); the workflow never blocks on the Release.
 name: release
 
 on:
@@ -70,6 +84,11 @@ jobs:
           image: omni-shell:${{ github.ref_name }}
           format: cyclonedx-json
           output-file: sbom.cyclonedx.json
+          # Keep the SBOM as a workflow artifact, but do NOT attach it to the GitHub Release:
+          # the release is immutable once published, so an asset upload is rejected and fails the run.
+          # The SBOM is instead bound to the image digest by the attest-sbom step below (OCI referrer).
+          upload-artifact: true
+          upload-release-assets: false
 
       - name: Attest build provenance for the pushed image
         uses: actions/attest-build-provenance@v4
@@ -86,8 +105,13 @@ jobs:
           sbom-path: sbom.cyclonedx.json
           push-to-registry: true
 
-      - name: Publish the GitHub Release with the signed SBOM
+      # Publish release NOTES only — never attach assets (immutable releases reject that), and never
+      # fail the run on the Release. If the release was already published (e.g. manually in the UI,
+      # which is how this repo cuts releases), it is locked and this step is a harmless no-op; if no
+      # release exists yet for the tag, this creates one with auto-generated notes. The supply-chain
+      # evidence rides on the image (above), so a locked/absent release never costs us an attestation.
+      - name: Publish the GitHub Release notes (best-effort)
+        continue-on-error: true
         uses: softprops/action-gh-release@v3
         with:
-          files: sbom.cyclonedx.json
           generate_release_notes: true
