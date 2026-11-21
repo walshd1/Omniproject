@@ -56,22 +56,25 @@ test("restore never writes back a secret-bearing key, even if an old snapshot ca
   assert.ok(warnings.some((w) => /secret-bearing setting "webhooks"/.test(w)));
 });
 
-test("plaintext restore does NOT re-apply a dual-control security setting (audit: /setup/restore bypass)", () => {
+test("skipSecuritySettings withholds a dual-control security setting (audit: /setup/restore bypass)", () => {
   // `brokerUrl` relaxes the security posture: on the live PATCH /settings path it needs a passkey
-  // sign-off. A PLAINTEXT snapshot restore (POST /setup/restore, no sign-off) must therefore NOT
-  // re-apply it — otherwise it is a path around the dual-control gate that redirects every user's
-  // bearer token. The sealed (AES-GCM-authenticated) restore still carries it.
+  // sign-off. The UNTRUSTED plaintext restore route (POST /setup/restore, no sign-off) opts into
+  // `skipSecuritySettings` so it can't re-apply such a key — otherwise it is a path around the
+  // dual-control gate that redirects every user's bearer token.
   const snap = {
     schema: "omniproject/config-snapshot", version: 1, createdAt: "2026-07-17T00:00:00.000Z",
     settings: { brokerUrl: "https://attacker.example/hook", reportingCurrency: "USD" },
   };
-  const plain = applySnapshot(snap);
-  assert.equal("brokerUrl" in plain.patch, false, "a security setting must not be restored via the plaintext path");
-  assert.ok(plain.warnings.some((w) => /brokerUrl/.test(w) && /sign-off|Settings/i.test(w)));
+  const untrusted = applySnapshot(snap, { skipSecuritySettings: true });
+  assert.equal("brokerUrl" in untrusted.patch, false, "a security setting must not ride the untrusted restore path");
+  assert.ok(untrusted.warnings.some((w) => /brokerUrl/.test(w) && /sign-off|Settings/i.test(w)));
   // A non-security key in the same snapshot is still restored as usual (restore stays useful).
-  assert.equal(plain.patch["reportingCurrency"], "USD");
+  assert.equal(untrusted.patch["reportingCurrency"], "USD");
 
-  // The sealed full-restore path (bundle already authenticated by the deployment key) still applies it.
+  // TRUSTED callers (rollback, config-dir, sealed restores) do NOT set the flag → full restore, so the
+  // config-store version history and operator config load are unaffected.
+  const trusted = applySnapshot(snap);
+  assert.equal(trusted.patch["brokerUrl"], "https://attacker.example/hook");
   const sealed = applySnapshot(snap, { allowSecrets: true });
   assert.equal(sealed.patch["brokerUrl"], "https://attacker.example/hook");
 });

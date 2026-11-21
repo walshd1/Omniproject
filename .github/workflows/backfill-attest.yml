@@ -1,0 +1,73 @@
+# One-off supply-chain backfill for an ALREADY-PUBLISHED GHCR image tag.
+#
+# When a release run fails before its attestation steps (as 0.9.0 did — the immutable-release SBOM
+# upload errored and skipped provenance + SBOM attestation), the pushed image is already live in GHCR
+# but carries no SLSA build-provenance or SBOM attestation. This dispatchable workflow backfills them
+# IN PLACE against the existing registry digest: it does NOT rebuild the image (so the digest, and
+# therefore the attestation subject, is exactly what shipped) and does NOT touch the GitHub Release
+# (attestations are OCI referrers on the image, not release assets — immutability is irrelevant).
+#
+# Run it from Actions → "backfill-attest" → Run workflow, with the published tag (e.g. 0.9.0). Then:
+#   gh attestation verify oci://ghcr.io/<owner>/<repo>:<tag> --owner <owner>
+name: backfill-attest
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Published image tag to attest in place (e.g. 0.9.0)
+        required: true
+
+permissions:
+  packages: write # read the existing image from GHCR
+  id-token: write # keyless Sigstore signing (OIDC)
+  attestations: write # record build-provenance + SBOM attestations
+
+jobs:
+  backfill:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Log in to GHCR
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Resolve the published digest
+        id: img
+        run: |
+          set -euo pipefail
+          # GHCR image paths must be lowercase; ${{ github.repository }} can carry uppercase.
+          image="ghcr.io/${{ github.repository }}"
+          image="${image,,}"
+          # The registry MANIFEST digest the tag already resolves to — the exact artifact that shipped.
+          digest="$(docker buildx imagetools inspect "$image:${{ inputs.tag }}" --format '{{.Manifest.Digest}}')"
+          echo "image=$image" >> "$GITHUB_OUTPUT"
+          echo "digest=$digest" >> "$GITHUB_OUTPUT"
+          echo "Backfilling attestations for $image:${{ inputs.tag }} ($digest)"
+
+      - name: Generate CycloneDX SBOM (Syft) from the published image
+        uses: anchore/sbom-action@66cbf4bc1f1c0d2edc94016e65bc221b6bb0ad6c # v0.24.3
+        with:
+          image: ${{ steps.img.outputs.image }}:${{ inputs.tag }}
+          format: cyclonedx-json
+          output-file: sbom.cyclonedx.json
+          upload-artifact: true
+          upload-release-assets: false
+
+      - name: Attest build provenance for the published image
+        uses: actions/attest-build-provenance@v4
+        with:
+          subject-name: ${{ steps.img.outputs.image }}
+          subject-digest: ${{ steps.img.outputs.digest }}
+          push-to-registry: true
+
+      - name: Attest the SBOM against the published image
+        uses: actions/attest-sbom@v4
+        with:
+          subject-name: ${{ steps.img.outputs.image }}
+          subject-digest: ${{ steps.img.outputs.digest }}
+          sbom-path: sbom.cyclonedx.json
+          push-to-registry: true
