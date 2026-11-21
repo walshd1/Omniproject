@@ -51,12 +51,17 @@ export function mockupPreviewPlugin(): Plugin {
     }));
   }
 
+  // JSON.stringify alone is NOT safe for embedding a string into generated JS SOURCE: U+2028/U+2029 are
+  // valid in JSON but are line terminators in JavaScript, and `<` can open `</script>`/`<!--` sequences
+  // that break an inline-script context. Escaping them keeps a crafted mockup FILENAME from breaking out
+  // of the emitted string literal (improper code sanitization, CWE-116). The paths are local files, but
+  // the generator stays safe whatever lands on disk.
+  const jsString = (s: string): string =>
+    JSON.stringify(s).replace(/\u2028/g, "\\u2028").replace(/\u2029/g, "\\u2029").replace(/</g, "\\u003C");
+
   function generateSource(components: Array<DiscoveredComponent>): string {
     const entries = components
-      .map(
-        (c) =>
-          `  ${JSON.stringify(c.globKey)}: () => import(${JSON.stringify(c.importPath)})`,
-      )
+      .map((c) => `  ${jsString(c.globKey)}: () => import(${jsString(c.importPath)})`)
       .join(",\n");
 
     return [

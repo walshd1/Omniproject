@@ -236,7 +236,13 @@ export function listSurfaces(): { id: string; label: string }[] {
 export function screenIdForRoute(input?: string): string | undefined {
   if (!input) return undefined;
   if (SCREENS.some((s) => s.id === input)) return input;
-  const norm = (r: string): string => r.replace(/\/+$/, "") || "/";
+  // Strip trailing slashes without a regex: `/\/+$/` is quadratic on a `slashes + suffix` input
+  // (polynomial ReDoS, CWE-1333) and `input` here is a client-supplied surface. Linear scan instead.
+  const norm = (r: string): string => {
+    let end = r.length;
+    while (end > 0 && r.charCodeAt(end - 1) === 47 /* "/" */) end--;
+    return r.slice(0, end) || "/";
+  };
   const path = norm((input.split(/[?#]/)[0] ?? "/") || "/");
   const exact = SCREENS.find((s) => norm(s.route) === path);
   if (exact) return exact.id;

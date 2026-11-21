@@ -7,8 +7,10 @@ export type MdValue = string | number | boolean | null | undefined;
 
 function cell(v: MdValue): string {
   if (v === null || v === undefined) return "";
-  // Escape pipes and collapse newlines so the table stays one row per record.
-  return String(v).replace(/\|/g, "\\|").replace(/\r?\n/g, " ");
+  // Escape backslashes FIRST, then pipes, then collapse newlines — so the table stays one row per
+  // record. Order matters: escaping `|`→`\|` without first escaping a literal `\` leaves an input like
+  // `a\|b` as `a\\|b`, whose trailing `|` is an unescaped column separator (incomplete escaping, CWE-116).
+  return String(v).replace(/\\/g, "\\\\").replace(/\|/g, "\\|").replace(/\r?\n/g, " ");
 }
 
 /** Render a titled GitHub-flavoured Markdown table from headers + rows. */

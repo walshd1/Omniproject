@@ -64,7 +64,12 @@ export function setResponseObserver(fn: ResponseObserver | null): void {
  * Pass `null` to clear the base URL.
  */
 export function setBaseUrl(url: string | null): void {
-  _baseUrl = url ? url.replace(/\/+$/, "") : null;
+  if (!url) { _baseUrl = null; return; }
+  // Strip trailing slashes without a regex: `/\/+$/` is quadratic on a `slashes + suffix` input
+  // (polynomial ReDoS, CWE-1333). A linear scan from the end is equivalent and allocation-light.
+  let end = url.length;
+  while (end > 0 && url.charCodeAt(end - 1) === 47 /* "/" */) end--;
+  _baseUrl = url.slice(0, end);
 }
 
 /**

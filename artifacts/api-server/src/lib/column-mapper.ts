@@ -227,8 +227,11 @@ const COERCERS: Partial<Record<FieldType, (raw: unknown) => unknown>> = {
 export function coerceValue(value: unknown, type: FieldType): unknown {
   if (value == null || value === "") return null;
   const raw = typeof value === "string" ? value.trim() : value;
-  const coerce = COERCERS[type];
-  return coerce ? coerce(raw) : raw;
+  // Own-property lookup only: `COERCERS[type]` with an attacker-influenced `type` (an import-mapping
+  // entry) could otherwise resolve to an inherited member such as `constructor` / `hasOwnProperty` and
+  // invoke it (unvalidated dynamic method call, CWE-470). hasOwn + the function check rule that out.
+  const coerce = Object.hasOwn(COERCERS, type) ? COERCERS[type] : undefined;
+  return typeof coerce === "function" ? coerce(raw) : raw;
 }
 
 export interface MappingEntry {

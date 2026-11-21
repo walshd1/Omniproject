@@ -370,7 +370,18 @@ export function safeLocalPath(value: unknown): string {
   if (typeof value !== "string" || !value.startsWith("/")) return "/";
   if (value.startsWith("//") || value.startsWith("/\\")) return "/";
   if (/[\u0000-\u001f\u007f]/.test(value)) return "/"; // CR/LF/control smuggling
-  return value;
+  // Reconstruct the target from its parsed components against a fixed local base, so the result is a
+  // pure same-origin path+query+hash that structurally CANNOT carry a host or scheme — the redirect
+  // can only ever land on this origin (CWE-601). Parsing also makes the same-origin guarantee explicit
+  // to static analysis, which can't see through the string-prefix checks above. The earlier guards
+  // still run first so a protocol-relative or control-char target is rejected outright, not normalised.
+  try {
+    const u = new URL(value, "http://localhost");
+    const path = `${u.pathname}${u.search}${u.hash}`;
+    return path.startsWith("/") && !path.startsWith("//") ? path : "/";
+  } catch {
+    return "/";
+  }
 }
 
 // ── GET /api/auth/login ───────────────────────────────────────────────────────
