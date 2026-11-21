@@ -36,6 +36,21 @@ test("isLinkLocalIPv6: IPv4-mapped 169.254.0.0/16 is caught (the reported bypass
   assert.equal(isLinkLocalIPv6("::ffff:a9fd:a9fe"), false); // mapped 169.253.x.x — not link-local
 });
 
+test("isLinkLocalIPv6: IPv4-mapped IMDS in DOTTED-QUAD form (the form dns.lookup/inet_ntop returns)", () => {
+  // Regression: `::ffff:169.254.169.254` is what the resolver hands to isBlockedIp for an AAAA of
+  // `::ffff:a9fe:a9fe`. The old `::`-split parsed the dotted quad as ONE parseInt(…,16) slot, landing
+  // 0xffff at hextet 6 instead of 5, so the mapped-address check missed it → metadata floor bypass.
+  assert.equal(isLinkLocalIPv6("::ffff:169.254.169.254"), true);
+  assert.equal(isBlockedIp("::ffff:169.254.169.254", 6), true);
+  assert.equal(isLinkLocalIPv6("::ffff:169.253.169.254"), false); // adjacent /16 — still not link-local
+});
+
+test("isLinkLocalIPv6: NAT64 well-known prefix (64:ff9b::/96) embedding IMDS is caught", () => {
+  assert.equal(isLinkLocalIPv6("64:ff9b::a9fe:a9fe"), true); // 64:ff9b::169.254.169.254
+  assert.equal(isLinkLocalIPv6("64:ff9b::169.254.169.254"), true); // dotted form too
+  assert.equal(isLinkLocalIPv6("64:ff9b::8.8.8.8"), false); // NAT64-wrapped public is not link-local
+});
+
 test("isLinkLocalIPv6: unrelated/malformed input never throws and is not blocked", () => {
   assert.equal(isLinkLocalIPv6("::1"), false); // loopback — not this guard's concern
   assert.equal(isLinkLocalIPv6("not-an-ip"), false);
@@ -74,6 +89,9 @@ test("isPrivateOrLoopbackIPv6: ::1, fc00::/7 ULA, IPv4-mapped private; excludes 
   assert.equal(isPrivateOrLoopbackIPv6("fc00::1"), true);
   assert.equal(isPrivateOrLoopbackIPv6("fd12:3456::1"), true);
   assert.equal(isPrivateOrLoopbackIPv6("::ffff:a00:5"), true); // IPv4-mapped 10.0.0.5 in canonical hex (as URL.hostname produces)
+  assert.equal(isPrivateOrLoopbackIPv6("::ffff:10.0.0.5"), true); // SAME address, dotted-quad form (dns.lookup output)
+  assert.equal(isPrivateOrLoopbackIPv6("::"), true); // unspecified — connects to loopback on Linux
+  assert.equal(isPrivateOrLoopbackIPv6("64:ff9b::a00:5"), true); // NAT64-wrapped 10.0.0.5
   assert.equal(isPrivateOrLoopbackIPv6("2001:4860:4860::8888"), false); // public
   assert.equal(isPrivateOrLoopbackIPv6("fe80::1"), false); // link-local is the ALWAYS-ON floor, not this set
 });

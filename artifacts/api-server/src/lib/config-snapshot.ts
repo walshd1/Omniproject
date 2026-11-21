@@ -1,5 +1,5 @@
 import type { SettingsState } from "./settings";
-import { CLASSIFIED_KEYS } from "./security-settings";
+import { CLASSIFIED_KEYS, SECURITY_SETTINGS } from "./security-settings";
 
 /**
  * Config snapshot / backup-restore.
@@ -112,10 +112,20 @@ export function applySnapshot(input: unknown, opts: { allowSecrets?: boolean } =
   const s = snap.settings;
   if (!s || typeof s !== "object") throw new Error("Snapshot is missing a settings object");
 
-  const keys = capturedKeys(opts.allowSecrets === true);
+  const sealed = opts.allowSecrets === true;
+  const keys = capturedKeys(sealed);
   const captured = new Set(keys);
   const patch: Record<string, unknown> = {};
   for (const key of keys) {
+    // Dual-control security settings (brokerUrl, OIDC endpoints, requireTls, …) relax the posture and on
+    // the live PATCH /settings path require a passkey sign-off (settings-guard). A PLAINTEXT restore
+    // (POST /setup/restore) carries no such sign-off, so re-applying them here would be a path AROUND the
+    // dual-control gate (security audit). Skip + warn on the plaintext path; the sealed restore (the
+    // AES-GCM tag already authenticated the bundle against this deployment's key) still applies them.
+    if (!sealed && key in SECURITY_SETTINGS) {
+      if (key in s) warnings.push(`Skipped security setting "${key}" — re-apply it via Settings (requires sign-off)`);
+      continue;
+    }
     if (key in s) patch[key] = (s as Record<string, unknown>)[key];
     else warnings.push(`Snapshot omits "${key}" — left unchanged`);
   }

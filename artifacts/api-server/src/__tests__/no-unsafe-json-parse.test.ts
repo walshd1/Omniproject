@@ -49,7 +49,8 @@ const ALLOWLIST: Record<string, { count: number; reason: string }> = {
   "lib/user-credentials.ts": { count: 1, reason: "separately-keyed credential store load (AES-256-GCM aesGcmOpen-authenticated before parse — integrity established)" },
   // The built-in store / broker's OWN at-rest data (not a cross-trust boundary).
   "broker/builtin/sidecar-store.ts": { count: 1, reason: "built-in broker's own SQLite sidecar rows" },
-  "broker/reference-broker/index.ts": { count: 3, reason: "reference broker's own sealed/opened storage" },
+  // broker/reference-broker/index.ts: the broker reply is the seam's zero-trust boundary, so it now
+  // parses via safeParseJson (not bare JSON.parse) — no allowlist entry needed. See security audit F1.
   "history/connectors/object-store.ts": { count: 2, reason: "history connector reading its OWN-written entries from the configured object store" },
   "history/connectors/warehouse.ts": { count: 2, reason: "history connector reading its OWN-written rows from the configured warehouse" },
   // Dev-only / CLI tools (local files + operator-supplied args; never on a request path).
