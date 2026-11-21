@@ -190,7 +190,11 @@ router.get("/setup/snapshot", requireRole("admin"), (_req, res) => {
 // port/setup). Validates the snapshot, applies known settings, reports warnings.
 router.post("/setup/restore", requireRole("admin"), (req, res) => {
   try {
-    const { patch, warnings } = applySnapshot(req.body);
+    // Untrusted plaintext restore: withhold dual-control security settings (brokerUrl, OIDC endpoints,
+    // backendSource, …). They must be re-applied via PATCH /settings, which demands a passkey sign-off —
+    // otherwise this admin-only, sign-off-free route would be a path around that gate (security audit
+    // RESTORE-1). Trusted internal restores (rollback, config-dir, sealed bundles) do not set this flag.
+    const { patch, warnings } = applySnapshot(req.body, { skipSecuritySettings: true });
     const settings = updateSettings(patch);
     captureVersion("restored from snapshot");
     res.json({ restored: true, warnings, settings });

@@ -101,7 +101,10 @@ export function buildSnapshot(settings: SettingsState, includeSecrets = false): 
  * proven the bundle came from this deployment's own key), so a full encrypted
  * backup restores secrets too.
  */
-export function applySnapshot(input: unknown, opts: { allowSecrets?: boolean } = {}): { patch: Record<string, unknown>; warnings: string[] } {
+export function applySnapshot(
+  input: unknown,
+  opts: { allowSecrets?: boolean; skipSecuritySettings?: boolean } = {},
+): { patch: Record<string, unknown>; warnings: string[] } {
   const warnings: string[] = [];
   if (!input || typeof input !== "object") throw new Error("Snapshot must be a JSON object");
 
@@ -117,12 +120,14 @@ export function applySnapshot(input: unknown, opts: { allowSecrets?: boolean } =
   const captured = new Set(keys);
   const patch: Record<string, unknown> = {};
   for (const key of keys) {
-    // Dual-control security settings (brokerUrl, OIDC endpoints, requireTls, …) relax the posture and on
-    // the live PATCH /settings path require a passkey sign-off (settings-guard). A PLAINTEXT restore
-    // (POST /setup/restore) carries no such sign-off, so re-applying them here would be a path AROUND the
-    // dual-control gate (security audit). Skip + warn on the plaintext path; the sealed restore (the
-    // AES-GCM tag already authenticated the bundle against this deployment's key) still applies them.
-    if (!sealed && key in SECURITY_SETTINGS) {
+    // Dual-control security settings (brokerUrl, OIDC endpoints, backendSource, …) relax the posture and
+    // on the live PATCH /settings path require a passkey sign-off (settings-guard). The UNTRUSTED
+    // plaintext restore route (POST /setup/restore) carries no such sign-off, so it opts into
+    // `skipSecuritySettings` to keep them out of its patch — closing the path AROUND the dual-control
+    // gate (security audit RESTORE-1). TRUSTED callers (config-store rollback/sandbox/promote, the
+    // operator config-dir load, and the AES-GCM-authenticated sealed restores) do NOT set the flag, so
+    // they restore the full captured state including these keys, exactly as before.
+    if (opts.skipSecuritySettings && key in SECURITY_SETTINGS) {
       if (key in s) warnings.push(`Skipped security setting "${key}" — re-apply it via Settings (requires sign-off)`);
       continue;
     }
