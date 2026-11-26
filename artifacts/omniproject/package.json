@@ -94,7 +94,7 @@
     "vite": "catalog:",
     "vitest": "^4.1.12",
     "vitest-axe": "^0.1.0",
-    "wouter": "^3.3.5",
+    "wouter": "^3.13.0",
     "yjs": "^13.6.33",
     "zod": "catalog:",
     "zustand": "^5.1.0"
